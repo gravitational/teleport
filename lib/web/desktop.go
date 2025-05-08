@@ -578,7 +578,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, l
 		return trace.Wrap(err)
 	}
 
-	pings := make(chan tdp.Ping)
+	pings := make(chan tdp.Ping, 1)
 
 	if latencySupported {
 		pinger := desktopPinger{
@@ -603,28 +603,35 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, l
 	// run a goroutine to pick TDP messages up from a channel and send
 	// them to the browser
 	errs.Go(func() error {
-		for msg := range tdpMessagesToSend {
-			if ping, ok := msg.(tdp.Ping); ok {
-				pings <- ping
-				continue
-			}
-			if ls, ok := msg.(tdp.LatencyStats); ok {
-				log.Debug(ctx, "sending latency stats", "client", ls.ClientLatency, "server", ls.ServerLatency)
-			}
-			encoded, err := msg.Encode()
-			if err != nil {
-				return err
-			}
+		for {
+			select {
+			case msg := <-tdpMessagesToSend:
+				if ping, ok := msg.(tdp.Ping); ok {
+					select {
+					case pings <- ping:
+					default:
+					}
+					continue
+				}
+				if ls, ok := msg.(tdp.LatencyStats); ok {
+					log.Debug(ctx, "sending latency stats", "client", ls.ClientLatency, "server", ls.ServerLatency)
+				}
+				encoded, err := msg.Encode()
+				if err != nil {
+					return err
+				}
 
-			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
-			if utils.IsOKNetworkError(err) {
-				return err
-			}
-			if err != nil {
-				return err
+				err = ws.WriteMessage(websocket.BinaryMessage, encoded)
+				if utils.IsOKNetworkError(err) {
+					return err
+				}
+				if err != nil {
+					return err
+				}
+			case <-ctx.Done():
+				return nil
 			}
 		}
-		return nil
 	})
 
 	// run a second goroutine to read TDP messages from the Windows
@@ -645,7 +652,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, l
 		for {
 			msg, err := tc.ReadMessage()
 			if utils.IsOKNetworkError(err) {
-				return err
+				return nil
 			} else if err != nil {
 				isFatal := tdp.IsFatalErr(err)
 				severity := tdp.SeverityError
@@ -682,7 +689,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, l
 			_, reader, err := ws.NextReader()
 			switch {
 			case utils.IsOKNetworkError(err):
-				return err
+				return nil
 			case err != nil:
 				return err
 			}
