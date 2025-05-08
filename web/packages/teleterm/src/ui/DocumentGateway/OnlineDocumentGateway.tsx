@@ -54,7 +54,7 @@ export function OnlineDocumentGateway(props: {
   const hasError =
     props.changeDbNameAttempt.status === 'error' ||
     props.changePortAttempt.status === 'error';
-  const formRef = useRef<HTMLFormElement>(undefined);
+  const formRef = useRef<HTMLFormElement>(null);
   const { gateway } = props;
 
   const handleChangeDbName = useMemo(() => {

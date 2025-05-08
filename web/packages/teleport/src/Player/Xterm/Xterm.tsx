@@ -28,7 +28,7 @@ import Terminal from 'teleport/lib/term/terminal';
 import Tty from 'teleport/lib/term/tty';
 
 export default function Xterm({ tty }: { tty: Tty }) {
-  const refContainer = useRef<HTMLDivElement>(undefined);
+  const refContainer = useRef<HTMLDivElement>(null);
   const theme = useTheme();
   const terminalPlayer = useRef<TerminalPlayer>(undefined);
   const [showSearch, setShowSearch] = useState(false);

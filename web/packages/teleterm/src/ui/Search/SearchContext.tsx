@@ -72,7 +72,7 @@ export const SearchContextProvider: FC<PropsWithChildren> = props => {
   const appContext = useAppContext();
   // The type of the ref is Element to adhere to the type of document.activeElement.
   const previouslyActive = useRef<Element>(undefined);
-  const inputRef = useRef<HTMLInputElement>(undefined);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [activePicker, setActivePicker] = useState(actionPicker);

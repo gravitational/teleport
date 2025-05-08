@@ -52,7 +52,7 @@ export const VnetConnectionItem = (props: {
     onRun: props.openVnetPanel,
   });
 
-  const ref = useRef<HTMLLIElement>(undefined);
+  const ref = useRef<HTMLLIElement>(null);
 
   useEffect(() => {
     scrollIntoViewIfActive(ref.current);

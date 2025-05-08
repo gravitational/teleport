@@ -54,8 +54,8 @@ const rootClusterDoc = makeDocumentCluster({
 });
 
 export function InfoGuideSidePanel() {
-  const topBarConnectMyComputerRef = useRef<HTMLDivElement>(undefined);
-  const topBarAccessRequestRef = useRef<HTMLDivElement>(undefined);
+  const topBarConnectMyComputerRef = useRef<HTMLDivElement>(null);
+  const topBarAccessRequestRef = useRef<HTMLDivElement>(null);
 
   const appContext = new MockAppContext();
   const cluster = makeRootCluster({

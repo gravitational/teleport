@@ -87,7 +87,7 @@ function useMenuItems(): MenuItem[] {
 
 export function AdditionalActions() {
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
-  const selectorRef = useRef<HTMLButtonElement>(undefined);
+  const selectorRef = useRef<HTMLButtonElement>(null);
 
   const items = useMenuItems().map(item => {
     return (

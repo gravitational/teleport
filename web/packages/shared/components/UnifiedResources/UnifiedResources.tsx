@@ -192,7 +192,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     bulkActions = [],
   } = props;
 
-  const containerRef = useRef<HTMLDivElement>(undefined);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const { setTrigger } = useInfiniteScroll({
     fetch: fetchResources,
