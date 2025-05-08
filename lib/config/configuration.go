@@ -506,6 +506,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.AccessGraph.CA = fc.AccessGraph.CA
 		// TODO(tigrato): change this behavior when we drop support for plain text connections
 		cfg.AccessGraph.Insecure = fc.AccessGraph.Insecure
+		cfg.AccessGraph.AuditLog = servicecfg.AuditLogConfig(fc.AccessGraph.AuditLog)
 	}
 
 	applyString(fc.NodeName, &cfg.Hostname)
@@ -1628,9 +1629,19 @@ kubernetes matchers are present`)
 					ExternalID: awsMatcher.ExternalID,
 				}
 			}
+			var sqsQueue *types.AccessGraphAWSSyncSQSPolling
+			if awsMatcher.SQSPolling != nil {
+				sqsQueue = &types.AccessGraphAWSSyncSQSPolling{
+					SQSQueue: awsMatcher.SQSPolling.QueueURL,
+					Region:   awsMatcher.SQSPolling.QueueRegion,
+				}
+			}
+
 			tMatcher.AWS = append(tMatcher.AWS, &types.AccessGraphAWSSync{
-				Regions:    regions,
-				AssumeRole: assumeRole,
+				Regions:                 regions,
+				AssumeRole:              assumeRole,
+				EnableCloudTrailPolling: awsMatcher.EnableCloudTrailPolling,
+				SqsPolling:              sqsQueue,
 			})
 		}
 		for _, azureMatcher := range fc.Discovery.AccessGraph.Azure {

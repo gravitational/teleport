@@ -1,0 +1,113 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package accessgraph.v1alpha;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
+
+// GitHubAuditLogV1Cursor holds the cursor values for Github Audit log.
+message GitHubAuditLogV1Cursor {
+  // token is next cursor to use in subsequent requests.
+  string token = 1;
+  // last_event_id is the last event id received from github.
+  string last_event_id = 2;
+  // last_event_time is the time of the last event seen.
+  google.protobuf.Timestamp last_event_time = 3;
+}
+
+//GitHubAuditLogV1 holds the events shared between the client and the server.
+message GitHubAuditLogV1 {
+  repeated google.protobuf.Struct events = 1;
+  GitHubAuditLogV1Cursor cursor = 2;
+}
+
+// GitHubConfigV1 ..
+message GitHubConfigV1 {
+  google.protobuf.Timestamp start_date = 1; // Start date for exporting audit logs.
+}
+
+// GithubTokenV1 is the token v1
+message GithubTokenV1 {
+  // id is the token id.
+  int64 id = 1;
+  // name is the token alias.
+  string name = 2;
+  // owner is the token owner
+  string owner = 3;
+  // expires is the token expiration time.
+  google.protobuf.Timestamp expires = 4;
+  // permissions are the token permissions.
+  repeated GithubTokenV1Permission permissions = 5;
+  string organization = 6;
+}
+
+// GithubTokenV1Permission...
+message GithubTokenV1Permission {
+  // domain is the domain.
+  string domain = 1;
+  // verb is the verb.
+  string verb = 2;
+  // object is the object.
+  string object = 3;
+  string organization = 4;
+}
+
+// GithubTokenV1RoleAssignment...
+message GithubRoleAssignmentV1 {
+  int64 role_id = 1;
+  bool owner = 2;
+  string user = 3;
+  string organization = 4;
+}
+
+// GithubTokenV1Role...
+message GithubRoleV1 {
+  int64 role_id = 1;
+  string name = 2;
+  string organization = 3;
+}
+
+// GithubTokenV1Role...
+message GithubRepositoryV1 {
+  string name = 1;
+  repeated string collaborators = 2;
+  string organization = 3;
+}
+
+// GithubSync...
+message GithubSync {}
+
+// GithubResourceList...
+message GithubResourceList {
+  repeated GithubResource resources = 1;
+}
+
+// GithubResource...
+message GithubResource {
+  oneof resource {
+    GithubTokenV1 token = 1;
+    GithubRoleAssignmentV1 role_assignment = 2;
+    GithubRoleV1 role = 3;
+    GithubRepositoryV1 repository = 4;
+  }
+}

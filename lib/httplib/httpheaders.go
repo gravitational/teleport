@@ -67,7 +67,7 @@ type CSPMap map[string][]string
 
 var defaultContentSecurityPolicy = CSPMap{
 	"default-src": {"'self'"},
-	"script-src":  {"'self'"},
+	"script-src":  {"'self'", "blob:"},
 	// specify CSP directives not covered by `default-src`
 	"base-uri":        {"'self'"},
 	"form-action":     {"'self'"},
@@ -79,7 +79,7 @@ var defaultContentSecurityPolicy = CSPMap{
 }
 
 var defaultFontSrc = CSPMap{"font-src": {"'self'", "data:"}}
-var defaultConnectSrc = CSPMap{"connect-src": {"'self'", "wss:"}}
+var defaultConnectSrc = CSPMap{"connect-src": {"'self'", "wss:", "https://api.anthropic.com", "https://*.amazonaws.com"}}
 
 var wasmSecurityPolicy = CSPMap{
 	"script-src": {"'self'", "'wasm-unsafe-eval'"},

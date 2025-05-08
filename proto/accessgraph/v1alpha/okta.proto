@@ -1,0 +1,126 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package accessgraph.v1alpha;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
+
+// OktaEventV1 ...
+message OktaEventV1 {
+  OktaIdentityV1 identity = 1;
+  OktaLocationV1 location = 2;
+  string event_type = 3;
+  google.protobuf.Timestamp published = 4;
+  string result = 5;
+  repeated OktaTargetV1 targets = 6;
+  string origin = 7;
+  google.protobuf.Struct event_data = 8;
+}
+
+// OktaIdentityV1
+message OktaIdentityV1 {
+  string id = 1;
+  string name = 2;
+  string kind = 3;
+  string token = 4;
+  string user_agent = 5;
+}
+
+// OktaLocationV1
+message OktaLocationV1 {
+  string ip = 1;
+}
+
+// OktaTargetV1
+message OktaTargetV1 {
+  string id = 1;
+  string name = 2;
+  string kind = 3;
+}
+
+// GitHubAuditLogV1Cursor holds the cursor values for Github Audit log.
+message OktaAuditLogV1Cursor {
+  // token is next cursor to use in subsequent requests.
+  string token = 1;
+  // last_event_id is the last event id received from github.
+  string last_event_id = 2;
+  // last_event_time is the time of the last event seen.
+  google.protobuf.Timestamp last_event_time = 3;
+}
+
+//GitHubAuditLogV1 holds the events shared between the client and the server.
+message OktaAuditLogV1 {
+  repeated OktaEventV1 events = 1;
+  OktaAuditLogV1Cursor cursor = 2;
+}
+
+// GitHubConfigV1 ..
+message OktaConfigV1 {
+  google.protobuf.Timestamp start_date = 1; // Start date for exporting audit logs.
+}
+
+// GithubTokenV1 is the token v1
+message OktaTokenV1 {
+  // id is the token id.
+  string id = 1;
+  // name is the token alias.
+  string name = 2;
+  // owner is the token owner
+  string owner = 3;
+  // expires is the token expiration time.
+  google.protobuf.Timestamp expires = 4;
+  string organization = 6;
+  google.protobuf.Timestamp created = 8;
+  google.protobuf.Timestamp updated = 9;
+}
+
+// GithubTokenV1RoleAssignment...
+message OktaRoleAssignmentV1 {
+  string role_id = 1;
+  string user_id = 3;
+  string organization = 4;
+}
+
+// GithubTokenV1Role...
+message OktaRoleV1 {
+  string role_id = 1;
+  string type = 2;
+  string organization = 3;
+}
+
+// GithubSync...
+message OktaSync {}
+
+// GithubResourceList...
+message OktaResourceList {
+  repeated OktaResource resources = 1;
+}
+
+// GithubResource...
+message OktaResource {
+  oneof resource {
+    OktaTokenV1 token = 1;
+    OktaRoleAssignmentV1 role_assignment = 2;
+    OktaRoleV1 role = 3;
+  }
+}

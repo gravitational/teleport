@@ -543,6 +543,13 @@ func (o *PluginOktaSyncSettings) GetEnableBidirectionalSync() bool {
 	return !o.DisableBidirectionalSync
 }
 
+func (o *PluginOktaSyncSettings) GetEnableSiemIntegration() bool {
+	if o == nil {
+		return false
+	}
+	return o.EnableSiemIntegration
+}
+
 type OktaUserSyncSource string
 
 // IsUnknown returns true if user sync source is empty or explicitly set to "unknown".

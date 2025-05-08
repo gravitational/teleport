@@ -832,6 +832,16 @@ type AccessGraph struct {
 	CA string `yaml:"ca"`
 	// Insecure is true if the AccessGraph service should not verify the CA.
 	Insecure bool `yaml:"insecure"`
+	// AuditLog contains audit log export details.
+	AuditLog AuditLogConfig `yaml:"audit_log"`
+}
+
+// AuditLogConfig sepcifies the audit log event export setup.
+type AuditLogConfig struct {
+	// Enabled indicates if Audit Log event exporting is enabled.
+	Enabled bool `yaml:"enabled"`
+	// StartDate is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
+	StartDate time.Time `yaml:"start_date"`
 }
 
 // Opsgenie represents the configuration for the Opsgenie plugin.
@@ -1593,6 +1603,13 @@ type AccessGraphSync struct {
 	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
+type AccessGraphAWSSyncSQSPolling struct {
+	// QueueURL is the URL of the SQS queue to poll for AWS resources.
+	QueueURL string `yaml:"queue_url,omitempty"`
+	// QueueRegion is the AWS region of the SQS queue to poll for AWS resources.
+	QueueRegion string `yaml:"queue_region,omitempty"`
+}
+
 // AccessGraphAWSSync represents the configuration for the AWS AccessGraph Sync service.
 type AccessGraphAWSSync struct {
 	// Regions are AWS regions to poll for resources.
@@ -1601,7 +1618,9 @@ type AccessGraphAWSSync struct {
 	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
 	// ExternalID is the AWS external ID to use when assuming a role for
 	// database discovery in an external AWS account.
-	ExternalID string `yaml:"external_id,omitempty"`
+	ExternalID              string                        `yaml:"external_id,omitempty"`
+	EnableCloudTrailPolling bool                          `yaml:"cloud_trail_polling,omitempty"`
+	SQSPolling              *AccessGraphAWSSyncSQSPolling `yaml:"sqs_polling,omitempty"`
 }
 
 // AccessGraphAzureSync represents the configuration for the Azure AccessGraph Sync service.
