@@ -18,6 +18,7 @@ package desktop
 
 import (
 	"context"
+
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 
@@ -75,7 +76,8 @@ func Connect(ctx context.Context, stream grpc.BidiStreamingServer[api.ConnectToD
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(tdp.ProxyConn(ctx, downstreamRW, conn))
+	tdpConnProxy := tdp.NewConnProxy(downstreamRW, conn, nil)
+	return trace.Wrap(tdpConnProxy.Run(ctx))
 }
 
 // clientStream implements the [streamutils.Source] interface

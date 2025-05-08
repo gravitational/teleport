@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -31,7 +32,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -489,14 +489,11 @@ func (d desktopPinger) Ping(ctx context.Context) error {
 // Desktop Serivce (wds)
 func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, log *slog.Logger, version string) error {
 	ctx, cancel := context.WithCancel(ctx)
-	var closeOnce sync.Once
-	close := func() {
+	defer func() {
 		cancel()
 		ws.Close()
 		wds.Close()
-	}
-
-	tdpMessagesToSend := make(chan tdp.Message)
+	}()
 
 	latencySupported, err := utils.MinVerWithoutPreRelease(version, "17.5.0")
 	if err != nil {
@@ -504,6 +501,18 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, l
 	}
 
 	pings := make(chan tdp.Ping)
+
+	tdpConnProxy := tdp.NewConnProxy(&WebsocketIO{Conn: ws}, wds, func(_ *tdp.Conn, msg tdp.Message) (tdp.Message, error) {
+		if ping, ok := msg.(tdp.Ping); ok {
+			pings <- ping
+			return nil, nil
+		}
+
+		if ls, ok := msg.(tdp.LatencyStats); ok {
+			log.DebugContext(ctx, "sending latency stats", "client", ls.ClientLatency, "server", ls.ServerLatency)
+		}
+		return msg, nil
+	})
 
 	if latencySupported {
 		pinger := desktopPinger{
@@ -513,116 +522,16 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, l
 
 		go monitorLatency(ctx, clockwork.NewRealClock(), ws, pinger,
 			latency.ReporterFunc(func(ctx context.Context, stats latency.Statistics) error {
-				tdpMessagesToSend <- tdp.LatencyStats{
+				return trace.Wrap(tdpConnProxy.SendToClient(ctx, tdp.LatencyStats{
 					ClientLatency: uint32(stats.Client),
 					ServerLatency: uint32(stats.Server),
-				}
-				return nil
+				}))
 			}),
 		)
 
 	}
 
-	var errs errgroup.Group
-
-	// run a goroutine to pick TDP messages up from a channel and send
-	// them to the browser
-	errs.Go(func() error {
-		for msg := range tdpMessagesToSend {
-			if ping, ok := msg.(tdp.Ping); ok {
-				pings <- ping
-				continue
-			}
-			if ls, ok := msg.(tdp.LatencyStats); ok {
-				log.DebugContext(ctx, "sending latency stats", "client", ls.ClientLatency, "server", ls.ServerLatency)
-			}
-			encoded, err := msg.Encode()
-			if err != nil {
-				return err
-			}
-
-			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
-			if utils.IsOKNetworkError(err) {
-				return err
-			}
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-
-	// run a second goroutine to read TDP messages from the Windows
-	// agent and write them to our send channel
-	errs.Go(func() error {
-		defer closeOnce.Do(close)
-
-		// we avoid using io.Copy here, as we want to make sure
-		// each TDP message is sent as a unit so that a single
-		// 'message' event is emitted in the browser
-		// (io.Copy's internal buffer could split one message
-		// into multiple ws.WriteMessage calls)
-		tc := tdp.NewConn(wds)
-
-		// we don't care about the content of the message, we just
-		// need to split the stream into individual messages and
-		// write them to the websocket
-		for {
-			msg, err := tc.ReadMessage()
-			if utils.IsOKNetworkError(err) {
-				return err
-			} else if err != nil {
-				isFatal := tdp.IsFatalErr(err)
-				severity := tdp.SeverityError
-				if !isFatal {
-					severity = tdp.SeverityWarning
-				}
-				sendErr := sendTDPAlert(ws, err, severity)
-
-				// If the error wasn't fatal and we successfully
-				// sent it back to the client, continue.
-				if !isFatal && sendErr == nil {
-					continue
-				}
-
-				// If the error was fatal or we failed to send it back
-				// to the client, send it to the errs channel and end
-				// the session.
-				if sendErr != nil {
-					err = sendErr
-				}
-				return err
-			}
-			tdpMessagesToSend <- msg
-		}
-	})
-
-	// run a goroutine to read TDP messages coming from the browser
-	// and pass them on to the Windows agent
-	errs.Go(func() error {
-		defer closeOnce.Do(close)
-
-		var buf bytes.Buffer
-		for {
-			_, reader, err := ws.NextReader()
-			switch {
-			case utils.IsOKNetworkError(err):
-				return err
-			case err != nil:
-				return err
-			}
-			buf.Reset()
-			if _, err := io.Copy(&buf, reader); err != nil {
-				return err
-			}
-
-			if _, err := wds.Write(buf.Bytes()); err != nil {
-				return trace.Wrap(err, "sending TDP message to desktop agent")
-			}
-		}
-	})
-
-	return trace.Wrap(errs.Wait())
+	return trace.Wrap(tdpConnProxy.Run(ctx))
 }
 
 // handleProxyWebsocketConnErr handles the error returned by proxyWebsocketConn by
