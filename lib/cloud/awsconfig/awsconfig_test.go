@@ -113,7 +113,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 
 	t.Run("without an integration client, must return missing credential provider error", func(t *testing.T) {
 		ctx := context.Background()
-		_, err := provider.GetConfig(ctx, dummyRegion, WithCredentialsMaybeIntegration(dummyIntegration))
+		_, err := provider.GetConfig(ctx, dummyRegion, WithCredentialsMaybeIntegration(IntegrationMetadata{Name: dummyIntegration}))
 		require.True(t, trace.IsBadParameter(err), "unexpected error: %v", err)
 		require.ErrorContains(t, err, "missing AWS OIDC integration client")
 	})
@@ -126,7 +126,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 			return nil, trace.NotFound("integration not found")
 		}
 		_, err := provider.GetConfig(ctx, dummyRegion,
-			WithCredentialsMaybeIntegration(dummyIntegration),
+			WithCredentialsMaybeIntegration(IntegrationMetadata{Name: dummyIntegration}),
 			WithOIDCIntegrationClient(&fakeIntegrationClt),
 			WithSTSClientProvider(stsClt),
 		)
@@ -150,7 +150,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 			return azureIntegration, nil
 		}
 		_, err = provider.GetConfig(ctx, dummyRegion,
-			WithCredentialsMaybeIntegration(dummyIntegration),
+			WithCredentialsMaybeIntegration(IntegrationMetadata{Name: dummyIntegration}),
 			WithOIDCIntegrationClient(&fakeIntegrationClt),
 			WithSTSClientProvider(stsClt),
 		)
@@ -165,7 +165,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 			return "", trace.BadParameter("failed to generate OIDC token")
 		}
 		_, err = provider.GetConfig(ctx, dummyRegion,
-			WithCredentialsMaybeIntegration(dummyIntegration),
+			WithCredentialsMaybeIntegration(IntegrationMetadata{Name: dummyIntegration}),
 			WithOIDCIntegrationClient(&fakeIntegrationClt),
 			WithSTSClientProvider(stsClt),
 		)
@@ -177,7 +177,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 		ctx := context.Background()
 
 		cfg, err := provider.GetConfig(ctx, dummyRegion,
-			WithCredentialsMaybeIntegration(dummyIntegration),
+			WithCredentialsMaybeIntegration(IntegrationMetadata{Name: dummyIntegration}),
 			WithOIDCIntegrationClient(&fakeIntegrationClt),
 			WithSTSClientProvider(stsClt),
 		)
@@ -191,7 +191,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 		ctx := context.Background()
 
 		cfg, err := provider.GetConfig(ctx, dummyRegion,
-			WithCredentialsMaybeIntegration(dummyIntegration),
+			WithCredentialsMaybeIntegration(IntegrationMetadata{Name: dummyIntegration}),
 			WithOIDCIntegrationClient(&fakeIntegrationClt),
 			WithAssumeRole("roleA", "abc123"),
 			WithSTSClientProvider(stsClt),
@@ -206,7 +206,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 	t.Run("with an integration credential provider assuming a role, must limit role chain length", func(t *testing.T) {
 		ctx := context.Background()
 		_, err := provider.GetConfig(ctx, dummyRegion,
-			WithCredentialsMaybeIntegration(dummyIntegration),
+			WithCredentialsMaybeIntegration(IntegrationMetadata{Name: dummyIntegration}),
 			WithOIDCIntegrationClient(&fakeIntegrationClt),
 			WithAssumeRole("roleA", "abc123"),
 			WithAssumeRole("roleB", "abc123"),
@@ -221,7 +221,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 		ctx := context.Background()
 
 		_, err := provider.GetConfig(ctx, dummyRegion,
-			WithCredentialsMaybeIntegration(""),
+			WithCredentialsMaybeIntegration(IntegrationMetadata{}),
 			WithOIDCIntegrationClient(&fakeOIDCIntegrationClient{unauth: true}),
 		)
 		require.NoError(t, err)
@@ -251,7 +251,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 		ctx := context.Background()
 
 		baseCfg, err := provider.GetConfig(ctx, dummyRegion,
-			WithCredentialsMaybeIntegration(""),
+			WithCredentialsMaybeIntegration(IntegrationMetadata{}),
 			WithOIDCIntegrationClient(&fakeOIDCIntegrationClient{unauth: true}),
 		)
 		require.NoError(t, err)
@@ -275,7 +275,7 @@ func TestNewCacheKey(t *testing.T) {
 		{RoleARN: "roleA"},
 		{RoleARN: "roleB", ExternalID: "abc123", SessionName: "alice", Tags: map[string]string{"AKey": "AValue"}},
 	}
-	got, err := newCacheKey("integration-name", roleChain...)
+	got, err := newCacheKey("integration-name", RolesAnywhereMetadata{}, roleChain...)
 	require.NoError(t, err)
 	want := strings.TrimSpace(`
 {"integration":"integration-name","role_chain":[{"role_arn":"roleA"},{"role_arn":"roleB","external_id":"abc123","session_name":"alice","tags":{"AKey":"AValue"}}]}

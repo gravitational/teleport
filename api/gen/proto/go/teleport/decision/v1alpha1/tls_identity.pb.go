@@ -439,9 +439,13 @@ type RouteToApp struct {
 	// for multi-port TCP apps. It is appended to the hostname from the URI in the
 	// app spec, since the URI from RouteToApp is not used as the source of truth
 	// for routing.
-	TargetPort    int32 `protobuf:"varint,9,opt,name=target_port,json=targetPort,proto3" json:"target_port,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	TargetPort int32 `protobuf:"varint,9,opt,name=target_port,json=targetPort,proto3" json:"target_port,omitempty"`
+	// AWSCredentialProcessCredentials contains the credentials to access AWS APIs.
+	// This is a JSON string that conforms with
+	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
+	AwsCredentialprocessCredentials string `protobuf:"bytes,10,opt,name=aws_credentialprocess_credentials,json=awsCredentialprocessCredentials,proto3" json:"aws_credentialprocess_credentials,omitempty"`
+	unknownFields                   protoimpl.UnknownFields
+	sizeCache                       protoimpl.SizeCache
 }
 
 func (x *RouteToApp) Reset() {
@@ -535,6 +539,13 @@ func (x *RouteToApp) GetTargetPort() int32 {
 		return x.TargetPort
 	}
 	return 0
+}
+
+func (x *RouteToApp) GetAwsCredentialprocessCredentials() string {
+	if x != nil {
+		return x.AwsCredentialprocessCredentials
+	}
+	return ""
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -816,7 +827,7 @@ const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\x12private_key_policy\x18  \x01(\tR\x10privateKeyPolicy\x128\n" +
 	"\x18connection_diagnostic_id\x18! \x01(\tR\x16connectionDiagnosticId\x12Y\n" +
 	"\x11device_extensions\x18\" \x01(\v2,.teleport.decision.v1alpha1.DeviceExtensionsR\x10deviceExtensions\x12\x1b\n" +
-	"\tuser_type\x18# \x01(\tR\buserType\"\xaf\x02\n" +
+	"\tuser_type\x18# \x01(\tR\buserType\"\xfb\x02\n" +
 	"\n" +
 	"RouteToApp\x12\x1d\n" +
 	"\n" +
@@ -831,7 +842,9 @@ const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\x13gcp_service_account\x18\a \x01(\tR\x11gcpServiceAccount\x12\x10\n" +
 	"\x03uri\x18\b \x01(\tR\x03uri\x12\x1f\n" +
 	"\vtarget_port\x18\t \x01(\x05R\n" +
-	"targetPort\"\x9e\x01\n" +
+	"targetPort\x12J\n" +
+	"!aws_credentialprocess_credentials\x18\n" +
+	" \x01(\tR\x1fawsCredentialprocessCredentials\"\x9e\x01\n" +
 	"\x0fRouteToDatabase\x12!\n" +
 	"\fservice_name\x18\x01 \x01(\tR\vserviceName\x12\x1a\n" +
 	"\bprotocol\x18\x02 \x01(\tR\bprotocol\x12\x1a\n" +
