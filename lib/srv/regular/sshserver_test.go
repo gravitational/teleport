@@ -1410,7 +1410,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 	display := make(chan string, 1)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
-		_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())))
+		_, err = fmt.Fprintf(keyboard, "printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())
 		assert.NoError(t, err)
 
 		assert.Eventually(t, func() bool {
@@ -3051,7 +3051,7 @@ func TestTargetMetadata(t *testing.T) {
 	metadata := sshSrv.TargetMetadata()
 	require.Equal(t, nodeID, metadata.ServerID)
 	require.Equal(t, apidefaults.Namespace, metadata.ServerNamespace)
-	require.Equal(t, "", metadata.ServerAddr)
+	require.Empty(t, metadata.ServerAddr)
 	require.Equal(t, "localhost", metadata.ServerHostname)
 
 	require.Contains(t, metadata.ServerLabels, "foo")

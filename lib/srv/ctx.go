@@ -1142,7 +1142,7 @@ func closeAll(closers ...io.Closer) error {
 }
 
 func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
-	addr := c.ConnectionContext.ServerConn.Conn.RemoteAddr()
+	addr := c.ConnectionContext.ServerConn.RemoteAddr()
 	hostname, _, err := net.SplitHostPort(addr.String())
 	if err != nil {
 		return nil, trace.Wrap(err)

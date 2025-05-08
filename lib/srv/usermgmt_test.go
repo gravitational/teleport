@@ -249,7 +249,7 @@ func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 
 	// an existing, unmanaged user should not be changed
 	closer, err = users.UpsertUser("simon", userinfo)
-	require.ErrorIs(t, err, unmanagedUserErr)
+	require.ErrorIs(t, err, errUnmanagedUser)
 	require.Equal(t, nil, closer)
 }
 
@@ -298,12 +298,12 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 		_, err := users.UpsertUser("testuser", services.HostUsersInfo{
 			Mode: services.HostUserModeDrop,
 		})
-		require.ErrorIs(t, err, unmanagedUserErr)
+		require.ErrorIs(t, err, errUnmanagedUser)
 		backend.CreateGroup(types.TeleportDropGroup, "")
 		_, err = users.UpsertUser("testuser", services.HostUsersInfo{
 			Mode: services.HostUserModeDrop,
 		})
-		require.ErrorIs(t, err, unmanagedUserErr)
+		require.ErrorIs(t, err, errUnmanagedUser)
 	})
 }
 
@@ -450,7 +450,7 @@ func Test_UpdateUserGroups_Keep(t *testing.T) {
 	// Do not convert the managed user to static.
 	userinfo.Mode = services.HostUserModeStatic
 	closer, err = users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, staticConversionErr)
+	assert.ErrorIs(t, err, errStaticConversion)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, append(userinfo.Groups, types.TeleportKeepGroup), backend.users["alice"])
@@ -506,7 +506,7 @@ func Test_UpdateUserGroups_Drop(t *testing.T) {
 	// Do not convert the managed user to static.
 	userinfo.Mode = services.HostUserModeStatic
 	closer, err = users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, staticConversionErr)
+	assert.ErrorIs(t, err, errStaticConversion)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, append(userinfo.Groups, types.TeleportDropGroup), backend.users["alice"])
@@ -558,7 +558,7 @@ func Test_UpdateUserGroups_Static(t *testing.T) {
 	// Do not convert to KEEP.
 	userinfo.Mode = services.HostUserModeKeep
 	closer, err = users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, staticConversionErr)
+	assert.ErrorIs(t, err, errStaticConversion)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, append(slices.Clone(allGroups[2:]), types.TeleportStaticGroup), backend.users["alice"])
@@ -566,7 +566,7 @@ func Test_UpdateUserGroups_Static(t *testing.T) {
 	// Do not convert to INSECURE_DROP.
 	userinfo.Mode = services.HostUserModeDrop
 	closer, err = users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, staticConversionErr)
+	assert.ErrorIs(t, err, errStaticConversion)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, append(slices.Clone(allGroups[2:]), types.TeleportStaticGroup), backend.users["alice"])
@@ -587,7 +587,7 @@ func Test_DontManageExistingUser(t *testing.T) {
 
 	// Update user in DROP mode
 	closer, err := users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, unmanagedUserErr)
+	assert.ErrorIs(t, err, errUnmanagedUser)
 	assert.Equal(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, allGroups, backend.users["alice"])
@@ -595,7 +595,7 @@ func Test_DontManageExistingUser(t *testing.T) {
 	// Update user in KEEP mode
 	userinfo.Mode = services.HostUserModeKeep
 	closer, err = users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, unmanagedUserErr)
+	assert.ErrorIs(t, err, errUnmanagedUser)
 	assert.Equal(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, allGroups, backend.users["alice"])
@@ -603,7 +603,7 @@ func Test_DontManageExistingUser(t *testing.T) {
 	// Update static user
 	userinfo.Mode = services.HostUserModeStatic
 	closer, err = users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, unmanagedUserErr)
+	assert.ErrorIs(t, err, errUnmanagedUser)
 	assert.Equal(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, allGroups, backend.users["alice"])
@@ -645,7 +645,7 @@ func Test_DontUpdateUnmanagedUsers(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			closer, err := users.UpsertUser("alice", tc.userinfo)
-			assert.ErrorIs(t, err, unmanagedUserErr)
+			assert.ErrorIs(t, err, errUnmanagedUser)
 			assert.Equal(t, nil, closer)
 			assert.Zero(t, backend.setUserGroupsCalls)
 			assert.ElementsMatch(t, allGroups[2:], backend.users["alice"])
@@ -694,7 +694,7 @@ func Test_AllowExplicitlyManageExistingUsers(t *testing.T) {
 	userinfo.Mode = services.HostUserModeDrop
 	userinfo.TakeOwnership = false
 	closer, err = users.UpsertUser("alice-drop", userinfo)
-	assert.ErrorIs(t, err, unmanagedUserErr)
+	assert.ErrorIs(t, err, errUnmanagedUser)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 2, backend.setUserGroupsCalls)
 	assert.Empty(t, backend.users["alice-drop"])
@@ -920,7 +920,7 @@ func TestHostUsersResolveGroups(t *testing.T) {
 			},
 
 			expectGroups: nil,
-			expectErr:    staticConversionErr,
+			expectErr:    errStaticConversion,
 		},
 		{
 			name: "don't convert keep to static",
@@ -938,7 +938,7 @@ func TestHostUsersResolveGroups(t *testing.T) {
 			},
 
 			expectGroups: nil,
-			expectErr:    staticConversionErr,
+			expectErr:    errStaticConversion,
 		},
 		{
 			name: "don't convert static to keep",
@@ -956,7 +956,7 @@ func TestHostUsersResolveGroups(t *testing.T) {
 			},
 
 			expectGroups: nil,
-			expectErr:    staticConversionErr,
+			expectErr:    errStaticConversion,
 		},
 		{
 			name: "don't convert static to drop",
@@ -973,7 +973,7 @@ func TestHostUsersResolveGroups(t *testing.T) {
 			},
 
 			expectGroups: nil,
-			expectErr:    staticConversionErr,
+			expectErr:    errStaticConversion,
 		},
 		{
 			name: "don't update unmanaged user in drop mode",
@@ -991,7 +991,7 @@ func TestHostUsersResolveGroups(t *testing.T) {
 			},
 
 			expectGroups: nil,
-			expectErr:    unmanagedUserErr,
+			expectErr:    errUnmanagedUser,
 		},
 		{
 			name: "don't update unmanaged user in keep mode",
@@ -1007,7 +1007,7 @@ func TestHostUsersResolveGroups(t *testing.T) {
 			},
 
 			expectGroups: nil,
-			expectErr:    unmanagedUserErr,
+			expectErr:    errUnmanagedUser,
 		},
 		{
 			name: "don't update unmanaged user in static mode",
@@ -1023,7 +1023,7 @@ func TestHostUsersResolveGroups(t *testing.T) {
 			},
 
 			expectGroups: nil,
-			expectErr:    unmanagedUserErr,
+			expectErr:    errUnmanagedUser,
 		},
 		{
 			name: "take over unmanaged user in keep mode when migrating",

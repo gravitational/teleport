@@ -2396,11 +2396,11 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 		}
 	}
 
-	switch {
+	switch r.Name {
 	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
-	case r.Name == teleport.GetHomeDirSubsystem:
+	case teleport.GetHomeDirSubsystem:
 		return newHomeDirSubsys(), nil
-	case r.Name == teleport.SFTPSubsystem:
+	case teleport.SFTPSubsystem:
 		err := ctx.CheckSFTPAllowed(s.reg)
 		if err != nil {
 			s.emitAuditEventWithLog(context.Background(), &apievents.SFTP{

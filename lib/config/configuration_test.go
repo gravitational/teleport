@@ -780,7 +780,7 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, "tcp://peerhost:1234", cfg.Proxy.PeerAddress.FullAddress())
 	require.Equal(t, "tcp://peer.example:1234", cfg.Proxy.PeerPublicAddr.FullAddress())
 	require.True(t, cfg.Proxy.IdP.SAMLIdP.Enabled)
-	require.Equal(t, "", cfg.Proxy.IdP.SAMLIdP.BaseURL)
+	require.Empty(t, cfg.Proxy.IdP.SAMLIdP.BaseURL)
 
 	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
 
