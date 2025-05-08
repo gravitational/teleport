@@ -8113,6 +8113,23 @@ message GitHubIntegrationSpecV1 {
 message AWSRAIntegrationSpecV1 {
   // TrustAnchorARN contains the AWS IAM Roles Anywhere Trust Anchor ARN used to set up the Integration.
   string TrustAnchorARN = 1 [(gogoproto.jsontag) = "trust_anchor_arn,omitempty"];
+
+  // ProfileSyncConfig contains the configuration for the AWS Roles Anywhere Profile sync.
+  // This is used to create AWS Roles Anywhere profiles as application servers.
+  AWSRolesAnywhereProfileSyncConfig ProfileSyncConfig = 2 [(gogoproto.jsontag) = "profile_sync_config"];
+}
+
+// AWSRolesAnywhereProfileSyncConfig contains the configuration for the AWS Roles Anywhere Profile sync.
+// This is used to sync AWS Roles Anywhere profiles as application servers.
+message AWSRolesAnywhereProfileSyncConfig {
+  // Enabled is set to true if this integration should sync profiles as application servers.
+  bool Enabled = 1 [(gogoproto.jsontag) = "enabled"];
+  // ProfileARN is the ARN of the Roles Anywhere Profile used to generate credentials to access the AWS APIs.
+  string ProfileARN = 2 [(gogoproto.jsontag) = "profile_arn"];
+  // ProfileAcceptsRoleSessionName indicates whether the profile accepts a custom Role Session name.
+  bool ProfileAcceptsRoleSessionName = 3 [(gogoproto.jsontag) = "profile_accepts_role_session_name"];
+  // RoleARN is the ARN of the IAM Role to assume when accessing the AWS APIs.
+  string RoleARN = 4 [(gogoproto.jsontag) = "role_arn"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.
