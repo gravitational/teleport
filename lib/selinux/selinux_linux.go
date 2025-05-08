@@ -21,7 +21,9 @@ package selinux
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -70,12 +72,19 @@ func readConfig(target string) (string, error) {
 
 // CheckConfiguration returns an error if SELinux is not configured to
 // enforce the SSH service correctly.
-func CheckConfiguration() error {
+func CheckConfiguration(ensureEnforced bool, logger *slog.Logger) error {
 	if !ocselinux.GetEnabled() {
 		return trace.Errorf("SELinux is disabled or not present")
 	}
-	if ocselinux.EnforceMode() != ocselinux.Enforcing {
-		return trace.Errorf("SELinux mode is not enforcing, SELinux will not constrain anything")
+	if ocselinux.EnforceMode() == ocselinux.Disabled {
+		return trace.Errorf("SELinux mode is disabled, SELinux will not enforce or log anything")
+	}
+	if ocselinux.EnforceMode() == ocselinux.Permissive {
+		if ensureEnforced {
+			return trace.Errorf("SELinux mode is permissive, SELinux will not enforce rules only log denials")
+		} else {
+			slog.WarnContext(context.TODO(), "SELinux mode is permissive, SELinux will not enforce rules only log denials")
+		}
 	}
 
 	selinuxType, err := readConfig(selinuxTypeTag)
@@ -125,7 +134,11 @@ func CheckConfiguration() error {
 		return trace.Errorf("the SSH SELinux module %s is disabled", moduleName)
 	}
 	if modulePermissive {
-		return trace.Errorf("the SSH SELinux module %s is permissive, so policy denials will be logged but not enforced", moduleName)
+		if ensureEnforced {
+			return trace.Errorf("the SSH SELinux module %s is permissive, denials will be logged but not enforced", moduleName)
+		} else {
+			slog.WarnContext(context.TODO(), "the SSH SELinux module is permissive, denials will be logged but not enforced", "module_name", moduleName)
+		}
 	}
 
 	return nil

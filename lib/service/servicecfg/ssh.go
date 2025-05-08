@@ -72,6 +72,6 @@ type SSHConfig struct {
 	// the user and service.
 	ForceListen bool
 
-	// SELinuxEnabled indicates that SELinux support will be enabled.
-	SELinuxEnabled bool
+	// EnableSELinux indicates that SELinux support will be enabled.
+	EnableSELinux bool
 }

@@ -59,6 +59,8 @@ import (
 	"github.com/gravitational/teleport/lib/versioncontrol"
 )
 
+const selinuxUnsupportedErr = "--enable-selinux is allowed only when the SSH service is the only service enabled"
+
 // Options combines init/start teleport options
 type Options struct {
 	// Args is a list of command-line args passed from main()
@@ -199,7 +201,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		"AWS region AWS hosted database instance is running in.").Hidden().
 		StringVar(&ccf.DatabaseAWSRegion)
 	start.Flag("no-debug-service", "Disables debug service.").BoolVar(&ccf.DisableDebugService)
-	start.Flag("selinux", "Enables SELinux support for Teleport SSH and exits if SELinux is not configured correctly.").BoolVar(&ccf.SELinux)
+	start.Flag("enable-selinux", "Enables SELinux support for Teleport SSH and exits if SELinux is not configured correctly.").BoolVar(&ccf.EnableSELinux)
+	start.Flag("ensure-selinux-enforcing", "Exits with an error if SELinux is not configured to enforce Teleport SSH.").BoolVar(&ccf.EnsureSELinuxEnforcing)
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
@@ -668,12 +671,19 @@ Examples:
 		}
 
 		// Validate SELinux configuration if SELinux support is enabled
-		if !conf.SSH.Enabled && ccf.SELinux {
-			utils.FatalError(trace.BadParameter("--selinux is only allowed when SSH service is enabled"))
-		}
-		if ccf.SELinux {
-			if err := selinux.CheckConfiguration(); err != nil {
-				utils.FatalError(err)
+		if ccf.EnableSELinux {
+			if !conf.SSH.Enabled {
+				utils.FatalError(trace.BadParameter(selinuxUnsupportedErr))
+			}
+			if conf.AccessGraph.Enabled || conf.Auth.Enabled || conf.Databases.Enabled || conf.Kube.Enabled || conf.Okta.Enabled || conf.Proxy.Enabled || conf.WindowsDesktop.Enabled {
+				utils.FatalError(trace.BadParameter(selinuxUnsupportedErr))
+			}
+
+			if ccf.EnableSELinux {
+				if err := selinux.CheckConfiguration(ccf.EnsureSELinuxEnforcing, conf.Logger); err != nil {
+					utils.FatalError(err)
+				}
+				conf.Logger.InfoContext(context.Background(), "SELinux support is enabled for SSH service")
 			}
 		}
 
