@@ -37,41 +37,34 @@ interface IndicatorProps extends IconProps {
 }
 
 export function Indicator({ delay = 'short', ...iconProps }: IndicatorProps) {
-  const [isVisible, setIsVisible] = useState(delay === 'none');
+  const [canDisplay, setCanDisplay] = useState(false);
 
   useEffect(() => {
     const timeout = delayToMs[delay];
 
     const timer = setTimeout(() => {
-      setIsVisible(true);
+      setCanDisplay(true);
     }, timeout);
 
     return () => clearTimeout(timer);
   }, [delay]);
 
-  return (
-    <StyledSpinner
-      {...iconProps}
-      data-testid="indicator"
-      $isVisible={isVisible}
-    />
-  );
+  if (!canDisplay) {
+    return null;
+  }
+
+  return <StyledSpinner {...iconProps} data-testid="indicator" />;
 }
 
-const StyledSpinner = styled(SpinnerIcon)<{ $isVisible: boolean }>`
-  color: ${props =>
-    props.color || props.theme.colors.interactive.tonal.neutral[2]};
+const StyledSpinner = styled(SpinnerIcon)`
+  color: ${props => props.color || props.theme.colors.spotBackground[2]};
   display: inline-block;
-  opacity: ${props => (props.$isVisible ? 1 : 0)};
-  transition: opacity 0.2s;
-  ${({ size = '48px' }) => `
-    height: ${size};
-    width: ${size};
-  `}
 
   svg {
     animation: ${rotate360} 1.5s infinite linear;
-    height: 100%;
-    width: 100%;
+    ${({ size = '48px' }) => `
+    height: ${size};
+    width: ${size};
+  `}
   }
 `;
