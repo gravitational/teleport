@@ -21,6 +21,7 @@ package sso_test
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -98,6 +99,77 @@ func TestCLICeremony(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, username, loginResp.Username)
 }
+
+func TestCLISAMLCeremony(t *testing.T) {
+	ctx := context.Background()
+
+	mockProxy := newMockProxy(t)
+	username := "alice"
+
+	// Capture stderr.
+	stderr := &bytes.Buffer{}
+
+	// Create a basic redirector.
+	rd, err := sso.NewRedirector(sso.RedirectorConfig{
+		ProxyAddr: mockProxy.URL,
+		Browser:   teleport.BrowserNone,
+		Stderr:    stderr,
+	})
+	require.NoError(t, err)
+	t.Cleanup(rd.Close)
+
+	// Construct a fake ssh login response with the redirector's client callback URL.
+	successResponseURL, err := web.ConstructSSHResponse(web.AuthParams{
+		ClientRedirectURL: rd.ClientCallbackURL,
+		Username:          username,
+	})
+	require.NoError(t, err)
+
+	// Open a mock IdP server which will handle a redirect and result in the expected IdP session payload.
+	mockIdPServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, successResponseURL.String(), http.StatusPermanentRedirect)
+	}))
+	t.Cleanup(mockIdPServer.Close)
+
+	ceremony := sso.NewCLISAMLCeremony(rd, func(ctx context.Context, clientCallbackURL string) (redirectURL string, postForm string, err error) {
+		return mockIdPServer.URL, base64.StdEncoding.EncodeToString([]byte(postform)), nil
+	})
+
+	// Modify handle redirect to also browse to the clickable URL printed to stderr.
+	baseHandleRedirect := ceremony.HandleRequest
+	ceremony.HandleRequest = func(ctx context.Context, redirectURL, postForm string) error {
+		if err := baseHandleRedirect(ctx, redirectURL, postForm); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Read the clickable url from stderr and navigate to it
+		// using a simplified regexp for http://127.0.0.1:<port>/<uuid>
+		const clickableURLPattern = `http://127.0.0.1:\d+/[0-9A-Fa-f-]+`
+		clickableURL := regexp.MustCompile(clickableURLPattern).FindString(stderr.String())
+		resp, err := http.Get(clickableURL)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(body), "Teleport SAML Service Provider")
+
+		// Redirect to success screen to continue the test
+		resp, err = http.Get(mockIdPServer.URL)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		return nil
+	}
+
+	loginResp, err := ceremony.Run(ctx)
+	require.NoError(t, err)
+	require.Equal(t, username, loginResp.Username)
+}
+
+const postform = `
+ <form method="POST" action="https://example.com" id="SAMLRequestForm" />
+`
 
 func TestCLICeremony_MFA(t *testing.T) {
 	const token = "sso-mfa-token"
