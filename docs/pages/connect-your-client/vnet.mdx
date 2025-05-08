@@ -167,9 +167,65 @@ Querying for both addresses should result in some output being emitted by `tsh v
 
 When [submitting an
 issue](https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug,vnet&template=bug_report.md),
-make sure to include logs from `/var/log/vnet.log`, as well as [Teleport Connect
-logs](teleport-connect.mdx#submitting-an-issue) or the output of `tsh vnet -d`, depending on which
-client you use.
+make sure to include VNet logs as well as [Teleport Connect
+logs](teleport-connect.mdx#submitting-an-issue).
+
+You can collect VNet logs using the instructions below:
+
+<Tabs>
+<TabItem label="macOS">
+Logs from the VNet daemon are sent to [the unified logging system](https://support.apple.com/en-gb/guide/console/welcome/mac).
+
+To stream logs:
+
+```code
+$ log stream --predicate 'subsystem ENDSWITH ".vnetd"' --style syslog --level info
+```
+
+To dump logs captured so far to a file:
+
+```code
+$ log show --predicate 'subsystem ENDSWITH ".vnetd"' --style syslog --info > vnet.log
+```
+
+The logs can also be inspected in [the Console
+app](https://support.apple.com/en-gb/guide/console/cnsl1012/1.1/mac/15.0). Info logs are not shown
+by default, so make sure to select "Include Info Messages" from the Action menu.
+
+At the moment it's not possible to enable debug logs in the VNet daemon.
+
+{/* TODO: DELETE IN 21.0.0 */}
+Before version 18.0.0, VNet logs were saved in `/var/log/vnet.log`.
+
+If the error is related to Teleport Connect not being able to start VNet or issues with code
+signing, searching through `/var/log/com.apple.xpc.launchd/launchd.log` for `tsh` soon after
+attempting to start VNet might also bring up relevant information:
+
+```code
+$ grep tsh /var/log/com.apple.xpc.launchd/launchd.log
+```
+</TabItem>
+<TabItem label="Windows">
+Logs are saved to a custom log in Event Log called Teleport. To browse them, open [Event
+Viewer](https://learn.microsoft.com/en-us/shows/inside/event-viewer), select "Applications and
+Services Logs" in the sidebar on the left and choose "Teleport".
+
+To save them to a file, select "Save All Events As…" from the sidebar on the right.
+
+Alternatively, you can save them to a file with a PowerShell command:
+
+```code
+$ Get-WinEvent -LogName Teleport -FilterXPath "*[System[Provider[@Name='vnet']]]" -Oldest | Format-Table -Property TimeCreated,LevelDisplayName,Message -Wrap | Out-File vnet.log
+```
+
+To enable debug logs, search for "Edit the system environment variables" in the Start Menu. Select
+"Environment Variables…" and then add a new _system_ variable with the name `TELEPORT_DEBUG` and the
+value set to `1`, then restart VNet.
+
+{/* TODO: DELETE IN 21.0.0 */}
+Before version 18.0.0, VNet logs were saved in `C:\Program Files\Teleport Connect\resources\bin\logs.txt`.
+</TabItem>
+</Tabs>
 
 ## Next steps
 
