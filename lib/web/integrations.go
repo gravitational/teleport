@@ -104,7 +104,7 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 			return nil, trace.Wrap(err)
 		}
 
-	case types.IntegrationSubKindAWSRA:
+	case types.IntegrationSubKindAWSRolesAnywhere:
 		ig, err = types.NewIntegrationAWSRA(types.Metadata{
 			Name: req.Name,
 		}, &types.AWSRAIntegrationSpecV1{
@@ -200,13 +200,13 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	if req.AWSRA != nil {
-		if integration.GetSubKind() != types.IntegrationSubKindAWSRA {
-			return nil, trace.BadParameter("cannot update %q fields for a %q integration", types.IntegrationSubKindAWSRA, integration.GetSubKind())
+		if integration.GetSubKind() != types.IntegrationSubKindAWSRolesAnywhere {
+			return nil, trace.BadParameter("cannot update %q fields for a %q integration", types.IntegrationSubKindAWSRolesAnywhere, integration.GetSubKind())
 		}
 
-		spec := integration.GetAWSRAIntegrationSpec()
+		spec := integration.GetAWSRolesAnywhereIntegrationSpec()
 		spec.TrustAnchorARN = req.AWSRA.TrustAnchorARN
-		integration.SetAWSRAIntegrationSpec(spec)
+		integration.SetAWSRolesAnywhereIntegrationSpec(spec)
 	}
 
 	if _, err := clt.UpdateIntegration(r.Context(), integration); err != nil {
