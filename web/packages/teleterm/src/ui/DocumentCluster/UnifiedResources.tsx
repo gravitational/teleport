@@ -40,10 +40,15 @@ import {
   ResourceStatus,
   SharedUnifiedResource,
   UnifiedResources as SharedUnifiedResources,
+  UnifiedResourceDefinition,
   UnifiedResourcesPinning,
   UnifiedResourcesQueryParams,
   useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
+import {
+  getResourceId,
+  openStatusInfoPanel,
+} from 'shared/components/UnifiedResources/shared/StatusInfo';
 import { Attempt } from 'shared/hooks/useAsync';
 import { NodeSubKind } from 'shared/services';
 import {
@@ -79,6 +84,7 @@ import {
 } from './ActionButtons';
 import { InfoGuideSidePanel } from './InfoGuideSidePanel';
 import { useResourcesContext } from './resourcesContext';
+import { StatusInfo } from './StatusInfo';
 import { useUserPreferences } from './useUserPreferences';
 
 export function UnifiedResources(props: {
@@ -392,8 +398,22 @@ const Resources = memo(
         }),
     };
 
-    const { infoGuideConfig, panelWidth } = useInfoGuide();
+    const { infoGuideConfig, panelWidth, setInfoGuideConfig } = useInfoGuide();
     const infoGuideSidePanelOpened = infoGuideConfig != null;
+
+    function onShowStatusInfo(resource: UnifiedResourceDefinition) {
+      openStatusInfoPanel({
+        resource,
+        setInfoGuideConfig,
+        guide: (
+          <StatusInfo
+            resource={resource}
+            clusterUri={props.clusterUri}
+            key={getResourceId(resource)}
+          />
+        ),
+      });
+    }
 
     return (
       <Box
@@ -403,8 +423,7 @@ const Resources = memo(
         })}
       >
         <SharedUnifiedResources
-          // TODO(kimlisa): add support later
-          onShowStatusInfo={() => null}
+          onShowStatusInfo={onShowStatusInfo}
           params={props.queryParams}
           setParams={props.onParamsChange}
           unifiedResourcePreferencesAttempt={props.userPreferencesAttempt}
