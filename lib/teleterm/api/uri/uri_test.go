@@ -45,6 +45,10 @@ func TestString(t *testing.T) {
 			"/clusters/teleport.sh/dbs/dbhost1",
 		},
 		{
+			uri.NewClusterURI("teleport.sh").AppendDBServer("dbserver1"),
+			"/clusters/teleport.sh/db_servers/dbserver1",
+		},
+		{
 			uri.NewClusterURI("teleport.sh").AppendKube("kube-cluster-name").AppendKubeResourceNamespace("namespace-name"),
 			"/clusters/teleport.sh/kubes/kube-cluster-name/namespaces/namespace-name",
 		},

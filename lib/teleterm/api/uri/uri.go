@@ -207,6 +207,12 @@ func (r ResourceURI) AppendServer(id string) ResourceURI {
 	return r
 }
 
+// AppendDBServer appends db_server segment to the URI
+func (r ResourceURI) AppendDBServer(id string) ResourceURI {
+	r.path = fmt.Sprintf("%v/db_servers/%v", r.path, id)
+	return r
+}
+
 // AppendLeafCluster appends leaf cluster segment to the URI if name is not empty.
 func (r ResourceURI) AppendLeafCluster(name string) ResourceURI {
 	if name == "" {
