@@ -19,9 +19,9 @@
 
 #include <string.h>
 
-// CopyNSString converts and copies an Obj-C string to a C string which can be used with cgo.
+// TELCopyNSString converts and copies an Obj-C string to a C string which can be used with cgo.
 // The caller is expected to free the returned pointer.
-char *CopyNSString(NSString *val) {
+char *TELCopyNSString(NSString *val) {
   if (val) {
     return strdup([val UTF8String]);
   }
@@ -37,7 +37,7 @@ const char *BundleIdentifier(const char *bundlePath) {
   // objects that are no longer needed (such as bundleIdentifier).
   @autoreleasepool {
     NSString *bundleIdentifier = TELBundleIdentifier(@(bundlePath));
-    return CopyNSString(bundleIdentifier);
+    return TELCopyNSString(bundleIdentifier);
   }
 }
 
