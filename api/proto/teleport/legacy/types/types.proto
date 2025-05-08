@@ -2828,6 +2828,18 @@ message PromotedAccessList {
   string Title = 2 [(gogoproto.jsontag) = "title"];
 }
 
+// AccessRequestDryRunEnrichment contains the extra info added in a response to a dry run request.
+message AccessRequestDryRunEnrichment {
+  // ReasonMode specifies the reason mode for this Access Request as defined in
+  // [AccessRequestConditionsReason].reason.
+  string ReasonMode = 1 [
+    (gogoproto.jsontag) = "reason_mode,omitempty",
+    (gogoproto.casttype) = "RequestReasonMode"
+  ];
+  // ReasonPrompts is a sorted and deduplicated list of reason prompts for this Access Request.
+  repeated string ReasonPrompts = 2 [(gogoproto.jsontag) = "reason_prompt,omitempty"];
+}
+
 // AccessReview is a review to be applied to an Access Request.
 message AccessReview {
   // Author is the teleport username of the review author.
@@ -3049,6 +3061,9 @@ message AccessRequestSpecV3 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expiry,omitempty"
   ];
+
+  // DryRunEnrichment contains the extra info added in response to a dry run request.
+  AccessRequestDryRunEnrichment DryRunEnrichment = 23 [(gogoproto.jsontag) = "dry_run_enrichment,omitempty"];
 }
 
 enum AccessRequestScope {
