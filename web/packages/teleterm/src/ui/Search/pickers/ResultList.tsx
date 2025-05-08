@@ -43,10 +43,10 @@ type ResultListProps<T> = {
   /**
    * ExtraTopComponent is the element that is rendered above the items.
    */
-  ExtraTopComponent?: ReactElement<any>;
+  ExtraTopComponent?: ReactElement;
   onPick(item: T): void;
   onBack(): void;
-  render(item: T): { Component: ReactElement<any>; key: string };
+  render(item: T): { Component: ReactElement; key: string };
   addWindowEventListener: AddWindowEventListener;
 };
 

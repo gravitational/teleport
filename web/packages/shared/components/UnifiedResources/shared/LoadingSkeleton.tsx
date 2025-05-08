@@ -23,7 +23,7 @@ const DISPLAY_SKELETON_AFTER_MS = 150;
 export function LoadingSkeleton(props: {
   count: number;
   /* Single skeleton item. */
-  Element: ReactElement<any>;
+  Element: ReactElement;
 }) {
   const [canDisplay, setCanDisplay] = useState(false);
 
