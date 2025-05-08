@@ -37,9 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
-	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -503,15 +501,12 @@ type Cache struct {
 	dynamicAccessCache           services.DynamicAccessExt
 	presenceCache                services.Presence
 	restrictionsCache            services.Restrictions
-	databaseObjectsCache         *local.DatabaseObjectService
-	dynamicWindowsDesktopsCache  services.DynamicWindowsDesktops
 	userGroupsCache              services.UserGroups
 	discoveryConfigsCache        services.DiscoveryConfigs
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
 	secReportsCache              services.SecReports
 	eventsFanout                 *services.FanoutV2
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
-	kubeWaitingContsCache        *local.KubeWaitingContainerService
 	staticHostUsersCache         *local.StaticHostUserService
 	provisioningStatesCache      *local.ProvisioningStateService
 	identityCenterCache          *local.IdentityCenterService
@@ -926,22 +921,10 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	databaseObjectsCache, err := local.NewDatabaseObjectService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
 	for i := 0; i < config.FanoutShards; i++ {
 		lowVolumeFanouts = append(lowVolumeFanouts, services.NewFanoutV2(services.FanoutV2Config{}))
-	}
-
-	kubeWaitingContsCache, err := local.NewKubeWaitingContainerService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
 	}
 
 	staticHostUserCache, err := local.NewStaticHostUserService(config.Backend)
@@ -951,12 +934,6 @@ func New(config Config) (*Cache, error) {
 	}
 
 	identityService, err := local.NewIdentityService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	dynamicDesktopsService, err := local.NewDynamicWindowsDesktopService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -1000,15 +977,12 @@ func New(config Config) (*Cache, error) {
 		dynamicAccessCache:           local.NewDynamicAccessService(config.Backend),
 		presenceCache:                local.NewPresenceService(config.Backend),
 		restrictionsCache:            local.NewRestrictionsService(config.Backend),
-		dynamicWindowsDesktopsCache:  dynamicDesktopsService,
 		userGroupsCache:              userGroupsCache,
 		discoveryConfigsCache:        discoveryConfigsCache,
 		headlessAuthenticationsCache: identityService,
 		secReportsCache:              secReportsCache,
-		databaseObjectsCache:         databaseObjectsCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
-		kubeWaitingContsCache:        kubeWaitingContsCache,
 		staticHostUsersCache:         staticHostUserCache,
 		provisioningStatesCache:      provisioningStatesCache,
 		identityCenterCache:          identityCenterCache,
@@ -1766,36 +1740,6 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	return nil
 }
 
-// ListKubernetesWaitingContainers lists Kubernetes ephemeral
-// containers that are waiting to be created until moderated
-// session conditions are met.
-func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListKubernetesWaitingContainers")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.kubeWaitingContainers)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListKubernetesWaitingContainers(ctx, pageSize, pageToken)
-}
-
-// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
-// container that are waiting to be created until moderated
-// session conditions are met.
-func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesWaitingContainer")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.kubeWaitingContainers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetKubernetesWaitingContainer(ctx, req)
-}
-
 // ListStaticHostUsers lists static host users.
 func (c *Cache) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListStaticHostUsers")
@@ -1822,30 +1766,6 @@ func (c *Cache) GetStaticHostUser(ctx context.Context, name string) (*userprovis
 	return rg.reader.GetStaticHostUser(ctx, name)
 }
 
-func (c *Cache) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseObject")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.databaseObjects)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetDatabaseObject(ctx, name)
-}
-
-func (c *Cache) ListDatabaseObjects(ctx context.Context, size int, pageToken string) ([]*dbobjectv1.DatabaseObject, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListDatabaseObjects")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.databaseObjects)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListDatabaseObjects(ctx, size, pageToken)
-}
-
 // GetNetworkRestrictions gets the network restrictions.
 func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetNetworkRestrictions")
@@ -1858,32 +1778,6 @@ func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestri
 	defer rg.Release()
 
 	return rg.reader.GetNetworkRestrictions(ctx)
-}
-
-// GetDynamicWindowsDesktop returns registered dynamic Windows desktop by name.
-func (c *Cache) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetDynamicWindowsDesktop")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.dynamicWindowsDesktops)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetDynamicWindowsDesktop(ctx, name)
-}
-
-// ListDynamicWindowsDesktops returns all registered dynamic Windows desktop.
-func (c *Cache) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, nextPage string) ([]types.DynamicWindowsDesktop, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListDynamicWindowsDesktops")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.dynamicWindowsDesktops)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListDynamicWindowsDesktops(ctx, pageSize, nextPage)
 }
 
 // ListDiscoveryConfigs returns a paginated list of all DiscoveryConfig resources.

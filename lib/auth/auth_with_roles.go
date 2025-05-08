@@ -2071,21 +2071,6 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 		resources = servers.AsResources()
 
-	// TODO(sshah) DELETE IN 17.0
-	case types.KindAppOrSAMLIdPServiceProvider:
-		appsAndServiceProviders, err := a.GetAppServersAndSAMLIdPServiceProviders(ctx, req.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		appsOrSPs := types.AppServersOrSAMLIdPServiceProviders(appsAndServiceProviders)
-
-		if err := appsOrSPs.SortByCustom(req.SortBy); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resources = appsOrSPs.AsResources()
-
 	case types.KindSAMLIdPServiceProvider:
 		// Only add SAMLIdPServiceProviders to the list if the caller has an enterprise license.
 		if modules.GetModules().BuildType() == modules.BuildEnterprise {
@@ -5487,50 +5472,6 @@ func (a *ServerWithRoles) GetApplicationServers(ctx context.Context, namespace s
 		}
 	}
 	return filtered, nil
-}
-
-// GetAppServersAndSAMLIdPServiceProviders returns a list containing all registered AppServers and SAMLIdPServiceProviders.
-//
-//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
-func (a *ServerWithRoles) GetAppServersAndSAMLIdPServiceProviders(ctx context.Context, namespace string) ([]types.AppServerOrSAMLIdPServiceProvider, error) {
-	appservers, err := a.GetApplicationServers(ctx, namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var appsAndSPs []types.AppServerOrSAMLIdPServiceProvider
-	// Convert the AppServers to AppServerOrSAMLIdPServiceProviders.
-	for _, appserver := range appservers {
-		appServerV3 := appserver.(*types.AppServerV3)
-		appAndSP := &types.AppServerOrSAMLIdPServiceProviderV1{
-			Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
-				AppServer: appServerV3,
-			},
-		}
-		appsAndSPs = append(appsAndSPs, appAndSP)
-	}
-
-	// Only add SAMLIdPServiceProviders to the list if the caller has an enterprise license since this is an enteprise-only feature.
-	if modules.GetModules().BuildType() == modules.BuildEnterprise {
-		// Only attempt to list SAMLIdPServiceProviders if the caller has the permission to.
-		if err := a.action(types.KindSAMLIdPServiceProvider, types.VerbList); err == nil {
-			serviceProviders, _, err := a.authServer.ListSAMLIdPServiceProviders(ctx, 0, "")
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			for _, sp := range serviceProviders {
-				spV1 := sp.(*types.SAMLIdPServiceProviderV1)
-				appAndSP := &types.AppServerOrSAMLIdPServiceProviderV1{
-					Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
-						SAMLIdPServiceProvider: spV1,
-					},
-				}
-				appsAndSPs = append(appsAndSPs, appAndSP)
-			}
-		}
-	}
-
-	return appsAndSPs, nil
 }
 
 // UpsertApplicationServer registers an application server.

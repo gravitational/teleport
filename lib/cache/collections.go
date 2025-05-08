@@ -25,8 +25,10 @@ import (
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -75,8 +77,10 @@ type collections struct {
 	dbServices                       *collection[types.DatabaseService, databaseServiceIndex]
 	kubeServers                      *collection[types.KubeServer, kubeServerIndex]
 	kubeClusters                     *collection[types.KubeCluster, kubeClusterIndex]
+	kubeWaitingContainers            *collection[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex]
 	windowsDesktops                  *collection[types.WindowsDesktop, windowsDesktopIndex]
 	windowsDesktopServices           *collection[types.WindowsDesktopService, windowsDesktopServiceIndex]
+	dynamicWindowsDesktops           *collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]
 	userGroups                       *collection[types.UserGroup, userGroupIndex]
 	identityCenterAccounts           *collection[*identitycenterv1.Account, identityCenterAccountIndex]
 	identityCenterAccountAssignments *collection[*identitycenterv1.AccountAssignment, identityCenterAccountAssignmentIndex]
@@ -117,6 +121,8 @@ type collections struct {
 	remoteClusters                   *collection[types.RemoteCluster, remoteClusterIndex]
 	userTasks                        *collection[*usertasksv1.UserTask, userTaskIndex]
 	userLoginStates                  *collection[*userloginstate.UserLoginState, userLoginStateIndex]
+	gitServers                       *collection[types.Server, gitServerIndex]
+	databaseObjects                  *collection[*dbobjectv1.DatabaseObject, databaseObjectIndex]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -235,6 +241,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.dbServices = collect
 			out.byKind[resourceKind] = out.dbServices
+		case types.KindDatabaseObject:
+			collect, err := newDatabaseObjectCollection(c.DatabaseObjects, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.databaseObjects = collect
+			out.byKind[resourceKind] = out.databaseObjects
 		case types.KindKubeServer:
 			collect, err := newKubernetesServerCollection(c.Presence, watch)
 			if err != nil {
@@ -251,6 +265,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.kubeClusters = collect
 			out.byKind[resourceKind] = out.kubeClusters
+		case types.KindKubeWaitingContainer:
+			collect, err := newKubernetesWaitingContainerCollection(c.KubeWaitingContainers, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.kubeWaitingContainers = collect
+			out.byKind[resourceKind] = out.kubeWaitingContainers
 		case types.KindWindowsDesktop:
 			collect, err := newWindowsDesktopCollection(c.WindowsDesktops, watch)
 			if err != nil {
@@ -267,6 +289,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.windowsDesktopServices = collect
 			out.byKind[resourceKind] = out.windowsDesktopServices
+		case types.KindDynamicWindowsDesktop:
+			collect, err := newDynamicWindowsDesktopCollection(c.DynamicWindowsDesktops, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.dynamicWindowsDesktops = collect
+			out.byKind[resourceKind] = out.dynamicWindowsDesktops
 		case types.KindUserGroup:
 			collect, err := newUserGroupCollection(c.UserGroups, watch)
 			if err != nil {
@@ -591,6 +621,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.userLoginStates = collect
 			out.byKind[resourceKind] = out.userLoginStates
+		case types.KindGitServer:
+			collect, err := newGitServerCollection(c.GitServers, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.gitServers = collect
+			out.byKind[resourceKind] = out.gitServers
 		}
 	}
 

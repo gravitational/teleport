@@ -849,9 +849,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.clusterNodesGet))
 	h.POST("/webapi/sites/:site/nodes", h.WithClusterAuth(h.handleNodeCreate))
 
-	// Get applications.
-	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.clusterAppsGet))
-
 	// get login alerts
 	h.GET("/webapi/sites/:site/alerts", h.WithClusterAuth(h.clusterLoginAlertsGet))
 
@@ -3171,7 +3168,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				unifiedResources = append(unifiedResources, ui.MakeGitServer(site.GetName(), r, enriched.RequiresRequest))
 			}
 		case types.DatabaseServer:
-			db := ui.MakeDatabase(r.GetDatabase(), accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
+			db := ui.MakeDatabaseFromDatabaseServer(r, accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
 			allowedAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)
@@ -3192,35 +3189,6 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				RequiresRequest:       enriched.RequiresRequest,
 			})
 			unifiedResources = append(unifiedResources, app)
-		case types.AppServerOrSAMLIdPServiceProvider:
-			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
-			if r.IsAppServer() {
-				allowedAWSRoles, err := accessChecker.GetAllowedLoginsForResource(r.GetAppServer().GetApp())
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				allowedAWSRolesLookup := map[string][]string{
-					r.GetAppServer().GetApp().GetName(): allowedAWSRoles,
-				}
-				app := ui.MakeApp(r.GetAppServer().GetApp(), ui.MakeAppsConfig{
-					LocalClusterName:      h.auth.clusterName,
-					LocalProxyDNSName:     h.proxyDNSName(),
-					AppClusterName:        site.GetName(),
-					AllowedAWSRolesLookup: allowedAWSRolesLookup,
-					UserGroupLookup:       getUserGroupLookup(),
-					Logger:                h.logger,
-					RequiresRequest:       enriched.RequiresRequest,
-				})
-				unifiedResources = append(unifiedResources, app)
-			} else {
-				app := ui.MakeAppTypeFromSAMLApp(r.GetSAMLIdPServiceProvider(), ui.MakeAppsConfig{
-					LocalClusterName:  h.auth.clusterName,
-					LocalProxyDNSName: h.proxyDNSName(),
-					AppClusterName:    site.GetName(),
-					RequiresRequest:   enriched.RequiresRequest,
-				})
-				unifiedResources = append(unifiedResources, app)
-			}
 		case types.SAMLIdPServiceProvider:
 			// SAMLIdPServiceProvider resources are shown as
 			// "apps" in the UI.
