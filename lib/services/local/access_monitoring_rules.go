@@ -20,7 +20,6 @@ package local
 
 import (
 	"context"
-	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -109,34 +108,10 @@ func (s *AccessMonitoringRulesService) DeleteAllAccessMonitoringRules(ctx contex
 func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
 	resources, nextKey, err := s.svc.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(),
 		func(resource *accessmonitoringrulesv1.AccessMonitoringRule) bool {
-			return match(resource, req.GetSubjects(), req.GetNotificationName(), req.GetAutomaticReviewName())
+			return services.MatchAccessMonitoringRule(resource, req.GetSubjects(), req.GetNotificationName(), req.GetAutomaticReviewName())
 		})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 	return resources, nextKey, nil
-}
-
-// match returns true if the provided rule matches the provided match fields.
-// The match fields are optional. If a match field is not provided, then the
-// rule matches any value for that field.
-func match(rule *accessmonitoringrulesv1.AccessMonitoringRule, subjects []string, notificationIntegration, automaticReviewIntegration string) bool {
-	if notificationIntegration != "" {
-		if rule.GetSpec().GetNotification().GetName() != notificationIntegration {
-			return false
-		}
-	}
-	if automaticReviewIntegration != "" {
-		if rule.GetSpec().GetAutomaticReview().GetIntegration() != automaticReviewIntegration {
-			return false
-		}
-	}
-	for _, subject := range subjects {
-		if ok := slices.ContainsFunc(rule.Spec.Subjects, func(s string) bool {
-			return s == subject
-		}); !ok {
-			return false
-		}
-	}
-	return true
 }

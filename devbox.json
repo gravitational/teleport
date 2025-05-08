@@ -24,9 +24,9 @@
     "golangci-lint@1.62.0",
     "libfido2@1.13.0",
     "llvmPackages_14.clangUseLLVM@14.0.6",
-    "nodejs@20.11.1",
+    "nodejs@22.14.0",
     "protobuf3_20@3.20.3",
-    "pnpm@9.7.0",
+    "pnpm@10.7.0",
     "gnumake@4.3",
 
     "path:build.assets/flake#conditional",

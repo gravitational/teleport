@@ -35,17 +35,19 @@ import (
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
 
+type accessRequestCacheIndex string
+
 const (
 	// accessRequestID is the name of the sort index used for sorting request by ID (equivalent to proto.AccessRequestSort_DEFAULT since
 	// access requests currently default to being sorted by ID in the backend).
-	accessRequestID = "ID"
+	accessRequestID accessRequestCacheIndex = "ID"
 	// accessRequestCreated is the name of the sort index used for sorting requests by creation time (this is typically the sort order
 	// used in user interfaces, since most users that want to view requests want to see the most recent requests specifically).
-	accessRequestCreated = "Created"
+	accessRequestCreated accessRequestCacheIndex = "Created"
 	// accessRequestState is the name of the sort index used for sorting requests by their current state (pending, approved, etc).
-	accessRequestState = "State"
+	accessRequestState accessRequestCacheIndex = "State"
 	// accessRequestUser is the name of the sort index used for sorting requests by the person who created the request.
-	accessRequestUser = "User"
+	accessRequestUser accessRequestCacheIndex = "User"
 )
 
 // AccessRequestCacheConfig holds the configuration parameters for an [AccessRequestCache].
@@ -86,7 +88,7 @@ func (c *AccessRequestCacheConfig) CheckAndSetDefaults() error {
 type AccessRequestCache struct {
 	rw           sync.RWMutex
 	cfg          AccessRequestCacheConfig
-	primaryCache *sortcache.SortCache[*types.AccessRequestV3]
+	primaryCache *sortcache.SortCache[*types.AccessRequestV3, accessRequestCacheIndex]
 	ttlCache     *utils.FnCache
 	initC        chan struct{}
 	initOnce     sync.Once
@@ -188,7 +190,7 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 		return nil, trace.Wrap(err)
 	}
 
-	var index string
+	var index accessRequestCacheIndex
 	switch req.Sort {
 	case proto.AccessRequestSort_DEFAULT:
 		index = accessRequestID
@@ -257,9 +259,9 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 // fetch configures a sortcache and inserts all currently extant access requests into it. this method is used both
 // as the means of setting up the initial primary cache state, and for creating temporary cache states to read from
 // when the primary is unhealthy.
-func (c *AccessRequestCache) fetch(ctx context.Context) (*sortcache.SortCache[*types.AccessRequestV3], error) {
-	cache := sortcache.New(sortcache.Config[*types.AccessRequestV3]{
-		Indexes: map[string]func(*types.AccessRequestV3) string{
+func (c *AccessRequestCache) fetch(ctx context.Context) (*sortcache.SortCache[*types.AccessRequestV3, accessRequestCacheIndex], error) {
+	cache := sortcache.New(sortcache.Config[*types.AccessRequestV3, accessRequestCacheIndex]{
+		Indexes: map[accessRequestCacheIndex]func(*types.AccessRequestV3) string{
 			accessRequestID: func(req *types.AccessRequestV3) string {
 				// since accessRequestID is equivalent to the DEFAULT sort index (i.e. the sort index of the backend),
 				// it is preferable to keep its format equivalent to the format of the NextKey/StartKey values
@@ -304,7 +306,7 @@ func (c *AccessRequestCache) fetch(ctx context.Context) (*sortcache.SortCache[*t
 
 // read gets a read-only view into a valid cache state. it prefers reading from the primary cache, but will fallback
 // to a periodically reloaded temporary state when the primary state is unhealthy.
-func (c *AccessRequestCache) read(ctx context.Context) (*sortcache.SortCache[*types.AccessRequestV3], error) {
+func (c *AccessRequestCache) read(ctx context.Context) (*sortcache.SortCache[*types.AccessRequestV3, accessRequestCacheIndex], error) {
 	c.rw.RLock()
 	primary := c.primaryCache
 	c.rw.RUnlock()
@@ -316,7 +318,7 @@ func (c *AccessRequestCache) read(ctx context.Context) (*sortcache.SortCache[*ty
 		return primary, nil
 	}
 
-	temp, err := utils.FnCacheGet(ctx, c.ttlCache, "access-request-cache", func(ctx context.Context) (*sortcache.SortCache[*types.AccessRequestV3], error) {
+	temp, err := utils.FnCacheGet(ctx, c.ttlCache, "access-request-cache", func(ctx context.Context) (*sortcache.SortCache[*types.AccessRequestV3, accessRequestCacheIndex], error) {
 		return c.fetch(ctx)
 	})
 

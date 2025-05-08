@@ -45,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -105,7 +104,7 @@ func (c *ProxiedMetricConn) Close() error {
 }
 
 type serverResolverFn = func(ctx context.Context, host, port string, site site) (types.Server, error)
-type windowsDesktopServiceConnectorFn = func(ctx context.Context, config *desktop.ConnectionConfig) (net.Conn, error)
+type windowsDesktopServiceConnectorFn = func(ctx context.Context, config *desktop.ConnectionConfig) (conn net.Conn, version string, err error)
 
 // SiteGetter provides access to connected local or remote sites
 type SiteGetter interface {
@@ -214,7 +213,7 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 // DialHost dials the node that matches the provided host, port and cluster. If no matching node
 // is found an error is returned. If more than one matching node is found and the cluster networking
 // configuration is not set to route to the most recent an error is returned.
-func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter, signer agentless.SignerCreator) (_ net.Conn, err error) {
+func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter teleagent.Getter, signer agentless.SignerCreator) (_ net.Conn, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialHost",
@@ -234,7 +233,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 
 	site := r.localSite
 	if clusterName != r.clusterName {
-		remoteSite, err := r.getRemoteCluster(ctx, clusterName, accessChecker)
+		remoteSite, err := r.getRemoteCluster(ctx, clusterName, clusterAccessChecker)
 		if err != nil {
 			return nil, trace.Wrap(err, "looking up remote cluster %q", clusterName)
 		}
@@ -330,7 +329,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 
 // DialWindowsDesktop dials the desktop that matches the provided desktop name and cluster.
 // If no matching desktop is found, an error is returned.
-func (r *Router) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, clusterName string, accessChecker services.AccessChecker) (_ net.Conn, err error) {
+func (r *Router) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, clusterName string, clusterAccessChecker func(types.RemoteCluster) error) (_ net.Conn, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialWindowsDesktop",
@@ -344,7 +343,7 @@ func (r *Router) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDs
 
 	site := r.localSite
 	if clusterName != r.clusterName {
-		remoteSite, err := r.getRemoteCluster(ctx, clusterName, accessChecker)
+		remoteSite, err := r.getRemoteCluster(ctx, clusterName, clusterAccessChecker)
 		if err != nil {
 			return nil, trace.Wrap(err, "looking up remote cluster %q", clusterName)
 		}
@@ -358,7 +357,7 @@ func (r *Router) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDs
 
 	span.AddEvent("looking up Windows desktop service connection")
 
-	serviceConn, err := r.windowsDesktopServiceConnector(ctx, &desktop.ConnectionConfig{
+	serviceConn, _, err := r.windowsDesktopServiceConnector(ctx, &desktop.ConnectionConfig{
 		Log:            r.log,
 		DesktopsGetter: accessPoint,
 		Site:           site,
@@ -416,7 +415,7 @@ func (c *checkedPrefixWriter) Write(p []byte) (int, error) {
 
 // getRemoteCluster looks up the provided clusterName to determine if a remote site exists with
 // that name and determines if the user has access to it.
-func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, checker services.AccessChecker) (reversetunnelclient.RemoteSite, error) {
+func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, clusterAccessChecker func(types.RemoteCluster) error) (reversetunnelclient.RemoteSite, error) {
 	_, span := r.tracer.Start(
 		ctx,
 		"router/getRemoteCluster",
@@ -436,7 +435,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 		return nil, utils.OpaqueAccessDenied(err)
 	}
 
-	if err := checker.CheckAccessToRemoteCluster(rc); err != nil {
+	if err := clusterAccessChecker(rc); err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
 

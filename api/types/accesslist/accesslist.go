@@ -406,8 +406,8 @@ func (a *AccessList) MatchSearch(values []string) bool {
 	return types.MatchSearch(fieldVals, values, nil)
 }
 
-// CloneResource returns a copy of the resource as types.ResourceWithLabels.
-func (a *AccessList) CloneResource() types.ResourceWithLabels {
+// Clone returns a copy of the list.
+func (a *AccessList) Clone() *AccessList {
 	var copy *AccessList
 	utils.StrictObjectToStruct(a, &copy)
 	return copy
