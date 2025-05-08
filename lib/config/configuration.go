@@ -265,8 +265,9 @@ type CommandLineFlags struct {
 	// EnableSELinux enables SELinux support for the SSH service.
 	EnableSELinux bool
 
-	// EnsureSELinuxEnforcing will enable exiting if SELinux is not
-	// configured to enforce the SSH service SELinux module.
+	// EnsureSELinuxEnforcing will cause Teleport to exit if the SELinux module
+	// is not set to enforcing mode or the global SELinux mode is not set to
+	// enforcing.
 	EnsureSELinuxEnforcing bool
 }
 

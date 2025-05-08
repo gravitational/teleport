@@ -22,13 +22,14 @@ package selinux
 
 import (
 	"errors"
+	"log/slog"
 )
 
 var errPlatformNotSupported = errors.New("platform not supported")
 
 // CheckConfiguration returns an error if SELinux is not configured to
 // enforce the SSH service correctly.
-func CheckConfiguration() error {
+func CheckConfiguration(ensureEnforced bool, logger *slog.Logger) error {
 	return errPlatformNotSupported
 }
 

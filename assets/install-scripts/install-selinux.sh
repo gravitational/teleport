@@ -44,9 +44,9 @@ done
 WORK_DIR="$(mktemp -d teleport-selinux.XXXXXXXX)"
 trap 'rm -rf "${WORK_DIR}"' EXIT INT TERM
 
-"${TELEPORT}" selinux module-source > "${WORK_DIR}/teleport_ssh.te"
-"${TELEPORT}" selinux file-contexts ${TELEPORT_ARGS} > "${WORK_DIR}/teleport_ssh.fc"
-DIRS=$(${TELEPORT} selinux dirs ${TELEPORT_ARGS})
+"${TELEPORT}" selinux-ssh module-source > "${WORK_DIR}/teleport_ssh.te"
+"${TELEPORT}" selinux-ssh file-contexts ${TELEPORT_ARGS} > "${WORK_DIR}/teleport_ssh.fc"
+DIRS=$(${TELEPORT} selinux-ssh dirs ${TELEPORT_ARGS})
 
 # Build SELinux module
 cd "${WORK_DIR}"
