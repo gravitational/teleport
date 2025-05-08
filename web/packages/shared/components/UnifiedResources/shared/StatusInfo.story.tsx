@@ -137,13 +137,13 @@ const fewDbServers: DatabaseServer[] = [
     kind: 'db_server',
     hostId: 'host-id-1',
     hostname: 'hostname-1',
-    targetHealth: { status: 'unhealthy', reason: 'reason 1' },
+    targetHealth: { status: 'unhealthy', error: 'error reason 1' },
   },
   {
     kind: 'db_server',
     hostId: 'host-id-2',
     hostname: 'hostname-2',
-    targetHealth: { status: 'unhealthy', reason: 'reason 2' },
+    targetHealth: { status: 'unhealthy', error: 'error reason 2' },
   },
   {
     kind: 'db_server',
@@ -151,7 +151,7 @@ const fewDbServers: DatabaseServer[] = [
       'host-id-long-george-washington-cherry-blossom-apple-banana-orange-chocolate-meow',
     hostname:
       'hostname-long-really-long-like-really-long-longer-pumpkin-pie-halloween',
-    targetHealth: { status: 'unknown', reason: loremTxt },
+    targetHealth: { status: 'unknown', error: loremTxt },
   },
 ];
 
