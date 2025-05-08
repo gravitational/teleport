@@ -50,10 +50,6 @@ Arguments:
 $ {{.Name}}{{template "FormatCommand" .}}{{if .Commands}} <command> [<args> ...]{{end}}
 ```
 
-{{if .Help -}}
-{{.Help|Wrap 0 }}
-{{end -}}
-
 {{end -}}
 ---
 title: {{.App.Name}} Reference
@@ -61,7 +57,9 @@ description: Provides a comprehensive list of commands, arguments, and flags for
 ---
 
 This guide provides a comprehensive list of commands, arguments, and flags for
-{{.App.Name}}.
+{{.App.Name}}: {{ if .App.Help -}}
+{{- .App.Help|Wrap 0 }}
+{{ end -}}
 
 {{template "FormatUsage" .App -}}
 {{if .Context.Flags -}}
