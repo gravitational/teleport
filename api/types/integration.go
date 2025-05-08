@@ -329,6 +329,19 @@ func (s *IntegrationSpecV1_AWSRA) CheckAndSetDefaults() error {
 		return trace.BadParameter("trust_anchor_arn is required for %q subkind", IntegrationSubKindAWSRolesAnywhere)
 	}
 
+	if s.AWSRA.ProfileSyncConfig == nil {
+		s.AWSRA.ProfileSyncConfig = &AWSRolesAnywhereProfileSyncConfig{}
+	}
+
+	if s.AWSRA.ProfileSyncConfig.Enabled {
+		if s.AWSRA.ProfileSyncConfig.ProfileARN == "" {
+			return trace.BadParameter("profile_sync_config.profile_arn is required when profile_sync_config is enabled")
+		}
+		if s.AWSRA.ProfileSyncConfig.RoleARN == "" {
+			return trace.BadParameter("profile_sync_config.role_arn is required when profile_sync_config is enabled")
+		}
+	}
+
 	return nil
 }
 
