@@ -32,7 +32,7 @@ pub(crate) fn decode(data: &[u8], v: &mut Vec<u8>) {
     while data.len() > 0 {
         match data {
             [b1 @ 0..QOI_OP_INDEX, b2, dtail @ ..] => {
-                px565 = [b1 >> 3, (b1 & 7) + (b2 >> 5), b2 & 63];
+                px565 = [b1 >> 3, ((b1 & 7) << 3) + (b2 >> 5), b2 & 31];
                 px = rgb565_to_888(&px565);
                 v.extend_from_slice(&px);
                 data = dtail;
@@ -44,7 +44,7 @@ pub(crate) fn decode(data: &[u8], v: &mut Vec<u8>) {
                 continue;
             }
             [QOI_OP_RGB, b1, b2, dtail @ ..] => {
-                px565 = [b1 >> 3, ((b1 & 7) << 3) + (b2 >> 5), b2 & 63];
+                px565 = [b1 >> 3, ((b1 & 7) << 3) + (b2 >> 5), b2 & 31];
                 px = rgb565_to_888(&px565);
                 v.extend_from_slice(&px);
                 data = dtail;
@@ -124,7 +124,7 @@ fn update_diff(data: &[u8], b1: u8) -> [u8; 3] {
 
 #[inline]
 fn update_luma(data: &[u8], b1: u8, b2: u8) -> [u8; 3] {
-    let vg = (b1 & 0x1f).wrapping_sub(16);
+    let vg = b1.wrapping_sub(16);
     let vg_8 = vg.wrapping_sub(8);
     let vr = vg_8.wrapping_add((b2 >> 4) & 0x0f);
     let vb = vg_8.wrapping_add(b2 & 0x0f);
@@ -148,6 +148,33 @@ fn rgb565_to_888(data: &[u8]) -> [u8; 4] {
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::{fs, io};
+
+    #[test]
+    fn compare() -> Result<(), io::Error> {
+        let raw = fs::read("../../../../../build/3.raw")?;
+        let uncompressed = zstd::decode_all(fs::File::open("../../../../../build/3.compressed")?)?;
+        let mut decoded = Vec::with_capacity(2000 * 2000 * 4);
+        decode(&uncompressed, &mut decoded);
+
+        let raw888: Vec<u8> = raw
+            .chunks_exact(2)
+            .flat_map(|data| {
+                rgb565_to_888(&[
+                    data[1] >> 3,
+                    ((data[1] & 7) << 3) + (data[0] >> 5),
+                    data[0] & 31,
+                ])
+            })
+            .collect();
+
+        // assert_eq!(decoded.len(), raw888.len());
+        // assert_eq!(decoded[..32], raw888[..32], "");
+        fs::write("../../../../../build/decoded.raw", decoded)?;
+        fs::write("../../../../../build/decoded2.raw", raw888)?;
+
+        Ok(())
+    }
 
     #[test]
     pub fn test_encode() {

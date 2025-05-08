@@ -317,6 +317,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
 		i := int64(0)
+		i2 := 0
 		totalDuration := 0 * time.Millisecond
 		totalSize := 1
 		compressedSize := 0
@@ -336,7 +337,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 				return trace.Wrap(err)
 			}
 			for _, rect := range res.Rectangles {
-				start := time.Now()
+				i2++
 				if rect.Width%2 == 1 {
 					rect.Width += 1
 					if uint16(rect.X)+rect.Width > width {
@@ -350,6 +351,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 				if len(replay.Data) == 0 {
 					continue
 				}
+				start := time.Now()
 				buf.Reset()
 				encoder.Reset(&buf)
 				buf.Grow(len(replay.Data) / 4)
@@ -365,9 +367,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 				if err := binary.Write(&buf, binary.BigEndian, rect.Height); err != nil {
 					return trace.Wrap(err)
 				}
-				var bufbuf bytes.Buffer
-				encode(replay.Data, &bufbuf)
-				encoder.Write(bufbuf.Bytes())
+				encode(replay.Data, encoder)
 				if err := encoder.Close(); err != nil {
 					return trace.Wrap(err)
 				}
@@ -377,6 +377,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 				compressedSize += buf.Len()
 				if duration > 10*time.Millisecond {
 					c.cfg.Logger.WarnContext(ctx, "Slow frame rendering", "duration", duration)
+					os.WriteFile(fmt.Sprintf("slow%d.rgb565", i2), replay.Data, 0666)
 				}
 				if err := c.cfg.Conn.WriteMessage(tdp.X11Frame(buf.Bytes())); err != nil {
 					return trace.Wrap(err)

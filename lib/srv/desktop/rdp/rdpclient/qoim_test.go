@@ -90,6 +90,11 @@ func TestRun(t *testing.T) {
 			input:  []byte{1, 0, 0, 0},
 			output: []byte{0xab, 0x40},
 		},
+		{
+			name:   "color",
+			input:  []byte{0x02, 0xae},
+			output: []byte{0xff, 0xae, 0x02},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf bytes.Buffer

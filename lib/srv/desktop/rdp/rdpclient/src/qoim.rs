@@ -239,7 +239,7 @@ pub fn update_luma(data: &[u8], b1: u8, b2: u8) -> [u8; 4] {
 #[cfg(test)]
 mod test {
     use crate::qoim::{decode, encode};
-    use std::iter;
+    use std::{env, fs, io, iter};
 
     #[test]
     fn encode_long_run() -> () {

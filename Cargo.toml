@@ -12,6 +12,12 @@ publish = false
 [profile.dev]
 debug = 1
 lto = "off"
+opt-level = 0
+
+[profile.test]
+debug = 1
+lto = "off"
+opt-level = 0
 
 [profile.release]
 debug = 1

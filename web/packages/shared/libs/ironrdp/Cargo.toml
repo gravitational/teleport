@@ -5,15 +5,6 @@ edition.workspace = true
 license.workspace = true
 publish.workspace = true
 
-[package.metadata.wasm-pack.profile.dev]
-wasm-opt = ['-O', '--enable-bulk-memory']
-
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = ['-O', '--enable-bulk-memory']
-
-[package.metadata.wasm-pack.profile.profiling]
-wasm-opt = ['-O', '--enable-bulk-memory']
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
