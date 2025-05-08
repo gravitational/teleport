@@ -9,6 +9,7 @@ import selectEvent from 'react-select-event';
 
 import { fireEvent, render, screen } from 'design/utils/testing';
 import { dryRunResponse } from 'shared/components/AccessRequests/fixtures';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import ecfg from 'e-teleport/config';
 import TeleportContextE from 'e-teleport/teleportContextE';
@@ -103,7 +104,9 @@ beforeEach(() => {
   Component = (
     <MemoryRouter initialEntries={[`web/cluster/cluster-id/requests/new`]}>
       <ContextProvider ctx={ctx}>
-        <NewRequest />
+        <InfoGuidePanelProvider>
+          <NewRequest />
+        </InfoGuidePanelProvider>
       </ContextProvider>
     </MemoryRouter>
   );

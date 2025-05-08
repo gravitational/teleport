@@ -8,6 +8,8 @@ import {
   RequestCheckout,
   ResourceMap,
 } from 'shared/components/AccessRequests/NewRequest';
+import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { resourceStatusPanelWidth } from 'shared/components/SlidingSidePanel/InfoGuide/const';
 import {
   getResourceAvailabilityFilter,
   IncludedResourceMode,
@@ -65,6 +67,9 @@ export function UnifiedResourcesE() {
     addedResources,
     reset: clearAddedResources,
   });
+
+  const { infoGuideConfig } = useInfoGuide();
+
   const showCheckout =
     numAddedResources > 0 || createAttempt.status === 'success';
 
@@ -199,41 +204,44 @@ export function UnifiedResourcesE() {
             />
           </SamlAppActionProvider>
         </ResizingResourceWrapper>
+        {/* Add a box with the width of the checkout to adjust the page layout
+         so that the checkout doesn't cover the resources. This same box is used
+         to push contents out of the way when info guide panel renders. */}
+        {(showCheckout || infoGuideConfig) && (
+          <Box
+            css={`
+              min-width: ${resourceStatusPanelWidth}px;
+              height: 100%;
+              // Counteract the padding on the page so that
+              // this is aligned with the requestcheckout.
+              margin-right: -${props => props.theme.space[4]}px;
+            `}
+          />
+        )}
         {showCheckout && (
-          <>
-            {/* Add a div with the width of the checkout to adjust the page layout so that the checkout doesn't cover the resources. */}
-            <Box
-              css={`
-                min-width: 450px;
-                height: 100%;
-                // Counteract the padding on the page so that this is aligned with the requestcheckout.
-                margin-right: -${props => props.theme.space[4]}px;
-              `}
+          <CheckoutWrapper>
+            <RequestCheckout
+              {...requestCheckout}
+              clearAttempt={clearAttempt}
+              createAttempt={createAttempt}
+              toggleResource={({ kind, id, name }) =>
+                addOrRemoveResources(requestItems(kind, id, name))
+              }
+              reset={cancelCheckout}
+              onClose={clearAttempt}
+              isResourceRequest={true} // only resource requests happen from this page
+              Header={() => (
+                <Box mb={3}>
+                  <H2>
+                    New Access Request: {numAddedResources}{' '}
+                    {pluralize(numAddedResources, 'Resource')} Selected
+                  </H2>
+                </Box>
+              )}
+              SuccessComponent={SuccessActionComponent}
+              updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
             />
-            <CheckoutWrapper>
-              <RequestCheckout
-                {...requestCheckout}
-                clearAttempt={clearAttempt}
-                createAttempt={createAttempt}
-                toggleResource={({ kind, id, name }) =>
-                  addOrRemoveResources(requestItems(kind, id, name))
-                }
-                reset={cancelCheckout}
-                onClose={clearAttempt}
-                isResourceRequest={true} // only resource requests happen from this page
-                Header={() => (
-                  <Box mb={3}>
-                    <H2>
-                      New Access Request: {numAddedResources}{' '}
-                      {pluralize(numAddedResources, 'Resource')} Selected
-                    </H2>
-                  </Box>
-                )}
-                SuccessComponent={SuccessActionComponent}
-                updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
-              />
-            </CheckoutWrapper>
-          </>
+          </CheckoutWrapper>
         )}
         <Prompt
           when={numAddedResources > 0}

@@ -24,10 +24,16 @@ import Link from 'design/Link';
 import { HoverTooltip } from 'design/Tooltip';
 import { Roles } from 'shared/components/AccessRequests/NewRequest';
 import Select from 'shared/components/Select';
+import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
 import {
   FilterKind,
+  UnifiedResourceDefinition,
   UnifiedResources,
 } from 'shared/components/UnifiedResources';
+import {
+  getResourceId as getUnifiedResourceId,
+  openStatusInfoPanel,
+} from 'shared/components/UnifiedResources/shared/StatusInfo';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
@@ -44,6 +50,7 @@ import { TextIcon } from 'teleport/Discover/Shared';
 import { useNoMinWidth } from 'teleport/Main';
 import { getSalesURL } from 'teleport/services/sales';
 import { CtaEvent } from 'teleport/services/userEvent';
+import { StatusInfo } from 'teleport/UnifiedResources/StatusInfo';
 import { useUser } from 'teleport/User/UserContext';
 
 import { AppRequestButton, RequestButton } from './RequestButton';
@@ -152,6 +159,21 @@ function NewRequest(props: State) {
     }
   }
 
+  const { setInfoGuideConfig } = useInfoGuide();
+  function onShowStatusInfo(resource: UnifiedResourceDefinition) {
+    openStatusInfoPanel({
+      resource,
+      setInfoGuideConfig,
+      guide: (
+        <StatusInfo
+          resource={resource}
+          clusterId={clusterId}
+          key={getUnifiedResourceId(resource)}
+        />
+      ),
+    });
+  }
+
   const limited =
     (fetchUsageAttempt.status === 'success' &&
       fetchUsageAttempt.data?.limit > 0) ||
@@ -251,6 +273,7 @@ function NewRequest(props: State) {
       {dryRunAttempt.status === 'success' &&
         selectedAccessRequestKind === 'resource' && (
           <UnifiedResources
+            onShowStatusInfo={onShowStatusInfo}
             bulkActions={[
               {
                 key: 'add_to_resource',
