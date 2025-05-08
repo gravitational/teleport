@@ -856,6 +856,9 @@ message InstanceFilter {
 
   // NewerThanVersion is an optional exclusive lower version bound.
   string NewerThanVersion = 7;
+
+  // UpdateGroup matches instance update group if specified.
+  string UpdateGroup = 8;
 }
 
 // ServerV2 represents a Node, App, Database, Proxy or Auth Service instance in a Teleport cluster.
@@ -1115,25 +1118,6 @@ message AppSpecV3 {
   // want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec,
   // setting this value to true will overwrite that public address in the web UI.
   bool UseAnyProxyPublicAddr = 14 [(gogoproto.jsontag) = "use_any_proxy_public_addr,omitempty"];
-}
-
-// AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
-// Used in application listings that request both app servers and saml apps.
-//
-// DEPRECATED: Use AppServer and SAMLIdPServiceProvider type individually.
-message AppServerOrSAMLIdPServiceProviderV1 {
-  option deprecated = true;
-  option (gogoproto.goproto_stringer) = false;
-  option (gogoproto.stringer) = false;
-  // Kind is the resource kind. Always "app_server_saml_idp_sp".
-  string Kind = 1 [(gogoproto.jsontag) = "kind"];
-  // The AppServer or SAMLIdPServiceProvider resource.
-  oneof Resource {
-    // AppServer is the AppServer resource.
-    AppServerV3 AppServer = 2 [(gogoproto.jsontag) = "app_server,omitempty"];
-    // SAMLIdPServiceProvider is the SAMLIdPServiceProvider resource.
-    SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 3 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
-  }
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -3665,6 +3649,10 @@ message KubernetesResource {
   string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
   // Verbs are the allowed Kubernetes verbs for the following resource.
   repeated string Verbs = 4 [(gogoproto.jsontag) = "verbs,omitempty"];
+
+  // APIGroup specifies the Kubernetes API group of the Kubernetes resource.
+  // It supports wildcards.
+  string APIGroup = 5 [(gogoproto.jsontag) = "api_group,omitempty"];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.
@@ -5760,13 +5748,9 @@ message LockTarget {
   // Login specifies the name of a local UNIX user.
   string Login = 3 [(gogoproto.jsontag) = "login,omitempty"];
 
-  // Node specifies the UUID of a Teleport node.
-  // A matching node is also prevented from heartbeating to the Auth Service.
-  // DEPRECATED: use ServerID instead.
-  string Node = 4 [
-    deprecated = true,
-    (gogoproto.jsontag) = "node,omitempty"
-  ];
+  // Node was deprecated in favor of ServerID.
+  reserved 4;
+  reserved "Node";
 
   // MFADevice specifies the UUID of a user MFA device.
   string MFADevice = 5 [(gogoproto.jsontag) = "mfa_device,omitempty"];

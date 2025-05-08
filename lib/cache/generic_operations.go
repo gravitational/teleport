@@ -25,13 +25,13 @@ import (
 )
 
 // genericGetter is a helper to retrieve a single item from a cache collection.
-type genericGetter[T any] struct {
+type genericGetter[T any, I comparable] struct {
 	// cache to performe the primary read from.
 	cache *Cache
 	// collection that contains the item.
-	collection *collection[T]
+	collection *collection[T, I]
 	// index of the collection to read with.
-	index string
+	index I
 	// upstreamGet is used to retrieve the item if the
 	// cache is not healthy.
 	upstreamGet func(context.Context, string) (T, error)
@@ -43,7 +43,7 @@ type genericGetter[T any] struct {
 // a cache collection. If the cache is not healthy, then the item is retrieved
 // from the upstream backend. The item returend is cloned and ownership
 // is retained by the caller.
-func (g genericGetter[T]) get(ctx context.Context, identifier string) (T, error) {
+func (g genericGetter[T, I]) get(ctx context.Context, identifier string) (T, error) {
 	var t T
 	rg, err := acquireReadGuard(g.cache, g.collection)
 	if err != nil {
@@ -57,17 +57,20 @@ func (g genericGetter[T]) get(ctx context.Context, identifier string) (T, error)
 	}
 
 	out, err := rg.store.get(g.index, identifier)
-	return g.clone(out), trace.Wrap(err)
+	if err != nil {
+		return t, trace.Wrap(err)
+	}
+	return g.clone(out), nil
 }
 
 // genericLister is a helper to retrieve a page of items from a cache collection.
-type genericLister[T any] struct {
+type genericLister[T any, I comparable] struct {
 	// cache to performe the primary read from.
 	cache *Cache
 	// collection that contains the item.
-	collection *collection[T]
+	collection *collection[T, I]
 	// index of the collection to read with.
-	index string
+	index I
 	// defaultPageSize optionally defines a page size to use if
 	// one is not specified by the caller. If not set then
 	// [defaults.DefaultChunkSize] is used.
@@ -80,12 +83,15 @@ type genericLister[T any] struct {
 	nextToken func(T) string
 	// clone is used to make a copy of the item returned.
 	clone func(T) T
+	// filter is an optional function used to exclude items from
+	// cache reads.
+	filter func(T) bool
 }
 
 // list retrieves a page of items from the configured cache collection.
 // If the cache is not healthy, then the items are retrieved from the upstream backend.
 // The items returend are cloned and ownership is retained by the caller.
-func (l genericLister[T]) list(ctx context.Context, pageSize int, startToken string) ([]T, string, error) {
+func (l genericLister[T, I]) list(ctx context.Context, pageSize int, startToken string) ([]T, string, error) {
 	rg, err := acquireReadGuard(l.cache, l.collection)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -112,6 +118,9 @@ func (l genericLister[T]) list(ctx context.Context, pageSize int, startToken str
 			return out, l.nextToken(sf), nil
 		}
 
+		if l.filter != nil && !l.filter(sf) {
+			continue
+		}
 		out = append(out, l.clone(sf))
 	}
 

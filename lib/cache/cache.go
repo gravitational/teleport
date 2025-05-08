@@ -33,27 +33,20 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
-	protobuf "google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
-	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
-	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
-	"github.com/gravitational/teleport/api/types/userloginstate"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -62,7 +55,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/services/simple"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -511,28 +503,15 @@ type Cache struct {
 	dynamicAccessCache           services.DynamicAccessExt
 	presenceCache                services.Presence
 	restrictionsCache            services.Restrictions
-	crownJewelsCache             services.CrownJewels
 	databaseObjectsCache         *local.DatabaseObjectService
-	appSessionCache              services.AppSession
-	snowflakeSessionCache        services.SnowflakeSession
-	samlIdPSessionCache          services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
-	webSessionCache              types.WebSessionInterface
-	webTokenCache                types.WebTokenInterface
 	dynamicWindowsDesktopsCache  services.DynamicWindowsDesktops
-	samlIdPServiceProvidersCache services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
 	userGroupsCache              services.UserGroups
-	oktaCache                    services.Okta
-	integrationsCache            services.Integrations
-	userTasksCache               services.UserTasks
 	discoveryConfigsCache        services.DiscoveryConfigs
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
 	secReportsCache              services.SecReports
-	userLoginStateCache          services.UserLoginStates
-	accessListCache              *simple.AccessListService
 	eventsFanout                 *services.FanoutV2
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
-	accessMontoringRuleCache     services.AccessMonitoringRules
 	staticHostUsersCache         *local.StaticHostUserService
 	provisioningStatesCache      *local.ProvisioningStateService
 	identityCenterCache          *local.IdentityCenterService
@@ -576,15 +555,15 @@ func readLegacyCollectionCache[R any](cache *Cache, collection collectionReader[
 
 // acquireReadGuard provides a readGuard that may be used to determine how
 // a cache read should operate. The returned guard *must* be released to prevent deadlocks.
-func acquireReadGuard[T any](cache *Cache, c *collection[T]) (readGuard[T], error) {
+func acquireReadGuard[T any, I comparable](cache *Cache, c *collection[T, I]) (readGuard[T, I], error) {
 	if cache.closed.Load() {
-		return readGuard[T]{}, trace.Errorf("cache is closed")
+		return readGuard[T, I]{}, trace.Errorf("cache is closed")
 	}
 	cache.rw.RLock()
 
 	if cache.ok {
 		if _, kindOK := cache.confirmedKinds[resourceKind{kind: c.watch.Kind, subkind: c.watch.SubKind}]; kindOK {
-			return readGuard[T]{
+			return readGuard[T, I]{
 				cacheRead: true,
 				release:   cache.rw.RUnlock,
 				store:     c.store,
@@ -593,7 +572,7 @@ func acquireReadGuard[T any](cache *Cache, c *collection[T]) (readGuard[T], erro
 	}
 
 	cache.rw.RUnlock()
-	return readGuard[T]{
+	return readGuard[T, I]{
 		cacheRead: false,
 	}, nil
 }
@@ -647,20 +626,20 @@ func (r *legacyReadGuard[R]) IsCacheRead() bool {
 	return r.release != nil
 }
 
-type readGuard[T any] struct {
+type readGuard[T any, I comparable] struct {
 	cacheRead bool
-	store     *store[T]
+	store     *store[T, I]
 	once      sync.Once
 	release   func()
 }
 
-func (r *readGuard[T]) ReadCache() bool {
+func (r *readGuard[T, I]) ReadCache() bool {
 	return r.cacheRead
 }
 
 // Release releases the read lock if it is held.  This method
 // can be called multiple times.
-func (r *readGuard[T]) Release() {
+func (r *readGuard[T, I]) Release() {
 	r.once.Do(func() {
 		if r.release == nil {
 			return
@@ -923,38 +902,13 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	//nolint:revive // Because we want this to be IdP.
-	samlIdPServiceProvidersCache, err := local.NewSAMLIdPServiceProviderService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	userGroupsCache, err := local.NewUserGroupService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
 	}
 
-	oktaCache, err := local.NewOktaService(config.Backend, config.Clock)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	provisioningStatesCache, err := local.NewProvisioningStateService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	integrationsCache, err := local.NewIntegrationsService(config.Backend, local.WithIntegrationsServiceCacheMode(true))
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	userTasksCache, err := local.NewUserTasksService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -972,25 +926,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	userLoginStatesCache, err := local.NewUserLoginStateService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	accessListCache, err := simple.NewAccessListService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	databaseObjectsCache, err := local.NewDatabaseObjectService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	accessMonitoringRuleCache, err := local.NewAccessMonitoringRulesService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -1003,12 +939,6 @@ func New(config Config) (*Cache, error) {
 	}
 
 	kubeWaitingContsCache, err := local.NewKubeWaitingContainerService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	crownJewelCache, err := local.NewCrownJewelsService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -1070,24 +1000,11 @@ func New(config Config) (*Cache, error) {
 		dynamicAccessCache:           local.NewDynamicAccessService(config.Backend),
 		presenceCache:                local.NewPresenceService(config.Backend),
 		restrictionsCache:            local.NewRestrictionsService(config.Backend),
-		crownJewelsCache:             crownJewelCache,
-		appSessionCache:              identityService,
-		snowflakeSessionCache:        identityService,
-		samlIdPSessionCache:          identityService,
-		webSessionCache:              identityService.WebSessions(),
-		webTokenCache:                identityService.WebTokens(),
 		dynamicWindowsDesktopsCache:  dynamicDesktopsService,
-		accessMontoringRuleCache:     accessMonitoringRuleCache,
-		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
 		userGroupsCache:              userGroupsCache,
-		oktaCache:                    oktaCache,
-		integrationsCache:            integrationsCache,
-		userTasksCache:               userTasksCache,
 		discoveryConfigsCache:        discoveryConfigsCache,
 		headlessAuthenticationsCache: identityService,
 		secReportsCache:              secReportsCache,
-		userLoginStateCache:          userLoginStatesCache,
-		accessListCache:              accessListCache,
 		databaseObjectsCache:         databaseObjectsCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
@@ -1849,156 +1766,6 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	return nil
 }
 
-func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetUIConfig")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.uiConfigs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	uiconfig, err := rg.reader.GetUIConfig(ctx)
-	return uiconfig, trace.Wrap(err)
-}
-
-// GetInstaller gets the installer script resource for the cluster
-func (c *Cache) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetInstaller")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.installers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	inst, err := rg.reader.GetInstaller(ctx, name)
-	return inst, trace.Wrap(err)
-}
-
-// GetInstallers gets all the installer script resources for the cluster
-func (c *Cache) GetInstallers(ctx context.Context) ([]types.Installer, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetInstallers")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.installers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	inst, err := rg.reader.GetInstallers(ctx)
-	return inst, trace.Wrap(err)
-}
-
-type remoteClustersCacheKey struct {
-	name string
-}
-
-// GetRemoteClusters returns a list of remote clusters
-func (c *Cache) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetRemoteClusters")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.remoteClusters)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedRemotes, err := utils.FnCacheGet(ctx, c.fnCache, remoteClustersCacheKey{}, func(ctx context.Context) ([]types.RemoteCluster, error) {
-			remotes, err := rg.reader.GetRemoteClusters(ctx)
-			return remotes, err
-		})
-		if err != nil || cachedRemotes == nil {
-			return nil, trace.Wrap(err)
-		}
-
-		remotes := make([]types.RemoteCluster, 0, len(cachedRemotes))
-		for _, remote := range cachedRemotes {
-			remotes = append(remotes, remote.Clone())
-		}
-		return remotes, nil
-	}
-	return rg.reader.GetRemoteClusters(ctx)
-}
-
-// GetRemoteCluster returns a remote cluster by name
-func (c *Cache) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetRemoteCluster")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.remoteClusters)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedRemote, err := utils.FnCacheGet(ctx, c.fnCache, remoteClustersCacheKey{clusterName}, func(ctx context.Context) (types.RemoteCluster, error) {
-			remote, err := rg.reader.GetRemoteCluster(ctx, clusterName)
-			return remote, err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return cachedRemote.Clone(), nil
-	}
-	rc, err := rg.reader.GetRemoteCluster(ctx, clusterName)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because this method is never used
-		// in construction of derivative caches.
-		if rc, err := c.Config.Trust.GetRemoteCluster(ctx, clusterName); err == nil {
-			return rc, nil
-		}
-	}
-	return rc, trace.Wrap(err)
-}
-
-// ListRemoteClusters returns a page of remote clusters.
-func (c *Cache) ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error) {
-	_, span := c.Tracer.Start(ctx, "cache/ListRemoteClusters")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.remoteClusters)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	remoteClusters, token, err := rg.reader.ListRemoteClusters(ctx, pageSize, nextToken)
-	return remoteClusters, token, trace.Wrap(err)
-}
-
-// GetTunnelConnections is a part of auth.Cache implementation
-func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
-	_, span := c.Tracer.Start(context.TODO(), "cache/GetTunnelConnections")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.tunnelConnections)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetTunnelConnections(clusterName, opts...)
-}
-
-// GetAllTunnelConnections is a part of auth.Cache implementation
-func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []types.TunnelConnection, err error) {
-	_, span := c.Tracer.Start(context.TODO(), "cache/GetAllTunnelConnections")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.tunnelConnections)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetAllTunnelConnections(opts...)
-}
-
 // ListKubernetesWaitingContainers lists Kubernetes ephemeral
 // containers that are waiting to be created until moderated
 // session conditions are met.
@@ -2055,105 +1822,6 @@ func (c *Cache) GetStaticHostUser(ctx context.Context, name string) (*userprovis
 	return rg.reader.GetStaticHostUser(ctx, name)
 }
 
-// GetAppSession gets an application web session.
-func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAppSession")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.appSessions)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	sess, err := rg.reader.GetAppSession(ctx, req)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if sess, err := c.Config.AppSession.GetAppSession(ctx, req); err == nil {
-			c.Logger.DebugContext(ctx, "Cache was forced to load session from upstream",
-				"session_kind", sess.GetSubKind(),
-				"session", sess.GetName(),
-			)
-			return sess, nil
-		}
-	}
-
-	return sess, trace.Wrap(err)
-}
-
-// ListAppSessions returns a page of application web sessions.
-func (c *Cache) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAppSessions")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.appSessions)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListAppSessions(ctx, pageSize, pageToken, user)
-}
-
-// GetSnowflakeSession gets Snowflake web session.
-func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeSessionRequest) (types.WebSession, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSnowflakeSession")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.snowflakeSessions)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	sess, err := rg.reader.GetSnowflakeSession(ctx, req)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if sess, err := c.Config.SnowflakeSession.GetSnowflakeSession(ctx, req); err == nil {
-			c.Logger.DebugContext(ctx, "Cache was forced to load sessionfrom upstream",
-				"session_kind", sess.GetSubKind(),
-				"session", sess.GetName(),
-			)
-			return sess, nil
-		}
-	}
-
-	return sess, trace.Wrap(err)
-}
-
-// GetSAMLIdPSession gets a SAML IdP session.
-func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPSession")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.samlIdPSessions)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	sess, err := rg.reader.GetSAMLIdPSession(ctx, req)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if sess, err := c.Config.SAMLIdPSession.GetSAMLIdPSession(ctx, req); err == nil {
-			c.Logger.DebugContext(ctx, "Cache was forced to load sessionfrom upstream",
-				"session_kind", sess.GetSubKind(),
-				"session", sess.GetName(),
-			)
-			return sess, nil
-		}
-	}
-
-	return sess, trace.Wrap(err)
-}
-
 func (c *Cache) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseObject")
 	defer span.End()
@@ -2178,48 +1846,6 @@ func (c *Cache) ListDatabaseObjects(ctx context.Context, size int, pageToken str
 	return rg.reader.ListDatabaseObjects(ctx, size, pageToken)
 }
 
-// GetWebSession gets a regular web session.
-func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetWebSession")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.webSessions)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	sess, err := rg.reader.Get(ctx, req)
-
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if sess, err := c.Config.WebSession.Get(ctx, req); err == nil {
-			c.Logger.DebugContext(ctx, "Cache was forced to load sessionfrom upstream",
-				"session_kind", sess.GetSubKind(),
-				"session", sess.GetName(),
-			)
-			return sess, nil
-		}
-	}
-	return sess, trace.Wrap(err)
-}
-
-// GetWebToken gets a web token.
-func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetWebToken")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.webTokens)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.Get(ctx, req)
-}
-
 // GetNetworkRestrictions gets the network restrictions.
 func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetNetworkRestrictions")
@@ -2232,44 +1858,6 @@ func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestri
 	defer rg.Release()
 
 	return rg.reader.GetNetworkRestrictions(ctx)
-}
-
-// GetLock gets a lock by name.
-func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetLock")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.locks)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	lock, err := rg.reader.GetLock(ctx, name)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if lock, err := c.Config.Access.GetLock(ctx, name); err == nil {
-			return lock, nil
-		}
-	}
-	return lock, trace.Wrap(err)
-}
-
-// GetLocks gets all/in-force locks that match at least one of the targets
-// when specified.
-func (c *Cache) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetLocks")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.locks)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetLocks(ctx, inForceOnly, targets...)
 }
 
 // GetDynamicWindowsDesktop returns registered dynamic Windows desktop by name.
@@ -2298,136 +1886,6 @@ func (c *Cache) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, ne
 	return rg.reader.ListDynamicWindowsDesktops(ctx, pageSize, nextPage)
 }
 
-// ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
-func (c *Cache) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListSAMLIdPServiceProviders")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.samlIdPServiceProviders)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListSAMLIdPServiceProviders(ctx, pageSize, nextKey)
-}
-
-// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
-func (c *Cache) GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPServiceProvider")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.samlIdPServiceProviders)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetSAMLIdPServiceProvider(ctx, name)
-}
-
-// ListOktaImportRules returns a paginated list of all Okta import rule resources.
-func (c *Cache) ListOktaImportRules(ctx context.Context, pageSize int, nextKey string) ([]types.OktaImportRule, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListOktaImportRules")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.oktaImportRules)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListOktaImportRules(ctx, pageSize, nextKey)
-}
-
-// GetOktaImportRule returns the specified Okta import rule resources.
-func (c *Cache) GetOktaImportRule(ctx context.Context, name string) (types.OktaImportRule, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetOktaImportRule")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.oktaImportRules)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetOktaImportRule(ctx, name)
-}
-
-// ListOktaAssignments returns a paginated list of all Okta assignment resources.
-func (c *Cache) ListOktaAssignments(ctx context.Context, pageSize int, nextKey string) ([]types.OktaAssignment, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListOktaAssignments")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.oktaAssignments)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListOktaAssignments(ctx, pageSize, nextKey)
-}
-
-// GetOktaAssignment returns the specified Okta assignment resources.
-func (c *Cache) GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetOktaAssignment")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.oktaAssignments)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetOktaAssignment(ctx, name)
-}
-
-// ListIntegrations returns a paginated list of all Integrations resources.
-func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListIntegrations")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.integrations)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListIntegrations(ctx, pageSize, nextKey)
-}
-
-// GetIntegration returns the specified Integration resources.
-func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetIntegration")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.integrations)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetIntegration(ctx, name)
-}
-
-// ListUserTasks returns a list of UserTask resources.
-func (c *Cache) ListUserTasks(ctx context.Context, pageSize int64, nextKey string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListUserTasks")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userTasks)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListUserTasks(ctx, pageSize, nextKey, filters)
-}
-
-// GetUserTask returns the specified UserTask resource.
-func (c *Cache) GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetUserTask")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userTasks)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetUserTask(ctx, name)
-}
-
 // ListDiscoveryConfigs returns a paginated list of all DiscoveryConfig resources.
 func (c *Cache) ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListDiscoveryConfigs")
@@ -2452,32 +1910,6 @@ func (c *Cache) GetDiscoveryConfig(ctx context.Context, name string) (*discovery
 	}
 	defer rg.Release()
 	return rg.reader.GetDiscoveryConfig(ctx, name)
-}
-
-// ListCrownJewels returns a list of CrownJewel resources.
-func (c *Cache) ListCrownJewels(ctx context.Context, pageSize int64, nextKey string) ([]*crownjewelv1.CrownJewel, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListCrownJewels")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.crownJewels)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListCrownJewels(ctx, pageSize, nextKey)
-}
-
-// GetCrownJewel returns the specified CrownJewel resource.
-func (c *Cache) GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetCrownJewel")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.crownJewels)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetCrownJewel(ctx, name)
 }
 
 // GetSecurityAuditQuery returns the specified audit query resource.
@@ -2597,206 +2029,6 @@ func (c *Cache) ListSecurityReportsStates(ctx context.Context, pageSize int, nex
 	return rg.reader.ListSecurityReportsStates(ctx, pageSize, nextKey)
 }
 
-// GetUserLoginStates returns the all user login state resources.
-func (c *Cache) GetUserLoginStates(ctx context.Context) ([]*userloginstate.UserLoginState, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetUserLoginStates")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userLoginStates)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetUserLoginStates(ctx)
-}
-
-// GetUserLoginState returns the specified user login state resource.
-func (c *Cache) GetUserLoginState(ctx context.Context, name string) (*userloginstate.UserLoginState, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetUserLoginState")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userLoginStates)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	uls, err := rg.reader.GetUserLoginState(ctx, name)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if uls, err := c.Config.UserLoginStates.GetUserLoginState(ctx, name); err == nil {
-			return uls, nil
-		}
-	}
-	defer rg.Release()
-	return uls, trace.Wrap(err)
-}
-
-// GetAccessLists returns a list of all access lists.
-func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessLists")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessLists)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetAccessLists(ctx)
-}
-
-// ListAccessLists returns a paginated list of access lists.
-func (c *Cache) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessLists")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessLists)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListAccessLists(ctx, pageSize, nextToken)
-}
-
-// GetAccessList returns the specified access list resource.
-func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessList")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessLists)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	item, err := rg.reader.GetAccessList(ctx, name)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if item, err := c.Config.AccessLists.GetAccessList(ctx, name); err == nil {
-			return item, nil
-		}
-	}
-	return item, trace.Wrap(err)
-}
-
-// CountAccessListMembers will count all access list members.
-func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, uint32, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/CountAccessListMembers")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessListMembers)
-	if err != nil {
-		return 0, 0, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.CountAccessListMembers(ctx, accessListName)
-}
-
-// ListAccessListMembers returns a paginated list of all access list members.
-// May return a DynamicAccessListError if the requested access list has an
-// implicit member list and the underlying implementation does not have
-// enough information to compute the dynamic member list.
-func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListMembers")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessListMembers)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListAccessListMembers(ctx, accessListName, pageSize, pageToken)
-}
-
-// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
-func (c *Cache) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAllAccessListMembers")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessListMembers)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListAllAccessListMembers(ctx, pageSize, pageToken)
-}
-
-// GetAccessListMember returns the specified access list member resource.
-// May return a DynamicAccessListError if the requested access list has an
-// implicit member list and the underlying implementation does not have
-// enough information to compute the dynamic member record.
-func (c *Cache) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessListMember")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessListMembers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetAccessListMember(ctx, accessList, memberName)
-}
-
-// ListAccessListReviews will list access list reviews for a particular access list.
-func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListReviews")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessListReviews)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListAccessListReviews(ctx, accessList, pageSize, pageToken)
-}
-
-// ListAccessMonitoringRules returns a paginated list of access monitoring rules.
-func (c *Cache) ListAccessMonitoringRules(ctx context.Context, pageSize int, nextToken string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessMonitoringRules")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessMonitoringRules)
-
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	out, nextKey, err := rg.reader.ListAccessMonitoringRules(ctx, pageSize, nextToken)
-	return out, nextKey, trace.Wrap(err)
-}
-
-// ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules.
-func (c *Cache) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessMonitoringRules")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessMonitoringRules)
-
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	out, nextKey, err := rg.reader.ListAccessMonitoringRulesWithFilter(ctx, req)
-	return out, nextKey, trace.Wrap(err)
-}
-
-// GetAccessMonitoringRule returns the specified AccessMonitoringRule resources.
-func (c *Cache) GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessMonitoringRule")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessMonitoringRules)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetAccessMonitoringRule(ctx, name)
-}
-
 // ListResources is a part of auth.Cache implementation
 func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListResources")
@@ -2891,7 +2123,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 	switch req.ResourceType {
 	case types.KindDatabaseServer:
 		resp, err := buildListResourcesResponse(
-			c.collections.dbServers.store.resources(databaseServerStoreNameIndex, req.StartKey, ""),
+			c.collections.dbServers.store.resources(databaseServerNameIndex, req.StartKey, ""),
 			limit,
 			filter,
 			types.DatabaseServer.CloneResource,
@@ -2899,7 +2131,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 		return resp, trace.Wrap(err)
 	case types.KindDatabaseService:
 		resp, err := buildListResourcesResponse(
-			c.collections.dbServices.store.resources(databaseServiceStoreNameIndex, req.StartKey, ""),
+			c.collections.dbServices.store.resources(databaseServiceNameIndex, req.StartKey, ""),
 			limit,
 			filter,
 			func(d types.DatabaseService) types.ResourceWithLabels {
@@ -2909,7 +2141,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 		return resp, trace.Wrap(err)
 	case types.KindAppServer:
 		resp, err := buildListResourcesResponse(
-			c.collections.appServers.store.resources(appServerStoreNameIndex, req.StartKey, ""),
+			c.collections.appServers.store.resources(appServerNameIndex, req.StartKey, ""),
 			limit,
 			filter,
 			types.AppServer.CloneResource,
@@ -2917,7 +2149,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 		return resp, trace.Wrap(err)
 	case types.KindNode:
 		resp, err := buildListResourcesResponse(
-			c.collections.nodes.store.resources(nodeStoreNameIndex, req.StartKey, ""),
+			c.collections.nodes.store.resources(nodeNameIndex, req.StartKey, ""),
 			limit,
 			filter,
 			types.Server.CloneResource,
@@ -2925,7 +2157,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 		return resp, trace.Wrap(err)
 	case types.KindWindowsDesktopService:
 		resp, err := buildListResourcesResponse(
-			c.collections.windowsDesktopServices.store.resources(windowsDesktopServiceStoreNameIndex, req.StartKey, ""),
+			c.collections.windowsDesktopServices.store.resources(windowsDesktopServiceNameIndex, req.StartKey, ""),
 			limit,
 			filter,
 			func(d types.WindowsDesktopService) types.ResourceWithLabels {
@@ -2935,7 +2167,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 		return resp, trace.Wrap(err)
 	case types.KindKubeServer:
 		resp, err := buildListResourcesResponse(
-			c.collections.kubeServers.store.resources(kubeServerStoreNameIndex, req.StartKey, ""),
+			c.collections.kubeServers.store.resources(kubeServerNameIndex, req.StartKey, ""),
 			limit,
 			filter,
 			types.KubeServer.CloneResource,
@@ -2943,7 +2175,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 		return resp, trace.Wrap(err)
 	case types.KindUserGroup:
 		resp, err := buildListResourcesResponse(
-			c.collections.userGroups.store.resources(userGroupStoreNameIndex, req.StartKey, ""),
+			c.collections.userGroups.store.resources(userGroupNameIndex, req.StartKey, ""),
 			limit,
 			filter,
 			func(g types.UserGroup) types.ResourceWithLabels {
@@ -2954,7 +2186,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 	case types.KindIdentityCenterAccount:
 		resp, err := buildListResourcesResponse(
 			func(yield func(types.ResourceWithLabels) bool) {
-				for account := range c.collections.identityCenterAccounts.store.resources(identityCenterAccountStoreNameIndex, req.StartKey, "") {
+				for account := range c.collections.identityCenterAccounts.store.resources(identityCenterAccountNameIndex, req.StartKey, "") {
 					if !yield(types.Resource153ToResourceWithLabels(account)) {
 						return
 					}
@@ -2973,7 +2205,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 	case types.KindIdentityCenterAccountAssignment:
 		resp, err := buildListResourcesResponse(
 			func(yield func(types.ResourceWithLabels) bool) {
-				for assignment := range c.collections.identityCenterAccountAssignments.store.resources(identityCenterAccountAssignmentStoreNameIndex, req.StartKey, "") {
+				for assignment := range c.collections.identityCenterAccountAssignments.store.resources(identityCenterAccountAssignmentNameIndex, req.StartKey, "") {
 					if !yield(types.Resource153ToResourceWithLabels(assignment)) {
 						return
 					}
@@ -3011,31 +2243,6 @@ func buildListResourcesResponse[T types.ResourceWithLabels](resources iter.Seq[T
 	}
 
 	return &resp, nil
-}
-
-// GetAccessGraphSettings gets AccessGraphSettings from the backend.
-func (c *Cache) GetAccessGraphSettings(ctx context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessGraphSettings")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessGraphSettings)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"access_graph_settings"}, func(ctx context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
-			cfg, err := rg.reader.GetAccessGraphSettings(ctx)
-			return cfg, err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		clone := protobuf.Clone(cachedCfg).(*clusterconfigpb.AccessGraphSettings)
-		return clone, nil
-	}
-	return rg.reader.GetAccessGraphSettings(ctx)
 }
 
 func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.DownstreamID, id services.ProvisioningStateID) (*provisioningv1.PrincipalState, error) {

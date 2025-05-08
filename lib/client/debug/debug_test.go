@@ -87,7 +87,7 @@ func TestGetReadiness(t *testing.T) {
 
 		out, err := clt.GetReadiness(ctx)
 		require.True(t, trace.IsNotFound(err))
-		require.Equal(t, "", out.Status)
+		require.Empty(t, out.Status)
 		require.False(t, out.Ready)
 		require.Equal(t, 0, out.PID)
 	})
@@ -100,7 +100,7 @@ func TestGetReadiness(t *testing.T) {
 		out, err := clt.GetReadiness(ctx)
 		var netError net.Error
 		require.ErrorAs(t, err, &netError)
-		require.Equal(t, "", out.Status)
+		require.Empty(t, out.Status)
 		require.False(t, out.Ready)
 		require.Equal(t, 0, out.PID)
 	})
@@ -113,7 +113,7 @@ func TestGetReadiness(t *testing.T) {
 
 		out, err := clt.GetReadiness(ctx)
 		require.ErrorIs(t, err, os.ErrNotExist)
-		require.Equal(t, "", out.Status)
+		require.Empty(t, out.Status)
 		require.False(t, out.Ready)
 		require.Equal(t, 0, out.PID)
 	})

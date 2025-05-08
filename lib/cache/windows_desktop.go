@@ -27,16 +27,18 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const windowsDesktopServiceStoreNameIndex = "name"
+type windowsDesktopServiceIndex string
 
-func newWindowsDesktopServiceCollection(p services.Presence, w types.WatchKind) (*collection[types.WindowsDesktopService], error) {
+const windowsDesktopServiceNameIndex windowsDesktopServiceIndex = "name"
+
+func newWindowsDesktopServiceCollection(p services.Presence, w types.WatchKind) (*collection[types.WindowsDesktopService, windowsDesktopServiceIndex], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
-	return &collection[types.WindowsDesktopService]{
-		store: newStore(map[string]func(types.WindowsDesktopService) string{
-			windowsDesktopServiceStoreNameIndex: func(u types.WindowsDesktopService) string {
+	return &collection[types.WindowsDesktopService, windowsDesktopServiceIndex]{
+		store: newStore(map[windowsDesktopServiceIndex]func(types.WindowsDesktopService) string{
+			windowsDesktopServiceNameIndex: func(u types.WindowsDesktopService) string {
 				return u.GetName()
 			},
 		}),
@@ -75,7 +77,7 @@ func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsD
 	}
 
 	out := make([]types.WindowsDesktopService, 0, rg.store.len())
-	for svc := range rg.store.resources(windowsDesktopServiceStoreNameIndex, "", "") {
+	for svc := range rg.store.resources(windowsDesktopServiceNameIndex, "", "") {
 		out = append(out, svc.Clone())
 	}
 
@@ -98,7 +100,7 @@ func (c *Cache) GetWindowsDesktopService(ctx context.Context, name string) (type
 		return service, trace.Wrap(err)
 	}
 
-	svc, err := rg.store.get(windowsDesktopServiceStoreNameIndex, name)
+	svc, err := rg.store.get(windowsDesktopServiceNameIndex, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -143,7 +145,7 @@ func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWi
 	}
 
 	var resp types.ListWindowsDesktopServicesResponse
-	for svc := range rg.store.resources(windowsDesktopServiceStoreNameIndex, req.StartKey, "") {
+	for svc := range rg.store.resources(windowsDesktopServiceNameIndex, req.StartKey, "") {
 		if len(resp.DesktopServices) == pageSize {
 			resp.NextKey = backend.GetPaginationKey(svc)
 			break
@@ -155,16 +157,18 @@ func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWi
 	return &resp, nil
 }
 
-const windowsDesktopStoreNameIndex = "name"
+type windowsDesktopIndex string
 
-func newWindowsDesktopCollection(d services.WindowsDesktops, w types.WatchKind) (*collection[types.WindowsDesktop], error) {
+const windowsDesktopNameIndex windowsDesktopIndex = "name"
+
+func newWindowsDesktopCollection(d services.WindowsDesktops, w types.WatchKind) (*collection[types.WindowsDesktop, windowsDesktopIndex], error) {
 	if d == nil {
 		return nil, trace.BadParameter("missing parameter Apps")
 	}
 
-	return &collection[types.WindowsDesktop]{
-		store: newStore(map[string]func(types.WindowsDesktop) string{
-			windowsDesktopStoreNameIndex: func(u types.WindowsDesktop) string {
+	return &collection[types.WindowsDesktop, windowsDesktopIndex]{
+		store: newStore(map[windowsDesktopIndex]func(types.WindowsDesktop) string{
+			windowsDesktopNameIndex: func(u types.WindowsDesktop) string {
 				return u.GetHostID() + "/" + u.GetName()
 			},
 		}),
@@ -207,7 +211,7 @@ func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesk
 	}
 
 	out := make([]types.WindowsDesktop, 0, rg.store.len())
-	for wd := range rg.store.resources(windowsDesktopStoreNameIndex, "", "") {
+	for wd := range rg.store.resources(windowsDesktopNameIndex, "", "") {
 		if !filter.Match(wd) {
 			continue
 		}
@@ -255,7 +259,7 @@ func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDe
 	}
 
 	var resp types.ListWindowsDesktopsResponse
-	for wd := range rg.store.resources(windowsDesktopStoreNameIndex, req.StartKey, "") {
+	for wd := range rg.store.resources(windowsDesktopNameIndex, req.StartKey, "") {
 		if !req.WindowsDesktopFilter.Match(wd) {
 			continue
 		}

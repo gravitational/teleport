@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
-	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 // JoinMethod is the method used for new nodes to join the cluster.
@@ -103,7 +102,7 @@ var JoinMethods = []JoinMethod{
 func ValidateJoinMethod(method JoinMethod) error {
 	hasJoinMethod := slices.Contains(JoinMethods, method)
 	if !hasJoinMethod {
-		return trace.BadParameter("join method must be one of %s", apiutils.JoinStrings(JoinMethods, ", "))
+		return trace.BadParameter("join method must be one of %s", utils.JoinStrings(JoinMethods, ", "))
 	}
 
 	return nil
@@ -136,6 +135,8 @@ type ProvisionToken interface {
 	SetAllowRules([]*TokenRule)
 	// GetGCPRules will return the GCP rules within this token.
 	GetGCPRules() *ProvisionTokenSpecV2GCP
+	// GetGithubRules will return the GitHub rules within this token.
+	GetGithubRules() *ProvisionTokenSpecV2GitHub
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -444,6 +445,11 @@ func (p *ProvisionTokenV2) GetGCPRules() *ProvisionTokenSpecV2GCP {
 	return p.Spec.GCP
 }
 
+// GetGithubRules will return the GitHub rules within this token.
+func (p *ProvisionTokenV2) GetGithubRules() *ProvisionTokenSpecV2GitHub {
+	return p.Spec.GitHub
+}
+
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (p *ProvisionTokenV2) GetAWSIIDTTL() Duration {
 	return p.Spec.AWSIIDTTL
@@ -657,7 +663,7 @@ func (a *ProvisionTokenSpecV2GitHub) checkAndSetDefaults() error {
 		repoSet := rule.Repository != ""
 		ownerSet := rule.RepositoryOwner != ""
 		subSet := rule.Sub != ""
-		if !(subSet || ownerSet || repoSet) {
+		if !subSet && !ownerSet && !repoSet {
 			return trace.BadParameter(
 				`allow rule for %q must include at least one of "repository", "repository_owner" or "sub"`,
 				JoinMethodGitHub,
@@ -733,7 +739,7 @@ func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 	default:
 		return trace.BadParameter(
 			"type: must be one of (%s), got %q",
-			apiutils.JoinStrings(JoinMethods, ", "),
+			utils.JoinStrings(JoinMethods, ", "),
 			a.Type,
 		)
 	}
