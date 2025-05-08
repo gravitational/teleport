@@ -33,9 +33,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/peterbourgon/diskv/v3"
 
-	"github.com/gravitational/teleport/lib/events/export"
-
 	"github.com/gravitational/teleport/integrations/event-handler/lib"
+	"github.com/gravitational/teleport/lib/events/export"
 )
 
 const (

@@ -6748,6 +6748,8 @@ message PluginSpecV1 {
     PluginMSTeamsSettings msteams = 18;
     // Settings for the OpenTex NetIQ plugin.
     PluginNetIQSettings net_iq = 19;
+    // Settings for the GitHub plugin.
+    PluginGithubSettings github = 20;
   }
 
   // generation contains a unique ID that should:
@@ -6756,6 +6758,19 @@ message PluginSpecV1 {
   //
   // For older plugins, it's possible for this to be empty.
   string generation = 11;
+}
+
+message PluginGithubSettings {
+  option (gogoproto.equal) = true;
+
+  // APIEndpoint is the address of Github API.
+  string api_endpoint = 1;
+  string client_id = 2;
+  string organization_name = 4;
+  google.protobuf.Timestamp start_date = 5 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
 }
 
 message PluginSlackAccessSettings {
@@ -6876,6 +6891,8 @@ message PluginOktaSettings {
 
   // CredentialsInfo contains information about the Okta credentials.
   PluginOktaCredentialsInfo credentials_info = 5;
+
+  bool enable_siem_integration = 6;
 }
 
 // PluginOktaCredentialsInfo contains information about the Okta credentials.
@@ -7643,6 +7660,7 @@ message PluginStaticCredentialsSpecV1 {
     PluginStaticCredentialsBasicAuth BasicAuth = 2;
     PluginStaticCredentialsOAuthClientSecret OAuthClientSecret = 3;
     PluginStaticCredentialsSSHCertAuthorities SSHCertAuthorities = 4;
+    bytes private_key = 5;
   }
 }
 
@@ -8481,6 +8499,11 @@ message AccessGraphSync {
   repeated AccessGraphAzureSync Azure = 3 [(gogoproto.jsontag) = "azure,omitempty"];
 }
 
+message AccessGraphAWSSyncSQSPolling {
+  string Region = 1 [(gogoproto.jsontag) = "region,omitempty"];
+  string SQSQueue = 2 [(gogoproto.jsontag) = "sqs_queue,omitempty"];
+}
+
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
 message AccessGraphAWSSync {
   // Regions are AWS regions to import resources from.
@@ -8489,6 +8512,8 @@ message AccessGraphAWSSync {
   AssumeRole AssumeRole = 3 [(gogoproto.jsontag) = "assume_role,omitempty"];
   // Integration is the integration name used to generate credentials to interact with AWS APIs.
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
+  bool EnableCloudTrailPolling = 5 [(gogoproto.jsontag) = "enable_cloudtrail_polling,omitempty"];
+  AccessGraphAWSSyncSQSPolling sqs_polling = 6 [(gogoproto.jsontag) = "sqs_polling,omitempty"];
 }
 
 // AccessGraphAzureSync is a configuration for Azure Access Graph service poll service.

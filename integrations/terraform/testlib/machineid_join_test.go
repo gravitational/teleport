@@ -35,10 +35,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/testing/fakejoin"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
+	"github.com/gravitational/teleport/integrations/terraform/provider"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/teleport/integrations/terraform/provider"
 )
 
 func TestTerraformJoin(t *testing.T) {

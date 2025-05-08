@@ -77,19 +77,6 @@ RUN ln -s /usr/bin/cmake3 /usr/local/bin/cmake
 
 ## GIT2 ###################################################################
 
-# git2 packages are not available on ARM64, so we need to build it from source.
-FROM --platform=$BUILDPLATFORM base AS git2
-
-# Install additional required dependencies.
-RUN yum-builddep -y git
-
-RUN git clone --depth=1 https://github.com/git/git.git -b v2.42.0 && \
-    cd git && \
-    [ "$(git rev-parse HEAD)" = '43c8a30d150ecede9709c1f2527c8fba92c65f40' ] && \
-    scl enable ${DEVTOOLSET} "make configure && \
-    ./configure --prefix=/usr/local && \
-    make -j"$(nproc)" all && \
-    DESTDIR=/opt/git make install"
 
 ## LIBFIDO2 ###################################################################
 
@@ -227,8 +214,13 @@ RUN yum install -y \
     perl-IPC-Cmd \
     tree \
     # used by our Makefile
-    which \
+<<<<<<< Updated upstream
+    which git \
     zip \
+=======
+    which \
+    zip git \
+>>>>>>> Stashed changes
     zlib-devel && \
     yum clean all && \
     localedef -c -i en_US -f UTF-8 en_US.UTF-8
@@ -241,7 +233,7 @@ RUN if [ "${BUILDARCH}" = "arm64" ]; then export BUILDARCH="aarch64"; fi && \
     rm -rf /opt/custom-packages
 
 # Override the old git in /usr/local installed by yum. We need git 2+ on GitHub Actions.
-COPY --from=git2 /opt/git /
+
 
 # Install Go.
 ARG GOLANG_VERSION
