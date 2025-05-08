@@ -131,6 +131,10 @@ type AccessRequest interface {
 	GetDryRun() bool
 	// SetDryRun sets the dry run flag on the request.
 	SetDryRun(bool)
+	// GetDryRunEnrichment gets the dry run enrichment data.
+	GetDryRunEnrichment() *AccessRequestDryRunEnrichment
+	// SetDryRunEnrichment sets the dry run enrichment data.
+	SetDryRunEnrichment(*AccessRequestDryRunEnrichment)
 	// Copy returns a copy of the access request resource.
 	Copy() AccessRequest
 }
@@ -512,6 +516,16 @@ func (r *AccessRequestV3) SetMaxDuration(t time.Time) {
 // SetDryRun sets the dry run flag on the request.
 func (r *AccessRequestV3) SetDryRun(dryRun bool) {
 	r.Spec.DryRun = dryRun
+}
+
+// GetDryRunEnrichment gets the dry run enrichment data.
+func (r *AccessRequestV3) GetDryRunEnrichment() *AccessRequestDryRunEnrichment {
+	return r.Spec.DryRunEnrichment
+}
+
+// SetDryRunEnrichment sets the dry run enrichment data.
+func (r *AccessRequestV3) SetDryRunEnrichment(enrichment *AccessRequestDryRunEnrichment) {
+	r.Spec.DryRunEnrichment = enrichment
 }
 
 // Copy returns a copy of the access request resource.

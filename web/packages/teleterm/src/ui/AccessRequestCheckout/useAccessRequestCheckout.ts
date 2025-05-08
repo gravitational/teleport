@@ -72,6 +72,8 @@ export default function useAccessRequestCheckout() {
     startTime,
     onStartTimeChange,
     reset: resetSpecifiableFields,
+    reasonMode,
+    reasonPrompts,
   } = useSpecifiableFields();
 
   const [showCheckout, setShowCheckout] = useState(false);
@@ -450,6 +452,8 @@ export default function useAccessRequestCheckout() {
     onStartTimeChange,
     fetchKubeNamespaces,
     updateNamespacesForKubeCluster,
+    reasonMode,
+    reasonPrompts,
   };
 }
 
