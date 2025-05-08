@@ -2,11 +2,12 @@ import {
   AccessRequestMatchCondition,
   accessRequestMatchConditionOptions,
   convertRuleConditionToPredicateExpression,
-  getRuleCondition,
+  getNotificationRuleCondition,
+  getReviewRuleCondition,
   RuleCondition,
 } from './rulecondition';
 
-describe('getRuleCondition', () => {
+describe('getNotificationRuleCondition', () => {
   const predicates: {
     name: string;
     predicate: string;
@@ -26,7 +27,6 @@ describe('getRuleCondition', () => {
           values: [],
         },
         traitsCondition: null,
-        errors: [],
       },
     },
     {
@@ -43,7 +43,6 @@ describe('getRuleCondition', () => {
           values: undefined,
         },
         traitsCondition: null,
-        errors: [],
       },
     },
     {
@@ -64,7 +63,6 @@ describe('getRuleCondition', () => {
           ],
         },
         traitsCondition: null,
-        errors: [],
       },
     },
     {
@@ -85,14 +83,93 @@ describe('getRuleCondition', () => {
           ],
         },
         traitsCondition: null,
-        errors: [],
+      },
+    },
+  ];
+  test.each(predicates)('$name', ({ predicate, cond }) => {
+    const got = getNotificationRuleCondition(predicate);
+    expect(got).toEqual(cond);
+  });
+});
+
+describe('getNotificationRuleCondition invalid inputs', () => {
+  const invalidPredicates: { name: string; str: string }[] = [
+    {
+      name: 'does not match "contains_any" template',
+      str: `'contains_any(access.spec.roles, set("access","editor"))'`,
+    },
+    {
+      name: 'does not match "is_empty" template',
+      str: `'is_empty(access_request.spec.roles)'`,
+    },
+    {
+      name: 'no roles found',
+      str: 'contains_any(access_request.spec.roles, set())',
+    },
+    {
+      name: 'no named group "set" found',
+      str: `'contains_any(access_request.spec.roles, list("access","editor"))'`,
+    },
+    {
+      name: 'does not match "contains_all" template',
+      str: `'contains_all(set("access","editor"), access.spec.roles))'`,
+    },
+    {
+      name: 'no roles found (contains_all)',
+      str: `'contains_all(set(), access_request.spec.roles))'`,
+    },
+    {
+      name: 'no named group "set" found (contains_all)',
+      str: `'contains_all(list("access","editor"), access_request.spec.roles))'`,
+    },
+    {
+      name: 'invalid roles condition',
+      str: `contains_any(access_request.spec.roles, ("access", "editor"))`,
+    },
+    {
+      name: 'invalid function',
+      str: `contains__any(access_request.spec.roles, set("access", "editor"))`,
+    },
+    {
+      name: 'traits condition not supported',
+      str: `|-
+          contains_any(access_request.spec.roles, set("access", "editor")) &&
+          contains_any(user.traits["team"], set("Cloud"))`,
+    },
+  ];
+  test.each(invalidPredicates)('$name', ({ str }) => {
+    const got = getNotificationRuleCondition(str);
+    expect(got).toBeNull();
+  });
+});
+
+describe('getReviewRuleCondition', () => {
+  const predicates: {
+    name: string;
+    predicate: string;
+    cond: RuleCondition;
+  }[] = [
+    {
+      name: 'valid empty predicate, returns default',
+      predicate: '',
+      cond: {
+        rolesCondition: {
+          field: {
+            label: accessRequestMatchConditionOptions.find(
+              a => a.value === AccessRequestMatchCondition.MatchAllRoles
+            ).label,
+            value: AccessRequestMatchCondition.MatchAllRoles,
+          },
+          values: [],
+        },
+        traitsCondition: null,
       },
     },
     {
       name: 'single trait',
-      predicate: `
-          contains_all(set("access"), access_request.spec.roles) &&
-          contains_any(user.traits["level"], set("L1"))`,
+      predicate: `|-
+        contains_all(set("access"), access_request.spec.roles) &&
+        contains_any(user.traits["level"], set("L1"))`,
       cond: {
         rolesCondition: {
           field: {
@@ -109,14 +186,13 @@ describe('getRuleCondition', () => {
             values: [{ label: 'L1', value: 'L1' }],
           },
         ],
-        errors: [],
       },
     },
     {
       name: 'single trait with multiple values',
       predicate: `
-          contains_all(set("access"), access_request.spec.roles) &&
-          contains_any(user.traits["level"], set("L1", "L2"))`,
+        contains_all(set("access"), access_request.spec.roles) &&
+        contains_any(user.traits["level"], set("L1", "L2"))`,
       cond: {
         rolesCondition: {
           field: {
@@ -136,15 +212,14 @@ describe('getRuleCondition', () => {
             ],
           },
         ],
-        errors: [],
       },
     },
     {
       name: 'multiple traits',
       predicate: `
-          contains_all(set("access"), access_request.spec.roles) &&
-          contains_any(user.traits["level"], set("L1", "L2")) &&
-          contains_any(user.traits["team"], set("Cloud"))`,
+        contains_all(set("access"), access_request.spec.roles) &&
+        contains_any(user.traits["level"], set("L1", "L2")) &&
+        contains_any(user.traits["team"], set("Cloud"))`,
       cond: {
         rolesCondition: {
           field: {
@@ -168,147 +243,54 @@ describe('getRuleCondition', () => {
             values: [{ label: 'Cloud', value: 'Cloud' }],
           },
         ],
-        errors: [],
-      },
-    },
-    {
-      name: 'valid contains_all roles and traits in single line',
-      predicate: `contains_all(set("access", "editor"), access_request.spec.roles) && contains_any(user.traits["level"], set("L1", "L2")) && contains_any(user.traits["team"], set("Cloud"))`,
-      cond: {
-        rolesCondition: {
-          field: {
-            label: accessRequestMatchConditionOptions.find(
-              a => a.value === AccessRequestMatchCondition.MatchAllRoles
-            ).label,
-            value: AccessRequestMatchCondition.MatchAllRoles,
-          },
-          values: [
-            { label: 'access', value: 'access' },
-            { label: 'editor', value: 'editor' },
-          ],
-        },
-        traitsCondition: [
-          {
-            field: { label: 'level', value: 'level' },
-            values: [
-              { label: 'L1', value: 'L1' },
-              { label: 'L2', value: 'L2' },
-            ],
-          },
-          {
-            field: { label: 'team', value: 'team' },
-            values: [{ label: 'Cloud', value: 'Cloud' }],
-          },
-        ],
-        errors: [],
-      },
-    },
-    {
-      name: 'valid contains_any roles and traits in single line',
-      predicate: `contains_any(access_request.spec.roles, set("access", "editor")) && contains_any(user.traits["level"], set("L1", "L2")) && contains_any(user.traits["team"], set("Cloud"))`,
-      cond: {
-        rolesCondition: {
-          field: {
-            label: accessRequestMatchConditionOptions.find(
-              a => a.value === AccessRequestMatchCondition.MatchAnyRoles
-            ).label,
-            value: AccessRequestMatchCondition.MatchAnyRoles,
-          },
-          values: [
-            { label: 'access', value: 'access' },
-            { label: 'editor', value: 'editor' },
-          ],
-        },
-        traitsCondition: [
-          {
-            field: { label: 'level', value: 'level' },
-            values: [
-              { label: 'L1', value: 'L1' },
-              { label: 'L2', value: 'L2' },
-            ],
-          },
-          {
-            field: { label: 'team', value: 'team' },
-            values: [{ label: 'Cloud', value: 'Cloud' }],
-          },
-        ],
-        errors: [],
       },
     },
   ];
-  predicates.forEach(test => {
-    it(`${test.name}`, () => {
-      const got = getRuleCondition(test.predicate);
-      expect(got).toEqual(test.cond);
-    });
+  test.each(predicates)('$name', ({ predicate, cond }) => {
+    const got = getReviewRuleCondition(predicate);
+    expect(got).toEqual(cond);
   });
 });
 
-describe('getRuleCondition invalid inputs', () => {
-  const invalidPredicates: { name: string; str: string; errors: string[] }[] = [
+describe('getReviewRuleCondition invalid inputs', () => {
+  const invalidPredicates: { name: string; str: string }[] = [
     {
-      name: 'does not match "contains_any" template',
-      str: `'contains_any(access.spec.roles, set("access","editor"))'`,
-      errors: ['Role Match Condition is required'],
-    },
-    {
-      name: 'does not match "is_empty" template',
-      str: `'is_empty(access_request.spec.roles)'`,
-      errors: ['Role Match Condition is required'],
-    },
-    {
-      name: 'no roles found',
-      str: 'contains_any(access_request.spec.roles, set())',
-      errors: ['Role Match Condition is required'],
-    },
-    {
-      name: 'no named group "set" found',
-      str: `'contains_any(access_request.spec.roles, list("access","editor"))'`,
-      errors: [`Unknown function "list"`, 'Role Match Condition is required'],
+      name: '!is_empty is not supported',
+      str: '!is_empty(access_request.spec.roles)',
     },
     {
       name: 'does not match "contains_all" template',
-      str: `'contains_all(set("access","editor"), access.spec.roles))'`,
-      errors: ['Role Match Condition is required'],
+      str: 'contains_all(access_request.spec.roles, set("access"))',
     },
     {
-      name: 'no roles found (contains_all)',
-      str: `'contains_all(set(), access_request.spec.roles))'`,
-      errors: ['Role Match Condition is required'],
+      name: 'no roles found',
+      str: `
+        contains_all(set(), access_request.spec.roles) &&
+        contains_any(user.traits["team"], set("test"))`,
     },
     {
-      name: 'no named group "set" found (contains_all)',
-      str: `'contains_all(list("access","editor"), access_request.spec.roles))'`,
-      errors: [`Unknown function "list"`, `Role Match Condition is required`],
+      name: 'no traits found',
+      str: `
+        contains_all(set("access"), access_request.spec.roles) &&
+        contains_any(user.traits["team"], set())`,
     },
     {
-      name: 'invalid roles condition',
-      str: `contains_any(access_request.spec.roles, ("access", "editor"))`,
-      errors: ['Role Match Condition is required'],
-    },
-    {
-      name: 'invalid function',
-      str: `contains__any(access_request.spec.roles, set("access", "editor"))`,
-      errors: [
-        `Unknown function "contains__any"`,
-        'Role Match Condition is required',
-      ],
+      name: 'no named group "set" found',
+      str: `
+        contains_all(list("access"), access_request.spec.roles) &&
+        contains_any(user.traits["team"], set("test"))`,
     },
     {
       name: 'missing roles condition',
       str: `
-          contains_any(user.traits["level"], set("L1", "L2")) &&
-          contains_any(user.traits["team"], set("Cloud"))`,
-
-      errors: ['Role Match Condition is required'],
+        contains_any(user.traits["level"], set("L1", "L2")) &&
+        contains_any(user.traits["team"], set("Cloud"))`,
     },
   ];
 
-  invalidPredicates.forEach(test => {
-    it(`${test.name}`, () => {
-      const got = getRuleCondition(test.str);
-      expect(got.errors).toEqual(test.errors);
-    });
+  test.each(invalidPredicates)('$name', ({ str }) => {
+    const got = getReviewRuleCondition(str);
+    expect(got).toBeNull();
   });
 });
 
@@ -327,6 +309,19 @@ describe('convertRuleConditionToPredicateExpression', () => {
       name: 'field is empty (unlikely, but test it anyways)',
       cond: {
         rolesCondition: { field: null, values: [] },
+      },
+      exp: '',
+    },
+    {
+      name: 'match condition roles, null values',
+      cond: {
+        rolesCondition: {
+          field: {
+            label: '',
+            value: AccessRequestMatchCondition.MatchAllRoles,
+          },
+          values: null,
+        },
       },
       exp: '',
     },
@@ -418,10 +413,8 @@ contains_any(user.traits["team"], set("Cloud"))`,
     },
   ];
 
-  ruleConditions.forEach(test => {
-    it(`${test.name}`, () => {
-      const got = convertRuleConditionToPredicateExpression(test.cond);
-      expect(got).toBe(test.exp);
-    });
+  test.each(ruleConditions)('$name', ({ cond, exp }) => {
+    const got = convertRuleConditionToPredicateExpression(cond);
+    expect(got).toBe(exp);
   });
 });

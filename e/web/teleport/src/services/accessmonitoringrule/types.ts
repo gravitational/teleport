@@ -6,13 +6,19 @@ export enum AccessMonitoringRuleSubject {
 // Defines the access monitoring rule types.
 export enum AccessMonitoringRuleType {
   Notification = 'notification',
-  Approval = 'approval',
+  Review = 'review',
 }
 
 export interface AccessMonitoringRuleFilter {
   limit?: number;
   startKey?: string;
   subject?: AccessMonitoringRuleSubject;
+}
+
+export type KindAccessMonitoringRule = 'access_monitoring_rule';
+
+export enum AccessMonitoringRuleVersion {
+  V1 = 'v1',
 }
 
 /**
@@ -25,6 +31,8 @@ export interface AccessMonitoringRuleFilter {
  * (there may be more accessible)
  */
 export interface AccessMonitoringRule {
+  kind: KindAccessMonitoringRule;
+  version: AccessMonitoringRuleVersion;
   metadata: {
     name: string;
   };
@@ -37,6 +45,8 @@ export interface AccessMonitoringRule {
     /**
      * states are the desired state which the monitoring rule is attempting
      * to bring the subjects matching the condition to.
+     *
+     * Deprecated: use desired_state instead.
      */
     states?: string[];
     /**
@@ -45,6 +55,11 @@ export interface AccessMonitoringRule {
      * into desired state.
      */
     condition: string;
+    /**
+     * desired_state is the desired state which the monitoring rule is attempting
+     * to bring the subjects matching the condition to.
+     */
+    desired_state?: string;
     /**
      * notification defines the plugin configuration for notifications
      * if rule is triggered.
@@ -59,6 +74,21 @@ export interface AccessMonitoringRule {
        * recipients is the list of recipients the plugin should notify.
        */
       recipients?: string[];
+    };
+    /**
+     * automatic_review defines the configuration for automatic review rules.
+     */
+    automatic_review?: {
+      /**
+       * integration is the name of the integration/plugin to which this configuration
+       * should apply. Set `builtin` if the rule should be monitored by Teleport.
+       */
+      integration: string;
+      /**
+       * decision specifies the proposed state of the access review submission.
+       * This can be either `APPROVED` or `DENIED`.
+       */
+      decision: string;
     };
   };
 }

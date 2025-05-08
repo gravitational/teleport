@@ -67,7 +67,7 @@ export const EditStandard = ({
   const { attempt, run } = fetchAttempt;
   const { clusterId } = useStickyClusterId();
   const { rule, ...configurableFields } = standardEditor;
-  const { ruleCondition, ruleName, recipients, pluginOption } =
+  const { ruleCondition, ruleName, recipients, pluginOption, errors } =
     configurableFields;
 
   function onSave(validator: Validator) {
@@ -173,7 +173,7 @@ export const EditStandard = ({
     <Validation>
       {({ validator }) => (
         <>
-          <EditorWrapper mute={!ruleCondition} data-testid="standard">
+          <EditorWrapper mute={errors?.length > 0} data-testid="standard">
             <Box mt={2}>
               <FieldInput
                 label="Rule Name"
@@ -261,7 +261,7 @@ export const EditStandard = ({
             onCancel={onCancel}
             disabled={
               attempt.status === 'processing' ||
-              !ruleCondition ||
+              errors?.length > 0 ||
               !standardEditor.isDirty
             }
             isEditing={isEditing}

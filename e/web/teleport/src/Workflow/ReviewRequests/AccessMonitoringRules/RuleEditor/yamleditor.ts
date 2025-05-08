@@ -33,13 +33,17 @@ export function newYamlRuleFromTemplate(
   const { ruleName, ruleCondition, pluginOption, recipients } =
     configurableFields;
 
-  // Prefix each line with indentation.
-  const expression = convertRuleConditionToPredicateExpression(ruleCondition)
-    .split('\n')
-    .map(line => '    ' + line)
-    .join('\n');
-
-  const condition = expression !== '' ? `|-\n${expression}` : `''`;
+  let condition = '';
+  const expression = convertRuleConditionToPredicateExpression(ruleCondition);
+  const tokens = expression.split('\n');
+  if (tokens.length === 1) {
+    // Return single line expressions as is.
+    condition = expression;
+  } else if (tokens.length > 0) {
+    // Return multiline expressions prefixed with '|-' and indented.
+    const indented = tokens.map(line => '    ' + line).join('\n');
+    condition = `|-\n${indented}`;
+  }
 
   template = template.replace(
     '{{rule.metadata.name}}',

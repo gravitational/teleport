@@ -20,13 +20,11 @@ import { EditStandard } from './EditStandard';
 import { EditYaml } from './EditYaml';
 import { RequiresEnrollingPlugin } from './RequiresEnrollingPlugin';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
-import { getRuleCondition } from './rulecondition';
 import { EditorWrapper, Sidebar } from './Shared';
 import {
   buildRuleFromStandardEditor,
   getConfigurableFieldsForStandardEditor,
   newAccessMonitoringRule,
-  requireReset,
   StandardEditor,
 } from './standardeditor';
 import { newYamlRuleFromTemplate, YamlEditor } from './yamleditor';
@@ -63,9 +61,7 @@ export const RuleEditor = ({
 
   // Defaults to yaml editor if the rule condition could not be parsed.
   const [selectedEditorTab, setSelectedEditorTab] = useState<EditorTab>(() =>
-    requireReset(standardEditor.ruleCondition)
-      ? EditorTab.Yaml
-      : EditorTab.Standard
+    standardEditor.errors?.length > 0 ? EditorTab.Yaml : EditorTab.Standard
   );
 
   /**
@@ -80,9 +76,30 @@ export const RuleEditor = ({
    */
   function resetForStandardEditor() {
     setYamlEditor({ ...yamlEditor, requiresReset: false });
+
+    const rule = newAccessMonitoringRule();
+    const configurableFields = getConfigurableFieldsForStandardEditor(
+      {
+        ...rule,
+        metadata: {
+          name: standardEditor.ruleName,
+        },
+        spec: {
+          ...rule.spec,
+          notification: {
+            name: standardEditor.pluginOption?.value,
+            recipients: standardEditor.recipients.map(r => r.value),
+          },
+        },
+      },
+      plugins
+    );
+
     setStandardEditor({
-      ...standardEditor,
-      ruleCondition: getRuleCondition(''),
+      rule,
+      ...configurableFields,
+      errors: [],
+      isDirty: false,
     });
   }
 
@@ -112,9 +129,7 @@ export const RuleEditor = ({
       ...configurableFields,
     });
 
-    // If the rule condition returns null, it means the
-    // condition couldn't be parsed.
-    if (requireReset(configurableFields.ruleCondition)) {
+    if (configurableFields.errors?.length > 0) {
       setYamlEditor({ ...yamlEditor, requiresReset: true });
     }
 
@@ -169,7 +184,7 @@ export const RuleEditor = ({
           setYamlEditor({
             content: template,
             isDirty: true,
-            requiresReset: requireReset(standardEditor.ruleCondition),
+            requiresReset: standardEditor.errors?.length > 0,
           });
         } else {
           const yamlified = await yamlilfyRule();
@@ -211,11 +226,8 @@ export const RuleEditor = ({
         />
         {selectedEditorTab === EditorTab.Standard && (
           <>
-            {requireReset(standardEditor.ruleCondition) && (
-              <RequiresResetToStandard
-                reset={resetForStandardEditor}
-                errors={standardEditor.ruleCondition.errors}
-              />
+            {standardEditor.errors?.length > 0 && (
+              <RequiresResetToStandard reset={resetForStandardEditor} />
             )}
             <EditStandard
               selectedRule={selectedRule}

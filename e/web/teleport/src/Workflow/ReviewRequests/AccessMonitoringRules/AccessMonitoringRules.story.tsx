@@ -30,22 +30,6 @@ export default {
   ],
 };
 
-const validRuleWithTraits = {
-  metadata: { name: 'rule-with-traits-condition' },
-  spec: {
-    subjects: ['access_request'],
-    condition: `|-
-      contains_all(set("access"), access_request.spec.roles) &&
-      contains_any(user.traits["level"], set("L1")) &&
-      contains_any(user.traits["team"], set("Dev")) &&
-      contains_any(user.traits["location"], set("Seattle"))`,
-    notification: {
-      name: 'slack-plugin',
-      recipients: ['apple', 'banana', 'carrot'],
-    },
-  },
-};
-
 const validRuleObjectSlack = {
   metadata: { name: 'valid-default-to-standard-editor' },
   spec: {
@@ -133,6 +117,51 @@ subjects:
 - access_request
 version: v1`;
 
+const reviewRuleObject = {
+  metadata: { name: 'review-rule' },
+  spec: {
+    subjects: ['access_request'],
+    condition: `|-
+        contains_all(set("access"), access_request.spec.roles) &&
+        contains_any(user.traits["level"], set("L1")) &&
+        contains_any(user.traits["team"], set("Dev")) &&
+        contains_any(user.traits["location"], set("Seattle"))`,
+    desired_state: 'reviewed',
+    notification: {
+      name: 'slack-plugin',
+      recipients: ['apple', 'banana', 'carrot'],
+    },
+    automatic_review: {
+      integration: 'builtin',
+      decision: 'APPROVED',
+    },
+  },
+};
+
+const reviewRuleYaml = `
+kind: access_monitoring_rule
+metadata:
+  name: review-rule
+spec:
+  subjects:
+    - access_request
+  condition: |-
+    contains_all(set("access"), access_request.spec.roles) &&
+    contains_any(user.traits["level"], set("L1")) &&
+    contains_any(user.traits["team"], set("Dev")) &&
+    contains_any(user.traits["location"], set("Seattle"))
+  desired_state: reviewed
+  notification:
+    name: slack-plugin
+    recipients:
+      - apple
+      - banana
+      - carrot
+  automatic_review:
+    integration: builtin
+    decision: APPROVED
+version: v1`;
+
 const withPlugins = http.get(cfg.api.plugin.list, () =>
   HttpResponse.json([
     {
@@ -203,11 +232,6 @@ const withPlugins = http.get(cfg.api.plugin.list, () =>
 const withRule = http.get(accessMonitoringRuleListWithoutQuery, () =>
   HttpResponse.json({
     rules: [
-      {
-        object: {
-          ...validRuleWithTraits,
-        },
-      },
       {
         object: {
           ...validRuleObjectSlack,
@@ -336,6 +360,39 @@ ViewRuleThatRequireReset.parameters = {
       ),
       http.post(cfg.oss.api.yaml.stringify, () =>
         HttpResponse.json({ yaml: ruleYaml })
+      ),
+    ],
+  },
+};
+
+export const ViewReviewRuleThatRequireReset = () => {
+  return <Component />;
+};
+ViewReviewRuleThatRequireReset.parameters = {
+  msw: {
+    handlers: [
+      http.get(accessMonitoringRuleListWithoutQuery, () =>
+        HttpResponse.json({
+          rules: [
+            {
+              object: {
+                ...reviewRuleObject,
+                metadata: { name: 'review-rule' },
+              },
+              yaml: reviewRuleYaml,
+            },
+          ],
+          startKey: '',
+        })
+      ),
+      withPlugins,
+      deleteRule,
+      createRule,
+      http.post(cfg.oss.api.yaml.parse, () =>
+        HttpResponse.json({ resource: reviewRuleObject })
+      ),
+      http.post(cfg.oss.api.yaml.stringify, () =>
+        HttpResponse.json({ yaml: reviewRuleYaml })
       ),
     ],
   },

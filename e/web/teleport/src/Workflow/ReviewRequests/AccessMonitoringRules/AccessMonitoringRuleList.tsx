@@ -67,6 +67,10 @@ export function AccessMonitoringRuleList({
   const rulesForTable: TableRowRule[] = rules.map(r => {
     let types: string[] = [];
 
+    if (r.object.spec.automatic_review) {
+      types.push(AccessMonitoringRuleType.Review);
+    }
+
     if (r.object.spec.notification) {
       types.push(AccessMonitoringRuleType.Notification);
     }

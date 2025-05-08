@@ -1,6 +1,7 @@
 import {
   AccessMonitoringRule,
   AccessMonitoringRuleSubject,
+  AccessMonitoringRuleVersion,
 } from 'e-teleport/services/accessmonitoringrule/types';
 
 import {
@@ -18,11 +19,13 @@ import {
 test('buildRuleFromStandardEditor: empty fields', () => {
   const emptyRule = newAccessMonitoringRule();
   expect(emptyRule).toStrictEqual({
+    kind: 'access_monitoring_rule',
+    version: 'v1',
     metadata: {
       name: '',
     },
     spec: {
-      subjects: [],
+      subjects: [AccessMonitoringRuleSubject.AccessRequest],
       condition: '',
       notification: {
         name: '',
@@ -38,6 +41,8 @@ test('buildRuleFromStandardEditor: empty fields', () => {
   });
 
   expect(got).toStrictEqual({
+    kind: 'access_monitoring_rule',
+    version: 'v1',
     metadata: {
       name: '',
     },
@@ -72,6 +77,8 @@ test('buildRuleFromStandardEditor: empty rule with configurable fields defined',
   });
 
   expect(got).toStrictEqual({
+    kind: 'access_monitoring_rule',
+    version: 'v1',
     metadata: {
       name: 'rule-name',
     },
@@ -91,7 +98,6 @@ test('buildRuleFromStandardEditor: partial configurable fields defined', () => {
   rule.metadata.name = 'some-name';
   rule.spec.notification.name = 'slack';
   rule.spec.notification.recipients = ['llama'];
-  rule.spec.condition = 'invalid';
 
   const cfg = getConfigurableFieldsForStandardEditor(rule, []);
   expect(cfg).toStrictEqual({
@@ -99,10 +105,15 @@ test('buildRuleFromStandardEditor: partial configurable fields defined', () => {
     pluginOption: { value: 'slack', label: 'slack' },
     recipients: [{ value: 'llama', label: 'llama' }],
     ruleCondition: {
-      errors: ['Role Match Condition is required'],
-      rolesCondition: null,
+      rolesCondition: {
+        field: accessRequestMatchConditionOptions.find(
+          a => a.value === AccessRequestMatchCondition.MatchAllRoles
+        ),
+        values: [],
+      },
       traitsCondition: null,
     },
+    errors: [],
   });
 
   const got = buildRuleFromStandardEditor({
@@ -114,6 +125,8 @@ test('buildRuleFromStandardEditor: partial configurable fields defined', () => {
   });
 
   expect(got).toStrictEqual({
+    kind: 'access_monitoring_rule',
+    version: 'v1',
     metadata: {
       name: 'some-name',
     },
@@ -128,8 +141,61 @@ test('buildRuleFromStandardEditor: partial configurable fields defined', () => {
   });
 });
 
+describe('getConfigurableFieldsForStandardEditor unsupported fields', () => {
+  const rule = newAccessMonitoringRule();
+  const cases: {
+    name: string;
+    rule: AccessMonitoringRule;
+    errors: string[];
+  }[] = [
+    {
+      name: 'desired_state is not supported',
+      rule: {
+        ...rule,
+        spec: {
+          ...rule.spec,
+          desired_state: 'reviewed',
+        },
+      },
+      errors: ['Unsupported field: desired_state'],
+    },
+    {
+      name: 'automatic_review is not supported',
+      rule: {
+        ...rule,
+        spec: {
+          ...rule.spec,
+          automatic_review: {
+            integration: 'builtin',
+            decision: 'APPROVED',
+          },
+        },
+      },
+      errors: ['Unsupported field: automatic_review'],
+    },
+    {
+      name: 'invalid condition',
+      rule: {
+        ...rule,
+        spec: {
+          ...rule.spec,
+          condition: 'invalid',
+        },
+      },
+      errors: ['Unsupported condition: invalid'],
+    },
+  ];
+
+  test.each(cases)('$name', ({ rule, errors }) => {
+    const cfg = getConfigurableFieldsForStandardEditor(rule, []);
+    expect(cfg.errors).toStrictEqual(errors);
+  });
+});
+
 test('hasModifiedFields: no modified fields', () => {
   const originalRule: AccessMonitoringRule = {
+    kind: 'access_monitoring_rule',
+    version: AccessMonitoringRuleVersion.V1,
     metadata: {
       name: 'rule-name',
     },
@@ -154,6 +220,8 @@ test('hasModifiedFields: no modified fields', () => {
 
 test('hasModifiedFields: if yaml is modified, always return true', () => {
   const originalRule: AccessMonitoringRule = {
+    kind: 'access_monitoring_rule',
+    version: AccessMonitoringRuleVersion.V1,
     metadata: {
       name: 'rule-name',
     },
@@ -178,6 +246,8 @@ test('hasModifiedFields: if yaml is modified, always return true', () => {
 
 describe('hasModifiedFields', () => {
   const originalRule: AccessMonitoringRule = {
+    kind: 'access_monitoring_rule',
+    version: AccessMonitoringRuleVersion.V1,
     metadata: {
       name: 'rule-name',
     },
@@ -239,10 +309,8 @@ describe('hasModifiedFields', () => {
     },
   ];
 
-  cases.forEach(test => {
-    it(`${test.name}`, () => {
-      const modified = hasModifiedFields(test.cfg, originalRule, false);
-      expect(modified).toBe(true);
-    });
+  test.each(cases)('$name', ({ cfg }) => {
+    const modified = hasModifiedFields(cfg, originalRule, false);
+    expect(modified).toBe(true);
   });
 });

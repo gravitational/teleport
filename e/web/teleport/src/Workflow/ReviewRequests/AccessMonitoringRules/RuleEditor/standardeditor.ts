@@ -3,12 +3,13 @@ import { Option } from 'shared/components/Select';
 import {
   AccessMonitoringRule,
   AccessMonitoringRuleSubject,
+  AccessMonitoringRuleVersion,
 } from 'e-teleport/services/accessmonitoringrule/types';
 import { Plugin } from 'teleport/services/integrations';
 
 import {
   convertRuleConditionToPredicateExpression,
-  getRuleCondition,
+  getNotificationRuleCondition,
   RuleCondition,
 } from './rulecondition';
 
@@ -21,6 +22,11 @@ export type ConfigurableFieldsForStandardEditor = {
   pluginOption: Option;
   recipients: Option[];
   ruleCondition: RuleCondition;
+  /**
+   * errors will be populated with any unsupported fields
+   * that are not editable within the standard editor.
+   */
+  errors?: string[];
 };
 
 export type StandardEditor = ConfigurableFieldsForStandardEditor & {
@@ -36,15 +42,17 @@ export type StandardEditor = ConfigurableFieldsForStandardEditor & {
 };
 
 /**
- * Returns the rule object with required fields defined with empty values.
+ * Returns the rule object with required fields defined with default values.
  */
 export function newAccessMonitoringRule(): AccessMonitoringRule {
   return {
+    kind: 'access_monitoring_rule',
+    version: AccessMonitoringRuleVersion.V1,
     metadata: {
       name: '',
     },
     spec: {
-      subjects: [],
+      subjects: [AccessMonitoringRuleSubject.AccessRequest],
       condition: '',
       notification: {
         name: '',
@@ -54,8 +62,62 @@ export function newAccessMonitoringRule(): AccessMonitoringRule {
   };
 }
 
-export function requireReset(condition: RuleCondition): boolean {
-  return condition?.errors?.length > 0;
+// unsupportedFieldErrors returns an array of error messages for the unsupported
+// fields.
+function unsupportedFieldErrors(obj: Record<string, any>): string[] {
+  return Object.keys(obj).map(key => `Unsupported field: ${key}`);
+}
+
+// ruleToNotificationsEditor parses the notifications AccessMonitoringRule
+// object and extracts the fields that are editable in the standard editor.
+// Unsupported fields are returned in the errors array.
+function ruleToNotificationsEditor(
+  rule: AccessMonitoringRule
+): ConfigurableFieldsForStandardEditor {
+  const errors: string[] = [];
+
+  // We use destructuring to strip fields from objects and assert that nothing
+  // has been left. Therefore, we don't want Lint to warn us that we didn't use
+  // some of the fields.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { kind, version, metadata, spec, ...unsupported } = rule;
+  if (unsupported) {
+    errors.push(...unsupportedFieldErrors(unsupported));
+  }
+
+  const {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    subjects,
+    condition,
+    notification,
+    ...unsupportedSpec
+  } = spec;
+  if (unsupportedSpec) {
+    errors.push(...unsupportedFieldErrors(unsupportedSpec));
+  }
+
+  let recipients: Option[] = [];
+  if (notification?.recipients) {
+    recipients = notification.recipients.map(r => ({ value: r, label: r }));
+  }
+
+  let pluginOption: Option = null;
+  if (notification?.name) {
+    pluginOption = { value: notification.name, label: notification.name };
+  }
+
+  const ruleCondition = getNotificationRuleCondition(condition);
+  if (!ruleCondition) {
+    errors.push(`Unsupported condition: ${condition}`);
+  }
+
+  return {
+    ruleName: metadata?.name || '',
+    pluginOption,
+    recipients,
+    ruleCondition,
+    errors,
+  };
 }
 
 /**
@@ -81,31 +143,14 @@ export function getConfigurableFieldsForStandardEditor(
       ruleName: '',
       recipients: [],
       pluginOption: getFirstPluginOption(),
-      ruleCondition: getRuleCondition(''),
+      ruleCondition: getNotificationRuleCondition(''),
     };
   }
 
-  let recipients: Option[] = [];
-  const definedRecipients = rule.spec.notification?.recipients;
-  if (definedRecipients) {
-    recipients = definedRecipients.map(r => ({ value: r, label: r }));
-  }
+  const fields = ruleToNotificationsEditor(rule);
+  fields.pluginOption = fields.pluginOption || getFirstPluginOption();
 
-  let pluginOption: Option = getFirstPluginOption();
-  const definedIntegrationName = rule.spec.notification?.name;
-  if (definedIntegrationName) {
-    pluginOption = {
-      value: definedIntegrationName,
-      label: definedIntegrationName,
-    };
-  }
-
-  return {
-    ruleName: rule.metadata.name,
-    pluginOption,
-    recipients,
-    ruleCondition: getRuleCondition(rule.spec.condition),
-  };
+  return fields;
 }
 
 /**
@@ -164,7 +209,9 @@ export function hasModifiedFields(
     return true;
   }
 
-  const originalRuleCondition = getRuleCondition(originalRule?.spec.condition);
+  const originalRuleCondition = getNotificationRuleCondition(
+    originalRule?.spec.condition
+  );
 
   const modifiedRolesConditionField = () =>
     originalRuleCondition?.rolesCondition?.field.value !==

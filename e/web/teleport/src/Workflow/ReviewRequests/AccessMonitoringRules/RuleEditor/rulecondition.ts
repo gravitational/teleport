@@ -57,7 +57,6 @@ export type AccessRequestStateOption = {
 export type RuleCondition = {
   rolesCondition?: RolesCondition;
   traitsCondition?: TraitsCondition[];
-  errors?: string[];
 };
 
 export type RolesCondition = {
@@ -70,24 +69,35 @@ export type TraitsCondition = {
   values: Option[];
 };
 
-function getRolesCondition(condition: string): RolesCondition | null {
+/**
+ * Tries to parse the provided notification rule predicate expression (condition)
+ * to see if it conforms to what the web UI expects.
+ * If it doesn't exactly conform, returns null to mean
+ * it couldn't be parsed.
+ *
+ * Some examples of parsable predicate expression:
+ * - !is_empty(access_request.spec.roles)
+ * - contains_any(access_request.spec.roles, set("access","editor"))
+ * - contains_all(set("access","editor"), access_request.spec.roles)
+ */
+export function getNotificationRuleCondition(condition: string): RuleCondition {
+  let rolesCondition: RolesCondition;
+
   // Default to role condition.
   if (!condition) {
     return {
-      field: accessRequestMatchConditionOptions.find(
-        a => a.value === AccessRequestMatchCondition.MatchAllRoles
-      ),
-      values: [],
+      rolesCondition: {
+        field: accessRequestMatchConditionOptions.find(
+          a => a.value === AccessRequestMatchCondition.MatchAllRoles
+        ),
+        values: [],
+      },
+      traitsCondition: null,
     };
   }
 
-  // Parse the provided predicate condition to see if
-  // it conforms to what the web UI expects.
-  // If it doesn't exactly conform, return null to mean
-  // it couldn't be parsed.
-
   if (condition === `!is_empty(${ACCESS_REQUEST_SPEC_ROLES})`) {
-    return {
+    rolesCondition = {
       field: accessRequestMatchConditionOptions.find(
         a => a.value === AccessRequestMatchCondition.AnyRoles
       ),
@@ -95,121 +105,135 @@ function getRolesCondition(condition: string): RolesCondition | null {
     };
   }
 
-  const containsAllRolesRegex =
-    /contains_all\(set\((?<set>"[^)]+")\), access_request.spec.roles\)/;
+  const containsAnyRolesRegex =
+    /^contains_any\(access_request.spec.roles, set\((?<set>"[^)]+")\)\)$/;
+  const templateMatchContainsAnyRoles = containsAnyRolesRegex.exec(condition);
+  const gotContainsAnyRoles = templateMatchContainsAnyRoles?.groups?.set;
+  if (gotContainsAnyRoles) {
+    const roles = parseQuotedWordsDelimitedByComma(gotContainsAnyRoles);
+    if (roles.length !== 0) {
+      rolesCondition = {
+        field: accessRequestMatchConditionOptions.find(
+          a => a.value === AccessRequestMatchCondition.MatchAnyRoles
+        ),
+        values: roles.map(v => ({ label: v, value: v })),
+      };
+    }
+  }
 
+  const containsAllRolesRegex =
+    /^contains_all\(set\((?<set>"[^)]+")\), access_request.spec.roles\)$/;
   const templateMatchContainsAllRoles = containsAllRolesRegex.exec(condition);
   const gotContainsAllRoles = templateMatchContainsAllRoles?.groups?.set;
   if (gotContainsAllRoles) {
     const roles = parseQuotedWordsDelimitedByComma(gotContainsAllRoles);
     if (roles.length !== 0) {
-      return {
+      rolesCondition = {
         field: accessRequestMatchConditionOptions.find(
           a => a.value === AccessRequestMatchCondition.MatchAllRoles
         ),
-        values: roles.map(v => ({
-          label: v,
-          value: v,
-        })),
+        values: roles.map(v => ({ label: v, value: v })),
       };
     }
   }
 
-  const containsAnyRolesRegex =
-    /contains_any\(access_request.spec.roles, set\((?<set>"[^)]+")\)/;
-
-  const templateMatchContainsAnyRoles = containsAnyRolesRegex.exec(condition);
-  const gotContainsAnyRoles = templateMatchContainsAnyRoles?.groups?.set;
-  if (gotContainsAnyRoles) {
-    const roles = parseQuotedWordsDelimitedByComma(gotContainsAnyRoles);
-
-    if (roles.length !== 0) {
-      return {
-        field: accessRequestMatchConditionOptions.find(
-          a => a.value === AccessRequestMatchCondition.MatchAnyRoles
-        ),
-        values: roles.map(v => ({
-          label: v,
-          value: v,
-        })),
-      };
-    }
-  }
-
-  return null;
-}
-
-function getTraitsCondition(condition: string): TraitsCondition[] | null {
-  const containsTraitsRegex =
-    /contains_any\(user.traits\["(?<trait>[^"]+)"\], set\((?<set>"[^)]+")\)/g;
-
-  let match;
-  const traitsCondition = [];
-
-  while ((match = containsTraitsRegex.exec(condition)) !== null) {
-    const traitLabel = match?.groups?.trait;
-    const traitValueSet = match?.groups?.set;
-    if (traitLabel && traitValueSet) {
-      const traitValues = parseQuotedWordsDelimitedByComma(traitValueSet);
-      traitsCondition.push({
-        field: { label: traitLabel, value: traitLabel },
-        values: traitValues.map(v => ({ label: v, value: v })),
-      });
-    }
-  }
-
-  if (traitsCondition.length === 0) {
+  // Return null if we couldn't parse the condition.
+  if (!rolesCondition) {
     return null;
   }
 
-  return traitsCondition;
+  return {
+    rolesCondition,
+    traitsCondition: null,
+  };
 }
 
 /**
- * Tries to parse the provided predicate expression (condition)
+ * Tries to parse the provided review rule predicate expression (condition)
  * to see if it conforms to what the web UI expects.
  * If it doesn't exactly conform, returns null to mean
- * it couldn't be parsed.
+ * it couldn't be parsed. The predicate expression is expected to contain
+ * one matching roles expression and at least one matching traits expression.
  *
- * Some examples of parsable predicate expression:
- *  - contains_any(access_request.spec.roles, set("access","editor"))
- *  - !is_empty(access_request.spec.roles)
+ * Example of a parsable predicate expression:
+ * - `contains_all(set("access","editor"), access_request.spec.roles) &&
+ *   contains_any(user.traits["department"], set("engineering","sales"))`
  */
-export function getRuleCondition(condition: string): RuleCondition | null {
-  const errors: string[] = [];
+export function getReviewRuleCondition(condition: string): RuleCondition {
+  let rolesCondition: RolesCondition;
+  let traitsCondition: TraitsCondition[] = [];
 
-  // Verify allowed functions
-  const allowedFunctions = new Set([
-    'contains_any',
-    'contains_all',
-    'set',
-    'is_empty',
-  ]);
-  const functionRegex = /(?<func>[a-zA-Z_]\w*)\s*\(/g;
+  // Default to role condition.
+  if (!condition) {
+    return {
+      rolesCondition: {
+        field: accessRequestMatchConditionOptions.find(
+          a => a.value === AccessRequestMatchCondition.MatchAllRoles
+        ),
+        values: [],
+      },
+      traitsCondition: null,
+    };
+  }
 
-  condition?.matchAll(functionRegex).forEach(match => {
-    const fnName = match?.groups?.func;
-    if (!allowedFunctions.has(fnName)) {
-      errors.push(`Unknown function "${fnName}"`);
+  // Trim and split on &&
+  const normalizedInput = condition.replace('|-', '').trim();
+  const expressions = normalizedInput.split(/\s*&&\s*/);
+
+  // Expect roles condition to be the first expression.
+  const rolesConditionExpr = expressions[0] || '';
+  const containsAllRolesRegex =
+    /^contains_all\(set\((?<set>"[^)]+")\), access_request.spec.roles\)$/;
+  const templateMatchContainsAllRoles =
+    containsAllRolesRegex.exec(rolesConditionExpr);
+  const gotContainsAllRoles = templateMatchContainsAllRoles?.groups?.set;
+  if (gotContainsAllRoles) {
+    const roles = parseQuotedWordsDelimitedByComma(gotContainsAllRoles);
+    if (roles.length !== 0) {
+      rolesCondition = {
+        field: accessRequestMatchConditionOptions.find(
+          a => a.value === AccessRequestMatchCondition.MatchAllRoles
+        ),
+        values: roles.map(v => ({ label: v, value: v })),
+      };
+    }
+  }
+
+  // Return null if we couldn't parse the roles condition.
+  if (!rolesCondition) {
+    return null;
+  }
+
+  // Parse remaining expressions for traits condition.
+  const traitsConditionExpr = expressions.slice(1);
+  const containsTraitsRegex =
+    /^contains_any\(user.traits\["(?<trait>[^"]+)"\], set\((?<set>"[^)]+")\)\)$/;
+
+  traitsConditionExpr.forEach(traitExpr => {
+    const templateMatchContainsTraits = containsTraitsRegex.exec(traitExpr);
+    const gotContainsTraits = templateMatchContainsTraits?.groups;
+    if (gotContainsTraits) {
+      const trait = gotContainsTraits.trait;
+      const traitValues = parseQuotedWordsDelimitedByComma(
+        gotContainsTraits.set
+      );
+      if (traitValues.length !== 0) {
+        traitsCondition.push({
+          field: { label: trait, value: trait },
+          values: traitValues.map(v => ({ label: v, value: v })),
+        });
+      }
     }
   });
 
-  // Verify roles condition is parsed
-  const rolesCondition = getRolesCondition(condition);
-  if (rolesCondition == null) {
-    errors.push('Role Match Condition is required');
-  }
-
-  const traitsCondition = getTraitsCondition(condition);
-
-  if (rolesCondition === null && traitsCondition === null && errors === null) {
+  // Return null if we couldn't parse any of the traits condition.
+  if (traitsCondition.length !== traitsConditionExpr.length) {
     return null;
   }
 
   return {
     rolesCondition,
     traitsCondition,
-    errors,
   };
 }
 
@@ -222,7 +246,7 @@ function convertRolesConditionToPredicateExpression(
 
   switch (rolesCondition.field.value) {
     case AccessRequestMatchCondition.MatchAllRoles: {
-      if (rolesCondition.values.length === 0) {
+      if (!rolesCondition.values || rolesCondition.values.length === 0) {
         return ``;
       }
       const joinedRoles = rolesCondition.values
@@ -231,7 +255,7 @@ function convertRolesConditionToPredicateExpression(
       return `contains_all(set(${joinedRoles}), ${ACCESS_REQUEST_SPEC_ROLES})`;
     }
     case AccessRequestMatchCondition.MatchAnyRoles: {
-      if (rolesCondition.values.length === 0) {
+      if (!rolesCondition.values || rolesCondition.values.length === 0) {
         return ``;
       }
       const joinedRoles = rolesCondition.values
@@ -266,7 +290,7 @@ export function convertRuleConditionToPredicateExpression(
   ruleCondition: RuleCondition
 ) {
   if (!ruleCondition) {
-    return ``;
+    return '';
   }
 
   const rolesExpression = convertRolesConditionToPredicateExpression(
@@ -279,14 +303,11 @@ export function convertRuleConditionToPredicateExpression(
   if (rolesExpression !== '' && traitsExpression !== '') {
     return `${rolesExpression} &&\n${traitsExpression}`;
   }
-
   if (rolesExpression !== '') {
     return rolesExpression;
   }
-
   if (traitsExpression !== '') {
-    return `${traitsExpression}`;
+    return traitsExpression;
   }
-
-  return ``;
+  return '';
 }

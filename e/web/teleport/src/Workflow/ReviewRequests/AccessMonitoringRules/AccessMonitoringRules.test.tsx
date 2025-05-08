@@ -5,6 +5,10 @@ import { MemoryRouter } from 'react-router';
 import { render, screen, userEvent } from 'design/utils/testing';
 
 import { accessMonitoringRuleService } from 'e-teleport/services/accessmonitoringrule';
+import {
+  AccessMonitoringRule,
+  AccessMonitoringRuleVersion,
+} from 'e-teleport/services/accessmonitoringrule/types';
 import { pluginsService } from 'e-teleport/services/plugins';
 import { ContextProvider } from 'teleport';
 import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
@@ -236,7 +240,9 @@ subjects:
 - access_request
 version: v1`;
 
-const validRuleObject = {
+const validRuleObject: AccessMonitoringRule = {
+  kind: 'access_monitoring_rule',
+  version: AccessMonitoringRuleVersion.V1,
   metadata: { name: 'name-valid-default-to-standard-editor' },
   spec: {
     subjects: ['access_request'],
@@ -248,7 +254,9 @@ const validRuleObject = {
   },
 };
 
-const invalidRuleObject = {
+const invalidRuleObject: AccessMonitoringRule = {
+  kind: 'access_monitoring_rule',
+  version: AccessMonitoringRuleVersion.V1,
   metadata: { name: 'name-invalid-fields-default-to-yaml-editor' },
   spec: {
     subjects: ['access_request'],
@@ -260,7 +268,9 @@ const invalidRuleObject = {
   },
 };
 
-const createdRuleObject = {
+const createdRuleObject: AccessMonitoringRule = {
+  kind: 'access_monitoring_rule',
+  version: AccessMonitoringRuleVersion.V1,
   metadata: { name: 'created-rule' },
   spec: {
     subjects: ['access_request'],
