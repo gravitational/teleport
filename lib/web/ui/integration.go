@@ -49,6 +49,21 @@ type IntegrationAWSOIDCSpec struct {
 	Audience string `json:"audience,omitempty"`
 }
 
+// IntegrationAWSRASpec contain the specific fields for the `aws-ra` subkind integration.
+type IntegrationAWSRASpec struct {
+	// TrustAnchorARN is the IAM Roles Anywhere Trust Anchor ARN associated with the integration.
+	TrustAnchorARN string `json:"trustAnchorARN,omitempty"`
+}
+
+// CheckAndSetDefaults for the aws oidc integration spec.
+func (r *IntegrationAWSRASpec) CheckAndSetDefaults() error {
+	if r.TrustAnchorARN == "" {
+		return trace.BadParameter("missing awsra.trustAnchorArn field")
+	}
+
+	return nil
+}
+
 // IntegrationGitHub contains the specific fields for the `github` subkind integration.
 type IntegrationGitHub struct {
 	Organization string `json:"organization"`
@@ -138,6 +153,8 @@ type Integration struct {
 	SubKind string `json:"subKind,omitempty"`
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
+	// AWSRA contains the fields for `aws-ra` subkind integration.
+	AWSRA *IntegrationAWSRASpec `json:"awsra,omitempty"`
 	// GitHub contains the fields for `github` subkind integration.
 	GitHub *IntegrationGitHub `json:"github,omitempty"`
 }
@@ -166,6 +183,10 @@ func (r *Integration) CheckAndSetDefaults() error {
 		}
 		if err := types.ValidateGitHubOrganizationName(r.GitHub.Organization); err != nil {
 			return trace.Wrap(err)
+		}
+	case types.IntegrationSubKindAWSRA:
+		if r.AWSRA == nil {
+			return trace.BadParameter("missing spec for AWS Roles Anywhere integration")
 		}
 	}
 
@@ -198,6 +219,14 @@ func (r *CreateIntegrationRequest) CheckAndSetDefaults() error {
 			return trace.BadParameter("missing OAuth secret for GitHub integration")
 		}
 	}
+	if r.SubKind == types.IntegrationSubKindAWSRA {
+		if r.AWSRA == nil {
+			return trace.BadParameter("missing awsra field")
+		}
+		if r.AWSRA.TrustAnchorARN == "" {
+			return trace.BadParameter("missing awsra.trustAnchorArn field")
+		}
+	}
 	return nil
 }
 
@@ -205,6 +234,8 @@ func (r *CreateIntegrationRequest) CheckAndSetDefaults() error {
 type UpdateIntegrationRequest struct {
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
+	// AWSRA contains the fields for `aws-ra` subkind integration.
+	AWSRA *IntegrationAWSRASpec `json:"awsra,omitempty"`
 	// OAuth contains OAuth settings.
 	OAuth *IntegrationOAuthCredentials `json:"oauth,omitempty"`
 }
@@ -213,6 +244,11 @@ type UpdateIntegrationRequest struct {
 func (r *UpdateIntegrationRequest) CheckAndSetDefaults() error {
 	if r.AWSOIDC != nil {
 		if err := r.AWSOIDC.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if r.AWSRA != nil {
+		if err := r.AWSRA.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -286,6 +322,15 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 		}
 		ret.GitHub = &IntegrationGitHub{
 			Organization: spec.Organization,
+		}
+
+	case types.IntegrationSubKindAWSRA:
+		spec := ig.GetAWSRAIntegrationSpec()
+		if spec == nil {
+			return nil, trace.BadParameter("missing spec for AWS Roles Anywhere integrations")
+		}
+		ret.AWSRA = &IntegrationAWSRASpec{
+			TrustAnchorARN: spec.TrustAnchorARN,
 		}
 	}
 
