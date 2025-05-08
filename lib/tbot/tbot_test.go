@@ -382,6 +382,12 @@ func TestBot(t *testing.T) {
 		// testenv cluster uses balanced-v1 suite, sanity check we generated an
 		// ECDSA key.
 		require.IsType(t, &ecdsa.PublicKey{}, botIdent.PrivateKey.Public())
+
+		// Check if we can output/print the TLS Identity properly
+		output := describeTLSIdentity(ctx, rootClient, log, botIdent)
+
+		var expectedString = fmt.Sprintf("allowedRoles=[%s %s]", mainRole, secondaryRole)
+		require.Contains(t, output, expectedString, "Output must contain the allowedRoles field with the proper roles")
 	})
 
 	t.Run("output: identity", func(t *testing.T) {

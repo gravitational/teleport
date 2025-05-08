@@ -234,7 +234,9 @@ func writeTLSCAs(ctx context.Context, dest bot.Destination, hostCAs, userCAs, da
 
 // describeTLSIdentity generates an informational message about the given
 // TLS identity, appropriate for user-facing log messages.
-func describeTLSIdentity(ctx context.Context, log *slog.Logger, ident *identity.Identity) string {
+// authClient can be passed as nil, if the identity is loaded from disk without an active connection.
+// In that case, the allowedRoles will be empty.
+func describeTLSIdentity(ctx context.Context, authClient *authclient.Client, log *slog.Logger, ident *identity.Identity) string {
 	failedToDescribe := "failed-to-describe"
 	cert := ident.X509Cert
 	if cert == nil {
@@ -261,8 +263,18 @@ func describeTLSIdentity(ctx context.Context, log *slog.Logger, ident *identity.
 	}
 
 	duration := cert.NotAfter.Sub(cert.NotBefore)
+
+	var allowedRoles []string
+	if authClient != nil {
+		allowedRoles, err = fetchDefaultRoles(ctx, authClient, ident)
+	}
+
+	if err != nil {
+		return ""
+	}
+
 	return fmt.Sprintf(
-		"%s%s | valid: after=%v, before=%v, duration=%s | kind=tls, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v, generation=%v",
+		"%s%s | valid: after=%v, before=%v, duration=%s | kind=tls, renewable=%v, disallow-reissue=%v, botRoles=%v, allowedRoles=%v, principals=%v, generation=%v",
 		tlsIdent.BotName,
 		botDesc,
 		cert.NotBefore.Format(time.RFC3339),
@@ -271,6 +283,7 @@ func describeTLSIdentity(ctx context.Context, log *slog.Logger, ident *identity.
 		tlsIdent.Renewable,
 		tlsIdent.DisallowReissue,
 		tlsIdent.Groups,
+		allowedRoles,
 		principals,
 		tlsIdent.Generation,
 	)

@@ -173,7 +173,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		"Generated identity for Kubernetes cluster",
 		"kubernetes_cluster",
 		kubeClusterName,
-		"identity", describeTLSIdentity(ctx, s.log, routedIdentity),
+		"identity", describeTLSIdentity(ctx, s.botAuthClient, s.log, routedIdentity),
 	)
 
 	// Ping the proxy to resolve connection addresses.
