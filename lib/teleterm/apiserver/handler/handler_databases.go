@@ -64,5 +64,9 @@ func newAPIDatabase(db clusters.Database) *api.Database {
 		Protocol: db.GetProtocol(),
 		Type:     db.GetType(),
 		Labels:   apiLabels,
+		TargetHealth: &api.TargetHealth{
+			Status: db.TargetHealth.Status,
+			Error:  db.TargetHealth.TransitionError,
+		},
 	}
 }

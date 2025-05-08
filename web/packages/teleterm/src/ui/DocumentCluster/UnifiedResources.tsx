@@ -37,6 +37,7 @@ import {
 import {
   getResourceAvailabilityFilter,
   ResourceAvailabilityFilter,
+  ResourceStatus,
   SharedUnifiedResource,
   UnifiedResources as SharedUnifiedResources,
   UnifiedResourcesPinning,
@@ -518,6 +519,10 @@ const mapToSharedResource = (
           ).title,
           protocol: database.protocol as DbProtocol,
           requiresRequest: resource.requiresRequest,
+          targetHealth: database.targetHealth && {
+            status: database.targetHealth.status as ResourceStatus,
+            error: database.targetHealth.error,
+          },
         },
         ui: {
           ActionButton: <ConnectDatabaseActionButton database={database} />,
