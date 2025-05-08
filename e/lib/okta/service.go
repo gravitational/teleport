@@ -450,18 +450,14 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		return nil, trace.Wrap(err)
 	}
 
-	oktaOAuthScopes := oktacommon.GetOAuthScopesForSyncSettings(&config.SyncSettings)
 	oktaClient, err := creator(ctx, oktaapi.Config{
 		OrgUrl:       config.OktaAPIEndpoint,
 		AuthProvider: config.AuthProvider,
 		Log:          config.Logger,
-		Scopes:       oktaOAuthScopes,
+		Scopes:       oktacommon.GetOAuthScopesForSyncSettings(&config.SyncSettings),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating Okta client")
-	}
-	if err := oktacommon.CheckClientOAuthScopes(ctx, oktaClient, oktaOAuthScopes...); err != nil {
-		return nil, trace.Wrap(err, "checking Okta client credentials OAuth scopes")
 	}
 
 	s := &Service{
