@@ -121,18 +121,19 @@ func (s *SUT) GetClusterClientForUser(t *testing.T, user string) *client.Cluster
 			Cluster:      helpers.Site,
 			Host:         helpers.Host,
 		})
-		require.NoError(t, err)
+		require.NoError(collect, err)
 
 		tc, err = aliceClient.ConnectToCluster(context.Background())
-		require.NoError(t, err)
+		require.NoError(collect, err)
 		_, err = tc.AuthClient.Ping(context.Background())
 		if err != nil {
 			tc.Close()
 		}
-		assert.NoError(collect, err)
-
+		require.NoError(collect, err)
+		t.Cleanup(func() {
+			tc.Close()
+		})
 	}, time.Second*5, time.Millisecond*100)
-
 	_, err := tc.AuthClient.Ping(context.Background())
 	require.NoError(t, err)
 
