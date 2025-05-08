@@ -30,9 +30,10 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { TargetHealth } from "./target_health_pb";
 import { Label } from "./label_pb";
 /**
- * Database describes a database
+ * Database describes a database (resource kind "db")
  *
  * @generated from protobuf message teleport.lib.teleterm.v1.Database
  */
@@ -85,6 +86,35 @@ export interface Database {
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.Label labels = 8;
      */
     labels: Label[];
+    /**
+     * target_health of the "db_server" that is serving this database.
+     *
+     * @generated from protobuf field: teleport.lib.teleterm.v1.TargetHealth target_health = 9;
+     */
+    targetHealth?: TargetHealth;
+}
+/**
+ * DatabaseServer describes a database server resource (resource kind "db_server")
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.DatabaseServer
+ */
+export interface DatabaseServer {
+    /**
+     * @generated from protobuf field: string cluster_uri = 1;
+     */
+    clusterUri: string;
+    /**
+     * @generated from protobuf field: string hostname = 2;
+     */
+    hostname: string;
+    /**
+     * @generated from protobuf field: string host_id = 3;
+     */
+    hostId: string;
+    /**
+     * @generated from protobuf field: teleport.lib.teleterm.v1.TargetHealth target_health = 4;
+     */
+    targetHealth?: TargetHealth;
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class Database$Type extends MessageType<Database> {
@@ -97,7 +127,8 @@ class Database$Type extends MessageType<Database> {
             { no: 5, name: "type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 6, name: "hostname", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 8, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label }
+            { no: 8, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label },
+            { no: 9, name: "target_health", kind: "message", T: () => TargetHealth }
         ]);
     }
     create(value?: PartialMessage<Database>): Database {
@@ -143,6 +174,9 @@ class Database$Type extends MessageType<Database> {
                 case /* repeated teleport.lib.teleterm.v1.Label labels */ 8:
                     message.labels.push(Label.internalBinaryRead(reader, reader.uint32(), options));
                     break;
+                case /* teleport.lib.teleterm.v1.TargetHealth target_health */ 9:
+                    message.targetHealth = TargetHealth.internalBinaryRead(reader, reader.uint32(), options, message.targetHealth);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -179,6 +213,9 @@ class Database$Type extends MessageType<Database> {
         /* repeated teleport.lib.teleterm.v1.Label labels = 8; */
         for (let i = 0; i < message.labels.length; i++)
             Label.internalBinaryWrite(message.labels[i], writer.tag(8, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.lib.teleterm.v1.TargetHealth target_health = 9; */
+        if (message.targetHealth)
+            TargetHealth.internalBinaryWrite(message.targetHealth, writer.tag(9, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -189,3 +226,73 @@ class Database$Type extends MessageType<Database> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.Database
  */
 export const Database = new Database$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DatabaseServer$Type extends MessageType<DatabaseServer> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.DatabaseServer", [
+            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "hostname", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "host_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "target_health", kind: "message", T: () => TargetHealth }
+        ]);
+    }
+    create(value?: PartialMessage<DatabaseServer>): DatabaseServer {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.clusterUri = "";
+        message.hostname = "";
+        message.hostId = "";
+        if (value !== undefined)
+            reflectionMergePartial<DatabaseServer>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DatabaseServer): DatabaseServer {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string cluster_uri */ 1:
+                    message.clusterUri = reader.string();
+                    break;
+                case /* string hostname */ 2:
+                    message.hostname = reader.string();
+                    break;
+                case /* string host_id */ 3:
+                    message.hostId = reader.string();
+                    break;
+                case /* teleport.lib.teleterm.v1.TargetHealth target_health */ 4:
+                    message.targetHealth = TargetHealth.internalBinaryRead(reader, reader.uint32(), options, message.targetHealth);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DatabaseServer, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string cluster_uri = 1; */
+        if (message.clusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
+        /* string hostname = 2; */
+        if (message.hostname !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.hostname);
+        /* string host_id = 3; */
+        if (message.hostId !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.hostId);
+        /* teleport.lib.teleterm.v1.TargetHealth target_health = 4; */
+        if (message.targetHealth)
+            TargetHealth.internalBinaryWrite(message.targetHealth, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.DatabaseServer
+ */
+export const DatabaseServer = new DatabaseServer$Type();

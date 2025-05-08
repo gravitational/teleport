@@ -64,6 +64,8 @@ service TerminalService {
   rpc StartHeadlessWatcher(StartHeadlessWatcherRequest) returns (StartHeadlessWatcherResponse);
   // ListDatabaseUsers lists allowed users for the given database based on the role set.
   rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
+  // ListDatabaseServers lists allowed users for the given database based on the role set.
+  rpc ListDatabaseServers(ListResourcesRequest) returns (ListDatabaseServersResponse);
   // GetServers returns filtered, sorted, and paginated servers
   //
   // Deprecated: Use ListUnifiedResources instead.
@@ -472,6 +474,21 @@ message ListDatabaseUsersRequest {
 
 message ListDatabaseUsersResponse {
   repeated string users = 1;
+}
+
+message ListResourcesRequest {
+  string cluster_uri = 1;
+  string start_key = 2;
+  int32 limit = 3;
+  string predicate_expression = 4;
+  // UseSearchAsRoles indicates that the response should include all resources
+  // the caller is able to request access to using search_as_roles
+  bool use_search_as_roles = 5;
+}
+
+message ListDatabaseServersResponse {
+  repeated DatabaseServer servers = 1;
+  string next_key = 2;
 }
 
 message CreateGatewayRequest {
