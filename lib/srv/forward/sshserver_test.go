@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -191,7 +190,6 @@ func TestDirectTCPIP(t *testing.T) {
 	cases := []struct {
 		name           string
 		login          string
-		accessChecker  services.AccessChecker
 		expectAccepted bool
 		expectRejected bool
 	}{

@@ -59,7 +59,7 @@ type DesktopsGetter interface {
 // ConnectToWindowsService tries to make a connection to a Windows Desktop Service
 // by trying each of the services provided. It returns an error if it could not connect
 // to any of the services or if it encounters an error that is not a connection problem.
-func ConnectToWindowsService(ctx context.Context, config *ConnectionConfig) (conn net.Conn, err error) {
+func ConnectToWindowsService(ctx context.Context, config *ConnectionConfig) (conn net.Conn, version string, err error) {
 	// Pick a random Windows desktop service as our gateway.
 	// When agent mode is implemented in the service, we'll have to filter out
 	// the services in agent mode.
@@ -68,10 +68,10 @@ func ConnectToWindowsService(ctx context.Context, config *ConnectionConfig) (con
 	// routing.
 	winDesktops, err := config.DesktopsGetter.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: config.DesktopName})
 	if err != nil {
-		return nil, trace.Wrap(err, "cannot get Windows desktops")
+		return nil, "", trace.Wrap(err, "cannot get Windows desktops")
 	}
 	if len(winDesktops) == 0 {
-		return nil, trace.NotFound("no Windows desktops were found")
+		return nil, "", trace.NotFound("no Windows desktops were found")
 	}
 
 	validServiceIDs := make([]string, 0, len(winDesktops))
@@ -85,23 +85,23 @@ func ConnectToWindowsService(ctx context.Context, config *ConnectionConfig) (con
 	}
 
 	for _, id := range utils.ShuffleVisit(validServiceIDs) {
-		conn, err := tryConnect(ctx, id, config)
+		conn, ver, err := tryConnect(ctx, id, config)
 		if err == nil {
-			return conn, nil
+			return conn, ver, nil
 		}
 		config.Log.WarnContext(ctx, "failed to connect to windows_desktop_service",
 			"windows_desktop_service_id", id,
 			"error", err,
 		)
 	}
-	return nil, trace.Errorf("failed to connect to any windows_desktop_service")
+	return nil, "", trace.Errorf("failed to connect to any windows_desktop_service")
 }
 
-func tryConnect(ctx context.Context, desktopServiceID string, config *ConnectionConfig) (conn net.Conn, err error) {
+func tryConnect(ctx context.Context, desktopServiceID string, config *ConnectionConfig) (conn net.Conn, version string, err error) {
 	service, err := config.DesktopsGetter.GetWindowsDesktopService(ctx, desktopServiceID)
 	if err != nil {
 		config.Log.ErrorContext(ctx, "Error finding service", "service_id", desktopServiceID, "error", err)
-		return nil, trace.NotFound("could not find windows desktop service %s: %v", desktopServiceID, err)
+		return nil, "", trace.NotFound("could not find windows desktop service %s: %v", desktopServiceID, err)
 	}
 
 	conn, err = config.Site.DialTCP(reversetunnelclient.DialParams{
@@ -113,7 +113,7 @@ func tryConnect(ctx context.Context, desktopServiceID string, config *Connection
 		OriginalClientDstAddr: config.ClientDstAddr,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	ver := service.GetTeleportVersion()
@@ -123,5 +123,5 @@ func tryConnect(ctx context.Context, desktopServiceID string, config *Connection
 		"windows_service_addr", service.GetAddr(),
 	)
 
-	return conn, nil
+	return conn, ver, nil
 }

@@ -44,7 +44,7 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
 				amr.Spec.Notification.Name = ""
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "notification plugin name is missing")
 			},
 		},
@@ -53,7 +53,7 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
 				amr.Spec.AutomaticReview.Integration = ""
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "automatic_review integration is missing")
 			},
 		},
@@ -62,7 +62,7 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
 				amr.Spec.AutomaticReview.Decision = ""
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "automatic_review decision is missing")
 			},
 		},
@@ -72,7 +72,7 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 				amr.Spec.Notification = nil
 				amr.Spec.AutomaticReview = nil
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "notification or automatic_review must be configured")
 			},
 		},

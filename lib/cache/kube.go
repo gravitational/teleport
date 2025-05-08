@@ -25,16 +25,18 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const kubeServerStoreNameIndex = "name"
+type kubeServerIndex string
 
-func newKubernetesServerCollection(p services.Presence, w types.WatchKind) (*collection[types.KubeServer], error) {
+const kubeServerNameIndex kubeServerIndex = "name"
+
+func newKubernetesServerCollection(p services.Presence, w types.WatchKind) (*collection[types.KubeServer, kubeServerIndex], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
-	return &collection[types.KubeServer]{
-		store: newStore(map[string]func(types.KubeServer) string{
-			kubeServerStoreNameIndex: func(u types.KubeServer) string {
+	return &collection[types.KubeServer, kubeServerIndex]{
+		store: newStore(map[kubeServerIndex]func(types.KubeServer) string{
+			kubeServerNameIndex: func(u types.KubeServer) string {
 				return u.GetHostID() + "/" + u.GetName()
 			},
 		}),
@@ -74,23 +76,25 @@ func (c *Cache) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, e
 	}
 
 	out := make([]types.KubeServer, 0, rg.store.len())
-	for k := range rg.store.resources(kubeServerStoreNameIndex, "", "") {
+	for k := range rg.store.resources(kubeServerNameIndex, "", "") {
 		out = append(out, k.Copy())
 	}
 
 	return out, nil
 }
 
-const kubeClusterStoreNameIndex = "name"
+type kubeClusterIndex string
 
-func newKubernetesClusterCollection(k services.Kubernetes, w types.WatchKind) (*collection[types.KubeCluster], error) {
+const kubeClusterNameIndex = "name"
+
+func newKubernetesClusterCollection(k services.Kubernetes, w types.WatchKind) (*collection[types.KubeCluster, kubeClusterIndex], error) {
 	if k == nil {
 		return nil, trace.BadParameter("missing parameter Kubernetes")
 	}
 
-	return &collection[types.KubeCluster]{
-		store: newStore(map[string]func(types.KubeCluster) string{
-			kubeClusterStoreNameIndex: func(u types.KubeCluster) string {
+	return &collection[types.KubeCluster, kubeClusterIndex]{
+		store: newStore(map[kubeClusterIndex]func(types.KubeCluster) string{
+			kubeClusterNameIndex: func(u types.KubeCluster) string {
 				return u.GetName()
 			},
 		}),
@@ -127,7 +131,7 @@ func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster,
 	}
 
 	out := make([]types.KubeCluster, 0, rg.store.len())
-	for k := range rg.store.resources(kubeClusterStoreNameIndex, "", "") {
+	for k := range rg.store.resources(kubeClusterNameIndex, "", "") {
 		out = append(out, k.Copy())
 	}
 
@@ -150,7 +154,7 @@ func (c *Cache) GetKubernetesCluster(ctx context.Context, name string) (types.Ku
 		return cluster, trace.Wrap(err)
 	}
 
-	k, err := rg.store.get(kubeClusterStoreNameIndex, name)
+	k, err := rg.store.get(kubeClusterNameIndex, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

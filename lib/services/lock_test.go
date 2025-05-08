@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -58,6 +59,57 @@ func TestLockTargetsFromTLSIdentity(t *testing.T) {
 		}
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Errorf("LockTargetsFromTLSIdentity mismatch (-want +got)\n%s", diff)
+		}
+	})
+}
+
+func TestSSHAccessLockTargets(t *testing.T) {
+	t.Run("all locks", func(t *testing.T) {
+		const clusterName = "mycluster"
+		const serverID = "myserver"
+		const mfaDevice = "my-mfa-device-1"
+		const trustedDevice = "my-trusted-device-1"
+		const osLogin = "camel"
+		const teleportUser = "llama"
+		mappedRoles := []string{"access", "editor"}
+		unmappedRoles := []string{"unmapped-role-1", "unmapped-role-2", "access"}
+		accessRequests := []string{"access-request-1", "access-request-2"}
+
+		unmappedIdentity := &sshca.Identity{
+			Username:       teleportUser,
+			MFAVerified:    mfaDevice,
+			DeviceID:       trustedDevice,
+			Roles:          unmappedRoles,
+			ActiveRequests: accessRequests,
+		}
+
+		accessInfo := &services.AccessInfo{
+			Username: "llama",
+			Roles:    mappedRoles,
+		}
+
+		got := services.SSHAccessLockTargets(clusterName, serverID, osLogin, accessInfo, unmappedIdentity)
+		want := []types.LockTarget{
+			{User: teleportUser},
+			{ServerID: serverID},
+			{ServerID: serverID + "." + clusterName},
+			{MFADevice: mfaDevice},
+			{Device: trustedDevice},
+		}
+		for _, role := range mappedRoles {
+			want = append(want, types.LockTarget{Role: role})
+		}
+		for _, role := range unmappedRoles[:len(unmappedRoles)-1] /* skip duplicate role */ {
+			want = append(want, types.LockTarget{Role: role})
+		}
+		for _, request := range accessRequests {
+			want = append(want, types.LockTarget{AccessRequest: request})
+		}
+
+		want = append(want, types.LockTarget{Login: osLogin})
+
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("SSHAccessLockTargets mismatch (-want +got)\n%s", diff)
 		}
 	})
 }

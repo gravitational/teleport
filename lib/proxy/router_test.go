@@ -967,8 +967,8 @@ func TestRouter_DialWindowsDesktop(t *testing.T) {
 				clusterName: "test",
 				tracer:      tracing.NoopTracer("test"),
 				localSite:   &testRemoteSite{},
-				windowsDesktopServiceConnector: func(ctx context.Context, c *desktop.ConnectionConfig) (net.Conn, error) {
-					return nil, trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")
+				windowsDesktopServiceConnector: func(ctx context.Context, c *desktop.ConnectionConfig) (net.Conn, string, error) {
+					return nil, "", trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")
 				},
 			},
 			assertion: func(t *testing.T, conn net.Conn, err error) {
@@ -983,8 +983,8 @@ func TestRouter_DialWindowsDesktop(t *testing.T) {
 				clusterName: "test",
 				localSite:   &testRemoteSite{conn: fakeConn{}},
 				tracer:      tracing.NoopTracer("test"),
-				windowsDesktopServiceConnector: func(ctx context.Context, c *desktop.ConnectionConfig) (net.Conn, error) {
-					return fakeConn{}, nil
+				windowsDesktopServiceConnector: func(ctx context.Context, c *desktop.ConnectionConfig) (net.Conn, string, error) {
+					return fakeConn{}, "18.0.0", nil
 				},
 			},
 			assertion: func(t *testing.T, conn net.Conn, err error) {

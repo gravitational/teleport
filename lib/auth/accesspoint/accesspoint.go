@@ -94,7 +94,7 @@ type Config struct {
 	SAMLIdPSession          services.SAMLIdPSession
 	SecReports              services.SecReports
 	SnowflakeSession        services.SnowflakeSession
-	SPIFFEFederations       cache.SPIFFEFederationReader
+	SPIFFEFederations       services.SPIFFEFederations
 	StaticHostUsers         services.StaticHostUser
 	Trust                   services.Trust
 	UserGroups              services.UserGroups
@@ -103,7 +103,7 @@ type Config struct {
 	Users                   services.UsersService
 	WebSession              types.WebSessionInterface
 	WebToken                types.WebTokenInterface
-	WorkloadIdentity        cache.WorkloadIdentityReader
+	WorkloadIdentity        services.WorkloadIdentities
 	DynamicWindowsDesktops  services.DynamicWindowsDesktops
 	WindowsDesktops         services.WindowsDesktops
 	AutoUpdateService       services.AutoUpdateServiceGetter
