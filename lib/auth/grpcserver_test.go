@@ -5297,7 +5297,6 @@ func TestGetVnetConfig(t *testing.T) {
 	require.NoError(t, err)
 	actualConfig, err := client.GetVnetConfig(t.Context())
 	require.NoError(t, err)
-	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(createdConfig, actualConfig, protocmp.Transform()))
 }
 
