@@ -21,7 +21,6 @@ package utils
 import (
 	"crypto/x509"
 	"fmt"
-	"io"
 	"log/slog"
 	"testing"
 
