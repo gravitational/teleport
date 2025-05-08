@@ -814,10 +814,11 @@ In the tests below, note how touch and PIN are cached.
 #### Teleport Connect and Hardware Key Agent
 
 Install Teleport Connect and open it. The hardware key agent automatically starts if you are running a
-release/dev build. If you are building Teleport Connect in development mode, you will need to set the 
-config option `hardwareKeyAgent.enabled: true` and restart Connect.
+release/dev build. If you are building Teleport Connect in development mode, you will need to set the
+config option `hardwareKeyAgent.enabled: true` and restart Connect. You can run a non-login `tsh`
+command to check if the agent is running.
 
-Before logging in to Teleport connect:
+Before logging in to Teleport Connect:
 
 - [ ] `tsh login` prompts for PIV PIN and touch without using the Hardware Key Agent
 - [ ] All other `tsh` commands prompt for PIN and touch via the Hardware Key Agent
