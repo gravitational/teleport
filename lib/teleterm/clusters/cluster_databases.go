@@ -43,6 +43,9 @@ type Database struct {
 	// URI is the database URI
 	URI uri.ResourceURI
 	types.Database
+	// TargetHealth describes the health status of network connectivity
+	// of the db_server that is serving this database.
+	TargetHealth types.TargetHealth
 }
 
 // GetDatabase returns a database
