@@ -41,7 +41,7 @@ while getopts "c:t:" opt; do
 done
 
 # Write SELinux module source to a temporary directory
-WORK_DIR="$(mktemp -d teleport-selinux.XXXXXXXX)"
+WORK_DIR="$(mktemp -d --suffix teleport-selinux.XXXXXXXX)"
 trap 'rm -rf "${WORK_DIR}"' EXIT INT TERM
 
 "${TELEPORT}" selinux-ssh module-source > "${WORK_DIR}/teleport_ssh.te"

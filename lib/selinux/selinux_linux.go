@@ -19,70 +19,68 @@
 package selinux
 
 import (
-	"bufio"
 	"bytes"
 	"context"
+	_ "embed"
 	"io/fs"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"github.com/gravitational/trace"
 	ocselinux "github.com/opencontainers/selinux/go-selinux"
+
+	"github.com/gravitational/teleport/lib/versioncontrol"
 )
 
 const (
 	selinuxConfig        = "/etc/selinux/config"
 	selinuxTypeTag       = "SELINUXTYPE"
+	moduleName           = "teleport_ssh"
+	domain               = "teleport_ssh_t"
 	permissiveModuleName = "permissive_" + domain
 )
 
-// Copyright 2025 Open Container Initiative
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//	http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// Original source: https://github.com/opencontainers/selinux/blob/main/go-selinux/selinux_linux.go#L229
-// Modified to return an error.
-func readConfig(target string) (string, error) {
-	in, err := os.Open(selinuxConfig)
+//go:embed teleport_ssh.te
+var module string
+
+//go:embed teleport_ssh.fc.tmpl
+var fileContexts string
+
+// ModuleSource returns the source of the SELinux SSH module.
+func ModuleSource() string {
+	return module
+}
+
+type filePaths struct {
+	InstallDir     string
+	DataDir        string
+	ConfigPath     string
+	UpgradeUnitDir string
+}
+
+// FileContexts returns file contexts for the SELinux SSH module.
+func FileContexts(installDir, dataDir, configPath string) (string, error) {
+	fcTempl, err := template.New("selinux file contexts").Parse(fileContexts)
 	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	defer in.Close()
-
-	scanner := bufio.NewScanner(in)
-
-	for scanner.Scan() {
-		line := bytes.TrimSpace(scanner.Bytes())
-		if len(line) == 0 {
-			// Skip blank lines
-			continue
-		}
-		if line[0] == ';' || line[0] == '#' {
-			// Skip comments
-			continue
-		}
-		fields := bytes.SplitN(line, []byte{'='}, 2)
-		if len(fields) != 2 {
-			continue
-		}
-		if string(fields[0]) == target {
-			return string(bytes.Trim(fields[1], `"`)), nil
-		}
+		return "", trace.Wrap(err, "failed to parse file contexts template")
 	}
 
-	return "", nil
+	// Generate a file specifying the locations of important dirs so SELinux
+	// will allow Teleport SSH to be able to access them.
+	var buf bytes.Buffer
+	err = fcTempl.Execute(&buf, filePaths{
+		InstallDir:     installDir,
+		DataDir:        dataDir,
+		ConfigPath:     configPath,
+		UpgradeUnitDir: versioncontrol.UnitConfigDir,
+	})
+	if err != nil {
+		return "", trace.Wrap(err, "failed to expand file contexts template")
+	}
+
+	return buf.String(), nil
 }
 
 // CheckConfiguration returns an error if SELinux is not configured to

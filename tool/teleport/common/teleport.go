@@ -29,6 +29,7 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -201,8 +202,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		"AWS region AWS hosted database instance is running in.").Hidden().
 		StringVar(&ccf.DatabaseAWSRegion)
 	start.Flag("no-debug-service", "Disables debug service.").BoolVar(&ccf.DisableDebugService)
-	start.Flag("enable-selinux", "Enables SELinux support for Teleport SSH and exits if SELinux is not configured correctly.").Hidden().BoolVar(&ccf.EnableSELinux)
-	start.Flag("ensure-selinux-enforcing", "Exits with an error if SELinux is not configured to enforce Teleport SSH.").Hidden().BoolVar(&ccf.EnsureSELinuxEnforcing)
+	if runtime.GOOS == "linux" {
+		start.Flag("enable-selinux", "Enables SELinux support for Teleport SSH and exits if SELinux is not configured correctly.").Hidden().BoolVar(&ccf.EnableSELinux)
+		start.Flag("ensure-selinux-enforcing", "Exits with an error if SELinux is not configured to enforce Teleport SSH.").Hidden().BoolVar(&ccf.EnsureSELinuxEnforcing)
+	}
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
@@ -588,11 +591,14 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(slices.Collect(maps.Keys(debugclient.SupportedProfiles)), ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
 	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration (if set to 0, it returns a profile snapshot). For other profiles, return a delta profile. Default: 0").Short('s').Default("0").IntVar(&ccf.ProfileSeconds)
 
-	selinuxCmd := app.Command("selinux-ssh", "Commands related to SSH SELinux module.").Hidden()
-	selinuxCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
-	moduleSourceCmd := selinuxCmd.Command("module-source", "Export SSH SELinux module source to stdout.").Hidden()
-	fileContextsCmd := selinuxCmd.Command("file-contexts", "Export SSH SELinux file contexts to stdout.").Hidden()
-	selinuxDirsCmd := selinuxCmd.Command("dirs", "Export directories that may need to be labeled for SSH SELinux module to work correctly.").Hidden()
+	var moduleSourceCmd, fileContextsCmd, selinuxDirsCmd *kingpin.CmdClause
+	if runtime.GOOS == "linux" {
+		selinuxCmd := app.Command("selinux-ssh", "Commands related to SSH SELinux module.").Hidden()
+		selinuxCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
+		moduleSourceCmd = selinuxCmd.Command("module-source", "Export SSH SELinux module source to stdout.").Hidden()
+		fileContextsCmd = selinuxCmd.Command("file-contexts", "Export SSH SELinux file contexts to stdout.").Hidden()
+		selinuxDirsCmd = selinuxCmd.Command("dirs", "Export directories that may need to be labeled for SSH SELinux module to work correctly.").Hidden()
+	}
 
 	backendCmd := app.Command("backend", "Commands for managing backend data.")
 	backendCmd.Hidden()
@@ -1148,8 +1154,8 @@ func onSELinuxFileContexts(configPath string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	fmt.Println(fileContexts)
 
-	fmt.Printf("%s", fileContexts)
 	return nil
 }
 

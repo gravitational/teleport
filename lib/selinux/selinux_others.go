@@ -21,20 +21,31 @@
 package selinux
 
 import (
-	"errors"
 	"log/slog"
+
+	"github.com/gravitational/trace"
 )
 
-var errPlatformNotSupported = errors.New("platform not supported")
+const errPlatformNotSupportedMsg = "platform not supported"
+
+// ModuleSource returns the source of the SELinux SSH module.
+func ModuleSource() string {
+	return ""
+}
+
+// FileContexts returns file contexts for the SELinux SSH module.
+func FileContexts(installDir, dataDir, configPath string) (string, error) {
+	return "", trace.Errorf(errPlatformNotSupportedMsg)
+}
 
 // CheckConfiguration returns an error if SELinux is not configured to
 // enforce the SSH service correctly.
 func CheckConfiguration(ensureEnforced bool, logger *slog.Logger) error {
-	return errPlatformNotSupported
+	return trace.Errorf(errPlatformNotSupportedMsg)
 }
 
 // UserContext returns the SELinux context that should be used when
 // creating processes as a certain user.
 func UserContext(login string) (string, error) {
-	return "", errPlatformNotSupported
+	return "", trace.Errorf(errPlatformNotSupportedMsg)
 }
