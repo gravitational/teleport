@@ -80,7 +80,7 @@ export function Header({
             style={{ visibility: showIndicator ? 'visible' : 'hidden' }}
             data-testid="indicator-wrapper"
           >
-            <Indicator size={40} />
+            <Indicator size={40} delay="none" />
           </Box>
           <ActionBox>{actions}</ActionBox>
         </ActionFlex>

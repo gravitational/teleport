@@ -289,7 +289,7 @@ function PasskeysHeader({
             // This trick allows us to maintain center alignment of the button
             // and display it along with the indicator.
             <BoxToTheRight mr={3} data-testid="indicator-wrapper">
-              <Indicator size={40} />
+              <Indicator size={40} delay="none" />
             </BoxToTheRight>
           )}
           {button}
