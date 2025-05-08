@@ -350,7 +350,7 @@ func TestManager(t *testing.T) {
 			// Try encrypting and decrypting some data
 			msg := []byte("teleport")
 			require.NoError(t, err)
-			ciphertext, err := encKeyPair.EncryptOAEP(msg)
+			ciphertext, err := encKeyPair.EncryptionKey().EncryptOAEP(msg)
 			require.NoError(t, err)
 
 			plaintext, err := decrypter.Decrypt(rand.Reader, ciphertext, nil)
