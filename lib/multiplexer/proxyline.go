@@ -583,12 +583,13 @@ func (p *ProxyLine) ResolveSource() net.Addr {
 		return &p.Source
 	}
 
-	tlvs, err := p.getTeleportTLVs()
-	if err != nil {
-		return &p.Source
+	if tlvs, err := p.getTeleportTLVs(); err == nil {
+		if tlvs.originalAddress != nil {
+			return tlvs.originalAddress
+		}
 	}
 
-	return tlvs.originalAddress
+	return &p.Source
 }
 
 func getTLSCerts(ca types.CertAuthority) [][]byte {
