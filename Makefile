@@ -1707,12 +1707,38 @@ ensure-js-deps:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
 	else $(MAKE) ensure-js-package-manager && pnpm install --frozen-lockfile; fi
 
+.PHONY: ensure-wasm-deps
+ifeq ($(WEBASSETS_SKIP_BUILD),1)
+ensure-wasm-deps:
+else
+
+# Get the version of wasm-bindgen from cargo, as that is what wasm-pack is
+# going to do when it checks for the right version.
+WASM_BINDGEN_VERSION_CMD = cargo metadata --locked --format-version=1 | jq -r 'first(.packages[] | select(.name? == "wasm-bindgen") | .version)'
+
+ensure-wasm-deps: WASM_BINDGEN_VERSION = $(or $(shell $(WASM_BINDGEN_VERSION_CMD)),$(error Unknown wasm-bindgen version. Is it in Cargo.lock?))
+ensure-wasm-deps: INSTALLED_WASM_BINDGEN_VERSION = $(lastword $(shell wasm-bindgen --version 2>/dev/null))
+ensure-wasm-deps: WASM_PACK_VERSION = $(shell $(MAKE) -s -C build.assets print-wasm-pack-version)
+ensure-wasm-deps: INSTALLED_WASM_PACK_VERSION = $(lastword $(shell wasm-pack --version 2>/dev/null))
+ensure-wasm-deps:
+	$(if $(filter-out $(INSTALLED_WASM_BINDGEN_VERSION),$(WASM_BINDGEN_VERSION)),\
+		cargo install wasm-bindgen-cli --locked --version "$(WASM_BINDGEN_VERSION)", \
+		@echo wasm-bindgen-cli up-to date: $(INSTALLED_WASM_BINDGEN_VERSION) \
+	)
+	$(if $(filter-out $(INSTALLED_WASM_PACK_VERSION),$(WASM_PACK_VERSION)),\
+		cargo install wasm-pack --locked --version "$(WASM_PACK_VERSION)", \
+		@echo wasm-pack-cli up-to date: $(INSTALLED_WASM_PACK_VERSION) \
+	)
+
+endif
+
+
 .PHONY: build-ui
-build-ui: ensure-js-deps
+build-ui: ensure-js-deps ensure-wasm-deps
 	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-oss
 
 .PHONY: build-ui-e
-build-ui-e: ensure-js-deps
+build-ui-e: ensure-js-deps ensure-wasm-deps
 	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-e
 
 .PHONY: docker-ui
