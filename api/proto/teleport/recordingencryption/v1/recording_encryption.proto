@@ -73,3 +73,23 @@ message RecordingEncryption {
   RecordingEncryptionSpec spec = 5;
   RecordingEncryptionStatus status = 6;
 }
+
+// RotatedKeysSpec contains the wrapped keys related to a given public key.
+message RotatedKeysSpec {
+  string public_key = 1;
+  repeated WrappedKey keys = 2;
+}
+
+// RotatedKeysStatus contains the status of RotatedKeys.
+message RotatedKeysStatus {}
+
+// RotatedKeys contains a set of rotated, wrapped keys related to a specific
+// public key.
+message RotatedKeys {
+  string kind = 1;
+  string subkind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  RotatedKeysSpec spec = 5;
+  RotatedKeysStatus status = 6;
+}
