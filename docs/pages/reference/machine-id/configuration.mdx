@@ -692,6 +692,22 @@ attestors:
     # supported. This field is required and there is no default value. See the
     # Workload Identity API & Workload Attestation reference for more information.
     addr: unix:///run/podman/podman.sock
+  # sigstore is configuration for the Sigstore Workload attestor. See the
+  # Sigstore Workload Attestation page for more information.
+  sigstore:
+    # enabled specifies whether tbot will discover Sigstore signatures for the
+    # workload's container image. If unspecified, this defaults to false.
+    enabled: true
+    # additional_registries optionally configures the OCI registries that will
+    # be searched for signatures in addition to the workload container image's
+    # source registry.
+    additional_registries:
+      -
+        # host of the OCI registry.
+        host: ghcr.io
+    # credentials_path is the path to a Docker or Podman configuration file
+    # containing per-registry credentials.
+    credentials_path: /path/to/docker/config.json
   # systemd is configuration for the Systemd Workload Attestor. See the Workload
   # Identity API & Workload Attestation reference for more information.
   systemd:
