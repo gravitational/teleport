@@ -45,9 +45,14 @@ export function SideNav({
   const location = useLocation();
 
   const navigateTo = (path: string) => {
-    history.replace(path);
+    const [basePath, idToScrollTo] = path.split('#');
+    const isSamePage = location.pathname === basePath;
 
-    const idToScrollTo = path.includes('#') ? path.split('#')[1] : null;
+    if (isSamePage) {
+      window.history.replaceState(null, '', path);
+    } else {
+      history.replace(path);
+    }
 
     // If there's an ID found, scroll to it
     if (idToScrollTo) {
@@ -129,6 +134,8 @@ function generateHeadings(
   ];
 }
 
+// TODO(danielashare): Have the side nav move down the page as the user scrolls.
+//                     Not needed currently as there aren't many elements.
 const SideNavWrapper = styled.aside`
   display: flex;
   flex-direction: column;
