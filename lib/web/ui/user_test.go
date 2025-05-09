@@ -81,7 +81,7 @@ func TestNewUserListEntry(t *testing.T) {
 				Name:  "malformed-sso",
 				Roles: []string{"behavioral-analyst"},
 				// We should not panic and display that we don't know who created the user
-				AuthType: "unknown sso",
+				AuthType: unknownSSOAuthType,
 			},
 		},
 	}
