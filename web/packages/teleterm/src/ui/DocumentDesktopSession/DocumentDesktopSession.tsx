@@ -57,7 +57,7 @@ export function DocumentDesktopSession(props: {
   const { documentsService } = useWorkspaceContext();
   const loggedInUser = useWorkspaceLoggedInUser();
   const acl = useMemo<Attempt<ACL>>(() => {
-    if (!loggedInUser) {
+    if (!loggedInUser?.acl) {
       return makeProcessingAttempt();
     }
     return makeSuccessAttempt(loggedInUser.acl);
