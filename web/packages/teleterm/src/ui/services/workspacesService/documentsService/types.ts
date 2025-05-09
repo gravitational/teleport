@@ -311,6 +311,8 @@ export interface DocumentDesktopSession extends DocumentBase {
   desktopUri: uri.DesktopUri;
   login: string;
   origin: DocumentOrigin;
+  // status is used merely to indicate that a connection is established in the connection tracker.
+  status: '' | 'connected' | 'error';
 }
 
 export interface WebSessionRequest {

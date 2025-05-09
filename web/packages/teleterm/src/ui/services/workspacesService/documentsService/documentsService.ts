@@ -605,6 +605,7 @@ export function createDesktopSessionDocument(opts: {
     desktopUri: opts.desktopUri,
     login: opts.login,
     origin: opts.origin,
+    status: '',
   };
 }
 

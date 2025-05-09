@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { Text } from 'design';
 import { ACL } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
@@ -26,13 +26,14 @@ import {
   makeProcessingAttempt,
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
-import { BrowserFileSystem, TdpClient } from 'shared/libs/tdp';
+import { BrowserFileSystem, TdpClient, useListener } from 'shared/libs/tdp';
 import { TdpTransport } from 'shared/libs/tdp/client';
 
 import Logger from 'teleterm/logger';
 import { cloneAbortSignal, TshdClient } from 'teleterm/services/tshd';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import * as types from 'teleterm/ui/services/workspacesService';
@@ -51,8 +52,9 @@ export function DocumentDesktopSession(props: {
   doc: types.DocumentDesktopSession;
 }) {
   const logger = useLogger('DocumentDesktopSession');
-  const { desktopUri, login, origin } = props.doc;
+  const { desktopUri, login, origin, uri } = props.doc;
   const appCtx = useAppContext();
+  const { documentsService } = useWorkspaceContext();
   const loggedInUser = useWorkspaceLoggedInUser();
   const acl = useMemo<Attempt<ACL>>(() => {
     if (!loggedInUser) {
@@ -82,6 +84,28 @@ export function DocumentDesktopSession(props: {
           logger
         );
       }, new BrowserFileSystem())
+  );
+
+  useListener(
+    client.onTransportOpen,
+    useCallback(
+      () => documentsService.update(uri, { status: 'connected' }),
+      [documentsService, uri]
+    )
+  );
+  useListener(
+    client.onTransportClose,
+    useCallback(
+      error => documentsService.update(uri, { status: error ? 'error' : '' }),
+      [documentsService, uri]
+    )
+  );
+  useListener(
+    client.onError,
+    useCallback(
+      () => documentsService.update(uri, { status: 'error' }),
+      [documentsService, uri]
+    )
   );
 
   let content = (

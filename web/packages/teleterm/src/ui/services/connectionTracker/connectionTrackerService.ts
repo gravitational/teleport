@@ -343,7 +343,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
             );
 
             if (desktopConn) {
-              desktopConn.connected = true;
+              desktopConn.connected = doc.status === 'connected';
             } else {
               const newItem = createDesktopConnection(doc);
               draft.connections.push(newItem);
