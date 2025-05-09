@@ -2688,6 +2688,15 @@ func (f *Forwarder) isLocalKubeCluster(isRemoteTeleportCluster bool, kubeCluster
 func (f *Forwarder) kubeResourceDeniedAccessMsg(user, verb string, resource apiResource) string {
 	kind := strings.Split(resource.resourceKind, "/")[0]
 	apiGroup := resource.apiGroup
+	if apiGroup == "core" {
+		apiGroup = ""
+	}
+	teleportType, ok := defaultRBACResources.getTeleportResourceKindFromAPIResource(resource)
+	// If the resource is not in the default resources list, it is a custom resource
+	// controlled by a CRD. In this case, we use the namespace to restrict access to.
+	if !ok {
+		teleportType = types.KindKubeNamespace
+	}
 
 	switch {
 	case resource.namespace != "" && resource.resourceName != "":
@@ -2702,7 +2711,7 @@ func (f *Forwarder) kubeResourceDeniedAccessMsg(user, verb string, resource apiR
 			verb,                   // 4
 			apiGroup,               // 5
 			resource.namespace,     // 6
-			resource.resourceKind,  // 7
+			teleportType,           // 7
 			kubernetesResourcesKey, // 8
 		)
 	case resource.namespace != "":
@@ -2716,7 +2725,7 @@ func (f *Forwarder) kubeResourceDeniedAccessMsg(user, verb string, resource apiR
 			verb,                   // 3
 			apiGroup,               // 4
 			resource.namespace,     // 5
-			resource.resourceKind,  // 6
+			teleportType,           // 6
 			kubernetesResourcesKey, // 7
 		)
 	case resource.resourceName == "":
@@ -2728,7 +2737,7 @@ func (f *Forwarder) kubeResourceDeniedAccessMsg(user, verb string, resource apiR
 			user,                   // 2
 			verb,                   // 3
 			apiGroup,               // 4
-			resource.resourceKind,  // 5
+			teleportType,           // 5
 			kubernetesResourcesKey, // 6
 		)
 	default:
@@ -2741,7 +2750,7 @@ func (f *Forwarder) kubeResourceDeniedAccessMsg(user, verb string, resource apiR
 			user,                   // 3
 			verb,                   // 4
 			apiGroup,               // 5
-			resource.resourceKind,  // 6
+			teleportType,           // 6
 			kubernetesResourcesKey, // 7
 		)
 	}
