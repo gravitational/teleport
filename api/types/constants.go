@@ -1373,6 +1373,7 @@ var RequestableResourceKinds = []string{
 	KindSAMLIdPServiceProvider,
 	KindIdentityCenterAccount,
 	KindIdentityCenterAccountAssignment,
+	KindGitServer,
 }
 
 // The list below needs to be kept in sync with `kubernetesResourceKindOptions`
