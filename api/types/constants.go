@@ -637,6 +637,9 @@ const (
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
 
+	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
+	MetaNameVnetConfig = "vnet-config"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 

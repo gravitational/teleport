@@ -53,7 +53,6 @@ const (
 	mtu                              = 1500
 	tcpReceiveBufferSize             = 0 // 0 means a default will be used.
 	maxInFlightTCPConnectionAttempts = 1024
-	defaultIPv4CIDRRange             = "100.64.0.0/10"
 )
 
 // networkStackConfig holds configuration parameters for the VNet network stack.

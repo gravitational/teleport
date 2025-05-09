@@ -55,6 +55,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
+	typesvnet "github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -629,7 +630,7 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo1.leaf1.example.com",
-			expectCIDR: defaultIPv4CIDRRange,
+			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "echo1.leaf1.example.com",
 				PublicAddr:  "echo1.leaf1.example.com",
@@ -638,7 +639,7 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo1.leaf2.example.com",
-			expectCIDR: defaultIPv4CIDRRange,
+			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "echo1.leaf2.example.com",
 				PublicAddr:  "echo1.leaf2.example.com",
@@ -647,7 +648,7 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo1.root2.example.com",
-			expectCIDR: defaultIPv4CIDRRange,
+			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "echo1.root2.example.com",
 				PublicAddr:  "echo1.root2.example.com",
@@ -656,7 +657,7 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo2.root2.example.com",
-			expectCIDR: defaultIPv4CIDRRange,
+			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "echo2.root2.example.com",
 				PublicAddr:  "echo2.root2.example.com",
@@ -665,7 +666,7 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo1.leaf3.example.com",
-			expectCIDR: defaultIPv4CIDRRange,
+			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "echo1.leaf3.example.com",
 				PublicAddr:  "echo1.leaf3.example.com",
@@ -686,7 +687,7 @@ func TestDialFakeApp(t *testing.T) {
 		{
 			app:        "multi-port.leaf1.example.com",
 			port:       1337,
-			expectCIDR: defaultIPv4CIDRRange,
+			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "multi-port.leaf1.example.com",
 				PublicAddr:  "multi-port.leaf1.example.com",
