@@ -74,8 +74,8 @@ importers:
         specifier: ^19.1.0
         version: 19.1.0
       react-day-picker:
-        specifier: ^8.10.1
-        version: 8.10.1(date-fns@2.30.0)(react@19.1.0)
+        specifier: ^9.6.7
+        version: 9.6.7(react@19.1.0)
       react-dom:
         specifier: ^19.1.0
         version: 19.1.0(react@19.1.0)
@@ -14251,9 +14251,11 @@ snapshots:
       iconv-lite: 0.6.3
       unpipe: 1.0.0
 
-  react-day-picker@8.10.1(date-fns@2.30.0)(react@19.1.0):
+  react-day-picker@9.6.7(react@19.1.0):
     dependencies:
-      date-fns: 2.30.0
+      '@date-fns/tz': 1.2.0
+      date-fns: 4.1.0
+      date-fns-jalali: 4.1.0-0
       react: 19.1.0
 
   react-dnd-html5-backend@14.1.0:
