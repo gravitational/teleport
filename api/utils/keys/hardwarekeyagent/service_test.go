@@ -23,10 +23,13 @@ import (
 	"crypto/rsa"
 	"net"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekeyagent"
@@ -35,9 +38,17 @@ import (
 func TestHardwareKeyAgentService(t *testing.T) {
 	ctx := context.Background()
 
+	// Mock known keys. Usually the server's login session storage would be used to check for known keys.
+	var serverKnownKeySlots []hardwarekey.PIVSlotKey
+	knownKeyFn := func(ref *hardwarekey.PrivateKeyRef, _ hardwarekey.ContextualKeyInfo) (bool, error) {
+		return slices.ContainsFunc(serverKnownKeySlots, func(s hardwarekey.PIVSlotKey) bool {
+			return ref.SlotKey == s
+		}), nil
+	}
+
 	// Prepare the agent server
 	mockService := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
-	server := hardwarekeyagent.NewServer(ctx, mockService, insecure.NewCredentials(), nil /*knownKeyFn*/)
+	server := hardwarekeyagent.NewServer(ctx, mockService, insecure.NewCredentials(), knownKeyFn)
 	t.Cleanup(server.Stop)
 
 	agentDir := t.TempDir()
@@ -54,7 +65,7 @@ func TestHardwareKeyAgentService(t *testing.T) {
 	agentClient, err := hardwarekeyagent.NewClient(ctx, socketPath, insecure.NewCredentials())
 	require.NoError(t, err)
 
-	agentService := hardwarekeyagent.NewService(agentClient, hardwarekey.NewMockHardwareKeyService(nil /*prompt*/))
+	agentServiceNoFallback := hardwarekeyagent.NewService(agentClient, nil)
 	agentServiceWithFallback := hardwarekeyagent.NewService(agentClient, mockService)
 
 	for _, tc := range []struct {
@@ -189,7 +200,7 @@ func TestHardwareKeyAgentService(t *testing.T) {
 			}
 
 			// Perform a signature over the agent.
-			_, err = agentService.Sign(ctx, hwSigner.Ref, hwSigner.KeyInfo, rand.Reader, digest, tc.opts)
+			_, err = agentServiceNoFallback.Sign(ctx, hwSigner.Ref, hwSigner.KeyInfo, rand.Reader, digest, tc.opts)
 			if tc.expectErr {
 				require.Error(t, err)
 			} else {
@@ -197,6 +208,23 @@ func TestHardwareKeyAgentService(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("unknown agent key", func(t *testing.T) {
+		mockService.Reset()
+
+		hwSigner, err := mockService.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{})
+		require.NoError(t, err)
+
+		// Mark the hardware key as unknown by the Hardware Key Service.
+		mockService.AddUnknownAgentKey(hwSigner.Ref)
+		_, err = agentServiceNoFallback.Sign(ctx, hwSigner.Ref, hwSigner.KeyInfo, rand.Reader, []byte{}, crypto.Hash(0))
+		require.True(t, trace.IsBadParameter(err), "expected trace.BadParameter but got %v", err)
+
+		// Make the hardware key as known by the  Hardware Key Agent Server.
+		serverKnownKeySlots = append(serverKnownKeySlots, hwSigner.Ref.SlotKey)
+		_, err = agentServiceNoFallback.Sign(ctx, hwSigner.Ref, hwSigner.KeyInfo, rand.Reader, []byte{}, crypto.Hash(0))
+		require.NoError(t, err)
+	})
 
 	t.Run("fallback", func(t *testing.T) {
 		mockService.Reset()
