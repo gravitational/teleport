@@ -36,7 +36,6 @@ it('updates both state and ref at the same time when passing a regular value', (
   expect(state).toBe(true);
   expect(ref.current).toBe(true);
 
-  // @ts-expect-error ref.current should be readonly.
   ref.current = false;
 });
 

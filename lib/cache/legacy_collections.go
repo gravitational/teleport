@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -96,8 +95,6 @@ type legacyCollections struct {
 	secReports                         collectionReader[services.SecurityReportGetter]
 	secReportsStates                   collectionReader[services.SecurityReportStateGetter]
 	discoveryConfigs                   collectionReader[services.DiscoveryConfigsGetter]
-	staticHostUsers                    collectionReader[staticHostUserGetter]
-	networkRestrictions                collectionReader[networkRestrictionGetter]
 	provisioningStates                 collectionReader[provisioningStateGetter]
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
 }
@@ -115,15 +112,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				return nil, trace.BadParameter("missing parameter DynamicAccess")
 			}
 			collections.byKind[resourceKind] = &genericCollection[types.AccessRequest, noReader, accessRequestExecutor]{cache: c, watch: watch}
-		case types.KindNetworkRestrictions:
-			if c.Restrictions == nil {
-				return nil, trace.BadParameter("missing parameter Restrictions")
-			}
-			collections.networkRestrictions = &genericCollection[types.NetworkRestrictions, networkRestrictionGetter, networkRestrictionsExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.networkRestrictions
 		case types.KindDiscoveryConfig:
 			if c.DiscoveryConfigs == nil {
 				return nil, trace.BadParameter("missing parameter DiscoveryConfigs")
@@ -151,15 +139,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 			}
 			collections.secReportsStates = &genericCollection[*secreports.ReportState, services.SecurityReportStateGetter, secReportStateExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.secReportsStates
-		case types.KindStaticHostUser:
-			if c.StaticHostUsers == nil {
-				return nil, trace.BadParameter("missing parameter StaticHostUsers")
-			}
-			collections.staticHostUsers = &genericCollection[*userprovisioningpb.StaticHostUser, staticHostUserGetter, staticHostUserExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.staticHostUsers
 		case types.KindProvisioningPrincipalState:
 			if c.ProvisioningStates == nil {
 				return nil, trace.BadParameter("missing parameter KindProvisioningState")
@@ -294,93 +273,6 @@ type userGetter interface {
 }
 
 var _ executor[types.User, userGetter] = userExecutor{}
-
-type networkRestrictionsExecutor struct{}
-
-func (networkRestrictionsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.NetworkRestrictions, error) {
-	restrictions, err := cache.Restrictions.GetNetworkRestrictions(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return []types.NetworkRestrictions{restrictions}, nil
-}
-
-func (networkRestrictionsExecutor) upsert(ctx context.Context, cache *Cache, resource types.NetworkRestrictions) error {
-	return cache.restrictionsCache.SetNetworkRestrictions(ctx, resource)
-}
-
-func (networkRestrictionsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.restrictionsCache.DeleteNetworkRestrictions(ctx)
-}
-
-func (networkRestrictionsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.restrictionsCache.DeleteNetworkRestrictions(ctx)
-}
-
-func (networkRestrictionsExecutor) isSingleton() bool { return true }
-
-func (networkRestrictionsExecutor) getReader(cache *Cache, cacheOK bool) networkRestrictionGetter {
-	if cacheOK {
-		return cache.restrictionsCache
-	}
-	return cache.Config.Restrictions
-}
-
-type networkRestrictionGetter interface {
-	GetNetworkRestrictions(context.Context) (types.NetworkRestrictions, error)
-}
-
-var _ executor[types.NetworkRestrictions, networkRestrictionGetter] = networkRestrictionsExecutor{}
-
-type staticHostUserExecutor struct{}
-
-func (staticHostUserExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*userprovisioningpb.StaticHostUser, error) {
-	var (
-		startKey string
-		allUsers []*userprovisioningpb.StaticHostUser
-	)
-	for {
-		users, nextKey, err := cache.StaticHostUsers.ListStaticHostUsers(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		allUsers = append(allUsers, users...)
-
-		if nextKey == "" {
-			break
-		}
-		startKey = nextKey
-	}
-	return allUsers, nil
-}
-
-func (staticHostUserExecutor) upsert(ctx context.Context, cache *Cache, resource *userprovisioningpb.StaticHostUser) error {
-	_, err := cache.staticHostUsersCache.UpsertStaticHostUser(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (staticHostUserExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return trace.Wrap(cache.staticHostUsersCache.DeleteAllStaticHostUsers(ctx))
-}
-
-func (staticHostUserExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return trace.Wrap(cache.staticHostUsersCache.DeleteStaticHostUser(ctx, resource.GetName()))
-}
-
-func (staticHostUserExecutor) isSingleton() bool { return false }
-
-func (staticHostUserExecutor) getReader(cache *Cache, cacheOK bool) staticHostUserGetter {
-	if cacheOK {
-		return cache.staticHostUsersCache
-	}
-	return cache.Config.StaticHostUsers
-}
-
-type staticHostUserGetter interface {
-	ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error)
-	GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error)
-}
 
 // collectionReader extends the collection interface, adding routing capabilities.
 type collectionReader[R any] interface {
