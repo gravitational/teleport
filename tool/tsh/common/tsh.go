@@ -828,7 +828,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("trace", "Capture and export distributed traces").Hidden().BoolVar(&cf.SampleTraces)
 	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to. Note - only tsh spans will be included.").Hidden().StringVar(&cf.TraceExporter)
 	// This flag only applies to tsh ssh; it's defined here to make configuring
-	// a re-exec command easier.
+	// the re-exec command easier.
 	app.Flag("fork-signal-fd", "File descriptor to signal parent on when forked. Overrides --fork-after-authentication.").Hidden().Uint64Var(&cf.forkSignalFd)
 
 	if !moduleCfg.IsBoringBinary() {

@@ -75,11 +75,12 @@ func buildForkAuthenticateCommand(params ForkAuthenticateParams) (*forkAuthCmd, 
 	cmd.Stdout = params.Stdout
 	cmd.Stderr = params.Stderr
 
+	// Stdin needs to go through an explicit pipe so we can cut it off without
+	// actually closing stdin.
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	if params.Stdin == nil {
 		params.Stdin = os.Stdin
 	}
@@ -112,6 +113,7 @@ func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 		childFinished <- cmd.Wait()
 	}()
 
+	// Copy stdin until the child is ready to disown.
 	go io.Copy(cmd.childStdin, cmd.parentStdin)
 	defer cmd.childStdin.Close()
 

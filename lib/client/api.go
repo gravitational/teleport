@@ -1900,13 +1900,14 @@ type SSHOptions struct {
 	// machine. If provided, it will be used instead of establishing a connection
 	// to the target host and executing the command remotely.
 	LocalCommandExecutor func(string, []string) error
-	// OnAuthenticate is a function to run ater authentication completes
+	// OnChildAuthenticate is a function to run in the child process during
+	// --fork-after authentications. It runs after authentication completes
 	// but before the session begins.
-	OnAuthenticate func() error
+	OnChildAuthenticate func() error
 }
 
 func (opts SSHOptions) forkAfterAuthentication() bool {
-	return opts.OnAuthenticate != nil
+	return opts.OnChildAuthenticate != nil
 }
 
 // WithHostAddress returns a SSHOptions which overrides the
@@ -1930,7 +1931,7 @@ func WithLocalCommandExecutor(executor func(string, []string) error) func(*SSHOp
 // authentication is complete but before the session starts.
 func WithForkAfterAuthentication(onAuthenticate func() error) func(*SSHOptions) {
 	return func(opt *SSHOptions) {
-		opt.OnAuthenticate = onAuthenticate
+		opt.OnChildAuthenticate = onAuthenticate
 	}
 }
 
@@ -2209,8 +2210,8 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 	}
 	defer nodeClient.Close()
 
-	if options.OnAuthenticate != nil {
-		if err := options.OnAuthenticate(); err != nil {
+	if options.OnChildAuthenticate != nil {
+		if err := options.OnChildAuthenticate(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
