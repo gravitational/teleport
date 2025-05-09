@@ -31,8 +31,9 @@ import (
 
 // ListResources returns a paginated list of requested resourceKind (singular kind).
 // Different from unified resources where this request does not support multi kinds in a response.
-// ListResources supports querying for resource kinds that are not supported by unified resources (eg: db_server)
-func ListResources[T types.ResourceWithLabels](ctx context.Context, r *api.ListResourcesRequest, authClient authclient.ClientI, resourceKind string) (apiclient.ResourcePage[T], error) {
+// ListResources supports querying for resource kinds that are not supported by unified resources.
+// In addition, ListResources does not de-duplicate resources like ListUnifiedResources does.
+func ListResources[T types.ResourceWithLabels](ctx context.Context, filter *api.ListResourcesFilter, authClient authclient.ClientI, resourceKind string) (apiclient.ResourcePage[T], error) {
 	var (
 		page apiclient.ResourcePage[T]
 		err  error
@@ -40,10 +41,10 @@ func ListResources[T types.ResourceWithLabels](ctx context.Context, r *api.ListR
 
 	req := &proto.ListResourcesRequest{
 		ResourceType:        resourceKind,
-		Limit:               r.Limit,
-		StartKey:            r.StartKey,
-		PredicateExpression: r.PredicateExpression,
-		UseSearchAsRoles:    r.UseSearchAsRoles,
+		Limit:               filter.Limit,
+		StartKey:            filter.StartKey,
+		PredicateExpression: filter.PredicateExpression,
+		UseSearchAsRoles:    filter.UseSearchAsRoles,
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {

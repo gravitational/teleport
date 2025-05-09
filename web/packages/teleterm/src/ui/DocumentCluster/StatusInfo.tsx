@@ -25,7 +25,6 @@ import {
 } from 'shared/components/UnifiedResources';
 import { UnhealthyStatusInfo } from 'shared/components/UnifiedResources/shared/StatusInfo';
 
-import { ResourcesResponse } from 'teleport/services/agents';
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
@@ -46,15 +45,17 @@ export function StatusInfo({
     attempt: fetchResourceServersAttempt,
   } = useResourceServersFetch({
     fetchFunc: async (params, signal) => {
-      let response: ResourcesResponse<SharedResourceServer>;
+      let response: { agents: SharedResourceServer[]; startKey: string };
 
       if (resource.kind === 'db') {
         const { response: resp } = await ctx.tshd.listDatabaseServers(
           {
-            ...params,
             clusterUri,
-            useSearchAsRoles: resource.requiresRequest ? true : false,
-            predicateExpression: `name == "${resource.name}"`,
+            filter: {
+              ...params,
+              useSearchAsRoles: resource.requiresRequest ? true : false,
+              predicateExpression: `name == "${resource.name}"`,
+            },
           },
           { abort: cloneAbortSignal(signal) }
         );

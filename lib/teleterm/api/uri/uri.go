@@ -30,6 +30,8 @@ var pathServers = urlpath.New("/clusters/:cluster/servers/:serverUUID")
 var pathLeafServers = urlpath.New("/clusters/:cluster/leaves/:leaf/servers/:serverUUID")
 var pathDbs = urlpath.New("/clusters/:cluster/dbs/:dbName")
 var pathLeafDbs = urlpath.New("/clusters/:cluster/leaves/:leaf/dbs/:dbName")
+var pathDbServers = urlpath.New("/clusters/:cluster/db_servers/:dbServer")
+var pathLeafDbServers = urlpath.New("/clusters/:cluster/leaves/:leaf/db_servers/:dbServer")
 var pathKubes = urlpath.New("/clusters/:cluster/kubes/:kubeName")
 var pathLeafKubes = urlpath.New("/clusters/:cluster/leaves/:leaf/kubes/:kubeName")
 var pathKubeResourceNamespace = urlpath.New("/clusters/:cluster/kubes/:kubeName/namespaces/:kubeNamespaceName")
@@ -106,6 +108,21 @@ func (r ResourceURI) GetDbName() string {
 	result, ok = pathLeafDbs.Match(r.path)
 	if ok {
 		return result.Params["dbName"]
+	}
+
+	return ""
+}
+
+// GetDBServerName extracts the database server name from r. Returns an empty string if path is not a db_servers URI.
+func (r ResourceURI) GetDBServerName() string {
+	result, ok := pathDbServers.Match(r.path)
+	if ok {
+		return result.Params["dbServer"]
+	}
+
+	result, ok = pathLeafDbServers.Match(r.path)
+	if ok {
+		return result.Params["dbServer"]
 	}
 
 	return ""

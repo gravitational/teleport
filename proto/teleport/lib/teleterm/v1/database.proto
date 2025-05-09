@@ -49,7 +49,7 @@ message Database {
 
 // DatabaseServer describes a database server resource (resource kind "db_server")
 message DatabaseServer {
-  string cluster_uri = 1;
+  string uri = 1;
   string hostname = 2;
   string host_id = 3;
   TargetHealth target_health = 4;
