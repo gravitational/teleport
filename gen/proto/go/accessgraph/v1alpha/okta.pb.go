@@ -40,17 +40,25 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// OktaEventV1 ...
+// OktaEventV1 holds the data for a single audit event that happened in an Okta organization.
 type OktaEventV1 struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Identity      *OktaIdentityV1        `protobuf:"bytes,1,opt,name=identity,proto3" json:"identity,omitempty"`
-	Location      *OktaLocationV1        `protobuf:"bytes,2,opt,name=location,proto3" json:"location,omitempty"`
-	EventType     string                 `protobuf:"bytes,3,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
-	Published     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=published,proto3" json:"published,omitempty"`
-	Result        string                 `protobuf:"bytes,5,opt,name=result,proto3" json:"result,omitempty"`
-	Targets       []*OktaTargetV1        `protobuf:"bytes,6,rep,name=targets,proto3" json:"targets,omitempty"`
-	Origin        string                 `protobuf:"bytes,7,opt,name=origin,proto3" json:"origin,omitempty"`
-	EventData     *structpb.Struct       `protobuf:"bytes,8,opt,name=event_data,json=eventData,proto3" json:"event_data,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The user or application that did the action of the event, ex.: "user_id_123", "OktaMobile".
+	Identity *OktaIdentityV1 `protobuf:"bytes,1,opt,name=identity,proto3" json:"identity,omitempty"`
+	// The network place (like an IP address) where the event started.
+	Location *OktaLocationV1 `protobuf:"bytes,2,opt,name=location,proto3" json:"location,omitempty"`
+	// The specific type of event that happened, ex.: "user.session.start", "user.lifecycle.create".
+	EventType string `protobuf:"bytes,3,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
+	// The time when Okta saved or showed the event.
+	Published *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=published,proto3" json:"published,omitempty"`
+	// The result of the event, ex.: "SUCCESS", "FAILURE", "ALLOWED", "DENIED".
+	Result string `protobuf:"bytes,5,opt,name=result,proto3" json:"result,omitempty"`
+	// A list of one or more items (like users or applications) that this event's action changed or affected.
+	Targets []*OktaTargetV1 `protobuf:"bytes,6,rep,name=targets,proto3" json:"targets,omitempty"`
+	// Information about the client app or system part that began the event.
+	Origin string `protobuf:"bytes,7,opt,name=origin,proto3" json:"origin,omitempty"`
+	// The actual unstructured, homgeneous event data.
+	EventData     *structpb.Struct `protobuf:"bytes,8,opt,name=event_data,json=eventData,proto3" json:"event_data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -141,14 +149,20 @@ func (x *OktaEventV1) GetEventData() *structpb.Struct {
 	return nil
 }
 
-// OktaIdentityV1
+// OktaIdentityV1 holds details about an identity (ex.: a user or an application)
+// that is part of an Okta event.
 type OktaIdentityV1 struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Kind          string                 `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
-	Token         string                 `protobuf:"bytes,4,opt,name=token,proto3" json:"token,omitempty"`
-	UserAgent     string                 `protobuf:"bytes,5,opt,name=user_agent,json=userAgent,proto3" json:"user_agent,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The unique ID of this identity, ex.: "00u1a2b3c4d5e6f7g8h9".
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The display name or human-readable name of the identity, ex.: "John Doe", "Okta Admin Console".
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// The kind or type of identity, ex.: "USER", "APP", "CLIENT", "SYSTEM".
+	Kind string `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
+	// An API token ID or session identifier associated with the identity, if applicable to the event.
+	Token string `protobuf:"bytes,4,opt,name=token,proto3" json:"token,omitempty"`
+	// The user agent string of the client software used by this identity, ex.: "Mozilla/5.0 (...) Chrome/...".
+	UserAgent     string `protobuf:"bytes,5,opt,name=user_agent,json=userAgent,proto3" json:"user_agent,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -218,10 +232,12 @@ func (x *OktaIdentityV1) GetUserAgent() string {
 	return ""
 }
 
-// OktaLocationV1
+// OktaLocationV1 holds network location information, like an IP address,
+// related to an Okta event.
 type OktaLocationV1 struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Ip            string                 `protobuf:"bytes,1,opt,name=ip,proto3" json:"ip,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The IP address (IPv4 or IPv6) from which the event originated, ex.: "198.51.100.5", "2001:db8::a:b:c:d".
+	Ip            string `protobuf:"bytes,1,opt,name=ip,proto3" json:"ip,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -263,12 +279,16 @@ func (x *OktaLocationV1) GetIp() string {
 	return ""
 }
 
-// OktaTargetV1
+// OktaTargetV1 describes a resource or entity (ex.: a user, an application, or a group)
+// that was a target of an action in an Okta event.
 type OktaTargetV1 struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Kind          string                 `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The unique identifier of this target, ex.: "00u1a2b3c4d5e6f7g8h9" (for a user), "appId123".
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The human-readable name or display name of the target, ex.: "John Doe", "Okta HR App", "Contractors Group".
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// The kind or type of the target, ex.: "User", "AppInstance", "Group", "Policy".
+	Kind          string `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -324,14 +344,14 @@ func (x *OktaTargetV1) GetKind() string {
 	return ""
 }
 
-// GitHubAuditLogV1Cursor holds the cursor values for Github Audit log.
+// OktaAuditLogV1Cursor holds the necessary state for resuming Okta audit log collection.
 type OktaAuditLogV1Cursor struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// token is next cursor to use in subsequent requests.
+	// The pagination token or cursor provided by Okta to fetch the next set of audit events.
 	Token string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
-	// last_event_id is the last event id received from github.
+	// The ID of the last Okta audit event that was successfully processed or seen.
 	LastEventId string `protobuf:"bytes,2,opt,name=last_event_id,json=lastEventId,proto3" json:"last_event_id,omitempty"`
-	// last_event_time is the time of the last event seen.
+	// The timestamp of the last Okta audit event that was successfully processed or seen.
 	LastEventTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_event_time,json=lastEventTime,proto3" json:"last_event_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -388,11 +408,13 @@ func (x *OktaAuditLogV1Cursor) GetLastEventTime() *timestamppb.Timestamp {
 	return nil
 }
 
-// GitHubAuditLogV1 holds the events shared between the client and the server.
+// OktaAuditLogV1 bundles a batch of Okta audit log events and the client's current resume cursor.
 type OktaAuditLogV1 struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Events        []*OktaEventV1         `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
-	Cursor        *OktaAuditLogV1Cursor  `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A list of Okta audit log events in this batch.
+	Events []*OktaEventV1 `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	// The client's current cursor information, sent with this batch of events to allow for resumable log collection.
+	Cursor        *OktaAuditLogV1Cursor `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -441,10 +463,11 @@ func (x *OktaAuditLogV1) GetCursor() *OktaAuditLogV1Cursor {
 	return nil
 }
 
-// GitHubConfigV1 ..
+// OktaConfigV1 specifies configuration settings for Okta audit log exports.
 type OktaConfigV1 struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	StartDate     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"` // Start date for exporting audit logs.
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The desired start date from which to begin exporting Okta audit logs.
+	StartDate     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -486,19 +509,23 @@ func (x *OktaConfigV1) GetStartDate() *timestamppb.Timestamp {
 	return nil
 }
 
-// GithubTokenV1 is the token v1
+// OktaTokenV1 holds information about an Okta token (ex.: an API token),
+// such as its ID, owner, and lifecycle dates (created, updated, expires).
 type OktaTokenV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// id is the token id.
+	// The unique identifier of the Okta token, ex.: "00AbcDefG1hIjKlMnOpQ".
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// name is the token alias.
+	// A human-readable name or label given to the Okta token, ex.: "Reporting API Key".
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	// owner is the token owner
+	// The ID or username of the Okta user or client application that owns this token, ex.: "john.doe@example.com", "00u123abc456".
 	Owner string `protobuf:"bytes,3,opt,name=owner,proto3" json:"owner,omitempty"`
-	// expires is the token expiration time.
-	Expires       *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires,proto3" json:"expires,omitempty"`
-	Organization  string                 `protobuf:"bytes,6,opt,name=organization,proto3" json:"organization,omitempty"`
-	Created       *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created,proto3" json:"created,omitempty"`
+	// The timestamp when this Okta token expires. This may not be set if the token does not expire.
+	Expires *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires,proto3" json:"expires,omitempty"`
+	// The Okta organization (ex.: "mycompany.okta.com" or an org ID) this token is associated with.
+	Organization string `protobuf:"bytes,6,opt,name=organization,proto3" json:"organization,omitempty"`
+	// The timestamp when this Okta token was created.
+	Created *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created,proto3" json:"created,omitempty"`
+	// The timestamp when this Okta token was last updated.
 	Updated       *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=updated,proto3" json:"updated,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -583,12 +610,15 @@ func (x *OktaTokenV1) GetUpdated() *timestamppb.Timestamp {
 	return nil
 }
 
-// GithubTokenV1RoleAssignment...
+// OktaRoleAssignmentV1 links an Okta user to a specific role within an Okta organization.
 type OktaRoleAssignmentV1 struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RoleId        string                 `protobuf:"bytes,1,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Organization  string                 `protobuf:"bytes,4,opt,name=organization,proto3" json:"organization,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The unique ID of the Okta role being assigned, ex.: "ORG_ADMIN", "API_ACCESS_MANAGEMENT_ADMIN", "00r1a2b3c4d5e6f7g8h9".
+	RoleId string `protobuf:"bytes,1,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
+	// The unique ID of the Okta user who is being assigned the role, ex.: "00u1a2b3c4d5e6f7g8h9".
+	UserId string `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // Note: Field number 2 appears to be skipped in this definition.
+	// The Okta organization (ex.: "mycompany.okta.com" or an org ID) where this role assignment applies.
+	Organization  string `protobuf:"bytes,4,opt,name=organization,proto3" json:"organization,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -644,12 +674,16 @@ func (x *OktaRoleAssignmentV1) GetOrganization() string {
 	return ""
 }
 
-// GithubTokenV1Role...
+// OktaRoleV1 represents a role (ex.: an administrator role or a custom-defined role)
+// within an Okta organization.
 type OktaRoleV1 struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RoleId        string                 `protobuf:"bytes,1,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
-	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
-	Organization  string                 `protobuf:"bytes,3,opt,name=organization,proto3" json:"organization,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The unique identifier of the Okta role, ex.: "ORG_ADMIN", "API_ACCESS_MANAGEMENT_ADMIN", "00rCustomRole123xyz".
+	RoleId string `protobuf:"bytes,1,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
+	// The specific type or classification of the Okta role, ex.: "SUPER_ADMIN", "APP_ADMIN", "CUSTOM_ROLE_TYPE_A".
+	Type string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	// The Okta organization (ex.: "mycompany.okta.com" or an org ID) where this role is defined.
+	Organization  string `protobuf:"bytes,3,opt,name=organization,proto3" json:"organization,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -705,7 +739,8 @@ func (x *OktaRoleV1) GetOrganization() string {
 	return ""
 }
 
-// GithubSync...
+// OktaSync is an empty message that signals a synchronization point
+// in an Okta data stream, ex.: indicating the end of an initial full data sync by the client.
 type OktaSync struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -742,7 +777,8 @@ func (*OktaSync) Descriptor() ([]byte, []int) {
 	return file_accessgraph_v1alpha_okta_proto_rawDescGZIP(), []int{10}
 }
 
-// GithubResourceList...
+// OktaResourceList contains a list of Okta resources,
+// used for sending multiple resources in a single operation (ex.: batch upsert or delete).
 type OktaResourceList struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Resources     []*OktaResource        `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
@@ -787,7 +823,8 @@ func (x *OktaResourceList) GetResources() []*OktaResource {
 	return nil
 }
 
-// GithubResource...
+// OktaResource acts as a container that holds one specific type of Okta resource,
+// such as a token, a role assignment, or a role definition, using a 'oneof'.
 type OktaResource struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Resource:
@@ -869,14 +906,17 @@ type isOktaResource_Resource interface {
 }
 
 type OktaResource_Token struct {
+	// An Okta token, like an API token.
 	Token *OktaTokenV1 `protobuf:"bytes,1,opt,name=token,proto3,oneof"`
 }
 
 type OktaResource_RoleAssignment struct {
+	// An assignment of an Okta role to a user.
 	RoleAssignment *OktaRoleAssignmentV1 `protobuf:"bytes,2,opt,name=role_assignment,json=roleAssignment,proto3,oneof"`
 }
 
 type OktaResource_Role struct {
+	// An Okta role definition.
 	Role *OktaRoleV1 `protobuf:"bytes,3,opt,name=role,proto3,oneof"`
 }
 

@@ -44,7 +44,7 @@ message AccessGraphSecretsScanConfiguration {
   bool ssh_scan_enabled = 1;
 }
 
-// AuditLogConfig sepcifies the audit log event export setup.
+// AuditLogConfig specifies the audit log event export setup.
 message AuditLogConfig {
   // enbled indicates if Audit Log event exporting is enabled.
   bool enabled = 1;

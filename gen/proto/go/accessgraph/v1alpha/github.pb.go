@@ -40,7 +40,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// GitHubAuditLogV1Cursor holds the cursor values for Github Audit log.
+// GitHubAuditLogV1Cursor holds the necessary state for resuming GitHub audit log collection.
 type GitHubAuditLogV1Cursor struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// token is next cursor to use in subsequent requests.
@@ -157,7 +157,8 @@ func (x *GitHubAuditLogV1) GetCursor() *GitHubAuditLogV1Cursor {
 	return nil
 }
 
-// GitHubConfigV1 ..
+// GitHubConfigV1 specifies configuration settings for GitHub audit log exports,
+// including the desired start date for log collection.
 type GitHubConfigV1 struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	StartDate     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"` // Start date for exporting audit logs.
@@ -202,7 +203,8 @@ func (x *GitHubConfigV1) GetStartDate() *timestamppb.Timestamp {
 	return nil
 }
 
-// GithubTokenV1 is the token v1
+// GithubTokenV1 holds information about a GitHub access token,
+// such as its ID, owner, permissions, and expiration date.
 type GithubTokenV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// id is the token id.
@@ -292,15 +294,17 @@ func (x *GithubTokenV1) GetOrganization() string {
 	return ""
 }
 
-// GithubTokenV1Permission...
+// GithubTokenV1Permission describes a single permission for a GitHub token,
+// including its domain, verb, object, and organization.
 type GithubTokenV1Permission struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// domain is the domain.
+	// The area or category the permission applies to, ex.: "repo", "issues", "actions_secrets".
 	Domain string `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
-	// verb is the verb.
+	// The action allowed by the permission, ex.: "read", "write", "admin".
 	Verb string `protobuf:"bytes,2,opt,name=verb,proto3" json:"verb,omitempty"`
-	// object is the object.
-	Object        string `protobuf:"bytes,3,opt,name=object,proto3" json:"object,omitempty"`
+	// The specific resource or target of the action, ex.: "my-webapp", "*", "dependabot_secrets".
+	Object string `protobuf:"bytes,3,opt,name=object,proto3" json:"object,omitempty"`
+	// The GitHub organization context for this permission, ex.: "octo-org".
 	Organization  string `protobuf:"bytes,4,opt,name=organization,proto3" json:"organization,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -364,13 +368,17 @@ func (x *GithubTokenV1Permission) GetOrganization() string {
 	return ""
 }
 
-// GithubTokenV1RoleAssignment...
+// GithubRoleAssignmentV1 holds information about a user's assignment to a role in a GitHub organization.
 type GithubRoleAssignmentV1 struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RoleId        int64                  `protobuf:"varint,1,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
-	Owner         bool                   `protobuf:"varint,2,opt,name=owner,proto3" json:"owner,omitempty"`
-	User          string                 `protobuf:"bytes,3,opt,name=user,proto3" json:"user,omitempty"`
-	Organization  string                 `protobuf:"bytes,4,opt,name=organization,proto3" json:"organization,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The GitHub role ID.
+	RoleId int64 `protobuf:"varint,1,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
+	// True if the user has the 'owner' (administrator) privileges in the organization.
+	Owner bool `protobuf:"varint,2,opt,name=owner,proto3" json:"owner,omitempty"`
+	// The GitHub username of the user assigned to the role, ex.: "octocat".
+	User string `protobuf:"bytes,3,opt,name=user,proto3" json:"user,omitempty"`
+	// The name of the GitHub organization where the role assignment is made, ex.: "gravitational".
+	Organization  string `protobuf:"bytes,4,opt,name=organization,proto3" json:"organization,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -433,12 +441,15 @@ func (x *GithubRoleAssignmentV1) GetOrganization() string {
 	return ""
 }
 
-// GithubTokenV1Role...
+// GithubRoleV1 represents a custom role defined within a GitHub organization.
 type GithubRoleV1 struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RoleId        int64                  `protobuf:"varint,1,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Organization  string                 `protobuf:"bytes,3,opt,name=organization,proto3" json:"organization,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The GitHub role ID.
+	RoleId int64 `protobuf:"varint,1,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
+	// The human-readable name of the custom role, ex.: "Triage Lead", "Security Auditor".
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// The GitHub organization where this custom role is defined, ex.: "gravitational".
+	Organization  string `protobuf:"bytes,3,opt,name=organization,proto3" json:"organization,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -494,12 +505,16 @@ func (x *GithubRoleV1) GetOrganization() string {
 	return ""
 }
 
-// GithubTokenV1Role...
+// GithubRepositoryV1 represents a GitHub repository, including its name,
+// associated collaborators, and the organization it belongs to.
 type GithubRepositoryV1 struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Collaborators []string               `protobuf:"bytes,2,rep,name=collaborators,proto3" json:"collaborators,omitempty"`
-	Organization  string                 `protobuf:"bytes,3,opt,name=organization,proto3" json:"organization,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The name of the repository, ex.: "my-awesome-app", "project-x".
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// A list of GitHub usernames who are collaborators on this repository, ex.: ["octocat", "mona-lisa"].
+	Collaborators []string `protobuf:"bytes,2,rep,name=collaborators,proto3" json:"collaborators,omitempty"`
+	// The GitHub organization that owns or contains this repository, ex.: "gravitational".
+	Organization  string `protobuf:"bytes,3,opt,name=organization,proto3" json:"organization,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -555,7 +570,8 @@ func (x *GithubRepositoryV1) GetOrganization() string {
 	return ""
 }
 
-// GithubSync...
+// GithubSync is an empty message that signals a synchronization point,
+// ex.: indicating the end of an initial full data sync from the client.
 type GithubSync struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -592,7 +608,8 @@ func (*GithubSync) Descriptor() ([]byte, []int) {
 	return file_accessgraph_v1alpha_github_proto_rawDescGZIP(), []int{8}
 }
 
-// GithubResourceList...
+// GithubResourceList contains a list of GitHub resources,
+// used for sending multiple resources in a single operation (ex.: batch upsert or delete).
 type GithubResourceList struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Resources     []*GithubResource      `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
@@ -637,9 +654,12 @@ func (x *GithubResourceList) GetResources() []*GithubResource {
 	return nil
 }
 
-// GithubResource...
+// GithubResource acts as a container that holds one specific type of GitHub resource,
+// such as a token, role assignment, role, or repository, using a 'oneof'.
 type GithubResource struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// Holds the actual specific GitHub resource data. Only one of these fields can be set.
+	//
 	// Types that are valid to be assigned to Resource:
 	//
 	//	*GithubResource_Token
@@ -729,18 +749,22 @@ type isGithubResource_Resource interface {
 }
 
 type GithubResource_Token struct {
+	// A GitHub authentication token.
 	Token *GithubTokenV1 `protobuf:"bytes,1,opt,name=token,proto3,oneof"`
 }
 
 type GithubResource_RoleAssignment struct {
+	// An assignment of a GitHub role to a user.
 	RoleAssignment *GithubRoleAssignmentV1 `protobuf:"bytes,2,opt,name=role_assignment,json=roleAssignment,proto3,oneof"`
 }
 
 type GithubResource_Role struct {
+	// A custom-defined GitHub role.
 	Role *GithubRoleV1 `protobuf:"bytes,3,opt,name=role,proto3,oneof"`
 }
 
 type GithubResource_Repository struct {
+	// A GitHub repository.
 	Repository *GithubRepositoryV1 `protobuf:"bytes,4,opt,name=repository,proto3,oneof"`
 }
 

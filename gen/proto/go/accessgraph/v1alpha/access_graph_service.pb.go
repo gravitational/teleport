@@ -753,7 +753,7 @@ func (*AuditEvent_AccessPathChanged) isAuditEvent_Event() {}
 //     `AuditLogConfig`. Server validates against its persisted state for the client
 //     identity. Initial server response confirms the effective config (which may
 //     be the proposed, an inferred default, or the existing persisted one).
-//     Irreconcilable conflicts (e.g., invalid start date) typically result in the
+//     Irreconcilable conflicts (ex.: invalid start date) typically result in the
 //     server logging an error, using the persisted config, and signaling this outcome.
 //
 //  2. Event Batch (`events`): Sends a batch of audit logs (`AuditLogEvents`) in an
@@ -2442,28 +2442,14 @@ func (*NetIQEventsStreamResponse) Descriptor() ([]byte, []int) {
 // managing the persistent resume state maintained by the server.
 //
 // The message uses a `oneof` payload to represent one of three distinct actions:
-//
-//  1. Configuration (`config`): First message on (re)connect. Client proposes
-//     `AWSCloudTrailConfig`. Server validates against its persisted state for the client
-//     identity. Initial server response confirms the effective config (which may
-//     be the proposed, an inferred default, or the existing persisted one).
-//     Irreconcilable conflicts (e.g., invalid start date) typically result in the
-//     server logging an error, using the persisted config, and signaling this outcome.
-//
-//  2. Event Batch (`events`): Sends a batch of audit logs (`AWSCloudTrailEvents`) in an
-//     unstructured format. Each batch must also include the corresponding
-//     `resume_state` information ('search' or 'bulk' type) reflecting the client's
-//     processing progress for that specific event source type up to the included events.
-//     This allows the server to persistently track the client's progress.
+//   - Config for Synchronization
+//   - Events in bulk as raw data
+//   - Events from files as gzipped data
 //
 // Behavior and Constraints:
-//   - Direction: Client -> Server only.
-//   - Initial Message: First message on stream MUST be `config`.
-//   - Stream State Consistency: `resume_state` with `events` corresponds to
-//     'search' or 'bulk' tracking mode. While primarily one mode operates,
-//     upgrades 'search' -> 'bulk' may be possible; downgrading 'bulk' -> 'search'
-//     is not permitted per client identity.
-//   - State Management:
+// - Direction: Client -> Server only.
+// - Initial Message: First message on stream MUST be `config`.
+// - State Management:
 //   - `events` includes `resume_state` for persistent progress tracking.
 type AWSCloudTrailStreamRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2566,7 +2552,7 @@ func (*AWSCloudTrailStreamRequest_EventsFile) isAWSCloudTrailStreamRequest_Actio
 // AWSCloudTrailEventsFile holds the cloudtrail file.
 type AWSCloudTrailEventsFile struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Gziped json encoded s3 payload.
+	// Gzipped json encoded s3 payload.
 	Payload []byte `protobuf:"bytes,1,opt,name=payload,proto3" json:"payload,omitempty"`
 	// The AWS account id of the account where the log is originated from.
 	AwsAccountId  string `protobuf:"bytes,2,opt,name=aws_account_id,json=awsAccountId,proto3" json:"aws_account_id,omitempty"`
@@ -2791,7 +2777,7 @@ type AWSCloudTrailStreamResponse_CloudTrailConfig struct {
 }
 
 type AWSCloudTrailStreamResponse_ResumeState struct {
-	ResumeState *AWSCloudTrailResumeState `protobuf:"bytes,2,opt,name=resume_state,json=resumeState,proto3,oneof"` // Complete resume state for 'search' mode.
+	ResumeState *AWSCloudTrailResumeState `protobuf:"bytes,2,opt,name=resume_state,json=resumeState,proto3,oneof"` // Complete resume state.
 }
 
 func (*AWSCloudTrailStreamResponse_CloudTrailConfig) isAWSCloudTrailStreamResponse_State() {}
@@ -2802,8 +2788,8 @@ func (*AWSCloudTrailStreamResponse_ResumeState) isAWSCloudTrailStreamResponse_St
 type AWSCloudTrailResumeState struct {
 	state         protoimpl.MessageState                     `protogen:"open.v1"`
 	RegionsState  map[string]*AWSCloudTrailResumeRegionState `protobuf:"bytes,1,rep,name=regions_state,json=regionsState,proto3" json:"regions_state,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	StartDate     *timestamppb.Timestamp                     `protobuf:"bytes,2,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"` // Start date for exporting audit logs.
-	EndDate       *timestamppb.Timestamp                     `protobuf:"bytes,3,opt,name=end_date,json=endDate,proto3" json:"end_date,omitempty"`       // End date for exporting audit logs.
+	StartDate     *timestamppb.Timestamp                     `protobuf:"bytes,2,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"` // Start date for exporting CloudTrail logs.
+	EndDate       *timestamppb.Timestamp                     `protobuf:"bytes,3,opt,name=end_date,json=endDate,proto3" json:"end_date,omitempty"`       // End date for exporting CloudTrail logs.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2920,7 +2906,7 @@ func (x *AWSCloudTrailResumeRegionState) GetLastEventTime() *timestamppb.Timesta
 	return nil
 }
 
-// AWSCloudTrailEvent
+// AWSCloudTrailEvent holds the raw unstructured log event data and its metadata.
 type AWSCloudTrailEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The Amazon Web Services access key ID that was used to sign the request.
@@ -3050,7 +3036,7 @@ func (x *AWSCloudTrailEvent) GetAwsAccountId() string {
 	return ""
 }
 
-// AWSCloudTrailEventResource
+// AWSCloudTrailEventResource identifies the AWS resource by name and type.
 type AWSCloudTrailEventResource struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The name of the resource referenced by the event returned. These are user-created
@@ -3113,7 +3099,8 @@ func (x *AWSCloudTrailEventResource) GetType() string {
 	return ""
 }
 
-// GitHubStreamRequest ..
+// GitHubAuditLogStreamRequest represents a client message in the GitHubAuditLogStream,
+// containing either initial configuration or a batch of GitHub audit log events.
 type GitHubAuditLogStreamRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Operation:
@@ -3185,20 +3172,19 @@ type isGitHubAuditLogStreamRequest_Operation interface {
 }
 
 type GitHubAuditLogStreamRequest_Config struct {
-	// config holds the config for GitHub connector.
-	Config *GitHubConfigV1 `protobuf:"bytes,1,opt,name=config,proto3,oneof"`
+	Config *GitHubConfigV1 `protobuf:"bytes,1,opt,name=config,proto3,oneof"` // Config for GitHub connector.
 }
 
 type GitHubAuditLogStreamRequest_AuditLog struct {
-	// audit_log holds the events
-	AuditLog *GitHubAuditLogV1 `protobuf:"bytes,2,opt,name=audit_log,json=auditLog,proto3,oneof"`
+	AuditLog *GitHubAuditLogV1 `protobuf:"bytes,2,opt,name=audit_log,json=auditLog,proto3,oneof"` // Audit log events.
 }
 
 func (*GitHubAuditLogStreamRequest_Config) isGitHubAuditLogStreamRequest_Operation() {}
 
 func (*GitHubAuditLogStreamRequest_AuditLog) isGitHubAuditLogStreamRequest_Operation() {}
 
-// GitHubStreamResponse is sent from the server to the client.
+// GitHubAuditLogStreamResponse represents a server message in the GitHubAuditLogStream,
+// providing either the effective export configuration or an audit log resume cursor.
 type GitHubAuditLogStreamResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to State:
@@ -3274,14 +3260,16 @@ type GitHubAuditLogStreamResponse_GithubConfig struct {
 }
 
 type GitHubAuditLogStreamResponse_AuditLogResumeState struct {
-	AuditLogResumeState *GitHubAuditLogV1Cursor `protobuf:"bytes,2,opt,name=audit_log_resume_state,json=auditLogResumeState,proto3,oneof"` // Complete resume state for 'search' mode.
+	AuditLogResumeState *GitHubAuditLogV1Cursor `protobuf:"bytes,2,opt,name=audit_log_resume_state,json=auditLogResumeState,proto3,oneof"` // Resume state to continue previous export.
 }
 
 func (*GitHubAuditLogStreamResponse_GithubConfig) isGitHubAuditLogStreamResponse_State() {}
 
 func (*GitHubAuditLogStreamResponse_AuditLogResumeState) isGitHubAuditLogStreamResponse_State() {}
 
-// EventsStreamV2Request is a request to send commands to the access graph.
+// GitHubEventsStreamRequest is a client message for the GitHubEventsStream,
+// specifying an upsert, delete, or sync operation for GitHub resource states
+// (ex.: repositories, user roles, tokens).
 type GitHubEventsStreamRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// operation contains the desired operation
@@ -3382,7 +3370,8 @@ func (*GitHubEventsStreamRequest_Delete) isGitHubEventsStreamRequest_Operation()
 
 func (*GitHubEventsStreamRequest_Sync) isGitHubEventsStreamRequest_Operation() {}
 
-// GitHubEventsStreamResponse...
+// GitHubEventsStreamResponse is an empty server message in the GitHubEventsStream,
+// serving as an acknowledgment and allowing for future addition of response data.
 type GitHubEventsStreamResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -3419,7 +3408,8 @@ func (*GitHubEventsStreamResponse) Descriptor() ([]byte, []int) {
 	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{48}
 }
 
-// GitHubStreamRequest ..
+// OktaAuditLogStreamRequest represents a client message in the OktaAuditLogStream,
+// containing either initial configuration or a batch of Okta audit log events.
 type OktaAuditLogStreamRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Operation:
@@ -3491,20 +3481,19 @@ type isOktaAuditLogStreamRequest_Operation interface {
 }
 
 type OktaAuditLogStreamRequest_Config struct {
-	// config holds the config for Okta connector.
-	Config *OktaConfigV1 `protobuf:"bytes,1,opt,name=config,proto3,oneof"`
+	Config *OktaConfigV1 `protobuf:"bytes,1,opt,name=config,proto3,oneof"` // config for Okta connector.
 }
 
 type OktaAuditLogStreamRequest_AuditLog struct {
-	// audit_log holds the events
-	AuditLog *OktaAuditLogV1 `protobuf:"bytes,2,opt,name=audit_log,json=auditLog,proto3,oneof"`
+	AuditLog *OktaAuditLogV1 `protobuf:"bytes,2,opt,name=audit_log,json=auditLog,proto3,oneof"` // actual audit log event data.
 }
 
 func (*OktaAuditLogStreamRequest_Config) isOktaAuditLogStreamRequest_Operation() {}
 
 func (*OktaAuditLogStreamRequest_AuditLog) isOktaAuditLogStreamRequest_Operation() {}
 
-// GitHubStreamResponse is sent from the server to the client.
+// OktaAuditLogStreamResponse represents a server message in the OktaAuditLogStream,
+// providing either the effective export configuration or an Okta audit log resume cursor.
 type OktaAuditLogStreamResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to State:
@@ -3580,18 +3569,17 @@ type OktaAuditLogStreamResponse_Config struct {
 }
 
 type OktaAuditLogStreamResponse_AuditLogResumeState struct {
-	AuditLogResumeState *OktaAuditLogV1Cursor `protobuf:"bytes,2,opt,name=audit_log_resume_state,json=auditLogResumeState,proto3,oneof"` // Complete resume state for 'search' mode.
+	AuditLogResumeState *OktaAuditLogV1Cursor `protobuf:"bytes,2,opt,name=audit_log_resume_state,json=auditLogResumeState,proto3,oneof"` // Audit log resume cursor
 }
 
 func (*OktaAuditLogStreamResponse_Config) isOktaAuditLogStreamResponse_State() {}
 
 func (*OktaAuditLogStreamResponse_AuditLogResumeState) isOktaAuditLogStreamResponse_State() {}
 
-// EventsStreamV2Request is a request to send commands to the access graph.
+// OktaEventsStreamRequest is a client message for the OktaEventsStream,
+// specifying an upsert, delete, or sync operation for Okta resource states (ex.: users, groups, roles).
 type OktaEventsStreamRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// operation contains the desired operation
-	//
 	// Types that are valid to be assigned to Operation:
 	//
 	//	*OktaEventsStreamRequest_Upsert
@@ -3688,7 +3676,8 @@ func (*OktaEventsStreamRequest_Delete) isOktaEventsStreamRequest_Operation() {}
 
 func (*OktaEventsStreamRequest_Sync) isOktaEventsStreamRequest_Operation() {}
 
-// GitHubEventsStreamResponse...
+// OktaEventsStreamResponse is an empty server message in the GitHubEventsStream,
+// serving as an acknowledgment and allowing for future addition of response data.
 type OktaEventsStreamResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields

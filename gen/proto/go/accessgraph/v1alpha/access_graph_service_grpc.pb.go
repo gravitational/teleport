@@ -108,14 +108,14 @@ type AccessGraphServiceClient interface {
 	// - Client requests for server-side bulk export state cleanup.
 	//
 	// Basic Interaction Flow:
-	//  1. Client connects and sends an initial `AuditLogStreamRequest` with `config`.
-	//  2. Server replies with an initial `AuditLogStreamResponse`, confirming the
+	//  1. Client connects and sends an initial `AWSCloudTrailStreamRequest` with `config`.
+	//  2. Server replies with an initial `AWSCloudTrailStreamResponse`, confirming the
 	//     effective configuration and providing the starting `resume_state` (if any).
-	//  3. Client sends subsequent `AuditLogStreamRequest` messages containing either
-	//     `events` (with resume state updates) or `bulk_sync` commands.
+	//  3. Client sends subsequent `AWSCloudTrailStreamRequest` messages.
 	//
-	// Refer to the `AuditLogStreamRequest` and `AuditLogStreamResponse` message
-	// definitions for detailed structure, payloads, behaviors, and constraints.
+	// Refer to the `AWSCloudTrailStreamRequest` and `AWSCloudTrailStreamResponse`
+	// message definitions for detailed structure, payloads, behaviors, and
+	// constraints.
 	AWSCloudTrailStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse], error)
 	// Register submits a new tenant representing this Teleport cluster to the TAG service,
 	// identified by its HostCA certificate.
@@ -144,13 +144,48 @@ type AccessGraphServiceClient interface {
 	AzureEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AzureEventsStreamRequest, AzureEventsStreamResponse], error)
 	// NetIQEventsStream is a stream of commands to the NetIQ importer.
 	NetIQEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[NetIQEventsStreamRequest, NetIQEventsStreamResponse], error)
-	// GitHubStream
+	// GitHubAuditLogStream establishes a persistent bidirectional stream for
+	// exporting GitHub audit log events from a client (ex.: a Teleport connector
+	// for GitHub) to the AccessGraphService.
+	//
+	// This stream facilitates: - Initial configuration exchange (e.g., setting
+	// a start date for log collection). - Streaming batches of GitHub audit log
+	// events from the client to the server. - Reliable export resumption using
+	// a cursor mechanism, allowing the client to continue from where it left
+	// off after an interruption.
 	GitHubAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse], error)
-	// GitHubEventsStream
+	// GitHubEventsStream establishes a client-to-server stream for continuously
+	// syncing GitHub resource states (ex.: repositories, user roles, API tokens)
+	// with the AccessGraphService.
+	//
+	// This stream allows a client (ex.: a Teleport GitHub connector) to send:
+	// - `upsert` operations: To add new or update existing GitHub resources in the graph.
+	// - `delete` operations: To remove GitHub resources from the graph.
+	// - `sync` operations: To signal events like the completion of an initial full synchronization.
+	// The server sends a stream of (empty) `GitHubEventsStreamResponse` messages, to acknowledge
+	// received operations and maintain stream health.
 	GitHubEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GitHubEventsStreamRequest, GitHubEventsStreamResponse], error)
-	// OktaAuditLogStream ...
+	// OktaAuditLogStream establishes a persistent bidirectional stream for
+	// exporting Okta audit log events from a client (ex.: a Teleport Okta connector)
+	// to the AccessGraphService.
+	//
+	// This stream facilitates:
+	//   - Initial configuration exchange (ex.: setting a start date via `OktaConfigV1`).
+	//   - Streaming batches of Okta audit log events (as `OktaEventV1` messages) from
+	//     the client to the server.
+	//   - Reliable export resumption using a cursor mechanism (`OktaAuditLogV1Cursor`),
+	//     allowing the client to continue from where it left off after an interruption.
 	OktaAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse], error)
-	// OktaEventsStream
+	// OktaEventsStream establishes a client-to-server stream for continuously
+	// syncing Okta resource states (ex.: users, groups, applications, API tokens)
+	// with the AccessGraphService.
+	//
+	// This stream allows a client (ex.: a Teleport Okta connector) to send:
+	// - `upsert` operations: To add new or update existing Okta resources in the graph.
+	// - `delete` operations: To remove Okta resources from the graph.
+	// - `sync` operations: To signal events like the completion of an initial full synchronization.
+	// The server sends a stream of (empty) `OktaEventsStreamResponse` messages,
+	// typically to acknowledge received operations and maintain stream health.
 	OktaEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[OktaEventsStreamRequest, OktaEventsStreamResponse], error)
 }
 
@@ -424,14 +459,14 @@ type AccessGraphServiceServer interface {
 	// - Client requests for server-side bulk export state cleanup.
 	//
 	// Basic Interaction Flow:
-	//  1. Client connects and sends an initial `AuditLogStreamRequest` with `config`.
-	//  2. Server replies with an initial `AuditLogStreamResponse`, confirming the
+	//  1. Client connects and sends an initial `AWSCloudTrailStreamRequest` with `config`.
+	//  2. Server replies with an initial `AWSCloudTrailStreamResponse`, confirming the
 	//     effective configuration and providing the starting `resume_state` (if any).
-	//  3. Client sends subsequent `AuditLogStreamRequest` messages containing either
-	//     `events` (with resume state updates) or `bulk_sync` commands.
+	//  3. Client sends subsequent `AWSCloudTrailStreamRequest` messages.
 	//
-	// Refer to the `AuditLogStreamRequest` and `AuditLogStreamResponse` message
-	// definitions for detailed structure, payloads, behaviors, and constraints.
+	// Refer to the `AWSCloudTrailStreamRequest` and `AWSCloudTrailStreamResponse`
+	// message definitions for detailed structure, payloads, behaviors, and
+	// constraints.
 	AWSCloudTrailStream(grpc.BidiStreamingServer[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse]) error
 	// Register submits a new tenant representing this Teleport cluster to the TAG service,
 	// identified by its HostCA certificate.
@@ -460,13 +495,48 @@ type AccessGraphServiceServer interface {
 	AzureEventsStream(grpc.BidiStreamingServer[AzureEventsStreamRequest, AzureEventsStreamResponse]) error
 	// NetIQEventsStream is a stream of commands to the NetIQ importer.
 	NetIQEventsStream(grpc.BidiStreamingServer[NetIQEventsStreamRequest, NetIQEventsStreamResponse]) error
-	// GitHubStream
+	// GitHubAuditLogStream establishes a persistent bidirectional stream for
+	// exporting GitHub audit log events from a client (ex.: a Teleport connector
+	// for GitHub) to the AccessGraphService.
+	//
+	// This stream facilitates: - Initial configuration exchange (e.g., setting
+	// a start date for log collection). - Streaming batches of GitHub audit log
+	// events from the client to the server. - Reliable export resumption using
+	// a cursor mechanism, allowing the client to continue from where it left
+	// off after an interruption.
 	GitHubAuditLogStream(grpc.BidiStreamingServer[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse]) error
-	// GitHubEventsStream
+	// GitHubEventsStream establishes a client-to-server stream for continuously
+	// syncing GitHub resource states (ex.: repositories, user roles, API tokens)
+	// with the AccessGraphService.
+	//
+	// This stream allows a client (ex.: a Teleport GitHub connector) to send:
+	// - `upsert` operations: To add new or update existing GitHub resources in the graph.
+	// - `delete` operations: To remove GitHub resources from the graph.
+	// - `sync` operations: To signal events like the completion of an initial full synchronization.
+	// The server sends a stream of (empty) `GitHubEventsStreamResponse` messages, to acknowledge
+	// received operations and maintain stream health.
 	GitHubEventsStream(grpc.BidiStreamingServer[GitHubEventsStreamRequest, GitHubEventsStreamResponse]) error
-	// OktaAuditLogStream ...
+	// OktaAuditLogStream establishes a persistent bidirectional stream for
+	// exporting Okta audit log events from a client (ex.: a Teleport Okta connector)
+	// to the AccessGraphService.
+	//
+	// This stream facilitates:
+	//   - Initial configuration exchange (ex.: setting a start date via `OktaConfigV1`).
+	//   - Streaming batches of Okta audit log events (as `OktaEventV1` messages) from
+	//     the client to the server.
+	//   - Reliable export resumption using a cursor mechanism (`OktaAuditLogV1Cursor`),
+	//     allowing the client to continue from where it left off after an interruption.
 	OktaAuditLogStream(grpc.BidiStreamingServer[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse]) error
-	// OktaEventsStream
+	// OktaEventsStream establishes a client-to-server stream for continuously
+	// syncing Okta resource states (ex.: users, groups, applications, API tokens)
+	// with the AccessGraphService.
+	//
+	// This stream allows a client (ex.: a Teleport Okta connector) to send:
+	// - `upsert` operations: To add new or update existing Okta resources in the graph.
+	// - `delete` operations: To remove Okta resources from the graph.
+	// - `sync` operations: To signal events like the completion of an initial full synchronization.
+	// The server sends a stream of (empty) `OktaEventsStreamResponse` messages,
+	// typically to acknowledge received operations and maintain stream health.
 	OktaEventsStream(grpc.BidiStreamingServer[OktaEventsStreamRequest, OktaEventsStreamResponse]) error
 	mustEmbedUnimplementedAccessGraphServiceServer()
 }

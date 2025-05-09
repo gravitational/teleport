@@ -175,7 +175,7 @@ func (x *AccessGraphSecretsScanConfiguration) GetSshScanEnabled() bool {
 	return false
 }
 
-// AuditLogConfig sepcifies the audit log event export setup.
+// AuditLogConfig specifies the audit log event export setup.
 type AuditLogConfig struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// enbled indicates if Audit Log event exporting is enabled.

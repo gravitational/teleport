@@ -192,7 +192,7 @@ func (s *Server) getAllAWSSyncFetchersWithTrailEnabled() []*types.AccessGraphAWS
 		}
 
 		for _, disc := range discConfig.Spec.AccessGraph.AWS {
-			if disc.EnableCloudTrailPolling && disc.SqsPolling != nil {
+			if disc.SqsPolling != nil {
 				allFetchers = append(allFetchers, disc)
 			}
 		}
@@ -204,7 +204,7 @@ func (s *Server) getAllAWSSyncFetchersWithTrailEnabled() []*types.AccessGraphAWS
 		return allFetchers
 	}
 	for _, disc := range s.Config.Matchers.AccessGraph.AWS {
-		if disc.EnableCloudTrailPolling && disc.SqsPolling != nil {
+		if disc.SqsPolling != nil {
 			allFetchers = append(allFetchers, disc)
 		}
 	}

@@ -1638,10 +1638,9 @@ kubernetes matchers are present`)
 			}
 
 			tMatcher.AWS = append(tMatcher.AWS, &types.AccessGraphAWSSync{
-				Regions:                 regions,
-				AssumeRole:              assumeRole,
-				EnableCloudTrailPolling: awsMatcher.EnableCloudTrailPolling,
-				SqsPolling:              sqsQueue,
+				Regions:    regions,
+				AssumeRole: assumeRole,
+				SqsPolling: sqsQueue,
 			})
 		}
 		for _, azureMatcher := range fc.Discovery.AccessGraph.Azure {
