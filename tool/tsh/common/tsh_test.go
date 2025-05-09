@@ -204,7 +204,7 @@ func handleReexec() {
 	// Allows test to refer to tsh binary in tests.
 	// Needed for tests that generate OpenSSH config by tsh config command where
 	// tsh proxy ssh command is used as ProxyCommand.
-	if os.Getenv(tshBinMainTestEnv) != "" || isReexec() {
+	if os.Getenv(tshBinMainTestEnv) != "" || slices.Contains(os.Args, "--fork-signal-fd") {
 		if os.Getenv(tshBinMainTestOneshotEnv) != "" {
 			// unset this env var so child processes started by 'tsh ssh'
 			// will be executed correctly below.
@@ -229,10 +229,6 @@ func handleReexec() {
 	if srv.IsReexec() {
 		srv.RunAndExit(os.Args[1])
 	}
-}
-
-func isReexec() bool {
-	return slices.Contains(os.Args, "--fork-signal-fd")
 }
 
 type cliModules struct{}

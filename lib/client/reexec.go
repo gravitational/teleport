@@ -1,3 +1,19 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package client
 
 import (
@@ -23,45 +39,65 @@ type ForkAuthenticateParams struct {
 	Stderr io.Writer
 }
 
+type forkAuthCmd struct {
+	*exec.Cmd
+	disownSignal io.ReadCloser
+	parentStdin  io.Reader
+	childStdin   io.WriteCloser
+}
+
 // RunForkAuthenticate re-execs the current executable and waits for any of
 // the following:
 //   - The child process exits (usually in error).
 //   - The child process signals the parent that it is ready to be disowned.
 //   - The context is canceled.
 func RunForkAuthenticate(ctx context.Context, params ForkAuthenticateParams) error {
-	cmd, disownSignal, err := buildForkAuthenticateCommand(params)
+	cmd, err := buildForkAuthenticateCommand(params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return runForkAuthenticateChild(ctx, cmd, disownSignal)
+	return runForkAuthenticateChild(ctx, cmd)
 }
 
-func buildForkAuthenticateCommand(params ForkAuthenticateParams) (cmd *exec.Cmd, disownSignal io.ReadCloser, err error) {
+func buildForkAuthenticateCommand(params ForkAuthenticateParams) (*forkAuthCmd, error) {
 	executable, err := os.Executable()
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	cmd = exec.Command(executable)
+	cmd := exec.Command(executable)
 	pipeR, pipeW, err := os.Pipe()
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	signalFd := addSignalFdToChild(cmd, pipeW)
+
 	cmd.Args = append(cmd.Args, params.GetArgs(signalFd)...)
-	cmd.Stdin = params.Stdin
 	cmd.Stdout = params.Stdout
 	cmd.Stderr = params.Stderr
 
-	return cmd, pipeR, nil
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if params.Stdin == nil {
+		params.Stdin = os.Stdin
+	}
+	return &forkAuthCmd{
+		Cmd:          cmd,
+		disownSignal: pipeR,
+		parentStdin:  params.Stdin,
+		childStdin:   stdin,
+	}, nil
 }
 
-func runForkAuthenticateChild(ctx context.Context, cmd *exec.Cmd, disownSignal io.ReadCloser) error {
-	defer disownSignal.Close()
+func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
+	defer cmd.disownSignal.Close()
 	disownReady := make(chan error, 1)
 	go func() {
 		// The child process will close the pipe when it has authenticated
 		// and is ready to be disowned.
-		_, err := disownSignal.Read(make([]byte, 1))
+		_, err := cmd.disownSignal.Read(make([]byte, 1))
 		if errors.Is(err, io.EOF) {
 			err = nil
 		}
@@ -75,6 +111,9 @@ func runForkAuthenticateChild(ctx context.Context, cmd *exec.Cmd, disownSignal i
 	go func() {
 		childFinished <- cmd.Wait()
 	}()
+
+	go io.Copy(cmd.childStdin, cmd.parentStdin)
+	defer cmd.childStdin.Close()
 
 	select {
 	case err := <-childFinished:

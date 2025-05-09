@@ -827,6 +827,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
 	app.Flag("trace", "Capture and export distributed traces").Hidden().BoolVar(&cf.SampleTraces)
 	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to. Note - only tsh spans will be included.").Hidden().StringVar(&cf.TraceExporter)
+	// This flag only applies to tsh ssh; it's defined here to make configuring
+	// a re-exec command easier.
+	app.Flag("fork-signal-fd", "File descriptor to signal parent on when forked. Overrides --fork-after-authentication.").Hidden().Uint64Var(&cf.forkSignalFd)
 
 	if !moduleCfg.IsBoringBinary() {
 		// The user is *never* allowed to do this in FIPS mode.
@@ -907,7 +910,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
 	ssh.Flag("fork-after-authentication", "Run in background after authentication is complete.").Short('f').BoolVar(&cf.ForkAfterAuthentication)
-	ssh.Flag("fork-signal-fd", "File descriptor to signal parent on when forked. Overrides --fork-after-authentication.").Hidden().Uint64Var(&cf.forkSignalFd)
 	// The following flags are OpenSSH compatibility flags. They are used for
 	// users that alias "ssh" to "tsh ssh." The following OpenSSH flags are
 	// implemented. From "man 1 ssh":
@@ -4052,22 +4054,17 @@ func onSSH(cf *CLIConf) error {
 
 	tc.Stdin = os.Stdin
 
+	// Handle fork after authentication.
 	if cf.ForkAfterAuthentication && cf.forkSignalFd == 0 {
 		if len(cf.RemoteCommand) == 0 {
 			return trace.BadParameter("fork after authentication not allowed for interactive sessions")
 		}
 		forkParams := client.ForkAuthenticateParams{
 			GetArgs: func(signalFd uint64) []string {
-				args := make([]string, 0, len(cf.rawArgs)+2)
-				for i, arg := range cf.rawArgs {
-					args = append(args, arg)
-					if arg == "ssh" {
-						args = append(args, "--fork-signal-fd", strconv.FormatUint(signalFd, 10))
-						args = append(args, cf.rawArgs[i+1:]...)
-						return args
-					}
-				}
-				return args
+				return append([]string{
+					// --fork-signal-fd goes immediately after `tsh`.
+					"--fork-signal-fd", strconv.FormatUint(signalFd, 10),
+				}, cf.rawArgs...)
 			},
 			Stdin:  tc.Stdin,
 			Stdout: tc.Stdout,

@@ -1,3 +1,19 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package client
 
 import (
@@ -11,9 +27,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type syncBuffer struct {
@@ -45,14 +62,14 @@ func (rw *syncBuffer) String() string {
 	return rw.buf.String()
 }
 
-func buildBashForkCommand(t *testing.T, params ForkAuthenticateParams) (*exec.Cmd, io.ReadCloser) {
-	cmd, signal, err := buildForkAuthenticateCommand(params)
+func buildBashForkCommand(t *testing.T, params ForkAuthenticateParams) *forkAuthCmd {
+	cmd, err := buildForkAuthenticateCommand(params)
 	require.NoError(t, err)
 	bash, err := exec.LookPath("bash")
 	require.NoError(t, err)
 	cmd.Path = bash
 	cmd.Args[0] = bash
-	return cmd, signal
+	return cmd
 }
 
 func TestRunForkAuthenticateChild(t *testing.T) {
@@ -80,9 +97,9 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 			Stdout:  stdout,
 			Stderr:  stderr,
 		}
-		cmd, signal := buildBashForkCommand(t, params)
+		cmd := buildBashForkCommand(t, params)
 
-		err := runForkAuthenticateChild(t.Context(), cmd, signal)
+		err := runForkAuthenticateChild(t.Context(), cmd)
 		assert.NoError(t, err)
 		assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 			assert.Equal(collect, "stdout: hello\n", stdout.String())
@@ -97,7 +114,7 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		echo "stdout: $REPLY"
 		echo "stderr: $REPLY" >&2
 		# Exit with error.
-		exit 1
+		exit 42
 		`
 		getArgs := func(signalFd uint64) []string {
 			return []string{"-c", script}
@@ -110,12 +127,12 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 			Stdout:  stdout,
 			Stderr:  stderr,
 		}
-		cmd, signal := buildBashForkCommand(t, params)
+		cmd := buildBashForkCommand(t, params)
 
-		err := runForkAuthenticateChild(t.Context(), cmd, signal)
+		err := runForkAuthenticateChild(t.Context(), cmd)
 		var execErr *exec.ExitError
 		if assert.ErrorAs(t, err, &execErr) {
-			assert.Equal(t, 1, execErr.ExitCode())
+			assert.Equal(t, 42, execErr.ExitCode())
 		}
 		assert.Equal(t, "stdout: hello\n", stdout.String())
 		assert.Equal(t, "stderr: hello\n", stderr.String())
@@ -145,13 +162,13 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 
-		cmd, signal := buildBashForkCommand(t, params)
+		cmd := buildBashForkCommand(t, params)
 
 		errorCh := make(chan error, 1)
 		utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
 			Name: "RunForkAuthenticateChild",
 			Task: func(ctx context.Context) error {
-				errorCh <- runForkAuthenticateChild(ctx, cmd, signal)
+				errorCh <- runForkAuthenticateChild(ctx, cmd)
 				return nil
 			},
 		})
@@ -178,26 +195,34 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 	t.Run("stdin is closed after disowning", func(t *testing.T) {
 		const script = `
 		# Close signal fd.
+		echo x >&%d
 		exec %d>&-
+		echo test
 		sleep 1
 		# Next read should not work
 		read && echo $REPLY
 		`
 		getArgs := func(signalFd uint64) []string {
-			return []string{"-c", fmt.Sprintf(script, signalFd)}
+			return []string{"-c", fmt.Sprintf(script, signalFd, signalFd)}
 		}
 		stdout := newSyncBuffer()
+		stdinR, stdinW := io.Pipe()
 		params := ForkAuthenticateParams{
 			GetArgs: getArgs,
-			Stdin:   bytes.NewBufferString("hello\n"),
+			Stdin:   stdinR,
 			Stdout:  stdout,
 			Stderr:  io.Discard,
 		}
-		cmd, signal := buildBashForkCommand(t, params)
-		err := runForkAuthenticateChild(t.Context(), cmd, signal)
+		cmd := buildBashForkCommand(t, params)
+		go func() {
+			time.Sleep(5 * time.Second)
+			fmt.Println(stdout.String())
+		}()
+		err := runForkAuthenticateChild(t.Context(), cmd)
 		assert.NoError(t, err)
+		stdinW.Write([]byte("hello\n"))
 		assert.Never(t, func() bool {
-			return strings.Contains(stdout.String(), "stdout: hello\n")
+			return strings.Contains(stdout.String(), "hello")
 		}, 3*time.Second, time.Second)
 	})
 }
