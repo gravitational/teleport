@@ -133,17 +133,32 @@ type collections struct {
 	identityCenterPrincipalAssignments *collection[*identitycenterv1.PrincipalAssignment, identityCenterPrincipalAssignmentIndex]
 }
 
+// isKnownUncollectedKind is true if a resource kind is not stored in
+// the cache itself but it's only configured in the cache so that the
+// resources events can be processed by downstream watchers.
+func isKnownUncollectedKind(kind string) bool {
+	switch kind {
+	case types.KindAccessRequest, types.KindHeadlessAuthentication:
+		return true
+	default:
+		return false
+	}
+}
+
 // setupCollections ensures that the appropriate [collection] is
 // initialized for all provided [types.WatcKind]s. An error is
 // returned if a [types.WatchKind] has no associated [collection].
-func setupCollections(c Config) (*collections, error) {
+func setupCollections(c Config, legacyCollections map[resourceKind]legacyCollection) (*collections, error) {
 	out := &collections{
 		byKind: make(map[resourceKind]collectionHandler, 1),
 	}
 
 	for _, watch := range c.Watches {
-		resourceKind := resourceKindFromWatchKind(watch)
+		if isKnownUncollectedKind(watch.Kind) {
+			continue
+		}
 
+		resourceKind := resourceKindFromWatchKind(watch)
 		switch watch.Kind {
 		case types.KindToken:
 			collect, err := newProvisionTokensCollection(c.Provisioner, watch)
@@ -678,7 +693,13 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.identityCenterPrincipalAssignments = collect
 			out.byKind[resourceKind] = out.identityCenterPrincipalAssignments
+		default:
+			_, legacyOk := legacyCollections[resourceKind]
+			if _, ok := out.byKind[resourceKind]; !ok && !legacyOk {
+				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
+			}
 		}
+
 	}
 
 	return out, nil
