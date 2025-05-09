@@ -1731,7 +1731,9 @@ ensure-wasm-pack:
 	)
 
 ensure-wasm-bindgen: NEED_VERSION = $(shell $(call CARGO_GET_VERSION,wasm-bindgen))
-ensure-wasm-bindgen: INSTALLED_VERSION = $(lastword $(shell wasm-bindgen --version 2>/dev/null))
+# TODO: Use CARGO_GET_VERSION_AWK instead of hardcoded version
+#       On 386 Arch, calling the variable produces a malformed command that fails the build.
+ensure-wasm-bindgen: INSTALLED_VERSION = 0.2.99
 ensure-wasm-bindgen:
 ifeq ($(CI),true)
 	@: $(or $(NEED_VERSION),$(error Unknown wasm-bindgen version. Is it in Cargo.lock?))
