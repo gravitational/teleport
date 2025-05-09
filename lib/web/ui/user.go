@@ -62,6 +62,10 @@ type userTraits struct {
 	AWSRoleARNs []string `json:"awsRoleArns,omitempty"`
 }
 
+// unknownSSOAUthType is used when we know the user is from SSO, but we don't
+// know the SSO connector name or type.
+const unknownSSOAuthType = "unknown SSO"
+
 // User contains data needed by the web UI to display locally saved users.
 type User struct {
 	UserListEntry
@@ -80,7 +84,7 @@ func NewUserListEntry(teleUser types.User) (*UserListEntry, error) {
 			authType = connector.Type
 		} else {
 			// We handle gracefully a malformed SSO user that doesn't have a "CreatedBy"
-			authType = "unknown SSO"
+			authType = unknownSSOAuthType
 		}
 	}
 
