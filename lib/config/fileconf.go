@@ -2490,7 +2490,12 @@ type WindowsDesktopService struct {
 	// no effect when connecting to desktops as local Windows users.
 	KDCAddress string `yaml:"kdc_address"`
 	// Discovery configures desktop discovery via LDAP.
+	// New usages should prever DiscoveryConfigs instead, which allows for multiple searches.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
+	// DiscoveryConfigs configures desktop discovery via LDAP.
+	DiscoveryConfigs []LDAPDiscoveryConfig `yaml:"discovery_configs,omitempty"`
+	// DiscoveryInterval controls how frequently the discovery process runs.
+	DiscoveryInterval time.Duration `yaml:"discovery_interval"`
 	// ADHosts is a list of static, AD-connected Windows hosts. This gives users
 	// a way to specify AD-connected hosts that won't be found by the filters
 	// specified in `discovery` (or if `discovery` is omitted).
@@ -2590,6 +2595,9 @@ type LDAPDiscoveryConfig struct {
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
 	LabelAttributes []string `yaml:"label_attributes"`
+	// RDPPort is the port to use for RDP for hosts discovered with this configuration.
+	// Optional, defaults to 3389 if unspecified.
+	RDPPort int `yaml:"rdp_port"`
 }
 
 // TracingService contains configuration for the tracing_service.

@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"maps"
 	"regexp"
+	"time"
 
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
@@ -55,7 +56,8 @@ type WindowsDesktopConfig struct {
 	KDCAddr string
 
 	// Discovery configures automatic desktop discovery via LDAP.
-	Discovery LDAPDiscoveryConfig
+	Discovery         []LDAPDiscoveryConfig
+	DiscoveryInterval time.Duration
 
 	// StaticHosts is an optional list of static Windows hosts to expose through this
 	// service.
@@ -97,6 +99,8 @@ type LDAPDiscoveryConfig struct {
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
 	LabelAttributes []string
+	// RDPPort is the RDP port to register for each host discovered with this configuration.
+	RDPPort int
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.
