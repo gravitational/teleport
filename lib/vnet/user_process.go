@@ -20,11 +20,11 @@ import (
 	"context"
 	"crypto/tls"
 
-	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
-	"github.com/gravitational/teleport/lib/auth/authclient"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
 // ClientApplication is the common interface implemented by each VNet client
