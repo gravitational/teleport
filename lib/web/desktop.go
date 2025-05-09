@@ -42,11 +42,11 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
@@ -136,31 +136,9 @@ func (h *Handler) createDesktopConnection(
 		"height", height,
 	)
 
-	// Pick a random Windows desktop service as our gateway.
-	// When agent mode is implemented in the service, we'll have to filter out
-	// the services in agent mode.
-	//
-	// In the future, we may want to do something smarter like latency-based
-	// routing.
 	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return sendTDPError(trace.Wrap(err))
-	}
-	winDesktops, err := clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: desktopName})
-	if err != nil {
-		return sendTDPError(trace.Wrap(err, "cannot get Windows desktops"))
-	}
-	if len(winDesktops) == 0 {
-		return sendTDPError(trace.NotFound("no Windows desktops were found"))
-	}
-	var validServiceIDs []string
-	for _, desktop := range winDesktops {
-		if desktop.GetHostID() == "" {
-			// desktops with empty host ids are invalid and should
-			// only occur when migrating from an old version of teleport
-			continue
-		}
-		validServiceIDs = append(validServiceIDs, desktop.GetHostID())
 	}
 
 	// Parse the private key of the user from the session context.
@@ -191,14 +169,15 @@ func (h *Handler) createDesktopConnection(
 
 	clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(ctx)
 
-	c := &connector{
-		log:           log,
-		clt:           clt,
-		site:          site,
-		clientSrcAddr: clientSrcAddr,
-		clientDstAddr: clientDstAddr,
-	}
-	serviceConn, version, err := c.connectToWindowsService(ctx, clusterName, validServiceIDs)
+	serviceConn, version, err := desktop.ConnectToWindowsService(ctx, &desktop.ConnectionConfig{
+		Log:            log,
+		DesktopsGetter: clt,
+		Site:           site,
+		ClientSrcAddr:  clientSrcAddr,
+		ClientDstAddr:  clientDstAddr,
+		DesktopName:    desktopName,
+		ClusterName:    clusterName,
+	})
 	if err != nil {
 		return sendTDPError(trace.Wrap(err, "cannot connect to Windows Desktop Service"))
 	}
@@ -476,67 +455,6 @@ func readUsername(r *http.Request) (string, error) {
 func readClientScreenSpec(ws *websocket.Conn) (*tdp.ClientScreenSpec, error) {
 	tdpConn := tdp.NewConn(&WebsocketIO{Conn: ws})
 	return tdpConn.ReadClientScreenSpec()
-}
-
-type connector struct {
-	log           *slog.Logger
-	clt           authclient.ClientI
-	site          reversetunnelclient.RemoteSite
-	clientSrcAddr net.Addr
-	clientDstAddr net.Addr
-}
-
-// connectToWindowsService tries to make a connection to a Windows Desktop Service
-// by trying each of the services provided. It returns an error if it could not connect
-// to any of the services or if it encounters an error that is not a connection problem.
-func (c *connector) connectToWindowsService(
-	ctx context.Context,
-	clusterName string,
-	desktopServiceIDs []string,
-) (conn net.Conn, version string, err error) {
-	for _, id := range utils.ShuffleVisit(desktopServiceIDs) {
-		conn, ver, err := c.tryConnect(ctx, clusterName, id)
-		if err != nil && !trace.IsConnectionProblem(err) {
-			return nil, "", trace.WrapWithMessage(err,
-				"error connecting to windows_desktop_service %q", id)
-		}
-		if trace.IsConnectionProblem(err) {
-			c.log.WarnContext(ctx, "failed to connect to windows_desktop_service",
-				"windows_desktop_service_id", id,
-				"error", err,
-			)
-			continue
-		}
-		if err == nil {
-			return conn, ver, nil
-		}
-	}
-	return nil, "", trace.Errorf("failed to connect to any windows_desktop_service")
-}
-
-func (c *connector) tryConnect(ctx context.Context, clusterName, desktopServiceID string) (conn net.Conn, version string, err error) {
-	service, err := c.clt.GetWindowsDesktopService(ctx, desktopServiceID)
-	if err != nil {
-		c.log.ErrorContext(ctx, "Error finding service", "service_id", desktopServiceID, "error", err)
-		return nil, "", trace.NotFound("could not find windows desktop service %s: %v", desktopServiceID, err)
-	}
-
-	ver := service.GetTeleportVersion()
-	*c.log = *c.log.With(
-		"windows_service_version", ver,
-		"windows_service_uuid", service.GetName(),
-		"windows_service_addr", service.GetAddr(),
-	)
-
-	conn, err = c.site.DialTCP(reversetunnelclient.DialParams{
-		From:                  c.clientSrcAddr,
-		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
-		ConnType:              types.WindowsDesktopTunnel,
-		ServerID:              service.GetName() + "." + clusterName,
-		ProxyIDs:              service.GetProxyIDs(),
-		OriginalClientDstAddr: c.clientDstAddr,
-	})
-	return conn, ver, trace.Wrap(err)
 }
 
 // desktopPinger measures latency between proxy and the desktop by sending tdp.Ping messages

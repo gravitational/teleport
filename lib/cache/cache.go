@@ -265,6 +265,8 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		{Kind: types.KindNode},
+		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
 		{Kind: types.KindReverseTunnel},
