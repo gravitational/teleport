@@ -160,12 +160,12 @@ export function Account({
             mr={2}
             size="large"
             color="text.main"
-            onClick={() => history.goBack()}
+            onClick={history.goBack}
             style={{ cursor: 'pointer' }}
           />
           <FeatureHeaderTitle>Account Settings</FeatureHeaderTitle>
         </FeatureHeader>
-        {!!errorMessage && <Danger dismissible>{errorMessage}</Danger>}
+        {!!errorMessage && <Danger dismissible onDismiss={() => setErrorMessage(null)}>{errorMessage}</Danger>}
         <Flex flexDirection="row" gap={4} maxWidth={'1440px'} margin={'auto'}>
           <Flex flexDirection="column" gap={1} width="16rem">
             <SideNav
