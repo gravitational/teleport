@@ -3,7 +3,9 @@ package vnet
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/utils"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+
 	"github.com/gravitational/trace"
 )
 
@@ -45,6 +47,8 @@ func (p *LocalOSConfigProvider) GetTargetOSConfiguration(ctx context.Context) (*
 		targetOSConfig.DnsZones = append(targetOSConfig.DnsZones, profileTargetConfig.DnsZones...)
 		targetOSConfig.Ipv4CidrRanges = append(targetOSConfig.Ipv4CidrRanges, profileTargetConfig.Ipv4CidrRanges...)
 	}
+	targetOSConfig.DnsZones = utils.Deduplicate(targetOSConfig.DnsZones)
+	targetOSConfig.Ipv4CidrRanges = utils.Deduplicate(targetOSConfig.Ipv4CidrRanges)
 	return &targetOSConfig, nil
 }
 
