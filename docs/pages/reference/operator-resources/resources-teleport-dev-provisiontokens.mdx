@@ -29,6 +29,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |allow|[][object](#specallow-items)|Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.|
 |aws_iid_ttl|string|AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.|
 |azure|[object](#specazure)|Azure allows the configuration of options specific to the "azure" join method.|
+|azure_devops|[object](#specazure_devops)|AzureDevops allows the configuration of options specific to the "azure_devops" join method.|
 |bitbucket|[object](#specbitbucket)|Bitbucket allows the configuration of options specific to the "bitbucket" join method.|
 |bot_name|string|BotName is the name of the bot this token grants access to, if any|
 |bound_keypair|[object](#specbound_keypair)|BoundKeypair allows the configuration of options specific to the "bound_keypair" join method.|
@@ -67,6 +68,26 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |resource_groups|[]string||
 |subscription|string||
+
+### spec.azure_devops
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specazure_devopsallow-items)|Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. At least one allow rule must be specified.|
+|organization_id|string|OrganizationID specifies the UUID of the Azure DevOps organization that this join token will grant access to. This is used to identify the correct issuer verification of the ID token. This is a required field.|
+
+### spec.azure_devops.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|definition_id|string||
+|pipeline_name|string||
+|project_id|string||
+|project_name|string||
+|repository_ref|string||
+|repository_uri|string||
+|repository_version|string||
+|sub|string||
 
 ### spec.bitbucket
 
