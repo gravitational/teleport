@@ -34,6 +34,7 @@ import {
   getStatusBackgroundColor,
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
+import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
 import { ResourceItemProps } from '../types';
 
 export function ResourceListItem({
@@ -253,7 +254,9 @@ export function ResourceListItem({
             grid-area: button;
           `}
         >
-          {ActionButton}
+          <ResourceActionButtonWrapper requiresRequest={requiresRequest}>
+            {ActionButton}
+          </ResourceActionButtonWrapper>
         </Box>
 
         {/* labels */}

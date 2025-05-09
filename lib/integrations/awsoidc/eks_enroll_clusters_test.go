@@ -217,11 +217,12 @@ func TestEnrollEKSClusters(t *testing.T) {
 			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
 				require.Len(t, response.Results, 2)
 				for _, result := range response.Results {
-					if result.ClusterName == "EKS1" {
+					switch result.ClusterName {
+					case "EKS1":
 						require.NoError(t, result.Error, "cluster not found")
-					} else if result.ClusterName == "EKS3" {
+					case "EKS3":
 						require.ErrorContains(t, result.Error, "cluster not found")
-					} else {
+					default:
 						require.Fail(t, "unexpected cluster present in the response")
 					}
 				}

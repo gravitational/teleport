@@ -27,16 +27,18 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const nodeStoreNameIndex = "name"
+type nodeIndex string
 
-func newNodeCollection(p services.Presence, w types.WatchKind) (*collection[types.Server], error) {
+const nodeNameIndex nodeIndex = "name"
+
+func newNodeCollection(p services.Presence, w types.WatchKind) (*collection[types.Server, nodeIndex], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
-	return &collection[types.Server]{
-		store: newStore(map[string]func(types.Server) string{
-			nodeStoreNameIndex: func(u types.Server) string {
+	return &collection[types.Server, nodeIndex]{
+		store: newStore(map[nodeIndex]func(types.Server) string{
+			nodeNameIndex: func(u types.Server) string {
 				return u.GetName()
 			},
 		}),
@@ -72,7 +74,7 @@ func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Serv
 		return node, trace.Wrap(err)
 	}
 
-	n, err := rg.store.get(nodeStoreNameIndex, name)
+	n, err := rg.store.get(nodeNameIndex, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -104,7 +106,7 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server,
 	}
 
 	out := make([]types.Server, 0, rg.store.len())
-	for n := range rg.store.resources(nodeStoreNameIndex, "", "") {
+	for n := range rg.store.resources(nodeNameIndex, "", "") {
 		out = append(out, n.DeepCopy())
 	}
 

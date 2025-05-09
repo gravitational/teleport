@@ -1722,8 +1722,11 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer clusterClient.Close()
 
-	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, params)
-	return keyRing, trace.Wrap(err)
+	result, err := clusterClient.IssueUserCertsWithMFA(ctx, params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return result.KeyRing, nil
 }
 
 // CreateAccessRequestV2 registers a new access request with the auth server.
@@ -2939,6 +2942,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 			)
 			defer span.End()
 
+			displayName := nodeName(node)
 			nodeClient, err := tc.ConnectToNode(
 				ctx,
 				clt,
@@ -2953,26 +2957,32 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 			if err != nil {
 				// Returning the error here would cancel all the other goroutines, so
 				// print the error instead to let them all finish.
-				fmt.Fprintln(tc.Stderr, err)
+				fmt.Fprintln(stderr, err)
+				resultsCh <- execResult{
+					hostname:   displayName,
+					exitStatus: 1,
+				}
 				return nil
 			}
 			defer nodeClient.Close()
 
-			displayName := nodeName(node)
-			fmt.Printf("Running command on %v:\n", displayName)
+			fmt.Fprintf(stdout, "Running command on %v:\n", displayName)
 
-			if err := nodeClient.RunCommand(
+			err = nodeClient.RunCommand(
 				ctx,
 				command,
 				WithLabeledOutput(width),
 				WithOutput(stdout, stderr),
-			); err != nil && tc.ExitStatus == 0 {
-				fmt.Fprintln(tc.Stderr, err)
+			)
+			// Use the status from the error to avoid a race on tc.ExitStatus.
+			exitStatus := getExitStatus(err)
+			if err != nil && exitStatus == 0 {
+				fmt.Fprintln(stderr, err)
 				return nil
 			}
 			resultsCh <- execResult{
 				hostname:   displayName,
-				exitStatus: tc.ExitStatus,
+				exitStatus: exitStatus,
 			}
 			return nil
 		})

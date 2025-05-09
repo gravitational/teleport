@@ -4828,7 +4828,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 						display := make(chan string, 1)
 						require.EventuallyWithT(t, func(t *assert.CollectT) {
 							// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
-							_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())))
+							_, err = fmt.Fprintf(keyboard, "printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())
 							assert.NoError(t, err)
 
 							assert.Eventually(t, func() bool {
@@ -6189,9 +6189,14 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 		{
 			desc: "Both",
 			// Print slowly so we can confirm that the output isn't interleaved.
-			command:     slowPrintCommand("abcd1234"),
-			labels:      map[string]string{"spam": "eggs"},
-			expectLines: []string{"[server-01] abcd1234", "[server-02] abcd1234"},
+			command: slowPrintCommand("abcd1234"),
+			labels:  map[string]string{"spam": "eggs"},
+			expectLines: []string{
+				"Running command on server-01:",
+				"Running command on server-02:",
+				"[server-01] abcd1234",
+				"[server-02] abcd1234",
+			},
 		},
 		{
 			desc:        "Worker only",
@@ -6215,10 +6220,10 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 				Labels:  tt.labels,
 			}
 
-			output, err := runCommand(t, teleport, tt.command, cfg, 1)
+			output, err := runCommand(t, teleport, tt.command, cfg, 3)
 			require.NoError(t, err)
 			outputLines := strings.Split(strings.TrimSpace(output), "\n")
-			require.Len(t, outputLines, len(tt.expectLines))
+			require.Len(t, outputLines, len(tt.expectLines), "raw output:\n%v", output)
 			for _, line := range tt.expectLines {
 				require.Contains(t, outputLines, line)
 			}

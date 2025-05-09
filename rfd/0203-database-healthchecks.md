@@ -68,7 +68,7 @@ The side panel content may look something like this (or equivalent singular form
       UUID: <uuid>
       Error: <last health check error message>
 
-Databases with a mix of `healthy` and `""` or `disabled` status will also show a warning icon.
+Databases with a mix of `healthy` and `""` or `unknown` status will also show a warning icon.
 The side panel will encourage the user to enable health checks or update to a supported version on all of the agents that proxy the db.
 The side panel content may look something like this: 
 
@@ -245,30 +245,28 @@ The `target_health` will include, among other things, a `status` field.
 
 These are the possible values for the `db_server.status.target_health.status` field:
 - `""`
-- `disabled`
-- `initialized`
+- `unknown`
 - `healthy`
 - `unhealthy`
 
 An empty status `""` indicates an unknown status.
 If an older agent is proxying the DB, then the health status will be empty.
 
-The `disabled` status indicates that health checks are disabled for this database.
-
-The `initialized` status is the initial health status and means that the health checking has started but the status has yet to be determined as `healthy` or `unhealthy`.
+The `unknown` status indicates that health checks are disabled, still initializing, or unsupported for this database type.
 
 The `healthy` status is reported after the number of consecutive passing health checks has reached a healthy threshold.
 
 The `unhealthy` status is reported after the number of consecutive failing health checks has reached an unhealthy threshold.
 
-As a special case when the status is `initialized`, the first health check will change the status to `healthy` or `unhealthy` regardless of the configured thresholds.
-This special case is to bound the amount of time spent in the `initialized` status if health checks flap between pass/fail without reaching either threshold.
+As a special case the first health check will change the status to `healthy` or `unhealthy` regardless of the configured thresholds.
+This special case is to bound the amount of time spent in the `unknown` status if health checks flap between pass/fail without reaching either threshold.
 
 ### Types of health checks
 
 For the initial implementation we will only support TCP health checks and only for databases.
 
-A TCP health check is generic and simple, so the initial implementation will support health checks for all databases that Teleport supports: Postgres, MySQL, MongoDB, etc.
+The initial implementation will support health checks for Postgres, MySQL, and MongoDB databases.
+We will gradually expand support to other databases.
 
 We can extend this feature later to include additional health check protocols such as HTTP and TLS checks.
 
@@ -375,7 +373,7 @@ As a brief summary of the Teleport health checker behavior:
 3. it repeats the check after interval time
 4. each check blocks until pass or fail
 
-For Teleport the minimum time initialized->healthy or initialized->unhealthy is roughly 0s.
+For Teleport the minimum time unknown->healthy or unknown->unhealthy is roughly 0s.
 
 The maximum time is bounded by the timeout: 5s.
 
@@ -492,29 +490,9 @@ Each health check should lookup the SRV record and check each endpoint returned.
 
 ### Health checker behavior
 
-A health checker manager will be added that manages a mapping from DB name to a single health checker:
+A health checker manager will be added that manages registered resource health check targets.
 
-    // Target is a health check target.
-    type Target struct {
-      // Resource is the target resource.
-      Resource types.ResourceWithLabels
-      // ResolveEndpointsFn is callback func that returns the target endpoints.
-      ResolveEndpointsFn TargetEndpointsResolverFunc
-    }
-
-    // Manager manages health checkers.
-    type Manager interface {
-      // AddTarget adds a new target health checker and starts the health checker.
-      AddTarget(ctx context.Context, target Target) error
-      // GetTargetHealth returns the health of a given target.
-      GetTargetHealth(name string) (types.TargetHealth, error)
-      // RemoveTarget removes a given target and stops its health checker.
-      RemoveTarget(name string) error
-      // Close stops all health checkers.
-      Close()
-    }
-
-When a health checker starts, it will set its health status to `initialized` and immediately run its first health check.
+When a health check target is added, it will set its initial health status to `unknown` with an `initialized` transition reason, then health checker starts it will immediately run its first health check.
 It will then wait for an interval of time before checking again.
 
 The health check interval will be jittered to avoid correlated health check times.
@@ -538,11 +516,11 @@ Likewise, if the last check failed but the current check passes, then the counte
 
 If the number of consecutive passing or failing checks reaches the healthy or unhealthy threshold, respectively, then the health status is transitioned to the corresponding status: `healthy` or `unhealthy`.
 
-When the status is `initialized`, a single pass or failure with transition the status to `healthy` or `unhealthy`, regardless of configured thresholds.
+When the status is `unknown`, a single pass or failure with transition the status to `healthy` or `unhealthy`, regardless of configured thresholds.
 
 Example behavior with the default settings (Interval=30s, Timeout=5s, HealthyThreshold=2, UnhealthyThreshold=1):
 
-1. health checker starts - status=`initialized`, startTime=0s, endTime=0s, count=0, lastErr=nil
+1. health checker starts - status=`unknown`, startTime=0s, endTime=0s, count=0, lastErr=nil
 2. health check passes   - status=`healthy`, startTime=0s, endTime=0s, count=1, lastErr=nil
 3. health check fails    - status=`unhealthy`, startTime=30s, endTime=35s, count=1, lastErr="connection timeout"
 4. health check passes   - status=`unhealthy`, startTime=60s, endTime=60s, count=1, lastErr=nil
@@ -556,7 +534,7 @@ That will be changed to group the agents by health status, shuffle each group, a
 
 The priority of health statuses will be:
 1. `healthy`
-2. `initialized`, `""` (unknown), and `disabled`
+2. `unknown`, `""` (also unknown, older agent)
 3. `unhealthy`
 
 The proxy routing prioritization strategy is a fail-open system: if all databases are `unhealthy`, users will still be able to attempt a connection through them, even though their attempt will likely fail.
@@ -631,7 +609,7 @@ TargetHealth will be added as a field to the database heartbeat: `db_server.stat
       string Address = 1 [(gogoproto.jsontag) = "address,omitempty"];
       // Protocol is the health check protocol such as "tcp".
       string Protocol = 2 [(gogoproto.jsontag) = "protocol,omitempty"];
-      // Status is the health status, one of "", "init", "healthy", "unhealthy".
+      // Status is the health status, one of "", "unknown", "healthy", "unhealthy".
       string Status = 3 [(gogoproto.jsontag) = "status,omitempty"];
       // TransitionTimestamp is the time that the last status transition occurred.
       google.protobuf.Timestamp TransitionTimestamp = 4 [
@@ -652,7 +630,7 @@ TargetHealth will be added as a field to the database heartbeat: `db_server.stat
 
 Older database agents will not perform health checks, so they will always report health status `""` (unknown), which is equivalent to agents that have disabled health checks.
 
-An `""` (unknown) or `disabled` health status will not prevent connections to that database through that agent, but it will prioritize `healthy` agents first.
+An `""` or `unknown` health status will not prevent connections to that database through that agent, but it will prioritize `healthy` agents first.
 
 ### Audit Events
 
