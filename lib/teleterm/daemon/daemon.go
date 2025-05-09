@@ -84,13 +84,14 @@ func New(cfg Config) (*Service, error) {
 	go connectUsageReporter.Run(closeContext)
 
 	service := &Service{
-		cfg:                    &cfg,
-		closeContext:           closeContext,
-		cancel:                 cancel,
-		gateways:               make(map[string]gateway.Gateway),
-		usageReporter:          connectUsageReporter,
-		headlessWatcherClosers: make(map[string]context.CancelFunc),
-		headlessAuthSemaphore:  newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton),
+		cfg:                            &cfg,
+		closeContext:                   closeContext,
+		cancel:                         cancel,
+		gateways:                       make(map[string]gateway.Gateway),
+		usageReporter:                  connectUsageReporter,
+		headlessWatcherClosers:         make(map[string]context.CancelFunc),
+		headlessAuthSemaphore:          newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton),
+		desktopDirectorySharingManager: desktop.NewDirectorySharingManager(),
 	}
 
 	// TODO(gzdunek): The client cache should be created outside of daemon.New.
@@ -222,8 +223,14 @@ func (s *Service) ConnectToDesktop(stream grpc.BidiStreamingServer[api.ConnectTo
 		return trace.Wrap(err)
 	}
 
+	dir, unregister, err := s.desktopDirectorySharingManager.Register(desktop.TargetSession{DesktopURI: uri, Login: login})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer unregister()
+
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		return trace.Wrap(desktop.Connect(ctx, stream, clusterClient, cachedClient.ProxyClient, desktopName, login))
+		return trace.Wrap(desktop.Connect(ctx, stream, clusterClient, cachedClient.ProxyClient, desktopName, login, dir))
 	})
 	return trace.Wrap(err)
 }
@@ -1234,6 +1241,18 @@ func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
 	return trace.Wrap(s.clientCache.ClearForRoot(profileName))
 }
 
+// AttachDirectoryToDesktopSession opens a directory for a desktop session and enables file system operations for it.
+// If there is no active desktop session associated with the specified desktop_uri and login,
+// an error is returned.
+func (s *Service) AttachDirectoryToDesktopSession(_ context.Context, desktopURI uri.ResourceURI, login, path string) error {
+	manager, err := s.desktopDirectorySharingManager.Get(desktop.TargetSession{DesktopURI: desktopURI, Login: login})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(manager.Open(path))
+}
+
 // Service is the daemon service
 type Service struct {
 	cfg *Config
@@ -1278,6 +1297,8 @@ type Service struct {
 	headlessWatcherClosers   map[string]context.CancelFunc
 	headlessWatcherClosersMu sync.Mutex
 	clientCache              ClientCache
+
+	desktopDirectorySharingManager *desktop.DirectorySharingManager
 }
 
 type CreateGatewayParams struct {

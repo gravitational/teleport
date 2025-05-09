@@ -34,7 +34,11 @@ import {
 } from 'teleterm/services/grpcCredentials';
 import { createFileLoggerService } from 'teleterm/services/logger';
 import { createPtyService } from 'teleterm/services/pty/ptyService';
-import { createTshdClient, createVnetClient } from 'teleterm/services/tshd';
+import {
+  createTshdClient,
+  createVnetClient,
+  TshdClient,
+} from 'teleterm/services/tshd';
 import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import { createTshdEventsServer } from 'teleterm/services/tshdEvents';
 import { ElectronGlobals, RuntimeSettings } from 'teleterm/types';
@@ -67,7 +71,7 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     channelCredentials: credentials.tshd,
     interceptors: [loggingInterceptor(new Logger('tshd'))],
   });
-  const tshClient = createTshdClient(tshdTransport);
+  const tshClient = withoutInsecureTshdMethods(createTshdClient(tshdTransport));
   const vnetClient = createVnetClient(tshdTransport);
   const ptyServiceClient = createPtyService(
     addresses.shared,
@@ -163,4 +167,22 @@ async function withErrorLogging<ReturnValue>(
     logger.error(e);
     throw e;
   }
+}
+
+/**
+ * Returns a copy of `TshdClient` with insecure methods disabled
+ * to prevent access from the untrusted renderer process.
+ *
+ * This is possible thanks to the context bridge and the `cloneClient` function,
+ * which selectively clones only RPC methods and nothing more.
+ * As a result, disabled methods are inaccessible via the `tshdClient` prototype.
+ */
+function withoutInsecureTshdMethods(client: TshdClient): TshdClient {
+  return {
+    ...client,
+    attachDirectoryToDesktopSession: () => {
+      // Prevent the renderer process from sharing directories at arbitrary paths.
+      throw new Error('This method is not permitted in the renderer process.');
+    },
+  };
 }

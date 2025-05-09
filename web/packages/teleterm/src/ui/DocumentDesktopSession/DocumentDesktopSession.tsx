@@ -25,10 +25,11 @@ import {
   makeProcessingAttempt,
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
-import { BrowserFileSystem, TdpClient } from 'shared/libs/tdp';
+import { SharedDirectoryAccess, TdpClient } from 'shared/libs/tdp';
 import { TdpTransport } from 'shared/libs/tdp/client';
 
 import Logger from 'teleterm/logger';
+import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { cloneAbortSignal, TshdClient } from 'teleterm/services/tshd';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
@@ -62,25 +63,28 @@ export function DocumentDesktopSession(props: {
 
   const [client] = useState(
     () =>
-      new TdpClient(async abortSignal => {
-        const stream = appCtx.tshd.connectToDesktop({
-          abort: cloneAbortSignal(abortSignal),
-        });
-        appCtx.usageService.captureProtocolUse({
-          uri: desktopUri,
-          protocol: 'desktop',
-          origin,
-          accessThrough: 'proxy_service',
-        });
-        return adaptGRPCStreamToTdpTransport(
-          stream,
-          {
-            desktopUri,
-            login,
-          },
-          logger
-        );
-      }, new BrowserFileSystem())
+      new TdpClient(
+        async abortSignal => {
+          const stream = appCtx.tshd.connectToDesktop({
+            abort: cloneAbortSignal(abortSignal),
+          });
+          appCtx.usageService.captureProtocolUse({
+            uri: desktopUri,
+            protocol: 'desktop',
+            origin,
+            accessThrough: 'proxy_service',
+          });
+          return adaptGRPCStreamToTdpTransport(
+            stream,
+            { desktopUri, login },
+            logger
+          );
+        },
+        makeTshdFileSystem(appCtx.mainProcessClient, {
+          desktopUri,
+          login,
+        })
+      )
   );
 
   return (
@@ -134,4 +138,61 @@ async function adaptGRPCStreamToTdpTransport(
       });
     },
   };
+}
+
+/**
+ * The tshd daemon is responsible for handling directory sharing.
+ *
+ * The process begins when the Electron main process opens a directory picker.
+ * Once a path is selected, it is passed to tshd via the AttachDirectoryToDesktopSession API.
+ *
+ * tshd then verifies whether there is an active session for the specified desktop user and attempts to open the directory.
+ * Once that's done, everything is ready on the tsh daemon to intercept and handle the file system events.
+ *
+ * The final step is to send a SharedDirectoryAnnounce message to the server, which is done in the JS TDP client.
+ * This message is safe to send from the renderer because it only provides
+ * a display name for the mounted drive on the remote machine and has no effect on local file system operations.
+ */
+function makeTshdFileSystem(
+  mainProcessClient: MainProcessClient,
+  target: {
+    desktopUri: string;
+    login: string;
+  }
+): SharedDirectoryAccess {
+  let directoryName = '';
+  return {
+    selectDirectory: async () => {
+      directoryName =
+        await mainProcessClient.selectDirectoryForDesktopSession(target);
+    },
+    getDirectoryName: () => directoryName,
+    stat: () => {
+      throw new NotImplemented();
+    },
+    readDir: () => {
+      throw new NotImplemented();
+    },
+    read: () => {
+      throw new NotImplemented();
+    },
+    write: () => {
+      throw new NotImplemented();
+    },
+    truncate: () => {
+      throw new NotImplemented();
+    },
+    create: () => {
+      throw new NotImplemented();
+    },
+    delete: () => {
+      throw new NotImplemented();
+    },
+  };
+}
+
+class NotImplemented extends Error {
+  constructor() {
+    super('Not implemented, file system operation are handled by tsh demon.');
+  }
 }

@@ -23,7 +23,51 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
+
+var targetDesktop = TargetSession{
+	DesktopURI: uri.NewClusterURI("foo").AppendWindowsDesktop("bar"),
+	Login:      "admin",
+}
+
+func TestRegisterSharedDirectory(t *testing.T) {
+	manager := NewDirectorySharingManager()
+
+	// Clean state, register the first handler.
+	_, unregister, err := manager.Register(targetDesktop)
+	require.NoError(t, err)
+	// Remove the registered handler.
+	unregister()
+
+	// Register the handler again.
+	_, unregister, err = manager.Register(targetDesktop)
+	require.NoError(t, err)
+	// Do not unregister it immediately.
+	defer unregister()
+
+	// Try to register the handler again, it should return the error.
+	_, _, err = manager.Register(targetDesktop)
+	require.True(t, trace.IsAlreadyExists(err))
+}
+
+func TestGetSharedDirectory(t *testing.T) {
+	manager := NewDirectorySharingManager()
+
+	_, unregister, err := manager.Register(targetDesktop)
+	require.NoError(t, err)
+
+	access, err := manager.Get(targetDesktop)
+	require.NoError(t, err)
+	require.NotNil(t, access)
+
+	// Remove the registered handler.
+	unregister()
+
+	_, err = manager.Get(targetDesktop)
+	require.True(t, trace.IsNotFound(err))
+}
 
 func TestOpenSharedDirectory(t *testing.T) {
 	path := t.TempDir()

@@ -22,9 +22,70 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
+
+// DirectorySharingManager coordinates access to shared directories across multiple desktop sessions.
+type DirectorySharingManager struct {
+	directories map[TargetSession]*DirectoryAccess
+	mu          sync.Mutex
+}
+
+// NewDirectorySharingManager initializes DirectorySharingManager.
+func NewDirectorySharingManager() *DirectorySharingManager {
+	return &DirectorySharingManager{
+		directories: make(map[TargetSession]*DirectoryAccess),
+	}
+}
+
+// TargetSession uniquely describes a desktop session.
+// There can be only one session for the given desktop and login pair.
+type TargetSession struct {
+	DesktopURI uri.ResourceURI
+	Login      string
+}
+
+// Register initializes shared directory access for given desktop session.
+// When the session ends, it should unregister the directory access for it.
+// Registering dir access for the same session without unregistering it first, is not allowed.
+func (g *DirectorySharingManager) Register(session TargetSession) (access *DirectoryAccess, unregister func(), err error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	access, ok := g.directories[session]
+	if ok {
+		return nil, nil, trace.AlreadyExists("directory access for %v is already registered", session)
+	}
+	access = &DirectoryAccess{}
+	g.directories[session] = access
+
+	unregister = func() {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+
+		delete(g.directories, session)
+	}
+
+	return access, unregister, nil
+}
+
+// Get returns the directory access for the given session.
+// It must be registered by the desktop session first.
+func (g *DirectorySharingManager) Get(target TargetSession) (*DirectoryAccess, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	manager, ok := g.directories[target]
+	if !ok {
+		return nil, trace.NotFound("directory sharing has not been initialized for desktop %q and login %q", target.DesktopURI, target.Login)
+	}
+
+	return manager, nil
+}
 
 // DirectoryAccess allows access to the shared directory.
 // Should be kept in sync with web/packages/shared/libs/tdp/sharedDirectoryAccess.ts
