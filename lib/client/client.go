@@ -425,9 +425,9 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 		var exitMissingErr *ssh.ExitMissingError
 		switch err := trace.Unwrap(err); {
 		case errors.As(err, &exitErr):
-			c.TC.ExitStatus = exitErr.ExitStatus()
+			c.TC.SetExitStatus(exitErr.ExitStatus())
 		case errors.As(err, &exitMissingErr):
-			c.TC.ExitStatus = 1
+			c.TC.SetExitStatus(1)
 		}
 
 		return trace.Wrap(err)
@@ -622,7 +622,9 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...R
 	}
 	defer nodeSession.Close()
 	err = nodeSession.runCommand(ctx, types.SessionPeerMode, command, c.TC.OnChannelRequest, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand)
-	c.TC.ExitStatus = getExitStatus(err)
+	if err != nil {
+		c.TC.SetExitStatus(getExitStatus(err))
+	}
 	return trace.Wrap(err)
 }
 
