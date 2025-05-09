@@ -214,10 +214,6 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 			Stderr:  io.Discard,
 		}
 		cmd := buildBashForkCommand(t, params)
-		go func() {
-			time.Sleep(5 * time.Second)
-			fmt.Println(stdout.String())
-		}()
 		err := runForkAuthenticateChild(t.Context(), cmd)
 		assert.NoError(t, err)
 		stdinW.Write([]byte("hello\n"))

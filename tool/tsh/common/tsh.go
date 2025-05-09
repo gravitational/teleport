@@ -4090,6 +4090,8 @@ func onSSH(cf *CLIConf) error {
 			if cf.forkSignalFd != 0 {
 				opts = append(opts, client.WithForkAfterAuthentication(func() error {
 					disownSignal := os.NewFile(uintptr(cf.forkSignalFd), "disown")
+					// Write to unblock the parent.
+					disownSignal.Write([]byte{0x00})
 					return trace.Wrap(disownSignal.Close())
 				}))
 			}
