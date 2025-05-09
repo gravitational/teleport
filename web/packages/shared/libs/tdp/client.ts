@@ -28,6 +28,7 @@ import Logger from 'shared/libs/logger';
 
 import Codec, {
   FileType,
+  LatencyStats,
   MessageType,
   PointerData,
   Severity,
@@ -72,6 +73,7 @@ export enum TdpClientEvent {
   TRANSPORT_CLOSE = 'transport close',
   RESET = 'reset',
   POINTER = 'pointer',
+  LATENCY_STATS = 'latency stats',
 }
 
 export enum LogType {
@@ -255,6 +257,11 @@ export class TdpClient extends EventEmitter {
     return () => this.off(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, listener);
   };
 
+  onLatencyStats = (listener: (stats: LatencyStats) => void) => {
+    this.on(TdpClientEvent.LATENCY_STATS, listener);
+    return () => this.off(TdpClientEvent.LATENCY_STATS, listener);
+  };
+
   private async initWasm() {
     // select the wasm log level
     let wasmLogLevel = LogType.OFF;
@@ -352,9 +359,17 @@ export class TdpClient extends EventEmitter {
       case MessageType.SHARED_DIRECTORY_TRUNCATE_REQUEST:
         await this.handleSharedDirectoryTruncateRequest(buffer);
         break;
+      case MessageType.LATENCY_STATS:
+        this.handleLatencyStats(buffer);
+        break;
       default:
         this.logger.warn(`received unsupported message type ${messageType}`);
     }
+  }
+
+  handleLatencyStats(buffer: ArrayBuffer) {
+    const stats = this.codec.decodeLatencyStats(buffer);
+    this.emit(TdpClientEvent.LATENCY_STATS, stats);
   }
 
   handleClientScreenSpec(buffer: ArrayBuffer) {
