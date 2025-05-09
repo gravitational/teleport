@@ -34,7 +34,7 @@ export function RecoveryCodes({
   continueText = 'Continue',
   username = '',
 }: RecoveryCodesProps) {
-  const codesRef = useRef();
+  const codesRef = useRef(undefined);
   const [codesSaved, setCodesSaved] = useState(false);
 
   const captureRecoveryCodeEvent = (event: CaptureEvent) => {

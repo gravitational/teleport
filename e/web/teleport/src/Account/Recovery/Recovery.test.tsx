@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
+import {
+  fireEvent,
+  render,
+  screen,
+  userEvent,
+  waitFor,
+} from 'design/utils/testing';
 
 import cfg from 'e-teleport/config';
 import TeleportContextE from 'e-teleport/teleportContextE';
@@ -96,31 +102,24 @@ describe('recovery dashboard testing', () => {
   });
 
   test('generating new codes with webauthn', async () => {
+    const user = userEvent.setup();
     renderRecovery();
 
     expect(ctx.recoveryService.fetchRecoveryCodesMetadata).toHaveBeenCalled();
 
-    fireEvent.click(await screen.findByText('Generate new recovery codes'));
+    await user.click(await screen.findByText('Generate new recovery codes'));
+    expect(await screen.findByText('Verify your identity')).toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(screen.getByText('Verify your identity')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText('Continue'));
-
-    await waitFor(() => {
-      expect(auth.createPrivilegeToken).toHaveBeenCalled();
-    });
-
-    await waitFor(() => {
-      expect(ctx.recoveryService.generateRecoveryCodes).toHaveBeenCalledWith(
-        privilegeToken
-      );
-    });
+    await user.click(screen.getByText('Continue'));
+    expect(auth.createPrivilegeToken).toHaveBeenCalledTimes(1);
+    expect(ctx.recoveryService.generateRecoveryCodes).toHaveBeenCalledWith(
+      privilegeToken
+    );
 
     expect(ctx.recoveryService.fetchRecoveryCodesMetadata).toHaveBeenCalled();
-
-    expect(screen.getByText('New Backup & Recovery Codes')).toBeInTheDocument();
+    expect(
+      await screen.findByText('New Backup & Recovery Codes')
+    ).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-1/i)).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-2/i)).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-3/i)).toBeInTheDocument();

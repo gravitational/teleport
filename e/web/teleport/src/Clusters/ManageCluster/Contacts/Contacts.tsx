@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type JSX } from 'react';
 import { useParams } from 'react-router';
 
 import { Alert } from 'design/Alert';

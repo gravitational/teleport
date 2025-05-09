@@ -179,7 +179,7 @@ function NewRequest(props: State) {
       fetchUsageAttempt.data?.limit > 0) ||
     cfg.entitlements.AccessRequests.limit > 0;
 
-  const transitionRef = useRef<HTMLDivElement>();
+  const transitionRef = useRef<HTMLDivElement>(null);
 
   const accessRequestOptions = accessRequestKinds.map(r => ({
     value: r,

@@ -58,4 +58,8 @@ const PreviewWrapper = styled(Box)`
   box-shadow: ${p => p.theme.boxShadow[1]};
   transform: var(--feature-preview-scale);
   background-color: ${p => p.theme.colors.levels.surface};
+
+  .react-select__menu-portal {
+    position: static;
+  }
 `;

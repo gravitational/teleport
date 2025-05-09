@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import { components } from 'react-select';
 
 import { Box, Mark, Text } from 'design';

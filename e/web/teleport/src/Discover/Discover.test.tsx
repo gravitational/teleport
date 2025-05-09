@@ -1,6 +1,6 @@
 import { MemoryRouter } from 'react-router';
 
-import { fireEvent, render, screen } from 'design/utils/testing';
+import { render, screen, userEvent } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { getEnterpriseFeatures } from 'e-teleport/features';
@@ -11,6 +11,7 @@ import { ResourceKind } from 'teleport/Discover/Shared';
 import { getGuideTileId } from 'teleport/Discover/testUtils';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { getAcl } from 'teleport/mocks/contexts';
+import { userEventService } from 'teleport/services/userEvent';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
@@ -49,6 +50,11 @@ const renderDiscover = () => {
 };
 
 test('displays all resources by default', async () => {
+  jest
+    .spyOn(userEventService, 'captureDiscoverEvent')
+    .mockResolvedValue(null as never); // return value does not matter but required by ts
+
+  const user = userEvent.setup();
   renderDiscover();
 
   expect(
@@ -59,39 +65,37 @@ test('displays all resources by default', async () => {
 
   const samlGenericEl = screen.getByText('SAML Application (Generic)');
   expect(samlGenericEl).toBeInTheDocument();
-  fireEvent.click(samlGenericEl);
+  await user.click(samlGenericEl);
   expect(
     screen.getByText(
       `Configure Service Provider with Teleport's Identity Provider Metadata`
     )
   ).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: /Back/i }));
+  await user.click(screen.getByRole('button', { name: /Back/i }));
 
   const samlGcpWorkforceEl = screen.getByText('Workforce Identity Federation');
   expect(samlGcpWorkforceEl).toBeInTheDocument();
-  fireEvent.click(samlGcpWorkforceEl);
+  await user.click(samlGcpWorkforceEl);
   expect(
     screen.getByText(`Configure Workforce Pool Provider in GCP`)
   ).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: /Back/i }));
+  await user.click(screen.getByRole('button', { name: /Back/i }));
 
   const samlGrafanaEl = screen.getByText(/grafana/i);
   expect(samlGrafanaEl).toBeInTheDocument();
-  fireEvent.click(samlGrafanaEl);
+  await user.click(samlGrafanaEl);
   expect(
     screen.getByText(`Configure Grafana with Teleport's IdP Metadata`)
   ).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: /Back/i }));
+  await user.click(screen.getByRole('button', { name: /Back/i }));
 
   const samlMicrosoftEntraIdEl = screen.getByText(
     'Microsoft Entra External ID'
   );
   expect(samlMicrosoftEntraIdEl).toBeInTheDocument();
-  fireEvent.click(samlMicrosoftEntraIdEl);
-  expect(
-    await screen.findByText(
-      `Configure Teleport as an identity provider for Microsoft Entra External ID`
-    )
-  ).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: /Back/i }));
+  await user.click(samlMicrosoftEntraIdEl);
+  await screen.findAllByText(
+    'Configure Teleport as an identity provider for Microsoft Entra External ID'
+  );
+  await user.click(screen.getByRole('button', { name: /Back/i }));
 });

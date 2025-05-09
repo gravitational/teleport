@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { type JSX } from 'react';
 
 import { Danger } from 'design/Alert';
 import Box from 'design/Box';

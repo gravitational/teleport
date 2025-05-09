@@ -63,7 +63,7 @@ export function AccessMonitoring() {
   const location = useLocation();
 
   const borderRef = useRef<HTMLDivElement>(null);
-  const parentRef = useRef<HTMLDivElement>();
+  const parentRef = useRef<HTMLDivElement>(null);
 
   const activeTab =
     location.pathname === config.routes.accessMonitoring.queryEditor

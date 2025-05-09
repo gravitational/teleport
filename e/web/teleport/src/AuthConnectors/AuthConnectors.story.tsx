@@ -1,5 +1,5 @@
 import { delay, http, HttpResponse } from 'msw';
-import { useEffect } from 'react';
+import { useEffect, type JSX } from 'react';
 
 import cfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';

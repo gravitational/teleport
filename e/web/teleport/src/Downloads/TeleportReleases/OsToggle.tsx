@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { type JSX } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import Box from 'design/Box';

@@ -61,16 +61,14 @@ describe('AccessMonitoringRulesDialog', () => {
   // One for fetching plugins.
   // We need to wait for both to finish.
   async function waitForAllAsyncCalls() {
-    await waitFor(() =>
-      expect(pluginsService.fetchPlugins).toHaveBeenCalledTimes(1)
-    );
+    // Wait for the plugins table to show up.
+    expect(await screen.findByRole('table')).toBeVisible();
+    expect(pluginsService.fetchPlugins).toHaveBeenCalledTimes(1);
 
     act(mio.enterAll); // trigger the isIntersecting of IntersectionObserver
-    await waitFor(() =>
-      expect(
-        accessMonitoringRuleService.fetchAccessMonitoringRulesForAccessRequests
-      ).toHaveBeenCalledTimes(1)
-    );
+    expect(
+      accessMonitoringRuleService.fetchAccessMonitoringRulesForAccessRequests
+    ).toHaveBeenCalledTimes(1);
   }
 
   test('fetched rules and plugins are listed', async () => {
@@ -139,7 +137,9 @@ describe('AccessMonitoringRulesDialog', () => {
     await userEvent.click(screen.getByRole('tab', { name: /yaml/i }));
     await userEvent.click(screen.getByRole('button', { name: /create rule/i }));
 
-    expect(screen.getAllByRole('button', { name: /view/i })).toHaveLength(3);
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /view/i })).toHaveLength(3);
+    });
     expect(screen.getByText(/created-rule/i)).toBeInTheDocument();
 
     // sidebar is closed after create.

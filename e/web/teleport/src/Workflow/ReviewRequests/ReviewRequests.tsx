@@ -56,7 +56,7 @@ export default function Workflow() {
       View Access Monitoring Rules
     </ButtonBorder>
   );
-  const transitionRef = useRef<HTMLDivElement>();
+  const transitionRef = useRef<HTMLDivElement>(null);
 
   if (!requestId) {
     return (
