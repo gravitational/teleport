@@ -881,7 +881,7 @@ test-helm-update-snapshots: helmunit/installed
 # Runs all Go tests except integration, called by CI/CD.
 #
 .PHONY: test-go
-test-go: test-go-prepare test-go-unit test-go-touch-id test-go-vnet-daemon test-go-tsh test-go-chaos
+test-go: test-go-prepare test-go-unit test-go-touch-id test-go-vnet-daemon test-go-tsh test-go-chaos test-go-unit-clidocs
 
 #
 # Runs a test to ensure no environment variable leak into build binaries.
@@ -924,6 +924,14 @@ test-go-unit:
 test-go-unit-tbot: FLAGS ?= -race -shuffle on
 test-go-unit-tbot:
 	$(CGOFLAG) go test -cover -json $(FLAGS) $(ADDFLAGS) ./tool/tbot/... ./lib/tbot/... \
+		| tee $(TEST_LOG_DIR)/unit.json \
+		| gotestsum --raw-command -- cat
+
+# Runs CLI reference doc generator unit tests
+.PHONY: test-go-unit-clidocs
+test-go-unit-clidocs: FLAGS ?= -shuffle on -tags docs -run 'TestUpdateAppUsageTemplate'
+test-go-unit-clidocs:
+	go test -json $(FLAGS) ./lib/utils/... \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 
@@ -1863,3 +1871,11 @@ go-mod-tidy-all:
 dump-preset-roles:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go run ./build.assets/dump-preset-roles/main.go
 	pnpm test web/packages/teleport/src/Roles/RoleEditor/StandardEditor/standardmodel.test.ts
+
+.PHONY: cli-docs-tsh
+cli-docs-tsh:
+	# Not executing go run since we don't want to redirect linker warnings
+	# along with the docs page content.
+	go build -o $(BUILDDIR)/tshdocs -tags docs ./tool/tsh && \
+	$(BUILDDIR)/tshdocs help 2>docs/pages/reference/cli/tsh.mdx && \
+	rm $(BUILDDIR)/tshdocs
