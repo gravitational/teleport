@@ -110,7 +110,7 @@ type TerminalServiceClient interface {
 	// ListDatabaseUsers lists allowed users for the given database based on the role set.
 	ListDatabaseUsers(ctx context.Context, in *ListDatabaseUsersRequest, opts ...grpc.CallOption) (*ListDatabaseUsersResponse, error)
 	// ListDatabaseServers lists allowed users for the given database based on the role set.
-	ListDatabaseServers(ctx context.Context, in *ListResourcesRequest, opts ...grpc.CallOption) (*ListDatabaseServersResponse, error)
+	ListDatabaseServers(ctx context.Context, in *ListDatabaseServersRequest, opts ...grpc.CallOption) (*ListDatabaseServersResponse, error)
 	// Deprecated: Do not use.
 	// GetServers returns filtered, sorted, and paginated servers
 	//
@@ -283,7 +283,7 @@ func (c *terminalServiceClient) ListDatabaseUsers(ctx context.Context, in *ListD
 	return out, nil
 }
 
-func (c *terminalServiceClient) ListDatabaseServers(ctx context.Context, in *ListResourcesRequest, opts ...grpc.CallOption) (*ListDatabaseServersResponse, error) {
+func (c *terminalServiceClient) ListDatabaseServers(ctx context.Context, in *ListDatabaseServersRequest, opts ...grpc.CallOption) (*ListDatabaseServersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListDatabaseServersResponse)
 	err := c.cc.Invoke(ctx, TerminalService_ListDatabaseServers_FullMethodName, in, out, cOpts...)
@@ -708,7 +708,7 @@ type TerminalServiceServer interface {
 	// ListDatabaseUsers lists allowed users for the given database based on the role set.
 	ListDatabaseUsers(context.Context, *ListDatabaseUsersRequest) (*ListDatabaseUsersResponse, error)
 	// ListDatabaseServers lists allowed users for the given database based on the role set.
-	ListDatabaseServers(context.Context, *ListResourcesRequest) (*ListDatabaseServersResponse, error)
+	ListDatabaseServers(context.Context, *ListDatabaseServersRequest) (*ListDatabaseServersResponse, error)
 	// Deprecated: Do not use.
 	// GetServers returns filtered, sorted, and paginated servers
 	//
@@ -846,7 +846,7 @@ func (UnimplementedTerminalServiceServer) StartHeadlessWatcher(context.Context, 
 func (UnimplementedTerminalServiceServer) ListDatabaseUsers(context.Context, *ListDatabaseUsersRequest) (*ListDatabaseUsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDatabaseUsers not implemented")
 }
-func (UnimplementedTerminalServiceServer) ListDatabaseServers(context.Context, *ListResourcesRequest) (*ListDatabaseServersResponse, error) {
+func (UnimplementedTerminalServiceServer) ListDatabaseServers(context.Context, *ListDatabaseServersRequest) (*ListDatabaseServersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDatabaseServers not implemented")
 }
 func (UnimplementedTerminalServiceServer) GetServers(context.Context, *GetServersRequest) (*GetServersResponse, error) {
@@ -1072,7 +1072,7 @@ func _TerminalService_ListDatabaseUsers_Handler(srv interface{}, ctx context.Con
 }
 
 func _TerminalService_ListDatabaseServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListResourcesRequest)
+	in := new(ListDatabaseServersRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1084,7 +1084,7 @@ func _TerminalService_ListDatabaseServers_Handler(srv interface{}, ctx context.C
 		FullMethod: TerminalService_ListDatabaseServers_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).ListDatabaseServers(ctx, req.(*ListResourcesRequest))
+		return srv.(TerminalServiceServer).ListDatabaseServers(ctx, req.(*ListDatabaseServersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

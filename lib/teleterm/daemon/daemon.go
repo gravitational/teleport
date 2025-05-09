@@ -906,7 +906,12 @@ func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.Re
 }
 
 // ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").
-func (s *Service) ListDatabaseServers(ctx context.Context, clusterURI uri.ResourceURI, req *api.ListResourcesRequest) (*api.ListDatabaseServersResponse, error) {
+func (s *Service) ListDatabaseServers(ctx context.Context, req *api.ListDatabaseServersRequest) (*clusters.GetDatabaseServersResponse, error) {
+	clusterURI, err := uri.Parse(req.GetClusterUri())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cluster, _, err := s.ResolveClusterURI(clusterURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -917,7 +922,7 @@ func (s *Service) ListDatabaseServers(ctx context.Context, clusterURI uri.Resour
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := cluster.ListDatabaseServers(ctx, req, proxyClient.CurrentCluster())
+	response, err := cluster.ListDatabaseServers(ctx, req.GetParams(), proxyClient.CurrentCluster())
 	return response, trace.Wrap(err)
 }
 

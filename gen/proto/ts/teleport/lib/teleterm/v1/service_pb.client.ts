@@ -92,7 +92,7 @@ import type { GetAccessRequestsRequest } from "./service_pb";
 import type { GetServersResponse } from "./service_pb";
 import type { GetServersRequest } from "./service_pb";
 import type { ListDatabaseServersResponse } from "./service_pb";
-import type { ListResourcesRequest } from "./service_pb";
+import type { ListDatabaseServersRequest } from "./service_pb";
 import type { ListDatabaseUsersResponse } from "./service_pb";
 import type { ListDatabaseUsersRequest } from "./service_pb";
 import type { StartHeadlessWatcherResponse } from "./service_pb";
@@ -156,9 +156,9 @@ export interface ITerminalServiceClient {
     /**
      * ListDatabaseServers lists allowed users for the given database based on the role set.
      *
-     * @generated from protobuf rpc: ListDatabaseServers(teleport.lib.teleterm.v1.ListResourcesRequest) returns (teleport.lib.teleterm.v1.ListDatabaseServersResponse);
+     * @generated from protobuf rpc: ListDatabaseServers(teleport.lib.teleterm.v1.ListDatabaseServersRequest) returns (teleport.lib.teleterm.v1.ListDatabaseServersResponse);
      */
-    listDatabaseServers(input: ListResourcesRequest, options?: RpcOptions): UnaryCall<ListResourcesRequest, ListDatabaseServersResponse>;
+    listDatabaseServers(input: ListDatabaseServersRequest, options?: RpcOptions): UnaryCall<ListDatabaseServersRequest, ListDatabaseServersResponse>;
     /**
      * GetServers returns filtered, sorted, and paginated servers
      *
@@ -491,11 +491,11 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
     /**
      * ListDatabaseServers lists allowed users for the given database based on the role set.
      *
-     * @generated from protobuf rpc: ListDatabaseServers(teleport.lib.teleterm.v1.ListResourcesRequest) returns (teleport.lib.teleterm.v1.ListDatabaseServersResponse);
+     * @generated from protobuf rpc: ListDatabaseServers(teleport.lib.teleterm.v1.ListDatabaseServersRequest) returns (teleport.lib.teleterm.v1.ListDatabaseServersResponse);
      */
-    listDatabaseServers(input: ListResourcesRequest, options?: RpcOptions): UnaryCall<ListResourcesRequest, ListDatabaseServersResponse> {
+    listDatabaseServers(input: ListDatabaseServersRequest, options?: RpcOptions): UnaryCall<ListDatabaseServersRequest, ListDatabaseServersResponse> {
         const method = this.methods[5], opt = this._transport.mergeOptions(options);
-        return stackIntercept<ListResourcesRequest, ListDatabaseServersResponse>("unary", this._transport, method, opt, input);
+        return stackIntercept<ListDatabaseServersRequest, ListDatabaseServersResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * GetServers returns filtered, sorted, and paginated servers

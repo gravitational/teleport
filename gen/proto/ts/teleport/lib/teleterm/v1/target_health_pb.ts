@@ -6,7 +6,7 @@
 //
 //
 // Teleport
-// Copyright (C) 2023  Gravitational, Inc.
+// Copyright (C) 2025  Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -44,7 +44,8 @@ export interface TargetHealth {
      */
     status: string;
     /**
-     * error is the health check error observed.
+     * error is the health check error observed, when
+     * "status" field != "healthy".
      *
      * @generated from protobuf field: string error = 2;
      */

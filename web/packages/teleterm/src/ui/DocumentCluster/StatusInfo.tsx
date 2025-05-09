@@ -25,7 +25,6 @@ import {
 } from 'shared/components/UnifiedResources';
 import { UnhealthyStatusInfo } from 'shared/components/UnifiedResources/shared/StatusInfo';
 
-import { ResourcesResponse } from 'teleport/services/agents';
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
@@ -44,21 +43,21 @@ export function StatusInfo({
     fetch: fetchResourceServers,
     resources: resourceServers,
     attempt: fetchResourceServersAttempt,
-  } = useResourceServersFetch({
+  } = useResourceServersFetch<SharedResourceServer>({
     fetchFunc: async (params, signal) => {
-      let response: ResourcesResponse<SharedResourceServer>;
-
       if (resource.kind === 'db') {
-        const { response: resp } = await ctx.tshd.listDatabaseServers(
+        const { response } = await ctx.tshd.listDatabaseServers(
           {
-            ...params,
             clusterUri,
-            useSearchAsRoles: resource.requiresRequest ? true : false,
-            predicateExpression: `name == "${resource.name}"`,
+            params: {
+              ...params,
+              useSearchAsRoles: resource.requiresRequest ? true : false,
+              predicateExpression: `name == "${resource.name}"`,
+            },
           },
           { abort: cloneAbortSignal(signal) }
         );
-        const servers: DatabaseServer[] = resp.servers.map(d => ({
+        const servers: DatabaseServer[] = response.resources.map(d => ({
           kind: 'db_server',
           hostname: d.hostname,
           hostId: d.hostId,
@@ -67,13 +66,11 @@ export function StatusInfo({
             error: d.targetHealth.error,
           },
         }));
-        response = {
+        return {
           agents: servers,
-          startKey: resp.nextKey,
+          startKey: response.nextKey,
         };
       }
-
-      return response;
     },
   });
 

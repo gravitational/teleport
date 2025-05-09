@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/ui"
 )
@@ -56,14 +55,20 @@ func (s *Handler) ListDatabaseUsers(ctx context.Context, req *api.ListDatabaseUs
 }
 
 // ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").
-func (s *Handler) ListDatabaseServers(ctx context.Context, req *api.ListResourcesRequest) (*api.ListDatabaseServersResponse, error) {
-	clusterURI, err := uri.Parse(req.GetClusterUri())
+func (s *Handler) ListDatabaseServers(ctx context.Context, req *api.ListDatabaseServersRequest) (*api.ListDatabaseServersResponse, error) {
+	resp, err := s.DaemonService.ListDatabaseServers(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := s.DaemonService.ListDatabaseServers(ctx, clusterURI, req)
-	return resp, trace.Wrap(err)
+	response := &api.ListDatabaseServersResponse{
+		NextKey: resp.NextKey,
+	}
+
+	for _, server := range resp.Servers {
+		response.Resources = append(response.Resources, newAPIDatabaseServer(server))
+	}
+	return response, nil
 }
 
 func newAPIDatabase(db clusters.Database) *api.Database {
@@ -79,6 +84,18 @@ func newAPIDatabase(db clusters.Database) *api.Database {
 		TargetHealth: &api.TargetHealth{
 			Status: db.TargetHealth.Status,
 			Error:  db.TargetHealth.TransitionError,
+		},
+	}
+}
+
+func newAPIDatabaseServer(dbServer clusters.DatabaseServer) *api.DatabaseServer {
+	return &api.DatabaseServer{
+		Uri:      dbServer.URI.String(),
+		Hostname: dbServer.GetHostname(),
+		HostId:   dbServer.GetHostID(),
+		TargetHealth: &api.TargetHealth{
+			Status: dbServer.GetTargetHealth().Status,
+			Error:  dbServer.GetTargetHealth().TransitionError,
 		},
 	}
 }

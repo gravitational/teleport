@@ -65,7 +65,7 @@ service TerminalService {
   // ListDatabaseUsers lists allowed users for the given database based on the role set.
   rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
   // ListDatabaseServers lists allowed users for the given database based on the role set.
-  rpc ListDatabaseServers(ListResourcesRequest) returns (ListDatabaseServersResponse);
+  rpc ListDatabaseServers(ListDatabaseServersRequest) returns (ListDatabaseServersResponse);
   // GetServers returns filtered, sorted, and paginated servers
   //
   // Deprecated: Use ListUnifiedResources instead.
@@ -476,18 +476,25 @@ message ListDatabaseUsersResponse {
   repeated string users = 1;
 }
 
-message ListResourcesRequest {
-  string cluster_uri = 1;
-  string start_key = 2;
-  int32 limit = 3;
-  string predicate_expression = 4;
+// ListResourcesParams describes different types of params
+// that can be applied when sending a request to a method that
+// uses the ListResources API underneath.
+message ListResourcesParams {
+  string start_key = 1;
+  int32 limit = 2;
+  string predicate_expression = 3;
   // UseSearchAsRoles indicates that the response should include all resources
   // the caller is able to request access to using search_as_roles
-  bool use_search_as_roles = 5;
+  bool use_search_as_roles = 4;
+}
+
+message ListDatabaseServersRequest {
+  string cluster_uri = 1;
+  ListResourcesParams params = 2;
 }
 
 message ListDatabaseServersResponse {
-  repeated DatabaseServer servers = 1;
+  repeated DatabaseServer resources = 1;
   string next_key = 2;
 }
 
@@ -632,7 +639,7 @@ message SortBy {
 
 message ListUnifiedResourcesResponse {
   repeated PaginatedResource resources = 1;
-  // A key to use as start_key in a ListResourcesRequest to continue retrieving
+  // A key to use as start_key in a ListUnifiedResourcesRequest to continue retrieving
   // the next pages. If it is empty, there are no more pages.
   string next_key = 2;
 }

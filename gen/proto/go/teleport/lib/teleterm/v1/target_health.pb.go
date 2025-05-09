@@ -1,6 +1,6 @@
 //
 // Teleport
-// Copyright (C) 2023  Gravitational, Inc.
+// Copyright (C) 2025  Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -44,7 +44,8 @@ type TargetHealth struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// status is the health status, one of "", "unknown", "healthy", "unhealthy".
 	Status string `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
-	// error is the health check error observed.
+	// error is the health check error observed, when
+	// "status" field != "healthy".
 	Error         string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

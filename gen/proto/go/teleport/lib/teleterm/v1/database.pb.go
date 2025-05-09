@@ -156,10 +156,12 @@ func (x *Database) GetTargetHealth() *TargetHealth {
 	return nil
 }
 
-// DatabaseServer describes a database server resource (resource kind "db_server")
+// DatabaseServer (db_server) describes a database heartbeat signal
+// reported from an agent (db_service) that is proxying
+// the database.
 type DatabaseServer struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ClusterUri    string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
+	Uri           string                 `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
 	Hostname      string                 `protobuf:"bytes,2,opt,name=hostname,proto3" json:"hostname,omitempty"`
 	HostId        string                 `protobuf:"bytes,3,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
 	TargetHealth  *TargetHealth          `protobuf:"bytes,4,opt,name=target_health,json=targetHealth,proto3" json:"target_health,omitempty"`
@@ -197,9 +199,9 @@ func (*DatabaseServer) Descriptor() ([]byte, []int) {
 	return file_teleport_lib_teleterm_v1_database_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *DatabaseServer) GetClusterUri() string {
+func (x *DatabaseServer) GetUri() string {
 	if x != nil {
-		return x.ClusterUri
+		return x.Uri
 	}
 	return ""
 }
@@ -239,10 +241,9 @@ const file_teleport_lib_teleterm_v1_database_proto_rawDesc = "" +
 	"\bhostname\x18\x06 \x01(\tR\bhostname\x12\x12\n" +
 	"\x04addr\x18\a \x01(\tR\x04addr\x127\n" +
 	"\x06labels\x18\b \x03(\v2\x1f.teleport.lib.teleterm.v1.LabelR\x06labels\x12K\n" +
-	"\rtarget_health\x18\t \x01(\v2&.teleport.lib.teleterm.v1.TargetHealthR\ftargetHealth\"\xb3\x01\n" +
-	"\x0eDatabaseServer\x12\x1f\n" +
-	"\vcluster_uri\x18\x01 \x01(\tR\n" +
-	"clusterUri\x12\x1a\n" +
+	"\rtarget_health\x18\t \x01(\v2&.teleport.lib.teleterm.v1.TargetHealthR\ftargetHealth\"\xa4\x01\n" +
+	"\x0eDatabaseServer\x12\x10\n" +
+	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x1a\n" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x17\n" +
 	"\ahost_id\x18\x03 \x01(\tR\x06hostId\x12K\n" +
 	"\rtarget_health\x18\x04 \x01(\v2&.teleport.lib.teleterm.v1.TargetHealthR\ftargetHealthBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"

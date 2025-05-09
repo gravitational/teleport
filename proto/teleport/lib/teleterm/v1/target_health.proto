@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -27,6 +27,7 @@ option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib
 message TargetHealth {
   // status is the health status, one of "", "unknown", "healthy", "unhealthy".
   string status = 1;
-  // error is the health check error observed.
+  // error is the health check error observed, when
+  // "status" field != "healthy".
   string error = 2;
 }

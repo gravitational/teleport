@@ -21,18 +21,20 @@ package clusters
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/trace"
 )
 
-// ListResources returns a paginated list of requested resourceKind (singular kind).
-// Different from unified resources where this request does not support multi kinds in a response.
-// ListResources supports querying for resource kinds that are not supported by unified resources (eg: db_server)
-func ListResources[T types.ResourceWithLabels](ctx context.Context, r *api.ListResourcesRequest, authClient authclient.ClientI, resourceKind string) (apiclient.ResourcePage[T], error) {
+// listResources returns a paginated list of requested resourceKind (singular kind).
+// Unlike unified resources, this request does not support multiple kinds in a single response.
+// listResources supports querying for resource kinds that are not supported by unified resources.
+// In addition, listResources does not de-duplicate resources like ListUnifiedResources does.
+func listResources[T types.ResourceWithLabels](ctx context.Context, params *api.ListResourcesParams, authClient authclient.ClientI, resourceKind string) (apiclient.ResourcePage[T], error) {
 	var (
 		page apiclient.ResourcePage[T]
 		err  error
@@ -40,10 +42,10 @@ func ListResources[T types.ResourceWithLabels](ctx context.Context, r *api.ListR
 
 	req := &proto.ListResourcesRequest{
 		ResourceType:        resourceKind,
-		Limit:               r.Limit,
-		StartKey:            r.StartKey,
-		PredicateExpression: r.PredicateExpression,
-		UseSearchAsRoles:    r.UseSearchAsRoles,
+		Limit:               params.Limit,
+		StartKey:            params.StartKey,
+		PredicateExpression: params.PredicateExpression,
+		UseSearchAsRoles:    params.UseSearchAsRoles,
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {

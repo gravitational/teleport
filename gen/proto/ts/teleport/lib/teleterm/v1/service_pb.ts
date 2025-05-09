@@ -702,41 +702,54 @@ export interface ListDatabaseUsersResponse {
     users: string[];
 }
 /**
- * @generated from protobuf message teleport.lib.teleterm.v1.ListResourcesRequest
+ * ListResourcesParams describes different types of params
+ * that can be applied when sending a request to a method that
+ * uses the ListResources API underneath.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.ListResourcesParams
  */
-export interface ListResourcesRequest {
+export interface ListResourcesParams {
     /**
-     * @generated from protobuf field: string cluster_uri = 1;
-     */
-    clusterUri: string;
-    /**
-     * @generated from protobuf field: string start_key = 2;
+     * @generated from protobuf field: string start_key = 1;
      */
     startKey: string;
     /**
-     * @generated from protobuf field: int32 limit = 3;
+     * @generated from protobuf field: int32 limit = 2;
      */
     limit: number;
     /**
-     * @generated from protobuf field: string predicate_expression = 4;
+     * @generated from protobuf field: string predicate_expression = 3;
      */
     predicateExpression: string;
     /**
      * UseSearchAsRoles indicates that the response should include all resources
      * the caller is able to request access to using search_as_roles
      *
-     * @generated from protobuf field: bool use_search_as_roles = 5;
+     * @generated from protobuf field: bool use_search_as_roles = 4;
      */
     useSearchAsRoles: boolean;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.ListDatabaseServersRequest
+ */
+export interface ListDatabaseServersRequest {
+    /**
+     * @generated from protobuf field: string cluster_uri = 1;
+     */
+    clusterUri: string;
+    /**
+     * @generated from protobuf field: teleport.lib.teleterm.v1.ListResourcesParams params = 2;
+     */
+    params?: ListResourcesParams;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.ListDatabaseServersResponse
  */
 export interface ListDatabaseServersResponse {
     /**
-     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.DatabaseServer servers = 1;
+     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.DatabaseServer resources = 1;
      */
-    servers: DatabaseServer[];
+    resources: DatabaseServer[];
     /**
      * @generated from protobuf field: string next_key = 2;
      */
@@ -1088,7 +1101,7 @@ export interface ListUnifiedResourcesResponse {
      */
     resources: PaginatedResource[];
     /**
-     * A key to use as start_key in a ListResourcesRequest to continue retrieving
+     * A key to use as start_key in a ListUnifiedResourcesRequest to continue retrieving
      * the next pages. If it is empty, there are no more pages.
      *
      * @generated from protobuf field: string next_key = 2;
@@ -3581,45 +3594,40 @@ class ListDatabaseUsersResponse$Type extends MessageType<ListDatabaseUsersRespon
  */
 export const ListDatabaseUsersResponse = new ListDatabaseUsersResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class ListResourcesRequest$Type extends MessageType<ListResourcesRequest> {
+class ListResourcesParams$Type extends MessageType<ListResourcesParams> {
     constructor() {
-        super("teleport.lib.teleterm.v1.ListResourcesRequest", [
-            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "limit", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 4, name: "predicate_expression", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "use_search_as_roles", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        super("teleport.lib.teleterm.v1.ListResourcesParams", [
+            { no: 1, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "limit", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 3, name: "predicate_expression", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "use_search_as_roles", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
-    create(value?: PartialMessage<ListResourcesRequest>): ListResourcesRequest {
+    create(value?: PartialMessage<ListResourcesParams>): ListResourcesParams {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.clusterUri = "";
         message.startKey = "";
         message.limit = 0;
         message.predicateExpression = "";
         message.useSearchAsRoles = false;
         if (value !== undefined)
-            reflectionMergePartial<ListResourcesRequest>(this, message, value);
+            reflectionMergePartial<ListResourcesParams>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListResourcesRequest): ListResourcesRequest {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListResourcesParams): ListResourcesParams {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string cluster_uri */ 1:
-                    message.clusterUri = reader.string();
-                    break;
-                case /* string start_key */ 2:
+                case /* string start_key */ 1:
                     message.startKey = reader.string();
                     break;
-                case /* int32 limit */ 3:
+                case /* int32 limit */ 2:
                     message.limit = reader.int32();
                     break;
-                case /* string predicate_expression */ 4:
+                case /* string predicate_expression */ 3:
                     message.predicateExpression = reader.string();
                     break;
-                case /* bool use_search_as_roles */ 5:
+                case /* bool use_search_as_roles */ 4:
                     message.useSearchAsRoles = reader.bool();
                     break;
                 default:
@@ -3633,22 +3641,19 @@ class ListResourcesRequest$Type extends MessageType<ListResourcesRequest> {
         }
         return message;
     }
-    internalBinaryWrite(message: ListResourcesRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string cluster_uri = 1; */
-        if (message.clusterUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
-        /* string start_key = 2; */
+    internalBinaryWrite(message: ListResourcesParams, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string start_key = 1; */
         if (message.startKey !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.startKey);
-        /* int32 limit = 3; */
+            writer.tag(1, WireType.LengthDelimited).string(message.startKey);
+        /* int32 limit = 2; */
         if (message.limit !== 0)
-            writer.tag(3, WireType.Varint).int32(message.limit);
-        /* string predicate_expression = 4; */
+            writer.tag(2, WireType.Varint).int32(message.limit);
+        /* string predicate_expression = 3; */
         if (message.predicateExpression !== "")
-            writer.tag(4, WireType.LengthDelimited).string(message.predicateExpression);
-        /* bool use_search_as_roles = 5; */
+            writer.tag(3, WireType.LengthDelimited).string(message.predicateExpression);
+        /* bool use_search_as_roles = 4; */
         if (message.useSearchAsRoles !== false)
-            writer.tag(5, WireType.Varint).bool(message.useSearchAsRoles);
+            writer.tag(4, WireType.Varint).bool(message.useSearchAsRoles);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -3656,20 +3661,74 @@ class ListResourcesRequest$Type extends MessageType<ListResourcesRequest> {
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListResourcesRequest
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListResourcesParams
  */
-export const ListResourcesRequest = new ListResourcesRequest$Type();
+export const ListResourcesParams = new ListResourcesParams$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListDatabaseServersRequest$Type extends MessageType<ListDatabaseServersRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ListDatabaseServersRequest", [
+            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "params", kind: "message", T: () => ListResourcesParams }
+        ]);
+    }
+    create(value?: PartialMessage<ListDatabaseServersRequest>): ListDatabaseServersRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.clusterUri = "";
+        if (value !== undefined)
+            reflectionMergePartial<ListDatabaseServersRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListDatabaseServersRequest): ListDatabaseServersRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string cluster_uri */ 1:
+                    message.clusterUri = reader.string();
+                    break;
+                case /* teleport.lib.teleterm.v1.ListResourcesParams params */ 2:
+                    message.params = ListResourcesParams.internalBinaryRead(reader, reader.uint32(), options, message.params);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListDatabaseServersRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string cluster_uri = 1; */
+        if (message.clusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
+        /* teleport.lib.teleterm.v1.ListResourcesParams params = 2; */
+        if (message.params)
+            ListResourcesParams.internalBinaryWrite(message.params, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListDatabaseServersRequest
+ */
+export const ListDatabaseServersRequest = new ListDatabaseServersRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ListDatabaseServersResponse$Type extends MessageType<ListDatabaseServersResponse> {
     constructor() {
         super("teleport.lib.teleterm.v1.ListDatabaseServersResponse", [
-            { no: 1, name: "servers", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => DatabaseServer },
+            { no: 1, name: "resources", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => DatabaseServer },
             { no: 2, name: "next_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ListDatabaseServersResponse>): ListDatabaseServersResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.servers = [];
+        message.resources = [];
         message.nextKey = "";
         if (value !== undefined)
             reflectionMergePartial<ListDatabaseServersResponse>(this, message, value);
@@ -3680,8 +3739,8 @@ class ListDatabaseServersResponse$Type extends MessageType<ListDatabaseServersRe
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* repeated teleport.lib.teleterm.v1.DatabaseServer servers */ 1:
-                    message.servers.push(DatabaseServer.internalBinaryRead(reader, reader.uint32(), options));
+                case /* repeated teleport.lib.teleterm.v1.DatabaseServer resources */ 1:
+                    message.resources.push(DatabaseServer.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 case /* string next_key */ 2:
                     message.nextKey = reader.string();
@@ -3698,9 +3757,9 @@ class ListDatabaseServersResponse$Type extends MessageType<ListDatabaseServersRe
         return message;
     }
     internalBinaryWrite(message: ListDatabaseServersResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* repeated teleport.lib.teleterm.v1.DatabaseServer servers = 1; */
-        for (let i = 0; i < message.servers.length; i++)
-            DatabaseServer.internalBinaryWrite(message.servers[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* repeated teleport.lib.teleterm.v1.DatabaseServer resources = 1; */
+        for (let i = 0; i < message.resources.length; i++)
+            DatabaseServer.internalBinaryWrite(message.resources[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
         /* string next_key = 2; */
         if (message.nextKey !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.nextKey);
@@ -5756,7 +5815,7 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "ListLeafClusters", options: {}, I: ListLeafClustersRequest, O: ListClustersResponse },
     { name: "StartHeadlessWatcher", options: {}, I: StartHeadlessWatcherRequest, O: StartHeadlessWatcherResponse },
     { name: "ListDatabaseUsers", options: {}, I: ListDatabaseUsersRequest, O: ListDatabaseUsersResponse },
-    { name: "ListDatabaseServers", options: {}, I: ListResourcesRequest, O: ListDatabaseServersResponse },
+    { name: "ListDatabaseServers", options: {}, I: ListDatabaseServersRequest, O: ListDatabaseServersResponse },
     { name: "GetServers", options: {}, I: GetServersRequest, O: GetServersResponse },
     { name: "GetAccessRequests", options: {}, I: GetAccessRequestsRequest, O: GetAccessRequestsResponse },
     { name: "GetAccessRequest", options: {}, I: GetAccessRequestRequest, O: GetAccessRequestResponse },

@@ -94,15 +94,17 @@ export interface Database {
     targetHealth?: TargetHealth;
 }
 /**
- * DatabaseServer describes a database server resource (resource kind "db_server")
+ * DatabaseServer (db_server) describes a database heartbeat signal
+ * reported from an agent (db_service) that is proxying
+ * the database.
  *
  * @generated from protobuf message teleport.lib.teleterm.v1.DatabaseServer
  */
 export interface DatabaseServer {
     /**
-     * @generated from protobuf field: string cluster_uri = 1;
+     * @generated from protobuf field: string uri = 1;
      */
-    clusterUri: string;
+    uri: string;
     /**
      * @generated from protobuf field: string hostname = 2;
      */
@@ -230,7 +232,7 @@ export const Database = new Database$Type();
 class DatabaseServer$Type extends MessageType<DatabaseServer> {
     constructor() {
         super("teleport.lib.teleterm.v1.DatabaseServer", [
-            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 1, name: "uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "hostname", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "host_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "target_health", kind: "message", T: () => TargetHealth }
@@ -238,7 +240,7 @@ class DatabaseServer$Type extends MessageType<DatabaseServer> {
     }
     create(value?: PartialMessage<DatabaseServer>): DatabaseServer {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.clusterUri = "";
+        message.uri = "";
         message.hostname = "";
         message.hostId = "";
         if (value !== undefined)
@@ -250,8 +252,8 @@ class DatabaseServer$Type extends MessageType<DatabaseServer> {
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string cluster_uri */ 1:
-                    message.clusterUri = reader.string();
+                case /* string uri */ 1:
+                    message.uri = reader.string();
                     break;
                 case /* string hostname */ 2:
                     message.hostname = reader.string();
@@ -274,9 +276,9 @@ class DatabaseServer$Type extends MessageType<DatabaseServer> {
         return message;
     }
     internalBinaryWrite(message: DatabaseServer, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string cluster_uri = 1; */
-        if (message.clusterUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
+        /* string uri = 1; */
+        if (message.uri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.uri);
         /* string hostname = 2; */
         if (message.hostname !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.hostname);
