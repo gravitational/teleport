@@ -428,8 +428,8 @@ importers:
         specifier: ^1.3.1
         version: 1.3.1
       node-pty:
-        specifier: 1.1.0-beta33
-        version: 1.1.0-beta33
+        specifier: 1.1.0-beta34
+        version: 1.1.0-beta34
       ring-buffer-ts:
         specifier: ^1.2.0
         version: 1.2.0
@@ -477,8 +477,8 @@ importers:
         specifier: ^5.5.0
         version: 5.5.0
       electron:
-        specifier: 35.1.4
-        version: 35.1.4
+        specifier: 36.1.0
+        version: 36.1.0
       electron-builder:
         specifier: ^26.0.12
         version: 26.0.12
@@ -4287,8 +4287,8 @@ packages:
   detab@2.0.4:
     resolution: {integrity: sha512-8zdsQA5bIkoRECvCrNKPla84lyoR7DSAyf7p0YgXzBO9PDJx8KntPUay7NS6yp+KdxdVtiE5SpHKtbp2ZQyA9g==}
 
-  detect-libc@2.0.3:
-    resolution: {integrity: sha512-bwy0MGW55bG41VqxxypOsdSdGqLwXPI/focwgTYCFMbdUiBAxLg9CFzG08sz2aqzknwiX7Hkl0bQENjg8iLByw==}
+  detect-libc@2.0.4:
+    resolution: {integrity: sha512-3UDv+G9CsCKO1WKMGw9fwq/SWJYbI0c5Y7LU1AXYoDdbhE2AHQ6N6Nb34sG8Fj7T5APy8qXDCKuuIHd1BR0tVA==}
     engines: {node: '>=8'}
 
   detect-newline@3.1.0:
@@ -4385,8 +4385,8 @@ packages:
   dotenv-expand@5.1.0:
     resolution: {integrity: sha512-YXQl1DSa4/PQyRfgrv6aoNjhasp/p4qs9FjJ4q4cQk+8m4r6k4ZSiEyytKG8f8W9gi8WsQtIObNmKd+tMzNTmA==}
 
-  dotenv@16.4.5:
-    resolution: {integrity: sha512-ZmdL2rui+eB2YwhsWzjInR8LldtZHGDoQ1ugH85ppHKwpUHL7j7rN0Ti9NCnGiQbhaZ11FpR+7ao1dNsmduNUg==}
+  dotenv@16.5.0:
+    resolution: {integrity: sha512-m/C+AwOAr9/W1UOIZUo232ejMNnJAJtYQjUbHoNTBNTJSvqzzDh7vnrei3o3r3m9blf6ZoDkvcw0VmozNRFJxg==}
     engines: {node: '>=12'}
 
   dotenv@8.6.0:
@@ -4430,8 +4430,8 @@ packages:
       '@swc/core':
         optional: true
 
-  electron@35.1.4:
-    resolution: {integrity: sha512-8HjE2wqxY//T09Of8k1eTpK/NeTG2FkTyRD+fyKXmec4wZVscGgZcmWFC0HYN4ktyHAjtplpxdFXjtqRnvzBMg==}
+  electron@36.1.0:
+    resolution: {integrity: sha512-gnp3BnbKdGsVc7cm1qlEaZc8pJsR08mIs8H/yTo8gHEtFkGGJbDTVZOYNAfbQlL0aXh+ozv+CnyiNeDNkT1Upg==}
     engines: {node: '>= 12.20.55'}
     hasBin: true
 
@@ -6443,8 +6443,8 @@ packages:
   no-case@3.0.4:
     resolution: {integrity: sha512-fgAN3jGAh+RoxUGZHTSOLJIqUc2wmoBwGR4tbpNAKmmovFoWq0OdRkb0VkldReO2a2iBT/OEulG9XSUc10r3zg==}
 
-  node-abi@3.74.0:
-    resolution: {integrity: sha512-c5XK0MjkGBrQPGYG24GBADZud0NCbznxNx0ZkS+ebUTrmV1qTDxPxSL8zEAPURXSbLRWVexxmP4986BziahL5w==}
+  node-abi@3.75.0:
+    resolution: {integrity: sha512-OhYaY5sDsIka7H7AtijtI9jwGYLyl29eQn/W623DiN/MIv5sUqc4g7BIDThX+gb7di9f6xK02nkp8sdfFWZLTg==}
     engines: {node: '>=10'}
 
   node-addon-api@1.7.2:
@@ -6482,8 +6482,8 @@ packages:
   node-int64@0.4.0:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
 
-  node-pty@1.1.0-beta33:
-    resolution: {integrity: sha512-+BN2bT/KqO+fmCHnpFS99VMVJr7VUBCUa2VIBEw0oEvszkR7ri0kwD1lF91OeQToUJ2dXKA8j6scPjbO4eRWOQ==}
+  node-pty@1.1.0-beta34:
+    resolution: {integrity: sha512-RraDtX9RS1G1I5iO7e4YIOIA4arzd4ZVCD4mZr7+szaNupoTg9fxDCRr0EanqS0Qlzgm3PIdHNbPmblJguJuyg==}
 
   node-releases@2.0.19:
     resolution: {integrity: sha512-xxOWJsBKtzAq7DY0J+DTzuz58K8e7sJbdgwkbMWQe8UYB6ekmsQ45q0M/tJDsGaZmbC+l7n57UV8Hl5tHxO9uw==}
@@ -9808,10 +9808,10 @@ snapshots:
       '@malept/cross-spawn-promise': 2.0.0
       chalk: 4.1.2
       debug: 4.4.0(supports-color@5.5.0)
-      detect-libc: 2.0.3
+      detect-libc: 2.0.4
       fs-extra: 10.1.0
       got: 11.8.6
-      node-abi: 3.74.0
+      node-abi: 3.75.0
       node-api-version: 0.2.0
       ora: 5.4.1
       read-binary-file-arch: 1.0.6
@@ -12473,7 +12473,7 @@ snapshots:
       config-file-ts: 0.2.8-rc1
       debug: 4.4.0(supports-color@5.5.0)
       dmg-builder: 26.0.12
-      dotenv: 16.4.5
+      dotenv: 16.5.0
       dotenv-expand: 11.0.6
       ejs: 3.1.10
       electron-publish: 26.0.11
@@ -13709,7 +13709,7 @@ snapshots:
     dependencies:
       repeat-string: 1.6.1
 
-  detect-libc@2.0.3: {}
+  detect-libc@2.0.4: {}
 
   detect-newline@3.1.0: {}
 
@@ -13827,11 +13827,11 @@ snapshots:
 
   dotenv-expand@11.0.6:
     dependencies:
-      dotenv: 16.4.5
+      dotenv: 16.5.0
 
   dotenv-expand@5.1.0: {}
 
-  dotenv@16.4.5: {}
+  dotenv@16.5.0: {}
 
   dotenv@8.6.0: {}
 
@@ -13895,7 +13895,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@35.1.4:
+  electron@36.1.0:
     dependencies:
       '@electron/get': 2.0.2
       '@types/node': 22.14.1
@@ -16538,7 +16538,7 @@ snapshots:
       lower-case: 2.0.2
       tslib: 2.6.3
 
-  node-abi@3.74.0:
+  node-abi@3.75.0:
     dependencies:
       semver: 7.6.2
 
@@ -16580,7 +16580,7 @@ snapshots:
 
   node-int64@0.4.0: {}
 
-  node-pty@1.1.0-beta33:
+  node-pty@1.1.0-beta34:
     dependencies:
       node-addon-api: 7.1.0
 
