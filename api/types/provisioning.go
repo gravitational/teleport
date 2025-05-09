@@ -985,7 +985,7 @@ func (a *ProvisionTokenSpecV2AzureDevops) checkAndSetDefaults() error {
 		subSet := rule.Sub != ""
 		projectNameSet := rule.ProjectName != ""
 		projectIDSet := rule.ProjectID != ""
-		if !(subSet || projectNameSet || projectIDSet) {
+		if !subSet && !projectNameSet && !projectIDSet {
 			return trace.BadParameter(
 				"allow[%d]: at least one of ['sub', 'project_name', 'project_id'] must be set",
 				i,
