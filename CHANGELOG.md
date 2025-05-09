@@ -1,5 +1,16 @@
 # Changelog
 
+## 16.5.7 (05/08/25)
+
+* Fixed an issue preventing connections due to missing client IPs when using class E address space with GKE or CloudFlare pseudo IPv4 forward headers. [#54598](https://github.com/gravitational/teleport/pull/54598)
+* Fixed a possible moderator/observer terminal freeze when joining a Kubernetes moderated session. [#54522](https://github.com/gravitational/teleport/pull/54522)
+* Removed background color for resources that required access request in the web UI Resources view. [#54466](https://github.com/gravitational/teleport/pull/54466)
+* Show human readable title for access list audit logs. [#54458](https://github.com/gravitational/teleport/pull/54458)
+* Fixed race conditions in `tsh ssh` multi-node output. [#54455](https://github.com/gravitational/teleport/pull/54455)
+* Fixed an issue causing Join Token expiries to be overwritten when editing a token. [#54454](https://github.com/gravitational/teleport/pull/54454)
+* Workload Identity: Fixed bugs for the Kubernetes workload attestor's container resolution. [#54443](https://github.com/gravitational/teleport/pull/54443)
+* Fixed a bug in the EC2 installer script causing `Illegal option -o pipefail` errors on several distros when Managed Updates v2 are enabled. [#54430](https://github.com/gravitational/teleport/pull/54430)
+
 ## 16.5.6 (04/30/25)
 
 * Included access request's max duration in MsTeams plugin messages. [#54387](https://github.com/gravitational/teleport/pull/54387)
