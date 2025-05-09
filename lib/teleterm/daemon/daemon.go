@@ -1241,6 +1241,18 @@ func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
 	return trace.Wrap(s.clientCache.ClearForRoot(profileName))
 }
 
+// AttachDirectoryToDesktopSession opens a directory for a desktop session and enables file system operations for it.
+// If there is no active desktop session associated with the specified desktop_uri and login,
+// an error is returned.
+func (s *Service) AttachDirectoryToDesktopSession(_ context.Context, desktopURI uri.ResourceURI, login, path string) error {
+	manager, err := s.desktopDirectorySharingManager.Get(desktop.TargetSession{DesktopURI: desktopURI, Login: login})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(manager.Open(path))
+}
+
 // Service is the daemon service
 type Service struct {
 	cfg *Config

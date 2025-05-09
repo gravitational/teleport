@@ -78,6 +78,7 @@ const (
 	TerminalService_AuthenticateWebDevice_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/AuthenticateWebDevice"
 	TerminalService_GetApp_FullMethodName                            = "/teleport.lib.teleterm.v1.TerminalService/GetApp"
 	TerminalService_ConnectToDesktop_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ConnectToDesktop"
+	TerminalService_AttachDirectoryToDesktopSession_FullMethodName   = "/teleport.lib.teleterm.v1.TerminalService/AttachDirectoryToDesktopSession"
 )
 
 // TerminalServiceClient is the client API for TerminalService service.
@@ -220,6 +221,13 @@ type TerminalServiceClient interface {
 	GetApp(ctx context.Context, in *GetAppRequest, opts ...grpc.CallOption) (*GetAppResponse, error)
 	// ConnectToDesktop is a bidirectional stream for the desktop connection.
 	ConnectToDesktop(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnectToDesktopRequest, ConnectToDesktopResponse], error)
+	// AttachDirectoryToDesktopSession opens a directory for a desktop session and enables file system operations for it.
+	// If there is no active desktop session associated with the specified desktop_uri and login,
+	// the RPC returns an error.
+	//
+	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+	// It only registers file system handlers for processing file system-related TDP events.
+	AttachDirectoryToDesktopSession(ctx context.Context, in *AttachDirectoryToDesktopSessionRequest, opts ...grpc.CallOption) (*AttachDirectoryToDesktopSessionResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -666,6 +674,16 @@ func (c *terminalServiceClient) ConnectToDesktop(ctx context.Context, opts ...gr
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type TerminalService_ConnectToDesktopClient = grpc.BidiStreamingClient[ConnectToDesktopRequest, ConnectToDesktopResponse]
 
+func (c *terminalServiceClient) AttachDirectoryToDesktopSession(ctx context.Context, in *AttachDirectoryToDesktopSessionRequest, opts ...grpc.CallOption) (*AttachDirectoryToDesktopSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AttachDirectoryToDesktopSessionResponse)
+	err := c.cc.Invoke(ctx, TerminalService_AttachDirectoryToDesktopSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility.
@@ -806,6 +824,13 @@ type TerminalServiceServer interface {
 	GetApp(context.Context, *GetAppRequest) (*GetAppResponse, error)
 	// ConnectToDesktop is a bidirectional stream for the desktop connection.
 	ConnectToDesktop(grpc.BidiStreamingServer[ConnectToDesktopRequest, ConnectToDesktopResponse]) error
+	// AttachDirectoryToDesktopSession opens a directory for a desktop session and enables file system operations for it.
+	// If there is no active desktop session associated with the specified desktop_uri and login,
+	// the RPC returns an error.
+	//
+	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+	// It only registers file system handlers for processing file system-related TDP events.
+	AttachDirectoryToDesktopSession(context.Context, *AttachDirectoryToDesktopSessionRequest) (*AttachDirectoryToDesktopSessionResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -941,6 +966,9 @@ func (UnimplementedTerminalServiceServer) GetApp(context.Context, *GetAppRequest
 }
 func (UnimplementedTerminalServiceServer) ConnectToDesktop(grpc.BidiStreamingServer[ConnectToDesktopRequest, ConnectToDesktopResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ConnectToDesktop not implemented")
+}
+func (UnimplementedTerminalServiceServer) AttachDirectoryToDesktopSession(context.Context, *AttachDirectoryToDesktopSessionRequest) (*AttachDirectoryToDesktopSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AttachDirectoryToDesktopSession not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 func (UnimplementedTerminalServiceServer) testEmbeddedByValue()                         {}
@@ -1690,6 +1718,24 @@ func _TerminalService_ConnectToDesktop_Handler(srv interface{}, stream grpc.Serv
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type TerminalService_ConnectToDesktopServer = grpc.BidiStreamingServer[ConnectToDesktopRequest, ConnectToDesktopResponse]
 
+func _TerminalService_AttachDirectoryToDesktopSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AttachDirectoryToDesktopSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).AttachDirectoryToDesktopSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_AttachDirectoryToDesktopSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).AttachDirectoryToDesktopSession(ctx, req.(*AttachDirectoryToDesktopSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1852,6 +1898,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetApp",
 			Handler:    _TerminalService_GetApp_Handler,
+		},
+		{
+			MethodName: "AttachDirectoryToDesktopSession",
+			Handler:    _TerminalService_AttachDirectoryToDesktopSession_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
