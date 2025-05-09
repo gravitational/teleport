@@ -37,7 +37,7 @@ func TestHardwareKeyAgentService(t *testing.T) {
 
 	// Prepare the agent server
 	mockService := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
-	server := hardwarekeyagent.NewServer(ctx, mockService, insecure.NewCredentials())
+	server := hardwarekeyagent.NewServer(ctx, mockService, insecure.NewCredentials(), nil /*knownKeyFn*/)
 	t.Cleanup(server.Stop)
 
 	agentDir := t.TempDir()

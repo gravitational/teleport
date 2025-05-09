@@ -254,11 +254,14 @@ type ContextualKeyInfo struct {
 	Username string
 	// ClusterName is a Teleport cluster name that the key is associated with.
 	ClusterName string
-	// AgentKey specifies whether this key is being utilized through an agent.
-	// The hardware key service may impose additional restrictions in this case,
-	// such as checking that the PIV slot certificate matches the Teleport client
-	// metadata certificate format, to ensure the agent doesn't provide access to
-	// non teleport client PIV keys.
+	// AgentKey specifies whether this key is being utilized through an agent and
+	// the key is unknown to the client running the agent, probably because the
+	// client on the other side of the agent is using a different Teleport Home
+	// directory.
+	//
+	// When true, the hardware key service will check that the certificate in the
+	// same slot as the key matches a Teleport client metadata certificate in order
+	// to ensure the agent doesn't provide access to non teleport client PIV keys.
 	AgentKey bool
 	// Command is the running command utilizing this key.
 	Command string

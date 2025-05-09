@@ -22,7 +22,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/utils/keys/piv"
 	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 )
 
@@ -50,8 +49,9 @@ func newPIVAgentCommand(parent *kingpin.CmdClause) *pivAgentCommand {
 }
 
 func (c *pivAgentCommand) run(cf *CLIConf) error {
-	hwKeyService := piv.NewYubiKeyService(nil /*prompt*/)
-	s, err := libhwk.NewAgentServer(cf.Context, hwKeyService, libhwk.DefaultAgentDir())
+	cf.disableHardwareKeyAgentClient = true
+	store := cf.getClientStore()
+	s, err := libhwk.NewAgentServer(cf.Context, store.HardwareKeyService, libhwk.DefaultAgentDir(), store.KnownHardwareKey)
 	if err != nil {
 		return trace.Wrap(err)
 	}
