@@ -24,6 +24,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { TerminalService } from "./service_pb";
+import type { ConnectToDesktopResponse } from "./service_pb";
+import type { ConnectToDesktopRequest } from "./service_pb";
 import type { GetAppResponse } from "./service_pb";
 import type { GetAppRequest } from "./service_pb";
 import type { AuthenticateWebDeviceResponse } from "./service_pb";
@@ -403,6 +405,12 @@ export interface ITerminalServiceClient {
      * @generated from protobuf rpc: GetApp(teleport.lib.teleterm.v1.GetAppRequest) returns (teleport.lib.teleterm.v1.GetAppResponse);
      */
     getApp(input: GetAppRequest, options?: RpcOptions): UnaryCall<GetAppRequest, GetAppResponse>;
+    /**
+     * ConnectToDesktop is a bidirectional stream for the desktop connection.
+     *
+     * @generated from protobuf rpc: ConnectToDesktop(stream teleport.lib.teleterm.v1.ConnectToDesktopRequest) returns (stream teleport.lib.teleterm.v1.ConnectToDesktopResponse);
+     */
+    connectToDesktop(options?: RpcOptions): DuplexStreamingCall<ConnectToDesktopRequest, ConnectToDesktopResponse>;
 }
 /**
  * TerminalService is used by the Electron app to communicate with the tsh daemon.
@@ -833,5 +841,14 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
     getApp(input: GetAppRequest, options?: RpcOptions): UnaryCall<GetAppRequest, GetAppResponse> {
         const method = this.methods[40], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetAppRequest, GetAppResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * ConnectToDesktop is a bidirectional stream for the desktop connection.
+     *
+     * @generated from protobuf rpc: ConnectToDesktop(stream teleport.lib.teleterm.v1.ConnectToDesktopRequest) returns (stream teleport.lib.teleterm.v1.ConnectToDesktopResponse);
+     */
+    connectToDesktop(options?: RpcOptions): DuplexStreamingCall<ConnectToDesktopRequest, ConnectToDesktopResponse> {
+        const method = this.methods[41], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ConnectToDesktopRequest, ConnectToDesktopResponse>("duplex", this._transport, method, opt);
     }
 }

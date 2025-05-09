@@ -403,6 +403,7 @@
     "configmap",
     "configmaps",
     "connectionupgrade",
+    "connstring",
     "connectorname",
     "connstring",
     "cprops",
@@ -881,6 +882,7 @@
     "setspn",
     "sharded",
     "signup",
+    "sigstore",
     "skipreconcile",
     "slacktokenfromsecret",
     "sles",
@@ -1054,6 +1056,7 @@
   "flagWords": ["hte"],
   "ignorePaths": [
     "**/reference/terraform-provider/**",
-    "**/reference/operator-resources/**"
+    "**/reference/operator-resources/**",
+    "**/includes/reference/code-blocks-no-cspell/**"
   ]
 }

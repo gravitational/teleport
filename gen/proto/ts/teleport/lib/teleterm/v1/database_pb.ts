@@ -97,7 +97,7 @@ class Database$Type extends MessageType<Database> {
             { no: 5, name: "type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 6, name: "hostname", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 8, name: "labels", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Label }
+            { no: 8, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label }
         ]);
     }
     create(value?: PartialMessage<Database>): Database {

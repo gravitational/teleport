@@ -289,12 +289,12 @@ func Test_PluginOktaSyncSettings_SetUserSyncSource(t *testing.T) {
 		syncSettings := &PluginOktaSyncSettings{}
 
 		// OktaUserSyncSourceUnknown is returned for empty value
-		require.Equal(t, "", syncSettings.UserSyncSource)
+		require.Empty(t, syncSettings.UserSyncSource)
 		require.Equal(t, OktaUserSyncSourceUnknown, syncSettings.GetUserSyncSource())
 
 		// When "asdf" is set, it doesn't change empty value
 		syncSettings.SetUserSyncSource("asdf")
-		require.Equal(t, "", syncSettings.UserSyncSource)
+		require.Empty(t, syncSettings.UserSyncSource)
 		require.Equal(t, OktaUserSyncSourceUnknown, syncSettings.GetUserSyncSource())
 
 		// When "asdf" is set, it doesn't change set value

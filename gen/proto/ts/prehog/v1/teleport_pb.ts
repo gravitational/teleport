@@ -595,7 +595,7 @@ class UserActivityReport$Type extends MessageType<UserActivityReport> {
             { no: 2, name: "cluster_name", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
             { no: 3, name: "reporter_hostid", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
             { no: 4, name: "start_time", kind: "message", T: () => Timestamp },
-            { no: 5, name: "records", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => UserActivityRecord }
+            { no: 5, name: "records", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => UserActivityRecord }
         ]);
     }
     create(value?: PartialMessage<UserActivityReport>): UserActivityReport {
@@ -686,7 +686,7 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
             { no: 15, name: "spiffe_svids_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 16, name: "bot_joins", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 17, name: "certificates_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 18, name: "spiffe_ids_issued", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => SPIFFEIDRecord },
+            { no: 18, name: "spiffe_ids_issued", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SPIFFEIDRecord },
             { no: 19, name: "user_origin", kind: "enum", T: () => ["prehog.v1.UserOrigin", UserOrigin, "USER_ORIGIN_"] },
             { no: 20, name: "access_requests_created", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 21, name: "access_requests_reviewed", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
@@ -904,7 +904,7 @@ class ResourcePresenceReport$Type extends MessageType<ResourcePresenceReport> {
             { no: 2, name: "cluster_name", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
             { no: 3, name: "reporter_hostid", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
             { no: 4, name: "start_time", kind: "message", T: () => Timestamp },
-            { no: 5, name: "resource_kind_reports", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ResourceKindPresenceReport }
+            { no: 5, name: "resource_kind_reports", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ResourceKindPresenceReport }
         ]);
     }
     create(value?: PartialMessage<ResourcePresenceReport>): ResourcePresenceReport {
@@ -1045,7 +1045,7 @@ class BotInstanceActivityReport$Type extends MessageType<BotInstanceActivityRepo
             { no: 2, name: "cluster_name", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
             { no: 3, name: "reporter_hostid", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
             { no: 4, name: "start_time", kind: "message", T: () => Timestamp },
-            { no: 5, name: "records", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => BotInstanceActivityRecord }
+            { no: 5, name: "records", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => BotInstanceActivityRecord }
         ]);
     }
     create(value?: PartialMessage<BotInstanceActivityReport>): BotInstanceActivityReport {
@@ -1253,9 +1253,9 @@ export const SPIFFEIDRecord = new SPIFFEIDRecord$Type();
 class SubmitUsageReportsRequest$Type extends MessageType<SubmitUsageReportsRequest> {
     constructor() {
         super("prehog.v1.SubmitUsageReportsRequest", [
-            { no: 1, name: "user_activity", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => UserActivityReport },
-            { no: 2, name: "resource_presence", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ResourcePresenceReport },
-            { no: 3, name: "bot_instance_activity", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => BotInstanceActivityReport }
+            { no: 1, name: "user_activity", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => UserActivityReport },
+            { no: 2, name: "resource_presence", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ResourcePresenceReport },
+            { no: 3, name: "bot_instance_activity", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => BotInstanceActivityReport }
         ]);
     }
     create(value?: PartialMessage<SubmitUsageReportsRequest>): SubmitUsageReportsRequest {
