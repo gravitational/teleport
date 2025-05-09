@@ -80,7 +80,7 @@ func NewUserListEntry(teleUser types.User) (*UserListEntry, error) {
 			authType = connector.Type
 		} else {
 			// We handle gracefully a malformed SSO user that doesn't have a "CreatedBy"
-			authType = "unknown sso"
+			authType = "unknown SSO"
 		}
 	}
 
