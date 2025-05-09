@@ -124,7 +124,38 @@ func (d clientStream) Recv() ([]byte, error) {
 		return nil, trace.BadParameter("received invalid message")
 	}
 
+	// Check if the message sent from the renderer is allowed.
+	decoded, err := tdp.Decode(data)
+	if err != nil {
+		return nil, trace.Wrap(err, "could not decode desktop message")
+	}
+	err = isClientMessageAllowed(decoded)
+	if err != nil {
+		return nil, trace.Wrap(err, "disallowed desktop message")
+	}
+
 	return data, nil
+}
+
+// isClientMessageAllowed checks whether a message from the client is allowed
+// to be forwarded to the server.
+//
+// Responses related to shared directory operations are handled exclusively
+// by tshd and should not originate from the renderer process.
+func isClientMessageAllowed(msg tdp.Message) error {
+	switch msg.(type) {
+	case tdp.SharedDirectoryInfoResponse,
+		tdp.SharedDirectoryCreateResponse,
+		tdp.SharedDirectoryDeleteResponse,
+		tdp.SharedDirectoryReadResponse,
+		tdp.SharedDirectoryWriteResponse,
+		tdp.SharedDirectoryMoveResponse,
+		tdp.SharedDirectoryListResponse,
+		tdp.SharedDirectoryTruncateResponse:
+		return trace.AccessDenied("file system messages are not allowed from the renderer process")
+	default:
+		return nil
+	}
 }
 
 // serverInterceptor intercepts and processes messages sent from the server to the client.
