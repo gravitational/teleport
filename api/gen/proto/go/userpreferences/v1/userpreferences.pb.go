@@ -53,8 +53,12 @@ type UserPreferences struct {
 	SideNavDrawerMode SideNavDrawerMode `protobuf:"varint,7,opt,name=side_nav_drawer_mode,json=sideNavDrawerMode,proto3,enum=teleport.userpreferences.v1.SideNavDrawerMode" json:"side_nav_drawer_mode,omitempty"`
 	// discover_resource_preferences are user preferences saved for the discover resource web UI.
 	DiscoverResourcePreferences *DiscoverResourcePreferences `protobuf:"bytes,8,opt,name=discover_resource_preferences,json=discoverResourcePreferences,proto3" json:"discover_resource_preferences,omitempty"`
-	unknownFields               protoimpl.UnknownFields
-	sizeCache                   protoimpl.SizeCache
+	// keyboard_layout is the layout used by the user in Windows Desktop sessions
+	// keyboard layout identifiers can be found here:
+	// https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
+	KeyboardLayout int32 `protobuf:"varint,9,opt,name=keyboard_layout,json=keyboardLayout,proto3" json:"keyboard_layout,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *UserPreferences) Reset() {
@@ -134,6 +138,13 @@ func (x *UserPreferences) GetDiscoverResourcePreferences() *DiscoverResourcePref
 		return x.DiscoverResourcePreferences
 	}
 	return nil
+}
+
+func (x *UserPreferences) GetKeyboardLayout() int32 {
+	if x != nil {
+		return x.KeyboardLayout
+	}
+	return 0
 }
 
 // GetUserPreferencesRequest is a request to get the user preferences.
@@ -219,6 +230,97 @@ func (x *GetUserPreferencesResponse) GetPreferences() *UserPreferences {
 	return nil
 }
 
+// GetKeyboardLayoutRequest is a request to get the user keyboard layout.
+type GetKeyboardLayoutRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetKeyboardLayoutRequest) Reset() {
+	*x = GetKeyboardLayoutRequest{}
+	mi := &file_teleport_userpreferences_v1_userpreferences_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetKeyboardLayoutRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetKeyboardLayoutRequest) ProtoMessage() {}
+
+func (x *GetKeyboardLayoutRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_userpreferences_v1_userpreferences_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetKeyboardLayoutRequest.ProtoReflect.Descriptor instead.
+func (*GetKeyboardLayoutRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_userpreferences_v1_userpreferences_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *GetKeyboardLayoutRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+// GetKeyboardLayoutResponse is a response to get the user keyboard layout.
+type GetKeyboardLayoutResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// keyboard_layout is the code of keyboard layout preferred by the user.
+	KeyboardLayout int32 `protobuf:"varint,1,opt,name=keyboard_layout,json=keyboardLayout,proto3" json:"keyboard_layout,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *GetKeyboardLayoutResponse) Reset() {
+	*x = GetKeyboardLayoutResponse{}
+	mi := &file_teleport_userpreferences_v1_userpreferences_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetKeyboardLayoutResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetKeyboardLayoutResponse) ProtoMessage() {}
+
+func (x *GetKeyboardLayoutResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_userpreferences_v1_userpreferences_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetKeyboardLayoutResponse.ProtoReflect.Descriptor instead.
+func (*GetKeyboardLayoutResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_userpreferences_v1_userpreferences_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *GetKeyboardLayoutResponse) GetKeyboardLayout() int32 {
+	if x != nil {
+		return x.KeyboardLayout
+	}
+	return 0
+}
+
 // UpsertUserPreferencesRequest is a request to create or update the user preferences.
 type UpsertUserPreferencesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -230,7 +332,7 @@ type UpsertUserPreferencesRequest struct {
 
 func (x *UpsertUserPreferencesRequest) Reset() {
 	*x = UpsertUserPreferencesRequest{}
-	mi := &file_teleport_userpreferences_v1_userpreferences_proto_msgTypes[3]
+	mi := &file_teleport_userpreferences_v1_userpreferences_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -242,7 +344,7 @@ func (x *UpsertUserPreferencesRequest) String() string {
 func (*UpsertUserPreferencesRequest) ProtoMessage() {}
 
 func (x *UpsertUserPreferencesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_userpreferences_v1_userpreferences_proto_msgTypes[3]
+	mi := &file_teleport_userpreferences_v1_userpreferences_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -255,7 +357,7 @@ func (x *UpsertUserPreferencesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpsertUserPreferencesRequest.ProtoReflect.Descriptor instead.
 func (*UpsertUserPreferencesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_userpreferences_v1_userpreferences_proto_rawDescGZIP(), []int{3}
+	return file_teleport_userpreferences_v1_userpreferences_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *UpsertUserPreferencesRequest) GetPreferences() *UserPreferences {
@@ -269,7 +371,7 @@ var File_teleport_userpreferences_v1_userpreferences_proto protoreflect.FileDesc
 
 const file_teleport_userpreferences_v1_userpreferences_proto_rawDesc = "" +
 	"\n" +
-	"1teleport/userpreferences/v1/userpreferences.proto\x12\x1bteleport.userpreferences.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a.teleport/userpreferences/v1/access_graph.proto\x1a5teleport/userpreferences/v1/cluster_preferences.proto\x1a?teleport/userpreferences/v1/discover_resource_preferences.proto\x1a)teleport/userpreferences/v1/onboard.proto\x1a5teleport/userpreferences/v1/sidenav_preferences.proto\x1a'teleport/userpreferences/v1/theme.proto\x1a>teleport/userpreferences/v1/unified_resource_preferences.proto\"\xc4\x05\n" +
+	"1teleport/userpreferences/v1/userpreferences.proto\x12\x1bteleport.userpreferences.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a.teleport/userpreferences/v1/access_graph.proto\x1a5teleport/userpreferences/v1/cluster_preferences.proto\x1a?teleport/userpreferences/v1/discover_resource_preferences.proto\x1a)teleport/userpreferences/v1/onboard.proto\x1a5teleport/userpreferences/v1/sidenav_preferences.proto\x1a'teleport/userpreferences/v1/theme.proto\x1a>teleport/userpreferences/v1/unified_resource_preferences.proto\"\xed\x05\n" +
 	"\x0fUserPreferences\x128\n" +
 	"\x05theme\x18\x02 \x01(\x0e2\".teleport.userpreferences.v1.ThemeR\x05theme\x12M\n" +
 	"\aonboard\x18\x03 \x01(\v23.teleport.userpreferences.v1.OnboardUserPreferencesR\aonboard\x12d\n" +
@@ -277,15 +379,21 @@ const file_teleport_userpreferences_v1_userpreferences_proto_rawDesc = "" +
 	"\x1cunified_resource_preferences\x18\x05 \x01(\v27.teleport.userpreferences.v1.UnifiedResourcePreferencesR\x1aunifiedResourcePreferences\x12Z\n" +
 	"\faccess_graph\x18\x06 \x01(\v27.teleport.userpreferences.v1.AccessGraphUserPreferencesR\vaccessGraph\x12_\n" +
 	"\x14side_nav_drawer_mode\x18\a \x01(\x0e2..teleport.userpreferences.v1.SideNavDrawerModeR\x11sideNavDrawerMode\x12|\n" +
-	"\x1ddiscover_resource_preferences\x18\b \x01(\v28.teleport.userpreferences.v1.DiscoverResourcePreferencesR\x1bdiscoverResourcePreferencesJ\x04\b\x01\x10\x02R\x06assist\"+\n" +
+	"\x1ddiscover_resource_preferences\x18\b \x01(\v28.teleport.userpreferences.v1.DiscoverResourcePreferencesR\x1bdiscoverResourcePreferences\x12'\n" +
+	"\x0fkeyboard_layout\x18\t \x01(\x05R\x0ekeyboardLayoutJ\x04\b\x01\x10\x02R\x06assist\"+\n" +
 	"\x19GetUserPreferencesRequestJ\x04\b\x01\x10\x02R\busername\"l\n" +
 	"\x1aGetUserPreferencesResponse\x12N\n" +
-	"\vpreferences\x18\x01 \x01(\v2,.teleport.userpreferences.v1.UserPreferencesR\vpreferences\"~\n" +
+	"\vpreferences\x18\x01 \x01(\v2,.teleport.userpreferences.v1.UserPreferencesR\vpreferences\"6\n" +
+	"\x18GetKeyboardLayoutRequest\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\"D\n" +
+	"\x19GetKeyboardLayoutResponse\x12'\n" +
+	"\x0fkeyboard_layout\x18\x01 \x01(\x05R\x0ekeyboardLayout\"~\n" +
 	"\x1cUpsertUserPreferencesRequest\x12N\n" +
-	"\vpreferences\x18\x01 \x01(\v2,.teleport.userpreferences.v1.UserPreferencesR\vpreferencesJ\x04\b\x02\x10\x03R\busername2\x8c\x02\n" +
+	"\vpreferences\x18\x01 \x01(\v2,.teleport.userpreferences.v1.UserPreferencesR\vpreferencesJ\x04\b\x02\x10\x03R\busername2\x91\x03\n" +
 	"\x16UserPreferencesService\x12\x85\x01\n" +
 	"\x12GetUserPreferences\x126.teleport.userpreferences.v1.GetUserPreferencesRequest\x1a7.teleport.userpreferences.v1.GetUserPreferencesResponse\x12j\n" +
-	"\x15UpsertUserPreferences\x129.teleport.userpreferences.v1.UpsertUserPreferencesRequest\x1a\x16.google.protobuf.EmptyBYZWgithub.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1;userpreferencesv1b\x06proto3"
+	"\x15UpsertUserPreferences\x129.teleport.userpreferences.v1.UpsertUserPreferencesRequest\x1a\x16.google.protobuf.Empty\x12\x82\x01\n" +
+	"\x11GetKeyboardLayout\x125.teleport.userpreferences.v1.GetKeyboardLayoutRequest\x1a6.teleport.userpreferences.v1.GetKeyboardLayoutResponseBYZWgithub.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1;userpreferencesv1b\x06proto3"
 
 var (
 	file_teleport_userpreferences_v1_userpreferences_proto_rawDescOnce sync.Once
@@ -299,37 +407,41 @@ func file_teleport_userpreferences_v1_userpreferences_proto_rawDescGZIP() []byte
 	return file_teleport_userpreferences_v1_userpreferences_proto_rawDescData
 }
 
-var file_teleport_userpreferences_v1_userpreferences_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_teleport_userpreferences_v1_userpreferences_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_userpreferences_v1_userpreferences_proto_goTypes = []any{
 	(*UserPreferences)(nil),              // 0: teleport.userpreferences.v1.UserPreferences
 	(*GetUserPreferencesRequest)(nil),    // 1: teleport.userpreferences.v1.GetUserPreferencesRequest
 	(*GetUserPreferencesResponse)(nil),   // 2: teleport.userpreferences.v1.GetUserPreferencesResponse
-	(*UpsertUserPreferencesRequest)(nil), // 3: teleport.userpreferences.v1.UpsertUserPreferencesRequest
-	(Theme)(0),                           // 4: teleport.userpreferences.v1.Theme
-	(*OnboardUserPreferences)(nil),       // 5: teleport.userpreferences.v1.OnboardUserPreferences
-	(*ClusterUserPreferences)(nil),       // 6: teleport.userpreferences.v1.ClusterUserPreferences
-	(*UnifiedResourcePreferences)(nil),   // 7: teleport.userpreferences.v1.UnifiedResourcePreferences
-	(*AccessGraphUserPreferences)(nil),   // 8: teleport.userpreferences.v1.AccessGraphUserPreferences
-	(SideNavDrawerMode)(0),               // 9: teleport.userpreferences.v1.SideNavDrawerMode
-	(*DiscoverResourcePreferences)(nil),  // 10: teleport.userpreferences.v1.DiscoverResourcePreferences
-	(*emptypb.Empty)(nil),                // 11: google.protobuf.Empty
+	(*GetKeyboardLayoutRequest)(nil),     // 3: teleport.userpreferences.v1.GetKeyboardLayoutRequest
+	(*GetKeyboardLayoutResponse)(nil),    // 4: teleport.userpreferences.v1.GetKeyboardLayoutResponse
+	(*UpsertUserPreferencesRequest)(nil), // 5: teleport.userpreferences.v1.UpsertUserPreferencesRequest
+	(Theme)(0),                           // 6: teleport.userpreferences.v1.Theme
+	(*OnboardUserPreferences)(nil),       // 7: teleport.userpreferences.v1.OnboardUserPreferences
+	(*ClusterUserPreferences)(nil),       // 8: teleport.userpreferences.v1.ClusterUserPreferences
+	(*UnifiedResourcePreferences)(nil),   // 9: teleport.userpreferences.v1.UnifiedResourcePreferences
+	(*AccessGraphUserPreferences)(nil),   // 10: teleport.userpreferences.v1.AccessGraphUserPreferences
+	(SideNavDrawerMode)(0),               // 11: teleport.userpreferences.v1.SideNavDrawerMode
+	(*DiscoverResourcePreferences)(nil),  // 12: teleport.userpreferences.v1.DiscoverResourcePreferences
+	(*emptypb.Empty)(nil),                // 13: google.protobuf.Empty
 }
 var file_teleport_userpreferences_v1_userpreferences_proto_depIdxs = []int32{
-	4,  // 0: teleport.userpreferences.v1.UserPreferences.theme:type_name -> teleport.userpreferences.v1.Theme
-	5,  // 1: teleport.userpreferences.v1.UserPreferences.onboard:type_name -> teleport.userpreferences.v1.OnboardUserPreferences
-	6,  // 2: teleport.userpreferences.v1.UserPreferences.cluster_preferences:type_name -> teleport.userpreferences.v1.ClusterUserPreferences
-	7,  // 3: teleport.userpreferences.v1.UserPreferences.unified_resource_preferences:type_name -> teleport.userpreferences.v1.UnifiedResourcePreferences
-	8,  // 4: teleport.userpreferences.v1.UserPreferences.access_graph:type_name -> teleport.userpreferences.v1.AccessGraphUserPreferences
-	9,  // 5: teleport.userpreferences.v1.UserPreferences.side_nav_drawer_mode:type_name -> teleport.userpreferences.v1.SideNavDrawerMode
-	10, // 6: teleport.userpreferences.v1.UserPreferences.discover_resource_preferences:type_name -> teleport.userpreferences.v1.DiscoverResourcePreferences
+	6,  // 0: teleport.userpreferences.v1.UserPreferences.theme:type_name -> teleport.userpreferences.v1.Theme
+	7,  // 1: teleport.userpreferences.v1.UserPreferences.onboard:type_name -> teleport.userpreferences.v1.OnboardUserPreferences
+	8,  // 2: teleport.userpreferences.v1.UserPreferences.cluster_preferences:type_name -> teleport.userpreferences.v1.ClusterUserPreferences
+	9,  // 3: teleport.userpreferences.v1.UserPreferences.unified_resource_preferences:type_name -> teleport.userpreferences.v1.UnifiedResourcePreferences
+	10, // 4: teleport.userpreferences.v1.UserPreferences.access_graph:type_name -> teleport.userpreferences.v1.AccessGraphUserPreferences
+	11, // 5: teleport.userpreferences.v1.UserPreferences.side_nav_drawer_mode:type_name -> teleport.userpreferences.v1.SideNavDrawerMode
+	12, // 6: teleport.userpreferences.v1.UserPreferences.discover_resource_preferences:type_name -> teleport.userpreferences.v1.DiscoverResourcePreferences
 	0,  // 7: teleport.userpreferences.v1.GetUserPreferencesResponse.preferences:type_name -> teleport.userpreferences.v1.UserPreferences
 	0,  // 8: teleport.userpreferences.v1.UpsertUserPreferencesRequest.preferences:type_name -> teleport.userpreferences.v1.UserPreferences
 	1,  // 9: teleport.userpreferences.v1.UserPreferencesService.GetUserPreferences:input_type -> teleport.userpreferences.v1.GetUserPreferencesRequest
-	3,  // 10: teleport.userpreferences.v1.UserPreferencesService.UpsertUserPreferences:input_type -> teleport.userpreferences.v1.UpsertUserPreferencesRequest
-	2,  // 11: teleport.userpreferences.v1.UserPreferencesService.GetUserPreferences:output_type -> teleport.userpreferences.v1.GetUserPreferencesResponse
-	11, // 12: teleport.userpreferences.v1.UserPreferencesService.UpsertUserPreferences:output_type -> google.protobuf.Empty
-	11, // [11:13] is the sub-list for method output_type
-	9,  // [9:11] is the sub-list for method input_type
+	5,  // 10: teleport.userpreferences.v1.UserPreferencesService.UpsertUserPreferences:input_type -> teleport.userpreferences.v1.UpsertUserPreferencesRequest
+	3,  // 11: teleport.userpreferences.v1.UserPreferencesService.GetKeyboardLayout:input_type -> teleport.userpreferences.v1.GetKeyboardLayoutRequest
+	2,  // 12: teleport.userpreferences.v1.UserPreferencesService.GetUserPreferences:output_type -> teleport.userpreferences.v1.GetUserPreferencesResponse
+	13, // 13: teleport.userpreferences.v1.UserPreferencesService.UpsertUserPreferences:output_type -> google.protobuf.Empty
+	4,  // 14: teleport.userpreferences.v1.UserPreferencesService.GetKeyboardLayout:output_type -> teleport.userpreferences.v1.GetKeyboardLayoutResponse
+	12, // [12:15] is the sub-list for method output_type
+	9,  // [9:12] is the sub-list for method input_type
 	9,  // [9:9] is the sub-list for extension type_name
 	9,  // [9:9] is the sub-list for extension extendee
 	0,  // [0:9] is the sub-list for field type_name
@@ -353,7 +465,7 @@ func file_teleport_userpreferences_v1_userpreferences_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_userpreferences_v1_userpreferences_proto_rawDesc), len(file_teleport_userpreferences_v1_userpreferences_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

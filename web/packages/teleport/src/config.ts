@@ -160,6 +160,8 @@ const cfg = {
     account: '/web/account',
     accountPassword: '/web/account/password',
     accountMfaDevices: '/web/account/twofactor',
+    accountSecurity: '/web/account/security',
+    accountPreferences: '/web/account/preferences',
     roles: '/web/roles',
     joinTokens: '/web/tokens',
     deviceTrust: `/web/devices`,

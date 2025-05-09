@@ -95,6 +95,10 @@ type Config struct {
 
 	// AD indicates whether the desktop is part of an Active Directory domain.
 	AD bool
+
+	// KeyboardLayout is the keyboard layout preference for the user.
+	// Possible values: https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
+	KeyboardLayout int32
 }
 
 // GenerateUserCertFn generates user certificates for RDP authentication.
