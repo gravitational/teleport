@@ -75,12 +75,16 @@ func (id *IDTokenValidator) Validate(
 	defer cancel()
 
 	issuer := issuerURL(organizationID)
+	// TODO: It'd be nice to cache the OIDC discovery document for a given
+	// organization id.
 	dc, err := client.Discover(timeoutCtx, issuer, http.DefaultClient)
 	if err != nil {
 		return nil, trace.Wrap(err, "discovering oidc document")
 	}
 
 	ks := rp.NewRemoteKeySet(http.DefaultClient, dc.JwksURI)
+	// TODO: It'd be nice to cache remote-key-sets centrally within the auth
+	// server.
 	verifier := rp.NewIDTokenVerifier(issuer, audience, ks)
 	// TODO: Figure out injection of clock for testing
 
