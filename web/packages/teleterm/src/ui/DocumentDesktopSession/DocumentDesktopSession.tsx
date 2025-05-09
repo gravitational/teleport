@@ -25,7 +25,7 @@ import {
   makeProcessingAttempt,
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
-import { TdpClient } from 'shared/libs/tdp';
+import { BrowserFileSystem, TdpClient } from 'shared/libs/tdp';
 import { TdpTransport } from 'shared/libs/tdp/client';
 
 import Logger from 'teleterm/logger';
@@ -80,7 +80,7 @@ export function DocumentDesktopSession(props: {
           },
           logger
         );
-      })
+      }, new BrowserFileSystem())
   );
 
   return (
