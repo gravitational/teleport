@@ -65,8 +65,8 @@ func TestStatePersist(t *testing.T) {
 	require.NoError(t, erri)
 
 	assert.Nil(t, startTime)
-	assert.Equal(t, "", cursor)
-	assert.Equal(t, "", id)
+	assert.Empty(t, cursor)
+	assert.Empty(t, id)
 
 	errc = state.SetCursor("testCursor")
 	erri = state.SetID("testId")

@@ -26,17 +26,13 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
-	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -98,15 +94,10 @@ type legacyCollections struct {
 	auditQueries                       collectionReader[services.SecurityAuditQueryGetter]
 	secReports                         collectionReader[services.SecurityReportGetter]
 	secReportsStates                   collectionReader[services.SecurityReportStateGetter]
-	databaseObjects                    collectionReader[services.DatabaseObjectsGetter]
 	discoveryConfigs                   collectionReader[services.DiscoveryConfigsGetter]
-	kubeWaitingContainers              collectionReader[kubernetesWaitingContainerGetter]
-	staticHostUsers                    collectionReader[staticHostUserGetter]
 	networkRestrictions                collectionReader[networkRestrictionGetter]
-	dynamicWindowsDesktops             collectionReader[dynamicWindowsDesktopsGetter]
 	provisioningStates                 collectionReader[provisioningStateGetter]
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
-	gitServers                         collectionReader[services.GitServerGetter]
 }
 
 // setupLegacyCollections returns a registry of legacyCollections.
@@ -122,15 +113,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				return nil, trace.BadParameter("missing parameter DynamicAccess")
 			}
 			collections.byKind[resourceKind] = &genericCollection[types.AccessRequest, noReader, accessRequestExecutor]{cache: c, watch: watch}
-		case types.KindDatabaseObject:
-			if c.DatabaseObjects == nil {
-				return nil, trace.BadParameter("missing parameter DatabaseObject")
-			}
-			collections.databaseObjects = &genericCollection[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter, databaseObjectExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.databaseObjects
 		case types.KindNetworkRestrictions:
 			if c.Restrictions == nil {
 				return nil, trace.BadParameter("missing parameter Restrictions")
@@ -140,15 +122,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.networkRestrictions
-		case types.KindDynamicWindowsDesktop:
-			if c.WindowsDesktops == nil {
-				return nil, trace.BadParameter("missing parameter DynamicWindowsDesktops")
-			}
-			collections.dynamicWindowsDesktops = &genericCollection[types.DynamicWindowsDesktop, dynamicWindowsDesktopsGetter, dynamicWindowsDesktopsExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.dynamicWindowsDesktops
 		case types.KindDiscoveryConfig:
 			if c.DiscoveryConfigs == nil {
 				return nil, trace.BadParameter("missing parameter DiscoveryConfigs")
@@ -176,24 +149,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 			}
 			collections.secReportsStates = &genericCollection[*secreports.ReportState, services.SecurityReportStateGetter, secReportStateExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.secReportsStates
-		case types.KindKubeWaitingContainer:
-			if c.KubeWaitingContainers == nil {
-				return nil, trace.BadParameter("missing parameter KubeWaitingContainers")
-			}
-			collections.kubeWaitingContainers = &genericCollection[*kubewaitingcontainerpb.KubernetesWaitingContainer, kubernetesWaitingContainerGetter, kubeWaitingContainerExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.kubeWaitingContainers
-		case types.KindStaticHostUser:
-			if c.StaticHostUsers == nil {
-				return nil, trace.BadParameter("missing parameter StaticHostUsers")
-			}
-			collections.staticHostUsers = &genericCollection[*userprovisioningpb.StaticHostUser, staticHostUserGetter, staticHostUserExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.staticHostUsers
 		case types.KindProvisioningPrincipalState:
 			if c.ProvisioningStates == nil {
 				return nil, trace.BadParameter("missing parameter KindProvisioningState")
@@ -216,19 +171,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.identityCenterPrincipalAssignments
-		case types.KindGitServer:
-			if c.GitServers == nil {
-				return nil, trace.BadParameter("missing parameter GitServers")
-			}
-			collections.gitServers = &genericCollection[
-				types.Server,
-				services.GitServerGetter,
-				gitServerExecutor,
-			]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.gitServers
 		default:
 			if _, ok := c.collections.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
@@ -342,51 +284,6 @@ type userGetter interface {
 
 var _ executor[types.User, userGetter] = userExecutor{}
 
-type databaseObjectExecutor struct{}
-
-func (databaseObjectExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*dbobjectv1.DatabaseObject, error) {
-	var out []*dbobjectv1.DatabaseObject
-	var nextToken string
-	for {
-		var page []*dbobjectv1.DatabaseObject
-		var err error
-
-		page, nextToken, err = cache.DatabaseObjects.ListDatabaseObjects(ctx, 0, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, page...)
-		if nextToken == "" {
-			break
-		}
-	}
-	return out, nil
-}
-
-func (databaseObjectExecutor) upsert(ctx context.Context, cache *Cache, resource *dbobjectv1.DatabaseObject) error {
-	_, err := cache.databaseObjectsCache.UpsertDatabaseObject(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (databaseObjectExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return trace.Wrap(cache.databaseObjectsCache.DeleteAllDatabaseObjects(ctx))
-}
-
-func (databaseObjectExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return trace.Wrap(cache.databaseObjectsCache.DeleteDatabaseObject(ctx, resource.GetName()))
-}
-
-func (databaseObjectExecutor) isSingleton() bool { return false }
-
-func (databaseObjectExecutor) getReader(cache *Cache, cacheOK bool) services.DatabaseObjectsGetter {
-	if cacheOK {
-		return cache.databaseObjectsCache
-	}
-	return cache.Config.DatabaseObjects
-}
-
-var _ executor[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter] = databaseObjectExecutor{}
-
 type networkRestrictionsExecutor struct{}
 
 func (networkRestrictionsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.NetworkRestrictions, error) {
@@ -423,169 +320,6 @@ type networkRestrictionGetter interface {
 }
 
 var _ executor[types.NetworkRestrictions, networkRestrictionGetter] = networkRestrictionsExecutor{}
-
-type dynamicWindowsDesktopsExecutor struct{}
-
-func (dynamicWindowsDesktopsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.DynamicWindowsDesktop, error) {
-	var desktops []types.DynamicWindowsDesktop
-	next := ""
-	for {
-		d, token, err := cache.Config.DynamicWindowsDesktops.ListDynamicWindowsDesktops(ctx, defaults.MaxIterationLimit, next)
-		if err != nil {
-			return nil, err
-		}
-		desktops = append(desktops, d...)
-		if token == "" {
-			break
-		}
-		next = token
-	}
-	return desktops, nil
-}
-
-func (dynamicWindowsDesktopsExecutor) upsert(ctx context.Context, cache *Cache, resource types.DynamicWindowsDesktop) error {
-	_, err := cache.dynamicWindowsDesktopsCache.UpsertDynamicWindowsDesktop(ctx, resource)
-	return err
-}
-
-func (dynamicWindowsDesktopsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.dynamicWindowsDesktopsCache.DeleteAllDynamicWindowsDesktops(ctx)
-}
-
-func (dynamicWindowsDesktopsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.dynamicWindowsDesktopsCache.DeleteDynamicWindowsDesktop(ctx, resource.GetName())
-}
-
-func (dynamicWindowsDesktopsExecutor) isSingleton() bool { return false }
-
-func (dynamicWindowsDesktopsExecutor) getReader(cache *Cache, cacheOK bool) dynamicWindowsDesktopsGetter {
-	if cacheOK {
-		return cache.dynamicWindowsDesktopsCache
-	}
-	return cache.Config.DynamicWindowsDesktops
-}
-
-type dynamicWindowsDesktopsGetter interface {
-	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
-	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, nextPage string) ([]types.DynamicWindowsDesktop, string, error)
-}
-
-var _ executor[types.DynamicWindowsDesktop, dynamicWindowsDesktopsGetter] = dynamicWindowsDesktopsExecutor{}
-
-type kubeWaitingContainerExecutor struct{}
-
-func (kubeWaitingContainerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
-	var (
-		startKey string
-		allConts []*kubewaitingcontainerpb.KubernetesWaitingContainer
-	)
-	for {
-		conts, nextKey, err := cache.KubeWaitingContainers.ListKubernetesWaitingContainers(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		allConts = append(allConts, conts...)
-
-		if nextKey == "" {
-			break
-		}
-		startKey = nextKey
-	}
-	return allConts, nil
-}
-
-func (kubeWaitingContainerExecutor) upsert(ctx context.Context, cache *Cache, resource *kubewaitingcontainerpb.KubernetesWaitingContainer) error {
-	_, err := cache.kubeWaitingContsCache.UpsertKubernetesWaitingContainer(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (kubeWaitingContainerExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return trace.Wrap(cache.kubeWaitingContsCache.DeleteAllKubernetesWaitingContainers(ctx))
-}
-
-func (kubeWaitingContainerExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	switch r := resource.(type) {
-	case types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]:
-		wc := r.UnwrapT()
-		err := cache.kubeWaitingContsCache.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
-			Username:      wc.Spec.Username,
-			Cluster:       wc.Spec.Cluster,
-			Namespace:     wc.Spec.Namespace,
-			PodName:       wc.Spec.PodName,
-			ContainerName: wc.Spec.ContainerName,
-		})
-		return trace.Wrap(err)
-	}
-
-	return trace.BadParameter("unknown KubeWaitingContainer type, expected *kubewaitingcontainerpb.KubernetesWaitingContainer, got %T", resource)
-}
-
-func (kubeWaitingContainerExecutor) isSingleton() bool { return false }
-
-func (kubeWaitingContainerExecutor) getReader(cache *Cache, cacheOK bool) kubernetesWaitingContainerGetter {
-	if cacheOK {
-		return cache.kubeWaitingContsCache
-	}
-	return cache.Config.KubeWaitingContainers
-}
-
-type kubernetesWaitingContainerGetter interface {
-	ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error)
-	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
-}
-
-var _ executor[*kubewaitingcontainerpb.KubernetesWaitingContainer, kubernetesWaitingContainerGetter] = kubeWaitingContainerExecutor{}
-
-type staticHostUserExecutor struct{}
-
-func (staticHostUserExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*userprovisioningpb.StaticHostUser, error) {
-	var (
-		startKey string
-		allUsers []*userprovisioningpb.StaticHostUser
-	)
-	for {
-		users, nextKey, err := cache.StaticHostUsers.ListStaticHostUsers(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		allUsers = append(allUsers, users...)
-
-		if nextKey == "" {
-			break
-		}
-		startKey = nextKey
-	}
-	return allUsers, nil
-}
-
-func (staticHostUserExecutor) upsert(ctx context.Context, cache *Cache, resource *userprovisioningpb.StaticHostUser) error {
-	_, err := cache.staticHostUsersCache.UpsertStaticHostUser(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (staticHostUserExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return trace.Wrap(cache.staticHostUsersCache.DeleteAllStaticHostUsers(ctx))
-}
-
-func (staticHostUserExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return trace.Wrap(cache.staticHostUsersCache.DeleteStaticHostUser(ctx, resource.GetName()))
-}
-
-func (staticHostUserExecutor) isSingleton() bool { return false }
-
-func (staticHostUserExecutor) getReader(cache *Cache, cacheOK bool) staticHostUserGetter {
-	if cacheOK {
-		return cache.staticHostUsersCache
-	}
-	return cache.Config.StaticHostUsers
-}
-
-type staticHostUserGetter interface {
-	ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error)
-	GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error)
-}
 
 // collectionReader extends the collection interface, adding routing capabilities.
 type collectionReader[R any] interface {

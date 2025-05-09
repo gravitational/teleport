@@ -18,8 +18,8 @@
 
 import { useCallback } from 'react';
 
-import { LoggedInUser } from 'teleterm/services/tshd/types';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { LoggedInUser } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
 import { useStoreSelector } from './useStoreSelector';
@@ -34,20 +34,19 @@ import { useStoreSelector } from './useStoreSelector';
  * It might return undefined if there's no active workspace.
  */
 export function useLoggedInUser(): LoggedInUser | undefined {
-  const { clustersService } = useAppContext();
-  clustersService.useState();
-
-  const clusterUri = useStoreSelector(
+  const rootClusterUri = useStoreSelector(
     'workspacesService',
     useCallback(store => store.rootClusterUri, [])
   );
+  const loggedInUser = useStoreSelector(
+    'clustersService',
+    useCallback(
+      state => state.clusters.get(rootClusterUri)?.loggedInUser,
+      [rootClusterUri]
+    )
+  );
 
-  if (!clusterUri) {
-    return;
-  }
-
-  const cluster = clustersService.findCluster(clusterUri);
-  return cluster?.loggedInUser;
+  return loggedInUser;
 }
 
 /**
@@ -64,10 +63,14 @@ export function useLoggedInUser(): LoggedInUser | undefined {
  * default document.
  */
 export function useWorkspaceLoggedInUser(): LoggedInUser | undefined {
-  const { clustersService } = useAppContext();
-  clustersService.useState();
   const { rootClusterUri } = useWorkspaceContext();
+  const loggedInUser = useStoreSelector(
+    'clustersService',
+    useCallback(
+      state => state.clusters.get(rootClusterUri)?.loggedInUser,
+      [rootClusterUri]
+    )
+  );
 
-  const cluster = clustersService.findCluster(rootClusterUri);
-  return cluster?.loggedInUser;
+  return loggedInUser;
 }
