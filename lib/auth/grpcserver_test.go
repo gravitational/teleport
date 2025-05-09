@@ -5427,6 +5427,7 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 						if tc.expectDowngraded {
 							require.NotEmpty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
 							require.Contains(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel], "Role V8 is only supported")
+							require.Contains(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel], "SAML IdP will be disabled")
 						}
 					}
 
