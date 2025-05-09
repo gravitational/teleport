@@ -41,7 +41,9 @@ import (
 	v1 "k8s.io/api/authorization/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
@@ -108,6 +110,22 @@ const (
 // Option is a functional option for KubeMockServer
 type Option func(*KubeMockServer)
 
+// WithCRD adds a CRD to the server with the given resources.
+func WithCRD(crd *CRD, resources ...*unstructured.Unstructured) Option {
+	return func(s *KubeMockServer) {
+		if s.crds == nil {
+			s.crds = map[GVP]*CRD{}
+		}
+		cpy := crd.Copy()
+		for _, r := range resources {
+			r2 := r.DeepCopy()
+			r2.SetGroupVersionKind(schema.GroupVersionKind{Group: cpy.group, Version: cpy.version, Kind: cpy.kind})
+			cpy.items = append(cpy.items, runtime.RawExtension{Object: r2})
+		}
+		s.crds[cpy.GVP] = cpy
+	}
+}
+
 // WithGetPodError sets the error to be returned by the GetPod call
 func WithGetPodError(status metav1.Status) Option {
 	return func(s *KubeMockServer) {
@@ -166,6 +184,8 @@ type KubeMockServer struct {
 	KubeExecRequests     KubeUpgradeRequests
 	KubePortforward      KubeUpgradeRequests
 	supportsTunneledSPDY bool
+
+	crds map[GVP]*CRD
 }
 
 // NewKubeAPIMock creates Kubernetes API server for handling exec calls.
@@ -186,7 +206,6 @@ func NewKubeAPIMock(opts ...Option) (*KubeMockServer, error) {
 			GitVersion: "1.20.0",
 		},
 	}
-
 	for _, o := range opts {
 		o(s)
 	}
@@ -233,19 +252,47 @@ func (s *KubeMockServer) setup() {
 
 	s.router.POST("/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", s.withWriter(s.selfSubjectAccessReviews))
 
-	s.router.GET("/apis/resources.teleport.dev/v6/namespaces/:namespace/teleportroles", s.withWriter(s.listTeleportRoles))
-	s.router.GET("/apis/resources.teleport.dev/v6/teleportroles", s.withWriter(s.listTeleportRoles))
-	s.router.GET("/apis/resources.teleport.dev/v6/namespaces/:namespace/teleportroles/:name", s.withWriter(s.getTeleportRole))
-	s.router.DELETE("/apis/resources.teleport.dev/v6/namespaces/:namespace/teleportroles/:name", s.withWriter(s.deleteTeleportRole))
+	for k, crd := range s.crds {
+		s.router.GET("/apis/"+k.group+"/"+k.version+"/namespaces/:namespace/"+k.plural, s.withWriter(s.listCRDs(crd)))
+		s.router.GET("/apis/"+k.group+"/"+k.version+"/"+k.plural, s.withWriter(s.listCRDs(crd)))
+		s.router.GET("/apis/"+k.group+"/"+k.version+"/namespaces/:namespace/"+k.plural+"/:name", s.withWriter(s.getCRD(crd)))
+		s.router.DELETE("/apis/"+k.group+"/"+k.version+"/namespaces/:namespace/"+k.plural+"/:name", s.withWriter(s.deleteCRD(crd)))
+	}
 
 	s.router.GET("/version", s.withWriter(s.versionEndpoint))
 
-	for _, endpoint := range []string{"/api", "/api/:ver", "/apis", "/apis/resources.teleport.dev/v6"} {
+	for _, endpoint := range []string{"/api", "/api/:ver", "/apis"} {
 		s.router.GET(endpoint, s.withWriter(s.discoveryEndpoint))
+	}
+	for k, v := range s.crds {
+		s.router.GET("/apis/"+k.group+"/"+k.version, s.withWriter(crdDiscovery(v)))
 	}
 
 	s.server = httptest.NewUnstartedServer(s.router)
 	s.server.EnableHTTP2 = true
+}
+
+func (s *KubeMockServer) CRDScheme() *runtime.Scheme {
+	getUnstructuredCRD := func(group, version, kind string) *unstructured.Unstructured {
+		obj := &unstructured.Unstructured{}
+		obj.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   group,
+			Version: version,
+			Kind:    kind,
+		})
+		return obj
+	}
+
+	kubeScheme := runtime.NewScheme()
+	for k, crd := range s.crds {
+		single := getUnstructuredCRD(k.group, k.version, crd.kind)
+		list := getUnstructuredCRD(k.group, k.version, crd.listKind)
+
+		kubeScheme.AddKnownTypeWithName(single.GroupVersionKind(), single)
+		kubeScheme.AddKnownTypeWithName(list.GroupVersionKind(), list)
+	}
+
+	return kubeScheme
 }
 
 func (s *KubeMockServer) Close() error {

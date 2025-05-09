@@ -238,6 +238,9 @@ const (
 	// KindKubeReplicaSet is a Kubernetes Replicaset resource type.
 	KindKubeReplicaSet = "replicaset"
 
+	// KindKubeReplicationController is a Kubernetes ReplicationController resource type.
+	KindKubeReplicationController = "replicationcontroller"
+
 	// KindKubeStatefulset is a Kubernetes Statefulset resource type.
 	KindKubeStatefulset = "statefulset"
 
@@ -1405,6 +1408,31 @@ var KubernetesResourcesKinds = []string{
 	KindKubeJob,
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
+}
+
+var KubernetesResourcesKindsPlurals = map[string]string{
+	KindKubePod:                       "pods",
+	KindKubeSecret:                    "secrets",
+	KindKubeConfigmap:                 "configmaps",
+	KindKubeNamespace:                 "namespaces",
+	KindKubeService:                   "services",
+	KindKubeServiceAccount:            "serviceaccounts",
+	KindKubeNode:                      "nodes",
+	KindKubePersistentVolume:          "persistentvolumes",
+	KindKubePersistentVolumeClaim:     "persistentvolumeclaims",
+	KindKubeDeployment:                "deployments",
+	KindKubeReplicaSet:                "replicasets",
+	KindKubeReplicationController:     "replicationcontrollers",
+	KindKubeStatefulset:               "statefulsets",
+	KindKubeDaemonSet:                 "daemonsets",
+	KindKubeClusterRole:               "clusterroles",
+	KindKubeRole:                      "roles",
+	KindKubeClusterRoleBinding:        "clusterrolebindings",
+	KindKubeRoleBinding:               "rolebindings",
+	KindKubeCronjob:                   "cronjobs",
+	KindKubeJob:                       "jobs",
+	KindKubeCertificateSigningRequest: "certificatesigningrequests",
+	KindKubeIngress:                   "ingresses",
 }
 
 const (

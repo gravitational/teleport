@@ -185,6 +185,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubePod,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.CoreV1().Pods(namespace).Delete(ctx, name, deleteOptions))
@@ -198,6 +199,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeSecret,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.CoreV1().Secrets(namespace).Delete(ctx, name, deleteOptions))
@@ -211,6 +213,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeConfigmap,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.CoreV1().ConfigMaps(namespace).Delete(ctx, name, deleteOptions))
@@ -224,6 +227,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeNamespace,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, _ string) error {
 				return trace.Wrap(client.CoreV1().Namespaces().Delete(ctx, name, deleteOptions))
@@ -237,6 +241,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeServiceAccount,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.CoreV1().ServiceAccounts(namespace).Delete(ctx, name, deleteOptions))
@@ -250,6 +255,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubePersistentVolume,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, _ string) error {
 				return trace.Wrap(client.CoreV1().PersistentVolumes().Delete(ctx, name, deleteOptions))
@@ -264,6 +270,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubePersistentVolumeClaim,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.CoreV1().PersistentVolumeClaims(namespace).Delete(ctx, name, deleteOptions))
@@ -277,6 +284,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeDeployment,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.AppsV1().Deployments(namespace).Delete(ctx, name, deleteOptions))
@@ -290,6 +298,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeReplicaSet,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.AppsV1().ReplicaSets(namespace).Delete(ctx, name, deleteOptions))
@@ -304,6 +313,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeStatefulset,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.AppsV1().StatefulSets(namespace).Delete(ctx, name, deleteOptions))
@@ -317,6 +327,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeDaemonSet,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.AppsV1().DaemonSets(namespace).Delete(ctx, name, deleteOptions))
@@ -331,6 +342,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeClusterRole,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, _ string) error {
 				return trace.Wrap(client.RbacV1().ClusterRoles().Delete(ctx, name, deleteOptions))
@@ -344,6 +356,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeRole,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.RbacV1().Roles(namespace).Delete(ctx, name, deleteOptions))
@@ -357,6 +370,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeClusterRoleBinding,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, _ string) error {
 				return trace.Wrap(client.RbacV1().ClusterRoleBindings().Delete(ctx, name, deleteOptions))
@@ -370,6 +384,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeRoleBinding,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.RbacV1().RoleBindings(namespace).Delete(ctx, name, deleteOptions))
@@ -383,6 +398,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeCronjob,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.BatchV1().CronJobs(namespace).Delete(ctx, name, deleteOptions))
@@ -396,6 +412,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeJob,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.BatchV1().Jobs(namespace).Delete(ctx, name, deleteOptions))
@@ -409,6 +426,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeCertificateSigningRequest,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, _ string) error {
 				return trace.Wrap(client.CertificatesV1().CertificateSigningRequests().Delete(ctx, name, deleteOptions))
@@ -422,6 +440,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeIngress,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.NetworkingV1().Ingresses(namespace).Delete(ctx, name, deleteOptions))
@@ -435,6 +454,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeIngress,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.ExtensionsV1beta1().Ingresses(namespace).Delete(ctx, name, deleteOptions))
@@ -448,6 +468,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeDaemonSet,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.ExtensionsV1beta1().DaemonSets(namespace).Delete(ctx, name, deleteOptions))
@@ -461,6 +482,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeDeployment,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.ExtensionsV1beta1().Deployments(namespace).Delete(ctx, name, deleteOptions))
@@ -474,6 +496,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		items, err := deleteResources(
 			params,
 			types.KindKubeReplicaSet,
+			sess.apiResource.apiGroup,
 			slices.ToPointers(o.Items),
 			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
 				return trace.Wrap(client.ExtensionsV1beta1().ReplicaSets(namespace).Delete(ctx, name, deleteOptions))
@@ -591,7 +614,7 @@ type deleteResourcesCommonParams struct {
 
 func deleteResources[T kubeObjectInterface](
 	params deleteResourcesCommonParams,
-	kind string,
+	kind, group string,
 	items []T,
 	deleteOP func(ctx context.Context, client kubernetes.Interface, name, namespace string) error,
 ) ([]T, error) {
@@ -607,7 +630,7 @@ func deleteResources[T kubeObjectInterface](
 				params.authCtx.Checker.Traits(),
 			),
 			services.NewKubernetesResourceMatcher(
-				getKubeResource(kind, types.KubeVerbDeleteCollection, item),
+				getKubeResource(kind, group, types.KubeVerbDeleteCollection, item),
 			),
 		)
 		// no match was found, we ignore the request.

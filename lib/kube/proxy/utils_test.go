@@ -464,8 +464,9 @@ func (c *TestContext) CreateUserWithTraitsAndRole(ctx context.Context, t *testin
 	role.SetKubeGroups(types.Allow, roleSpec.KubeGroups)
 	role.SetSessionRequirePolicies(roleSpec.SessionRequire)
 	role.SetSessionJoinPolicies(roleSpec.SessionJoin)
+
 	if roleSpec.SetupRoleFunc == nil {
-		role.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}}})
+		role.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: "core"}})
 	} else {
 		roleSpec.SetupRoleFunc(role)
 	}

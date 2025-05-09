@@ -1598,7 +1598,7 @@ protos-up-to-date/host: must-start-clean/host grpc/host
 .PHONY: must-start-clean/host
 must-start-clean/host:
 	@if ! git diff --quiet; then \
-		@echo 'This must be run from a repo with no unstaged commits.'; \
+		echo 'This must be run from a repo with no unstaged commits.'; \
 		git diff; \
 		exit 1; \
 	fi

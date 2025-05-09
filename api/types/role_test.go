@@ -152,7 +152,8 @@ func TestRole_GetKubeResources(t *testing.T) {
 	kubeLabels := Labels{
 		Wildcard: {Wildcard},
 	}
-	labelsExpression := "contains(user.spec.traits[\"groups\"], \"prod\")"
+	const labelsExpression = "contains(user.spec.traits[\"groups\"], \"prod\")"
+
 	type args struct {
 		version          string
 		labels           Labels
@@ -166,6 +167,45 @@ func TestRole_GetKubeResources(t *testing.T) {
 		assertErrorCreation require.ErrorAssertionFunc
 	}{
 		{
+			name: "v8 with unknown kind",
+			args: args{
+				version: V8,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						Kind:      "unknown kind",
+						Namespace: "test",
+						Name:      "test",
+						APIGroup:  Wildcard,
+					},
+				},
+			},
+			want: []KubernetesResource{
+				{
+					Kind:      "unknown kind",
+					Namespace: "test",
+					Name:      "test",
+					APIGroup:  Wildcard,
+				},
+			},
+			assertErrorCreation: require.NoError,
+		},
+		{
+			name: "v8 without group",
+			args: args{
+				version: V8,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						Kind:      KindKubePod,
+						Namespace: "test",
+						Name:      "test",
+					},
+				},
+			},
+			assertErrorCreation: require.Error,
+		},
+		{
 			name: "v7 with error",
 			args: args{
 				version: V7,
@@ -178,10 +218,11 @@ func TestRole_GetKubeResources(t *testing.T) {
 					},
 				},
 			},
+
 			assertErrorCreation: require.Error,
 		},
 		{
-			name: "v7",
+			name: "v7 without group",
 			args: args{
 				version: V7,
 				labels:  kubeLabels,
@@ -199,11 +240,28 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Kind:      KindKubePod,
 					Namespace: "test",
 					Name:      "test",
+					APIGroup:  Wildcard,
 				},
 			},
 		},
 		{
-			name: "v7 with labels expression",
+			name: "v7 with group",
+			args: args{
+				version: V7,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						Kind:      KindKubePod,
+						Namespace: "test",
+						Name:      "test",
+						APIGroup:  "apps",
+					},
+				},
+			},
+			assertErrorCreation: require.Error,
+		},
+		{
+			name: "v7 with label expression",
 			args: args{
 				version:          V7,
 				labelsExpression: labelsExpression,
@@ -221,11 +279,12 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Kind:      KindKubePod,
 					Namespace: "test",
 					Name:      "test",
+					APIGroup:  Wildcard,
 				},
 			},
 		},
 		{
-			name: "v6 to v7 without wildcard; labels expression",
+			name: "v6 without wildcard; labels expression",
 			args: args{
 				version:          V6,
 				labelsExpression: labelsExpression,
@@ -244,12 +303,13 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Namespace: "test",
 					Name:      "test",
 					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
 				},
 			},
 				appendV7KubeResources()...),
 		},
 		{
-			name: "v6 to v7 with wildcard",
+			name: "v6 with wildcard",
 			args: args{
 				version: V6,
 				labels:  kubeLabels,
@@ -268,11 +328,12 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Namespace: Wildcard,
 					Name:      Wildcard,
 					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
 				},
 			},
 		},
 		{
-			name: "v6 to v7 without wildcard",
+			name: "v6 without wildcard",
 			args: args{
 				version: V6,
 				labels:  kubeLabels,
@@ -291,12 +352,13 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Namespace: "test",
 					Name:      "test",
 					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
 				},
 			},
 				appendV7KubeResources()...),
 		},
 		{
-			name: "v5 to v7: populate with defaults.",
+			name: "v5: populate with defaults.",
 			args: args{
 				version:   V5,
 				labels:    kubeLabels,
@@ -309,11 +371,12 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Namespace: Wildcard,
 					Name:      Wildcard,
 					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
 				},
 			},
 		},
 		{
-			name: "v5 to v7 without kube labels",
+			name: "v5 without kube labels",
 			args: args{
 				version:   V5,
 				resources: nil,
@@ -566,6 +629,7 @@ func appendV7KubeResources() []KubernetesResource {
 			Namespace: Wildcard,
 			Name:      Wildcard,
 			Verbs:     []string{Wildcard},
+			APIGroup:  Wildcard,
 		},
 		)
 	}

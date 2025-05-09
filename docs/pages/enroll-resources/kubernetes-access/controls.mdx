@@ -35,7 +35,7 @@ clusters:
 kind: role
 metadata:
   name: kube-access
-version: v7
+version: v8
 spec:
   allow:
     kubernetes_labels:
@@ -45,9 +45,11 @@ spec:
       - kind: pod
         namespace: "production"
         name: "^webapp-[a-z0-9-]+$"
+        api_group: "*"
       - kind: pod
         namespace: "development"
         name: "*"
+        api_group: "*"
     kubernetes_groups:
     - developers
     kubernetes_users:
@@ -481,7 +483,7 @@ specific resources in a Kubernetes cluster:
 kind: role
 metadata:
   name: kube-access
-version: v7
+version: v8
 spec:
   allow:
     kubernetes_labels:
@@ -491,6 +493,7 @@ spec:
         namespace: "production"
         name: "webapp"
         verbs: ['*']
+        api_group: "*"
     # ...
 ```
 
@@ -503,6 +506,7 @@ the following kinds:
   | Kind | Grants access to |
   | ---- | ----------- |
   | `*` | All resources |
+  | `<arbitrary string>` | Custom Kind (e.g. Pod, Deployment, CronJob, MyCustomResource) |
   | `pod` | Pods |
   | `secret` | Secrets |
   | `configmap` | ConfigMaps |
