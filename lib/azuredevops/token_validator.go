@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/zitadel/oidc/v3/pkg/client"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
 )
@@ -40,10 +39,22 @@ const providerTimeout = 15 * time.Second
 // issued ID Tokens. Unfortunately, this cannot be changed.
 const audience = "api://AzureADTokenExchange"
 
-func issuerURL(organizationID string) string {
+func issuerURL(
+	organizationID string,
+	overrideHost string,
+	insecure bool,
+) string {
+	scheme := "https"
+	if insecure {
+		scheme = "http"
+	}
+	host := "vstoken.dev.azure.com"
+	if overrideHost != "" {
+		host = overrideHost
+	}
 	issuerURL := url.URL{
-		Scheme: "https",
-		Host:   "vstoken.dev.azure.com",
+		Scheme: scheme,
+		Host:   host,
 		Path:   fmt.Sprintf("/%s", organizationID),
 	}
 	return issuerURL.String()
@@ -51,20 +62,13 @@ func issuerURL(organizationID string) string {
 
 // IDTokenValidator validates an Azure Devops issued ID Token.
 type IDTokenValidator struct {
-	// clock is used by the validator when checking expiry and issuer times of
-	// tokens. If omitted, a real clock will be used.
-	clock clockwork.Clock
+	insecureDiscovery     bool
+	overrideDiscoveryHost string
 }
 
 // NewIDTokenValidator returns an initialized IDTokenValidator
-func NewIDTokenValidator(clock clockwork.Clock) *IDTokenValidator {
-	if clock == nil {
-		clock = clockwork.NewRealClock()
-	}
-
-	return &IDTokenValidator{
-		clock: clock,
-	}
+func NewIDTokenValidator() *IDTokenValidator {
+	return &IDTokenValidator{}
 }
 
 // Validate validates an Azure Devops issued ID token.
@@ -74,7 +78,9 @@ func (id *IDTokenValidator) Validate(
 	timeoutCtx, cancel := context.WithTimeout(ctx, providerTimeout)
 	defer cancel()
 
-	issuer := issuerURL(organizationID)
+	issuer := issuerURL(
+		organizationID, id.overrideDiscoveryHost, id.insecureDiscovery,
+	)
 	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
 	// aggressively across join tokens since this isn't going to change very
 	// regularly.
@@ -102,6 +108,13 @@ func (id *IDTokenValidator) Validate(
 	claims.OrganizationName = parsed.organizationName
 	claims.ProjectName = parsed.projectName
 	claims.PipelineName = parsed.pipelineName
+
+	if claims.OrganizationID != organizationID {
+		return nil, trace.BadParameter(
+			"organization ID in token (%s) does not match configured (%s)",
+			claims.OrganizationID, organizationID,
+		)
+	}
 
 	return claims, nil
 }
