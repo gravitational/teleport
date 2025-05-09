@@ -256,7 +256,7 @@ class Device$Type extends MessageType<Device> {
             { no: 7, name: "enroll_token", kind: "message", T: () => DeviceEnrollToken },
             { no: 8, name: "enroll_status", kind: "enum", T: () => ["teleport.devicetrust.v1.DeviceEnrollStatus", DeviceEnrollStatus, "DEVICE_ENROLL_STATUS_"] },
             { no: 9, name: "credential", kind: "message", T: () => DeviceCredential },
-            { no: 10, name: "collected_data", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => DeviceCollectedData },
+            { no: 10, name: "collected_data", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => DeviceCollectedData },
             { no: 11, name: "source", kind: "message", T: () => DeviceSource },
             { no: 12, name: "profile", kind: "message", T: () => DeviceProfile },
             { no: 13, name: "owner", kind: "scalar", T: 9 /*ScalarType.STRING*/ }

@@ -51,6 +51,7 @@ export function StatusInfo({
           params: {
             ...params,
             query: `name == "${resource.name}"`,
+            searchAsRoles: resource.requiresRequest ? 'yes' : '',
           },
           signal,
         });

@@ -100,7 +100,7 @@ func TestCollectProfiles(t *testing.T) {
 				require.Equal(t, expectedSeconds, profile.seconds)
 				requestedProfiles = append(requestedProfiles, profile.name)
 			}
-			require.Equal(t, len(test.expectedProfiles), len(requestedProfiles), "expected %d to be requested but got %d", len(test.expectedProfiles), len(requestedProfiles))
+			require.Len(t, test.expectedProfiles, len(requestedProfiles), "expected %d to be requested but got %d", len(test.expectedProfiles), len(requestedProfiles))
 
 			reader, err := gzip.NewReader(&out)
 			require.NoError(t, err)

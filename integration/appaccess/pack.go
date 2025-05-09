@@ -903,7 +903,7 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 
 	servers, err := p.rootCluster.StartApps(configs)
 	require.NoError(t, err)
-	require.Equal(t, len(configs), len(servers))
+	require.Len(t, configs, len(servers))
 
 	for i, appServer := range servers {
 		srv := appServer
@@ -1048,7 +1048,7 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 
 	servers, err := p.leafCluster.StartApps(configs)
 	require.NoError(t, err)
-	require.Equal(t, len(configs), len(servers))
+	require.Len(t, configs, len(servers))
 
 	for i, appServer := range servers {
 		srv := appServer

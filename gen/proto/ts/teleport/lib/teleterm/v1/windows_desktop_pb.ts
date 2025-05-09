@@ -77,7 +77,7 @@ class WindowsDesktop$Type extends MessageType<WindowsDesktop> {
             { no: 2, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "logins", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "labels", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Label }
+            { no: 5, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label }
         ]);
     }
     create(value?: PartialMessage<WindowsDesktop>): WindowsDesktop {

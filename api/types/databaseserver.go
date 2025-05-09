@@ -57,6 +57,10 @@ type DatabaseServer interface {
 	SetDatabase(Database) error
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
+	// GetTargetHealth returns the database server's target health.
+	GetTargetHealth() TargetHealth
+	// SetTargetHealth sets the database server's target health status.
+	SetTargetHealth(h TargetHealth)
 }
 
 // NewDatabaseServerV3 creates a new database server instance.
@@ -283,6 +287,19 @@ func (s *DatabaseServerV3) CloneResource() ResourceWithLabels {
 // match against the list of search values.
 func (s *DatabaseServerV3) MatchSearch(values []string) bool {
 	return MatchSearch(nil, values, nil)
+}
+
+// GetTargetHealth returns the database server's target health.
+func (s *DatabaseServerV3) GetTargetHealth() TargetHealth {
+	if s.Status.TargetHealth == nil {
+		return TargetHealth{}
+	}
+	return *s.Status.TargetHealth
+}
+
+// SetTargetHealth sets the database server's target health status.
+func (s *DatabaseServerV3) SetTargetHealth(h TargetHealth) {
+	s.Status.TargetHealth = &h
 }
 
 // DatabaseServers represents a list of database servers.

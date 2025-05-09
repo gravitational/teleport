@@ -336,7 +336,7 @@ class Report$Type extends MessageType<Report> {
         super("teleport.lib.vnet.diag.v1.Report", [
             { no: 1, name: "created_at", kind: "message", T: () => Timestamp },
             { no: 2, name: "network_stack_attempt", kind: "message", T: () => NetworkStackAttempt },
-            { no: 3, name: "checks", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => CheckAttempt }
+            { no: 3, name: "checks", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => CheckAttempt }
         ]);
     }
     create(value?: PartialMessage<Report>): Report {
@@ -531,7 +531,7 @@ class CheckAttempt$Type extends MessageType<CheckAttempt> {
             { no: 1, name: "status", kind: "enum", T: () => ["teleport.lib.vnet.diag.v1.CheckAttemptStatus", CheckAttemptStatus, "CHECK_ATTEMPT_STATUS_"] },
             { no: 2, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "check_report", kind: "message", T: () => CheckReport },
-            { no: 4, name: "commands", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => CommandAttempt }
+            { no: 4, name: "commands", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => CommandAttempt }
         ]);
     }
     create(value?: PartialMessage<CheckAttempt>): CheckAttempt {
@@ -727,7 +727,7 @@ export const CommandAttempt = new CommandAttempt$Type();
 class RouteConflictReport$Type extends MessageType<RouteConflictReport> {
     constructor() {
         super("teleport.lib.vnet.diag.v1.RouteConflictReport", [
-            { no: 1, name: "route_conflicts", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => RouteConflict }
+            { no: 1, name: "route_conflicts", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => RouteConflict }
         ]);
     }
     create(value?: PartialMessage<RouteConflictReport>): RouteConflictReport {

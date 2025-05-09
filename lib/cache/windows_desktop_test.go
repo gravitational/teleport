@@ -124,3 +124,39 @@ func TestWindowsDesktopService(t *testing.T) {
 		})
 	})
 }
+
+func TestDynamicWindowsDesktop(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.DynamicWindowsDesktop]{
+		newResource: func(name string) (types.DynamicWindowsDesktop, error) {
+			return types.NewDynamicWindowsDesktopV1(name,
+				nil,
+				types.DynamicWindowsDesktopSpecV1{
+					Addr: "localhost:123",
+				},
+			)
+		},
+		create: func(ctx context.Context, dwd types.DynamicWindowsDesktop) error {
+			_, err := p.dynamicWindowsDesktops.CreateDynamicWindowsDesktop(ctx, dwd)
+			return err
+		},
+		list: func(ctx context.Context) ([]types.DynamicWindowsDesktop, error) {
+			desktops, _, err := p.dynamicWindowsDesktops.ListDynamicWindowsDesktops(ctx, 0, "")
+			return desktops, err
+		},
+		cacheGet: p.cache.GetDynamicWindowsDesktop,
+		cacheList: func(ctx context.Context) ([]types.DynamicWindowsDesktop, error) {
+			desktops, _, err := p.cache.ListDynamicWindowsDesktops(ctx, 0, "")
+			return desktops, err
+		},
+		update: func(ctx context.Context, dwd types.DynamicWindowsDesktop) error {
+			_, err := p.dynamicWindowsDesktops.UpdateDynamicWindowsDesktop(ctx, dwd)
+			return err
+		},
+		deleteAll: p.dynamicWindowsDesktops.DeleteAllDynamicWindowsDesktops,
+	})
+}

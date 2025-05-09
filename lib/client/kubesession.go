@@ -136,8 +136,7 @@ func NewKubeSession(ctx context.Context, cfg KubeSessionConfig) (*KubeSession, e
 
 	stdout := utils.NewSyncWriter(term.Stdout())
 
-	go handleOutgoingResizeEvents(ctx, stream, term)
-	go handleIncomingResizeEvents(ctx, stream, term)
+	go handleResizeEvents(ctx, stream, term)
 
 	s := &KubeSession{stream, term, ctx, cancel, cfg.Tracker, sync.WaitGroup{}}
 	if err := s.handleMFA(ctx, cfg.AuthClient, cfg.Ceremony, cfg.Mode, stdout); err != nil {
@@ -170,29 +169,28 @@ func kubeSessionNetDialer(ctx context.Context, cfg KubeSessionConfig) client.Con
 	)
 }
 
-func handleOutgoingResizeEvents(ctx context.Context, stream *streamproto.SessionStream, term *terminal.Terminal) {
-	queue := stream.ResizeQueue()
-
-	select {
-	case <-ctx.Done():
-		return
-	case size := <-queue:
-		if size == nil {
-			return
-		}
-
-		term.Resize(int16(size.Width), int16(size.Height))
-	}
-}
-
-func handleIncomingResizeEvents(ctx context.Context, stream *streamproto.SessionStream, term *terminal.Terminal) {
-	events := term.Subscribe()
-
+func handleResizeEvents(ctx context.Context, stream *streamproto.SessionStream, term *terminal.Terminal) {
+	streamResizes := stream.ResizeQueue()
+	terminalResizes := term.Subscribe()
+	defer stream.Close()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case event, more := <-events:
+		case size, more := <-streamResizes:
+			if !more {
+				return
+			}
+			if size == nil {
+				continue
+			}
+			if err := term.Resize(int16(size.Width), int16(size.Height)); err != nil {
+				fmt.Printf("Error attempting to resize terminal: %v\n\r", err)
+			}
+		case event, more := <-terminalResizes:
+			if !more {
+				return
+			}
 			_, ok := event.(terminal.ResizeEvent)
 			if ok {
 				w, h, err := term.Size()
@@ -204,10 +202,6 @@ func handleIncomingResizeEvents(ctx context.Context, stream *streamproto.Session
 				if err := stream.Resize(&size); err != nil {
 					fmt.Printf("Error attempting to resize terminal: %v\n\r", err)
 				}
-			}
-
-			if !more {
-				return
 			}
 		}
 	}

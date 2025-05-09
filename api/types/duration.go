@@ -200,7 +200,7 @@ func parseDuration(s string) (Duration, error) {
 		var err error
 
 		// The next character must be [0-9.]
-		if !(s[0] == '.' || '0' <= s[0] && s[0] <= '9') {
+		if s[0] != '.' && (s[0] < '0' || s[0] > '9') {
 			return 0, trace.BadParameter("time: invalid duration %q", orig)
 		}
 		// Consume [0-9]*

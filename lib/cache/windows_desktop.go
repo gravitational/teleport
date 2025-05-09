@@ -279,3 +279,88 @@ func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDe
 
 	return &resp, nil
 }
+
+type dynamicWindowsDesktopIndex string
+
+const dynamicWindowsDesktopNameIndex dynamicWindowsDesktopIndex = "name"
+
+func newDynamicWindowsDesktopCollection(upstream services.DynamicWindowsDesktops, w types.WatchKind) (*collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter DynamicWindowsDesktops")
+	}
+
+	return &collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]{
+		store: newStore(map[dynamicWindowsDesktopIndex]func(types.DynamicWindowsDesktop) string{
+			dynamicWindowsDesktopNameIndex: func(u types.DynamicWindowsDesktop) string {
+				return u.GetName()
+			},
+		}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.DynamicWindowsDesktop, error) {
+			var desktops []types.DynamicWindowsDesktop
+			var next string
+			for {
+				d, token, err := upstream.ListDynamicWindowsDesktops(ctx, 0, next)
+				if err != nil {
+					return nil, err
+				}
+				desktops = append(desktops, d...)
+				if token == "" {
+					break
+				}
+				next = token
+			}
+			return desktops, nil
+		},
+		headerTransform: func(hdr *types.ResourceHeader) types.DynamicWindowsDesktop {
+			return &types.DynamicWindowsDesktopV1{
+				ResourceHeader: types.ResourceHeader{
+					Kind:    hdr.Kind,
+					Version: hdr.Version,
+					Metadata: types.Metadata{
+						Name: hdr.Metadata.Name,
+					},
+				},
+			}
+		},
+		watch: w,
+	}, nil
+}
+
+// GetDynamicWindowsDesktop returns registered dynamic Windows desktop by name.
+func (c *Cache) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetDynamicWindowsDesktop")
+	defer span.End()
+
+	getter := genericGetter[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]{
+		cache:       c,
+		collection:  c.collections.dynamicWindowsDesktops,
+		index:       dynamicWindowsDesktopNameIndex,
+		upstreamGet: c.Config.DynamicWindowsDesktops.GetDynamicWindowsDesktop,
+		clone: func(dwd types.DynamicWindowsDesktop) types.DynamicWindowsDesktop {
+			return dwd.Copy()
+		},
+	}
+	out, err := getter.get(ctx, name)
+	return out, trace.Wrap(err)
+}
+
+// ListDynamicWindowsDesktops returns all registered dynamic Windows desktop.
+func (c *Cache) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, nextPage string) ([]types.DynamicWindowsDesktop, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListDynamicWindowsDesktops")
+	defer span.End()
+
+	lister := genericLister[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]{
+		cache:        c,
+		collection:   c.collections.dynamicWindowsDesktops,
+		index:        dynamicWindowsDesktopNameIndex,
+		upstreamList: c.Config.DynamicWindowsDesktops.ListDynamicWindowsDesktops,
+		nextToken: func(dwd types.DynamicWindowsDesktop) string {
+			return dwd.GetMetadata().Name
+		},
+		clone: func(dwd types.DynamicWindowsDesktop) types.DynamicWindowsDesktop {
+			return dwd.Copy()
+		},
+	}
+	out, next, err := lister.list(ctx, pageSize, nextPage)
+	return out, next, trace.Wrap(err)
+}

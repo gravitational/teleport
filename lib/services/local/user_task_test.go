@@ -116,7 +116,7 @@ func TestGetUserTask(t *testing.T) {
 				protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 				protocmp.Transform(),
 			}
-			require.Equal(t, "", cmp.Diff(tt.wantObj, obj, cmpOpts...))
+			require.Empty(t, cmp.Diff(tt.wantObj, obj, cmpOpts...))
 		})
 	}
 }
@@ -231,7 +231,7 @@ func TestListUserTask(t *testing.T) {
 				require.Len(t, elements, count)
 
 				slices.SortFunc(elements, sortUserTasksFn)
-				require.Equal(t, "", cmp.Diff(expectedElements, elements, cmpOpts...))
+				require.Empty(t, cmp.Diff(expectedElements, elements, cmpOpts...))
 			})
 
 			t.Run("paginated", func(t *testing.T) {
@@ -251,7 +251,7 @@ func TestListUserTask(t *testing.T) {
 
 				require.Len(t, expectedElements, len(elements))
 				slices.SortFunc(elements, sortUserTasksFn)
-				require.Equal(t, "", cmp.Diff(expectedElements, elements, cmpOpts...))
+				require.Empty(t, cmp.Diff(expectedElements, elements, cmpOpts...))
 			})
 		})
 	}

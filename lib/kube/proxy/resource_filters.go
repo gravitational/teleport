@@ -238,7 +238,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
-	case *corev1.Endpoints:
+	case *corev1.Endpoints: //nolint:staticcheck // SA1019. Preserve compatibility until RBAC is tweaked to support discovery endpoints.
 		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)

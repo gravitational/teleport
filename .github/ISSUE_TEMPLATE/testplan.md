@@ -987,21 +987,22 @@ manualy testing.
   - [ ] Self-hosted Cassandra/ScyllaDB.
   - [ ] Self-hosted Oracle.
   - [ ] Self-hosted ClickHouse.
-  - [ ] AWS Aurora Postgres.
-  - [ ] AWS Aurora MySQL.
+  - [ ] Amazon Aurora Postgres.
+  - [ ] Amazon Aurora MySQL.
     - [ ] MySQL server version reported by Teleport is correct.
-  - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
-  - [ ] AWS Redshift.
-  - [ ] AWS Redshift Serverless.
+  - [ ] Amazon RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
+  - [ ] Amazon Redshift.
+  - [ ] Amazon Redshift Serverless.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
-  - [ ] AWS ElastiCache.
-  - [ ] AWS MemoryDB.
-  - [ ] AWS OpenSearch.
-  - [ ] AWS Dynamodb.
+  - [ ] Amazon ElastiCache.
+  - [ ] Amazon MemoryDB.
+  - [ ] Amazon OpenSearch.
+  - [ ] Amazon Dynamodb.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
-  - [ ] AWS DocumentDB
-  - [ ] AWS Keyspaces
+  - [ ] Amazon DocumentDB
+  - [ ] Amazon Keyspaces
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
+  - [ ] Amazon RDS Oracle (with Kerberos keytab)
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] GCP Cloud Spanner.
@@ -1026,17 +1027,18 @@ manualy testing.
   - [ ] Self-hosted Cassandra/ScyllaDB.
   - [ ] Self-hosted Oracle.
   - [ ] Self-hosted ClickHouse.
-  - [ ] AWS Aurora Postgres.
-  - [ ] AWS Aurora MySQL.
-  - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
-  - [ ] AWS Redshift.
-  - [ ] AWS Redshift Serverless.
-  - [ ] AWS ElastiCache.
-  - [ ] AWS MemoryDB.
-  - [ ] AWS OpenSearch.
-  - [ ] AWS Dynamodb.
-  - [ ] AWS DocumentDB
-  - [ ] AWS Keyspaces
+  - [ ] Amazon Aurora Postgres.
+  - [ ] Amazon Aurora MySQL.
+  - [ ] Amazon RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
+  - [ ] Amazon Redshift.
+  - [ ] Amazon Redshift Serverless.
+  - [ ] Amazon ElastiCache.
+  - [ ] Amazon MemoryDB.
+  - [ ] Amazon OpenSearch.
+  - [ ] Amazon Dynamodb.
+  - [ ] Amazon DocumentDB
+  - [ ] Amazon Keyspaces
+  - [ ] Amazon RDS Oracle (with Kerberos keytab)
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] GCP Cloud Spanner.
@@ -1053,10 +1055,10 @@ manualy testing.
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
-  - [x] AWS RDS Postgres. (covered by E2E test)
-  - [x] AWS RDS MySQL. (coverved by E2E test)
-  - [ ] AWS RDS MariaDB.
-  - [x] AWS Redshift (coverved by E2E test).
+  - [x] Amazon RDS Postgres. (covered by E2E test)
+  - [x] Amazon RDS MySQL. (coverved by E2E test)
+  - [ ] Amazon RDS MariaDB.
+  - [x] Amazon Redshift (coverved by E2E test).
 - [ ] Verify Database Access Control
   - [ ] Postgres (tables)
 - [ ] Verify audit events.
@@ -1073,6 +1075,7 @@ manualy testing.
     - [ ] `db.session.query` is emitted when command fails due to permissions.
   - [ ] Can configure per-session MFA.
     - [ ] MFA tap is required on each `tsh db connect`.
+    - [ ] A single MFA tap is required on `tsh db exec --dbs db1,db2`.
 - [ ] Verify dynamic registration.
   - [ ] Can register a new database using `tctl create`.
   - [ ] Can update registered database using `tctl create -f`.
@@ -1112,6 +1115,18 @@ manualy testing.
     - [ ] Postgres
   - [ ] `tsh play`
     - [ ] Postgres
+- [ ] Verify database access via Web UI
+  - [ ] Postgres
+
+## Git Proxy
+- [ ] [GitHub proxy](https://goteleport.com/docs/admin-guides/management/guides/github-integration/)
+  (requires GitHub Enterprise account)
+  - [ ] Enroll integration via WebUI
+  - [ ] `tsh git login` for GitHub OAuth flow
+  - [ ] `tsh git clone` for cloning new repo
+  - [ ] `tsh git config` for configuring existing repo
+  - [ ] Test Git commands like `git fetch`, `git push`, in repos configured with Teleport
+  - [ ] Verify audit events for each Git command proxied through Teleport.
 
 ## TLS Routing
 

@@ -52,5 +52,5 @@ func TestRandomFreeIPv4InNet(t *testing.T) {
 
 	// Try to assign 1 more IP.
 	_, err = randomFreeIPv4InNet(ipNet, ipIsFree)
-	require.ErrorContains(t, err, "Exhausted all IPs in range")
+	require.ErrorContains(t, err, "exhausted all IPs in range")
 }

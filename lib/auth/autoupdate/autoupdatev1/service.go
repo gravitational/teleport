@@ -547,7 +547,7 @@ func (s *Service) CreateAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
 	// In the future, if we expand the permission system and make cloud
 	// a first class citizen, we'll want to update this permission check.
-	if !(authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) || authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))) {
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
@@ -576,7 +576,7 @@ func (s *Service) UpdateAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
 	// In the future, if we expand the permission system and make cloud
 	// a first class citizen, we'll want to update this permission check.
-	if !(authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) || authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))) {
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
@@ -605,7 +605,7 @@ func (s *Service) UpsertAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
 	// In the future, if we expand the permission system and make cloud
 	// a first class citizen, we'll want to update this permission check.
-	if !(authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) || authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))) {
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
@@ -634,7 +634,7 @@ func (s *Service) DeleteAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
 	// In the future, if we expand the permission system and make cloud
 	// a first class citizen, we'll want to update this permission check.
-	if !(authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) || authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))) {
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
@@ -667,6 +667,27 @@ func (s *Service) TriggerAutoUpdateAgentGroup(ctx context.Context, req *autoupda
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	defer func() {
+		var errMsg string
+		if err != nil {
+			errMsg = err.Error()
+		}
+		userMetadata := authz.ClientUserMetadata(ctx)
+		s.emitEvent(ctx, &apievents.AutoUpdateAgentRolloutTrigger{
+			Metadata: apievents.Metadata{
+				Type: events.AutoUpdateAgentRolloutTriggerEvent,
+				Code: events.AutoUpdateAgentRolloutTriggerCode,
+			},
+			UserMetadata:       userMetadata,
+			Groups:             req.Groups,
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+			Status: apievents.Status{
+				Success: err == nil,
+				Error:   errMsg,
+			},
+		})
+	}()
 
 	const maxTries = 3
 
@@ -708,6 +729,27 @@ func (s *Service) ForceAutoUpdateAgentGroup(ctx context.Context, req *autoupdate
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	defer func() {
+		var errMsg string
+		if err != nil {
+			errMsg = err.Error()
+		}
+		userMetadata := authz.ClientUserMetadata(ctx)
+		s.emitEvent(ctx, &apievents.AutoUpdateAgentRolloutForceDone{
+			Metadata: apievents.Metadata{
+				Type: events.AutoUpdateAgentRolloutForceDoneEvent,
+				Code: events.AutoUpdateAgentRolloutForceDoneCode,
+			},
+			UserMetadata:       userMetadata,
+			Groups:             req.Groups,
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+			Status: apievents.Status{
+				Success: err == nil,
+				Error:   errMsg,
+			},
+		})
+	}()
 
 	const maxTries = 3
 
@@ -753,6 +795,27 @@ func (s *Service) RollbackAutoUpdateAgentGroup(ctx context.Context, req *autoupd
 	if len(req.Groups) == 0 && !req.AllStartedGroups {
 		return nil, trace.BadParameter("at least one group must be specified or the all_started_groups flag set")
 	}
+
+	defer func() {
+		var errMsg string
+		if err != nil {
+			errMsg = err.Error()
+		}
+		userMetadata := authz.ClientUserMetadata(ctx)
+		s.emitEvent(ctx, &apievents.AutoUpdateAgentRolloutRollback{
+			Metadata: apievents.Metadata{
+				Type: events.AutoUpdateAgentRolloutRollbackEvent,
+				Code: events.AutoUpdateAgentRolloutRollbackCode,
+			},
+			UserMetadata:       userMetadata,
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+			Status: apievents.Status{
+				Success: err == nil,
+				Error:   errMsg,
+			},
+			Groups: req.Groups,
+		})
+	}()
 
 	const maxTries = 3
 

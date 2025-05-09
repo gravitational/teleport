@@ -21,7 +21,8 @@ import { formatDatabaseInfo } from 'shared/services/databases';
 import { Aws, Database, DatabaseServer, DatabaseService } from './types';
 
 export function makeDatabase(json: any): Database {
-  const { name, desc, protocol, type, aws, requiresRequest } = json;
+  const { name, desc, protocol, type, aws, requiresRequest, targetHealth } =
+    json;
 
   const labels = json.labels || [];
 
@@ -57,6 +58,10 @@ export function makeDatabase(json: any): Database {
     requiresRequest,
     supportsInteractive: json.supports_interactive || false,
     autoUsersEnabled: json.auto_users_enabled || false,
+    targetHealth: targetHealth && {
+      status: targetHealth.status,
+      error: targetHealth.transition_error,
+    },
   };
 }
 
@@ -104,7 +109,7 @@ export function makeDatabaseServer(json: any): DatabaseServer {
     targetHealth: status &&
       status.target_health && {
         status: status.target_health.status,
-        reason: status.target_health.transition_error,
+        error: status.target_health.transition_error,
       },
   };
 }

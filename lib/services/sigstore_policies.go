@@ -155,14 +155,34 @@ func ValidateSigstorePolicy(s *workloadidentityv1pb.SigstorePolicy) error {
 			}
 		}
 
+		roots := make(root.TrustedMaterialCollection, 0)
 		for idx, trustedRoot := range v.Keyless.GetTrustedRoots() {
-			if _, err := root.NewTrustedRootFromJSON([]byte(trustedRoot)); err != nil {
+			root, err := root.NewTrustedRootFromJSON([]byte(trustedRoot))
+			if err != nil {
 				return trace.BadParameter("spec.keyless.trusted_roots[%d]: failed to parse trusted root: %v", idx, err)
 			}
+			roots = append(roots, root)
+		}
+
+		// If the user is overriding the default (Public Good Instance) trusted
+		// roots with their own, they must specify at least one transparency log
+		// or timestamp authority that can be used to verify keyless certificates.
+		if len(roots) != 0 && len(roots.CTLogs()) == 0 && len(roots.TimestampingAuthorities()) == 0 {
+			return trace.BadParameter("spec.keyless.trusted_roots: must configure at least one transparency log or timestamp authority")
 		}
 	}
 
-	for idx, attestation := range s.GetSpec().GetRequirements().GetAttestations() {
+	requirements := s.GetSpec().GetRequirements()
+
+	if requirements.GetArtifactSignature() && len(requirements.GetAttestations()) != 0 {
+		return trace.BadParameter("spec.requirements: artifact_signature and attestations are mutually exclusive")
+	}
+
+	if !requirements.GetArtifactSignature() && len(requirements.GetAttestations()) == 0 {
+		return trace.BadParameter("spec.requirements: either artifact_signature or attestations is required")
+	}
+
+	for idx, attestation := range requirements.GetAttestations() {
 		if attestation.GetPredicateType() == "" {
 			return trace.BadParameter("spec.requirements.attestations[%d].predicate_type: is required", idx)
 		}

@@ -497,8 +497,8 @@ func (bs *BotService) UpdateBot(
 	}
 
 	for _, path := range req.UpdateMask.Paths {
-		switch {
-		case path == "spec.roles":
+		switch path {
+		case "spec.roles":
 			if slices.Contains(req.Bot.Spec.Roles, "") {
 				return nil, trace.BadParameter(
 					"spec.roles: must not contain empty strings",
@@ -507,7 +507,7 @@ func (bs *BotService) UpdateBot(
 			role.SetImpersonateConditions(types.Allow, types.ImpersonateConditions{
 				Roles: req.Bot.Spec.Roles,
 			})
-		case path == "spec.traits":
+		case "spec.traits":
 			traits := map[string][]string{}
 			for _, t := range req.Bot.Spec.Traits {
 				if len(t.Values) == 0 {
@@ -519,7 +519,7 @@ func (bs *BotService) UpdateBot(
 				traits[t.Name] = append(traits[t.Name], t.Values...)
 			}
 			user.SetTraits(traits)
-		case path == "spec.max_session_ttl":
+		case "spec.max_session_ttl":
 			opts := role.GetOptions()
 			opts.MaxSessionTTL = types.Duration(req.Bot.Spec.MaxSessionTtl.AsDuration())
 			role.SetOptions(opts)

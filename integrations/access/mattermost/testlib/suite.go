@@ -233,7 +233,7 @@ func (s *MattermostSuiteOSS) TestApproval() {
 	require.Len(t, matches, 1)
 	require.Len(t, matches[0], 3)
 	assert.Equal(t, "okay", matches[0][1])
-	assert.Equal(t, "", matches[0][2])
+	assert.Empty(t, matches[0][2])
 }
 
 // TestDenial tests that when a request is denied, its corresponding message
@@ -398,7 +398,7 @@ func (s *MattermostSuiteEnterprise) TestApprovalByReview() {
 	require.Len(t, matches, 1)
 	require.Len(t, matches[0], 3)
 	assert.Equal(t, "finally okay", matches[0][1])
-	assert.Equal(t, "", matches[0][2])
+	assert.Empty(t, matches[0][2])
 }
 
 // TestDenialByReview tests that the message is updated after the access request
@@ -466,7 +466,7 @@ func (s *MattermostSuiteEnterprise) TestDenialByReview() {
 	require.Len(t, matches, 1)
 	require.Len(t, matches[0], 3)
 	assert.Equal(t, "finally not okay", matches[0][1])
-	assert.Equal(t, "", matches[0][2])
+	assert.Empty(t, matches[0][2])
 }
 
 // TestExpiration tests that when a request expires, its corresponding message

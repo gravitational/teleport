@@ -42,7 +42,7 @@
   self = [super init];
   if (self) {
     // Launch daemons must configure their listener with the machServiceName initializer.
-    _listener = [[NSXPCListener alloc] initWithMachServiceName:DaemonLabel(bundlePath)];
+    _listener = [[NSXPCListener alloc] initWithMachServiceName:VNEDaemonLabel(bundlePath)];
     _listener.delegate = self;
 
     // The daemon won't even be started on macOS < 13.0, so we don't have to handle the else branch

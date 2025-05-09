@@ -319,7 +319,7 @@ export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
           overflow-y: auto;
           ${marginTransitionCss({
             sidePanelOpened: infoGuideSidePanelOpened,
-            panelWidth,
+            panelWidth: infoGuideConfig?.viewHasOwnSidePanel ? 0 : panelWidth,
           })}
         `}
       >

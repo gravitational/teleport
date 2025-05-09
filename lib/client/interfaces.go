@@ -138,6 +138,9 @@ type KeyRing struct {
 	// AppTLSCredentials are TLS credentials for application access.
 	// Map key is the application name.
 	AppTLSCredentials map[string]TLSCredential
+	// WindowsDesktopTLSCredentials are TLS credentials for desktop access.
+	// Map key is the desktop name.
+	WindowsDesktopTLSCredentials map[string]TLSCredential
 	// TrustedCerts is a list of trusted certificate authorities
 	TrustedCerts []authclient.TrustedCerts
 }
@@ -181,11 +184,12 @@ func (k *KeyRing) generateSubjectTLSKey(ctx context.Context, tc *TeleportClient,
 // NewKeyRing creates a new KeyRing for the given private keys.
 func NewKeyRing(sshPriv, tlsPriv *keys.PrivateKey) *KeyRing {
 	return &KeyRing{
-		SSHPrivateKey:      sshPriv,
-		TLSPrivateKey:      tlsPriv,
-		KubeTLSCredentials: make(map[string]TLSCredential),
-		DBTLSCredentials:   make(map[string]TLSCredential),
-		AppTLSCredentials:  make(map[string]TLSCredential),
+		SSHPrivateKey:                sshPriv,
+		TLSPrivateKey:                tlsPriv,
+		KubeTLSCredentials:           make(map[string]TLSCredential),
+		DBTLSCredentials:             make(map[string]TLSCredential),
+		AppTLSCredentials:            make(map[string]TLSCredential),
+		WindowsDesktopTLSCredentials: make(map[string]TLSCredential),
 	}
 }
 
@@ -529,6 +533,15 @@ func (k *KeyRing) AppTLSCert(appName string) (tls.Certificate, error) {
 	cred, ok := k.AppTLSCredentials[appName]
 	if !ok {
 		return tls.Certificate{}, trace.NotFound("TLS certificate for application %q not found", appName)
+	}
+	return cred.TLSCertificate()
+}
+
+// WindowsDesktopTLSCert returns the tls.Certificate for authentication against a named desktop.
+func (k *KeyRing) WindowsDesktopTLSCert(desktopName string) (tls.Certificate, error) {
+	cred, ok := k.WindowsDesktopTLSCredentials[desktopName]
+	if !ok {
+		return tls.Certificate{}, trace.NotFound("TLS certificate for Windows desktop %q not found", desktopName)
 	}
 	return cred.TLSCertificate()
 }

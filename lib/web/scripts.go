@@ -94,7 +94,7 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 
 	// if there's a rollout, we do new autoupdates
 	_, rolloutErr := h.cfg.AccessPoint.GetAutoUpdateAgentRollout(ctx)
-	if rolloutErr != nil && !(trace.IsNotFound(rolloutErr) || trace.IsNotImplemented(rolloutErr)) {
+	if rolloutErr != nil && !trace.IsNotFound(rolloutErr) && !trace.IsNotImplemented(rolloutErr) {
 		h.logger.WarnContext(ctx, "Failed to get rollout", "error", rolloutErr)
 		return scripts.InstallScriptOptions{}, trace.Wrap(err, "failed to check the autoupdate agent rollout state")
 	}

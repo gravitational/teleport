@@ -89,7 +89,7 @@ class Server$Type extends MessageType<Server> {
             { no: 3, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "hostname", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 6, name: "labels", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Label },
+            { no: 6, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label },
             { no: 7, name: "sub_kind", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }

@@ -402,6 +402,8 @@ const Resources = memo(
         })}
       >
         <SharedUnifiedResources
+          // TODO(kimlisa): add support later
+          onShowStatusInfo={() => null}
           params={props.queryParams}
           setParams={props.onParamsChange}
           unifiedResourcePreferencesAttempt={props.userPreferencesAttempt}

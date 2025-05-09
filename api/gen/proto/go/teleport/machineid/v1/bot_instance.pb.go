@@ -139,9 +139,13 @@ type BotInstanceSpec struct {
 	// The name of the bot associated with this instance.
 	BotName string `protobuf:"bytes,1,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
 	// The unique identifier for this instance.
-	InstanceId    string `protobuf:"bytes,2,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	InstanceId string `protobuf:"bytes,2,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
+	// The previous instance ID, if any, set when a bot reauthenticates after the
+	// previous identity has expired. Currently only set during bound-keypair
+	// rejoining.
+	PreviousInstanceId string `protobuf:"bytes,4,opt,name=previous_instance_id,json=previousInstanceId,proto3" json:"previous_instance_id,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *BotInstanceSpec) Reset() {
@@ -184,6 +188,13 @@ func (x *BotInstanceSpec) GetBotName() string {
 func (x *BotInstanceSpec) GetInstanceId() string {
 	if x != nil {
 		return x.InstanceId
+	}
+	return ""
+}
+
+func (x *BotInstanceSpec) GetPreviousInstanceId() string {
+	if x != nil {
+		return x.PreviousInstanceId
 	}
 	return ""
 }
@@ -509,11 +520,12 @@ const file_teleport_machineid_v1_bot_instance_proto_rawDesc = "" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12:\n" +
 	"\x04spec\x18\x05 \x01(\v2&.teleport.machineid.v1.BotInstanceSpecR\x04spec\x12@\n" +
-	"\x06status\x18\x06 \x01(\v2(.teleport.machineid.v1.BotInstanceStatusR\x06status\"X\n" +
+	"\x06status\x18\x06 \x01(\v2(.teleport.machineid.v1.BotInstanceStatusR\x06status\"\x8a\x01\n" +
 	"\x0fBotInstanceSpec\x12\x19\n" +
 	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x1f\n" +
 	"\vinstance_id\x18\x02 \x01(\tR\n" +
-	"instanceIdJ\x04\b\x03\x10\x04R\x03ttl\"\xd1\x02\n" +
+	"instanceId\x120\n" +
+	"\x14previous_instance_id\x18\x04 \x01(\tR\x12previousInstanceIdJ\x04\b\x03\x10\x04R\x03ttl\"\xd1\x02\n" +
 	"\x1aBotInstanceStatusHeartbeat\x12;\n" +
 	"\vrecorded_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"recordedAt\x12\x1d\n" +

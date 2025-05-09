@@ -85,8 +85,8 @@ func (m mockClient) checkIfEmpty(t *testing.T) {
 
 func newMockClient(t *testing.T, stubs mockClientStubs) *mockClient {
 	// Fail early if there's a mismatch
-	require.Equal(t, len(stubs.createRolloutAnswers), len(stubs.createRolloutExpects), "invalid stubs, create validations and answers slices are not the same length")
-	require.Equal(t, len(stubs.updateRolloutAnswers), len(stubs.updateRolloutExpects), "invalid stubs, update validations and answers slices are not the same length")
+	require.Len(t, stubs.createRolloutAnswers, len(stubs.createRolloutExpects), "invalid stubs, create validations and answers slices are not the same length")
+	require.Len(t, stubs.updateRolloutAnswers, len(stubs.updateRolloutExpects), "invalid stubs, update validations and answers slices are not the same length")
 
 	return &mockClient{
 		getAutoUpdateConfig:          &getHandler[*autoupdate.AutoUpdateConfig]{t, stubs.configAnswers},

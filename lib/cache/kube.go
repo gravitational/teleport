@@ -21,7 +21,10 @@ import (
 
 	"github.com/gravitational/trace"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -160,4 +163,94 @@ func (c *Cache) GetKubernetesCluster(ctx context.Context, name string) (types.Ku
 	}
 
 	return k.Copy(), nil
+}
+
+type kubeWaitingContainerIndex string
+
+const kubeWaitingContainerNameIndex kubeWaitingContainerIndex = "name"
+
+func newKubernetesWaitingContainerCollection(upstream services.KubeWaitingContainer, w types.WatchKind) (*collection[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter KubeWaitingContainers")
+	}
+
+	return &collection[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex]{
+		store: newStore(map[kubeWaitingContainerIndex]func(*kubewaitingcontainerv1.KubernetesWaitingContainer) string{
+			kubeWaitingContainerNameIndex: func(u *kubewaitingcontainerv1.KubernetesWaitingContainer) string {
+				return u.GetMetadata().GetName()
+			},
+		}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*kubewaitingcontainerv1.KubernetesWaitingContainer, error) {
+			var startKey string
+			var allConts []*kubewaitingcontainerv1.KubernetesWaitingContainer
+			for {
+				conts, nextKey, err := upstream.ListKubernetesWaitingContainers(ctx, 0, startKey)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				allConts = append(allConts, conts...)
+
+				if nextKey == "" {
+					break
+				}
+				startKey = nextKey
+			}
+			return allConts, nil
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *kubewaitingcontainerv1.KubernetesWaitingContainer {
+			return &kubewaitingcontainerv1.KubernetesWaitingContainer{
+				Kind:    types.KindKubeServer,
+				Version: types.V3,
+				Metadata: &headerv1.Metadata{
+					Name: hdr.Metadata.Name,
+				},
+			}
+		},
+		watch: w,
+	}, nil
+}
+
+// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+// containers that are waiting to be created until moderated
+// session conditions are met.
+func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerv1.KubernetesWaitingContainer, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListKubernetesWaitingContainers")
+	defer span.End()
+
+	lister := genericLister[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex]{
+		cache:        c,
+		collection:   c.collections.kubeWaitingContainers,
+		index:        kubeWaitingContainerNameIndex,
+		upstreamList: c.Config.KubeWaitingContainers.ListKubernetesWaitingContainers,
+		nextToken: func(t *kubewaitingcontainerv1.KubernetesWaitingContainer) string {
+			spec := t.GetSpec()
+			return spec.GetUsername() + "/" + spec.GetCluster() + "/" + spec.GetNamespace() + "/" + spec.GetPodName() + "/" + t.GetMetadata().GetName()
+		},
+		clone: utils.CloneProtoMsg[*kubewaitingcontainerv1.KubernetesWaitingContainer],
+	}
+	out, next, err := lister.list(ctx, pageSize, pageToken)
+	return out, next, trace.Wrap(err)
+}
+
+// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+// container that are waiting to be created until moderated
+// session conditions are met.
+func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerv1.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerv1.KubernetesWaitingContainer, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesWaitingContainer")
+	defer span.End()
+
+	getter := genericGetter[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex]{
+		cache:      c,
+		collection: c.collections.kubeWaitingContainers,
+		index:      kubeWaitingContainerNameIndex,
+		upstreamGet: func(ctx context.Context, s string) (*kubewaitingcontainerv1.KubernetesWaitingContainer, error) {
+			container, err := c.Config.KubeWaitingContainers.GetKubernetesWaitingContainer(ctx, req)
+			return container, trace.Wrap(err)
+		},
+	}
+
+	name := req.GetUsername() + "/" + req.GetCluster() + "/" + req.GetNamespace() + "/" + req.GetPodName() + "/" + req.GetContainerName()
+	out, err := getter.get(ctx, name)
+	return out, trace.Wrap(err)
 }

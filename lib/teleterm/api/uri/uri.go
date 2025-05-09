@@ -225,7 +225,7 @@ func (r ResourceURI) AppendKube(name string) ResourceURI {
 
 // AppendWindowsDesktop appends Windows desktop name segment to the URI.
 func (r ResourceURI) AppendWindowsDesktop(name string) ResourceURI {
-	r.path = fmt.Sprintf("%v/windowsDesktops/%v", r.path, name)
+	r.path = fmt.Sprintf("%v/windows_desktops/%v", r.path, name)
 	return r
 }
 

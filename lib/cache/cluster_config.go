@@ -21,7 +21,10 @@ import (
 
 	"github.com/gravitational/trace"
 
+	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -326,4 +329,66 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context) (types.SessionRec
 
 	cfg, err := c.Config.ClusterConfig.GetSessionRecordingConfig(ctx)
 	return cfg, trace.Wrap(err)
+}
+
+type accessGraphSettingsIndex string
+
+const accessGraphSettingsNameIndex accessGraphSettingsIndex = "name"
+
+func newAccessGraphSettingsCollection(upstream services.ClusterConfiguration, w types.WatchKind) (*collection[*clusterconfigv1.AccessGraphSettings, accessGraphSettingsIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter ClusterConfiguration")
+	}
+
+	return &collection[*clusterconfigv1.AccessGraphSettings, accessGraphSettingsIndex]{
+		store: newStore(map[accessGraphSettingsIndex]func(*clusterconfigv1.AccessGraphSettings) string{
+			accessGraphSettingsNameIndex: func(r *clusterconfigv1.AccessGraphSettings) string {
+				return r.GetMetadata().GetName()
+			},
+		}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*clusterconfigv1.AccessGraphSettings, error) {
+			set, err := upstream.GetAccessGraphSettings(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return []*clusterconfigv1.AccessGraphSettings{set}, nil
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *clusterconfigv1.AccessGraphSettings {
+			return &clusterconfigv1.AccessGraphSettings{
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
+				Metadata: &headerv1.Metadata{
+					Name: hdr.Metadata.Name,
+				},
+			}
+		},
+		watch: w,
+	}, nil
+}
+
+// GetAccessGraphSettings gets AccessGraphSettings from the backend.
+func (c *Cache) GetAccessGraphSettings(ctx context.Context) (*clusterconfigv1.AccessGraphSettings, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessGraphSettings")
+	defer span.End()
+
+	getter := genericGetter[*clusterconfigv1.AccessGraphSettings, accessGraphSettingsIndex]{
+		cache:      c,
+		collection: c.collections.accessGraphSettings,
+		index:      accessGraphSettingsNameIndex,
+		upstreamGet: func(ctx context.Context, s string) (*clusterconfigv1.AccessGraphSettings, error) {
+			cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"access_graph_settings"}, func(ctx context.Context) (*clusterconfigv1.AccessGraphSettings, error) {
+				cfg, err := c.Config.ClusterConfig.GetAccessGraphSettings(ctx)
+				return cfg, err
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return apiutils.CloneProtoMsg(cachedCfg), nil
+		},
+		clone: apiutils.CloneProtoMsg[*clusterconfigv1.AccessGraphSettings],
+	}
+	out, err := getter.get(ctx, types.MetaNameAccessGraphSettings)
+	return out, trace.Wrap(err)
 }

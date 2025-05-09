@@ -23,8 +23,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -170,4 +172,38 @@ func TestAuthPreference(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(outAuthPref, authPref, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+}
+
+func TestAccessGraphSettings(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*clusterconfigv1.AccessGraphSettings]{
+		newResource: func(name string) (*clusterconfigv1.AccessGraphSettings, error) {
+			return newAccessGraphSettings(t), nil
+		},
+		create: func(ctx context.Context, item *clusterconfigv1.AccessGraphSettings) error {
+			_, err := p.clusterConfigS.UpsertAccessGraphSettings(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*clusterconfigv1.AccessGraphSettings, error) {
+			item, err := p.clusterConfigS.GetAccessGraphSettings(ctx)
+			if trace.IsNotFound(err) {
+				return []*clusterconfigv1.AccessGraphSettings{}, nil
+			}
+			return []*clusterconfigv1.AccessGraphSettings{item}, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*clusterconfigv1.AccessGraphSettings, error) {
+			item, err := p.cache.GetAccessGraphSettings(ctx)
+			if trace.IsNotFound(err) {
+				return []*clusterconfigv1.AccessGraphSettings{}, nil
+			}
+			return []*clusterconfigv1.AccessGraphSettings{item}, trace.Wrap(err)
+		},
+		deleteAll: func(ctx context.Context) error {
+			return trace.Wrap(p.clusterConfigS.DeleteAccessGraphSettings(ctx))
+		},
+	})
 }

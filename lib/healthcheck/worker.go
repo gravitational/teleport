@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 // workerConfig is the configuration for a [workerI].
@@ -67,6 +68,16 @@ func (cfg *workerConfig) checkAndSetDefaults() error {
 
 // newWorker creates and starts a new worker.
 func newWorker(ctx context.Context, cfg workerConfig) (*worker, error) {
+	w, err := newUnstartedWorker(ctx, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go w.run(ctx)
+	return w, nil
+}
+
+// newUnstartedWorker creates a worker without running it.
+func newUnstartedWorker(ctx context.Context, cfg workerConfig) (*worker, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -80,13 +91,10 @@ func newWorker(ctx context.Context, cfg workerConfig) (*worker, error) {
 		target:                    cfg.Target,
 	}
 	if w.healthCheckCfg != nil {
-		const reason = types.TargetHealthTransitionReasonInit
-		const message = "Health checker initialized"
-		w.setTargetHealthStatus(types.TargetHealthStatusUnknown, reason, message)
+		w.setTargetInit(ctx)
 	} else {
 		w.setTargetDisabled(ctx)
 	}
-	go w.run(ctx)
 	return w, nil
 }
 
@@ -194,8 +202,8 @@ func (w *worker) startHealthCheckInterval(ctx context.Context) {
 	w.log.InfoContext(ctx, "Health checker started",
 		"health_check_config", w.healthCheckCfg.name,
 		"protocol", w.healthCheckCfg.protocol,
-		"interval", w.healthCheckCfg.interval,
-		"timeout", w.healthCheckCfg.timeout,
+		"interval", log.StringerAttr(w.healthCheckCfg.interval),
+		"timeout", log.StringerAttr(w.healthCheckCfg.timeout),
 		"healthy_threshold", w.healthCheckCfg.healthyThreshold,
 		"unhealthy_threshold", w.healthCheckCfg.unhealthyThreshold,
 	)
@@ -249,26 +257,9 @@ func (w *worker) checkHealth(ctx context.Context) {
 			"error", w.lastResultErr,
 		)
 	}
-	threshold := w.getThreshold(w.healthCheckCfg)
-	switch {
-	// when initializing the effective threshold is 1 regardless of configured
-	// threshold, but if the configured threshold is 1 then there is no need for
-	// that special behavior
-	case !initializing || threshold == 1:
-		// we don't want every result above the threshold to trigger a target
-		// health update, so only update target health when we exactly reach the
-		// threshold
-		if threshold == w.lastResultCount {
-			w.setThresholdReached(ctx)
-		}
-	case w.lastResultErr == nil:
-		w.setTargetHealthy(ctx, types.TargetHealthTransitionReasonInit,
-			"Passed the initial health check",
-		)
-	default:
-		w.setTargetUnhealthy(ctx, types.TargetHealthTransitionReasonInit,
-			"Failed the initial health check",
-		)
+	// update target health when we exactly reach the threshold or initialize
+	if initializing || w.getThreshold(w.healthCheckCfg) == w.lastResultCount {
+		w.setThresholdReached(ctx)
 	}
 }
 
@@ -294,8 +285,8 @@ func (w *worker) updateHealthCheckConfig(ctx context.Context, newCfg *healthChec
 	w.log.DebugContext(ctx, "Updated health check config",
 		"health_check_config", w.healthCheckCfg.name,
 		"protocol", w.healthCheckCfg.protocol,
-		"interval", w.healthCheckCfg.interval,
-		"timeout", w.healthCheckCfg.timeout,
+		"interval", log.StringerAttr(w.healthCheckCfg.interval),
+		"timeout", log.StringerAttr(w.healthCheckCfg.timeout),
 		"healthy_threshold", w.healthCheckCfg.healthyThreshold,
 		"unhealthy_threshold", w.healthCheckCfg.unhealthyThreshold,
 	)
@@ -323,7 +314,7 @@ func (w *worker) dialEndpoints(ctx context.Context) error {
 	defer cancel()
 	endpoints, err := w.target.ResolverFn(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "failed to resolve target endpoints")
 	}
 	w.lastResolvedEndpoints = endpoints
 	switch len(endpoints) {
@@ -365,45 +356,57 @@ func (w *worker) getThreshold(cfg *healthCheckConfig) uint32 {
 func (w *worker) setThresholdReached(ctx context.Context) {
 	const transitionReason = types.TargetHealthTransitionReasonThreshold
 	if w.lastResultErr == nil {
-		msg := fmt.Sprintf("%d consecutive health checks passed", w.lastResultCount)
+		msg := fmt.Sprintf("%d health checks passed", w.lastResultCount)
 		w.setTargetHealthy(ctx, transitionReason, msg)
 	} else {
-		msg := fmt.Sprintf("%d consecutive health checks failed", w.lastResultCount)
+		msg := fmt.Sprintf("%d health checks failed", w.lastResultCount)
 		w.setTargetUnhealthy(ctx, transitionReason, msg)
 	}
 }
 
+func (w *worker) setTargetInit(ctx context.Context) {
+	const reason = types.TargetHealthTransitionReasonInit
+	const message = "Health checker initialized"
+	w.setTargetHealthStatus(ctx, types.TargetHealthStatusUnknown, reason, message)
+}
+
 func (w *worker) setTargetHealthy(ctx context.Context, reason types.TargetHealthTransitionReason, message string) {
-	w.log.InfoContext(ctx, "Target became healthy",
-		"reason", reason,
-		"message", message,
-	)
-	w.setTargetHealthStatus(types.TargetHealthStatusHealthy, reason, message)
+	w.setTargetHealthStatus(ctx, types.TargetHealthStatusHealthy, reason, message)
 }
 
 func (w *worker) setTargetUnhealthy(ctx context.Context, reason types.TargetHealthTransitionReason, message string) {
-	w.log.WarnContext(ctx, "Target became unhealthy",
-		"reason", reason,
-		"message", message,
-	)
-	w.setTargetHealthStatus(types.TargetHealthStatusUnhealthy, reason, message)
+	w.setTargetHealthStatus(ctx, types.TargetHealthStatusUnhealthy, reason, message)
 }
 
 func (w *worker) setTargetDisabled(ctx context.Context) {
 	const reason = types.TargetHealthTransitionReasonDisabled
 	const message = "No health check config matches this resource"
-	w.log.InfoContext(ctx, "Target health checks are disabled",
-		"message", message,
-	)
-	w.setTargetHealthStatus(types.TargetHealthStatusUnknown, reason, message)
+	w.setTargetHealthStatus(ctx, types.TargetHealthStatusUnknown, reason, message)
 }
 
-func (w *worker) setTargetHealthStatus(newStatus types.TargetHealthStatus, reason types.TargetHealthTransitionReason, message string) {
+func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.TargetHealthStatus, reason types.TargetHealthTransitionReason, message string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	oldHealth := w.targetHealth
 	if oldHealth.Status == string(newStatus) && oldHealth.TransitionReason == string(reason) {
 		return
+	}
+	switch newStatus {
+	case types.TargetHealthStatusHealthy:
+		w.log.InfoContext(ctx, "Target became healthy",
+			"reason", reason,
+			"message", message,
+		)
+	case types.TargetHealthStatusUnhealthy:
+		w.log.WarnContext(ctx, "Target became unhealthy",
+			"reason", reason,
+			"message", message,
+		)
+	case types.TargetHealthStatusUnknown:
+		w.log.DebugContext(ctx, "Target health status is unknown",
+			"reason", reason,
+			"message", message,
+		)
 	}
 	now := w.clock.Now()
 	w.targetHealth = types.TargetHealth{
