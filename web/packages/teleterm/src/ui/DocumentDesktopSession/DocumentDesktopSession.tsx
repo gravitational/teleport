@@ -18,6 +18,7 @@
 
 import { useMemo, useState } from 'react';
 
+import { Text } from 'design';
 import { ACL } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { DesktopSession } from 'shared/components/DesktopSession';
 import {
@@ -35,7 +36,7 @@ import Document from 'teleterm/ui/Document';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import * as types from 'teleterm/ui/services/workspacesService';
-import { routing, WindowsDesktopUri } from 'teleterm/ui/uri';
+import { DesktopUri, isWindowsDesktopUri, routing } from 'teleterm/ui/uri';
 
 // The check for another active session is disabled in Connect:
 // 1. This protection was added to the Web UI to prevent a situation where a user could be tricked
@@ -83,8 +84,16 @@ export function DocumentDesktopSession(props: {
       }, new BrowserFileSystem())
   );
 
-  return (
-    <Document visible={props.visible}>
+  let content = (
+    <Text m="auto" mt={10} textAlign="center">
+      Cannot open a connection to "{desktopUri}".
+      <br />
+      Only Windows desktops are supported.
+    </Text>
+  );
+
+  if (isWindowsDesktopUri(desktopUri)) {
+    content = (
       <DesktopSession
         hasAnotherSession={noOtherSession}
         desktop={
@@ -94,14 +103,16 @@ export function DocumentDesktopSession(props: {
         username={login}
         aclAttempt={acl}
       />
-    </Document>
-  );
+    );
+  }
+
+  return <Document visible={props.visible}>{content}</Document>;
 }
 
 async function adaptGRPCStreamToTdpTransport(
   stream: ReturnType<TshdClient['connectToDesktop']>,
   targetDesktop: {
-    desktopUri: WindowsDesktopUri;
+    desktopUri: DesktopUri;
     login: string;
   },
   logger: Logger
