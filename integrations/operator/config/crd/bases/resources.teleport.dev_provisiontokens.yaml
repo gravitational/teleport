@@ -102,6 +102,43 @@ spec:
                     nullable: true
                     type: array
                 type: object
+              azure_devops:
+                description: AzureDevops allows the configuration of options specific
+                  to the "azure_devops" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of TokenRules, nodes using this token
+                      must match one allow rule to use this token. At least one allow
+                      rule must be specified.
+                    items:
+                      properties:
+                        definition_id:
+                          type: string
+                        pipeline_name:
+                          type: string
+                        project_id:
+                          type: string
+                        project_name:
+                          type: string
+                        repository_ref:
+                          type: string
+                        repository_uri:
+                          type: string
+                        repository_version:
+                          type: string
+                        sub:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  organization_id:
+                    description: OrganizationID specifies the UUID of the Azure DevOps
+                      organization that this join token will grant access to. This
+                      is used to identify the correct issuer verification of the ID
+                      token. This is a required field.
+                    type: string
+                type: object
               bitbucket:
                 description: Bitbucket allows the configuration of options specific
                   to the "bitbucket" join method.
