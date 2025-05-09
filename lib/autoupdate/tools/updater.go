@@ -53,6 +53,9 @@ const (
 	// teleportToolsVersionReExecEnv is internal environment name for transferring original
 	// version to re-executed ones.
 	teleportToolsVersionReExecEnv = "TELEPORT_TOOLS_VERSION_REEXEC"
+	// teleportToolsDirsEnv overrides Teleport tools directory for saving updated
+	// versions.
+	teleportToolsDirsEnv = "TELEPORT_TOOLS_DIR"
 	// reservedFreeDisk is the predefined amount of free disk space (in bytes) required
 	// to remain available after downloading archives.
 	reservedFreeDisk = 10 * 1024 * 1024 // 10 Mb
@@ -66,6 +69,14 @@ var (
 	// pattern is template for response on version command for client tools {tsh, tctl}.
 	pattern = regexp.MustCompile(`(?m)Teleport v(.*) git`)
 )
+
+// UpdateResponse contains information about after update process.
+type UpdateResponse struct {
+	Version  string `json:"version,omitempty"`
+	ReExec   bool   `json:"reExec,omitempty"`
+	Disabled bool   `json:"disabled,omitempty"`
+	IsLocal  bool   `json:"isLocal,omitempty"`
+}
 
 // Option applies an option value for the Updater.
 type Option func(u *Updater)
@@ -133,37 +144,37 @@ func NewUpdater(toolsDir, localVersion string, options ...Option) *Updater {
 // CheckLocal is run at client tool startup and will only perform local checks.
 // Returns the version needs to be updated and re-executed, by re-execution flag we
 // understand that update and re-execute is required.
-func (u *Updater) CheckLocal() (version string, reExec bool, err error) {
+func (u *Updater) CheckLocal() (*UpdateResponse, error) {
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	switch requestedVersion {
 	// The user has turned off any form of automatic updates.
 	case "off":
-		return "", false, nil
+		return &UpdateResponse{Version: "", ReExec: false, IsLocal: true}, nil
 	// Requested version already the same as client version.
 	case u.localVersion:
-		return u.localVersion, false, nil
+		return &UpdateResponse{Version: u.localVersion, ReExec: false, IsLocal: true}, nil
 	// No requested version, we continue.
 	case "":
 	// Requested version that is not the local one.
 	default:
 		if _, err := semver.NewVersion(requestedVersion); err != nil {
-			return "", false, trace.Wrap(err, "checking that request version is semantic")
+			return nil, trace.Wrap(err, "checking that request version is semantic")
 		}
-		return requestedVersion, true, nil
+		return &UpdateResponse{Version: requestedVersion, ReExec: true, IsLocal: true}, nil
 	}
 
 	// If a version of client tools has already been downloaded to
 	// tools directory, return that.
 	toolsVersion, err := CheckToolVersion(u.toolsDir)
 	if trace.IsNotFound(err) || toolsVersion == u.localVersion {
-		return u.localVersion, false, nil
+		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil
 	}
 	if err != nil {
-		return "", false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return toolsVersion, true, nil
+	return &UpdateResponse{Version: toolsVersion, ReExec: true}, nil
 }
 
 // CheckRemote first checks the version set by the environment variable. If not set or disabled,
@@ -171,29 +182,29 @@ func (u *Updater) CheckLocal() (version string, reExec bool, err error) {
 // the `webapi/find` handler, which stores information about the required client tools version to
 // operate with this cluster. It returns the semantic version that needs updating and whether
 // re-execution is necessary, by re-execution flag we understand that update and re-execute is required.
-func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bool) (version string, reExec bool, err error) {
+func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bool) (response *UpdateResponse, err error) {
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	switch requestedVersion {
 	// The user has turned off any form of automatic updates.
 	case "off":
-		return "", false, nil
+		return &UpdateResponse{Version: "", ReExec: false, IsLocal: true}, nil
 	// Requested version already the same as client version.
 	case u.localVersion:
-		return u.localVersion, false, nil
+		return &UpdateResponse{Version: u.localVersion, ReExec: false, IsLocal: true}, nil
 	// No requested version, we continue.
 	case "":
 	// Requested version that is not the local one.
 	default:
 		if _, err := semver.NewVersion(requestedVersion); err != nil {
-			return "", false, trace.Wrap(err, "checking that request version is semantic")
+			return nil, trace.Wrap(err, "checking that request version is semantic")
 		}
-		return requestedVersion, true, nil
+		return &UpdateResponse{Version: requestedVersion, ReExec: true, IsLocal: true}, nil
 	}
 
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
-		return "", false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	resp, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
@@ -203,28 +214,29 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		Insecure:  insecure,
 	})
 	if err != nil {
-		return "", false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// If a version of client tools has already been downloaded to
 	// tools directory, return that.
 	toolsVersion, err := CheckToolVersion(u.toolsDir)
 	if err != nil && !trace.IsNotFound(err) {
-		return "", false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	switch {
 	case !resp.AutoUpdate.ToolsAutoUpdate || resp.AutoUpdate.ToolsVersion == "":
 		if toolsVersion == "" {
-			return u.localVersion, false, nil
+			return &UpdateResponse{Version: u.localVersion, ReExec: false, Disabled: true}, nil
 		}
+		return &UpdateResponse{Version: toolsVersion, ReExec: true, Disabled: true}, nil
 	case u.localVersion == resp.AutoUpdate.ToolsVersion:
-		return u.localVersion, false, nil
+		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil
 	case resp.AutoUpdate.ToolsVersion != toolsVersion:
-		return resp.AutoUpdate.ToolsVersion, true, nil
+		return &UpdateResponse{Version: resp.AutoUpdate.ToolsVersion, ReExec: true}, nil
 	}
 
-	return toolsVersion, true, nil
+	return &UpdateResponse{Version: toolsVersion, ReExec: true}, nil
 }
 
 // UpdateWithLock acquires filesystem lock, downloads requested version package,
@@ -343,21 +355,25 @@ func (u *Updater) Exec(args []string) (int, error) {
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
+	for _, unset := range []string{
+		teleportToolsVersionReExecEnv,
+		teleportToolsDirsEnv,
+	} {
+		if err := os.Unsetenv(unset); err != nil {
+			return 0, trace.Wrap(err)
+		}
+	}
+	env := append(os.Environ(), fmt.Sprintf("%s=%s", teleportToolsDirsEnv, u.toolsDir))
 	// To prevent re-execution loop we have to disable update logic for re-execution,
 	// by unsetting current tools version env variable and setting it to "off".
-	if err := os.Unsetenv(teleportToolsVersionEnv); err != nil {
-		return 0, trace.Wrap(err)
-	}
-	if err := os.Unsetenv(teleportToolsVersionReExecEnv); err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	env := os.Environ()
 	executablePath, err := os.Executable()
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
 	if path == executablePath {
+		if err := os.Unsetenv(teleportToolsVersionEnv); err != nil {
+			return 0, trace.Wrap(err)
+		}
 		env = append(env, teleportToolsVersionEnv+"=off")
 	}
 	env = append(env, fmt.Sprintf("%s=%s", teleportToolsVersionReExecEnv, u.localVersion))
