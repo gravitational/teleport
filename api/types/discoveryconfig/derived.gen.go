@@ -294,7 +294,7 @@ func deriveTeleportEqual_19(this, that *types.AccessGraphAWSSync) bool {
 			deriveTeleportEqual_14(this.Regions, that.Regions) &&
 			deriveTeleportEqual_15(this.AssumeRole, that.AssumeRole) &&
 			this.Integration == that.Integration &&
-			deriveTeleportEqual_22(this.SqsPolling, that.SqsPolling)
+			deriveTeleportEqual_22(this.CloudTrailLogs, that.CloudTrailLogs)
 }
 
 // deriveTeleportEqual_20 returns whether this and that are equal.
@@ -313,7 +313,7 @@ func deriveTeleportEqual_21(this, that *types.AzureInstallerParams) bool {
 }
 
 // deriveTeleportEqual_22 returns whether this and that are equal.
-func deriveTeleportEqual_22(this, that *types.AccessGraphAWSSyncSQSPolling) bool {
+func deriveTeleportEqual_22(this, that *types.AccessGraphAWSSyncCloudTrailLogs) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			this.Region == that.Region &&

@@ -104,10 +104,12 @@ func (x *GitHubAuditLogV1Cursor) GetLastEventTime() *timestamppb.Timestamp {
 	return nil
 }
 
-// GitHubAuditLogV1 holds the events shared between the client and the server.
+// GitHubAuditLogV1 bundles a batch of GitHub audit log events and the client's current resume cursor.
 type GitHubAuditLogV1 struct {
-	state         protoimpl.MessageState  `protogen:"open.v1"`
-	Events        []*structpb.Struct      `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A list of GitHub audit events, each as a flexible JSON-like structure.
+	Events []*structpb.Struct `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	// Client's current GitHubAuditLogV1Cursor state, sent with this batch for resumable collection.
 	Cursor        *GitHubAuditLogV1Cursor `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -160,8 +162,9 @@ func (x *GitHubAuditLogV1) GetCursor() *GitHubAuditLogV1Cursor {
 // GitHubConfigV1 specifies configuration settings for GitHub audit log exports,
 // including the desired start date for log collection.
 type GitHubConfigV1 struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	StartDate     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"` // Start date for exporting audit logs.
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The desired start date for exporting GitHub audit logs.
+	StartDate     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -216,8 +219,9 @@ type GithubTokenV1 struct {
 	// expires is the token expiration time.
 	Expires *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires,proto3" json:"expires,omitempty"`
 	// permissions are the token permissions.
-	Permissions   []*GithubTokenV1Permission `protobuf:"bytes,5,rep,name=permissions,proto3" json:"permissions,omitempty"`
-	Organization  string                     `protobuf:"bytes,6,opt,name=organization,proto3" json:"organization,omitempty"`
+	Permissions []*GithubTokenV1Permission `protobuf:"bytes,5,rep,name=permissions,proto3" json:"permissions,omitempty"`
+	// The GitHub organization context for this permission, ex.: "gravitational".
+	Organization  string `protobuf:"bytes,6,opt,name=organization,proto3" json:"organization,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -304,7 +308,7 @@ type GithubTokenV1Permission struct {
 	Verb string `protobuf:"bytes,2,opt,name=verb,proto3" json:"verb,omitempty"`
 	// The specific resource or target of the action, ex.: "my-webapp", "*", "dependabot_secrets".
 	Object string `protobuf:"bytes,3,opt,name=object,proto3" json:"object,omitempty"`
-	// The GitHub organization context for this permission, ex.: "octo-org".
+	// The GitHub organization context for this permission, ex.: "gravitational".
 	Organization  string `protobuf:"bytes,4,opt,name=organization,proto3" json:"organization,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

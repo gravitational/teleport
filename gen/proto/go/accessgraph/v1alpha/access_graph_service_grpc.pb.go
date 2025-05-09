@@ -89,13 +89,11 @@ type AccessGraphServiceClient interface {
 	//
 	// Basic Interaction Flow:
 	//  1. Client connects and sends an initial `AuditLogStreamRequest` with `config`.
-	//  2. Server replies with an initial `AuditLogStreamResponse`, confirming the
-	//     effective configuration and providing the starting `resume_state` (if any).
-	//  3. Client sends subsequent `AuditLogStreamRequest` messages containing either
+	//  2. Server sends first response with an initial `AuditLogStreamResponse`, confirming the
+	//     effective configuration.
+	//  3. Server sends second response providing the starting `resume_state` (possibly empty).
+	//  4. Client sends subsequent `AuditLogStreamRequest` messages containing either
 	//     `events` (with resume state updates) or `bulk_sync` commands.
-	//
-	// Refer to the `AuditLogStreamRequest` and `AuditLogStreamResponse` message
-	// definitions for detailed structure, payloads, behaviors, and constraints.
 	AuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AuditLogStreamRequest, AuditLogStreamResponse], error)
 	// AWSCloudTrailStream establishes a persistent bidirectional stream for exporting
 	// audit log events from a client (teleport) to a server (access-graph).
@@ -105,17 +103,13 @@ type AccessGraphServiceClient interface {
 	// - Streaming batches of audit log events from client to server.
 	// - Reliable export resumption via client-provided resume state updates.
 	// - Server providing the initial resume state to the client upon connection.
-	// - Client requests for server-side bulk export state cleanup.
 	//
 	// Basic Interaction Flow:
 	//  1. Client connects and sends an initial `AWSCloudTrailStreamRequest` with `config`.
-	//  2. Server replies with an initial `AWSCloudTrailStreamResponse`, confirming the
-	//     effective configuration and providing the starting `resume_state` (if any).
-	//  3. Client sends subsequent `AWSCloudTrailStreamRequest` messages.
-	//
-	// Refer to the `AWSCloudTrailStreamRequest` and `AWSCloudTrailStreamResponse`
-	// message definitions for detailed structure, payloads, behaviors, and
-	// constraints.
+	//  2. Server sends first response with an initial `AWSCloudTrailStreamResponse`, confirming the
+	//     effective configuration.
+	//  3. Server sends second response providing the starting `resume_state` (possilby empty).
+	//  4. Client sends subsequent `AWSCloudTrailStreamRequest` messages.
 	AWSCloudTrailStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse], error)
 	// Register submits a new tenant representing this Teleport cluster to the TAG service,
 	// identified by its HostCA certificate.
@@ -144,15 +138,21 @@ type AccessGraphServiceClient interface {
 	AzureEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AzureEventsStreamRequest, AzureEventsStreamResponse], error)
 	// NetIQEventsStream is a stream of commands to the NetIQ importer.
 	NetIQEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[NetIQEventsStreamRequest, NetIQEventsStreamResponse], error)
-	// GitHubAuditLogStream establishes a persistent bidirectional stream for
-	// exporting GitHub audit log events from a client (ex.: a Teleport connector
-	// for GitHub) to the AccessGraphService.
+	// GitHubAuditLogStream establishes a persistent bidirectional stream for exporting
+	// audit log events from a client (teleport) to a server (access-graph).
 	//
-	// This stream facilitates: - Initial configuration exchange (e.g., setting
-	// a start date for log collection). - Streaming batches of GitHub audit log
-	// events from the client to the server. - Reliable export resumption using
-	// a cursor mechanism, allowing the client to continue from where it left
-	// off after an interruption.
+	// This stream facilitates:
+	// - Initial configuration exchange and validation.
+	// - Streaming batches of audit log events from client to server.
+	// - Reliable export resumption via client-provided resume state updates.
+	// - Server providing the initial resume state to the client upon connection.
+	//
+	// Basic Interaction Flow:
+	//  1. Client connects and sends an initial `GitHubAuditLogStreamRequest` with `config`.
+	//  2. Server sends first response with an initial `GitHubAuditLogStreamResponse`, confirming the
+	//     effective configuration.
+	//  3. Server sends second response providing the starting `resume_state` (possibly empty).
+	//  4. Client sends subsequent `GitHubAuditLogStreamRequest` messages.
 	GitHubAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse], error)
 	// GitHubEventsStream establishes a client-to-server stream for continuously
 	// syncing GitHub resource states (ex.: repositories, user roles, API tokens)
@@ -440,13 +440,11 @@ type AccessGraphServiceServer interface {
 	//
 	// Basic Interaction Flow:
 	//  1. Client connects and sends an initial `AuditLogStreamRequest` with `config`.
-	//  2. Server replies with an initial `AuditLogStreamResponse`, confirming the
-	//     effective configuration and providing the starting `resume_state` (if any).
-	//  3. Client sends subsequent `AuditLogStreamRequest` messages containing either
+	//  2. Server sends first response with an initial `AuditLogStreamResponse`, confirming the
+	//     effective configuration.
+	//  3. Server sends second response providing the starting `resume_state` (possibly empty).
+	//  4. Client sends subsequent `AuditLogStreamRequest` messages containing either
 	//     `events` (with resume state updates) or `bulk_sync` commands.
-	//
-	// Refer to the `AuditLogStreamRequest` and `AuditLogStreamResponse` message
-	// definitions for detailed structure, payloads, behaviors, and constraints.
 	AuditLogStream(grpc.BidiStreamingServer[AuditLogStreamRequest, AuditLogStreamResponse]) error
 	// AWSCloudTrailStream establishes a persistent bidirectional stream for exporting
 	// audit log events from a client (teleport) to a server (access-graph).
@@ -456,17 +454,13 @@ type AccessGraphServiceServer interface {
 	// - Streaming batches of audit log events from client to server.
 	// - Reliable export resumption via client-provided resume state updates.
 	// - Server providing the initial resume state to the client upon connection.
-	// - Client requests for server-side bulk export state cleanup.
 	//
 	// Basic Interaction Flow:
 	//  1. Client connects and sends an initial `AWSCloudTrailStreamRequest` with `config`.
-	//  2. Server replies with an initial `AWSCloudTrailStreamResponse`, confirming the
-	//     effective configuration and providing the starting `resume_state` (if any).
-	//  3. Client sends subsequent `AWSCloudTrailStreamRequest` messages.
-	//
-	// Refer to the `AWSCloudTrailStreamRequest` and `AWSCloudTrailStreamResponse`
-	// message definitions for detailed structure, payloads, behaviors, and
-	// constraints.
+	//  2. Server sends first response with an initial `AWSCloudTrailStreamResponse`, confirming the
+	//     effective configuration.
+	//  3. Server sends second response providing the starting `resume_state` (possilby empty).
+	//  4. Client sends subsequent `AWSCloudTrailStreamRequest` messages.
 	AWSCloudTrailStream(grpc.BidiStreamingServer[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse]) error
 	// Register submits a new tenant representing this Teleport cluster to the TAG service,
 	// identified by its HostCA certificate.
@@ -495,15 +489,21 @@ type AccessGraphServiceServer interface {
 	AzureEventsStream(grpc.BidiStreamingServer[AzureEventsStreamRequest, AzureEventsStreamResponse]) error
 	// NetIQEventsStream is a stream of commands to the NetIQ importer.
 	NetIQEventsStream(grpc.BidiStreamingServer[NetIQEventsStreamRequest, NetIQEventsStreamResponse]) error
-	// GitHubAuditLogStream establishes a persistent bidirectional stream for
-	// exporting GitHub audit log events from a client (ex.: a Teleport connector
-	// for GitHub) to the AccessGraphService.
+	// GitHubAuditLogStream establishes a persistent bidirectional stream for exporting
+	// audit log events from a client (teleport) to a server (access-graph).
 	//
-	// This stream facilitates: - Initial configuration exchange (e.g., setting
-	// a start date for log collection). - Streaming batches of GitHub audit log
-	// events from the client to the server. - Reliable export resumption using
-	// a cursor mechanism, allowing the client to continue from where it left
-	// off after an interruption.
+	// This stream facilitates:
+	// - Initial configuration exchange and validation.
+	// - Streaming batches of audit log events from client to server.
+	// - Reliable export resumption via client-provided resume state updates.
+	// - Server providing the initial resume state to the client upon connection.
+	//
+	// Basic Interaction Flow:
+	//  1. Client connects and sends an initial `GitHubAuditLogStreamRequest` with `config`.
+	//  2. Server sends first response with an initial `GitHubAuditLogStreamResponse`, confirming the
+	//     effective configuration.
+	//  3. Server sends second response providing the starting `resume_state` (possibly empty).
+	//  4. Client sends subsequent `GitHubAuditLogStreamRequest` messages.
 	GitHubAuditLogStream(grpc.BidiStreamingServer[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse]) error
 	// GitHubEventsStream establishes a client-to-server stream for continuously
 	// syncing GitHub resource states (ex.: repositories, user roles, API tokens)
