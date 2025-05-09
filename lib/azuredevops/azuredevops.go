@@ -18,10 +18,15 @@
 
 package azuredevops
 
-import workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+import (
+	"github.com/zitadel/oidc/v3/pkg/oidc"
+
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+)
 
 // IDTokenClaims for the pipeline OIDC ID Token issued by Azure Devops
 type IDTokenClaims struct {
+	oidc.TokenClaims
 	// Sub provides some information about the Azure Devops pipeline run.
 	// Example:
 	// p://noahstride0304/testing-azure-devops-join/strideynet.azure-devops-testing
@@ -57,6 +62,10 @@ type IDTokenClaims struct {
 	RepositoryReference string `json:"rpo_ref"`
 	// RunID is the ID of the pipeline run that the token belongs to.
 	RunID string `json:"run_id"`
+}
+
+func (c *IDTokenClaims) GetSub() string {
+	return c.Sub
 }
 
 // JoinAttrs returns the protobuf representation of the attested identity.
