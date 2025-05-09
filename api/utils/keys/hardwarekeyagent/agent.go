@@ -61,19 +61,30 @@ func NewClient(ctx context.Context, socketPath string, creds credentials.Transpo
 }
 
 // NewServer returns a new hardware key agent server.
-func NewServer(ctx context.Context, s hardwarekey.Service, creds credentials.TransportCredentials) *grpc.Server {
+//
+// If [knownKeyFn] is not provided, all PIV keys are treated as agent keys.
+func NewServer(_ context.Context, s hardwarekey.Service, creds credentials.TransportCredentials, knownKeyFn KnownHardwareKeyFn) *grpc.Server {
 	grpcServer := grpc.NewServer(
 		grpc.Creds(creds),
 		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 	)
-	hardwarekeyagentv1.RegisterHardwareKeyAgentServiceServer(grpcServer, &agentService{s: s})
+	hardwarekeyagentv1.RegisterHardwareKeyAgentServiceServer(grpcServer, &agentService{s: s, knownKeyFn: knownKeyFn})
 	return grpcServer
 }
+
+type KnownHardwareKeyFn func(ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo) (bool, error)
 
 // agentService implements [hardwarekeyagentv1.HardwareKeyAgentServiceServer].
 type agentService struct {
 	hardwarekeyagentv1.UnimplementedHardwareKeyAgentServiceServer
 	s hardwarekey.Service
+
+	// knownKeyFn dictates whether a PIV key referenced in a [agentService.Sign] request is
+	// treated as a known key or an unknown agent key. Unknown agent keys are treated with
+	// additional restrictions to ensure the PIV slot is intended for Teleport client usage.
+	//
+	// If knownKeyFn is nil, all keys are treated as agent keys.
+	knownKeyFn KnownHardwareKeyFn
 }
 
 // Sign the given digest with the specified hardware private key.
@@ -108,9 +119,17 @@ func (s *agentService) Sign(ctx context.Context, req *hardwarekeyagentv1.SignReq
 		ProxyHost:   req.KeyInfo.ProxyHost,
 		Username:    req.KeyInfo.Username,
 		ClusterName: req.KeyInfo.ClusterName,
-		AgentKey:    true,
 		Command:     req.Command,
 	}
+
+	var knownKey bool
+	if s.knownKeyFn != nil {
+		knownKey, err = s.knownKeyFn(keyRef, keyInfo)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	keyInfo.AgentKey = !knownKey
 
 	var signerOpts crypto.SignerOpts
 	switch req.Hash {
