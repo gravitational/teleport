@@ -72,7 +72,6 @@ func TestNewUserListEntry(t *testing.T) {
 						{
 							ConnectorID: "github",
 							Username:    "malformed-sso",
-							UserID:      "malformed-sso",
 						},
 					},
 				},
