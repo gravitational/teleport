@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.0.0-dev.steve.mcp.4"
+const Version = "18.0.0-dev.steve.mcp.5"
 
 const VersionMajor = 18
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "dev.steve.mcp.4"
+const VersionPreRelease = "dev.steve.mcp.5"
 const VersionMetadata = ""
