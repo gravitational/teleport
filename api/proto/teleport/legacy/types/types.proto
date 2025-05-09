@@ -1952,12 +1952,12 @@ message ProvisionTokenSpecV2BoundKeypair {
     // - relaxed: recovery limit is not enforced, but client join state is still
     //   required. This effectively allows unlimited recovery attempts, but
     //   client join state still helps mitigate stolen credentials.
-    // - insecure: neither the recovery nor client join state are enforced. This
-    //   allows any client with the private key to join freely. This is less
-    //   secure, but can be useful in certain situations, like in otherwise
-    //   unsupported CI/CD providers. This mode should be used with care, and
-    //   RBAC rules should be configured to heavily restrict which resources
-    //   this identity can access.
+    // - insecure: neither the recovery limit nor client join state are
+    //   enforced. This allows any client with the private key to join freely.
+    //   This is less secure, but can be useful in certain situations, like in
+    //   otherwise unsupported CI/CD providers. This mode should be used with
+    //   care, and RBAC rules should be configured to heavily restrict which
+    //   resources this identity can access.
     string Mode = 2 [(gogoproto.jsontag) = "mode"];
   }
 

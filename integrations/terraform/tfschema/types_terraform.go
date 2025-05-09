@@ -1257,7 +1257,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
 								"mode": {
-									Description: "Mode sets the recovery rule enforcement mode. It may be one of these values: - standard (or unset): all configured rules enforced. The recovery limit and client join state are required and verified. This is the most secure recovery mode. - relaxed: recovery limit is not enforced, but client join state is still required. This effectively allows unlimited recovery attempts, but client join state still helps mitigate stolen credentials. - insecure: neither the recovery nor client join state are enforced. This allows any client with the private key to join freely. This is less secure, but can be useful in certain situations, like in otherwise unsupported CI/CD providers. This mode should be used with care, and RBAC rules should be configured to heavily restrict which resources this identity can access.",
+									Description: "Mode sets the recovery rule enforcement mode. It may be one of these values: - standard (or unset): all configured rules enforced. The recovery limit and client join state are required and verified. This is the most secure recovery mode. - relaxed: recovery limit is not enforced, but client join state is still required. This effectively allows unlimited recovery attempts, but client join state still helps mitigate stolen credentials. - insecure: neither the recovery limit nor client join state are enforced. This allows any client with the private key to join freely. This is less secure, but can be useful in certain situations, like in otherwise unsupported CI/CD providers. This mode should be used with care, and RBAC rules should be configured to heavily restrict which resources this identity can access.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -1708,8 +1708,8 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 						Optional:    true,
 						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					},
-					"last_joined_at": {
-						Description: "LastJoinedAt contains a timestamp of the last successful join attempt. Note that normal renewals will not trigger a join attempt. This corresponds with the last time `bound_bot_instance_id` was updated.",
+					"last_recovered_at": {
+						Description: "LastRecoveredAt contains a timestamp of the last successful recovery attempt. Note that normal renewals do not count as a recovery attempt, however onboarding does,  either with a preregistered key or registration secret. This corresponds with the last time `bound_bot_instance_id` was updated.",
 						Optional:    true,
 						Type:        UseRFC3339Time(),
 					},
@@ -15865,20 +15865,20 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 										}
 									}
 									{
-										a, ok := tf.Attrs["last_joined_at"]
+										a, ok := tf.Attrs["last_recovered_at"]
 										if !ok {
-											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.LastJoinedAt"})
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.LastRecoveredAt"})
 										} else {
 											v, ok := a.(TimeValue)
 											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.LastJoinedAt", "TimeValue"})
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.LastRecoveredAt", "TimeValue"})
 											} else {
 												var t *time.Time
 												if !v.Null && !v.Unknown {
 													c := time.Time(v.Value)
 													t = &c
 												}
-												obj.LastJoinedAt = t
+												obj.LastRecoveredAt = t
 											}
 										}
 									}
@@ -19590,30 +19590,30 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 										}
 									}
 									{
-										t, ok := tf.AttrTypes["last_joined_at"]
+										t, ok := tf.AttrTypes["last_recovered_at"]
 										if !ok {
-											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.LastJoinedAt"})
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.LastRecoveredAt"})
 										} else {
-											v, ok := tf.Attrs["last_joined_at"].(TimeValue)
+											v, ok := tf.Attrs["last_recovered_at"].(TimeValue)
 											if !ok {
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
-													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Status.BoundKeypair.LastJoinedAt", err})
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Status.BoundKeypair.LastRecoveredAt", err})
 												}
 												v, ok = i.(TimeValue)
 												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.LastJoinedAt", "TimeValue"})
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.LastRecoveredAt", "TimeValue"})
 												}
 												v.Null = false
 											}
-											if obj.LastJoinedAt == nil {
+											if obj.LastRecoveredAt == nil {
 												v.Null = true
 											} else {
 												v.Null = false
-												v.Value = time.Time(*obj.LastJoinedAt)
+												v.Value = time.Time(*obj.LastRecoveredAt)
 											}
 											v.Unknown = false
-											tf.Attrs["last_joined_at"] = v
+											tf.Attrs["last_recovered_at"] = v
 										}
 									}
 									{
