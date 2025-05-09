@@ -131,6 +131,7 @@ type RegexpConfig struct {
 func KubeResourceMatchesRegexWithVerbsCollector(input types.KubernetesResource, resources []types.KubernetesResource) (bool, []string, error) {
 	verbs := map[string]struct{}{}
 	matchedAny := false
+
 	for _, resource := range resources {
 		if input.Kind != resource.Kind && resource.Kind != types.Wildcard {
 			continue
@@ -288,6 +289,7 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []typ
 	// permissions for.
 	targetsReadOnlyNamespace := input.Kind == types.KindKubeNamespace &&
 		slices.Contains([]string{types.KubeVerbGet, types.KubeVerbList, types.KubeVerbWatch}, verb)
+
 	for _, resource := range resources {
 		// If the resource has a wildcard verb, it matches all verbs.
 		// Otherwise, the resource must have the verb we're looking for otherwise

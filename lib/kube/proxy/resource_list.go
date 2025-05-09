@@ -55,9 +55,8 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 
 	isLocalKubeCluster := sess.isLocalKubernetesCluster
 	supportsType := false
-	resourceKind := ""
 	if isLocalKubeCluster {
-		resourceKind, supportsType = sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
+		_, supportsType = sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
 	}
 
 	// status holds the returned response code.
@@ -72,7 +71,7 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 	} else {
 		allowedResources, deniedResources := sess.Checker.GetKubeResources(sess.kubeCluster)
 
-		shouldBeAllowed, err := matchListRequestShouldBeAllowed(sess, resourceKind, sess.apiResource.apiGroup, allowedResources, deniedResources)
+		shouldBeAllowed, err := matchListRequestShouldBeAllowed(sess, sess.apiResource.resourceKind, sess.apiResource.apiGroup, allowedResources, deniedResources)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -116,7 +115,7 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	memBuffer := responsewriters.NewMemoryResponseWriter()
 	// Forward the request to the target cluster.
 	sess.forwarder.ServeHTTP(memBuffer, req)
-	resourceKind, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
+	_, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
 	if !ok {
 		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.apiResource.resourceKind)
 	}
@@ -124,7 +123,7 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	// filterBuffer filters the response to exclude resources the user doesn't have access to.
 	// The filtered payload will be written into memBuffer again.
 	if err := filterBuffer(
-		newResourceFilterer(resourceKind, sess.apiResource.apiGroup, verb, sess.codecFactory, allowedResources, deniedResources, f.log),
+		newResourceFilterer(sess.apiResource.resourceKind, sess.apiResource.apiGroup, verb, sess.codecFactory, allowedResources, deniedResources, f.log),
 		memBuffer,
 	); err != nil {
 		return memBuffer.Status(), trace.Wrap(err)
@@ -175,7 +174,7 @@ func matchListRequestShouldBeAllowed(sess *clusterSession, resourceKind, resourc
 // for the next event.
 func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWriter, sess *clusterSession, allowedResources, deniedResources []types.KubernetesResource) (int, error) {
 	negotiator := newClientNegotiator(sess.codecFactory)
-	resourceKind, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
+	_, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
 	if !ok {
 		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.apiResource.resourceKind)
 	}
@@ -184,7 +183,7 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 		w,
 		negotiator,
 		newResourceFilterer(
-			resourceKind,
+			sess.apiResource.resourceKind,
 			sess.apiResource.apiGroup,
 			verb,
 			sess.codecFactory,

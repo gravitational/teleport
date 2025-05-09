@@ -809,6 +809,9 @@ func (f *Forwarder) setupContext(
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if kubeResource != nil {
+			kubeResource.Kind = apiResource.resourceKind
+		}
 	}
 
 	netConfig, err := f.cfg.CachingAuthClient.GetClusterNetworkingConfig(f.ctx)
