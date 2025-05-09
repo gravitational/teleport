@@ -134,6 +134,8 @@ message CreateIntegrationRequest {
   // in turn will disable JIT Access Requests. Makes sense only when apps and groups sync is
   // enabled.
   bool enable_bidirectional_sync = 10;
+  // Enable SIEM (Security Information and Event Management) integration.
+  bool enable_siem_integration = 11;
 }
 
 // UpdateIntegrationRequest is the request message for updating an existing Okta integration.
