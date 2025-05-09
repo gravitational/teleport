@@ -75,7 +75,7 @@ type Server struct {
 // The given directory will be created when the server is served and destroyed with the server is stopped.
 //
 // [DefaultAgentDir] should be used for [keyAgentDir] outside of tests.
-func NewAgentServer(ctx context.Context, s hardwarekey.Service, keyAgentDir string) (*Server, error) {
+func NewAgentServer(ctx context.Context, s hardwarekey.Service, keyAgentDir string, knownKeyFn hardwarekeyagent.KnownHardwareKeyFn) (*Server, error) {
 	if err := os.MkdirAll(keyAgentDir, 0o700); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -91,7 +91,7 @@ func NewAgentServer(ctx context.Context, s hardwarekey.Service, keyAgentDir stri
 		return nil, trace.Wrap(err)
 	}
 
-	grpcServer := hardwarekeyagent.NewServer(ctx, s, credentials.NewServerTLSFromCert(&cert))
+	grpcServer := hardwarekeyagent.NewServer(ctx, s, credentials.NewServerTLSFromCert(&cert), knownKeyFn)
 	return &Server{
 		grpcServer: grpcServer,
 		listener:   l,
