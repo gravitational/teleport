@@ -19,7 +19,7 @@
 import { within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
-import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
+import { render, screen, userEvent, waitFor } from 'design/utils/testing';
 
 import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';
@@ -82,10 +82,8 @@ test('renders service name & labels from response', async () => {
     ],
   });
 
-  fireEvent.click(screen.getAllByRole('row')[1]);
-  await waitFor(() =>
-    expect(window.open).toHaveBeenCalledWith('some-aws-url', '_blank')
-  );
+  await userEvent.click(screen.getAllByRole('row')[1]);
+  expect(window.open).toHaveBeenCalledWith('some-aws-url', '_blank');
 
   jest.clearAllMocks();
 });
