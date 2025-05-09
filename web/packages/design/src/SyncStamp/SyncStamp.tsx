@@ -16,22 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { formatDistanceStrict } from 'date-fns';
+import { formatDistanceToNowStrict } from 'date-fns';
 
 import Flex from 'design/Flex';
 import { SyncAlt } from 'design/Icon';
 import { P3 } from 'design/Text';
 
-export function SyncStamp({ date }: { date: Date }) {
+export function SyncStamp({ date }: { date?: Date }) {
+  let content = 'N/A';
+  if (date && date.getTime() >= 0) {
+    content = formatDistanceToNowStrict(date, { addSuffix: true });
+  }
+
   return (
     <Flex data-testid="sync">
       <SyncAlt color="text.muted" size="small" mr={1} />
-      <P3 color="text.muted">
-        Last Sync:{' '}
-        {formatDistanceStrict(new Date(date), new Date(), {
-          addSuffix: true,
-        })}
-      </P3>
+      <P3 color="text.muted">Last Sync: {content}</P3>
     </Flex>
   );
 }
