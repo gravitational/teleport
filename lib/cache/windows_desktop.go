@@ -37,19 +37,19 @@ func newWindowsDesktopServiceCollection(p services.Presence, w types.WatchKind) 
 	}
 
 	return &collection[types.WindowsDesktopService, windowsDesktopServiceIndex]{
-		store: newStore(map[windowsDesktopServiceIndex]func(types.WindowsDesktopService) string{
-			windowsDesktopServiceNameIndex: func(u types.WindowsDesktopService) string {
-				return u.GetName()
-			},
-		}),
+		store: newStore(
+			types.WindowsDesktopService.Clone,
+			map[windowsDesktopServiceIndex]func(types.WindowsDesktopService) string{
+				windowsDesktopServiceNameIndex: types.WindowsDesktopService.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WindowsDesktopService, error) {
 			return p.GetWindowsDesktopServices(ctx)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.WindowsDesktopService {
 			return &types.WindowsDesktopServiceV3{
 				ResourceHeader: types.ResourceHeader{
-					Kind:    types.KindWindowsDesktopService,
-					Version: types.V3,
+					Kind:    hdr.Kind,
+					Version: hdr.Version,
 					Metadata: types.Metadata{
 						Name: hdr.Metadata.Name,
 					},
@@ -167,19 +167,21 @@ func newWindowsDesktopCollection(d services.WindowsDesktops, w types.WatchKind) 
 	}
 
 	return &collection[types.WindowsDesktop, windowsDesktopIndex]{
-		store: newStore(map[windowsDesktopIndex]func(types.WindowsDesktop) string{
-			windowsDesktopNameIndex: func(u types.WindowsDesktop) string {
-				return u.GetHostID() + "/" + u.GetName()
-			},
-		}),
+		store: newStore(
+			types.WindowsDesktop.Copy,
+			map[windowsDesktopIndex]func(types.WindowsDesktop) string{
+				windowsDesktopNameIndex: func(u types.WindowsDesktop) string {
+					return u.GetHostID() + "/" + u.GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WindowsDesktop, error) {
 			return d.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.WindowsDesktop {
 			return &types.WindowsDesktopV3{
 				ResourceHeader: types.ResourceHeader{
-					Kind:    types.KindWindowsDesktop,
-					Version: types.V3,
+					Kind:    hdr.Kind,
+					Version: hdr.Version,
 					Metadata: types.Metadata{
 						Name: hdr.Metadata.Name,
 					},
@@ -290,11 +292,11 @@ func newDynamicWindowsDesktopCollection(upstream services.DynamicWindowsDesktops
 	}
 
 	return &collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]{
-		store: newStore(map[dynamicWindowsDesktopIndex]func(types.DynamicWindowsDesktop) string{
-			dynamicWindowsDesktopNameIndex: func(u types.DynamicWindowsDesktop) string {
-				return u.GetName()
-			},
-		}),
+		store: newStore(
+			types.DynamicWindowsDesktop.Copy,
+			map[dynamicWindowsDesktopIndex]func(types.DynamicWindowsDesktop) string{
+				dynamicWindowsDesktopNameIndex: types.DynamicWindowsDesktop.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.DynamicWindowsDesktop, error) {
 			var desktops []types.DynamicWindowsDesktop
 			var next string
@@ -336,9 +338,6 @@ func (c *Cache) GetDynamicWindowsDesktop(ctx context.Context, name string) (type
 		collection:  c.collections.dynamicWindowsDesktops,
 		index:       dynamicWindowsDesktopNameIndex,
 		upstreamGet: c.Config.DynamicWindowsDesktops.GetDynamicWindowsDesktop,
-		clone: func(dwd types.DynamicWindowsDesktop) types.DynamicWindowsDesktop {
-			return dwd.Copy()
-		},
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
@@ -356,9 +355,6 @@ func (c *Cache) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, ne
 		upstreamList: c.Config.DynamicWindowsDesktops.ListDynamicWindowsDesktops,
 		nextToken: func(dwd types.DynamicWindowsDesktop) string {
 			return dwd.GetMetadata().Name
-		},
-		clone: func(dwd types.DynamicWindowsDesktop) types.DynamicWindowsDesktop {
-			return dwd.Copy()
 		},
 	}
 	out, next, err := lister.list(ctx, pageSize, nextPage)

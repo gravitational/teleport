@@ -35,11 +35,11 @@ func newIntegrationCollection(upstream services.Integrations, w types.WatchKind)
 	}
 
 	return &collection[types.Integration, integrationIndex]{
-		store: newStore(map[integrationIndex]func(types.Integration) string{
-			integrationNameIndex: func(r types.Integration) string {
-				return r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			types.Integration.Clone,
+			map[integrationIndex]func(types.Integration) string{
+				integrationNameIndex: types.Integration.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Integration, error) {
 			var startKey string
 			var resources []types.Integration
@@ -88,7 +88,6 @@ func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, pageToken st
 		nextToken: func(t types.Integration) string {
 			return t.GetMetadata().Name
 		},
-		clone: types.Integration.Clone,
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
@@ -104,7 +103,6 @@ func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integrat
 		collection:  c.collections.integrations,
 		index:       integrationNameIndex,
 		upstreamGet: c.Config.Integrations.GetIntegration,
-		clone:       types.Integration.Clone,
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)

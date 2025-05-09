@@ -36,18 +36,21 @@ func newAppCollection(p services.Apps, w types.WatchKind) (*collection[types.App
 	}
 
 	return &collection[types.Application, appIndex]{
-		store: newStore(map[appIndex]func(types.Application) string{
-			appNameIndex: func(u types.Application) string {
-				return u.GetName()
+		store: newStore(
+			func(a types.Application) types.Application {
+				return a.Copy()
 			},
-		}),
+			map[appIndex]func(types.Application) string{
+				appNameIndex: types.Application.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Application, error) {
-			return p.GetApps(ctx)
+			apps, err := p.GetApps(ctx)
+			return apps, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Application {
 			return &types.AppV3{
-				Kind:    types.KindApp,
-				Version: types.V3,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: hdr.Metadata.Name,
 				},
@@ -86,23 +89,14 @@ func (c *Cache) GetApp(ctx context.Context, name string) (types.Application, err
 	ctx, span := c.Tracer.Start(ctx, "cache/GetApp")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.apps)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	getter := genericGetter[types.Application, appIndex]{
+		cache:       c,
+		collection:  c.collections.apps,
+		index:       appNameIndex,
+		upstreamGet: c.Config.Apps.GetApp,
 	}
-	defer rg.Release()
-
-	if !rg.ReadCache() {
-		apps, err := c.Config.Apps.GetApp(ctx, name)
-		return apps, trace.Wrap(err)
-	}
-
-	a, err := rg.store.get(appNameIndex, name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.Copy(), nil
+	out, err := getter.get(ctx, name)
+	return out, trace.Wrap(err)
 }
 
 type appServerIndex string
@@ -115,18 +109,20 @@ func newAppServerCollection(p services.Presence, w types.WatchKind) (*collection
 	}
 
 	return &collection[types.AppServer, appServerIndex]{
-		store: newStore(map[appServerIndex]func(types.AppServer) string{
-			appServerNameIndex: func(u types.AppServer) string {
-				return u.GetHostID() + "/" + u.GetName()
-			},
-		}),
+		store: newStore(
+			types.AppServer.Copy,
+			map[appServerIndex]func(types.AppServer) string{
+				appServerNameIndex: func(u types.AppServer) string {
+					return u.GetHostID() + "/" + u.GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.AppServer, error) {
 			return p.GetApplicationServers(ctx, defaults.Namespace)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.AppServer {
 			return &types.AppServerV3{
-				Kind:    types.KindAppServer,
-				Version: types.V3,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: hdr.Metadata.Name,
 				},

@@ -36,11 +36,11 @@ func newUserGroupCollection(u services.UserGroups, w types.WatchKind) (*collecti
 	}
 
 	return &collection[types.UserGroup, userGroupIndex]{
-		store: newStore(map[userGroupIndex]func(types.UserGroup) string{
-			userGroupNameIndex: func(r types.UserGroup) string {
-				return r.GetName()
-			},
-		}),
+		store: newStore(
+			types.UserGroup.Clone,
+			map[userGroupIndex]func(types.UserGroup) string{
+				userGroupNameIndex: types.UserGroup.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.UserGroup, error) {
 			var startKey string
 			var groups []types.UserGroup
@@ -59,7 +59,13 @@ func newUserGroupCollection(u services.UserGroups, w types.WatchKind) (*collecti
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.UserGroup {
 			return &types.UserGroupV1{
-				ResourceHeader: *hdr,
+				ResourceHeader: types.ResourceHeader{
+					Kind:    hdr.Kind,
+					Version: hdr.Version,
+					Metadata: types.Metadata{
+						Name: hdr.Metadata.Name,
+					},
+				},
 			}
 		},
 		watch: w,
