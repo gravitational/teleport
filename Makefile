@@ -1707,12 +1707,48 @@ ensure-js-deps:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
 	else $(MAKE) ensure-js-package-manager && pnpm install --frozen-lockfile; fi
 
+.PHONY: ensure-wasm-deps
+ifeq ($(WEBASSETS_SKIP_BUILD),1)
+ensure-wasm-deps:
+else
+
+# Get the version of wasm-bindgen from cargo, as that is what wasm-pack is
+# going to do when it checks for the right version. The buildboxes do not
+# have jq installed (yet), so have a hacky awk version on standby.
+CARGO_GET_VERSION_JQ = cargo metadata --locked --format-version=1 | jq -r 'first(.packages[] | select(.name? == "$(1)") | .version)'
+CARGO_GET_VERSION_AWK = awk -F '[ ="]+' '/^name = "$(1)"$$/ {inpkg = 1} inpkg && $$1 == "version" {print $$2; exit}' Cargo.lock
+
+BIN_JQ = $(shell which jq 2>/dev/null)
+CARGO_GET_VERSION = $(if $(BIN_JQ),$(CARGO_GET_VERSION_JQ),$(CARGO_GET_VERSION_AWK))
+
+ensure-wasm-bindgen: VERSION = $(shell $(call CARGO_GET_VERSION,wasm-bindgen))
+ensure-wasm-bindgen: INSTALLED_VERSION = $(lastword $(shell wasm-bindgen --version 2>/dev/null))
+ensure-wasm-bindgen:
+	@: $(or $(VERSION),$(error Unknown wasm-bindgen version. Is it in Cargo.lock?))
+	$(if $(filter-out $(INSTALLED_VERSION),$(VERSION)),\
+		cargo install wasm-bindgen-cli --locked --version "$(VERSION)", \
+		@echo wasm-bindgen-cli up-to date: $(INSTALLED_VERSION) \
+	)
+
+ensure-wasm-pack: VERSION = $(shell $(MAKE) -s -C build.assets print-wasm-pack-version)
+ensure-wasm-pack: INSTALLED_VERSION = $(lastword $(shell wasm-pack --version 2>/dev/null))
+ensure-wasm-pack:
+	$(if $(filter-out $(INSTALLED_VERSION),$(VERSION)),\
+		cargo install wasm-pack --locked --version "$(VERSION)", \
+		@echo wasm-pack-cli up-to date: $(INSTALLED_VERSION) \
+	)
+
+ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-pack
+
+endif
+
+
 .PHONY: build-ui
-build-ui: ensure-js-deps
+build-ui: ensure-js-deps ensure-wasm-deps
 	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-oss
 
 .PHONY: build-ui-e
-build-ui-e: ensure-js-deps
+build-ui-e: ensure-js-deps ensure-wasm-deps
 	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-e
 
 .PHONY: docker-ui
