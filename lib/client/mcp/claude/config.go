@@ -35,6 +35,13 @@ type Config struct {
 	AllFields  map[string]any       `json:"-"`
 }
 
+func (c *Config) AddMCPServer(name string, mcpServer MCPServer) {
+	if c.MCPServers == nil {
+		c.MCPServers = make(map[string]MCPServer)
+	}
+	c.MCPServers[name] = mcpServer
+}
+
 func (c *Config) MarshalJSON() ([]byte, error) {
 	c.updateFields()
 	data, err := json.Marshal(c.AllFields)
@@ -106,7 +113,7 @@ func UpdateConfigWithMCPServers(ctx context.Context, mcpServers map[string]MCPSe
 	}
 	// Overwrite existing MCP servers with the new ones.
 	for name, mcpServer := range mcpServers {
-		config.MCPServers[name] = mcpServer
+		config.AddMCPServer(name, mcpServer)
 	}
 	return trace.Wrap(SaveConfig(ctx, config))
 }
