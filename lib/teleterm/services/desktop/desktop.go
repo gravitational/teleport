@@ -18,6 +18,8 @@ package desktop
 
 import (
 	"context"
+	"errors"
+	"os"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -31,7 +33,7 @@ import (
 )
 
 // Connect starts a remote desktop session.
-func Connect(ctx context.Context, stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse], clusterClient *client.TeleportClient, proxyClient *proxy.Client, desktopName, login string) error {
+func Connect(ctx context.Context, stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse], clusterClient *client.TeleportClient, proxyClient *proxy.Client, desktopName, login string, directoryAccess *DirectoryAccess) error {
 	keyRing, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToCluster: clusterClient.SiteName,
 		TTL:            clusterClient.KeyTTL,
@@ -76,7 +78,24 @@ func Connect(ctx context.Context, stream grpc.BidiStreamingServer[api.ConnectToD
 		return trace.Wrap(err)
 	}
 
-	tdpConnProxy := tdp.NewConnProxy(downstreamRW, conn, nil)
+	interceptor := serverInterceptor{
+		directoryAccess: directoryAccess,
+	}
+
+	tdpConnProxy := tdp.NewConnProxy(downstreamRW, conn, func(tdpConn *tdp.Conn, message tdp.Message) (tdp.Message, error) {
+		msg, intErr := interceptor.process(message, func(message tdp.Message) error {
+			return trace.Wrap(tdpConn.WriteMessage(message))
+		})
+		if intErr != nil {
+			// Treat all file system errors as warnings, do not interrupt the connection.
+			return tdp.Alert{
+				Message:  intErr.Error(),
+				Severity: tdp.SeverityWarning,
+			}, nil
+		}
+		return msg, nil
+	})
+
 	return trace.Wrap(tdpConnProxy.Run(ctx))
 }
 
@@ -106,4 +125,185 @@ func (d clientStream) Recv() ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// serverInterceptor intercepts and processes messages sent from the server to the client.
+type serverInterceptor struct {
+	directoryAccess *DirectoryAccess
+}
+
+func (d *serverInterceptor) process(msg tdp.Message, sendToServer func(message tdp.Message) error) (tdp.Message, error) {
+	switch r := msg.(type) {
+	case tdp.SharedDirectoryInfoRequest:
+		return nil, trace.Wrap(d.handleSharedDirectoryInfoRequest(r, sendToServer))
+	case tdp.SharedDirectoryListRequest:
+		return nil, trace.Wrap(d.handleSharedDirectoryListRequest(r, sendToServer))
+	case tdp.SharedDirectoryReadRequest:
+		return nil, trace.Wrap(d.handleSharedDirectoryReadRequest(r, sendToServer))
+	case tdp.SharedDirectoryMoveRequest:
+		return nil, trace.Wrap(d.handleSharedDirectoryMoveRequest(r, sendToServer))
+	case tdp.SharedDirectoryWriteRequest:
+		return nil, trace.Wrap(d.handleSharedDirectoryWriteRequest(r, sendToServer))
+	case tdp.SharedDirectoryTruncateRequest:
+		return nil, trace.Wrap(d.handleSharedDirectoryTruncateRequest(r, sendToServer))
+	case tdp.SharedDirectoryCreateRequest:
+		return nil, trace.Wrap(d.handleSharedDirectoryCreateRequest(r, sendToServer))
+	case tdp.SharedDirectoryDeleteRequest:
+		return nil, trace.Wrap(d.handleSharedDirectoryDeleteRequest(r, sendToServer))
+	default:
+		return msg, nil
+	}
+}
+
+type SharedDirectoryErrCode uint32
+
+const (
+	SharedDirectoryErrCodeNil SharedDirectoryErrCode = iota
+	SharedDirectoryErrCodeFailed
+	SharedDirectoryErrCodeDoesNotExist
+	SharedDirectoryErrCodeAlreadyExists
+)
+
+func (d *serverInterceptor) handleSharedDirectoryInfoRequest(r tdp.SharedDirectoryInfoRequest, sendToServer func(message tdp.Message) error) error {
+	info, err := d.directoryAccess.Stat(r.Path)
+	if err == nil {
+		return trace.Wrap(sendToServer(tdp.SharedDirectoryInfoResponse{
+			CompletionID: r.CompletionID,
+			ErrCode:      uint32(SharedDirectoryErrCodeNil),
+			Fso:          toFso(info),
+		}))
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return trace.Wrap(sendToServer(tdp.SharedDirectoryInfoResponse{
+			CompletionID: r.CompletionID,
+			ErrCode:      uint32(SharedDirectoryErrCodeDoesNotExist),
+			Fso: tdp.FileSystemObject{
+				LastModified: 0,
+				Size:         0,
+				FileType:     0,
+				IsEmpty:      0,
+				Path:         "",
+			}}))
+	}
+	return trace.Wrap(err)
+}
+
+func (d *serverInterceptor) handleSharedDirectoryListRequest(r tdp.SharedDirectoryListRequest, sendToServer func(message tdp.Message) error) error {
+	contents, err := d.directoryAccess.ReadDir(r.Path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fsoList := make([]tdp.FileSystemObject, len(contents))
+	for i, content := range contents {
+		fsoList[i] = toFso(content)
+	}
+
+	err = sendToServer(tdp.SharedDirectoryListResponse{
+		CompletionID: r.CompletionID,
+		ErrCode:      uint32(SharedDirectoryErrCodeNil),
+		FsoList:      fsoList,
+	})
+	return trace.Wrap(err)
+}
+
+func (d *serverInterceptor) handleSharedDirectoryReadRequest(r tdp.SharedDirectoryReadRequest, sendToServer func(message tdp.Message) error) error {
+	contents, err := d.directoryAccess.Read(r.Path, int64(r.Offset), r.Length)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = sendToServer(tdp.SharedDirectoryReadResponse{
+		CompletionID:   r.CompletionID,
+		ErrCode:        uint32(SharedDirectoryErrCodeNil),
+		ReadDataLength: uint32(len(contents)),
+		ReadData:       contents,
+	})
+	return trace.Wrap(err)
+}
+
+func (d *serverInterceptor) handleSharedDirectoryMoveRequest(r tdp.SharedDirectoryMoveRequest, sendToServer func(message tdp.Message) error) error {
+	err := sendToServer(tdp.SharedDirectoryMoveResponse{
+		CompletionID: r.CompletionID,
+		ErrCode:      uint32(SharedDirectoryErrCodeFailed),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.NotImplemented("Moving or renaming files and directories within a shared directory is not supported.")
+}
+
+func (d *serverInterceptor) handleSharedDirectoryWriteRequest(r tdp.SharedDirectoryWriteRequest, sendToServer func(message tdp.Message) error) error {
+	bytesWritten, err := d.directoryAccess.Write(r.Path, int64(r.Offset), r.WriteData)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = sendToServer(tdp.SharedDirectoryWriteResponse{
+		CompletionID: r.CompletionID,
+		ErrCode:      uint32(SharedDirectoryErrCodeNil),
+		BytesWritten: uint32(bytesWritten),
+	})
+	return trace.Wrap(err)
+}
+
+func (d *serverInterceptor) handleSharedDirectoryTruncateRequest(r tdp.SharedDirectoryTruncateRequest, sendToServer func(message tdp.Message) error) error {
+	err := d.directoryAccess.Truncate(r.Path, int64(r.EndOfFile))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = sendToServer(tdp.SharedDirectoryTruncateResponse{
+		CompletionID: r.CompletionID,
+		ErrCode:      uint32(SharedDirectoryErrCodeNil),
+	})
+	return trace.Wrap(err)
+}
+
+func (d *serverInterceptor) handleSharedDirectoryCreateRequest(r tdp.SharedDirectoryCreateRequest, sendToServer func(message tdp.Message) error) error {
+	err := d.directoryAccess.Create(r.Path, FileType(r.FileType))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	info, err := d.directoryAccess.Stat(r.Path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = sendToServer(tdp.SharedDirectoryCreateResponse{
+		CompletionID: r.CompletionID,
+		ErrCode:      uint32(SharedDirectoryErrCodeNil),
+		Fso:          toFso(info),
+	})
+	return trace.Wrap(err)
+}
+
+func (d *serverInterceptor) handleSharedDirectoryDeleteRequest(r tdp.SharedDirectoryDeleteRequest, sendToServer func(message tdp.Message) error) error {
+	err := d.directoryAccess.Delete(r.Path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = sendToServer(tdp.SharedDirectoryDeleteResponse{
+		CompletionID: r.CompletionID,
+		ErrCode:      uint32(SharedDirectoryErrCodeNil),
+	})
+	return trace.Wrap(err)
+}
+
+func toFso(info *FileOrDirInfo) tdp.FileSystemObject {
+	obj := tdp.FileSystemObject{
+		LastModified: uint64(info.LastModified),
+		Size:         uint64(info.Size),
+		FileType:     uint32(info.FileType),
+		IsEmpty:      1,
+		Path:         info.Path,
+	}
+	if info.IsEmpty {
+		obj.IsEmpty = 0
+	}
+
+	return obj
 }
