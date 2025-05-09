@@ -91,8 +91,32 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	name := pkix.Name{CommonName: upn}
+
+	if strings.Contains(upn, "charles") {
+		DomainComponent := asn1.ObjectIdentifier{0, 9, 2342, 19200300, 100, 1, 25}
+		name = pkix.Name{
+			CommonName:         "charles.xavier_contractor.net",
+			OrganizationalUnit: []string{"B2B Guests", "Accounts", "NREL"},
+			ExtraNames: []pkix.AttributeTypeAndValue{
+				{
+					Type:  DomainComponent,
+					Value: "ext",
+				},
+				{
+					Type:  DomainComponent,
+					Value: "nrel",
+				},
+				{
+					Type:  DomainComponent,
+					Value: "gov",
+				},
+			},
+		}
+	}
+
 	csr := &x509.CertificateRequest{
-		Subject: pkix.Name{CommonName: upn},
+		Subject: name,
 		// We have to pass SAN and ExtKeyUsage as raw extensions because
 		// crypto/x509 doesn't support what we need:
 		// - x509.ExtKeyUsage doesn't have the Smartcard Logon variant
