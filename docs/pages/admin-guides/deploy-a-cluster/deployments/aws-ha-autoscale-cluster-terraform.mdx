@@ -850,7 +850,7 @@ To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 - [Run Teleport - we recommend using systemd](../../management/admin/daemon.mdx)
 - [Set the correct settings in /etc/teleport.yaml](../../../reference/config.mdx)
 - [Add Nodes to the Teleport
-  cluster](../../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx)
+  cluster](../../../enroll-resources/agents/agents.mdx)
 
 ### Getting the SSH Service join token
 
@@ -862,13 +862,13 @@ $ aws ssm get-parameter --region <Var name="us-west-2" /> --name "/teleport/${CL
 # 992a9725-0a64-428d-8e5e-308e6877743d
 ```
 
-You can also generate an SSH Service join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../../../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
+You can also generate an SSH Service join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../../../enroll-resources/agents/join-token.mdx).
 
 ### Joining agents to the cluster
 
 The easiest way to quickly join nodes to your cluster is to use the "Enroll New Resource" wizard in the Teleport web UI.
 
-To manually join Teleport Agents to your cluster, you will need [a join token](../../../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
+To manually join Teleport Agents to your cluster, you will need [a join token](../../../enroll-resources/agents/join-token.mdx).
 
 You should join your agents using the public facing Proxy Service address - `teleport.example.com:443` for our
 example.
