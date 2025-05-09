@@ -21,8 +21,6 @@ package auth
 import (
 	"cmp"
 	"context"
-	"crypto"
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -33,7 +31,6 @@ import (
 	"sync"
 	"time"
 
-	"filippo.io/age"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -369,6 +366,9 @@ type InitConfig struct {
 
 	// BackendInfo is a service of backend information.
 	BackendInfo services.BackendInfoService
+
+	// RecordingEncryption manages state for encrypted session recording.
+	RecordingEncryption services.RecordingEncryptionServiceInternal
 
 	// SkipVersionCheck skips version check during major version upgrade/downgrade.
 	SkipVersionCheck bool
@@ -1009,157 +1009,74 @@ func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNet
 }
 
 func handleSessionRecordingChange(ctx context.Context, asrv *Server) error {
-	keyStore := asrv.keyStore
-	log := asrv.logger
-
-	log.InfoContext(ctx, "fetching recording config")
-	recConfig, err := asrv.GetSessionRecordingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err, "fetching recording config")
+	asrv.logger.InfoContext(ctx, "fetching recording config")
+	lockCfg := backend.RunWhileLockedConfig{
+		LockConfiguration: backend.LockConfiguration{
+			Backend:            asrv.bk,
+			LockNameComponents: []string{"session_recording_config_watcher"},
+			TTL:                30 * time.Second,
+		},
+		RefreshLockInterval: 20 * time.Second,
 	}
 
-	if !recConfig.GetEncrypted() {
-		log.InfoContext(ctx, "recording encryption disabled, bailing")
-		return nil
-	}
-
-	log.InfoContext(ctx, "recording encryption enabled, checking for active keys")
-	status := recConfig.GetStatus()
-	var activeKeys []*types.WrappedKey
-	if status.Keyset != nil {
-		activeKeys = status.Keyset.ActiveKeys
-	}
-
-	// no keys present, need to generate the initial active keypair
-	if len(activeKeys) == 0 {
-		log.InfoContext(ctx, "no active keys, generating initial keyset")
-		wrappingPair, err := keyStore.NewEncryptionKeyPair(ctx, cryptosuites.RecordingEncryption)
+	return trace.Wrap(backend.RunWhileLocked(ctx, lockCfg, func(ctx context.Context) error {
+		recConfig, err := asrv.GetSessionRecordingConfig(ctx)
 		if err != nil {
-			return trace.Wrap(err, "generating wrapping key")
+			return trace.Wrap(err, "fetching recording config")
 		}
 
-		ident, err := age.GenerateX25519Identity()
-		if err != nil {
-			return trace.Wrap(err, "generating age encryption key")
+		if !recConfig.GetEncrypted() {
+			asrv.logger.InfoContext(ctx, "recording encryption disabled, bailing")
+			return nil
 		}
 
-		encryptedIdent, err := keys.EncryptWithPublicKeyPEM(wrappingPair.PublicKey, []byte(ident.String()))
+		encryption, err := asrv.EvaluateRecordingEncryption(ctx, asrv.keyStore)
 		if err != nil {
-			return trace.Wrap(err, "wrapping encryption key")
+			asrv.logger.ErrorContext(ctx, "failed to evaluate recording_encryption", "error", err)
+			return trace.Wrap(err)
 		}
 
-		wrappedKey := types.WrappedKey{
-			WrappingPair: wrappingPair,
-			WrappedPair: &types.EncryptionKeyPair{
-				PrivateKeyType: types.PrivateKeyType_RAW,
-				PrivateKey:     encryptedIdent,
-				PublicKey:      []byte(ident.Recipient().String()),
-			},
+		activeKeySet := make(map[string]types.EncryptionKey)
+		for _, wrappedKey := range encryption.GetSpec().GetKeySet().GetActiveKeys() {
+			encKey := wrappedKey.RecordingEncryptionPair.EncryptionKey()
+			if _, ok := activeKeySet[string(encKey.PublicKey)]; ok {
+				continue
+			}
+			activeKeySet[string(encKey.PublicKey)] = wrappedKey.RecordingEncryptionPair.EncryptionKey()
+		}
+
+		oldKeySet := make(map[string]types.EncryptionKey)
+		for _, encKey := range recConfig.GetStatus().EncryptionKeys {
+			if _, ok := oldKeySet[string(encKey.PublicKey)]; ok {
+				continue
+			}
+
+			oldKeySet[string(encKey.PublicKey)] = *encKey
+		}
+
+		shouldUpdate := len(oldKeySet) != len(activeKeySet)
+		for pubKey := range activeKeySet {
+			if _, ok := oldKeySet[pubKey]; !ok {
+				shouldUpdate = true
+				break
+			}
+		}
+
+		if !shouldUpdate {
+			return nil
+		}
+
+		encKeys := make([]*types.EncryptionKey, 0, len(activeKeySet))
+		for _, encKey := range activeKeySet {
+			encKeys = append(encKeys, &encKey)
 		}
 		recConfig.SetStatus(types.SessionRecordingConfigStatus{
-			Keyset: &types.EncryptionKeySet{
-				ActiveKeys: []*types.WrappedKey{&wrappedKey},
-			},
+			EncryptionKeys: encKeys,
 		})
 
-		log.InfoContext(ctx, "updating session recording encryption active keys")
 		_, err = asrv.UpdateSessionRecordingConfig(ctx, recConfig)
 		return trace.Wrap(err)
-	}
-
-	log.InfoContext(ctx, "searching for accessible active key")
-	var activeKey *types.WrappedKey
-	var decrypter crypto.Decrypter
-	var unfulfilledKeys []*types.WrappedKey
-	var ownUnfulfilledKey bool
-	rotatedSet := make(map[*types.WrappedKey]struct{})
-	for _, key := range activeKeys {
-		if key.WrappedPair == nil {
-			unfulfilledKeys = append(unfulfilledKeys, key)
-		}
-
-		decrypter, err = keyStore.GetDecrypter(ctx, key.WrappingPair)
-		if err != nil {
-			continue
-		}
-
-		// if we make it to this section the key is owned by the current auth server
-		activeKey = key
-		if key.WrappedPair == nil {
-			ownUnfulfilledKey = true
-		}
-
-		if key.Rotate {
-			rotatedSet[key] = struct{}{}
-		}
-	}
-
-	if ownUnfulfilledKey {
-		log.InfoContext(ctx, "detected unfulfilled key, nothing more to do")
-		return nil
-	}
-
-	if activeKey == nil || activeKey.Rotate {
-		log.InfoContext(ctx, "no accessible keys, generating empty key to be fulfilled")
-		keypair, err := keyStore.NewEncryptionKeyPair(ctx, cryptosuites.RecordingEncryption)
-		if err != nil {
-			return trace.Wrap(err, "generating keypair for new wrapped key")
-		}
-		status.Keyset.ActiveKeys = append(activeKeys, &types.WrappedKey{
-			WrappingPair: keypair,
-		})
-
-		recConfig.SetStatus(status)
-		_, err = asrv.UpdateSessionRecordingConfig(ctx, recConfig)
-		return trace.Wrap(err, "updating session recording config")
-	}
-
-	var shouldUpdate bool
-	log.InfoContext(ctx, "key is accessible, fulfilling empty keys", "keys_waiting", len(unfulfilledKeys))
-	for _, key := range unfulfilledKeys {
-		decryptionKey, err := decrypter.Decrypt(rand.Reader, activeKey.WrappedPair.PrivateKey, nil)
-		if err != nil {
-			return trace.Wrap(err, "decrypting known key")
-		}
-
-		encryptedKey, err := keys.EncryptWithPublicKeyPEM(key.WrappingPair.PublicKey, decryptionKey)
-		if err != nil {
-			return trace.Wrap(err, "reencrypting decryption key")
-		}
-
-		key.WrappedPair = &types.EncryptionKeyPair{
-			PrivateKey: encryptedKey,
-			PublicKey:  activeKey.WrappedPair.PublicKey,
-		}
-
-		shouldUpdate = true
-	}
-
-	var cleanActiveKeys []*types.WrappedKey
-	var rotatedKeys []*types.WrappedKey
-	for _, key := range activeKeys {
-		if _, ok := rotatedSet[key]; !ok {
-			cleanActiveKeys = append(cleanActiveKeys, key)
-			continue
-		}
-		rotatedKeys = append(rotatedKeys, key)
-	}
-
-	if len(rotatedKeys) > 0 {
-		shouldUpdate = true
-		status.Keyset.ActiveKeys = cleanActiveKeys
-		// TODO (eriktate): if moving rotated keys becomes a manual step, just remove the next line
-		status.Keyset.RotatedKeys = append(status.Keyset.RotatedKeys, rotatedKeys...)
-	}
-
-	if shouldUpdate {
-		recConfig.SetStatus(status)
-		if _, err = asrv.UpdateSessionRecordingConfig(ctx, recConfig); err != nil {
-			return trace.Wrap(err, "updating session recording config")
-		}
-	}
-
-	return nil
+	}))
 }
 
 func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
@@ -1183,8 +1100,9 @@ func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecC
 					continue
 				}
 
-				for _ = range 3 {
-					if err := handleSessionRecordingChange(asrv.closeCtx, asrv); err == nil {
+				for range 3 {
+					err := handleSessionRecordingChange(asrv.closeCtx, asrv)
+					if err == nil {
 						break
 					}
 
