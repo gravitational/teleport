@@ -204,8 +204,6 @@ func (c *ConnProxy) SendToClient(ctx context.Context, message Message) error {
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
-	default:
-		return trace.Errorf("could not send TDP message to client")
 	}
 }
 
@@ -240,10 +238,7 @@ func (c *ConnProxy) Run(ctx context.Context) error {
 
 		for {
 			select {
-			case msg, ok := <-c.messagesToClient:
-				if !ok {
-					return nil // channel closed gracefully
-				}
+			case msg := <-c.messagesToClient:
 				encoded, err := msg.Encode()
 				if err != nil {
 					return trace.Wrap(err)
