@@ -1,6 +1,6 @@
 ---
 title: Enable a New Service on an Agent
-description: Explains how to edit the services taht are running on a Teleport Agent.
+description: Explains how to edit the services that are running on a Teleport Agent.
 ---
 
 A single Teleport Agent can run multiple services. This guide shows you how to
@@ -61,7 +61,7 @@ Service:
 
 See the `teleport-kube-agent` [chart
 reference](../../reference/helm-reference/teleport-kube-agent.mdx#roles) for the
-roles and token tyeps that the chart supports.
+roles and token types that the chart supports.
 
 ## Step 2/3. Edit your agent configuration
 
@@ -242,10 +242,9 @@ $ helm upgrade teleport-agent teleport-kube-agent
 
 ## Further reading: manage tokens as code
 
-While this guide shows you how to create a token using `tctl`, we recommend that
-admins of production clusters manage tokens using the Teleport Terraform
-provider or Kubernetes operator. See the following documentation for information
-on the token resource:
+While this guide shows you how to create a token using `tctl`, you can also
+manage tokens using the Teleport Terraform provider or Kubernetes operator. See
+the following documentation for information on the token resource:
 - [Terraform
   provider](../../reference/terraform-provider/resources/provision_token.mdx)
 - [Kubernetes
