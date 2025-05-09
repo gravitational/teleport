@@ -343,9 +343,12 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 		// SetExecLabel changes the SELinux exec context for the
 		// calling thread only, so we need to ensure that is the
-		// thread that will create the child.
+		// thread that will create the child. We don't ever unlock
+		// the thread as we're exiting after the child exits, and
+		// we want to avoid another goroutine getting denied due to
+		// running on this thread with a different (likely much more
+		// restrictive)SELinux context.
 		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
 		if err := ocselinux.SetExecLabel(seContext); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set SELinux context")
 		}

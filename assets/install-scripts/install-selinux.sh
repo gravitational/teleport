@@ -28,7 +28,7 @@ TELEPORT_ARGS=""
 while getopts "c:t:" opt; do
     case "${opt}" in
         c)
-            TELEPORT_ARGS="-c ${OPTARG}"
+            TELEPORT_ARGS="-c '${OPTARG}'"
             ;;
         t)
             TELEPORT="${OPTARG}"
@@ -60,4 +60,5 @@ while IFS= read -r dir; do
     restorecon -rv "${dir}"
 done <<< "$DIRS"
 
+cd -
 rm -rf "${WORK_DIR}"
