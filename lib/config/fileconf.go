@@ -143,7 +143,7 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 
 	if err := yaml.UnmarshalStrict(bytes, &fc); err != nil {
 		// Remove all newlines in the YAML error, to avoid escaping when printing.
-		return nil, trace.BadParameter("failed parsing the config file: %s", strings.Replace(err.Error(), "\n", "", -1))
+		return nil, trace.BadParameter("failed parsing the config file: %s", strings.ReplaceAll(err.Error(), "\n", ""))
 	}
 	if err := fc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
@@ -1282,6 +1282,9 @@ type HardwareKey struct {
 	// SerialNumberValidation contains optional settings for hardware key
 	// serial number validation, including whether it is enabled.
 	SerialNumberValidation *HardwareKeySerialNumberValidation `yaml:"serial_number_validation,omitempty"`
+
+	// PINCacheTTL specifies how long to cache the user's PIV PIN.
+	PINCacheTTL time.Duration `yaml:"pin_cache_ttl,omitempty"`
 }
 
 func (h *HardwareKey) Parse() (*types.HardwareKey, error) {
@@ -1291,7 +1294,10 @@ func (h *HardwareKey) Parse() (*types.HardwareKey, error) {
 		}
 	}
 
-	hk := &types.HardwareKey{PIVSlot: string(h.PIVSlot)}
+	hk := &types.HardwareKey{
+		PIVSlot:     string(h.PIVSlot),
+		PinCacheTTL: types.Duration(h.PINCacheTTL),
+	}
 
 	if h.SerialNumberValidation != nil {
 		var err error

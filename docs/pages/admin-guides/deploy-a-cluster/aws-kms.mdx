@@ -8,6 +8,8 @@ This guide will show you how to set up your Teleport cluster to use the AWS Key
 Management Service (KMS) to store and handle the CA private key material used to
 sign all certificates issued by your cluster.
 
+## How it works
+
 Teleport generates private key material for its internal Certificate Authorities
 (CAs) during the first Auth Service instance's initial startup.
 These CAs are used to sign all certificates issued to clients and hosts in the

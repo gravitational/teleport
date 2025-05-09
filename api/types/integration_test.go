@@ -46,7 +46,15 @@ func TestIntegrationJSONMarshalCycle(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	allIntegrations := []*IntegrationV1{aws, azure}
+	awsra, err := NewIntegrationAWSRA(
+		Metadata{Name: "some-integration"},
+		&AWSRAIntegrationSpecV1{
+			TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+		},
+	)
+	require.NoError(t, err)
+
+	allIntegrations := []*IntegrationV1{aws, azure, awsra}
 
 	for _, ig := range allIntegrations {
 		t.Run(ig.SubKind, func(t *testing.T) {
@@ -323,6 +331,52 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 						Name: name,
 					},
 					&GitHubIntegrationSpecV1{},
+				)
+			},
+			expectedErrorIs: trace.IsBadParameter,
+		},
+		{
+			name: "aws ra: valid",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationAWSRA(
+					Metadata{
+						Name: name,
+					},
+					&AWSRAIntegrationSpecV1{
+						TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+					},
+				)
+			},
+			expectedIntegration: func(name string) *IntegrationV1 {
+				return &IntegrationV1{
+					ResourceHeader: ResourceHeader{
+						Kind:    KindIntegration,
+						SubKind: IntegrationSubKindAWSRA,
+						Version: V1,
+						Metadata: Metadata{
+							Name:      name,
+							Namespace: defaults.Namespace,
+						},
+					},
+					Spec: IntegrationSpecV1{
+						SubKindSpec: &IntegrationSpecV1_AWSRA{
+							AWSRA: &AWSRAIntegrationSpecV1{
+								TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+							},
+						},
+					},
+				}
+			},
+			expectedErrorIs: noErrorFunc,
+		},
+		{
+			name: "aws ra: error when missing trust anchor arn",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationAWSRA(
+					Metadata{
+						Name: name,
+					},
+					&AWSRAIntegrationSpecV1{},
 				)
 			},
 			expectedErrorIs: trace.IsBadParameter,

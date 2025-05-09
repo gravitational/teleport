@@ -227,7 +227,7 @@ function VerbEditor({
   onVerbChange(verb: Verb, checked: boolean): void;
   onAllVerbsChange(checked: boolean): void;
 }) {
-  const id = useId();
+  const helperTextId = useId();
   const { valid, message } = useRule(rule(verbs));
 
   // Hardcoded column works here because the editor is fixed-width (defined in
@@ -239,7 +239,7 @@ function VerbEditor({
     : 3;
 
   return (
-    <PermissionsFieldset id={id}>
+    <PermissionsFieldset aria-describedby={helperTextId}>
       <Legend>
         <LabelContent required>Permissions</LabelContent>
       </Legend>
@@ -263,7 +263,7 @@ function VerbEditor({
       </PermissionsGrid>
       <HelperTextLine
         hasError={!valid}
-        helperTextId={id}
+        helperTextId={helperTextId}
         errorMessage={message}
       />
     </PermissionsFieldset>

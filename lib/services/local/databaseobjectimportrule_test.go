@@ -34,7 +34,6 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/label"
-	apilabels "github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
@@ -163,7 +162,7 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 	// Delete all import rules.
 	lst, nextToken, err := service.ListDatabaseObjectImportRules(ctx, 200, "")
 	require.NoError(t, err)
-	require.Equal(t, "", nextToken)
+	require.Empty(t, nextToken)
 	for _, rule := range lst {
 		err = service.DeleteDatabaseObjectImportRule(ctx, rule.GetMetadata().GetName())
 		require.NoError(t, err)
@@ -177,7 +176,7 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 func TestMarshalDatabaseObjectImportRuleRoundTrip(t *testing.T) {
 	spec := &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
 		Priority:       30,
-		DatabaseLabels: apilabels.FromMap(map[string][]string{"env": {"staging", "prod"}, "owner_org": {"trading"}}),
+		DatabaseLabels: label.FromMap(map[string][]string{"env": {"staging", "prod"}, "owner_org": {"trading"}}),
 		Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
 			{
 				Scope: &databaseobjectimportrulev1.DatabaseObjectImportScope{

@@ -111,7 +111,7 @@ func TestRejectedClients(t *testing.T) {
 	defer clt.Close()
 
 	t.Run("reject old version", func(t *testing.T) {
-		version := teleport.MinClientSemVersion
+		version := teleport.MinClientSemVer()
 		version.Major--
 		ctx := context.WithValue(context.Background(), metadata.DisableInterceptors{}, struct{}{})
 		ctx = metadata.AddMetadataToContext(ctx, map[string]string{
@@ -123,7 +123,7 @@ func TestRejectedClients(t *testing.T) {
 	})
 
 	t.Run("allow valid versions", func(t *testing.T) {
-		version := teleport.MinClientSemVersion
+		version := teleport.MinClientSemVer()
 		version.Major--
 		for i := 0; i < 5; i++ {
 			version.Major++

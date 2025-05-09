@@ -84,10 +84,12 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 	"log/slog"
+	"net"
 	"math"
 	"os"
 	"os/exec"
 	"runtime/cgo"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -690,6 +692,9 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 	c.cfg.Logger.InfoContext(context.Background(), "TDP input streaming starting")
 	defer c.cfg.Logger.InfoContext(context.Background(), "TDP input streaming finished")
 
+	// we will disable ping only if the env var is truthy
+	disableDesktopPing, _ := strconv.ParseBool(os.Getenv("TELEPORT_DISABLE_DESKTOP_LATENCY_DETECTOR_PING"))
+
 	var withheldResize *tdp.ClientScreenSpec
 	for {
 		select {
@@ -707,6 +712,22 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		} else if err != nil {
 			c.cfg.Logger.WarnContext(context.Background(), "Failed reading TDP input message", "error", err)
 			return err
+		}
+		if m, ok := msg.(tdp.Ping); ok {
+			// Upon receiving a ping message, we make a connection
+			// to the host and send the same message back to the proxy.
+			// The proxy will then compute the round trip time.
+			if !disableDesktopPing {
+				conn, err := net.Dial("tcp", c.cfg.Addr)
+				if err == nil {
+					conn.Close()
+				}
+			}
+			if err := c.cfg.Conn.WriteMessage(m); err != nil {
+				c.cfg.Logger.WarnContext(context.Background(), "Failed writing TDP ping message", "error", err)
+				return err
+			}
+			continue
 		}
 
 		if atomic.LoadUint32(&c.readyForInput) == 0 {

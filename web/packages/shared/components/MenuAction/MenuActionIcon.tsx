@@ -22,6 +22,7 @@ import { ButtonIcon } from 'design';
 import { MoreHoriz } from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
 import Menu from 'design/Menu';
+import { HoverTooltip } from 'design/Tooltip';
 
 import { AnchorProps, MenuProps } from './types';
 
@@ -56,14 +57,16 @@ export default class MenuActionIcon extends React.Component<
     const { children, buttonIconProps, menuProps, Icon } = this.props;
     return (
       <>
-        <ButtonIcon
-          {...buttonIconProps}
-          setRef={e => (this.anchorEl = e)}
-          onClick={this.onOpen}
-          data-testid="button"
-        >
-          <Icon size="medium" />
-        </ButtonIcon>
+        <HoverTooltip tipContent={this.props.tooltip} position="bottom">
+          <ButtonIcon
+            {...buttonIconProps}
+            setRef={e => (this.anchorEl = e)}
+            onClick={this.onOpen}
+            data-testid="button"
+          >
+            <Icon size="medium" />
+          </ButtonIcon>
+        </HoverTooltip>
         <Menu
           getContentAnchorEl={null}
           menuListCss={menuListCss}
@@ -115,4 +118,5 @@ type Props = MenuProps & {
   buttonIconProps?: AnchorProps;
   menuProps?: MenuProps;
   Icon?: React.ComponentType<IconProps>;
+  tooltip?: React.ReactNode;
 };

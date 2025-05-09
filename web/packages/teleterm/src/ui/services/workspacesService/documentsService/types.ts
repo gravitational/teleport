@@ -306,6 +306,13 @@ export interface DocumentAuthorizeWebSession extends DocumentBase {
   webSessionRequest: WebSessionRequest;
 }
 
+export interface DocumentDesktopSession extends DocumentBase {
+  kind: 'doc.desktop_session';
+  desktopUri: uri.WindowsDesktopUri;
+  login: string;
+  origin: DocumentOrigin;
+}
+
 export interface WebSessionRequest {
   id: string;
   token: string;
@@ -329,7 +336,8 @@ export type Document =
   | DocumentConnectMyComputer
   | DocumentVnetDiagReport
   | DocumentVnetInfo
-  | DocumentAuthorizeWebSession;
+  | DocumentAuthorizeWebSession
+  | DocumentDesktopSession;
 
 /**
  * @deprecated DocumentTshNode is supposed to be simplified to just DocumentTshNodeWithServerId.

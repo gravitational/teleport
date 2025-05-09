@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
 	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // UserLoginState is the ephemeral user login state. This will hold data to differentiate
@@ -97,6 +98,13 @@ func (u *UserLoginState) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// Clone returns a copy of the member.
+func (u *UserLoginState) Clone() *UserLoginState {
+	var copy *UserLoginState
+	utils.StrictObjectToStruct(u, &copy)
+	return copy
 }
 
 // GetOriginalRoles returns the original roles that the user login state was derived from.

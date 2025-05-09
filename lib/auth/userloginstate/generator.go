@@ -257,8 +257,8 @@ func (g *Generator) handleAccessListMembership(ctx context.Context, user types.U
 	membershipKind, err := accesslists.IsAccessListMember(ctx, user, accessList, g.accessLists, g.accessLists, g.clock)
 	// Return early if there was an error or the user isn't a member of the access list.
 	if err != nil || membershipKind == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
-		// Log any error.
-		if err != nil {
+		// Log any error besides user being locked.
+		if err != nil && !accesslists.IsUserLocked(err) {
 			g.log.WarnContext(ctx, "checking access list membership", "error", err)
 		}
 		return inheritedRoles, inheritedTraits, nil
@@ -302,8 +302,8 @@ func (g *Generator) handleAccessListOwnership(ctx context.Context, user types.Us
 	ownershipType, err := accesslists.IsAccessListOwner(ctx, user, accessList, g.accessLists, g.accessLists, g.clock)
 	// Return early if there was an error or the user isn't an owner of the access list.
 	if err != nil || ownershipType == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
-		// Log any error.
-		if err != nil {
+		// Log any error besides user being locked.
+		if err != nil && !accesslists.IsUserLocked(err) {
 			g.log.WarnContext(ctx, "checking access list ownership", "error", err)
 		}
 		return inheritedRoles, inheritedTraits, nil

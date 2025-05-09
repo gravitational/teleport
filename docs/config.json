@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "17.4.3",
+      "version": "17.4.6",
       "major_version": "17",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -338,6 +338,11 @@
     {
       "source": "/enroll-resources/application-access/okta/",
       "destination": "/admin-guides/access-controls/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/api/getting-started/",
+      "destination": "/admin-guides/api/getting-started/",
       "permanent": true
     }
   ]

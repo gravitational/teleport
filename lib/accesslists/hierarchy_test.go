@@ -304,6 +304,15 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as an Owner of '%s' because '%s' is already included as a Member or Owner in '%s'", acl4.Spec.Title, acl5.Spec.Title, acl5.Spec.Title, acl4.Spec.Title))
 }
 
+func Test_userLockedError_IsUserLocked(t *testing.T) {
+	userLockedErr := newUserLockedError("alice")
+	rawAccessDeniedErr := trace.AccessDenied("Raw AccessDenied error")
+
+	require.True(t, IsUserLocked(userLockedErr))
+	require.False(t, IsUserLocked(rawAccessDeniedErr))
+	require.True(t, trace.IsAccessDenied(userLockedErr))
+}
+
 func TestAccessListHierarchyIsOwner(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	ctx := context.Background()
@@ -432,7 +441,7 @@ func TestAccessListIsMember(t *testing.T) {
 	locksGetter.targets[member1] = []types.Lock{lock}
 
 	membershipType, err = IsAccessListMember(ctx, stubMember1, acl1, accessListAndMembersGetter, locksGetter, clock)
-	require.ErrorIs(t, err, trace.AccessDenied("User '%s' is currently locked", member1))
+	require.ErrorIs(t, err, trace.AccessDenied("User %q is currently locked", member1))
 	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, membershipType)
 }
 

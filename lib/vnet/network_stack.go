@@ -45,14 +45,14 @@ import (
 	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "vnet")
+var log = logutils.NewPackageLogger(teleport.ComponentKey, logComponent)
 
 const (
+	logComponent                     = "vnet"
 	nicID                            = 1
 	mtu                              = 1500
 	tcpReceiveBufferSize             = 0 // 0 means a default will be used.
 	maxInFlightTCPConnectionAttempts = 1024
-	defaultIPv4CIDRRange             = "100.64.0.0/10"
 )
 
 // networkStackConfig holds configuration parameters for the VNet network stack.
@@ -230,7 +230,7 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	slog := slog.With(teleport.ComponentKey, "VNet")
+	slog := slog.With(teleport.ComponentKey, logComponent)
 
 	stack, linkEndpoint, err := createStack()
 	if err != nil {

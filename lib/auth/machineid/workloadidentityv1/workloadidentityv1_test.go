@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -36,6 +37,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
@@ -99,9 +101,10 @@ func newTestTLSServer(t testing.TB, opts ...auth.TestTLSServerOption) (*auth.Tes
 }
 
 type issuanceTestPack struct {
-	srv           *auth.TestTLSServer
-	eventRecorder *eventstest.MockRecorderEmitter
-	clock         clockwork.Clock
+	srv                     *auth.TestTLSServer
+	eventRecorder           *eventstest.MockRecorderEmitter
+	clock                   clockwork.Clock
+	sigstorePolicyEvaluator *mockSigstorePolicyEvaluator
 
 	issuer             string
 	spiffeX509CAPool   *x509.CertPool
@@ -142,15 +145,37 @@ func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 	kid, err := libjwt.KeyID(jwtSigner.Public())
 	require.NoError(t, err)
 
+	sigstorePolicyEvaluator := newMockSigstorePolicyEvaluator(t)
+	srv.Auth().SetSigstorePolicyEvaluator(sigstorePolicyEvaluator)
+
 	return &issuanceTestPack{
-		srv:                srv,
-		eventRecorder:      eventRecorder,
-		clock:              clock,
-		issuer:             wantIssuer,
-		spiffeX509CAPool:   spiffeX509CAPool,
-		spiffeJWTSigner:    jwtSigner,
-		spiffeJWTSignerKID: kid,
+		srv:                     srv,
+		eventRecorder:           eventRecorder,
+		clock:                   clock,
+		sigstorePolicyEvaluator: sigstorePolicyEvaluator,
+		issuer:                  wantIssuer,
+		spiffeX509CAPool:        spiffeX509CAPool,
+		spiffeJWTSigner:         jwtSigner,
+		spiffeJWTSignerKID:      kid,
 	}
+}
+
+func newMockSigstorePolicyEvaluator(t *testing.T) *mockSigstorePolicyEvaluator {
+	t.Helper()
+
+	eval := new(mockSigstorePolicyEvaluator)
+	t.Cleanup(func() { _ = eval.AssertExpectations(t) })
+
+	return eval
+}
+
+type mockSigstorePolicyEvaluator struct {
+	mock.Mock
+}
+
+func (m *mockSigstorePolicyEvaluator) Evaluate(ctx context.Context, policyNames []string, attrs *workloadidentityv1pb.Attrs) (map[string]error, error) {
+	result := m.Called(ctx, policyNames, attrs)
+	return result.Get(0).(map[string]error), result.Error(1)
 }
 
 // TestIssueWorkloadIdentityE2E performs a more E2E test than the RPC specific
@@ -511,6 +536,33 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+
+	sigstorePolicyRequired, err := tp.srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "sigstore-policy-required",
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				Id: "/foo",
+			},
+			Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+				Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+					{Expression: `sigstore.policy_satisfied("foo") || sigstore.policy_satisfied("bar")`},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	for policy, result := range map[string]error{
+		"foo": errors.New("missing artifact signature"),
+		"bar": nil,
+	} {
+		tp.sigstorePolicyEvaluator.On("Evaluate", mock.Anything, []string{policy}, mock.Anything).
+			Return(map[string]error{policy: result}, nil)
+	}
 
 	workloadAttrs := func(f func(attrs *workloadidentityv1pb.WorkloadAttrs)) *workloadidentityv1pb.WorkloadAttrs {
 		attrs := &workloadidentityv1pb.WorkloadAttrs{
@@ -1066,6 +1118,49 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				require.NoError(t, err)
 				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), claims.Expiry.Time(), 5*time.Second)
 				require.WithinDuration(t, tp.clock.Now(), claims.IssuedAt.Time(), 5*time.Second)
+			},
+		},
+		{
+			name:   "sigstore policy required",
+			client: wilcardAccessClient,
+			req: &workloadidentityv1pb.IssueWorkloadIdentityRequest{
+				Name: sigstorePolicyRequired.GetMetadata().GetName(),
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_JwtSvidParams{
+					JwtSvidParams: &workloadidentityv1pb.JWTSVIDParams{
+						Audiences: []string{"example.com", "test.example.com"},
+					},
+				},
+				WorkloadAttrs: func() *workloadidentityv1pb.WorkloadAttrs {
+					attrs := workloadAttrs(nil)
+					attrs.Sigstore = &workloadidentityv1pb.WorkloadAttrsSigstore{
+						Payloads: []*workloadidentityv1pb.SigstoreVerificationPayload{
+							{Bundle: []byte(`bundle`)},
+						},
+					}
+					return attrs
+				}(),
+			},
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				require.NotNil(t, res.Credential)
+
+				evt, ok := tp.eventRecorder.LastEvent().(*events.SPIFFESVIDIssued)
+				require.True(t, ok)
+
+				attrsJSON, err := evt.Attributes.MarshalJSON()
+				require.NoError(t, err)
+
+				attrs := make(map[string]any)
+				require.NoError(t, json.Unmarshal(attrsJSON, &attrs))
+
+				sigstoreAttrs := attrs["workload"].(map[string]any)["sigstore"]
+				require.Empty(t, cmp.Diff(map[string]any{
+					"payload_count": float64(1),
+					"evaluated_policies": map[string]any{
+						"bar": map[string]any{"satisfied": true},
+						"foo": map[string]any{"reason": "missing artifact signature", "satisfied": false},
+					},
+				}, sigstoreAttrs))
 			},
 		},
 		{

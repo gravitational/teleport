@@ -263,13 +263,14 @@ func TestClientStore(t *testing.T) {
 				err = clientStore.SaveProfile(profile, true)
 				require.NoError(t, err)
 				expectStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
-					ProfileName:   profile.Name(),
-					WebProxyAddr:  profile.WebProxyAddr,
-					ProfileDir:    profileDir,
-					Username:      profile.Username,
-					SiteName:      profile.SiteName,
-					KubeProxyAddr: profile.KubeProxyAddr,
-					IsVirtual:     profileDir == "",
+					ProfileName:       profile.Name(),
+					WebProxyAddr:      profile.WebProxyAddr,
+					ProfileDir:        profileDir,
+					Username:          profile.Username,
+					SiteName:          profile.SiteName,
+					KubeProxyAddr:     profile.KubeProxyAddr,
+					IsVirtual:         profileDir == "",
+					TLSRoutingEnabled: profile.TLSRoutingEnabled,
 				})
 				require.NoError(t, err)
 
@@ -292,13 +293,14 @@ func TestClientStore(t *testing.T) {
 				require.NoError(t, err)
 
 				expectOtherStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
-					ProfileName:   otherProfile.Name(),
-					WebProxyAddr:  otherProfile.WebProxyAddr,
-					ProfileDir:    profileDir,
-					Username:      otherProfile.Username,
-					SiteName:      otherProfile.SiteName,
-					KubeProxyAddr: otherProfile.KubeProxyAddr,
-					IsVirtual:     profileDir == "",
+					ProfileName:       otherProfile.Name(),
+					WebProxyAddr:      otherProfile.WebProxyAddr,
+					ProfileDir:        profileDir,
+					Username:          otherProfile.Username,
+					SiteName:          otherProfile.SiteName,
+					KubeProxyAddr:     otherProfile.KubeProxyAddr,
+					IsVirtual:         profileDir == "",
+					TLSRoutingEnabled: otherProfile.TLSRoutingEnabled,
 				})
 				require.NoError(t, err)
 

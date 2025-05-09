@@ -69,6 +69,7 @@ export enum RoleVersion {
   V5 = 'v5',
   V6 = 'v6',
   V7 = 'v7',
+  V8 = 'v8',
 }
 
 /**
@@ -192,7 +193,6 @@ export enum ResourceKind {
   AccessMonitoringRule = 'access_monitoring_rule',
   AccessRequest = 'access_request',
   App = 'app',
-  AppOrSAMLIdPServiceProvider = 'app_server_or_saml_idp_sp',
   AppServer = 'app_server',
   AuditQuery = 'audit_query',
   AuthServer = 'auth_server',

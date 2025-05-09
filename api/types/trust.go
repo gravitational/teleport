@@ -86,7 +86,7 @@ var CertAuthTypes = []CertAuthType{HostCA,
 // major version, so that we can avoid erroring out when a potentially older
 // remote server doesn't know about them.
 func (c CertAuthType) NewlyAdded() bool {
-	return c.addedInMajorVer() >= api.SemVersion.Major
+	return c.addedInMajorVer() >= api.VersionMajor
 }
 
 // addedInVer return the major version in which given CA was added.

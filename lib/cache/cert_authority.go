@@ -27,9 +27,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
 
-const certAuthorityStoreIDIndex = "id"
+type certAuthorityIndex string
 
-func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collection[types.CertAuthority], error) {
+const certAuthorityIDIndex certAuthorityIndex = "id"
+
+func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collection[types.CertAuthority, certAuthorityIndex], error) {
 	if t == nil {
 		return nil, trace.BadParameter("missing parameter Trust")
 	}
@@ -37,9 +39,9 @@ func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collectio
 	var filter types.CertAuthorityFilter
 	filter.FromMap(w.Filter)
 
-	return &collection[types.CertAuthority]{
-		store: newStore(map[string]func(types.CertAuthority) string{
-			certAuthorityStoreIDIndex: func(ca types.CertAuthority) string {
+	return &collection[types.CertAuthority, certAuthorityIndex]{
+		store: newStore(map[certAuthorityIndex]func(types.CertAuthority) string{
+			certAuthorityIDIndex: func(ca types.CertAuthority) string {
 				return string(ca.GetType()) + "/" + ca.GetID().DomainName
 			},
 		}),
@@ -64,7 +66,7 @@ func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collectio
 				// if caType was added in this major version we might get a BadParameter
 				// error if we're connecting to an older upstream that doesn't know about it
 				if err != nil {
-					if !(types.IsUnsupportedAuthorityErr(err) && caType.NewlyAdded()) {
+					if !types.IsUnsupportedAuthorityErr(err) || !caType.NewlyAdded() {
 						return nil, trace.Wrap(err)
 					}
 					continue
@@ -107,7 +109,7 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 	defer rg.Release()
 
 	if rg.ReadCache() {
-		ca, err := rg.store.get(certAuthorityStoreIDIndex, string(id.Type)+"/"+id.DomainName)
+		ca, err := rg.store.get(certAuthorityIDIndex, string(id.Type)+"/"+id.DomainName)
 		if err != nil {
 			// release read lock early
 			rg.Release()
@@ -165,7 +167,7 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 
 	if rg.ReadCache() {
 		cas := make([]types.CertAuthority, 0, rg.store.len())
-		for ca := range rg.store.resources(certAuthorityStoreIDIndex, string(caType), sortcache.NextKey(string(caType))) {
+		for ca := range rg.store.resources(certAuthorityIDIndex, string(caType), sortcache.NextKey(string(caType))) {
 			if loadSigningKeys {
 				cas = append(cas, ca.Clone())
 			} else {

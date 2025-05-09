@@ -43,6 +43,9 @@ var yubiKeyServiceMu sync.Mutex
 // YubiKeyService is a YubiKey PIV implementation of [hardwarekey.Service].
 type YubiKeyService struct {
 	prompt hardwarekey.Prompt
+	// TODO(Joerger): Remove prompt mutex once there is no longer a shared global service
+	// that needs its protection.
+	promptMu sync.Mutex
 
 	// signMu prevents prompting for PIN/touch repeatedly for concurrent signatures.
 	// TODO(Joerger): Rather than preventing concurrent signatures, we can make the
@@ -67,7 +70,7 @@ func NewYubiKeyService(customPrompt hardwarekey.Prompt) *YubiKeyService {
 	if yubiKeyService != nil {
 		// If a prompt is provided, prioritize it over the existing prompt value.
 		if customPrompt != nil {
-			yubiKeyService.prompt = customPrompt
+			yubiKeyService.setPrompt(customPrompt)
 		}
 		return yubiKeyService
 	}
@@ -116,7 +119,7 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 
 	// If PIN is required, check that PIN and PUK are not the defaults.
 	if config.Policy.PINRequired {
-		if err := y.checkOrSetPIN(ctx, s.prompt, config.ContextualKeyInfo, config.PINCacheTTL); err != nil {
+		if err := y.checkOrSetPIN(ctx, s.getPrompt(), config.ContextualKeyInfo, config.PINCacheTTL); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -188,7 +191,7 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 	s.signMu.Lock()
 	defer s.signMu.Unlock()
 
-	return y.sign(ctx, ref, keyInfo, s.prompt, rand, digest, opts)
+	return y.sign(ctx, ref, keyInfo, s.getPrompt(), rand, digest, opts)
 }
 
 // TODO(Joerger): Re-attesting the key every time we decode a hardware key signer is very resource
@@ -260,10 +263,22 @@ func (s *YubiKeyService) getYubiKey(serialNumber uint32) (*YubiKey, error) {
 
 func (s *YubiKeyService) promptOverwriteSlot(ctx context.Context, msg string, keyInfo hardwarekey.ContextualKeyInfo) error {
 	promptQuestion := fmt.Sprintf("%v\nWould you like to overwrite this slot's private key and certificate?", msg)
-	if confirmed, confirmErr := s.prompt.ConfirmSlotOverwrite(ctx, promptQuestion, keyInfo); confirmErr != nil {
+	if confirmed, confirmErr := s.getPrompt().ConfirmSlotOverwrite(ctx, promptQuestion, keyInfo); confirmErr != nil {
 		return trace.Wrap(confirmErr)
 	} else if !confirmed {
 		return trace.Wrap(trace.CompareFailed(msg), "user declined to overwrite slot")
 	}
 	return nil
+}
+
+func (s *YubiKeyService) setPrompt(prompt hardwarekey.Prompt) {
+	s.promptMu.Lock()
+	defer s.promptMu.Unlock()
+	s.prompt = prompt
+}
+
+func (s *YubiKeyService) getPrompt() hardwarekey.Prompt {
+	s.promptMu.Lock()
+	defer s.promptMu.Unlock()
+	return s.prompt
 }

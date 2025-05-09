@@ -51,12 +51,14 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	vnetv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
@@ -65,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -1560,9 +1563,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					NodeName: "node-a",
 					SSHLogin: "role",
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
-				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
@@ -1592,9 +1592,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					NodeName: "node-a",
 					SSHLogin: "role",
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
-				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
@@ -1622,9 +1619,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
 					Usage:             proto.UserCertsRequest_Kubernetes,
 					KubernetesCluster: "kube-a",
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -1661,9 +1655,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 						Database:    "db-a",
 					},
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
-				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
@@ -1685,6 +1676,110 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			},
 		},
 		{
+			desc: "fail reuse not allowed for requester",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					Expires:      clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:        proto.UserCertsRequest_Database,
+					RouteToDatabase: proto.RouteToDatabase{
+						ServiceName: "db-a",
+						Database:    "db-a",
+					},
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				authnHandler:  registered.webAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "the given webauthn session allows reuse, but reuse is not permitted in this context")
+				},
+			},
+		},
+		{
+			desc: "fail db exec with wrong usage",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey:  tlsPub,
+					Username:      user.GetName(),
+					Expires:       clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:         proto.UserCertsRequest_App,
+					RequesterName: proto.UserCertsRequest_TSH_DB_EXEC,
+					Purpose:       proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+					RouteToApp: proto.RouteToApp{
+						Name: "app-a",
+					},
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				authnHandler:  registered.webAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "can only request database certificates")
+				},
+			},
+		},
+		{
+			desc: "db exec with reuse",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey:  tlsPub,
+					Username:      user.GetName(),
+					Expires:       clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:         proto.UserCertsRequest_Database,
+					RequesterName: proto.UserCertsRequest_TSH_DB_EXEC,
+					Purpose:       proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+					RouteToDatabase: proto.RouteToDatabase{
+						ServiceName: "db-a",
+						Database:    "db-a",
+					},
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				authnHandler:  registered.webAuthHandler,
+				verifyErr:     require.NoError,
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, clock.Now().Add(teleport.UserSingleUseCertTTL), cert.NotAfter)
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
+					require.Equal(t, "db-a", identity.RouteToDatabase.ServiceName)
+				},
+			},
+		},
+		{
+			desc: "fail db exec with reuse expired",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey:  tlsPub,
+					Username:      user.GetName(),
+					Expires:       clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:         proto.UserCertsRequest_Database,
+					RequesterName: proto.UserCertsRequest_TSH_DB_EXEC,
+					Purpose:       proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+					RouteToDatabase: proto.RouteToDatabase{
+						ServiceName: "db-a",
+						Database:    "db-a",
+					},
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				authnHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					resp := registered.webAuthHandler(t, challenge)
+					// Delete the session data to simulate that the session has expired.
+					require.NoError(t, srv.Auth().Services.DeleteWebauthnSessionData(ctx, user.GetName(), "login"))
+					return resp
+				},
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorIs(t, err, &mfa.ErrExpiredReusableMFAResponse)
+				},
+			},
+		},
+		{
 			desc: "app",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
@@ -1697,9 +1792,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					RouteToApp: proto.RouteToApp{
 						Name: "app-a",
 					},
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -1719,7 +1811,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-a", identity.RouteToApp.Name)
 					// session ID should be set to a random ID, corresponding to an app session.
-					require.NotZero(t, identity.RouteToApp.SessionID)
+					require.NotEmpty(t, identity.RouteToApp.SessionID)
 				},
 			},
 		},
@@ -1737,9 +1829,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 						Name:       "app-a",
 						TargetPort: 1337,
 					},
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -1760,7 +1849,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, "app-a", identity.RouteToApp.Name)
 					require.Equal(t, 1337, identity.RouteToApp.TargetPort)
 					// session ID should be set to a random ID, corresponding to an app session.
-					require.NotZero(t, identity.RouteToApp.SessionID)
+					require.NotEmpty(t, identity.RouteToApp.SessionID)
 				},
 			},
 		},
@@ -1779,9 +1868,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 						ServiceName: "db-a",
 					},
 					RequesterName: proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -1816,9 +1902,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Usage:             proto.UserCertsRequest_Kubernetes,
 					KubernetesCluster: "kube-a",
 					RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -1856,9 +1939,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					},
 					RequesterName: proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
-				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
@@ -1877,7 +1957,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-a", identity.RouteToApp.Name)
 					// session ID should be set to a random ID, corresponding to an app session.
-					require.NotZero(t, identity.RouteToApp.SessionID)
+					require.NotEmpty(t, identity.RouteToApp.SessionID)
 				},
 			},
 		},
@@ -1895,9 +1975,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 						WindowsDesktop: "desktop",
 						Login:          "role",
 					},
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -1946,9 +2023,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					NodeName:     "node-a",
 					SSHLogin:     "role",
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
-				},
 				authnHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					// Return no challenge response.
 					return &proto.MFAAuthenticateResponse{}
@@ -1980,9 +2054,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Usage:        proto.UserCertsRequest_SSH,
 					NodeName:     "node-a",
 					SSHLogin:     "role",
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -2030,10 +2101,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					},
 				},
 				authnHandler: registered.webAuthHandler,
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
-				},
-				verifyErr: require.NoError,
+				verifyErr:    require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
 					// TLS certificate.
 					tlsRaw := c.TLS
@@ -2064,9 +2132,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Usage:        proto.UserCertsRequest_SSH,
 					NodeName:     "node-a",
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
-				},
 				authnHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					// Return no challenge response.
 					return &proto.MFAAuthenticateResponse{}
@@ -2088,9 +2153,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Usage:             proto.UserCertsRequest_Kubernetes,
 					KubernetesCluster: "kube-b",
 					RouteToCluster:    "leaf",
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -2128,9 +2190,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					},
 					RouteToCluster: "leaf",
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
-				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
@@ -2166,9 +2225,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					},
 					RouteToCluster: "leaf",
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
-				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
@@ -2187,7 +2243,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-b", identity.RouteToApp.Name)
 					// session ID should be set to a random ID, corresponding to an app session.
-					require.NotZero(t, identity.RouteToApp.SessionID)
+					require.NotEmpty(t, identity.RouteToApp.SessionID)
 				},
 			},
 		},
@@ -2204,9 +2260,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					NodeName:       "node-b",
 					SSHLogin:       "role",
 					RouteToCluster: "leaf",
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -2237,9 +2290,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					NodeName: "node-a",
 					SSHLogin: "role",
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
-				},
 				authnHandler: registered.totpAuthHandler,
 				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
@@ -2257,9 +2307,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
 					Usage:             proto.UserCertsRequest_Kubernetes,
 					KubernetesCluster: "kube-b",
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.totpAuthHandler,
 				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
@@ -2282,9 +2329,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 						Database:    "db-a",
 					},
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
-				},
 				authnHandler: registered.totpAuthHandler,
 				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
@@ -2304,9 +2348,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					RouteToApp: proto.RouteToApp{
 						Name: "app-a",
 					},
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.totpAuthHandler,
 				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
@@ -2328,9 +2369,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 						WindowsDesktop: "desktop",
 						Login:          "role",
 					},
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.totpAuthHandler,
 				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
@@ -2354,11 +2392,11 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 }
 
 type generateUserSingleUseCertsTestOpts struct {
-	initReq            *proto.UserCertsRequest
-	authnHandler       func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
-	mfaRequiredHandler func(*testing.T, proto.MFARequired)
-	verifyErr          require.ErrorAssertionFunc
-	verifyCert         func(*testing.T, *proto.Certs)
+	initReq       *proto.UserCertsRequest
+	authnHandler  func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
+	mfaAllowReuse mfav1.ChallengeAllowReuse
+	verifyErr     require.ErrorAssertionFunc
+	verifyCert    func(*testing.T, *proto.Certs)
 }
 
 func testGenerateUserSingleUseCerts(ctx context.Context, t *testing.T, cl *authclient.Client, opts generateUserSingleUseCertsTestOpts) {
@@ -2367,7 +2405,8 @@ func testGenerateUserSingleUseCerts(ctx context.Context, t *testing.T, cl *authc
 			ContextUser: &proto.ContextUser{},
 		},
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+			AllowReuse: opts.mfaAllowReuse,
 		},
 	})
 	require.NoError(t, err, "CreateAuthenticateChallenge")
@@ -3286,7 +3325,7 @@ func TestLocksCRUD(t *testing.T) {
 
 	lock2, err := types.NewLock("lock2", types.LockSpecV2{
 		Target: types.LockTarget{
-			Node: "node",
+			ServerID: "node",
 		},
 		Message: "node compromised",
 	})
@@ -5012,6 +5051,21 @@ func TestRoleVersions(t *testing.T) {
 						require.True(t, foundTestRole, "GetRoles result does not include expected role")
 					}
 
+					// Test ListRoles
+					listRoles, err := client.ListRoles(ctx, &proto.ListRolesRequest{})
+					checkErr(err)
+					if !tc.expectError {
+						foundTestRole := false
+						for _, gotRole := range listRoles.Roles {
+							if gotRole.GetName() == tc.inputRole.GetName() {
+								checkRole(gotRole)
+								foundTestRole = true
+								break
+							}
+						}
+						require.True(t, foundTestRole, "ListRoles result does not include expected role")
+					}
+
 					ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 					defer cancel()
 
@@ -5221,6 +5275,31 @@ func TestGetAccessGraphConfig(t *testing.T) {
 	}
 }
 
+func TestGetVnetConfig(t *testing.T) {
+	server := newTestTLSServer(t)
+	user, _, err := CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
+	require.NoError(t, err)
+
+	// Create newConfig.
+	newConfig, err := vnet.NewVnetConfig(&vnetv1pb.VnetConfigSpec{
+		Ipv4CidrRange:  vnet.DefaultIPv4CIDRRange,
+		CustomDnsZones: []*vnetv1pb.CustomDNSZone{&vnetv1pb.CustomDNSZone{Suffix: "example.com"}},
+	})
+	require.NoError(t, err)
+	createdConfig, err := server.Auth().CreateVnetConfig(t.Context(), newConfig)
+	require.NoError(t, err)
+
+	// Verify that a regular user is able to fetch the config.
+	identity := authz.LocalUser{
+		Username: user.GetName(),
+	}
+	client, err := server.NewClient(TestIdentity{I: identity})
+	require.NoError(t, err)
+	actualConfig, err := client.GetVnetConfig(t.Context())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(createdConfig, actualConfig, protocmp.Transform()))
+}
+
 func TestCreateAuditStreamLimit(t *testing.T) {
 	const N = 5
 	t.Setenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT", fmt.Sprintf("%d", N))
@@ -5261,4 +5340,150 @@ func TestCreateAuditStreamLimit(t *testing.T) {
 	require.NoError(t, err)
 	_, err = stream.Recv()
 	require.ErrorAs(t, err, new(*trace.ConnectionProblemError))
+}
+
+func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestTLSServer(t)
+
+	newRole := func(name string, version string, spec types.RoleSpecV6) types.Role {
+		role, err := types.NewRoleWithVersion(name, version, spec)
+		require.NoError(t, err)
+		return role
+	}
+
+	role := newRole("test_role_1", types.V8, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindRole, services.RW()),
+			},
+		},
+	})
+	user, err := CreateUser(context.Background(), srv.Auth(), "user", role)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc             string
+		clientVersions   []string
+		inputRole        types.Role
+		expectedRole     types.Role
+		expectDowngraded bool
+	}{
+		{
+			desc: "up to date",
+			clientVersions: []string{
+				"18.0.0-aa", api.Version, "",
+			},
+			inputRole:    role,
+			expectedRole: role,
+		},
+		{
+			desc: "downgrade role version to v7",
+			clientVersions: []string{
+				"17.2.7",
+			},
+			inputRole: role,
+			expectedRole: newRole(role.GetName(), types.V7, types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Rules: []types.Rule{
+						types.NewRule(types.KindRole, services.RW()),
+					},
+				},
+			}),
+			expectDowngraded: true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			for _, clientVersion := range tc.clientVersions {
+				t.Run(clientVersion, func(t *testing.T) {
+					// Setup client metadata.
+					ctx := context.Background()
+					if clientVersion == "" {
+						ctx = context.WithValue(ctx, metadata.DisableInterceptors{}, struct{}{})
+					} else {
+						ctx = metadata.AddMetadataToContext(ctx, map[string]string{
+							metadata.VersionKey: clientVersion,
+						})
+					}
+					checkRole := func(gotRole types.Role) {
+						t.Helper()
+
+						require.Empty(t, cmp.Diff(tc.expectedRole, gotRole,
+							cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Labels")))
+						// The downgraded label value won't match exactly because it
+						// includes the client version, so just check it's not empty
+						// and ignore it in the role diff.
+						if tc.expectDowngraded {
+							require.NotEmpty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
+							require.Contains(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel], "Role V8 is only supported")
+						}
+					}
+
+					// Test GetRole
+					gotRole, err := client.GetRole(ctx, tc.inputRole.GetName())
+					require.NoError(t, err)
+					checkRole(gotRole)
+
+					// Test GetRoles.
+					gotRoles, err := client.GetRoles(ctx)
+					require.NoError(t, err)
+					foundTestRole := false
+					for _, gotRole := range gotRoles {
+						if gotRole.GetName() != tc.inputRole.GetName() {
+							continue
+						}
+						checkRole(gotRole)
+						foundTestRole = true
+						break
+					}
+					require.True(t, foundTestRole, "GetRoles result does not include expected role")
+
+					ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+					defer cancel()
+
+					// Test WatchEvents.
+					watcher, err := client.NewWatcher(ctx, types.Watch{Name: "roles", Kinds: []types.WatchKind{{Kind: types.KindRole}}})
+					require.NoError(t, err)
+					defer watcher.Close()
+
+					// Swallow the init event.
+					e := <-watcher.Events()
+					require.Equal(t, types.OpInit, e.Type)
+
+					// Re-upsert the role so that the watcher sees it, do this
+					// on the auth server directly to avoid the
+					// TeleportDowngradedLabel check in ServerWithRoles.
+					tc.inputRole, err = srv.Auth().UpsertRole(ctx, tc.inputRole)
+					require.NoError(t, err)
+					gotRole, err = func() (types.Role, error) {
+						for {
+							select {
+							case <-watcher.Done():
+								return nil, watcher.Error()
+							case e := <-watcher.Events():
+								if gotRole, ok := e.Resource.(types.Role); ok && gotRole.GetName() == tc.inputRole.GetName() {
+									return gotRole, nil
+								}
+							}
+						}
+					}()
+					require.NoError(t, err)
+					checkRole(gotRole)
+
+					// Try to re-upsert the role we got. If it was
+					// downgraded, it should be rejected due to the
+					// TeleportDowngradedLabel.
+					if _, err := client.UpsertRole(ctx, gotRole); tc.expectDowngraded {
+						require.Error(t, err)
+					} else {
+						require.NoError(t, err)
+					}
+				})
+			}
+		})
+	}
 }
