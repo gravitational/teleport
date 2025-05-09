@@ -2117,7 +2117,8 @@ func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
 			allowed = append(allowed, elem)
 			continue
 		}
-		// Othwesie, drop the entry, we don't want to unexpectedly grant access to something.
+
+		// Otherwise, drop the entry, we don't want to unexpectedly grant access to something.
 	}
 	role.Spec.Allow.KubernetesResources = allowed
 

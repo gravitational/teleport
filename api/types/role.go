@@ -476,10 +476,21 @@ func (r *RoleV6) GetKubeResources(rct RoleConditionType) []KubernetesResource {
 // to other resources. This is a simple optimization to reduce the number of resources.
 // Finally, if the older role version is not a wildcard, then it returns the pod resources as is
 // and append the other supported resources - KubernetesResourcesKinds - for Role v8.
+//
+// To avoid confusion when upgrading roles, even for role >=v8, we map the legacy
+// kinds to the new ones.
 func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []KubernetesResource) []KubernetesResource {
 	switch r.Version {
 	case V8:
-		return resources
+		v8resources := slices.Clone(resources)
+		for i, r := range v8resources {
+			plural, ok := KubernetesResourcesKindsPlurals[r.Kind]
+			if ok {
+				r.Kind = plural
+				v8resources[i] = r
+			}
+		}
+		return v8resources
 	case V7:
 		v7resources := slices.Clone(resources)
 		for i, r := range v7resources {
