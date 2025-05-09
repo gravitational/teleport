@@ -119,6 +119,8 @@ func (s *Store) NewHardwarePrivateKey(ctx context.Context, config hardwarekey.Pr
 	return keys.NewHardwarePrivateKey(ctx, s.HardwareKeyService, config)
 }
 
+// KnownHardwareKey returns whether the given hardware key ref and info corresponds to a hardware key known
+// to this client store.
 func (s *Store) KnownHardwareKey(ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo) (bool, error) {
 	key, err := s.GetKey(KeyIndex{
 		ProxyHost:   keyInfo.ProxyHost,
