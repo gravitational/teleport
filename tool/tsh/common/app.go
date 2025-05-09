@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -710,4 +711,43 @@ func tlscaRouteToAppToProto(route tlsca.RouteToApp) proto.RouteToApp {
 		GCPServiceAccount: route.GCPServiceAccount,
 		URI:               route.URI,
 	}
+}
+
+type appWithDetails struct {
+	// Use a real type for inline.
+	*types.AppV3
+	Permissions struct {
+		AWSRoleARNs []string `json:"aws_role_arns,omitempty"`
+		MCP         struct {
+			Tools struct {
+				Allowed []string `json:"allowed,omitempty"`
+				Denied  []string `json:"denied,omitempty"`
+			} `json:"tools,omitempty"`
+		} `json:"mcp,omitempty"`
+	} `json:"permissions,omitempty"`
+}
+
+func makeAppWithDetails(app types.Application, accessChecker services.AccessChecker) appWithDetails {
+	a := appWithDetails{
+		AppV3: app.Copy(),
+	}
+	if app.IsMCP() {
+		mcpTools := accessChecker.EnumerateMCPTools(app)
+		if mcpTools.WildcardDenied() {
+			a.Permissions.MCP.Tools.Denied = []string{types.Wildcard}
+		} else {
+			a.Permissions.MCP.Tools.Denied = mcpTools.Denied()
+			if mcpTools.WildcardAllowed() {
+				a.Permissions.MCP.Tools.Allowed = []string{types.Wildcard}
+			} else {
+				a.Permissions.MCP.Tools.Allowed = mcpTools.Allowed()
+			}
+		}
+	}
+	if app.IsAWSConsole() {
+		if iamRoleARNs, err := accessChecker.GetAllowedLoginsForResource(app); err == nil {
+			a.Permissions.AWSRoleARNs = iamRoleARNs
+		}
+	}
+	return a
 }

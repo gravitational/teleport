@@ -272,6 +272,8 @@ type AccessChecker interface {
 	// EnumerateDatabaseNames specializes EnumerateEntities to enumerate db_names.
 	EnumerateDatabaseNames(database types.Database, extraNames ...string) EnumerationResult
 
+	EnumerateMCPTools(app types.Application) EnumerationResult
+
 	// GetAllowedLoginsForResource returns all of the allowed logins for the passed resource.
 	//
 	// Supports the following resource types:
@@ -737,6 +739,26 @@ func (a *accessChecker) EnumerateDatabaseNames(database types.Database, extraNam
 		return &DatabaseNameMatcher{Name: dbName}
 	}
 	return a.EnumerateEntities(database, listFn, newMatcher, extraNames...)
+}
+
+func (a *accessChecker) EnumerateMCPTools(app types.Application) EnumerationResult {
+	listFn := func(role types.Role, condition types.RoleConditionType) []string {
+		mcpSpec := role.GetMCPPermissions(condition)
+		if mcpSpec == nil {
+			return nil
+		}
+		return mcpSpec.Tools
+	}
+	newMatcher := func(toolRegex string) RoleMatcher {
+		return RoleMatcherFunc(func(role types.Role, condition types.RoleConditionType) (bool, error) {
+			mcpSpec := role.GetMCPPermissions(condition)
+			if mcpSpec == nil {
+				return false, nil
+			}
+			return slices.Contains(mcpSpec.Tools, toolRegex), nil
+		})
+	}
+	return a.EnumerateEntities(app, listFn, newMatcher)
 }
 
 // roleEntitiesListFn is used for listing a role's allowed/denied entities.

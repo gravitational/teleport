@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
 	"log/slog"
 	"net"
 	"os"
@@ -32,6 +33,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/ghodss/yaml"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -41,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/iterutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
@@ -48,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/mcp/claude"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -98,7 +102,7 @@ func newMCPListCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpListCommand {
 		CmdClause: parent.Command("ls", "List available MCP servers"),
 	}
 
-	// TODO(greeyd52) support verbose flag
+	cmd.Flag("verbose", "Show extra MCP server fields.").Short('v').BoolVar(&cf.Verbose)
 	cmd.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	cmd.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	cmd.Arg("labels", labelHelp).StringVar(&cf.Labels)
@@ -406,11 +410,32 @@ func (c *mcpListCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var clusterClient *client.ClusterClient
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err = tc.ConnectToCluster(cf.Context)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	mcpServers, err := getMCPServers(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(c.print(cf, mcpServers))
+
+	return trace.Wrap(c.print(cf, mcpServers, accessChecker))
 }
 
 func getMCPServers(cf *CLIConf, tc *client.TeleportClient) (mcpServers []types.Application, err error) {
@@ -440,27 +465,39 @@ func getMCPServers(cf *CLIConf, tc *client.TeleportClient) (mcpServers []types.A
 	return mcpServers, nil
 }
 
-func (c *mcpListCommand) print(cf *CLIConf, mcpServers []types.Application) error {
+func (c *mcpListCommand) print(cf *CLIConf, mcpServers []types.Application, accessChecker services.AccessChecker) error {
+	mcpServersWithDetails := iterutils.Map(func(in types.Application) appWithDetails {
+		return makeAppWithDetails(in, accessChecker)
+	}, slices.Values(mcpServers))
+
 	switch cf.Format {
 	case "", teleport.Text:
-		return trace.Wrap(c.printText(cf, mcpServers))
-	case teleport.JSON, teleport.YAML:
-		out, err := serializeApps(mcpServers, cf.Format)
+		if cf.Verbose {
+			return trace.Wrap(c.printTextVerbose(cf, mcpServersWithDetails))
+		}
+		return trace.Wrap(c.printText(cf, mcpServersWithDetails))
+	case teleport.JSON:
+		out, err := utils.FastMarshalIndent(slices.Collect(mcpServersWithDetails), "", "  ")
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if _, err := fmt.Fprintln(cf.Stdout(), out); err != nil {
+		_, err = fmt.Fprintln(cf.Stdout(), string(out))
+		return trace.Wrap(err)
+	case teleport.YAML:
+		out, err := yaml.Marshal(slices.Collect(mcpServersWithDetails))
+		if err != nil {
 			return trace.Wrap(err)
 		}
-		return nil
+		_, err = fmt.Fprintln(cf.Stdout(), string(out))
+		return trace.Wrap(err)
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
 }
 
-func (c *mcpListCommand) printText(cf *CLIConf, mcpServers []types.Application) error {
-	t := asciitable.MakeTable([]string{"Name", "Description", "Type", "labels"})
-	for mcpServer := range slices.Values(mcpServers) {
+func (c *mcpListCommand) printText(cf *CLIConf, mcpServers iter.Seq[appWithDetails]) error {
+	t := asciitable.MakeTable([]string{"Name", "Description", "Type", "Labels"})
+	for mcpServer := range mcpServers {
 		t.AddRow([]string{
 			mcpServer.GetName(),
 			mcpServer.GetDescription(),
@@ -468,8 +505,30 @@ func (c *mcpListCommand) printText(cf *CLIConf, mcpServers []types.Application) 
 			common.FormatLabels(mcpServer.GetAllLabels(), cf.Verbose),
 		})
 	}
-	fmt.Fprintf(os.Stdout, t.AsBuffer().String())
-	return nil
+	_, err := fmt.Fprintf(os.Stdout, t.AsBuffer().String())
+	return trace.Wrap(err)
+}
+
+func (c *mcpListCommand) printTextVerbose(cf *CLIConf, mcpServers iter.Seq[appWithDetails]) error {
+	t := asciitable.MakeTable([]string{"Name", "Description", "Type", "Labels", "Command", "Args", "Denied Tools", "Allowed Tools"})
+	for mcpServer := range mcpServers {
+		mcpSpec := mcpServer.GetMCP()
+		if mcpSpec == nil {
+			mcpSpec = &types.MCP{}
+		}
+		t.AddRow([]string{
+			mcpServer.GetName(),
+			mcpServer.GetDescription(),
+			types.GetMCPServerTransportType(mcpServer.GetURI()),
+			common.FormatLabels(mcpServer.GetAllLabels(), cf.Verbose),
+			mcpSpec.Command,
+			strings.Join(mcpSpec.Args, " "),
+			strings.Join(mcpServer.Permissions.MCP.Tools.Denied, ","),
+			strings.Join(mcpServer.Permissions.MCP.Tools.Allowed, ","),
+		})
+	}
+	_, err := fmt.Fprintf(os.Stdout, t.AsBuffer().String())
+	return trace.Wrap(err)
 }
 
 type mcpConnectCommand struct {

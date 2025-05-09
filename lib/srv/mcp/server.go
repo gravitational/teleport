@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/host"
 )
 
@@ -83,21 +82,7 @@ func NewServer(c ServerConfig) (*Server, error) {
 
 func (s *Server) makeSessionCtx(ctx context.Context, clientConn net.Conn, authCtx *authz.Context, app types.Application) *sessionCtx {
 	identity := authCtx.Identity.GetIdentity()
-	allowedTools := authCtx.Checker.EnumerateEntities(
-		app,
-		func(role types.Role, condition types.RoleConditionType) []string {
-			mcpSpec := role.GetMCPPermissions(condition)
-			if mcpSpec == nil {
-				return nil
-			}
-			return mcpSpec.Tools
-		},
-		func(name string) services.RoleMatcher {
-			return &services.MCPToolMatcher{
-				RegexName: name,
-			}
-		},
-	)
+	allowedTools := authCtx.Checker.EnumerateMCPTools(app)
 	sessionCtx := &sessionCtx{
 		parentCtx:  s.cfg.ParentCtx,
 		clientConn: clientConn,
