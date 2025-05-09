@@ -19,7 +19,9 @@
 import { AwsRole } from 'shared/services/apps';
 
 import { ResourceLabel } from 'teleport/services/agents';
-import type { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
+import type {
+  SamlServiceProviderPreset
+} from 'teleport/services/samlidp/types';
 
 export interface App {
   kind: 'app';
@@ -37,6 +39,7 @@ export interface App {
   requiresRequest?: boolean;
   isTcp?: boolean;
   isCloud?: boolean;
+  isMCP?: boolean;
   // addrWithProtocol can either be a public address or
   // if public address wasn't defined, fallback to uri
   addrWithProtocol?: string;
@@ -64,6 +67,7 @@ export interface App {
    * endpoints where user should be launched to start SAML authentication.
    */
   samlAppLaunchUrls?: SamlAppLaunchUrl[];
+  mcp?: AppMCP;
 }
 
 export type UserGroupAndDescription = {
@@ -74,6 +78,7 @@ export type UserGroupAndDescription = {
 /** AppSubKind defines names of SubKind for App resource. */
 export enum AppSubKind {
   AwsIcAccount = 'aws_ic_account',
+  MCP = 'mcp',
 }
 
 /**
@@ -99,3 +104,8 @@ export type SamlAppLaunchUrl = {
   /* friendly name of the URL. */
   friendlyName?: string;
 };
+
+export type AppMCP = {
+  command: string;
+  args: string[];
+}

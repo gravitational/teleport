@@ -46,6 +46,9 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
   if (subKind === AppSubKind.AwsIcAccount) {
     return 'awsaccount';
   }
+  if (subKind === AppSubKind.MCP) {
+    return 'mcp';
+  }
 
   const app = {
     name: withoutWhiteSpaces(name)?.toLocaleLowerCase(),

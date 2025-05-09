@@ -114,6 +114,24 @@ export function makeUnifiedResourceViewItemApp(
   resource: UnifiedResourceApp,
   ui: UnifiedResourceUi
 ): UnifiedResourceViewItem {
+  if (resource.mcp) {
+    return {
+      name: resource.friendlyName || resource.name,
+      SecondaryIcon: ApplicationIcon,
+      primaryIconName: 'mcp',
+      ActionButton: ui.ActionButton,
+      labels: resource.labels,
+      cardViewProps: {
+        primaryDesc: resource.description,
+      },
+      listViewProps: {
+        resourceType: "MCP Server",
+        description: resource.description,
+      },
+      requiresRequest: resource.requiresRequest,
+    }
+  }
+
   return {
     name: resource.friendlyName || resource.name,
     SecondaryIcon: ApplicationIcon,

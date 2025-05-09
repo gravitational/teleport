@@ -30,6 +30,7 @@ import { MenuLoginWithActionMenu } from 'shared/components/MenuLoginWithActionMe
 import { AwsRole } from 'shared/services/apps';
 
 import { TcpAppConnectDialog } from 'teleport/Apps/TcpAppConnectDialog';
+import { MCPAppConnectDialog } from 'teleport/Apps/MCPAppConnectDialog';
 import cfg from 'teleport/config';
 import DbConnectDialog from 'teleport/Databases/ConnectDialog';
 import { SelectResourceSpec } from 'teleport/Discover/SelectResource/resources';
@@ -169,6 +170,7 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
     publicAddr,
     isCloud,
     isTcp,
+    isMCP,
     samlApp,
     samlAppSsoUrl,
     samlAppPreset,
@@ -225,6 +227,9 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
         Launch
       </ButtonBorder>
     );
+  }
+  if (isMCP) {
+    return <MCPAppConnect app={app} />;
   }
   if (isTcp) {
     return <TcpAppConnect app={app} />;
@@ -407,6 +412,24 @@ function TcpAppConnect({ app }: { app: App }) {
       </ButtonBorder>
       {open && <TcpAppConnectDialog app={app} onClose={() => setOpen(false)} />}
     </>
+  );
+}
+
+function MCPAppConnect({ app }: { app: App }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+      <>
+        <ButtonBorder
+            textTransform="none"
+            width="123px"
+            size="small"
+            onClick={() => setOpen(true)}
+        >
+          Connect
+        </ButtonBorder>
+        {open && <MCPAppConnectDialog app={app} onClose={() => setOpen(false)} />}
+      </>
   );
 }
 

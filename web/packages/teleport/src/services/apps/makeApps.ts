@@ -53,6 +53,8 @@ export default function makeApp(json: any): App {
 
   const isTcp = !!uri && uri.startsWith('tcp://');
   const isCloud = !!uri && uri.startsWith('cloud://');
+  const isMCP= !!uri && uri.startsWith('mcp+stdio://');
+  const mcp = json.mcp || {};
 
   let addrWithProtocol = uri;
   if (publicAddr) {
@@ -88,6 +90,7 @@ export default function makeApp(json: any): App {
     awsConsole,
     isTcp,
     isCloud,
+    isMCP,
     addrWithProtocol,
     friendlyName,
     userGroups,
@@ -98,5 +101,6 @@ export default function makeApp(json: any): App {
     integration,
     permissionSets,
     samlAppLaunchUrls,
+    mcp,
   };
 }

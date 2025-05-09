@@ -75,6 +75,13 @@ type App struct {
 	// SAMLAppLaunchURLs contains service provider specific authentication
 	// endpoints where user should be launched to start SAML authentication.
 	SAMLAppLaunchURLs []SAMLAppLaunchURL `json:"samlAppLaunchUrls,omitempty"`
+
+	MCP *MCP `json:"mcp,omitempty"`
+}
+
+type MCP struct {
+	Command string   `json:"command,omitempty"`
+	Args    []string `json:"args,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -153,6 +160,14 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 
 	permissionSets := makePermissionSets(app.GetIdentityCenter().GetPermissionSets())
 
+	var mcp *MCP
+	if mcpSpec := app.GetMCP(); mcpSpec != nil {
+		mcp = &MCP{
+			Command: mcpSpec.Command,
+			Args:    mcpSpec.Args,
+		}
+	}
+
 	resultApp := App{
 		Kind:            types.KindApp,
 		SubKind:         app.GetSubKind(),
@@ -170,6 +185,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		RequiresRequest: c.RequiresRequest,
 		Integration:     app.GetIntegration(),
 		PermissionSets:  permissionSets,
+		MCP:             mcp,
 	}
 
 	if app.IsAWSConsole() {

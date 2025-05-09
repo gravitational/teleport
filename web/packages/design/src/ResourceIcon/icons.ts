@@ -41,7 +41,8 @@ import assembleDark from './assets/assemble-dark.svg';
 import assembleLight from './assets/assemble-light.svg';
 import atlassian from './assets/atlassian.svg';
 import atlassianbitbucket from './assets/atlassianbitbucket.svg';
-import atlassianjiraservicemanagement from './assets/atlassianjiraservicemanagement.svg';
+import atlassianjiraservicemanagement
+  from './assets/atlassianjiraservicemanagement.svg';
 import atlassianstatuspage from './assets/atlassianstatuspage.svg';
 import auth0Dark from './assets/auth0-dark.svg';
 import auth0Light from './assets/auth0-light.svg';
@@ -189,6 +190,8 @@ import mattermostDark from './assets/mattermost-dark.svg';
 import mattermostLight from './assets/mattermost-light.svg';
 import maxioDark from './assets/maxio-dark.svg';
 import maxioLight from './assets/maxio-light.svg';
+import mcpDark from './assets/mcp-dark.svg';
+import mcpLight from './assets/mcp-light.svg';
 import metabase from './assets/metabase.svg';
 import microsoft from './assets/microsoft.svg';
 import microsoftexcel from './assets/microsoftexcel.svg';
@@ -480,6 +483,8 @@ export {
   mattermostLight,
   maxioDark,
   maxioLight,
+  mcpDark,
+  mcpLight,
   metabase,
   microsoft,
   microsoftexcel,

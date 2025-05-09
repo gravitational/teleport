@@ -473,6 +473,7 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	}
 
 	if a.IsMCP() {
+		a.SetSubKind(KindMCPServer)
 		if err := a.checkMCP(); err != nil {
 			return trace.Wrap(err)
 		}

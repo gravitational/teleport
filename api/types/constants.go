@@ -634,6 +634,9 @@ const (
 	// stable UNIX users.
 	KindStableUNIXUser = "stable_unix_user"
 
+	// TODO
+	KindMCPServer = "mcp"
+
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"

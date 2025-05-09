@@ -178,6 +178,7 @@ export const resourceIconSpecs = {
   mattermost: { dark: i.mattermostDark, light: i.mattermostLight },
   maxio: { dark: i.maxioDark, light: i.maxioLight },
   metabase: forAllThemes(i.metabase),
+  mcp: { dark: i.mcpDark, light: i.mcpLight },
   microsoft: forAllThemes(i.microsoft),
   microsoftexcel: forAllThemes(i.microsoftexcel),
   microsoftonedrive: forAllThemes(i.microsoftonedrive),
