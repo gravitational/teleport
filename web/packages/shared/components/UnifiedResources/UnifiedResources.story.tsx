@@ -131,6 +131,7 @@ const story = ({
               disabled: false,
             },
           ]}
+          onShowStatusInfo={() => null}
           params={mergedParams}
           setParams={() => undefined}
           pinning={pinning}

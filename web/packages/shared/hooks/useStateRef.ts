@@ -52,7 +52,7 @@ import {
  */
 export function useStateRef<T>(
   initialState: T
-): [T, RefObject<T>, Dispatch<SetStateAction<T>>] {
+): [T, RefObject<T | null>, Dispatch<SetStateAction<T>>] {
   const stateRef = useRef(initialState);
   const [state, setState] = useState(initialState);
 

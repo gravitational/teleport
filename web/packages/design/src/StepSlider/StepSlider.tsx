@@ -258,7 +258,7 @@ export function StepSlider<Flows>(props: Props<Flows>) {
   // https://github.com/reactjs/react-transition-group/issues/675
   const keyToNodeRef = useRef<Map<
     string,
-    React.RefObject<HTMLDivElement>
+    React.RefObject<HTMLDivElement | null>
   > | null>(null);
   if (keyToNodeRef.current === null) {
     keyToNodeRef.current = new Map(

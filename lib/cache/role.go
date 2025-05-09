@@ -25,16 +25,18 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const roleStoreNameIndex = "name"
+type roleIndex string
 
-func newRoleCollection(a services.Access, w types.WatchKind) (*collection[types.Role], error) {
+const roleNameIndex roleIndex = "name"
+
+func newRoleCollection(a services.Access, w types.WatchKind) (*collection[types.Role, roleIndex], error) {
 	if a == nil {
 		return nil, trace.BadParameter("missing parameter Access")
 	}
 
-	return &collection[types.Role]{
-		store: newStore(map[string]func(types.Role) string{
-			roleStoreNameIndex: func(r types.Role) string {
+	return &collection[types.Role, roleIndex]{
+		store: newStore(map[roleIndex]func(types.Role) string{
+			roleNameIndex: func(r types.Role) string {
 				return r.GetName()
 			},
 		}),
@@ -71,7 +73,7 @@ func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 	}
 
 	roles := make([]types.Role, 0, rg.store.len())
-	for r := range rg.store.resources(roleStoreNameIndex, "", "") {
+	for r := range rg.store.resources(roleNameIndex, "", "") {
 		roles = append(roles, r.Clone())
 	}
 
@@ -106,7 +108,7 @@ func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*pr
 	}
 
 	var resp proto.ListRolesResponse
-	for r := range rg.store.resources(roleStoreNameIndex, req.StartKey, "") {
+	for r := range rg.store.resources(roleNameIndex, req.StartKey, "") {
 		rv6, ok := r.(*types.RoleV6)
 		if !ok {
 			continue
@@ -143,7 +145,7 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 		return role, trace.Wrap(err)
 	}
 
-	r, err := rg.store.get("name", name)
+	r, err := rg.store.get(roleNameIndex, name)
 	if err != nil {
 		// release read lock early
 		rg.Release()

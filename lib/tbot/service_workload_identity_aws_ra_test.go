@@ -46,6 +46,7 @@ func Test_renderAWSCreds(t *testing.T) {
 		AccessKeyId:     "AKIAIOSFODNN7EXAMPLEAKID",
 		SessionToken:    "AQoDYXdzEJrtyWJ4NjK7PiEXAMPLEST",
 		SecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYzEXAMPLESAK",
+		Expiration:      "2028-07-27T04:36:55Z",
 	}
 	ctx := context.Background()
 
