@@ -65,7 +65,7 @@ func (e *Engine) dialServerAndForward(ctx context.Context, sessionCtx *common.Se
 	}
 	defer packetLogger.Close()
 
-	serverTcpConn, err := net.Dial("tcp", sessionCtx.Database.GetURI())
+	serverTcpConn, err := net.Dial("tcp", getURI(sessionCtx.Database))
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 )
 
 // PluginShimURLEnvVar is the environment variable name
@@ -103,6 +104,7 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 
 	if cfg.Databases.Enabled {
 		common.RegisterEngine(oracle.NewEngine, defaults.ProtocolOracle)
+		endpoints.RegisterResolver(oracle.NewEndpointsResolver, defaults.ProtocolOracle)
 	}
 
 	// This needs to be the last thing in NewTeleport because it needs to

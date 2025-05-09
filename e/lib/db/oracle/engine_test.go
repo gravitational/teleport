@@ -369,7 +369,7 @@ func (m *mockOracleServer) handleConn(ch *connectionChannels, conn net.Conn) err
 	}()
 
 	var errs []error
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		errs = append(errs, <-errC)
 	}
 	return trace.NewAggregate(errs...)

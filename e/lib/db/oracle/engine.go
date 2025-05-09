@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/db/oracle/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -118,7 +119,7 @@ func (e *Engine) createAuditPuller(ctx context.Context, opts types.OracleOptions
 	}
 
 	cfg := audit.PullerConfig{
-		Addr:      e.session.Database.GetURI(),
+		Addr:      getURI(e.session.Database),
 		TLSConfig: tlsConfig,
 		OnQuery: func(entry audit.QueryEntry) {
 			e.Audit.OnQuery(e.Context, e.session, common.Query{
@@ -209,4 +210,19 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// getURI is a simple helper that returns the endpoint to dial.
+// It exists to intentionally couple the engine dialing logic with the endpoint
+// resolver logic.
+func getURI(db types.Database) string {
+	return db.GetURI()
+}
+
+// NewEndpointsResolver returns an endpoint resolver.
+func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
+	uri := getURI(db)
+	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
+		return []string{uri}, nil
+	}), nil
 }
