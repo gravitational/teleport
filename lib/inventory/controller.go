@@ -165,7 +165,7 @@ func (options *controllerOptions) SetDefaults() {
 	if options.cleanupLimiter == nil {
 		// limit resource cleanup writes to 128 per second to reduce the chances that
 		// agents with very large resource counts cause throttling on graceful disconnect.
-		options.cleanupLimiter = rate.NewLimiter(rate.Every(time.Second), 128)
+		options.cleanupLimiter = rate.NewLimiter(rate.Every(time.Second/128), 1)
 	}
 
 	if options.cleanupTimeout == 0 {
@@ -182,7 +182,7 @@ func WithAuthServerID(serverID string) ControllerOption {
 }
 
 // WithOnConnect sets a function to be called every time a new
-// instance connects via the inventory control stream. The value
+// heartbeat connects via the inventory control stream. The value
 // provided to the callback is the keep alive type of the connected
 // resource. The callback should return quickly so as not to prevent
 // processing of heartbeats.
@@ -192,7 +192,7 @@ func WithOnConnect(f func(heartbeatKind string)) ControllerOption {
 	}
 }
 
-// WithOnDisconnect sets a function to be called every time an existing instance
+// WithOnDisconnect sets a function to be called every time an existing heartbeat
 // disconnects from the inventory control stream. The values provided to the
 // callback are the keep alive type of the disconnected resource, as well as a
 // count of how many resources disconnected at once. The callback should return
