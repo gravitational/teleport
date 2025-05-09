@@ -993,7 +993,7 @@ func (a *ProvisionTokenSpecV2BoundKeypair) checkAndSetDefaults() error {
 		return trace.BadParameter("spec.bound_keypair.onboarding is required")
 	}
 
-	if a.Onboarding.InitialJoinSecret == "" && a.Onboarding.InitialPublicKey == "" {
+	if a.Onboarding.RegistrationSecret == "" && a.Onboarding.InitialPublicKey == "" {
 		return trace.BadParameter("at least one of [initial_join_secret, " +
 			"initial_public_key] is required in spec.bound_keypair.onboarding")
 	}

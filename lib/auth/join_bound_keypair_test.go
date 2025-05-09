@@ -132,11 +132,9 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 					Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
 						InitialPublicKey: correctPublicKey,
 					},
-					Joining: &types.ProvisionTokenSpecV2BoundKeypair_JoiningSpec{
-						// Only unlimited and insecure is supported for now, so
-						// we'll hard code it.
-						Unlimited: true,
-						Insecure:  true,
+					Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
+						// Only insecure is supported for now.
+						Mode: boundkeypair.RecoveryModeInsecure,
 					},
 				},
 			},
@@ -210,7 +208,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			assertError: require.NoError,
 			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2) {
 				// join count should be incremented
-				require.Equal(t, uint32(1), v2.Status.BoundKeypair.JoinCount)
+				require.Equal(t, uint32(1), v2.Status.BoundKeypair.RecoveryCount)
 				require.NotEmpty(t, v2.Status.BoundKeypair.BoundBotInstanceID)
 				require.NotEmpty(t, v2.Status.BoundKeypair.BoundPublicKey)
 			},
@@ -245,7 +243,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			assertError: require.NoError,
 			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2) {
 				// join count should not be incremented
-				require.Equal(t, uint32(0), v2.Status.BoundKeypair.JoinCount)
+				require.Equal(t, uint32(0), v2.Status.BoundKeypair.RecoveryCount)
 			},
 		},
 		{
@@ -281,7 +279,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 
 			assertError: require.NoError,
 			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2) {
-				require.Equal(t, uint32(1), v2.Status.BoundKeypair.JoinCount)
+				require.Equal(t, uint32(1), v2.Status.BoundKeypair.RecoveryCount)
 
 				// Should generate a new bot instance
 				require.NotEmpty(t, v2.Status.BoundKeypair.BoundBotInstanceID)
@@ -328,9 +326,11 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			name: "rotation-requested",
 
 			token: makeToken(func(v2 *types.ProvisionTokenV2) {
+				t := time.Now()
 				v2.Status.BoundKeypair.BoundPublicKey = correctPublicKey
 				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
-				v2.Spec.BoundKeypair.RotateOnNextRenewal = true
+				v2.Spec.BoundKeypair.RotateAfter = &t
+				// TODO: test clock?
 			}),
 			initReq: makeInitReq(),
 			solver:  makeSolver(correctPublicKey),

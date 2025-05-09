@@ -41,6 +41,23 @@ const (
 	challengeNotBeforeOffset = -10 * time.Second
 )
 
+// RecoveryMode is a recovery configuration mode
+type RecoveryMode string
+
+const (
+	// RecoveryModeStandard is the standard recovery mode, and enforces the
+	// recovery count limit and verifies client state.
+	RecoveryModeStandard RecoveryMode = "standard"
+
+	// RecoveryModeRelaxed does not enforce the recovery count limit, but still
+	// verifies client state.
+	RecoveryModeRelaxed = "relaxed"
+
+	// RecoveryModeInsecure does enforces neither the recovery count limit nor
+	// the client state.
+	RecoveryModeInsecure = "insecure"
+)
+
 // ChallengeDocument is a bound keypair challenge document. These documents are
 // sent in JSON form to clients attempting to authenticate, and are expected to
 // be sent back signed with a known public key.
@@ -147,4 +164,13 @@ func (v *ChallengeValidator) ValidateChallengeResponse(issued *ChallengeDocument
 	}
 
 	return nil
+}
+
+// RecoveryModes returns a list of all supported recovery modes
+func RecoveryModes() []RecoveryMode {
+	return []RecoveryMode{
+		RecoveryModeStandard,
+		RecoveryModeRelaxed,
+		RecoveryModeInsecure,
+	}
 }

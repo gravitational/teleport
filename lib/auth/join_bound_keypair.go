@@ -52,24 +52,20 @@ func validateBoundKeypairTokenSpec(spec *types.ProvisionTokenSpecV2BoundKeypair)
 		return trace.BadParameter("bound keypair joining experiment is not enabled")
 	}
 
-	if spec.RotateOnNextRenewal {
-		return trace.NotImplemented("spec.bound_keypair.rotate_on_next_renewal is not yet implemented")
+	if spec.RotateAfter != nil {
+		return trace.NotImplemented("spec.bound_keypair.rotate_after is not yet implemented")
 	}
 
-	if spec.Onboarding.InitialJoinSecret != "" {
-		return trace.NotImplemented("spec.bound_keypair.initial_join_secret is not yet implemented")
+	if spec.Onboarding.RegistrationSecret != "" {
+		return trace.NotImplemented("spec.bound_keypair.onboarding.registration_secret is not yet implemented")
 	}
 
 	if spec.Onboarding.InitialPublicKey == "" {
-		return trace.NotImplemented("spec.bound_keypair.initial_public_key is currently required")
+		return trace.NotImplemented("spec.bound_keypair.onboarding.initial_public_key is currently required")
 	}
 
-	if !spec.Joining.Unlimited {
-		return trace.NotImplemented("spec.bound_keypair.joining.unlimited cannot currently be `false`")
-	}
-
-	if !spec.Joining.Insecure {
-		return trace.NotImplemented("spec.bound_keypair.joining.insecure cannot currently be `false`")
+	if spec.Recovery.Mode != boundkeypair.RecoveryModeInsecure {
+		return trace.NotImplemented("spec.bound_keypair.recovery.mode currently must be %s", boundkeypair.RecoveryModeInsecure)
 	}
 
 	return nil
@@ -110,7 +106,7 @@ func (a *Server) CreateBoundKeypairToken(ctx context.Context, token types.Provis
 		return trace.BadParameter("cannot create a bound_keypair token with set status")
 	}
 
-	// TODO: Populate initial_join_secret if needed.
+	// TODO (follow up PR): Populate initial_join_secret if needed.
 
 	return trace.Wrap(a.CreateToken(ctx, tokenV2))
 }
@@ -225,27 +221,28 @@ type boundKeypairStatusMutator func(*types.ProvisionTokenSpecV2BoundKeypair, *ty
 // mutateStatusConsumeJoin consumes a "hard" join on the backend, incrementing
 // the join counter. This verifies that the backend join count has not changed,
 // and that total join count is at least the value when the mutator was created.
-func mutateStatusConsumeJoin(unlimited bool, expectJoinCount uint32, expectMinTotalJoins uint32) boundKeypairStatusMutator {
+func mutateStatusConsumeJoin(mode boundkeypair.RecoveryMode, expectRecoveryCount uint32, expectMinRecoveryLimit uint32) boundKeypairStatusMutator {
 	now := time.Now()
 
 	return func(spec *types.ProvisionTokenSpecV2BoundKeypair, status *types.ProvisionTokenStatusV2BoundKeypair) error {
 		// Ensure we have the expected number of rejoins left to prevent going
 		// below zero.
-		if status.JoinCount != expectJoinCount {
+		if status.RecoveryCount != expectRecoveryCount {
 			return trace.AccessDenied("unexpected backend state")
 		}
 
 		// Ensure the allowed join count has at least not decreased, but allow
 		// for collision with potentially increased values.
-		if spec.Joining.TotalJoins < expectMinTotalJoins {
+		if spec.Recovery.Limit < expectMinRecoveryLimit {
 			return trace.AccessDenied("unexpected backend state")
 		}
 
-		if !unlimited {
+		if mode == boundkeypair.RecoveryModeStandard {
+			// TODO: to be removed in a future PR
 			return trace.NotImplemented("only unlimited rejoining is currently supported")
 		}
 
-		status.JoinCount += 1
+		status.RecoveryCount += 1
 		status.LastJoinedAt = &now
 
 		return nil
@@ -336,7 +333,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 	hasBoundPublicKey := status.BoundPublicKey != ""
 	hasBoundBotInstance := status.BoundBotInstanceID != ""
 	hasIncomingBotInstance := req.JoinRequest.BotInstanceID != ""
-	hasJoinsRemaining := status.JoinCount < spec.Joining.TotalJoins
+	hasJoinsRemaining := status.RecoveryCount < spec.Recovery.Limit
 
 	// if set, the bound bot instance will be updated in the backend
 	expectNewBotInstance := false
@@ -352,7 +349,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 	case !hasBoundPublicKey && !hasIncomingBotInstance:
 		// Normal initial join attempt. No bound key, and no incoming bot
 		// instance. Consumes a rejoin.
-		if spec.Onboarding.InitialJoinSecret != "" {
+		if spec.Onboarding.RegistrationSecret != "" {
 			return nil, "", trace.NotImplemented("initial joining secrets are not yet supported")
 		}
 
@@ -360,7 +357,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			return nil, "", trace.BadParameter("an initial public key is required")
 		}
 
-		if !spec.Joining.Unlimited && !hasJoinsRemaining {
+		if spec.Recovery.Mode == string(boundkeypair.RecoveryModeStandard) && !hasJoinsRemaining {
 			return nil, "", trace.AccessDenied("no joins remaining")
 		}
 
@@ -376,7 +373,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		mutators = append(
 			mutators,
 			mutateStatusBoundPublicKey(spec.Onboarding.InitialPublicKey, ""),
-			mutateStatusConsumeJoin(spec.Joining.Unlimited, status.JoinCount, spec.Joining.TotalJoins),
+			mutateStatusConsumeJoin(boundkeypair.RecoveryMode(spec.Recovery.Mode), status.RecoveryCount, spec.Recovery.Limit),
 		)
 
 		expectNewBotInstance = true
@@ -408,7 +405,8 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 	case hasBoundPublicKey && hasBoundBotInstance && !hasIncomingBotInstance:
 		// Hard rejoin case, the client identity expired and a new bot instance
 		// is required. Consumes a rejoin.
-		if !spec.Joining.Unlimited && !hasJoinsRemaining {
+		if spec.Recovery.Mode == string(boundkeypair.RecoveryModeStandard) && !hasJoinsRemaining {
+			// Recovery limit only applies in "standard" mode.
 			return nil, "", trace.AccessDenied("no rejoins remaining")
 		}
 
@@ -422,7 +420,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 
 		mutators = append(
 			mutators,
-			mutateStatusConsumeJoin(spec.Joining.Unlimited, status.JoinCount, spec.Joining.TotalJoins),
+			mutateStatusConsumeJoin(boundkeypair.RecoveryMode(spec.Recovery.Mode), status.RecoveryCount, spec.Recovery.Limit),
 		)
 
 		expectNewBotInstance = true
@@ -438,7 +436,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		return nil, "", trace.BadParameter("unexpected state")
 	}
 
-	if spec.RotateOnNextRenewal {
+	if spec.RotateAfter != nil {
 		// TODO, to be implemented in a future PR. `boundPublicKey` will need to
 		// be updated.
 		return nil, "", trace.NotImplemented("key rotation not yet supported")
