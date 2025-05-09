@@ -2085,32 +2085,29 @@ func maybeDowngradeRoleVersionToV7(role *types.RoleV6, clientVersion *semver.Ver
 	// which can cause panics since it causes a race condition.
 	role = apiutils.CloneProtoMsg(role)
 	role.Version = types.V7
+	role = downgradeSAMLIdPRBAC(role)
 
-	reason := fmt.Sprintf(`Role V8 is only supported from the client version %q and above.`, minSupportedRoleV8Version)
+	reason := fmt.Sprintf(`Role V8 is only supported from the client version %q and above.`+
+		`Access to SAML IdP will be disabled.`, minSupportedRoleV8Version)
 	if role.Metadata.Labels == nil {
 		role.Metadata.Labels = make(map[string]string, 1)
 	}
 	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
-
-	role = downgradeSAMLIdPRBAC(role)
 
 	return role
 }
 
 // downgradeSAMLIdPRBAC disables access to all saml_idp_service_provider
 // resources. The RBAC for saml_idp_service_provider resource before role V8
-// is a blanket allow/deny option. Since the saml resource can now be
-// scoped per resource, disabling access on downgraded role is a safer bet.
-func downgradeSAMLIdPRBAC(role *types.RoleV6) *types.RoleV6 {
-	idpOptions := role.GetOptions().IDP
-	if idpOptions == nil || idpOptions.SAML == nil {
-		return role
-	}
-
-	downgradedRole := apiutils.CloneProtoMsg(role)
-	options := role.GetOptions()
-	options.IDP.SAML = &types.IdPSAMLOptions{
-		Enabled: types.NewBoolOption(false),
+// is a blanket allow/deny rule. Since the saml resource can now be
+// scoped per resource labels, disabling access on downgraded role is
+// a simpler and safer option.
+func downgradeSAMLIdPRBAC(downgradedRole *types.RoleV6) *types.RoleV6 {
+	options := downgradedRole.GetOptions()
+	options.IDP = &types.IdPOptions{
+		SAML: &types.IdPSAMLOptions{
+			Enabled: types.NewBoolOption(false),
+		},
 	}
 	downgradedRole.SetOptions(options)
 
