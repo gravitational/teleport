@@ -44,13 +44,7 @@ func NewAutoUpdateAgentReport(spec *autoupdate.AutoUpdateAgentReportSpec, authNa
 // ValidateAutoUpdateAgentReport checks that required parameters are set
 // for the specified AutoUpdateAgentReport.
 func ValidateAutoUpdateAgentReport(v *autoupdate.AutoUpdateAgentReport) error {
-	if v == nil {
-		return trace.BadParameter("AutoUpdateAgentReport is nil")
-	}
-	if v.Metadata == nil {
-		return trace.BadParameter("Metadata is nil")
-	}
-	if v.Metadata.Name == "" {
+	if v.GetMetadata().GetName() == "" {
 		return trace.BadParameter("Metadata.Name is empty")
 	}
 	if v.Spec == nil {
