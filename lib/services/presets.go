@@ -215,6 +215,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindGitServer, RW()),
 					types.NewRule(types.KindWorkloadIdentityX509Revocation, RW()),
 					types.NewRule(types.KindHealthCheckConfig, RW()),
+					types.NewRule(types.KindSigstorePolicy, RW()),
 				},
 			},
 		},

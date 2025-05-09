@@ -1081,6 +1081,18 @@
               "update",
               "delete"
             ]
+          },
+          {
+            "resources": [
+              "sigstore_policy"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
           }
         ]
       },
