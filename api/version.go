@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.0.0-dev"
+const Version = "18.0.0-dev.gus-ew2"
 
 const VersionMajor = 18
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "dev"
+const VersionPreRelease = "dev.gus-ew2"
 const VersionMetadata = ""
