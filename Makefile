@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=16.0.0-gus.ew.4
+VERSION=16.0.0-gus.ew.5
 
 DOCKER_IMAGE ?= teleport
 
@@ -1725,6 +1725,8 @@ CARGO_GET_VERSION = $(if $(BIN_JQ),$(CARGO_GET_VERSION_JQ),$(CARGO_GET_VERSION_A
 ensure-wasm-pack: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-wasm-pack-version)
 ensure-wasm-pack: INSTALLED_VERSION = $(lastword $(shell wasm-pack --version 2>/dev/null))
 ensure-wasm-pack:
+	$(MAKE) --version
+	@echo $(call CARGO_GET_VERSION,wasm-bindgen)
 	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
 		cargo install wasm-pack --locked --version "$(NEED_VERSION)", \
 		@echo wasm-pack up-to-date: $(INSTALLED_VERSION) \
@@ -1734,8 +1736,6 @@ ensure-wasm-bindgen: NEED_VERSION = $(shell $(call CARGO_GET_VERSION,wasm-bindge
 ensure-wasm-bindgen: INSTALLED_VERSION = $(lastword $(shell wasm-bindgen --version 2>/dev/null))
 ensure-wasm-bindgen:
 ifeq ($(CI),true)
-	$(MAKE) --version
-	@echo $(call CARGO_GET_VERSION,wasm-bindgen)
 	@: $(or $(NEED_VERSION),$(error Unknown wasm-bindgen version. Is it in Cargo.lock?))
 	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
 		cargo install wasm-bindgen-cli --locked --version "$(NEED_VERSION)", \
