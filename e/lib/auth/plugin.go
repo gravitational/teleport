@@ -418,6 +418,15 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			return trace.Wrap(err, "creating Sigstore policy service")
 		}
 		workloadidentityv1pb.RegisterSigstorePolicyResourceServiceServer(gRPCServer, srv)
+
+		eval, err := sigstore.NewPolicyEvaluator(sigstore.PolicyEvaluatorConfig{
+			Store:  p.authServer.AuthServer,
+			Logger: logger,
+		})
+		if err != nil {
+			return trace.Wrap(err, "creating Sigstore policy evaluator")
+		}
+		p.authServer.AuthServer.SetSigstorePolicyEvaluator(eval)
 	}
 
 	return nil
