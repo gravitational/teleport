@@ -30,11 +30,13 @@ import (
 	"github.com/datastax/go-cassandra-native-protocol/message"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -289,7 +291,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*prot
 		return nil, trace.Wrap(err)
 	}
 	tlsDialer := tls.Dialer{Config: config}
-	serverConn, err := tlsDialer.DialContext(ctx, "tcp", sessionCtx.Database.GetURI())
+	serverConn, err := tlsDialer.DialContext(ctx, "tcp", getEndpoint(sessionCtx.Database))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -315,4 +317,16 @@ func (e *Engine) getAuth(sessionCtx *common.Session) (handshakeHandler, error) {
 	default:
 		return &basicHandshake{ses: sessionCtx}, nil
 	}
+}
+
+func getEndpoint(db types.Database) string {
+	return db.GetURI()
+}
+
+// NewEndpointsResolver returns an endpoint resolver.
+func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
+	uri := getEndpoint(db)
+	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
+		return []string{uri}, nil
+	}), nil
 }

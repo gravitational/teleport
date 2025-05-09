@@ -920,7 +920,7 @@ func (s *Server) tunnelWithAccessChecker(ctx *srv.ServerContext) (reversetunnelc
 		return nil, trace.Wrap(err)
 	}
 
-	return reversetunnelclient.NewTunnelWithRoles(s.proxyTun, clusterName.GetClusterName(), ctx.Identity.AccessChecker, s.proxyAccessPoint), nil
+	return reversetunnelclient.NewTunnelWithRoles(s.proxyTun, clusterName.GetClusterName(), ctx.Identity.UnstableClusterAccessChecker, s.proxyAccessPoint), nil
 }
 
 // startAuthorizedKeysManager starts the authorized keys manager.
@@ -1381,7 +1381,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	// commands on a server, subsystem requests, and agent forwarding.
 	case teleport.ChanSession:
 		var decr func()
-		if max := identityContext.AccessChecker.MaxSessions(); max != 0 {
+		if max := identityContext.AccessPermit.MaxSessions; max != 0 {
 			d, ok := ccx.IncrSessions(max)
 			if !ok {
 				// user has exceeded their max concurrent ssh sessions.
@@ -2389,11 +2389,11 @@ func (s *Server) parseSubsystemRequest(ctx context.Context, req *ssh.Request, se
 		}
 	}
 
-	switch {
+	switch r.Name {
 	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
-	case r.Name == teleport.GetHomeDirSubsystem:
+	case teleport.GetHomeDirSubsystem:
 		return newHomeDirSubsys(), nil
-	case r.Name == teleport.SFTPSubsystem:
+	case teleport.SFTPSubsystem:
 		err := serverContext.CheckSFTPAllowed(s.reg)
 		if err != nil {
 			s.emitAuditEventWithLog(context.Background(), &apievents.SFTP{
