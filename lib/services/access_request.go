@@ -246,7 +246,9 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caps.RequestPrompt = v.prompt
+	if len(v.reasonPrompts) > 0 {
+		caps.RequestPrompt = v.reasonPrompts[0]
+	}
 	caps.AutoRequest = v.autoRequest
 
 	return &caps, nil
@@ -1031,11 +1033,15 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 type requestValidator struct {
 	logger    *slog.Logger
 	clock     clockwork.Clock
+	opts      ValidateRequestOptions
 	getter    RequestValidatorGetter
 	userState UserState
-	// requireReasonForAllRoles indicates that non-empty reason is required for all access
-	// requests. This happens if any of the user roles has options.request_access "always" or
+	// autoRequest indicates that a Access Request should be created for a user upon login.
+	// That happens when any of the users's roles has options.request_access "always" or
 	// "reason".
+	autoRequest bool
+	// requireReasonForAllRoles indicates that non-empty reason is required for all access
+	// requests. This happens if any of the user roles has options.request_access "reason".
 	requireReasonForAllRoles bool
 	// requiringReasonRoles is a set of role names, which require non-empty reason to be
 	// specified when requested. The same applies to all requested resources allowed by those
@@ -1047,6 +1053,9 @@ type requestValidator struct {
 	// in spec.allow.request.roles and spec.allow.request.search_as_roles as roles requiring
 	// reason.
 	requiringReasonRoles map[string]struct{}
+	// reasonPrompts are the prompts to be displayed in the UI for the reason input box. In the
+	// case of auto-request only the first prompt is displayed for backward compatibility.
+	reasonPrompts []string
 	// Used to enforce that the configuration found in the static
 	// role that defined the search_as_role, is respected.
 	// An empty map or list means nothing was configured.
@@ -1058,10 +1067,7 @@ type requestValidator struct {
 		// denied from requesting.
 		deny []types.RequestKubernetesResource
 	}
-	autoRequest bool
-	prompt      string
-	opts        ValidateRequestOptions
-	roles       struct {
+	roles struct {
 		allowRequest, denyRequest []parse.Matcher
 		allowSearch, denySearch   []string
 	}
@@ -1123,18 +1129,20 @@ func newRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 			return requestValidator{}, trace.Wrap(err)
 		}
 	}
+	slices.Sort(m.reasonPrompts)
+
 	return m, nil
 }
 
 // validate validates an access request and potentially modifies it depending on how
 // the validator was configured.
-func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) error {
+func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (*types.AccessRequestDryRunEnrichment, error) {
 	if m.userState.GetName() != req.GetUser() {
-		return trace.BadParameter("request validator configured for different user (this is a bug)")
+		return nil, trace.BadParameter("request validator configured for different user (this is a bug)")
 	}
 
 	if !req.GetState().IsPromoted() && req.GetPromotedAccessListTitle() != "" {
-		return trace.BadParameter("only promoted requests can set the promoted access list title")
+		return nil, trace.BadParameter("only promoted requests can set the promoted access list title")
 	}
 
 	// check for "wildcard request" (`roles=*`).  wildcard requests
@@ -1144,36 +1152,50 @@ func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest
 		if !req.GetState().IsPending() {
 			// expansion is only permitted in pending requests.  once resolved,
 			// a request's role list must be immutable.
-			return trace.BadParameter("wildcard requests are not permitted in state %s", req.GetState())
+			return nil, trace.BadParameter("wildcard requests are not permitted in state %s", req.GetState())
 		}
 
 		if !m.opts.expandVars {
 			// teleport always validates new incoming pending access requests
 			// with ExpandVars(true). after that, it should be impossible to
 			// add new values to the role list.
-			return trace.BadParameter("unexpected wildcard request (this is a bug)")
+			return nil, trace.BadParameter("unexpected wildcard request (this is a bug)")
 		}
 
 		requestable, err := m.getRequestableRoles(ctx, identity, nil, "")
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		if len(requestable) == 0 {
-			return trace.BadParameter("no requestable roles, please verify static RBAC configuration")
+			return nil, trace.BadParameter("no requestable roles, please verify static RBAC configuration")
 		}
 		req.SetRoles(requestable)
 	}
 
-	// If the reason is provided, don't check if it's required. It has to happen after wildcard
-	// role expansion.
-	if len(strings.TrimSpace(req.GetRequestReason())) == 0 {
-		required, explanation, err := m.isReasonRequired(ctx, req.GetRoles(), req.GetRequestedResourceIDs())
+	enrichment := &types.AccessRequestDryRunEnrichment{
+		ReasonMode:    types.RequestReasonModeOptional,
+		ReasonPrompts: m.reasonPrompts, // prompt is calculated in newRequestValidator
+	}
+
+	switch {
+	// for dry-run, store the reason requirement in the enrichment data
+	case m.opts.dryRun:
+		required, _, err := m.isReasonRequired(ctx, req.GetRoles(), req.GetRequestedResourceIDs())
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		if required {
-			return trace.BadParameter("%s", explanation)
+			enrichment.ReasonMode = types.RequestReasonModeRequired
+		}
+	// for no dry-run and no reason provided, fail if the reason is required
+	case len(strings.TrimSpace(req.GetRequestReason())) == 0:
+		required, explanation, err := m.isReasonRequired(ctx, req.GetRoles(), req.GetRequestedResourceIDs())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if required {
+			return nil, trace.BadParameter("%s", explanation)
 		}
 	}
 
@@ -1184,11 +1206,11 @@ func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest
 				// Roles are normally determined automatically for resource
 				// access requests, this role must have been explicitly
 				// requested, or a new deny rule has since been added.
-				return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
+				return nil, trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
 			}
 		} else {
 			if !m.canRequestRole(roleName) {
-				return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
+				return nil, trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
 			}
 		}
 	}
@@ -1199,7 +1221,7 @@ func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest
 		// A pruned role meant that role did not allow requesting to all of requested kube resource.
 		prunedRoles, mappedRequestedRolesToAllowedKinds := m.pruneRequestedRolesNotMatchingKubernetesResourceKinds(req.GetRequestedResourceIDs(), req.GetRoles())
 		if len(prunedRoles) != len(req.GetRoles()) {
-			return getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, true /* requestedRoles */)
+			return nil, getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, true /* requestedRoles */)
 		}
 
 	}
@@ -1224,13 +1246,13 @@ func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest
 		// we also need to ensure that the sum of the resource IDs in the request doesn't
 		// get too big.
 		if resourcesLen > maxResourcesLength {
-			return trace.BadParameter("access request exceeds maximum length: try reducing the number of resources in the request")
+			return nil, trace.BadParameter("access request exceeds maximum length: try reducing the number of resources in the request")
 		}
 
 		// determine the roles which should be requested for a resource access
 		// request, and write them to the request
 		if err := m.setRolesForResourceRequest(ctx, req); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		// build the threshold array and role-threshold-mapping.  the rtm encodes the
@@ -1243,7 +1265,7 @@ func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest
 		for _, role := range req.GetRoles() {
 			sets, err := m.collectSetsForRole(&tc, role)
 			if err != nil {
-				return trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			rtm[role] = types.ThresholdIndexSets{
 				Sets: sets,
@@ -1257,7 +1279,7 @@ func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest
 		// RBAC system propagates sideband information to plugins.
 		systemAnnotations, err := m.systemAnnotations(req)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		req.SetSystemAnnotations(systemAnnotations)
 
@@ -1274,12 +1296,12 @@ func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest
 		// be issued if the Access Request is approved.
 		sessionTTL, err := m.sessionTTL(ctx, identity, req, now)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		maxDuration, err := m.calculateMaxAccessDuration(req, sessionTTL)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		// If the maxDuration flag is set, consider it instead of only using the session TTL.
@@ -1307,19 +1329,22 @@ func (m *requestValidator) validate(ctx context.Context, req types.AccessRequest
 		// will await approval).
 		requestTTL, err := m.calculatePendingRequestTTL(req, now)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		req.SetExpiry(now.Add(requestTTL))
 
 		if req.GetAssumeStartTime() != nil {
 			assumeStartTime := *req.GetAssumeStartTime()
 			if err := types.ValidateAssumeStartTime(assumeStartTime, accessExpiry, req.GetCreationTime()); err != nil {
-				return trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 		}
 	}
 
-	return nil
+	if m.opts.dryRun {
+		return enrichment, nil
+	}
+	return nil, nil
 }
 
 // isReasonRequired checks if the reason is required for the given roles and resource IDs.
@@ -1608,8 +1633,9 @@ func (m *requestValidator) push(ctx context.Context, role types.Role) error {
 
 	m.requireReasonForAllRoles = m.requireReasonForAllRoles || role.GetOptions().RequestAccess.RequireReason()
 	m.autoRequest = m.autoRequest || role.GetOptions().RequestAccess.ShouldAutoRequest()
-	if m.prompt == "" {
-		m.prompt = role.GetOptions().RequestPrompt
+	reasonPrompt := strings.TrimSpace(role.GetOptions().RequestPrompt)
+	if len(reasonPrompt) > 0 && !slices.Contains(m.reasonPrompts, reasonPrompt) {
+		m.reasonPrompts = append(m.reasonPrompts, reasonPrompt)
 	}
 
 	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
@@ -2002,6 +2028,7 @@ func (m *requestValidator) systemAnnotations(req types.AccessRequest) (map[strin
 
 type ValidateRequestOptions struct {
 	expandVars bool
+	dryRun     bool
 }
 
 type ValidateRequestOption func(*ValidateRequestOptions)
@@ -2016,16 +2043,25 @@ func WithExpandVars(expandVars bool) ValidateRequestOption {
 	}
 }
 
+// WithDryRun instructs the Access Request validation to not fail when reason is required and provide
+// enrichment data for the UI instead.
+func WithDryRun(dryRun bool) ValidateRequestOption {
+	return func(v *ValidateRequestOptions) {
+		v.dryRun = dryRun
+	}
+}
+
 // ValidateAccessRequestForUser validates an access request against the associated users's
 // *statically assigned* roles. If [[WithExpandVars]] is set to true, it will also expand wildcard
 // requests, setting their role list to include all roles the user is allowed to request.
 // Expansion should be performed before an access request is initially placed in the backend.
-func ValidateAccessRequestForUser(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, req types.AccessRequest, identity tlsca.Identity, opts ...ValidateRequestOption) error {
+func ValidateAccessRequestForUser(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, req types.AccessRequest, identity tlsca.Identity, opts ...ValidateRequestOption) (*types.AccessRequestDryRunEnrichment, error) {
 	v, err := newRequestValidator(ctx, clock, getter, req.GetUser(), opts...)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return trace.Wrap(v.validate(ctx, req, identity))
+	enrichment, err := v.validate(ctx, req, identity)
+	return enrichment, trace.Wrap(err)
 }
 
 // UnmarshalAccessRequest unmarshals the AccessRequest resource from JSON.
