@@ -115,6 +115,8 @@ type SAMLConnector interface {
 	WithMFASettings() error
 	// GetForceAuthn returns ForceAuthn
 	GetForceAuthn() bool
+	// GetPreferredRequestBinding returns PreferredRequestBinding.
+	GetPreferredRequestBinding() string
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -446,6 +448,15 @@ func (o *SAMLConnectorV2) GetForceAuthn() bool {
 	return o.Spec.ForceAuthn == SAMLForceAuthn_FORCE_AUTHN_YES
 }
 
+const (
+	SAMLRequestHTTPRedirectBinding = "http-redirect"
+	SAMLRequestHTTPPostBinding     = "http-post"
+)
+
+func (o *SAMLConnectorV2) GetPreferredRequestBinding() string {
+	return o.Spec.PreferredRequestBinding
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (o *SAMLConnectorV2) setStaticFields() {
 	o.Kind = KindSAMLConnector
@@ -487,6 +498,12 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 			return trace.BadParameter("need roles field in attributes_to_roles")
 		}
 	}
+
+	if o.GetPreferredRequestBinding() != "" {
+		if !slices.Contains([]string{SAMLRequestHTTPRedirectBinding, SAMLRequestHTTPPostBinding}, o.GetPreferredRequestBinding()) {
+			return trace.BadParameter("invalid preferred_request_binding value. It can be either %q or %q", SAMLRequestHTTPPostBinding, SAMLRequestHTTPRedirectBinding)
+		}
+	}
 	return nil
 }
 
@@ -522,6 +539,12 @@ func (r *SAMLAuthRequest) Check() error {
 	if len(r.PublicKey)+len(r.SshPublicKey)+len(r.TlsPublicKey) > 0 &&
 		(r.CertTTL > defaults.MaxCertDuration || r.CertTTL < defaults.MinCertDuration) {
 		return trace.BadParameter("wrong CertTTL")
+	}
+	if r.PreferredRequestBinding == SAMLRequestHTTPPostBinding && len(r.PostFormData) == 0 {
+		return trace.BadParameter("PostFormData value cannot be empty for preferred http-post binding")
+	}
+	if r.PreferredRequestBinding == SAMLRequestHTTPRedirectBinding && r.RedirectURL == "" {
+		return trace.BadParameter("RedirectURL value cannot be empty for preferred http-redirect binding")
 	}
 	return nil
 }

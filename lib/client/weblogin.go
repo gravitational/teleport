@@ -91,6 +91,8 @@ func (r *SSOLoginConsoleReq) CheckAndSetDefaults() error {
 // SSOLoginConsoleResponse is a response to SSO console request
 type SSOLoginConsoleResponse struct {
 	RedirectURL string `json:"redirect_url"`
+	// PostForm is an auto submittable HTML POST form.
+	PostForm string `json:"post_form"`
 }
 
 // MFAChallengeRequest is a request from the client for a MFA challenge from the
