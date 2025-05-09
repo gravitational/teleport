@@ -73,6 +73,7 @@ Optional:
 - `allow` (Attributes List) Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. (see [below for nested schema](#nested-schema-for-specallow))
 - `aws_iid_ttl` (String) AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.
 - `azure` (Attributes) Azure allows the configuration of options specific to the "azure" join method. (see [below for nested schema](#nested-schema-for-specazure))
+- `azure_devops` (Attributes) AzureDevops allows the configuration of options specific to the "azure_devops" join method. (see [below for nested schema](#nested-schema-for-specazure_devops))
 - `bitbucket` (Attributes) Bitbucket allows the configuration of options specific to the "bitbucket" join method. (see [below for nested schema](#nested-schema-for-specbitbucket))
 - `bot_name` (String) BotName is the name of the bot this token grants access to, if any
 - `bound_keypair` (Attributes) BoundKeypair allows the configuration of options specific to the "bound_keypair" join method. (see [below for nested schema](#nested-schema-for-specbound_keypair))
@@ -111,6 +112,28 @@ Optional:
 
 - `resource_groups` (List of String) ResourceGroups is a list of Azure resource groups the node is allowed to join from.
 - `subscription` (String) Subscription is the Azure subscription.
+
+
+
+### Nested Schema for `spec.azure_devops`
+
+Optional:
+
+- `allow` (Attributes List) Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. At least one allow rule must be specified. (see [below for nested schema](#nested-schema-for-specazure_devopsallow))
+- `organization_id` (String) OrganizationID specifies the UUID of the Azure DevOps organization that this join token will grant access to. This is used to identify the correct issuer verification of the ID token. This is a required field.
+
+### Nested Schema for `spec.azure_devops.allow`
+
+Optional:
+
+- `definition_id` (String) The ID of the AZDO pipeline definition. Example: `1` Mapped from the `def_id` claim.
+- `pipeline_name` (String) The name of the AZDO pipeline. Example: `my-pipeline`. Mapped out of the `sub` claim.
+- `project_id` (String) The ID of the AZDO pipeline. Example: `271ef6f7-0000-0000-0000-4b54d9129990` Mapped from the `prj_id` claim.
+- `project_name` (String) The name of the AZDO project. Example: `my-project`. Mapped out of the `sub` claim.
+- `repository_ref` (String) The reference of the repository the pipeline is using. Example: `refs/heads/main`. Mapped from the `rpo_ref` claim.
+- `repository_uri` (String) The URI of the repository the pipeline is using. Example: `https://github.com/gravitational/teleport.git`. Mapped from the `rpo_uri` claim.
+- `repository_version` (String) The individual commit of the repository the pipeline is using. Example: `e6b9eb29a288b27a3a82cc19c48b9d94b80aff36`. Mapped from the `rpo_ver` claim.
+- `sub` (String) Sub also known as Subject is a string that roughly uniquely identifies the workload. Example: `p://my-organization/my-project/my-pipeline` Mapped from the `sub` claim.
 
 
 
