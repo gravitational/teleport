@@ -1629,18 +1629,18 @@ kubernetes matchers are present`)
 					ExternalID: awsMatcher.ExternalID,
 				}
 			}
-			var sqsQueue *types.AccessGraphAWSSyncSQSPolling
+			var cloudTrailLogs *types.AccessGraphAWSSyncCloudTrailLogs
 			if awsMatcher.SQSPolling != nil {
-				sqsQueue = &types.AccessGraphAWSSyncSQSPolling{
+				cloudTrailLogs = &types.AccessGraphAWSSyncCloudTrailLogs{
 					SQSQueue: awsMatcher.SQSPolling.QueueURL,
 					Region:   awsMatcher.SQSPolling.QueueRegion,
 				}
 			}
 
 			tMatcher.AWS = append(tMatcher.AWS, &types.AccessGraphAWSSync{
-				Regions:    regions,
-				AssumeRole: assumeRole,
-				SqsPolling: sqsQueue,
+				Regions:        regions,
+				AssumeRole:     assumeRole,
+				CloudtrailLogs: cloudTrailLogs,
 			})
 		}
 		for _, azureMatcher := range fc.Discovery.AccessGraph.Azure {

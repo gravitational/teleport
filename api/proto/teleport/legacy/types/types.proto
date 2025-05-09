@@ -6760,14 +6760,27 @@ message PluginSpecV1 {
   string generation = 11;
 }
 
+// PluginGithubSettings defines the configuration parameters required for a plugin
+// to connect to and interact with a specific GitHub organization's API.
 message PluginGithubSettings {
   option (gogoproto.equal) = true;
 
-  // APIEndpoint is the address of Github API.
+  // Base URL for the GitHub API endpoint.
+  // For GitHub Enterprise, set to your instance URL (ex.: "https://github.mycompany.com/api/v3/").
+  // If empty, defaults to the public GitHub API ("https://api.github.com/").
   string api_endpoint = 1;
+
+  // The Client ID of the OAuth application registered with GitHub, used for API authentication.
+  // ex.: "Iv1.123abc456def7890".
   string client_id = 2;
-  string organization_name = 4;
-  google.protobuf.Timestamp start_date = 5 [
+
+  // The name of the GitHub organization that this plugin configuration targets.
+  // ex.: "octo-org".
+  string organization_name = 3;
+
+  // The date from which the plugin should start fetching data (ex.: audit logs, events)
+  // from GitHub for the specified organization. This field is effectively required.
+  google.protobuf.Timestamp start_date = 4 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
@@ -6893,7 +6906,7 @@ message PluginOktaSettings {
   PluginOktaCredentialsInfo credentials_info = 5;
 
   // EnableSiemIntegration enables SIEM (Security Information and Event Management).
-  bool enable_siem_integration = 6;
+  bool enable_system_log_export = 6;
 }
 
 // PluginOktaCredentialsInfo contains information about the Okta credentials.
@@ -8500,8 +8513,13 @@ message AccessGraphSync {
   repeated AccessGraphAzureSync Azure = 3 [(gogoproto.jsontag) = "azure,omitempty"];
 }
 
-message AccessGraphAWSSyncSQSPolling {
+// AccessGraphAWSSyncCloudTrailLogs defines settings for ingesting AWS CloudTrail logs
+// by polling an SQS queue that receives notifications about new log files.
+message AccessGraphAWSSyncCloudTrailLogs {
+  // The AWS region of the SQS queue for CloudTrail notifications, ex.: "us-east-2".
   string Region = 1 [(gogoproto.jsontag) = "region,omitempty"];
+
+  // The name or URL for CloudTrail log events, ex.: "demo-cloudtrail-queue".
   string SQSQueue = 2 [(gogoproto.jsontag) = "sqs_queue,omitempty"];
 }
 
@@ -8513,8 +8531,8 @@ message AccessGraphAWSSync {
   AssumeRole AssumeRole = 3 [(gogoproto.jsontag) = "assume_role,omitempty"];
   // Integration is the integration name used to generate credentials to interact with AWS APIs.
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
-  // SqsPolling specifies the queue used AWS data synchornisation.
-  AccessGraphAWSSyncSQSPolling sqs_polling = 5 [(gogoproto.jsontag) = "sqs_polling,omitempty"];
+  // Configuration settings for collecting AWS CloudTrail logs via an SQS queue.
+  AccessGraphAWSSyncCloudTrailLogs cloudtrail_logs = 5 [(gogoproto.jsontag) = "cloudtrail_logs,omitempty"];
 }
 
 // AccessGraphAzureSync is a configuration for Azure Access Graph service poll service.

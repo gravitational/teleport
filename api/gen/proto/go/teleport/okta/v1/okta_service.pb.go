@@ -283,9 +283,10 @@ type CreateIntegrationRequest struct {
 	// in turn will disable JIT Access Requests. Makes sense only when apps and groups sync is
 	// enabled.
 	EnableBidirectionalSync bool `protobuf:"varint,10,opt,name=enable_bidirectional_sync,json=enableBidirectionalSync,proto3" json:"enable_bidirectional_sync,omitempty"`
-	EnableSiemIntegration   bool `protobuf:"varint,11,opt,name=enable_siem_integration,json=enableSiemIntegration,proto3" json:"enable_siem_integration,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	// Enable Okta system log export.
+	EnableSystemLogExport bool `protobuf:"varint,11,opt,name=enable_system_log_export,json=enableSystemLogExport,proto3" json:"enable_system_log_export,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *CreateIntegrationRequest) Reset() {
@@ -388,9 +389,9 @@ func (x *CreateIntegrationRequest) GetEnableBidirectionalSync() bool {
 	return false
 }
 
-func (x *CreateIntegrationRequest) GetEnableSiemIntegration() bool {
+func (x *CreateIntegrationRequest) GetEnableSystemLogExport() bool {
 	if x != nil {
-		return x.EnableSiemIntegration
+		return x.EnableSystemLogExport
 	}
 	return false
 }
@@ -1780,7 +1781,7 @@ const file_teleport_okta_v1_okta_service_proto_rawDesc = "" +
 	"\x06groups\x18\x01 \x03(\v2).teleport.okta.v1.GetGroupsResponse.GroupR\x06groups\x1a=\n" +
 	"\x05Group\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x02 \x01(\tR\vdescription\"\xef\x04\n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\"\xf0\x04\n" +
 	"\x18CreateIntegrationRequest\x122\n" +
 	"\x15okta_organization_url\x18\x01 \x01(\tR\x13oktaOrganizationUrl\x12M\n" +
 	"\x0fapi_credentials\x18\x02 \x01(\v2$.teleport.okta.v1.OktaAPICredentialsR\x0eapiCredentials\x12\x1d\n" +
@@ -1793,8 +1794,8 @@ const file_teleport_okta_v1_okta_service_proto_rawDesc = "" +
 	"\x0freuse_connector\x18\b \x01(\tR\x0ereuseConnector\x12(\n" +
 	"\x10sso_metadata_url\x18\t \x01(\tR\x0essoMetadataUrl\x12:\n" +
 	"\x19enable_bidirectional_sync\x18\n" +
-	" \x01(\bR\x17enableBidirectionalSync\x126\n" +
-	"\x17enable_siem_integration\x18\v \x01(\bR\x15enableSiemIntegration\"\xdf\x03\n" +
+	" \x01(\bR\x17enableBidirectionalSync\x127\n" +
+	"\x18enable_system_log_export\x18\v \x01(\bR\x15enableSystemLogExport\"\xdf\x03\n" +
 	"\x18UpdateIntegrationRequest\x12M\n" +
 	"\x0fapi_credentials\x18\x02 \x01(\v2$.teleport.okta.v1.OktaAPICredentialsR\x0eapiCredentials\x12\x1d\n" +
 	"\n" +

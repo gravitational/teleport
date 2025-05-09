@@ -39,8 +39,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
-	gproto "google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -192,7 +190,7 @@ func (s *Server) getAllAWSSyncFetchersWithTrailEnabled() []*types.AccessGraphAWS
 		}
 
 		for _, disc := range discConfig.Spec.AccessGraph.AWS {
-			if disc.SqsPolling != nil {
+			if disc.CloudtrailLogs != nil {
 				allFetchers = append(allFetchers, disc)
 			}
 		}
@@ -204,7 +202,7 @@ func (s *Server) getAllAWSSyncFetchersWithTrailEnabled() []*types.AccessGraphAWS
 		return allFetchers
 	}
 	for _, disc := range s.Config.Matchers.AccessGraph.AWS {
-		if disc.SqsPolling != nil {
+		if disc.CloudtrailLogs != nil {
 			allFetchers = append(allFetchers, disc)
 		}
 	}
@@ -736,15 +734,15 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 
 	timer := time.NewTimer(tickerInterval)
 	defer timer.Stop()
-	eventsC := make(chan eventChannelPayload, 100)
-	state := map[string]cursor{}
-	for region, regionState := range resumeState.GetResumeState().GetRegionsState() {
-		state[region] = cursor{
-			nextPage:      regionState.GetNextPage(),
-			lastEventId:   regionState.GetLastEventId(),
-			lastEventTime: regionState.GetLastEventTime().AsTime(),
-		}
-	}
+	//eventsC := make(chan eventChannelPayload, 100)
+	// state := map[string]cursor{}
+	// for region, regionState := range resumeState.GetResumeState().GetRegionsState() {
+	// 	state[region] = cursor{
+	// 		nextPage:      regionState.GetNextPage(),
+	// 		lastEventId:   regionState.GetLastEventId(),
+	// 		lastEventTime: regionState.GetLastEventTime().AsTime(),
+	// 	}
+	// }
 
 	filePayload := make(chan payloadChannelMessage, 1)
 	type mapPayload struct {
@@ -773,7 +771,7 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 	}
 
 	for _, matcher := range matchers {
-		if matcher.SqsPolling == nil {
+		if matcher.CloudtrailLogs == nil {
 			continue
 		}
 		spawnMatcher(ctx, matcher)
@@ -827,30 +825,30 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 		s.Log.ErrorContext(ctx, "Error creating reconciler", "error", err)
 		return trace.Wrap(err)
 	}
-	var size int
-	var events []*accessgraphv1alpha.AWSCloudTrailEvent
+	//	var size int
+	//var events []*accessgraphv1alpha.AWSCloudTrailEvent
 	const maxSize = 3 * 1024 * 1024 // 3MB
 	for {
-		sendData := false
+		//sendData := false
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
-		case <-timer.C:
-			sendData = len(events) > 0
+		// case <-timer.C:
+		// 	sendData = len(events) > 0
 		case <-reloadCh:
 			if err := reconciler.Reconcile(ctx); err != nil {
 				s.Log.ErrorContext(ctx, "Error reconciling access graph fetchers", "error", err)
 			}
 			continue
-		case evts := <-eventsC:
-			for _, event := range evts.events {
-				size += gproto.Size(event)
-			}
-			if !evts.fromS3 {
-				state[evts.region] = evts.cursor
-			}
-			events = append(events, evts.events...)
-			sendData = size >= maxSize
+		// case evts := <-eventsC:
+		// 	for _, event := range evts.events {
+		// 		size += gproto.Size(event)
+		// 	}
+		// 	if !evts.fromS3 {
+		// 		state[evts.region] = evts.cursor
+		// 	}
+		// 	events = append(events, evts.events...)
+		// 	sendData = size >= maxSize
 		case file := <-filePayload:
 			err := stream.Send(
 				&accessgraphv1alpha.AWSCloudTrailStreamRequest{
@@ -870,37 +868,37 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 			continue
 		}
 
-		if sendData {
-			// send the events to the access graph service
-			err := stream.Send(
-				&accessgraphv1alpha.AWSCloudTrailStreamRequest{
-					Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_Events{
-						Events: &accessgraphv1alpha.AWSCloudTrailEvents{
-							Events: events,
-							ResumeState: stateToProtoState(
-								resumeState.GetResumeState().GetStartDate().AsTime(),
-								resumeState.GetResumeState().GetEndDate().AsTime(),
-								state),
-						},
-					},
-				},
-			)
-			if err != nil {
-				err = consumeTillErr(stream)
-				s.Log.ErrorContext(ctx, "Failed to send access graph service events", "error", err)
-				return trace.Wrap(err)
-			}
-			// reset the events and size
-			events = events[:0]
-			size = 0
-			if !timer.Stop() {
-				select {
-				case <-timer.C: // drain
-				default:
-				}
-			}
-			timer.Reset(tickerInterval)
-		}
+		// // if sendData {
+		// // 	// send the events to the access graph service
+		// // 	err := stream.Send(
+		// // 		&accessgraphv1alpha.AWSCloudTrailStreamRequest{
+		// // 			Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_Events{
+		// // 				Events: &accessgraphv1alpha.AWSCloudTrailEvents{
+		// // 					Events: events,
+		// // 					ResumeState: stateToProtoState(
+		// // 						resumeState.GetResumeState().GetStartDate().AsTime(),
+		// // 						resumeState.GetResumeState().GetEndDate().AsTime(),
+		// // 						state),
+		// // 				},
+		// // 			},
+		// // 		},
+		// // 	)
+		// // 	if err != nil {
+		// // 		err = consumeTillErr(stream)
+		// // 		s.Log.ErrorContext(ctx, "Failed to send access graph service events", "error", err)
+		// // 		return trace.Wrap(err)
+		// // 	}
+		// // 	// reset the events and size
+		// // 	events = events[:0]
+		// // 	size = 0
+		// // 	if !timer.Stop() {
+		// // 		select {
+		// // 		case <-timer.C: // drain
+		// // 		default:
+		// // 		}
+		// // 	}
+		// // 	timer.Reset(tickerInterval)
+		// }
 	}
 }
 
@@ -920,30 +918,14 @@ type cursor struct {
 }
 
 type eventChannelPayload struct {
-	events []*accessgraphv1alpha.AWSCloudTrailEvent
+	//events []*accessgraphv1alpha.AWSCloudTrailEvent
 	cursor cursor
 	region string
 	fromS3 bool
 }
 
 func stateToProtoState(startDate time.Time, endDate time.Time, state map[string]cursor) *accessgraphv1alpha.AWSCloudTrailResumeState {
-	resumeState := &accessgraphv1alpha.AWSCloudTrailResumeState{
-		RegionsState: make(map[string]*accessgraphv1alpha.AWSCloudTrailResumeRegionState),
-		StartDate:    timestamppb.New(startDate),
-		EndDate:      timestamppb.New(endDate),
-	}
-	for region, regionState := range state {
-		var lastEventId *string
-		if len(regionState.lastEventId) > 0 {
-			lastEventId = aws.String(regionState.lastEventId)
-		}
-		resumeState.RegionsState[region] = &accessgraphv1alpha.AWSCloudTrailResumeRegionState{
-			NextPage:      regionState.nextPage,
-			LastEventId:   lastEventId,
-			LastEventTime: timestamppb.New(regionState.lastEventTime),
-		}
-	}
-	return resumeState
+	return &accessgraphv1alpha.AWSCloudTrailResumeState{}
 }
 
 func getOptions(matcher *types.AccessGraphAWSSync) []awsconfig.OptionsFn {
@@ -982,7 +964,7 @@ type payloadChannelMessage struct {
 }
 
 func (a *Server) pollEventsFromSQSFiles(ctx context.Context, accountID string, matcher *types.AccessGraphAWSSync, eventsC chan<- payloadChannelMessage) error {
-	awsCfg, err := a.AWSConfigProvider.GetConfig(ctx, matcher.SqsPolling.Region, getOptions(matcher)...)
+	awsCfg, err := a.AWSConfigProvider.GetConfig(ctx, matcher.CloudtrailLogs.Region, getOptions(matcher)...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -990,7 +972,7 @@ func (a *Server) pollEventsFromSQSFiles(ctx context.Context, accountID string, m
 
 	s3Client := s3.NewFromConfig(awsCfg)
 	input := &sqs.ReceiveMessageInput{
-		QueueUrl:            aws.String(matcher.SqsPolling.SQSQueue),
+		QueueUrl:            aws.String(matcher.CloudtrailLogs.SQSQueue),
 		MaxNumberOfMessages: 10,
 		WaitTimeSeconds:     10,
 	}
@@ -1047,7 +1029,7 @@ func (a *Server) pollEventsFromSQSFiles(ctx context.Context, accountID string, m
 									accountID: accountID,
 								}:
 									_, err := sqsClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
-										QueueUrl:      aws.String(matcher.SqsPolling.SQSQueue),
+										QueueUrl:      aws.String(matcher.CloudtrailLogs.SQSQueue),
 										ReceiptHandle: message.ReceiptHandle,
 									})
 									if err != nil {

@@ -184,7 +184,7 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs
 			GroupFilters:    oktaSettings.groupFilters,
 			AppFilters:      oktaSettings.appFilters,
 		},
-		EnableSiemIntegration: oktaSettings.siemIntegration,
+		EnableSystemLogExport: oktaSettings.siemIntegration,
 	}
 	req := &pluginsv1.CreatePluginRequest{
 		Plugin: &types.PluginV1{

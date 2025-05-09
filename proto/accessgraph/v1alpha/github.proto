@@ -35,16 +35,19 @@ message GitHubAuditLogV1Cursor {
   google.protobuf.Timestamp last_event_time = 3;
 }
 
-//GitHubAuditLogV1 holds the events shared between the client and the server.
+// GitHubAuditLogV1 bundles a batch of GitHub audit log events and the client's current resume cursor.
 message GitHubAuditLogV1 {
+  // A list of GitHub audit events, each as a flexible JSON-like structure.
   repeated google.protobuf.Struct events = 1;
+  // Client's current GitHubAuditLogV1Cursor state, sent with this batch for resumable collection.
   GitHubAuditLogV1Cursor cursor = 2;
 }
 
 // GitHubConfigV1 specifies configuration settings for GitHub audit log exports,
 // including the desired start date for log collection.
 message GitHubConfigV1 {
-  google.protobuf.Timestamp start_date = 1; // Start date for exporting audit logs.
+  // The desired start date for exporting GitHub audit logs.
+  google.protobuf.Timestamp start_date = 1;
 }
 
 // GithubTokenV1 holds information about a GitHub access token,
@@ -60,6 +63,7 @@ message GithubTokenV1 {
   google.protobuf.Timestamp expires = 4;
   // permissions are the token permissions.
   repeated GithubTokenV1Permission permissions = 5;
+  // The GitHub organization context for this permission, ex.: "gravitational".
   string organization = 6;
 }
 
@@ -72,7 +76,7 @@ message GithubTokenV1Permission {
   string verb = 2;
   // The specific resource or target of the action, ex.: "my-webapp", "*", "dependabot_secrets".
   string object = 3;
-  // The GitHub organization context for this permission, ex.: "octo-org".
+  // The GitHub organization context for this permission, ex.: "gravitational".
   string organization = 4;
 }
 
