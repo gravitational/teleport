@@ -155,7 +155,7 @@ async function initializeApp(): Promise<void> {
   const rootClusterProxyHostAllowList = new Set<string>();
 
   (async () => {
-    const tshdClient = await mainProcess.initTshdClient();
+    const tshdClient = await mainProcess.getTshdClient();
 
     manageRootClusterProxyHostAllowList({
       tshdClient,
