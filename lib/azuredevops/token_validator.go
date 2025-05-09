@@ -30,7 +30,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/zitadel/oidc/v3/pkg/client"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
-	oidc2 "github.com/zitadel/oidc/v3/pkg/oidc"
 )
 
 // providerTimeout is the maximum time allowed to fetch provider metadata before
@@ -68,11 +67,6 @@ func NewIDTokenValidator(clock clockwork.Clock) *IDTokenValidator {
 	}
 }
 
-type customClaims struct {
-	IDTokenClaims
-	oidc2.TokenClaims
-}
-
 // Validate validates an Azure Devops issued ID token.
 func (id *IDTokenValidator) Validate(
 	ctx context.Context, organizationID, token string,
@@ -90,12 +84,11 @@ func (id *IDTokenValidator) Validate(
 	verifier := rp.NewIDTokenVerifier(issuer, audience, ks)
 	// TODO: Figure out injection of clock for testing
 
-	c, err := rp.VerifyIDToken[*customClaims](timeoutCtx, token, verifier)
+	claims, err := rp.VerifyIDToken[*IDTokenClaims](timeoutCtx, token, verifier)
 	if err != nil {
 		return nil, trace.Wrap(err, "verifying token")
 	}
 
-	claims := c.IDTokenClaims
 	parsed, err := parseSubClaim(claims.Sub)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing sub claim")
@@ -104,7 +97,7 @@ func (id *IDTokenValidator) Validate(
 	claims.ProjectName = parsed.projectName
 	claims.PipelineName = parsed.pipelineName
 
-	return &claims, nil
+	return claims, nil
 }
 
 type parsedSubClaim struct {
