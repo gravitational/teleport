@@ -90,21 +90,10 @@ func (a *Server) CreateBoundKeypairToken(ctx context.Context, token types.Provis
 		return trace.Wrap(err)
 	}
 
-	// TODO: Is this wise? End users _shouldn't_ modify this, but this could
-	// interfere with cluster backup/restore. Options seem to be:
-	// - Let users create/update with status fields. They can break things, but
-	//   maybe that's okay. No backup/restore implications.
-	// - Ignore status fields during creation and update. Any set value will be
-	//   discarded here, and during update. This would still have consequences
-	//   during cluster restores, but wouldn't raise errors, and the status
-	//   field would otherwise be protected from easy tampering. Users might be
-	//   confused as no user-visible errors would be raised if they used
-	//   `tctl edit`.
-	// - Raise an error if status fields are changed. Worst restore
-	//   implications, but tampering won't be easy, and will have some UX.
-	if tokenV2.Status.BoundKeypair != nil {
-		return trace.BadParameter("cannot create a bound_keypair token with set status")
-	}
+	// Not as much to do here - ideally we'd like to prevent users from
+	// tampering with the status field, but we don't have a good mechanism to
+	// stop that that wouldn't also break backup and restore. For now, it's
+	// simpler and easier to just tell users not to edit those fields.
 
 	// TODO (follow up PR): Populate initial_join_secret if needed.
 
