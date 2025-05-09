@@ -17,67 +17,22 @@ import (
 
 // TestSignup sets up a test instance of Teleport and runs a playwright test against it to test the signup flow.
 func TestSignup(t *testing.T) {
-	rc, ctx := helpers.CreateTeleportTestInstance(t)
-
-	as := rc.Process.GetAuthServer()
-
-	accessRole := services.NewPresetAccessRole()
-
-	// Create a test user.
-	testUser, err := types.NewUser("testuser")
-	require.NoError(t, err)
-	testUser.SetRoles([]string{accessRole.GetName()})
-	user, err := as.UpsertUser(ctx, testUser)
-
-	inviteToken, err := as.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
-		Name: user.GetName(),
-	})
-	require.NoError(t, err)
-
-	// Generate the URL the playwright test will start from.
-	startUrl := fmt.Sprintf("START_URL=https://%s/web/invite/%s", rc.Web, inviteToken.GetName())
-
-	// Start the playwright test
-	cmd := exec.Command("pnpm", "test-e2e", "signup.spec.ts")
-	cmd.Env = append(os.Environ(), startUrl)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	require.NoError(t, cmd.Run())
+	setupAndRunBasicTest(t, "signup.spec.ts")
 }
 
 // TestCreateNewRole sets up a test instance of Teleport and a user to test role management in the UI.
 func TestRoleManagement(t *testing.T) {
-	rc, ctx := helpers.CreateTeleportTestInstance(t)
-
-	as := rc.Process.GetAuthServer()
-
-	accessRole := services.NewPresetAccessRole()
-	editorRole := services.NewPresetEditorRole()
-
-	// Create a test user.
-	testUser, err := types.NewUser("testuser")
-	require.NoError(t, err)
-	testUser.SetRoles([]string{accessRole.GetName(), editorRole.GetName()})
-	user, err := as.UpsertUser(ctx, testUser)
-
-	inviteToken, err := as.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
-		Name: user.GetName(),
-	})
-	require.NoError(t, err)
-
-	// Generate the URL the playwright test will start from.
-	startUrl := fmt.Sprintf("START_URL=https://%s/web/invite/%s", rc.Web, inviteToken.GetName())
-
-	// Start the playwright test
-	cmd := exec.Command("pnpm", "test-e2e", "roles.spec.ts")
-	cmd.Env = append(os.Environ(), startUrl)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	require.NoError(t, cmd.Run())
+	setupAndRunBasicTest(t, "roles.spec.ts")
 }
 
 // TestAuthConnectorManagement sets up a test instance of Teleport and a user to test auth connector management in the UI.
 func TestAuthConnectorManagement(t *testing.T) {
+	setupAndRunBasicTest(t, "authconnectors.spec.ts")
+}
+
+// setupAndRunBasicTest sets up a test instance of Teleport and a user with the access and editor roles and runs a playwright test.
+// This is a helper function in cases where there is no additional backend setup required beyond creating an invite link.
+func setupAndRunBasicTest(t *testing.T, playwrightTest string) {
 	rc, ctx := helpers.CreateTeleportTestInstance(t)
 
 	as := rc.Process.GetAuthServer()
@@ -90,6 +45,7 @@ func TestAuthConnectorManagement(t *testing.T) {
 	require.NoError(t, err)
 	testUser.SetRoles([]string{accessRole.GetName(), editorRole.GetName()})
 	user, err := as.UpsertUser(ctx, testUser)
+	require.NoError(t, err)
 
 	inviteToken, err := as.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: user.GetName(),
@@ -100,7 +56,7 @@ func TestAuthConnectorManagement(t *testing.T) {
 	startUrl := fmt.Sprintf("START_URL=https://%s/web/invite/%s", rc.Web, inviteToken.GetName())
 
 	// Start the playwright test
-	cmd := exec.Command("pnpm", "test-e2e", "authconnectors.spec.ts")
+	cmd := exec.Command("pnpm", "test-e2e", playwrightTest, "--headed")
 	cmd.Env = append(os.Environ(), startUrl)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

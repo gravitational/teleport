@@ -1,31 +1,11 @@
 import { expect, test } from '@playwright/test';
 
-import { mockWebAuthn } from '../utils/mockWebAuthn';
+import { signup } from '../utils/signup';
 
 test('verify that a user can create and delete an auth connector', async ({
   page,
 }) => {
-  const { cleanup } = await mockWebAuthn(page);
-
-  await page.goto('');
-
-  await page.getByRole('button', { name: 'Get started' }).click();
-  await page.getByRole('textbox', { name: 'Password', exact: true }).click();
-  await page
-    .getByRole('textbox', { name: 'Password', exact: true })
-    .fill('passwordtest123');
-  await page
-    .getByRole('textbox', { name: 'Password', exact: true })
-    .press('Tab');
-  await page
-    .getByRole('textbox', { name: 'Confirm Password' })
-    .fill('passwordtest123');
-  await page.getByRole('button', { name: 'Next' }).click();
-  await page.getByRole('button', { name: 'Create an MFA Method' }).click();
-  await page.getByRole('button', { name: 'Submit' }).click();
-  await page.getByRole('button', { name: 'Go to Cluster' }).click();
-
-  await page.getByRole('button', { name: "I'll do that later" }).click();
+  const { cleanup } = await signup(page);
 
   await page.getByRole('button', { name: 'Zero Trust Access' }).click();
   await page.getByRole('link', { name: 'Auth Connectors' }).click();
@@ -57,5 +37,5 @@ test('verify that a user can create and delete an auth connector', async ({
 
   await expect(page.getByText('testconnector')).not.toBeVisible();
 
-  cleanup();
+  await cleanup();
 });
