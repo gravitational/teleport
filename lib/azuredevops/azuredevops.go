@@ -64,7 +64,7 @@ type IDTokenClaims struct {
 	RunID string `json:"run_id"`
 }
 
-func (c *IDTokenClaims) GetSub() string {
+func (c *IDTokenClaims) GetSubject() string {
 	return c.Sub
 }
 
