@@ -166,6 +166,8 @@ function getKindName(connection: ExtendedTrackedConnection): string {
       return 'SSH';
     case 'connection.kube':
       return 'KUBE';
+    case 'connection.desktop':
+      return 'DESKTOP';
     default:
       // The default branch is triggered when the state read from the disk
       // contains a connection not supported by the given Connect version.

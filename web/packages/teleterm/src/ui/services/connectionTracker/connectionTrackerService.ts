@@ -33,10 +33,12 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 import { ImmutableStore } from '../immutableStore';
 import { TrackedConnectionOperationsFactory } from './trackedConnectionOperationsFactory';
 import {
+  createDesktopConnection,
   createGatewayConnection,
   createGatewayKubeConnection,
   createKubeConnection,
   createServerConnection,
+  getDesktopConnectionByDocument,
   getGatewayConnectionByDocument,
   getGatewayKubeConnectionByDocument,
   getKubeConnectionByDocument,
@@ -123,6 +125,10 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
         return this.state.connections.find(
           getGatewayKubeConnectionByDocument(document)
         );
+      case 'doc.desktop_session':
+        return this.state.connections.find(
+          getDesktopConnectionByDocument(document)
+        );
     }
   }
 
@@ -180,6 +186,8 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
           return s.targetUri === resourceUri;
         case 'connection.kube':
           return s.kubeUri === resourceUri;
+        case 'connection.desktop':
+          return s.desktopUri === resourceUri;
         default:
           return assertUnreachable(s);
       }
@@ -239,7 +247,8 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
             d.kind === 'doc.gateway' ||
             d.kind === 'doc.gateway_kube' ||
             d.kind === 'doc.terminal_tsh_node' ||
-            d.kind === 'doc.terminal_tsh_kube'
+            d.kind === 'doc.terminal_tsh_kube' ||
+            d.kind === 'doc.desktop_session'
         );
 
       if (!docs) {
@@ -324,6 +333,19 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
               kubeConn.connected = doc.status === 'connected';
             } else {
               const newItem = createKubeConnection(doc);
+              draft.connections.push(newItem);
+            }
+            break;
+          }
+          case 'doc.desktop_session': {
+            const desktopConn = draft.connections.find(
+              getDesktopConnectionByDocument(doc)
+            );
+
+            if (desktopConn) {
+              desktopConn.connected = true;
+            } else {
+              const newItem = createDesktopConnection(doc);
               draft.connections.push(newItem);
             }
             break;
