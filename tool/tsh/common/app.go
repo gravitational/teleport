@@ -121,8 +121,11 @@ func appLogin(
 	rootClient authclient.ClientI,
 	appCertParams client.ReissueParams,
 ) (*client.KeyRing, error) {
-	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
-	return keyRing, trace.Wrap(err)
+	result, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return result.KeyRing, nil
 }
 
 func localProxyRequiredForApp(tc *client.TeleportClient) bool {

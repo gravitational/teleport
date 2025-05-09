@@ -6,6 +6,8 @@ description: How to install and configure Machine ID on an AWS EC2 instance
 This guide explains how to deploy Machine ID on Amazon Web Services by running
 the `tbot` binary and joining it to your Teleport cluster.
 
+## How it works
+
 On AWS, virtual machines can be assigned an IAM role, which they can assume in
 order to request a signed document that includes information about the machine.
 The Teleport `iam` join method instructs the Machine ID bot to request this

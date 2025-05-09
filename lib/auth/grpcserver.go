@@ -649,6 +649,15 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
 
+	if req.RequesterName == authpb.UserCertsRequest_TSH_DB_EXEC {
+		if req.Usage != authpb.UserCertsRequest_Database {
+			return trace.BadParameter("requester %s can only request database certificates", req.RequesterName)
+		}
+		if req.MFAResponse != nil && req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+			return trace.BadParameter("requester %q can only request single use certificates", req.RequesterName)
+		}
+	}
+
 	if req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
 		return nil
 	}
@@ -3566,8 +3575,7 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *authpb.GetEventsRequest
 		return nil, trace.Wrap(err)
 	}
 
-	var res *authpb.Events = &authpb.Events{}
-
+	res := &authpb.Events{}
 	encodedEvents := make([]*apievents.OneOf, 0, len(rawEvents))
 
 	for _, rawEvent := range rawEvents {
@@ -3601,8 +3609,7 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *authpb.GetSessio
 		return nil, trace.Wrap(err)
 	}
 
-	var res *authpb.Events = &authpb.Events{}
-
+	res := &authpb.Events{}
 	encodedEvents := make([]*apievents.OneOf, 0, len(rawEvents))
 
 	for _, rawEvent := range rawEvents {

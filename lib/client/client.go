@@ -157,6 +157,10 @@ type ReissueParams struct {
 	// remains valid. It's bounded by the `max_session_ttl` or `mfa_verification_interval`
 	// if MFA is required.
 	TTL time.Duration
+
+	// ReusableMFAResponse is a reusable MFA response that can be used when MFA
+	// is required.
+	ReusableMFAResponse *proto.MFAAuthenticateResponse
 }
 
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
@@ -610,24 +614,28 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...R
 		return trace.Wrap(err)
 	}
 	defer nodeSession.Close()
-	if err := nodeSession.runCommand(ctx, types.SessionPeerMode, command, c.TC.OnChannelRequest, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand); err != nil {
-		originErr := trace.Unwrap(err)
-		var exitErr *ssh.ExitError
-		if errors.As(originErr, &exitErr) {
-			c.TC.ExitStatus = exitErr.ExitStatus()
-		} else {
-			// if an error occurs, but no exit status is passed back, GoSSH returns
-			// a generic error like this. in this case the error message is printed
-			// to stderr by the remote process so we have to quietly return 1:
-			if strings.Contains(originErr.Error(), "exited without exit status") {
-				c.TC.ExitStatus = 1
-			}
-		}
+	err = nodeSession.runCommand(ctx, types.SessionPeerMode, command, c.TC.OnChannelRequest, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand)
+	c.TC.ExitStatus = getExitStatus(err)
+	return trace.Wrap(err)
+}
 
-		return trace.Wrap(err)
+func getExitStatus(err error) int {
+	if err == nil {
+		return 0
 	}
-
-	return nil
+	originErr := trace.Unwrap(err)
+	var exitErr *ssh.ExitError
+	if errors.As(originErr, &exitErr) {
+		return exitErr.ExitStatus()
+	} else {
+		// if an error occurs, but no exit status is passed back, GoSSH returns
+		// a generic error like this. in this case the error message is printed
+		// to stderr by the remote process so we have to quietly return 1:
+		if strings.Contains(originErr.Error(), "exited without exit status") {
+			return 1
+		}
+	}
+	return 0
 }
 
 // AddEnv add environment variable to SSH session. This method needs to be called

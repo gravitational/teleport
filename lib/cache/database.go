@@ -24,20 +24,25 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const databaseStoreNameIndex = "name"
+type databaseIndex string
 
-func newDatabaseCollection(p services.Databases, w types.WatchKind) (*collection[types.Database], error) {
+const databaseNameIndex = "name"
+
+func newDatabaseCollection(p services.Databases, w types.WatchKind) (*collection[types.Database, databaseIndex], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Databases")
 	}
 
-	return &collection[types.Database]{
-		store: newStore(map[string]func(types.Database) string{
-			databaseStoreNameIndex: func(u types.Database) string {
+	return &collection[types.Database, databaseIndex]{
+		store: newStore(map[databaseIndex]func(types.Database) string{
+			databaseNameIndex: func(u types.Database) string {
 				return u.GetName()
 			},
 		}),
@@ -73,7 +78,7 @@ func (c *Cache) GetDatabase(ctx context.Context, name string) (types.Database, e
 		return dbs, trace.Wrap(err)
 	}
 
-	d, err := rg.store.get(databaseStoreNameIndex, name)
+	d, err := rg.store.get(databaseNameIndex, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -98,23 +103,25 @@ func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	}
 
 	out := make([]types.Database, 0, rg.store.len())
-	for d := range rg.store.resources(databaseStoreNameIndex, "", "") {
+	for d := range rg.store.resources(databaseNameIndex, "", "") {
 		out = append(out, d.Copy())
 	}
 
 	return out, nil
 }
 
-const databaseServerStoreNameIndex = "name"
+type databaseServerIndex string
 
-func newDatabaseServerCollection(p services.Presence, w types.WatchKind) (*collection[types.DatabaseServer], error) {
+const databaseServerNameIndex databaseServerIndex = "name"
+
+func newDatabaseServerCollection(p services.Presence, w types.WatchKind) (*collection[types.DatabaseServer, databaseServerIndex], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
-	return &collection[types.DatabaseServer]{
-		store: newStore(map[string]func(types.DatabaseServer) string{
-			databaseServerStoreNameIndex: func(u types.DatabaseServer) string {
+	return &collection[types.DatabaseServer, databaseServerIndex]{
+		store: newStore(map[databaseServerIndex]func(types.DatabaseServer) string{
+			databaseServerNameIndex: func(u types.DatabaseServer) string {
 				return u.GetHostID() + "/" + u.GetName()
 			},
 		}),
@@ -154,23 +161,25 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 	}
 
 	out := make([]types.DatabaseServer, 0, rg.store.len())
-	for ds := range rg.store.resources(databaseServerStoreNameIndex, "", "") {
+	for ds := range rg.store.resources(databaseServerNameIndex, "", "") {
 		out = append(out, ds.Copy())
 	}
 
 	return out, nil
 }
 
-const databaseServiceStoreNameIndex = "name"
+type databaseServiceIndex string
 
-func newDatabaseServiceCollection(p services.Presence, w types.WatchKind) (*collection[types.DatabaseService], error) {
+const databaseServiceNameIndex databaseServiceIndex = "name"
+
+func newDatabaseServiceCollection(p services.Presence, w types.WatchKind) (*collection[types.DatabaseService, databaseServiceIndex], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Databases")
 	}
 
-	return &collection[types.DatabaseService]{
-		store: newStore(map[string]func(types.DatabaseService) string{
-			databaseServiceStoreNameIndex: func(u types.DatabaseService) string {
+	return &collection[types.DatabaseService, databaseServiceIndex]{
+		store: newStore(map[databaseServiceIndex]func(types.DatabaseService) string{
+			databaseServiceNameIndex: func(u types.DatabaseService) string {
 				return u.GetName()
 			},
 		}),
@@ -204,4 +213,83 @@ func newDatabaseServiceCollection(p services.Presence, w types.WatchKind) (*coll
 		},
 		watch: w,
 	}, nil
+}
+
+type databaseObjectIndex string
+
+const databaseObjectNameIndex databaseObjectIndex = "name"
+
+func newDatabaseObjectCollection(upstream services.DatabaseObjects, w types.WatchKind) (*collection[*dbobjectv1.DatabaseObject, databaseObjectIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter DatabaseObjects")
+	}
+
+	return &collection[*dbobjectv1.DatabaseObject, databaseObjectIndex]{
+		store: newStore(map[databaseObjectIndex]func(*dbobjectv1.DatabaseObject) string{
+			databaseObjectNameIndex: func(r *dbobjectv1.DatabaseObject) string {
+				return r.GetMetadata().GetName()
+			},
+		}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*dbobjectv1.DatabaseObject, error) {
+			var out []*dbobjectv1.DatabaseObject
+			var nextToken string
+			for {
+				var page []*dbobjectv1.DatabaseObject
+				var err error
+
+				page, nextToken, err = upstream.ListDatabaseObjects(ctx, 0, nextToken)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				out = append(out, page...)
+				if nextToken == "" {
+					break
+				}
+			}
+			return out, nil
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *dbobjectv1.DatabaseObject {
+			return &dbobjectv1.DatabaseObject{
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
+				Metadata: &headerv1.Metadata{
+					Name: hdr.Metadata.Name,
+				},
+			}
+		},
+		watch: w,
+	}, nil
+}
+
+func (c *Cache) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseObject")
+	defer span.End()
+
+	getter := genericGetter[*dbobjectv1.DatabaseObject, databaseObjectIndex]{
+		cache:       c,
+		collection:  c.collections.databaseObjects,
+		index:       databaseObjectNameIndex,
+		upstreamGet: c.Config.DatabaseObjects.GetDatabaseObject,
+		clone:       utils.CloneProtoMsg[*dbobjectv1.DatabaseObject],
+	}
+	out, err := getter.get(ctx, name)
+	return out, trace.Wrap(err)
+}
+
+func (c *Cache) ListDatabaseObjects(ctx context.Context, size int, pageToken string) ([]*dbobjectv1.DatabaseObject, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListDatabaseObjects")
+	defer span.End()
+
+	lister := genericLister[*dbobjectv1.DatabaseObject, databaseObjectIndex]{
+		cache:        c,
+		collection:   c.collections.databaseObjects,
+		index:        databaseObjectNameIndex,
+		upstreamList: c.Config.DatabaseObjects.ListDatabaseObjects,
+		nextToken: func(dbo *dbobjectv1.DatabaseObject) string {
+			return dbo.GetMetadata().GetName()
+		},
+		clone: utils.CloneProtoMsg[*dbobjectv1.DatabaseObject],
+	}
+	out, next, err := lister.list(ctx, size, pageToken)
+	return out, next, trace.Wrap(err)
 }

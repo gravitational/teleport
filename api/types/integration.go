@@ -86,6 +86,8 @@ type Integration interface {
 	GetCredentials() PluginCredentials
 	// WithoutCredentials returns a copy without credentials.
 	WithoutCredentials() Integration
+	// Clone returns a copy of the integration.
+	Clone() Integration
 }
 
 var _ ResourceWithLabels = (*IntegrationV1)(nil)
@@ -603,6 +605,11 @@ func (ig *IntegrationV1) GetCredentials() PluginCredentials {
 		return nil
 	}
 	return ig.Spec.Credentials
+}
+
+// Clone returns a copy of the integration.
+func (ig *IntegrationV1) Clone() Integration {
+	return utils.CloneProtoMsg(ig)
 }
 
 // WithoutCredentials returns a copy without credentials.

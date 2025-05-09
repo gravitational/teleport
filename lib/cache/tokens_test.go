@@ -17,11 +17,13 @@
 package cache
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -58,5 +60,44 @@ func TestStaticTokens(t *testing.T) {
 	out, err := p.cache.GetStaticTokens()
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+}
 
+// TestDynamicTokens tests the dynamic tokens cache.
+func TestDynamicTokens(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
+
+	expires := time.Now().Add(10 * time.Hour).Truncate(time.Second).UTC()
+	token, err := types.NewProvisionToken("token", types.SystemRoles{types.RoleAuth, types.RoleNode}, expires)
+	require.NoError(t, err)
+
+	err = p.provisionerS.UpsertToken(ctx, token)
+	require.NoError(t, err)
+
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	tout, err := p.cache.GetToken(ctx, token.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(token, tout, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	err = p.provisionerS.DeleteToken(ctx, token.GetName())
+	require.NoError(t, err)
+
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	_, err = p.cache.GetToken(ctx, token.GetName())
+	require.True(t, trace.IsNotFound(err))
 }
