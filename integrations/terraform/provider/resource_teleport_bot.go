@@ -30,7 +30,6 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
 
