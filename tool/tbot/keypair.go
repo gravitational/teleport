@@ -70,7 +70,6 @@ func printKeypair(state *boundkeypair.ClientState, format string) error {
 			keyString,
 		)
 	case teleport.JSON:
-
 		bytes, err := json.Marshal(&KeypairDocument{
 			PublicKey: keyString,
 		})
