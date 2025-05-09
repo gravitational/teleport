@@ -145,7 +145,6 @@ func kubeSessionNetDialer(ctx context.Context, tc *TeleportClient, kubeAddr stri
 func handleResizeEvents(ctx context.Context, stream *streamproto.SessionStream, term *terminal.Terminal) {
 	streamResizes := stream.ResizeQueue()
 	terminalResizes := term.Subscribe()
-	defer stream.Close()
 	for {
 		select {
 		case <-ctx.Done():
