@@ -48,7 +48,7 @@ import (
 const message = "Adding diagnostic debugging handlers.\t To connect with profiler, use go tool pprof diag_addr."
 
 var (
-	logErr = errors.New("the quick brown fox jumped really high")
+	errLog = errors.New("the quick brown fox jumped really high")
 	addr   = fakeAddr{addr: "127.0.0.1:1234"}
 
 	fields = logrus.Fields{
@@ -156,14 +156,14 @@ func TestOutput(t *testing.T) {
 				slogLogger := slog.New(NewSlogTextHandler(&slogOutput, slogConfig)).With(teleport.ComponentKey, "test")
 
 				// Add some fields and output the message at the desired log level via logrus.
-				l := entry.WithField("test", 123).WithField("animal", "llama\n").WithField("error", logErr)
+				l := entry.WithField("test", 123).WithField("animal", "llama\n").WithField("error", errLog)
 				logrusTestLogLineNumber := func() int {
 					l.WithField("diag_addr", &addr).WithField(teleport.ComponentFields, fields).Log(test.logrusLevel, message)
 					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
 				}()
 
 				// Add some fields and output the message at the desired log level via slog.
-				l2 := slogLogger.With("test", 123).With("animal", "llama\n").With("error", logErr)
+				l2 := slogLogger.With("test", 123).With("animal", "llama\n").With("error", errLog)
 				slogTestLogLineNumber := func() int {
 					l2.With(teleport.ComponentFields, fields).Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
 					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
@@ -275,14 +275,14 @@ func TestOutput(t *testing.T) {
 				slogLogger := slog.New(NewSlogJSONHandler(&slogOutput, SlogJSONHandlerConfig{Level: test.slogLevel})).With(teleport.ComponentKey, "test")
 
 				// Add some fields and output the message at the desired log level via logrus.
-				l := entry.WithField("test", 123).WithField("animal", "llama").WithField("error", trace.Wrap(logErr))
+				l := entry.WithField("test", 123).WithField("animal", "llama").WithField("error", trace.Wrap(errLog))
 				logrusTestLogLineNumber := func() int {
 					l.WithField("diag_addr", addr.String()).Log(test.logrusLevel, message)
 					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
 				}()
 
 				// Add some fields and output the message at the desired log level via slog.
-				l2 := slogLogger.With("test", 123).With("animal", "llama").With("error", trace.Wrap(logErr))
+				l2 := slogLogger.With("test", 123).With("animal", "llama").With("error", trace.Wrap(errLog))
 				slogTestLogLineNumber := func() int {
 					l2.Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
 					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
@@ -358,7 +358,7 @@ func BenchmarkFormatter(b *testing.B) {
 
 			entry := logger.WithField(teleport.ComponentKey, "test")
 			for i := 0; i < b.N; i++ {
-				l := entry.WithField("test", 123).WithField("animal", "llama\n").WithField("error", logErr)
+				l := entry.WithField("test", 123).WithField("animal", "llama\n").WithField("error", errLog)
 				l.WithField("diag_addr", &addr).WithField(teleport.ComponentFields, fields).Info(message)
 			}
 		})
@@ -374,7 +374,7 @@ func BenchmarkFormatter(b *testing.B) {
 
 			entry := logger.WithField(teleport.ComponentKey, "test")
 			for i := 0; i < b.N; i++ {
-				l := entry.WithField("test", 123).WithField("animal", "llama\n").WithField("error", logErr)
+				l := entry.WithField("test", 123).WithField("animal", "llama\n").WithField("error", errLog)
 				l.WithField("diag_addr", &addr).WithField(teleport.ComponentFields, fields).Info(message)
 			}
 		})
@@ -382,47 +382,51 @@ func BenchmarkFormatter(b *testing.B) {
 
 	b.Run("slog", func(b *testing.B) {
 		b.Run("default_text", func(b *testing.B) {
-			logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{
+			var output bytes.Buffer
+			logger := slog.New(slog.NewTextHandler(&output, &slog.HandlerOptions{
 				AddSource: true,
 				Level:     slog.LevelDebug,
 			})).With(teleport.ComponentKey, "test")
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
+				l := logger.With("test", 123).With("animal", "llama\n").With("error", errLog)
 				l.With(teleport.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 
 		b.Run("text", func(b *testing.B) {
-			logger := slog.New(NewSlogTextHandler(io.Discard, SlogTextHandlerConfig{Level: slog.LevelDebug, EnableColors: true})).With(teleport.ComponentKey, "test")
+			var output bytes.Buffer
+			logger := slog.New(NewSlogTextHandler(&output, SlogTextHandlerConfig{Level: slog.LevelDebug, EnableColors: true})).With(teleport.ComponentKey, "test")
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
+				l := logger.With("test", 123).With("animal", "llama\n").With("error", errLog)
 				l.With(teleport.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 
 		b.Run("default_json", func(b *testing.B) {
-			logger := slog.New(slog.NewJSONHandler(io.Discard, &slog.HandlerOptions{
+			var output bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{
 				AddSource: true,
 				Level:     slog.LevelDebug,
 			})).With(teleport.ComponentKey, "test")
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
+				l := logger.With("test", 123).With("animal", "llama\n").With("error", errLog)
 				l.With(teleport.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 
 		b.Run("json", func(b *testing.B) {
-			logger := slog.New(NewSlogJSONHandler(io.Discard, SlogJSONHandlerConfig{Level: slog.LevelDebug})).With(teleport.ComponentKey, "test")
+			var output bytes.Buffer
+			logger := slog.New(NewSlogJSONHandler(&output, SlogJSONHandlerConfig{Level: slog.LevelDebug})).With(teleport.ComponentKey, "test")
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
+				l := logger.With("test", 123).With("animal", "llama\n").With("error", errLog)
 				l.With(teleport.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})

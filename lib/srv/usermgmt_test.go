@@ -256,7 +256,7 @@ func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 
 	// an existing, unmanaged user should not be changed
 	closer, err = users.UpsertUser("simon", userinfo)
-	require.ErrorIs(t, err, unmanagedUserErr)
+	require.ErrorIs(t, err, errUnmanagedUser)
 	require.Equal(t, nil, closer)
 }
 
@@ -305,12 +305,12 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 		_, err := users.UpsertUser("testuser", services.HostUsersInfo{
 			Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 		})
-		require.ErrorIs(t, err, unmanagedUserErr)
+		require.ErrorIs(t, err, errUnmanagedUser)
 		backend.CreateGroup(types.TeleportDropGroup, "")
 		_, err = users.UpsertUser("testuser", services.HostUsersInfo{
 			Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 		})
-		require.ErrorIs(t, err, unmanagedUserErr)
+		require.ErrorIs(t, err, errUnmanagedUser)
 	})
 }
 
@@ -563,7 +563,7 @@ func Test_DontManageExistingUser(t *testing.T) {
 
 	// Update user in DROP mode
 	closer, err := users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, unmanagedUserErr)
+	assert.ErrorIs(t, err, errUnmanagedUser)
 	assert.Equal(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, allGroups, backend.users["alice"])
@@ -571,7 +571,7 @@ func Test_DontManageExistingUser(t *testing.T) {
 	// Update user in KEEP mode
 	userinfo.Mode = types.CreateHostUserMode_HOST_USER_MODE_KEEP
 	closer, err = users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, unmanagedUserErr)
+	assert.ErrorIs(t, err, errUnmanagedUser)
 	assert.Equal(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, allGroups, backend.users["alice"])
@@ -603,7 +603,7 @@ func Test_DontUpdateUnmanagedUsers(t *testing.T) {
 
 	// Try to update existing, unmanaged user in KEEP mode
 	closer, err := users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, unmanagedUserErr)
+	assert.ErrorIs(t, err, errUnmanagedUser)
 	assert.Equal(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, allGroups[2:], backend.users["alice"])
@@ -615,7 +615,7 @@ func Test_DontUpdateUnmanagedUsers(t *testing.T) {
 
 	// Try to update existing, unmanaged user in DROP mode
 	closer, err = users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, unmanagedUserErr)
+	assert.ErrorIs(t, err, errUnmanagedUser)
 	assert.Equal(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, allGroups[2:], backend.users["alice"])
@@ -660,7 +660,7 @@ func Test_AllowExplicitlyManageExistingUsers(t *testing.T) {
 	// Don't take ownership of existing user when in DROP mode
 	userinfo.Mode = types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP
 	closer, err = users.UpsertUser("alice-drop", userinfo)
-	assert.ErrorIs(t, err, unmanagedUserErr)
+	assert.ErrorIs(t, err, errUnmanagedUser)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
 	assert.Empty(t, backend.users["alice-drop"])
@@ -841,7 +841,7 @@ func TestHostUsersResolveGroups(t *testing.T) {
 			},
 
 			expectGroups: nil,
-			expectErr:    unmanagedUserErr,
+			expectErr:    errUnmanagedUser,
 		},
 		{
 			name: "don't update unmanaged user in keep mode",
@@ -857,7 +857,7 @@ func TestHostUsersResolveGroups(t *testing.T) {
 			},
 
 			expectGroups: nil,
-			expectErr:    unmanagedUserErr,
+			expectErr:    errUnmanagedUser,
 		},
 		{
 			name: "take over unmanaged user in keep mode when migrating",

@@ -259,6 +259,8 @@ func (s *AccessRequestSuite) SetupSuite() {
 // newClientForUser creates a teleport client for a give user.
 // The user must be created beforehand.
 func (s *AccessRequestSuite) newClientForUser(ctx context.Context, user types.User) *client.Client {
+	s.T().Helper()
+
 	t := s.T()
 	creds := s.AuthHelper.CredentialsForUser(t, ctx, user)
 	clientConfig := client.Config{
@@ -314,8 +316,9 @@ func (s *AccessRequestSuite) ClientByName(name string) *Client {
 // The access request reason can be padded with "A" by setting
 // SetReasonPadding.
 func (s *AccessRequestSuite) NewAccessRequest(userName string, suggestedReviewers []string, padding int) types.AccessRequest {
+	s.T().Helper()
+
 	t := s.T()
-	t.Helper()
 
 	reason := "because of"
 	if padding > 0 {
@@ -332,8 +335,9 @@ func (s *AccessRequestSuite) NewAccessRequest(userName string, suggestedReviewer
 
 // CreateAccessRequest creates a new access request and submits it.
 func (s *AccessRequestSuite) CreateAccessRequest(ctx context.Context, userName string, suggestedReviewers []string) types.AccessRequest {
+	s.T().Helper()
+
 	t := s.T()
-	t.Helper()
 
 	req := s.NewAccessRequest(userName, suggestedReviewers, s.requestPadding)
 	out, err := s.ClientByName(userName).CreateAccessRequestV2(ctx, req)
@@ -364,8 +368,9 @@ func (s *AccessRequestSuite) SetReasonPadding(padding int) {
 // requester roles (OSS and Advanced workflows). Those annotations can then be
 // used to route notifications to specific channels, or trigger automatic approval.
 func (s *AccessRequestSuite) AnnotateRequesterRoleAccessRequests(ctx context.Context, annotationKey string, annotationValue []string) {
+	s.T().Helper()
+
 	t := s.T()
-	t.Helper()
 	adminClient := s.Ruler()
 
 	// If we're running in OSS, we have a single requester role, but if we're
