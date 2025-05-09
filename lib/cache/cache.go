@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -505,8 +504,6 @@ type Cache struct {
 	secReportsCache              services.SecReports
 	eventsFanout                 *services.FanoutV2
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
-	provisioningStatesCache      *local.ProvisioningStateService
-	identityCenterCache          *local.IdentityCenterService
 	pluginStaticCredentialsCache *local.PluginStaticCredentialsService
 	gitServersCache              *local.GitServerService
 
@@ -900,12 +897,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	provisioningStatesCache, err := local.NewProvisioningStateService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	secReportsCache, err := local.NewSecReportsService(config.Backend, config.Clock)
 	if err != nil {
 		cancel()
@@ -919,13 +910,6 @@ func New(config Config) (*Cache, error) {
 	}
 
 	identityService, err := local.NewIdentityService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	identityCenterCache, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
-		Backend: config.Backend})
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -966,8 +950,6 @@ func New(config Config) (*Cache, error) {
 		secReportsCache:              secReportsCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
-		provisioningStatesCache:      provisioningStatesCache,
-		identityCenterCache:          identityCenterCache,
 		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
 		gitServersCache:              gitServersCache,
 		collections:                  collections,
@@ -2053,17 +2035,4 @@ func buildListResourcesResponse[T types.ResourceWithLabels](resources iter.Seq[T
 	}
 
 	return &resp, nil
-}
-
-func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.DownstreamID, id services.ProvisioningStateID) (*provisioningv1.PrincipalState, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetProvisioningState")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.provisioningStates)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	return rg.reader.GetProvisioningState(ctx, downstream, id)
 }
