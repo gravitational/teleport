@@ -25,12 +25,14 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func (e *Engine) handleNativeConnection(ctx context.Context, sessionCtx *common.Session) error {
-	u, err := url.Parse(sessionCtx.Database.GetURI())
+	endpoint, err := getNativeEndpoint(sessionCtx.Database)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -40,7 +42,7 @@ func (e *Engine) handleNativeConnection(ctx context.Context, sessionCtx *common.
 		return trace.Wrap(err)
 	}
 
-	serverConn, err := tls.Dial("tcp", u.Host, tlsConfig)
+	serverConn, err := tls.Dial("tcp", endpoint, tlsConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -55,4 +57,23 @@ func (e *Engine) handleNativeConnection(ctx context.Context, sessionCtx *common.
 func (e *Engine) sendErrorNative(err error) {
 	// TODO: Support clickhouse native wire protocol error messages.
 	e.Log.DebugContext(e.Context, "Clickhouse client connection error.", "error", err)
+}
+
+func getNativeEndpoint(db types.Database) (string, error) {
+	u, err := url.Parse(db.GetURI())
+	if err != nil {
+		return "", trace.Wrap(err, "failed to parse database URI")
+	}
+	return u.Host, nil
+}
+
+// NewNativeEndpointsResolver resolves a ClickHouse native endpoint from DB URI.
+func NewNativeEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
+	endpoint, err := getNativeEndpoint(db)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
+		return []string{endpoint}, nil
+	}), nil
 }
