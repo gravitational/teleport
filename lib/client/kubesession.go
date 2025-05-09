@@ -150,30 +150,31 @@ func handleResizeEvents(ctx context.Context, stream *streamproto.SessionStream, 
 		select {
 		case <-ctx.Done():
 			return
-		case size, more := <-streamResizes:
-			if !more {
-				return
-			}
+		case <-stream.Done():
+			return
+		case size := <-streamResizes:
 			if size == nil {
-				continue
-			}
-			if err := term.Resize(int16(size.Width), int16(size.Height)); err != nil {
-				fmt.Printf("Error attempting to resize terminal: %v\n\r", err)
-			}
-		case event, more := <-terminalResizes:
-			if !more {
 				return
 			}
+
+			term.Resize(int16(size.Width), int16(size.Height))
+		case event, more := <-terminalResizes:
 			_, ok := event.(terminal.ResizeEvent)
 			if ok {
 				w, h, err := term.Size()
 				if err != nil {
 					fmt.Printf("Error attempting to fetch terminal size: %v\n\r", err)
 				}
+
 				size := remotecommand.TerminalSize{Width: uint16(w), Height: uint16(h)}
-				if err := stream.Resize(&size); err != nil {
+				err = stream.Resize(&size)
+				if err != nil {
 					fmt.Printf("Error attempting to resize terminal: %v\n\r", err)
 				}
+			}
+			if !more {
+				// The terminal has been closed, stop listening for resize events.
+				return
 			}
 		}
 	}
