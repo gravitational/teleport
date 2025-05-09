@@ -34,11 +34,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	JoinService_RegisterUsingIAMMethod_FullMethodName    = "/proto.JoinService/RegisterUsingIAMMethod"
-	JoinService_RegisterUsingAzureMethod_FullMethodName  = "/proto.JoinService/RegisterUsingAzureMethod"
-	JoinService_RegisterUsingTPMMethod_FullMethodName    = "/proto.JoinService/RegisterUsingTPMMethod"
-	JoinService_RegisterUsingOracleMethod_FullMethodName = "/proto.JoinService/RegisterUsingOracleMethod"
-	JoinService_RegisterUsingToken_FullMethodName        = "/proto.JoinService/RegisterUsingToken"
+	JoinService_RegisterUsingIAMMethod_FullMethodName          = "/proto.JoinService/RegisterUsingIAMMethod"
+	JoinService_RegisterUsingAzureMethod_FullMethodName        = "/proto.JoinService/RegisterUsingAzureMethod"
+	JoinService_RegisterUsingTPMMethod_FullMethodName          = "/proto.JoinService/RegisterUsingTPMMethod"
+	JoinService_RegisterUsingOracleMethod_FullMethodName       = "/proto.JoinService/RegisterUsingOracleMethod"
+	JoinService_RegisterUsingBoundKeypairMethod_FullMethodName = "/proto.JoinService/RegisterUsingBoundKeypairMethod"
+	JoinService_RegisterUsingToken_FullMethodName              = "/proto.JoinService/RegisterUsingToken"
 )
 
 // JoinServiceClient is the client API for JoinService service.
@@ -63,6 +64,9 @@ type JoinServiceClient interface {
 	// RegisterUsingOracleMethod allows registration of a new node to the cluster
 	// using the Oracle join method.
 	RegisterUsingOracleMethod(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[RegisterUsingOracleMethodRequest, RegisterUsingOracleMethodResponse], error)
+	// RegisterUsingBoundKeypairMethod allows registration of a new node to the
+	// cluster using the bound-keypair join method.
+	RegisterUsingBoundKeypairMethod(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[RegisterUsingBoundKeypairMethodRequest, RegisterUsingBoundKeypairMethodResponse], error)
 	// RegisterUsingToken is used to register a new node to the cluster using one
 	// of the legacy join methods which do not yet have their own gRPC method.
 	RegisterUsingToken(ctx context.Context, in *types.RegisterUsingTokenRequest, opts ...grpc.CallOption) (*Certs, error)
@@ -128,6 +132,19 @@ func (c *joinServiceClient) RegisterUsingOracleMethod(ctx context.Context, opts 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type JoinService_RegisterUsingOracleMethodClient = grpc.BidiStreamingClient[RegisterUsingOracleMethodRequest, RegisterUsingOracleMethodResponse]
 
+func (c *joinServiceClient) RegisterUsingBoundKeypairMethod(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[RegisterUsingBoundKeypairMethodRequest, RegisterUsingBoundKeypairMethodResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &JoinService_ServiceDesc.Streams[4], JoinService_RegisterUsingBoundKeypairMethod_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[RegisterUsingBoundKeypairMethodRequest, RegisterUsingBoundKeypairMethodResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type JoinService_RegisterUsingBoundKeypairMethodClient = grpc.BidiStreamingClient[RegisterUsingBoundKeypairMethodRequest, RegisterUsingBoundKeypairMethodResponse]
+
 func (c *joinServiceClient) RegisterUsingToken(ctx context.Context, in *types.RegisterUsingTokenRequest, opts ...grpc.CallOption) (*Certs, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Certs)
@@ -160,6 +177,9 @@ type JoinServiceServer interface {
 	// RegisterUsingOracleMethod allows registration of a new node to the cluster
 	// using the Oracle join method.
 	RegisterUsingOracleMethod(grpc.BidiStreamingServer[RegisterUsingOracleMethodRequest, RegisterUsingOracleMethodResponse]) error
+	// RegisterUsingBoundKeypairMethod allows registration of a new node to the
+	// cluster using the bound-keypair join method.
+	RegisterUsingBoundKeypairMethod(grpc.BidiStreamingServer[RegisterUsingBoundKeypairMethodRequest, RegisterUsingBoundKeypairMethodResponse]) error
 	// RegisterUsingToken is used to register a new node to the cluster using one
 	// of the legacy join methods which do not yet have their own gRPC method.
 	RegisterUsingToken(context.Context, *types.RegisterUsingTokenRequest) (*Certs, error)
@@ -183,6 +203,9 @@ func (UnimplementedJoinServiceServer) RegisterUsingTPMMethod(grpc.BidiStreamingS
 }
 func (UnimplementedJoinServiceServer) RegisterUsingOracleMethod(grpc.BidiStreamingServer[RegisterUsingOracleMethodRequest, RegisterUsingOracleMethodResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method RegisterUsingOracleMethod not implemented")
+}
+func (UnimplementedJoinServiceServer) RegisterUsingBoundKeypairMethod(grpc.BidiStreamingServer[RegisterUsingBoundKeypairMethodRequest, RegisterUsingBoundKeypairMethodResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method RegisterUsingBoundKeypairMethod not implemented")
 }
 func (UnimplementedJoinServiceServer) RegisterUsingToken(context.Context, *types.RegisterUsingTokenRequest) (*Certs, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterUsingToken not implemented")
@@ -234,6 +257,13 @@ func _JoinService_RegisterUsingOracleMethod_Handler(srv interface{}, stream grpc
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type JoinService_RegisterUsingOracleMethodServer = grpc.BidiStreamingServer[RegisterUsingOracleMethodRequest, RegisterUsingOracleMethodResponse]
+
+func _JoinService_RegisterUsingBoundKeypairMethod_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(JoinServiceServer).RegisterUsingBoundKeypairMethod(&grpc.GenericServerStream[RegisterUsingBoundKeypairMethodRequest, RegisterUsingBoundKeypairMethodResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type JoinService_RegisterUsingBoundKeypairMethodServer = grpc.BidiStreamingServer[RegisterUsingBoundKeypairMethodRequest, RegisterUsingBoundKeypairMethodResponse]
 
 func _JoinService_RegisterUsingToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.RegisterUsingTokenRequest)
@@ -287,6 +317,12 @@ var JoinService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "RegisterUsingOracleMethod",
 			Handler:       _JoinService_RegisterUsingOracleMethod_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "RegisterUsingBoundKeypairMethod",
+			Handler:       _JoinService_RegisterUsingBoundKeypairMethod_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},
