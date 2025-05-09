@@ -42,6 +42,7 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
@@ -3623,4 +3624,43 @@ func (c *Cache) ListIdentityCenterAccounts(ctx context.Context, pageSize int, to
 	defer rg.Release()
 
 	return rg.reader.ListIdentityCenterAccounts(ctx, pageSize, token)
+}
+
+func (c *Cache) GetPrincipalAssignment(ctx context.Context, id services.PrincipalAssignmentID) (*identitycenterv1.PrincipalAssignment, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetPrincipalAssignment")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterPrincipalAssignments)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.GetPrincipalAssignment(ctx, id)
+}
+
+func (c *Cache) ListPrincipalAssignments(ctx context.Context, pageSize int, req *pagination.PageRequestToken) ([]*identitycenterv1.PrincipalAssignment, pagination.NextPageToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListPrincipalAssignments")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterPrincipalAssignments)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.ListPrincipalAssignments(ctx, pageSize, req)
+}
+
+func (c *Cache) ListProvisioningStatesForAllDownstreams(ctx context.Context, pageSize int, req *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListPrincipalAssignments")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.provisioningStates)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.ListProvisioningStatesForAllDownstreams(ctx, pageSize, req)
 }
