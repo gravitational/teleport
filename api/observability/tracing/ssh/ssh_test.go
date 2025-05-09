@@ -151,8 +151,8 @@ func (h handler) handle(sconn *ssh.ServerConn, chans <-chan ssh.NewChannel, reqs
 }
 
 func (h handler) requestHandler(req *ssh.Request) {
-	switch {
-	case req.Type == "test":
+	switch req.Type {
+	case "test":
 		defer func() {
 			if req.WantReply {
 				if err := req.Reply(true, nil); err != nil {

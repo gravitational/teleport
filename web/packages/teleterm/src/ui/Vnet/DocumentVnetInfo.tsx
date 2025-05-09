@@ -262,8 +262,11 @@ const ComparisonOption = styled(Flex).attrs({
 })``;
 
 const textFlex = 1;
-const TextPart = styled(Stack).attrs({ gap: 2 })``;
-TextPart.defaultProps = { flex: textFlex };
+const TextPart = styled(Stack).attrs(props => ({
+  gap: 2,
+  flex: textFlex,
+  ...props,
+}))``;
 
 const demoFlex = 2;
 const DemoPart = styled(Flex).attrs({ flex: demoFlex })``;

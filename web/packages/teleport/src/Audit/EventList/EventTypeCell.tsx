@@ -316,6 +316,9 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.MCP_SESSION_REQUEST]: Icons.Info,
   [eventCodes.MCP_SESSION_REQUEST_FAILURE]: Icons.Warning,
   [eventCodes.MCP_SESSION_NOTIFICATION]: Icons.Info,
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: Icons.RocketLaunch,
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: Icons.Checks,
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: Icons.Restore,
 };
 
 export default function renderTypeCell(event: Event) {

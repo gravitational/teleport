@@ -29,16 +29,18 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const autoUpdateConfigStoreNameIndex = "name"
+type autoUpdateConfigIndex string
 
-func newAutoUpdateConfigCollection(upstream services.AutoUpdateServiceGetter, w types.WatchKind) (*collection[*autoupdatev1.AutoUpdateConfig], error) {
+const autoUpdateConfigNameIndex autoUpdateConfigIndex = "name"
+
+func newAutoUpdateConfigCollection(upstream services.AutoUpdateServiceGetter, w types.WatchKind) (*collection[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AutoUpdateServiceGetter")
 	}
 
-	return &collection[*autoupdatev1.AutoUpdateConfig]{
-		store: newStore(map[string]func(*autoupdatev1.AutoUpdateConfig) string{
-			autoUpdateConfigStoreNameIndex: func(r *autoupdatev1.AutoUpdateConfig) string {
+	return &collection[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex]{
+		store: newStore(map[autoUpdateConfigIndex]func(*autoupdatev1.AutoUpdateConfig) string{
+			autoUpdateConfigNameIndex: func(r *autoupdatev1.AutoUpdateConfig) string {
 				return r.GetMetadata().GetName()
 			},
 		}),
@@ -72,10 +74,10 @@ func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdatev1.AutoUpda
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateConfig")
 	defer span.End()
 
-	getter := genericGetter[*autoupdatev1.AutoUpdateConfig]{
+	getter := genericGetter[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex]{
 		cache:      c,
 		collection: c.collections.autoUpdateConfig,
-		index:      autoUpdateConfigStoreNameIndex,
+		index:      autoUpdateConfigNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (*autoupdatev1.AutoUpdateConfig, error) {
 			cachedConfig, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"config"}, func(ctx context.Context) (*autoupdatev1.AutoUpdateConfig, error) {
 				cfg, err := c.Config.AutoUpdateService.GetAutoUpdateConfig(ctx)
@@ -92,16 +94,18 @@ func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdatev1.AutoUpda
 	return out, trace.Wrap(err)
 }
 
-const autoUpdateVersionStoreNameIndex = "name"
+type autoUpdateVersionIndex string
 
-func newAutoUpdateVersionCollection(upstream services.AutoUpdateServiceGetter, w types.WatchKind) (*collection[*autoupdatev1.AutoUpdateVersion], error) {
+const autoUpdateVersionNameIndex autoUpdateVersionIndex = "name"
+
+func newAutoUpdateVersionCollection(upstream services.AutoUpdateServiceGetter, w types.WatchKind) (*collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AutoUpdateServiceGetter")
 	}
 
-	return &collection[*autoupdatev1.AutoUpdateVersion]{
-		store: newStore(map[string]func(*autoupdatev1.AutoUpdateVersion) string{
-			autoUpdateVersionStoreNameIndex: func(r *autoupdatev1.AutoUpdateVersion) string {
+	return &collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex]{
+		store: newStore(map[autoUpdateVersionIndex]func(*autoupdatev1.AutoUpdateVersion) string{
+			autoUpdateVersionNameIndex: func(r *autoupdatev1.AutoUpdateVersion) string {
 				return r.GetMetadata().GetName()
 			},
 		}),
@@ -131,10 +135,10 @@ func (c *Cache) GetAutoUpdateVersion(ctx context.Context) (*autoupdatev1.AutoUpd
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateVersion")
 	defer span.End()
 
-	getter := genericGetter[*autoupdatev1.AutoUpdateVersion]{
+	getter := genericGetter[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex]{
 		cache:      c,
 		collection: c.collections.autoUpdateVerion,
-		index:      autoUpdateVersionStoreNameIndex,
+		index:      autoUpdateVersionNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (*autoupdatev1.AutoUpdateVersion, error) {
 			cachedVersion, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"version"}, func(ctx context.Context) (*autoupdatev1.AutoUpdateVersion, error) {
 				version, err := c.Config.AutoUpdateService.GetAutoUpdateVersion(ctx)
@@ -151,16 +155,18 @@ func (c *Cache) GetAutoUpdateVersion(ctx context.Context) (*autoupdatev1.AutoUpd
 	return out, trace.Wrap(err)
 }
 
-const autoUpdateRolloutStoreNameIndex = "name"
+type autoUpdateAgentRolloutIndex string
 
-func newAutoUpdateRolloutCollection(upstream services.AutoUpdateServiceGetter, w types.WatchKind) (*collection[*autoupdatev1.AutoUpdateAgentRollout], error) {
+const autoUpdateAgentRolloutNameIndex autoUpdateAgentRolloutIndex = "name"
+
+func newAutoUpdateRolloutCollection(upstream services.AutoUpdateServiceGetter, w types.WatchKind) (*collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AutoUpdateServiceGetter")
 	}
 
-	return &collection[*autoupdatev1.AutoUpdateAgentRollout]{
-		store: newStore(map[string]func(*autoupdatev1.AutoUpdateAgentRollout) string{
-			autoUpdateRolloutStoreNameIndex: func(r *autoupdatev1.AutoUpdateAgentRollout) string {
+	return &collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex]{
+		store: newStore(map[autoUpdateAgentRolloutIndex]func(*autoupdatev1.AutoUpdateAgentRollout) string{
+			autoUpdateAgentRolloutNameIndex: func(r *autoupdatev1.AutoUpdateAgentRollout) string {
 				return r.GetMetadata().GetName()
 			},
 		}),
@@ -190,10 +196,10 @@ func (c *Cache) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdatev1.Au
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateAgentRollout")
 	defer span.End()
 
-	getter := genericGetter[*autoupdatev1.AutoUpdateAgentRollout]{
+	getter := genericGetter[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex]{
 		cache:      c,
 		collection: c.collections.autoUpdateRollout,
-		index:      autoUpdateRolloutStoreNameIndex,
+		index:      autoUpdateAgentRolloutNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (*autoupdatev1.AutoUpdateAgentRollout, error) {
 			cachedRollout, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"rollout"}, func(ctx context.Context) (*autoupdatev1.AutoUpdateAgentRollout, error) {
 				rollout, err := c.Config.AutoUpdateService.GetAutoUpdateAgentRollout(ctx)

@@ -59,6 +59,31 @@ func TestNewUserListEntry(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "malformed sso",
+			user: &types.UserV2{
+				Metadata: types.Metadata{
+					Name: "malformed-sso",
+				},
+				Spec: types.UserSpecV2{
+					Roles: []string{"behavioral-analyst"},
+					// CreatedBy is not set BUT there's a GitHub identity, so the user's type will be SSO
+					GithubIdentities: []types.ExternalIdentity{
+						{
+							ConnectorID: "github",
+							Username:    "malformed-sso",
+							UserID:      "malformed-sso",
+						},
+					},
+				},
+			},
+			want: &UserListEntry{
+				Name:  "malformed-sso",
+				Roles: []string{"behavioral-analyst"},
+				// We should not panic and display that we don't know who created the user
+				AuthType: unknownSSOAuthType,
+			},
+		},
 	}
 
 	for _, tt := range tests {

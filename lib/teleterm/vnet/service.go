@@ -229,10 +229,11 @@ func (s *Service) ListDNSZones(ctx context.Context, req *api.ListDNSZonesRequest
 	s.mu.Lock()
 
 	if s.status != statusRunning {
+		s.mu.Unlock()
 		return nil, trace.CompareFailed("VNet is not running")
 	}
 
-	defer s.mu.Unlock()
+	s.mu.Unlock()
 
 	profileNames, err := s.cfg.DaemonService.ListProfileNames()
 	if err != nil {

@@ -185,12 +185,12 @@ func (c *mcpLoginCommand) loginAll(cf *CLIConf, tc *client.TeleportClient, mcpSe
 			AccessRequests: profile.ActiveRequests,
 		}
 
-		key, _, err := clusterClient.IssueUserCertsWithMFA(cf.Context, appCertParams)
+		result, err := clusterClient.IssueUserCertsWithMFA(cf.Context, appCertParams)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := tc.LocalAgent().AddAppKeyRing(key); err != nil {
+		if err := tc.LocalAgent().AddAppKeyRing(result.KeyRing); err != nil {
 			return trace.Wrap(err)
 		}
 	}

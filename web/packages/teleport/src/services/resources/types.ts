@@ -194,7 +194,6 @@ export enum ResourceKind {
   AccessMonitoringRule = 'access_monitoring_rule',
   AccessRequest = 'access_request',
   App = 'app',
-  AppOrSAMLIdPServiceProvider = 'app_server_or_saml_idp_sp',
   AppServer = 'app_server',
   AuditQuery = 'audit_query',
   AuthServer = 'auth_server',

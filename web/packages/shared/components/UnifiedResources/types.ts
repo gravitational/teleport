@@ -34,7 +34,7 @@ export type ResourceStatus = 'healthy' | 'unhealthy' | 'unknown' | '';
 
 export type ResourceTargetHealth = {
   status: ResourceStatus;
-  reason?: string;
+  error?: string;
 };
 
 export type UnifiedResourceApp = {

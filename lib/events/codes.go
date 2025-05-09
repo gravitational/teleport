@@ -676,6 +676,13 @@ const (
 	// AutoUpdateVersionDeleteCode is the auto update version delete event code.
 	AutoUpdateVersionDeleteCode = "AUV003I"
 
+	// AutoUpdateAgentRolloutTriggerCode is the auto update agent rollout trigger event code.
+	AutoUpdateAgentRolloutTriggerCode = "AUAR001I"
+	// AutoUpdateAgentRolloutForceDoneCode is the auto update agent rollout force-done event code.
+	AutoUpdateAgentRolloutForceDoneCode = "AUAR002I"
+	// AutoUpdateAgentRolloutRollbackCode is the auto update agent rollout rollback event code.
+	AutoUpdateAgentRolloutRollbackCode = "AUAR003I"
+
 	// ContactCreateCode is the auto update version create event code.
 	ContactCreateCode = "TCTC001I"
 	// ContactDeleteCode is the auto update version delete event code.

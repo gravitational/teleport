@@ -2208,11 +2208,32 @@ export const formatters: Formatters = {
   [eventCodes.MCP_SESSION_NOTIFICATION]: {
     type: 'mcp.session.notification',
     desc: 'MCP Session Notification',
-    format: ({ user, app_name, json_rpc }) => {
+    format: ({user, app_name, json_rpc}) => {
       if (json_rpc) {
         return `User [${user}] sent an MCP notification [${json_rpc.method}] to MCP server [${app_name}]`;
       }
       return `User [${user}] sent an MCP notification to MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: {
+    type: 'auto_update_agent_rollout.trigger',
+    desc: 'Automatic Update Agent Rollout Triggered',
+    format: ({ user, groups }) => {
+      return `User ${user} triggered the rollout of the autoupdate rollout groups ${groups}`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: {
+    type: 'auto_update_agent_rollout.force_done',
+    desc: 'Automatic Update Agent Rollout Forced Done.',
+    format: ({ user, groups }) => {
+      return `User ${user} forced to the done state the autoupdate rollout groups ${groups}`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: {
+    type: 'auto_update_agent_rollout.rollback',
+    desc: 'Automatic Update Agent Rollout Rollback',
+    format: ({ user, groups }) => {
+      return `User ${user} rolled back the autoupdate rollout groups ${groups}`;
     },
   },
 };

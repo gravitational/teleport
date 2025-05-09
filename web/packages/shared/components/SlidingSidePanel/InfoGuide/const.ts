@@ -19,7 +19,7 @@
 /**
  * Used to display unified resource status info
  */
-export const resourceStatusPanelWidth = 430;
+export const resourceStatusPanelWidth = 450;
 /**
  * Used to display documentation/help/hint info
  */
