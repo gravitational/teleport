@@ -55,6 +55,8 @@ func parseAccessRequestExpression(expr string) (accessRequestExpression, error) 
 	return parsedExpr, nil
 }
 
+// NewAccessRequestConditionParser returns a new parser for access request
+// condition expressions.
 func NewAccessRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, any], error) {
 	return newRequestConditionParser()
 }
