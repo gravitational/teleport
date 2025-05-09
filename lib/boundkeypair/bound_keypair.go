@@ -60,7 +60,7 @@ const (
 
 // ChallengeDocument is a bound keypair challenge document. These documents are
 // sent in JSON form to clients attempting to authenticate, and are expected to
-// be sent back signed with a known public key.
+// be sent back signed with the private counterpart of a known public key.
 type ChallengeDocument struct {
 	*jwt.Claims
 

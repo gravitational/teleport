@@ -86,7 +86,7 @@ func (s *ProvisioningService) PatchToken(
 		case updatedMetadata.GetName() != existingMetadata.GetName():
 			return nil, trace.BadParameter("metadata.name: cannot be patched")
 		case updatedMetadata.GetRevision() != existingMetadata.GetRevision():
-			return nil, trace.BadParameter("metadata.revision: cannot  be patched")
+			return nil, trace.BadParameter("metadata.revision: cannot be patched")
 		}
 
 		item, err := s.tokenToItem(updated)
