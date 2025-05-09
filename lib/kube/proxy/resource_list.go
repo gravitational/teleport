@@ -71,7 +71,7 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 	} else {
 		allowedResources, deniedResources := sess.Checker.GetKubeResources(sess.kubeCluster)
 
-		shouldBeAllowed, err := matchListRequestShouldBeAllowed(sess, sess.apiResource.resourceKind, sess.apiResource.apiGroup, allowedResources, deniedResources)
+		shouldBeAllowed, err := matchListRequestShouldBeAllowed(sess, strings.Split(sess.apiResource.resourceKind, "/")[0], sess.apiResource.apiGroup, allowedResources, deniedResources)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -123,7 +123,7 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	// filterBuffer filters the response to exclude resources the user doesn't have access to.
 	// The filtered payload will be written into memBuffer again.
 	if err := filterBuffer(
-		newResourceFilterer(sess.apiResource.resourceKind, sess.apiResource.apiGroup, verb, sess.codecFactory, allowedResources, deniedResources, f.log),
+		newResourceFilterer(strings.Split(sess.apiResource.resourceKind, "/")[0], sess.apiResource.apiGroup, verb, sess.codecFactory, allowedResources, deniedResources, f.log),
 		memBuffer,
 	); err != nil {
 		return memBuffer.Status(), trace.Wrap(err)
@@ -183,7 +183,7 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 		w,
 		negotiator,
 		newResourceFilterer(
-			sess.apiResource.resourceKind,
+			strings.Split(sess.apiResource.resourceKind, "/")[0],
 			sess.apiResource.apiGroup,
 			verb,
 			sess.codecFactory,
