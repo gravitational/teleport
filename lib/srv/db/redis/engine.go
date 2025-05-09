@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/teleport/lib/utils"
@@ -302,31 +303,9 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 		return nil, trace.Wrap(err)
 	}
 
-	// Set default mode. Default mode can be overridden by URI parameters.
-	defaultMode := connection.Standalone
-	switch sessionCtx.Database.GetType() {
-	case types.DatabaseTypeElastiCache:
-		if sessionCtx.Database.GetAWS().ElastiCache.EndpointType == apiawsutils.ElastiCacheConfigurationEndpoint {
-			defaultMode = connection.Cluster
-		}
-
-	case types.DatabaseTypeMemoryDB:
-		if sessionCtx.Database.GetAWS().MemoryDB.EndpointType == apiawsutils.MemoryDBClusterEndpoint {
-			defaultMode = connection.Cluster
-		}
-
-	case types.DatabaseTypeAzure:
-		// "OSSCluster" requires client to use the OSS Cluster mode.
-		//
-		// https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/quickstart-create-redis-enterprise#clustering-policy
-		if sessionCtx.Database.GetAzure().Redis.ClusteringPolicy == azure.RedisEnterpriseClusterPolicyOSS {
-			defaultMode = connection.Cluster
-		}
-	}
-
-	connectionOptions, err := connection.ParseRedisAddressWithDefaultMode(sessionCtx.Database.GetURI(), defaultMode)
+	connectionOptions, err := getConnectionOptions(sessionCtx.Database)
 	if err != nil {
-		return nil, trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
+		return nil, trace.Wrap(err)
 	}
 
 	return func(username, password string) (redis.UniversalClient, error) {
@@ -640,4 +619,50 @@ func init() {
 	redis.SetLogger(&driverLogger{
 		Logger: slog.With(teleport.ComponentKey, "go-redis"),
 	})
+}
+
+func getConnectionOptions(db types.Database) (*connection.Options, error) {
+	// Set default mode. Default mode can be overridden by URI parameters.
+	defaultMode := connection.Standalone
+	switch db.GetType() {
+	case types.DatabaseTypeElastiCache:
+		if db.GetAWS().ElastiCache.EndpointType == apiawsutils.ElastiCacheConfigurationEndpoint {
+			defaultMode = connection.Cluster
+		}
+
+	case types.DatabaseTypeMemoryDB:
+		if db.GetAWS().MemoryDB.EndpointType == apiawsutils.MemoryDBClusterEndpoint {
+			defaultMode = connection.Cluster
+		}
+
+	case types.DatabaseTypeAzure:
+		// "OSSCluster" requires client to use the OSS Cluster mode.
+		//
+		// https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/quickstart-create-redis-enterprise#clustering-policy
+		if db.GetAzure().Redis.ClusteringPolicy == azure.RedisEnterpriseClusterPolicyOSS {
+			defaultMode = connection.Cluster
+		}
+	}
+
+	connOpts, err := connection.ParseRedisAddressWithDefaultMode(db.GetURI(), defaultMode)
+	if err != nil {
+		return nil, trace.BadParameter("Redis connection string is incorrect %q: %v", db.GetURI(), err)
+	}
+	return connOpts, nil
+}
+
+func getHostPort(connOpts *connection.Options) string {
+	return net.JoinHostPort(connOpts.Address, connOpts.Port)
+}
+
+// NewEndpointsResolver resolves an endpoint from DB URI.
+func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
+	connOpts, err := getConnectionOptions(db)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	hostPort := getHostPort(connOpts)
+	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
+		return []string{hostPort}, nil
+	}), nil
 }

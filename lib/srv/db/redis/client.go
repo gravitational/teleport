@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"net"
 	"strings"
 	"sync"
 
@@ -104,7 +103,7 @@ type clusterClient struct {
 // newClient creates a new Redis client based on given ConnectionMode. If connection mode is not supported
 // an error is returned.
 func newClient(ctx context.Context, connectionOptions *connection.Options, tlsConfig *tls.Config, credentialsProvider fetchCredentialsFunc) (redis.UniversalClient, error) {
-	connectionAddr := net.JoinHostPort(connectionOptions.Address, connectionOptions.Port)
+	connectionAddr := getHostPort(connectionOptions)
 	// TODO(jakub): Investigate Redis Sentinel.
 	switch connectionOptions.Mode {
 	case connection.Standalone:

@@ -21,6 +21,7 @@ package snowflake
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"compress/gzip"
 	"context"
 	"crypto/tls"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -57,6 +59,7 @@ func NewEngine(ec common.EngineConfig) common.Engine {
 func getDefaultHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
+			// TODO(gavin): use an http proxy env var respecting transport
 			TLSClientConfig: &tls.Config{
 				MinVersion: tls.VersionTLS12,
 			},
@@ -581,12 +584,7 @@ func parseConnectionString(uri string) (string, string, error) {
 		return "", "", trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
 	}
 
-	// if the protocol is missing add it, so we can parse it.
-	if !strings.Contains(uri, "://") {
-		uri = "https://" + uri
-	}
-
-	snowflakeURL, err := url.Parse(uri)
+	snowflakeURL, err := parseURI(uri)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
@@ -677,4 +675,27 @@ type tokenTTL struct {
 type sessionTokens struct {
 	session tokenTTL
 	master  tokenTTL
+}
+
+func parseURI(uri string) (*url.URL, error) {
+	// if the protocol is missing add it, so we can parse it.
+	if !strings.Contains(uri, "://") {
+		uri = "https://" + uri
+	}
+	snowflakeURL, err := url.Parse(uri)
+	return snowflakeURL, trace.Wrap(err)
+}
+
+// NewEndpointsResolver resolves an endpoint from DB URI.
+func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
+	dbURL, err := parseURI(db.GetURI())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	host := dbURL.Hostname()
+	port := cmp.Or(dbURL.Port(), "443")
+	hostPort := net.JoinHostPort(host, port)
+	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
+		return []string{hostPort}, nil
+	}), nil
 }
