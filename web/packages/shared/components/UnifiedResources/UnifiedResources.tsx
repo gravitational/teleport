@@ -58,15 +58,18 @@ import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabe
 
 import { ResourcesResponse } from 'teleport/services/agents';
 
+import { useInfoGuide } from '../SlidingSidePanel/InfoGuide';
 import { CardsView } from './CardsView/CardsView';
 import { FilterPanel } from './FilterPanel';
 import { ListView } from './ListView/ListView';
 import { ResourceTab } from './ResourceTab';
+import { getResourceId } from './shared/StatusInfo';
 import { mapResourceToViewItem } from './shared/viewItemsFactory';
 import {
   IncludedResourceMode,
   PinningSupport,
   SharedUnifiedResource,
+  UnifiedResourceDefinition,
   UnifiedResourcesPinning,
   UnifiedResourcesQueryParams,
 } from './types';
@@ -173,6 +176,12 @@ export interface UnifiedResourcesProps {
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
   ): void;
+
+  /**
+   * When called, slides opens a InfoGuideSidePanel component
+   * with selected resources status info.
+   */
+  onShowStatusInfo(resource: UnifiedResourceDefinition): void;
 }
 
 export function UnifiedResources(props: UnifiedResourcesProps) {
@@ -190,6 +199,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     unifiedResourcePreferences,
     ClusterDropdown,
     bulkActions = [],
+    onShowStatusInfo,
   } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -197,6 +207,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   const { setTrigger } = useInfiniteScroll({
     fetch: fetchResources,
   });
+
+  const { infoGuideConfig } = useInfoGuide();
 
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [forceCardView, setForceCardView] = useState(false);
@@ -606,8 +618,13 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                   },
                 }),
                 key: generateUnifiedResourceKey(resource),
-                onShowStatusInfo: () => null,
-                showingStatusInfo: false,
+                // TODO(kimlisa): teleterm will pass this field as "null"
+                // to add support later.
+                onShowStatusInfo: () =>
+                  onShowStatusInfo ? onShowStatusInfo(resource) : null,
+                showingStatusInfo:
+                  infoGuideConfig?.id &&
+                  infoGuideConfig.id === getResourceId(resource),
               }))
             : []
         }

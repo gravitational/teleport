@@ -30,23 +30,27 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -132,31 +136,9 @@ func (h *Handler) createDesktopConnection(
 		"height", height,
 	)
 
-	// Pick a random Windows desktop service as our gateway.
-	// When agent mode is implemented in the service, we'll have to filter out
-	// the services in agent mode.
-	//
-	// In the future, we may want to do something smarter like latency-based
-	// routing.
 	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return sendTDPError(trace.Wrap(err))
-	}
-	winDesktops, err := clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: desktopName})
-	if err != nil {
-		return sendTDPError(trace.Wrap(err, "cannot get Windows desktops"))
-	}
-	if len(winDesktops) == 0 {
-		return sendTDPError(trace.NotFound("no Windows desktops were found"))
-	}
-	var validServiceIDs []string
-	for _, desktop := range winDesktops {
-		if desktop.GetHostID() == "" {
-			// desktops with empty host ids are invalid and should
-			// only occur when migrating from an old version of teleport
-			continue
-		}
-		validServiceIDs = append(validServiceIDs, desktop.GetHostID())
 	}
 
 	// Parse the private key of the user from the session context.
@@ -187,14 +169,15 @@ func (h *Handler) createDesktopConnection(
 
 	clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(ctx)
 
-	c := &connector{
-		log:           log,
-		clt:           clt,
-		site:          site,
-		clientSrcAddr: clientSrcAddr,
-		clientDstAddr: clientDstAddr,
-	}
-	serviceConn, _, err := c.connectToWindowsService(ctx, clusterName, validServiceIDs)
+	serviceConn, version, err := desktop.ConnectToWindowsService(ctx, &desktop.ConnectionConfig{
+		Log:            log,
+		DesktopsGetter: clt,
+		Site:           site,
+		ClientSrcAddr:  clientSrcAddr,
+		ClientDstAddr:  clientDstAddr,
+		DesktopName:    desktopName,
+		ClusterName:    clusterName,
+	})
 	if err != nil {
 		return sendTDPError(trace.Wrap(err, "cannot connect to Windows Desktop Service"))
 	}
@@ -233,7 +216,7 @@ func (h *Handler) createDesktopConnection(
 	// proxyWebsocketConn hangs here until connection is closed
 	handleProxyWebsocketConnErr(
 		ctx,
-		proxyWebsocketConn(ws, serviceConnTLS),
+		proxyWebsocketConn(ctx, ws, serviceConnTLS, log, version),
 		log,
 	)
 
@@ -443,7 +426,7 @@ func (h *Handler) performSessionMFACeremony(
 		CreateAuthenticateChallenge: sctx.cfg.RootClient.CreateAuthenticateChallenge,
 	}
 
-	_, newCerts, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
+	result, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: nil, // Only RootAuthClient is used.
 		RootAuthClient:    sctx.cfg.RootClient,
 		MFACeremony:       mfaCeremony,
@@ -456,7 +439,7 @@ func (h *Handler) performSessionMFACeremony(
 		return nil, trace.Wrap(err)
 	}
 
-	return newCerts, nil
+	return result.NewCerts, nil
 }
 
 func readUsername(r *http.Request) (string, error) {
@@ -474,80 +457,108 @@ func readClientScreenSpec(ws *websocket.Conn) (*tdp.ClientScreenSpec, error) {
 	return tdpConn.ReadClientScreenSpec()
 }
 
-type connector struct {
-	log           *slog.Logger
-	clt           authclient.ClientI
-	site          reversetunnelclient.RemoteSite
-	clientSrcAddr net.Addr
-	clientDstAddr net.Addr
+// desktopPinger measures latency between proxy and the desktop by sending tdp.Ping messages
+// Windows Desktop Service and measuring the time it takes to receive message with the same UUID back.
+type desktopPinger struct {
+	wds net.Conn
+	ch  <-chan tdp.Ping
 }
 
-// connectToWindowsService tries to make a connection to a Windows Desktop Service
-// by trying each of the services provided. It returns an error if it could not connect
-// to any of the services or if it encounters an error that is not a connection problem.
-func (c *connector) connectToWindowsService(
-	ctx context.Context,
-	clusterName string,
-	desktopServiceIDs []string,
-) (conn net.Conn, version string, err error) {
-	for _, id := range utils.ShuffleVisit(desktopServiceIDs) {
-		conn, ver, err := c.tryConnect(ctx, clusterName, id)
-		if err != nil && !trace.IsConnectionProblem(err) {
-			return nil, "", trace.WrapWithMessage(err,
-				"error connecting to windows_desktop_service %q", id)
-		}
-		if trace.IsConnectionProblem(err) {
-			c.log.WarnContext(ctx, "failed to connect to windows_desktop_service",
-				"windows_desktop_service_id", id,
-				"error", err,
-			)
-			continue
-		}
-		if err == nil {
-			return conn, ver, nil
-		}
+func (d desktopPinger) Ping(ctx context.Context) error {
+	ping := tdp.Ping{
+		UUID: uuid.New(),
 	}
-	return nil, "", trace.Errorf("failed to connect to any windows_desktop_service")
-}
-
-func (c *connector) tryConnect(ctx context.Context, clusterName, desktopServiceID string) (conn net.Conn, version string, err error) {
-	service, err := c.clt.GetWindowsDesktopService(ctx, desktopServiceID)
+	buf, err := ping.Encode()
 	if err != nil {
-		c.log.ErrorContext(ctx, "Error finding service", "service_id", desktopServiceID, "error", err)
-		return nil, "", trace.NotFound("could not find windows desktop service %s: %v", desktopServiceID, err)
+		return trace.Wrap(err)
 	}
-
-	ver := service.GetTeleportVersion()
-	*c.log = *c.log.With(
-		"windows_service_version", ver,
-		"windows_service_uuid", service.GetName(),
-		"windows_service_addr", service.GetAddr(),
-	)
-
-	conn, err = c.site.DialTCP(reversetunnelclient.DialParams{
-		From:                  c.clientSrcAddr,
-		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
-		ConnType:              types.WindowsDesktopTunnel,
-		ServerID:              service.GetName() + "." + clusterName,
-		ProxyIDs:              service.GetProxyIDs(),
-		OriginalClientDstAddr: c.clientDstAddr,
-	})
-	return conn, ver, trace.Wrap(err)
+	_, err = d.wds.Write(buf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for {
+		select {
+		case pong := <-d.ch:
+			if pong.UUID == ping.UUID {
+				return nil
+			}
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
+	}
 }
 
 // proxyWebsocketConn does a bidrectional copy between the websocket
 // connection to the browser (ws) and the mTLS connection to Windows
 // Desktop Serivce (wds)
-func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
+func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, log *slog.Logger, version string) error {
+	ctx, cancel := context.WithCancel(ctx)
 	var closeOnce sync.Once
 	close := func() {
+		cancel()
 		ws.Close()
 		wds.Close()
 	}
 
-	errs := make(chan error, 2)
+	tdpMessagesToSend := make(chan tdp.Message)
 
-	go func() {
+	latencySupported, err := utils.MinVerWithoutPreRelease(version, "17.5.0")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	pings := make(chan tdp.Ping)
+
+	if latencySupported {
+		pinger := desktopPinger{
+			wds: wds,
+			ch:  pings,
+		}
+
+		go monitorLatency(ctx, clockwork.NewRealClock(), ws, pinger,
+			latency.ReporterFunc(func(ctx context.Context, stats latency.Statistics) error {
+				tdpMessagesToSend <- tdp.LatencyStats{
+					ClientLatency: uint32(stats.Client),
+					ServerLatency: uint32(stats.Server),
+				}
+				return nil
+			}),
+		)
+
+	}
+
+	var errs errgroup.Group
+
+	// run a goroutine to pick TDP messages up from a channel and send
+	// them to the browser
+	errs.Go(func() error {
+		for msg := range tdpMessagesToSend {
+			if ping, ok := msg.(tdp.Ping); ok {
+				pings <- ping
+				continue
+			}
+			if ls, ok := msg.(tdp.LatencyStats); ok {
+				log.DebugContext(ctx, "sending latency stats", "client", ls.ClientLatency, "server", ls.ServerLatency)
+			}
+			encoded, err := msg.Encode()
+			if err != nil {
+				return err
+			}
+
+			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
+			if utils.IsOKNetworkError(err) {
+				return err
+			}
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	// run a second goroutine to read TDP messages from the Windows
+	// agent and write them to our send channel
+	errs.Go(func() error {
 		defer closeOnce.Do(close)
 
 		// we avoid using io.Copy here, as we want to make sure
@@ -563,8 +574,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		for {
 			msg, err := tc.ReadMessage()
 			if utils.IsOKNetworkError(err) {
-				errs <- nil
-				return
+				return err
 			} else if err != nil {
 				isFatal := tdp.IsFatalErr(err)
 				severity := tdp.SeverityError
@@ -585,27 +595,15 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				if sendErr != nil {
 					err = sendErr
 				}
-				errs <- err
-				return
+				return err
 			}
-			encoded, err := msg.Encode()
-			if err != nil {
-				errs <- err
-				return
-			}
-			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
-			if utils.IsOKNetworkError(err) {
-				errs <- nil
-				return
-			}
-			if err != nil {
-				errs <- err
-				return
-			}
+			tdpMessagesToSend <- msg
 		}
-	}()
+	})
 
-	go func() {
+	// run a goroutine to read TDP messages coming from the browser
+	// and pass them on to the Windows agent
+	errs.Go(func() error {
 		defer closeOnce.Do(close)
 
 		var buf bytes.Buffer
@@ -613,30 +611,22 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 			_, reader, err := ws.NextReader()
 			switch {
 			case utils.IsOKNetworkError(err):
-				errs <- nil
-				return
+				return err
 			case err != nil:
-				errs <- err
-				return
+				return err
 			}
 			buf.Reset()
 			if _, err := io.Copy(&buf, reader); err != nil {
-				errs <- err
-				return
+				return err
 			}
 
 			if _, err := wds.Write(buf.Bytes()); err != nil {
-				errs <- trace.Wrap(err, "sending TDP message to desktop agent")
-				return
+				return trace.Wrap(err, "sending TDP message to desktop agent")
 			}
 		}
-	}()
+	})
 
-	var retErrs []error
-	for i := 0; i < 2; i++ {
-		retErrs = append(retErrs, <-errs)
-	}
-	return trace.NewAggregate(retErrs...)
+	return trace.Wrap(errs.Wait())
 }
 
 // handleProxyWebsocketConnErr handles the error returned by proxyWebsocketConn by

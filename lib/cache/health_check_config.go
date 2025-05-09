@@ -31,16 +31,18 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const healthCheckConfigStoreNameIndex = "name"
+type healthCheckConfigIndex string
 
-func newHealthCheckConfigCollection(upstream services.HealthCheckConfigReader, w types.WatchKind) (*collection[*healthcheckconfigv1.HealthCheckConfig], error) {
+const healthCheckConfigNameIndex healthCheckConfigIndex = "name"
+
+func newHealthCheckConfigCollection(upstream services.HealthCheckConfigReader, w types.WatchKind) (*collection[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter HealthCheckConfigReader")
 	}
 
-	return &collection[*healthcheckconfigv1.HealthCheckConfig]{
-		store: newStore(map[string]func(*healthcheckconfigv1.HealthCheckConfig) string{
-			healthCheckConfigStoreNameIndex: func(r *healthcheckconfigv1.HealthCheckConfig) string {
+	return &collection[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex]{
+		store: newStore(map[healthCheckConfigIndex]func(*healthcheckconfigv1.HealthCheckConfig) string{
+			healthCheckConfigNameIndex: func(r *healthcheckconfigv1.HealthCheckConfig) string {
 				return r.GetMetadata().GetName()
 			},
 		}),
@@ -73,10 +75,10 @@ func (c *Cache) ListHealthCheckConfigs(ctx context.Context, pageSize int, nextTo
 	ctx, span := c.Tracer.Start(ctx, "cache/ListHealthCheckConfigs")
 	defer span.End()
 
-	lister := genericLister[*healthcheckconfigv1.HealthCheckConfig]{
+	lister := genericLister[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex]{
 		cache:           c,
 		collection:      c.collections.healthCheckConfig,
-		index:           healthCheckConfigStoreNameIndex,
+		index:           healthCheckConfigNameIndex,
 		defaultPageSize: defaults.DefaultChunkSize,
 		upstreamList:    c.Config.HealthCheckConfig.ListHealthCheckConfigs,
 		nextToken: func(t *healthcheckconfigv1.HealthCheckConfig) string {
@@ -96,10 +98,10 @@ func (c *Cache) GetHealthCheckConfig(ctx context.Context, name string) (*healthc
 	ctx, span := c.Tracer.Start(ctx, "cache/GetHealthCheckConfig")
 	defer span.End()
 
-	getter := genericGetter[*healthcheckconfigv1.HealthCheckConfig]{
+	getter := genericGetter[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex]{
 		cache:       c,
 		collection:  c.collections.healthCheckConfig,
-		index:       healthCheckConfigStoreNameIndex,
+		index:       healthCheckConfigNameIndex,
 		upstreamGet: c.Config.HealthCheckConfig.GetHealthCheckConfig,
 		clone:       utils.CloneProtoMsg[*healthcheckconfigv1.HealthCheckConfig],
 	}

@@ -58,6 +58,7 @@ import (
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	vnetv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
@@ -66,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -1561,9 +1563,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					NodeName: "node-a",
 					SSHLogin: "role",
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
-				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
@@ -1593,9 +1592,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					NodeName: "node-a",
 					SSHLogin: "role",
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
-				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
@@ -1623,9 +1619,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
 					Usage:             proto.UserCertsRequest_Kubernetes,
 					KubernetesCluster: "kube-a",
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -1662,9 +1655,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 						Database:    "db-a",
 					},
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
-				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
@@ -1686,6 +1676,110 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			},
 		},
 		{
+			desc: "fail reuse not allowed for requester",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					Expires:      clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:        proto.UserCertsRequest_Database,
+					RouteToDatabase: proto.RouteToDatabase{
+						ServiceName: "db-a",
+						Database:    "db-a",
+					},
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				authnHandler:  registered.webAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "the given webauthn session allows reuse, but reuse is not permitted in this context")
+				},
+			},
+		},
+		{
+			desc: "fail db exec with wrong usage",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey:  tlsPub,
+					Username:      user.GetName(),
+					Expires:       clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:         proto.UserCertsRequest_App,
+					RequesterName: proto.UserCertsRequest_TSH_DB_EXEC,
+					Purpose:       proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+					RouteToApp: proto.RouteToApp{
+						Name: "app-a",
+					},
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				authnHandler:  registered.webAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "can only request database certificates")
+				},
+			},
+		},
+		{
+			desc: "db exec with reuse",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey:  tlsPub,
+					Username:      user.GetName(),
+					Expires:       clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:         proto.UserCertsRequest_Database,
+					RequesterName: proto.UserCertsRequest_TSH_DB_EXEC,
+					Purpose:       proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+					RouteToDatabase: proto.RouteToDatabase{
+						ServiceName: "db-a",
+						Database:    "db-a",
+					},
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				authnHandler:  registered.webAuthHandler,
+				verifyErr:     require.NoError,
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, clock.Now().Add(teleport.UserSingleUseCertTTL), cert.NotAfter)
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
+					require.Equal(t, "db-a", identity.RouteToDatabase.ServiceName)
+				},
+			},
+		},
+		{
+			desc: "fail db exec with reuse expired",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey:  tlsPub,
+					Username:      user.GetName(),
+					Expires:       clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:         proto.UserCertsRequest_Database,
+					RequesterName: proto.UserCertsRequest_TSH_DB_EXEC,
+					Purpose:       proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+					RouteToDatabase: proto.RouteToDatabase{
+						ServiceName: "db-a",
+						Database:    "db-a",
+					},
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				authnHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					resp := registered.webAuthHandler(t, challenge)
+					// Delete the session data to simulate that the session has expired.
+					require.NoError(t, srv.Auth().Services.DeleteWebauthnSessionData(ctx, user.GetName(), "login"))
+					return resp
+				},
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorIs(t, err, &mfa.ErrExpiredReusableMFAResponse)
+				},
+			},
+		},
+		{
 			desc: "app",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
@@ -1698,9 +1792,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					RouteToApp: proto.RouteToApp{
 						Name: "app-a",
 					},
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -1720,7 +1811,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-a", identity.RouteToApp.Name)
 					// session ID should be set to a random ID, corresponding to an app session.
-					require.NotZero(t, identity.RouteToApp.SessionID)
+					require.NotEmpty(t, identity.RouteToApp.SessionID)
 				},
 			},
 		},
@@ -1738,9 +1829,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 						Name:       "app-a",
 						TargetPort: 1337,
 					},
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -1761,7 +1849,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, "app-a", identity.RouteToApp.Name)
 					require.Equal(t, 1337, identity.RouteToApp.TargetPort)
 					// session ID should be set to a random ID, corresponding to an app session.
-					require.NotZero(t, identity.RouteToApp.SessionID)
+					require.NotEmpty(t, identity.RouteToApp.SessionID)
 				},
 			},
 		},
@@ -1780,9 +1868,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 						ServiceName: "db-a",
 					},
 					RequesterName: proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -1817,9 +1902,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Usage:             proto.UserCertsRequest_Kubernetes,
 					KubernetesCluster: "kube-a",
 					RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -1857,9 +1939,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					},
 					RequesterName: proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
-				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
@@ -1878,7 +1957,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-a", identity.RouteToApp.Name)
 					// session ID should be set to a random ID, corresponding to an app session.
-					require.NotZero(t, identity.RouteToApp.SessionID)
+					require.NotEmpty(t, identity.RouteToApp.SessionID)
 				},
 			},
 		},
@@ -1896,9 +1975,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 						WindowsDesktop: "desktop",
 						Login:          "role",
 					},
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -1947,9 +2023,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					NodeName:     "node-a",
 					SSHLogin:     "role",
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
-				},
 				authnHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					// Return no challenge response.
 					return &proto.MFAAuthenticateResponse{}
@@ -1981,9 +2054,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Usage:        proto.UserCertsRequest_SSH,
 					NodeName:     "node-a",
 					SSHLogin:     "role",
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -2031,10 +2101,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					},
 				},
 				authnHandler: registered.webAuthHandler,
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
-				},
-				verifyErr: require.NoError,
+				verifyErr:    require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
 					// TLS certificate.
 					tlsRaw := c.TLS
@@ -2065,9 +2132,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Usage:        proto.UserCertsRequest_SSH,
 					NodeName:     "node-a",
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
-				},
 				authnHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					// Return no challenge response.
 					return &proto.MFAAuthenticateResponse{}
@@ -2089,9 +2153,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Usage:             proto.UserCertsRequest_Kubernetes,
 					KubernetesCluster: "kube-b",
 					RouteToCluster:    "leaf",
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -2129,9 +2190,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					},
 					RouteToCluster: "leaf",
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
-				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
@@ -2167,9 +2225,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					},
 					RouteToCluster: "leaf",
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
-				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
@@ -2188,7 +2243,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-b", identity.RouteToApp.Name)
 					// session ID should be set to a random ID, corresponding to an app session.
-					require.NotZero(t, identity.RouteToApp.SessionID)
+					require.NotEmpty(t, identity.RouteToApp.SessionID)
 				},
 			},
 		},
@@ -2205,9 +2260,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					NodeName:       "node-b",
 					SSHLogin:       "role",
 					RouteToCluster: "leaf",
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
@@ -2238,9 +2290,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					NodeName: "node-a",
 					SSHLogin: "role",
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
-				},
 				authnHandler: registered.totpAuthHandler,
 				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
@@ -2258,9 +2307,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
 					Usage:             proto.UserCertsRequest_Kubernetes,
 					KubernetesCluster: "kube-b",
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.totpAuthHandler,
 				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
@@ -2283,9 +2329,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 						Database:    "db-a",
 					},
 				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
-				},
 				authnHandler: registered.totpAuthHandler,
 				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
@@ -2305,9 +2348,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					RouteToApp: proto.RouteToApp{
 						Name: "app-a",
 					},
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.totpAuthHandler,
 				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
@@ -2329,9 +2369,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 						WindowsDesktop: "desktop",
 						Login:          "role",
 					},
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				authnHandler: registered.totpAuthHandler,
 				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
@@ -2355,11 +2392,11 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 }
 
 type generateUserSingleUseCertsTestOpts struct {
-	initReq            *proto.UserCertsRequest
-	authnHandler       func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
-	mfaRequiredHandler func(*testing.T, proto.MFARequired)
-	verifyErr          require.ErrorAssertionFunc
-	verifyCert         func(*testing.T, *proto.Certs)
+	initReq       *proto.UserCertsRequest
+	authnHandler  func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
+	mfaAllowReuse mfav1.ChallengeAllowReuse
+	verifyErr     require.ErrorAssertionFunc
+	verifyCert    func(*testing.T, *proto.Certs)
 }
 
 func testGenerateUserSingleUseCerts(ctx context.Context, t *testing.T, cl *authclient.Client, opts generateUserSingleUseCertsTestOpts) {
@@ -2368,7 +2405,8 @@ func testGenerateUserSingleUseCerts(ctx context.Context, t *testing.T, cl *authc
 			ContextUser: &proto.ContextUser{},
 		},
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+			AllowReuse: opts.mfaAllowReuse,
 		},
 	})
 	require.NoError(t, err, "CreateAuthenticateChallenge")
@@ -3287,7 +3325,7 @@ func TestLocksCRUD(t *testing.T) {
 
 	lock2, err := types.NewLock("lock2", types.LockSpecV2{
 		Target: types.LockTarget{
-			Node: "node",
+			ServerID: "node",
 		},
 		Message: "node compromised",
 	})
@@ -5235,6 +5273,31 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			require.Empty(t, cmp.Diff(test.expected, rsp, protocmp.Transform()))
 		})
 	}
+}
+
+func TestGetVnetConfig(t *testing.T) {
+	server := newTestTLSServer(t)
+	user, _, err := CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
+	require.NoError(t, err)
+
+	// Create newConfig.
+	newConfig, err := vnet.NewVnetConfig(&vnetv1pb.VnetConfigSpec{
+		Ipv4CidrRange:  vnet.DefaultIPv4CIDRRange,
+		CustomDnsZones: []*vnetv1pb.CustomDNSZone{&vnetv1pb.CustomDNSZone{Suffix: "example.com"}},
+	})
+	require.NoError(t, err)
+	createdConfig, err := server.Auth().CreateVnetConfig(t.Context(), newConfig)
+	require.NoError(t, err)
+
+	// Verify that a regular user is able to fetch the config.
+	identity := authz.LocalUser{
+		Username: user.GetName(),
+	}
+	client, err := server.NewClient(TestIdentity{I: identity})
+	require.NoError(t, err)
+	actualConfig, err := client.GetVnetConfig(t.Context())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(createdConfig, actualConfig, protocmp.Transform()))
 }
 
 func TestCreateAuditStreamLimit(t *testing.T) {

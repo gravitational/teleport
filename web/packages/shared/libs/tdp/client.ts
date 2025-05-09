@@ -28,6 +28,7 @@ import Logger from 'shared/libs/logger';
 
 import Codec, {
   FileType,
+  LatencyStats,
   MessageType,
   PointerData,
   Severity,
@@ -51,9 +52,9 @@ import Codec, {
 } from './codec';
 import {
   PathDoesNotExistError,
-  SharedDirectoryManager,
+  SharedDirectoryAccess,
   type FileOrDirInfo,
-} from './sharedDirectoryManager';
+} from './sharedDirectoryAccess';
 
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
@@ -72,6 +73,7 @@ export enum TdpClientEvent {
   TRANSPORT_CLOSE = 'transport close',
   RESET = 'reset',
   POINTER = 'pointer',
+  LATENCY_STATS = 'latency stats',
 }
 
 export enum LogType {
@@ -110,18 +112,17 @@ export class TdpClient extends EventEmitter {
   protected codec: Codec;
   protected transport: TdpTransport | undefined;
   private transportAbortController: AbortController | undefined;
-  private sdManager: SharedDirectoryManager;
   private fastPathProcessor: FastPathProcessor | undefined;
   private wasmReady: Promise<void> | undefined;
 
   private logger = Logger.create('TDPClient');
 
   constructor(
-    private getTransport: (signal: AbortSignal) => Promise<TdpTransport>
+    private getTransport: (signal: AbortSignal) => Promise<TdpTransport>,
+    private sharedDirectoryAccess: SharedDirectoryAccess
   ) {
     super();
     this.codec = new Codec();
-    this.sdManager = new SharedDirectoryManager();
   }
 
   /**
@@ -255,6 +256,11 @@ export class TdpClient extends EventEmitter {
     return () => this.off(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, listener);
   };
 
+  onLatencyStats = (listener: (stats: LatencyStats) => void) => {
+    this.on(TdpClientEvent.LATENCY_STATS, listener);
+    return () => this.off(TdpClientEvent.LATENCY_STATS, listener);
+  };
+
   private async initWasm() {
     // select the wasm log level
     let wasmLogLevel = LogType.OFF;
@@ -352,9 +358,17 @@ export class TdpClient extends EventEmitter {
       case MessageType.SHARED_DIRECTORY_TRUNCATE_REQUEST:
         await this.handleSharedDirectoryTruncateRequest(buffer);
         break;
+      case MessageType.LATENCY_STATS:
+        this.handleLatencyStats(buffer);
+        break;
       default:
         this.logger.warn(`received unsupported message type ${messageType}`);
     }
+  }
+
+  handleLatencyStats(buffer: ArrayBuffer) {
+    const stats = this.codec.decodeLatencyStats(buffer);
+    this.emit(TdpClientEvent.LATENCY_STATS, stats);
   }
 
   handleClientScreenSpec(buffer: ArrayBuffer) {
@@ -479,20 +493,22 @@ export class TdpClient extends EventEmitter {
       // Since this is not a fatal error, we emit a warning but otherwise
       // keep the sesion alive.
       this.handleWarning(
-        `Failed to share directory '${this.sdManager.getName()}', drive redirection may be disabled on the RDP server.`,
+        `Failed to share directory '${this.sharedDirectoryAccess.getDirectoryName()}', drive redirection may be disabled on the RDP server.`,
         TdpClientEvent.TDP_WARNING
       );
       return;
     }
 
-    this.logger.info('Started sharing directory: ' + this.sdManager.getName());
+    this.logger.info(
+      `Started sharing directory: ${this.sharedDirectoryAccess.getDirectoryName()}`
+    );
   }
 
   async handleSharedDirectoryInfoRequest(buffer: ArrayBuffer) {
     const req = this.codec.decodeSharedDirectoryInfoRequest(buffer);
     const path = req.path;
     try {
-      const info = await this.sdManager.getInfo(path);
+      const info = await this.sharedDirectoryAccess.stat(path);
       this.sendSharedDirectoryInfoResponse({
         completionId: req.completionId,
         errCode: SharedDirectoryErrCode.Nil,
@@ -521,8 +537,8 @@ export class TdpClient extends EventEmitter {
     const req = this.codec.decodeSharedDirectoryCreateRequest(buffer);
 
     try {
-      await this.sdManager.create(req.path, req.fileType);
-      const info = await this.sdManager.getInfo(req.path);
+      await this.sharedDirectoryAccess.create(req.path, req.fileType);
+      const info = await this.sharedDirectoryAccess.stat(req.path);
       this.sendSharedDirectoryCreateResponse({
         completionId: req.completionId,
         errCode: SharedDirectoryErrCode.Nil,
@@ -548,7 +564,7 @@ export class TdpClient extends EventEmitter {
     const req = this.codec.decodeSharedDirectoryDeleteRequest(buffer);
 
     try {
-      await this.sdManager.delete(req.path);
+      await this.sharedDirectoryAccess.delete(req.path);
       this.sendSharedDirectoryDeleteResponse({
         completionId: req.completionId,
         errCode: SharedDirectoryErrCode.Nil,
@@ -564,7 +580,7 @@ export class TdpClient extends EventEmitter {
 
   async handleSharedDirectoryReadRequest(buffer: ArrayBuffer) {
     const req = this.codec.decodeSharedDirectoryReadRequest(buffer);
-    const readData = await this.sdManager.readFile(
+    const readData = await this.sharedDirectoryAccess.read(
       req.path,
       req.offset,
       req.length
@@ -579,7 +595,7 @@ export class TdpClient extends EventEmitter {
 
   async handleSharedDirectoryWriteRequest(buffer: ArrayBuffer) {
     const req = this.codec.decodeSharedDirectoryWriteRequest(buffer);
-    const bytesWritten = await this.sdManager.writeFile(
+    const bytesWritten = await this.sharedDirectoryAccess.write(
       req.path,
       req.offset,
       req.writeData
@@ -610,7 +626,8 @@ export class TdpClient extends EventEmitter {
     const req = this.codec.decodeSharedDirectoryListRequest(buffer);
     const path = req.path;
 
-    const infoList: FileOrDirInfo[] = await this.sdManager.listContents(path);
+    const infoList: FileOrDirInfo[] =
+      await this.sharedDirectoryAccess.readDir(path);
     const fsoList: FileSystemObject[] = infoList.map(info => this.toFso(info));
 
     this.sendSharedDirectoryListResponse({
@@ -622,7 +639,7 @@ export class TdpClient extends EventEmitter {
 
   async handleSharedDirectoryTruncateRequest(buffer: ArrayBuffer) {
     const req = this.codec.decodeSharedDirectoryTruncateRequest(buffer);
-    await this.sdManager.truncateFile(req.path, req.endOfFile);
+    await this.sharedDirectoryAccess.truncate(req.path, req.endOfFile);
     this.sendSharedDirectoryTruncateResponse({
       completionId: req.completionId,
       errCode: SharedDirectoryErrCode.Nil,
@@ -706,12 +723,13 @@ export class TdpClient extends EventEmitter {
     this.send(msg);
   }
 
-  addSharedDirectory(sharedDirectory: FileSystemDirectoryHandle) {
-    this.sdManager.add(sharedDirectory);
+  async shareDirectory() {
+    await this.sharedDirectoryAccess.selectDirectory();
+    this.sendSharedDirectoryAnnounce();
   }
 
   sendSharedDirectoryAnnounce() {
-    const name = this.sdManager.getName();
+    const name = this.sharedDirectoryAccess.getDirectoryName();
     this.send(
       this.codec.encodeSharedDirectoryAnnounce({
         discard: 0, // This is always the first request.

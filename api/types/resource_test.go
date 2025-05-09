@@ -839,3 +839,25 @@ func TestResourceNames(t *testing.T) {
 
 	require.Equal(t, expectedNames, slices.Collect(ResourceNames(apps)))
 }
+
+func newAppServer(t *testing.T, name string) AppServer {
+	t.Helper()
+	app, err := NewAppServerV3(Metadata{
+		Name:        name,
+		Description: "description",
+	}, AppServerSpecV3{
+		HostID: "hostid",
+		App: &AppV3{
+			Metadata: Metadata{
+				Name:        fmt.Sprintf("%s-app", name),
+				Description: "app description",
+			},
+			Spec: AppSpecV3{
+				URI:        "uri",
+				PublicAddr: "publicaddr",
+			},
+		},
+	})
+	require.NoError(t, err)
+	return app
+}

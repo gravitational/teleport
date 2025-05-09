@@ -30,9 +30,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
@@ -216,12 +216,12 @@ func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 
 	users, backend := initBackend(t, nil)
 
-	userinfo := services.HostUsersInfo{
+	userinfo := decisionpb.HostUsersInfo{
 		Groups: []string{"hello", "sudo"},
-		Mode:   services.HostUserModeDrop,
+		Mode:   decisionpb.HostUserMode_HOST_USER_MODE_DROP,
 	}
 	// create a user with some groups
-	closer, err := users.UpsertUser("bob", userinfo)
+	closer, err := users.UpsertUser("bob", &userinfo)
 	require.NoError(t, err)
 	// NOTE (eriktate): assert.Nil and assert.NotNil will pass for nil interfaces where nilInterface != nil.
 	// assert.Equal and assert.NotEqual perform the same comparisons we would in non-test code and are safer
@@ -236,7 +236,7 @@ func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 	}, backend.users["bob"])
 
 	// try create the same user again
-	secondCloser, err := users.UpsertUser("bob", userinfo)
+	secondCloser, err := users.UpsertUser("bob", &userinfo)
 	require.NoError(t, err)
 	require.NotEqual(t, nil, secondCloser)
 
@@ -248,8 +248,8 @@ func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 	backend.CreateUser("simon", []string{}, host.UserOpts{})
 
 	// an existing, unmanaged user should not be changed
-	closer, err = users.UpsertUser("simon", userinfo)
-	require.ErrorIs(t, err, unmanagedUserErr)
+	closer, err = users.UpsertUser("simon", &userinfo)
+	require.ErrorIs(t, err, errUnmanagedUser)
 	require.Equal(t, nil, closer)
 }
 
@@ -270,9 +270,9 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 		log:     utils.NewSlogLoggerForTests(),
 	}
 
-	closer, err := users.UpsertUser("bob", services.HostUsersInfo{
+	closer, err := users.UpsertUser("bob", &decisionpb.HostUsersInfo{
 		Groups: []string{"hello", "sudo"},
-		Mode:   services.HostUserModeDrop,
+		Mode:   decisionpb.HostUserMode_HOST_USER_MODE_DROP,
 	})
 	require.NoError(t, err)
 	require.NotEqual(t, nil, closer)
@@ -295,15 +295,15 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 		// test user already exists but teleport-service group has not yet
 		// been created
 		backend.CreateUser("testuser", nil, host.UserOpts{})
-		_, err := users.UpsertUser("testuser", services.HostUsersInfo{
-			Mode: services.HostUserModeDrop,
+		_, err := users.UpsertUser("testuser", &decisionpb.HostUsersInfo{
+			Mode: decisionpb.HostUserMode_HOST_USER_MODE_DROP,
 		})
-		require.ErrorIs(t, err, unmanagedUserErr)
+		require.ErrorIs(t, err, errUnmanagedUser)
 		backend.CreateGroup(types.TeleportDropGroup, "")
-		_, err = users.UpsertUser("testuser", services.HostUsersInfo{
-			Mode: services.HostUserModeDrop,
+		_, err = users.UpsertUser("testuser", &decisionpb.HostUsersInfo{
+			Mode: decisionpb.HostUserMode_HOST_USER_MODE_DROP,
 		})
-		require.ErrorIs(t, err, unmanagedUserErr)
+		require.ErrorIs(t, err, errUnmanagedUser)
 	})
 }
 
@@ -340,9 +340,9 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 			mgmt.CreateGroup(group, "")
 		}
 		if slices.Contains(user.groups, types.TeleportDropGroup) {
-			users.UpsertUser(user.user, services.HostUsersInfo{
+			users.UpsertUser(user.user, &decisionpb.HostUsersInfo{
 				Groups: user.groups,
-				Mode:   services.HostUserModeDrop,
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_DROP,
 			})
 		} else {
 			mgmt.CreateUser(user.user, user.groups, host.UserOpts{})
@@ -416,13 +416,13 @@ func Test_UpdateUserGroups_Keep(t *testing.T) {
 	allGroups := []string{"foo", "bar", "baz", "quux"}
 	users, backend := initBackend(t, allGroups)
 
-	userinfo := services.HostUsersInfo{
+	userinfo := decisionpb.HostUsersInfo{
 		Groups: slices.Clone(allGroups[:2]),
-		Mode:   services.HostUserModeKeep,
+		Mode:   decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 	}
 
 	// Create user
-	closer, err := users.UpsertUser("alice", userinfo)
+	closer, err := users.UpsertUser("alice", &userinfo)
 	assert.NoError(t, err)
 	assert.Equal(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
@@ -432,7 +432,7 @@ func Test_UpdateUserGroups_Keep(t *testing.T) {
 	// Update user with new groups.
 	userinfo.Groups = slices.Clone(allGroups[2:])
 
-	closer, err = users.UpsertUser("alice", userinfo)
+	closer, err = users.UpsertUser("alice", &userinfo)
 	assert.NoError(t, err)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
@@ -440,7 +440,7 @@ func Test_UpdateUserGroups_Keep(t *testing.T) {
 	assert.NotContains(t, backend.users["alice"], types.TeleportDropGroup)
 
 	// Upsert again with same groups should not call SetUserGroups.
-	closer, err = users.UpsertUser("alice", userinfo)
+	closer, err = users.UpsertUser("alice", &userinfo)
 	assert.NoError(t, err)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
@@ -448,17 +448,17 @@ func Test_UpdateUserGroups_Keep(t *testing.T) {
 	assert.NotContains(t, backend.users["alice"], types.TeleportDropGroup)
 
 	// Do not convert the managed user to static.
-	userinfo.Mode = services.HostUserModeStatic
-	closer, err = users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, staticConversionErr)
+	userinfo.Mode = decisionpb.HostUserMode_HOST_USER_MODE_STATIC
+	closer, err = users.UpsertUser("alice", &userinfo)
+	assert.ErrorIs(t, err, errStaticConversion)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, append(userinfo.Groups, types.TeleportKeepGroup), backend.users["alice"])
 
 	// Updates with INSECURE_DROP mode should convert the managed user
-	userinfo.Mode = services.HostUserModeDrop
+	userinfo.Mode = decisionpb.HostUserMode_HOST_USER_MODE_DROP
 	userinfo.Groups = slices.Clone(allGroups[:2])
-	closer, err = users.UpsertUser("alice", userinfo)
+	closer, err = users.UpsertUser("alice", &userinfo)
 	assert.NoError(t, err)
 	assert.NotEqual(t, nil, closer)
 	assert.Equal(t, 2, backend.setUserGroupsCalls)
@@ -472,13 +472,13 @@ func Test_UpdateUserGroups_Drop(t *testing.T) {
 	allGroups := []string{"foo", "bar", "baz", "quux"}
 	users, backend := initBackend(t, allGroups)
 
-	userinfo := services.HostUsersInfo{
+	userinfo := decisionpb.HostUsersInfo{
 		Groups: slices.Clone(allGroups[:2]),
-		Mode:   services.HostUserModeDrop,
+		Mode:   decisionpb.HostUserMode_HOST_USER_MODE_DROP,
 	}
 
 	// Create user
-	closer, err := users.UpsertUser("alice", userinfo)
+	closer, err := users.UpsertUser("alice", &userinfo)
 	assert.NoError(t, err)
 	assert.NotEqual(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
@@ -488,7 +488,7 @@ func Test_UpdateUserGroups_Drop(t *testing.T) {
 	// Update user with new groups.
 	userinfo.Groups = slices.Clone(allGroups[2:])
 
-	closer, err = users.UpsertUser("alice", userinfo)
+	closer, err = users.UpsertUser("alice", &userinfo)
 	assert.NoError(t, err)
 	assert.NotEqual(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
@@ -496,7 +496,7 @@ func Test_UpdateUserGroups_Drop(t *testing.T) {
 	assert.NotContains(t, backend.users["alice"], types.TeleportKeepGroup)
 
 	// Upsert again with same groups should not call SetUserGroups.
-	closer, err = users.UpsertUser("alice", userinfo)
+	closer, err = users.UpsertUser("alice", &userinfo)
 	assert.NoError(t, err)
 	assert.NotEqual(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
@@ -504,17 +504,17 @@ func Test_UpdateUserGroups_Drop(t *testing.T) {
 	assert.NotContains(t, backend.users["alice"], types.TeleportKeepGroup)
 
 	// Do not convert the managed user to static.
-	userinfo.Mode = services.HostUserModeStatic
-	closer, err = users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, staticConversionErr)
+	userinfo.Mode = decisionpb.HostUserMode_HOST_USER_MODE_STATIC
+	closer, err = users.UpsertUser("alice", &userinfo)
+	assert.ErrorIs(t, err, errStaticConversion)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, append(userinfo.Groups, types.TeleportDropGroup), backend.users["alice"])
 
 	// Updates with KEEP mode should convert the ephemeral user
-	userinfo.Mode = services.HostUserModeKeep
+	userinfo.Mode = decisionpb.HostUserMode_HOST_USER_MODE_KEEP
 	userinfo.Groups = slices.Clone(allGroups[:2])
-	closer, err = users.UpsertUser("alice", userinfo)
+	closer, err = users.UpsertUser("alice", &userinfo)
 	assert.NoError(t, err)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 2, backend.setUserGroupsCalls)
@@ -528,13 +528,13 @@ func Test_UpdateUserGroups_Static(t *testing.T) {
 
 	allGroups := []string{"foo", "bar", "baz", "quux"}
 	users, backend := initBackend(t, allGroups)
-	userinfo := services.HostUsersInfo{
+	userinfo := decisionpb.HostUsersInfo{
 		Groups: slices.Clone(allGroups[:2]),
-		Mode:   services.HostUserModeStatic,
+		Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
 	}
 
 	// Create user.
-	closer, err := users.UpsertUser("alice", userinfo)
+	closer, err := users.UpsertUser("alice", &userinfo)
 	assert.NoError(t, err)
 	assert.Equal(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
@@ -542,31 +542,31 @@ func Test_UpdateUserGroups_Static(t *testing.T) {
 
 	// Update user with new groups.
 	userinfo.Groups = slices.Clone(allGroups[2:])
-	closer, err = users.UpsertUser("alice", userinfo)
+	closer, err = users.UpsertUser("alice", &userinfo)
 	assert.NoError(t, err)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, append(userinfo.Groups, types.TeleportStaticGroup), backend.users["alice"])
 
 	// Upsert again with same groups should not call SetUserGroups.
-	closer, err = users.UpsertUser("alice", userinfo)
+	closer, err = users.UpsertUser("alice", &userinfo)
 	assert.NoError(t, err)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, append(userinfo.Groups, types.TeleportStaticGroup), backend.users["alice"])
 
 	// Do not convert to KEEP.
-	userinfo.Mode = services.HostUserModeKeep
-	closer, err = users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, staticConversionErr)
+	userinfo.Mode = decisionpb.HostUserMode_HOST_USER_MODE_KEEP
+	closer, err = users.UpsertUser("alice", &userinfo)
+	assert.ErrorIs(t, err, errStaticConversion)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, append(slices.Clone(allGroups[2:]), types.TeleportStaticGroup), backend.users["alice"])
 
 	// Do not convert to INSECURE_DROP.
-	userinfo.Mode = services.HostUserModeDrop
-	closer, err = users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, staticConversionErr)
+	userinfo.Mode = decisionpb.HostUserMode_HOST_USER_MODE_DROP
+	closer, err = users.UpsertUser("alice", &userinfo)
+	assert.ErrorIs(t, err, errStaticConversion)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, append(slices.Clone(allGroups[2:]), types.TeleportStaticGroup), backend.users["alice"])
@@ -580,30 +580,30 @@ func Test_DontManageExistingUser(t *testing.T) {
 
 	assert.NoError(t, backend.CreateUser("alice", allGroups, host.UserOpts{}))
 
-	userinfo := services.HostUsersInfo{
+	userinfo := decisionpb.HostUsersInfo{
 		Groups: allGroups[:2],
-		Mode:   services.HostUserModeDrop,
+		Mode:   decisionpb.HostUserMode_HOST_USER_MODE_DROP,
 	}
 
 	// Update user in DROP mode
-	closer, err := users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, unmanagedUserErr)
+	closer, err := users.UpsertUser("alice", &userinfo)
+	assert.ErrorIs(t, err, errUnmanagedUser)
 	assert.Equal(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, allGroups, backend.users["alice"])
 
 	// Update user in KEEP mode
-	userinfo.Mode = services.HostUserModeKeep
-	closer, err = users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, unmanagedUserErr)
+	userinfo.Mode = decisionpb.HostUserMode_HOST_USER_MODE_KEEP
+	closer, err = users.UpsertUser("alice", &userinfo)
+	assert.ErrorIs(t, err, errUnmanagedUser)
 	assert.Equal(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, allGroups, backend.users["alice"])
 
 	// Update static user
-	userinfo.Mode = services.HostUserModeStatic
-	closer, err = users.UpsertUser("alice", userinfo)
-	assert.ErrorIs(t, err, unmanagedUserErr)
+	userinfo.Mode = decisionpb.HostUserMode_HOST_USER_MODE_STATIC
+	closer, err = users.UpsertUser("alice", &userinfo)
+	assert.ErrorIs(t, err, errUnmanagedUser)
 	assert.Equal(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, allGroups, backend.users["alice"])
@@ -618,34 +618,34 @@ func Test_DontUpdateUnmanagedUsers(t *testing.T) {
 	assert.NoError(t, backend.CreateUser("alice", allGroups[2:], host.UserOpts{}))
 	tests := []struct {
 		name     string
-		userinfo services.HostUsersInfo
+		userinfo *decisionpb.HostUsersInfo
 	}{
 		{
 			name: "keep",
-			userinfo: services.HostUsersInfo{
+			userinfo: &decisionpb.HostUsersInfo{
 				Groups: allGroups[:2],
-				Mode:   services.HostUserModeKeep,
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 			},
 		},
 		{
 			name: "drop",
-			userinfo: services.HostUsersInfo{
+			userinfo: &decisionpb.HostUsersInfo{
 				Groups: allGroups[:2],
-				Mode:   services.HostUserModeDrop,
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_DROP,
 			},
 		},
 		{
 			name: "static",
-			userinfo: services.HostUsersInfo{
+			userinfo: &decisionpb.HostUsersInfo{
 				Groups: allGroups[:2],
-				Mode:   services.HostUserModeStatic,
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
 			},
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			closer, err := users.UpsertUser("alice", tc.userinfo)
-			assert.ErrorIs(t, err, unmanagedUserErr)
+			assert.ErrorIs(t, err, errUnmanagedUser)
 			assert.Equal(t, nil, closer)
 			assert.Zero(t, backend.setUserGroupsCalls)
 			assert.ElementsMatch(t, allGroups[2:], backend.users["alice"])
@@ -664,13 +664,13 @@ func Test_AllowExplicitlyManageExistingUsers(t *testing.T) {
 	assert.NoError(t, backend.CreateUser("alice-keep", []string{}, host.UserOpts{}))
 	assert.NoError(t, backend.CreateUser("alice-static", []string{}, host.UserOpts{}))
 	assert.NoError(t, backend.CreateUser("alice-drop", []string{}, host.UserOpts{}))
-	userinfo := services.HostUsersInfo{
+	userinfo := decisionpb.HostUsersInfo{
 		Groups: slices.Clone(allGroups),
-		Mode:   services.HostUserModeKeep,
+		Mode:   decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 	}
 
 	// Take ownership of existing user when in KEEP mode
-	closer, err := users.UpsertUser("alice-keep", userinfo)
+	closer, err := users.UpsertUser("alice-keep", &userinfo)
 	assert.NoError(t, err)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 1, backend.setUserGroupsCalls)
@@ -679,9 +679,8 @@ func Test_AllowExplicitlyManageExistingUsers(t *testing.T) {
 	assert.NotContains(t, backend.users["alice-keep"], types.TeleportDropGroup)
 
 	// Take ownership of existing user when in STATIC mode
-	userinfo.Mode = services.HostUserModeStatic
-	userinfo.TakeOwnership = true
-	closer, err = users.UpsertUser("alice-static", userinfo)
+	userinfo.Mode = decisionpb.HostUserMode_HOST_USER_MODE_STATIC
+	closer, err = users.UpsertUser("alice-static", &userinfo, TakeOwnershipIfUserExists(true))
 	assert.NoError(t, err)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 2, backend.setUserGroupsCalls)
@@ -691,17 +690,16 @@ func Test_AllowExplicitlyManageExistingUsers(t *testing.T) {
 	assert.NotContains(t, backend.users["alice-static"], types.TeleportDropGroup)
 
 	// Don't take ownership of existing user when in DROP mode
-	userinfo.Mode = services.HostUserModeDrop
-	userinfo.TakeOwnership = false
-	closer, err = users.UpsertUser("alice-drop", userinfo)
-	assert.ErrorIs(t, err, unmanagedUserErr)
+	userinfo.Mode = decisionpb.HostUserMode_HOST_USER_MODE_DROP
+	closer, err = users.UpsertUser("alice-drop", &userinfo)
+	assert.ErrorIs(t, err, errUnmanagedUser)
 	assert.Equal(t, nil, closer)
 	assert.Equal(t, 2, backend.setUserGroupsCalls)
 	assert.Empty(t, backend.users["alice-drop"])
 
 	// Don't assign teleport-keep to users created in DROP mode
-	userinfo.Mode = services.HostUserModeDrop
-	closer, err = users.UpsertUser("bob", userinfo)
+	userinfo.Mode = decisionpb.HostUserMode_HOST_USER_MODE_DROP
+	closer, err = users.UpsertUser("bob", &userinfo)
 	assert.NoError(t, err)
 	assert.NotEqual(t, nil, closer)
 	assert.Equal(t, 2, backend.setUserGroupsCalls)
@@ -743,34 +741,34 @@ func TestCreateUserWithExistingPrimaryGroup(t *testing.T) {
 		require.NoError(t, backend.CreateGroup(group, ""))
 	}
 
-	userinfo := services.HostUsersInfo{
+	userinfo := decisionpb.HostUsersInfo{
 		Groups: []string{},
-		Mode:   services.HostUserModeDrop,
+		Mode:   decisionpb.HostUserMode_HOST_USER_MODE_DROP,
 	}
 
 	// create a user without an existing primary group
-	closer, err := users.UpsertUser("bob", userinfo)
+	closer, err := users.UpsertUser("bob", &userinfo)
 	assert.NoError(t, err)
 	assert.NotEqual(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
 
 	// create a user with primary group defined in userinfo.Groups, but not yet on the host
 	userinfo.Groups = []string{"fred"}
-	closer, err = users.UpsertUser("fred", userinfo)
+	closer, err = users.UpsertUser("fred", &userinfo)
 	assert.NoError(t, err)
 	assert.NotEqual(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
 
 	// create a user with primary group defined in userinfo.Groups that already exists on the host
 	userinfo.Groups = []string{"alice"}
-	closer, err = users.UpsertUser("alice", userinfo)
+	closer, err = users.UpsertUser("alice", &userinfo)
 	assert.NoError(t, err)
 	assert.NotEqual(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
 
 	// create a user with primary group that already exists on the host but is not defined in userinfo.Groups
 	userinfo.Groups = []string{""}
-	closer, err = users.UpsertUser("simon", userinfo)
+	closer, err = users.UpsertUser("simon", &userinfo)
 	assert.True(t, trace.IsAlreadyExists(err))
 	assert.Contains(t, err.Error(), "conflicts with an existing group")
 	assert.Equal(t, nil, closer)
@@ -781,8 +779,9 @@ func TestHostUsersResolveGroups(t *testing.T) {
 	cases := []struct {
 		name string
 
-		hostUser *HostUser
-		ui       services.HostUsersInfo
+		hostUser      *HostUser
+		ui            *decisionpb.HostUsersInfo
+		takeOwnership bool
 
 		expectGroups []string
 		expectErr    error
@@ -791,8 +790,8 @@ func TestHostUsersResolveGroups(t *testing.T) {
 			name: "create drop user",
 
 			hostUser: nil,
-			ui: services.HostUsersInfo{
-				Mode:   services.HostUserModeDrop,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_DROP,
 				Groups: []string{"foo", "bar"},
 			},
 
@@ -802,8 +801,8 @@ func TestHostUsersResolveGroups(t *testing.T) {
 			name: "create keep user",
 
 			hostUser: nil,
-			ui: services.HostUsersInfo{
-				Mode:   services.HostUserModeKeep,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 				Groups: []string{"foo", "bar"},
 			},
 
@@ -813,8 +812,8 @@ func TestHostUsersResolveGroups(t *testing.T) {
 			name: "create static user",
 
 			hostUser: nil,
-			ui: services.HostUsersInfo{
-				Mode:   services.HostUserModeStatic,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
 				Groups: []string{"foo", "bar"},
 			},
 
@@ -829,8 +828,8 @@ func TestHostUsersResolveGroups(t *testing.T) {
 					types.TeleportDropGroup: {},
 				},
 			},
-			ui: services.HostUsersInfo{
-				Mode:   services.HostUserModeDrop,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_DROP,
 				Groups: []string{"baz", "qux"},
 			},
 
@@ -846,8 +845,8 @@ func TestHostUsersResolveGroups(t *testing.T) {
 					types.TeleportKeepGroup: {},
 				},
 			},
-			ui: services.HostUsersInfo{
-				Mode:   services.HostUserModeKeep,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 				Groups: []string{"baz", "qux"},
 			},
 
@@ -863,8 +862,8 @@ func TestHostUsersResolveGroups(t *testing.T) {
 					types.TeleportStaticGroup: {},
 				},
 			},
-			ui: services.HostUsersInfo{
-				Mode:   services.HostUserModeStatic,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
 				Groups: []string{"baz", "qux"},
 			},
 
@@ -880,8 +879,8 @@ func TestHostUsersResolveGroups(t *testing.T) {
 					types.TeleportDropGroup: {},
 				},
 			},
-			ui: services.HostUsersInfo{
-				Mode:   services.HostUserModeKeep,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 				Groups: []string{"baz", "qux"},
 			},
 
@@ -897,8 +896,8 @@ func TestHostUsersResolveGroups(t *testing.T) {
 					types.TeleportKeepGroup: {},
 				},
 			},
-			ui: services.HostUsersInfo{
-				Mode:   services.HostUserModeDrop,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_DROP,
 				Groups: []string{"baz", "qux"},
 			},
 
@@ -914,13 +913,13 @@ func TestHostUsersResolveGroups(t *testing.T) {
 					types.TeleportDropGroup: {},
 				},
 			},
-			ui: services.HostUsersInfo{
-				Mode:   services.HostUserModeStatic,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
 				Groups: []string{"baz", "qux"},
 			},
 
 			expectGroups: nil,
-			expectErr:    staticConversionErr,
+			expectErr:    errStaticConversion,
 		},
 		{
 			name: "don't convert keep to static",
@@ -932,13 +931,13 @@ func TestHostUsersResolveGroups(t *testing.T) {
 					types.TeleportKeepGroup: {},
 				},
 			},
-			ui: services.HostUsersInfo{
-				Mode:   services.HostUserModeStatic,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
 				Groups: []string{"baz", "qux"},
 			},
 
 			expectGroups: nil,
-			expectErr:    staticConversionErr,
+			expectErr:    errStaticConversion,
 		},
 		{
 			name: "don't convert static to keep",
@@ -950,13 +949,13 @@ func TestHostUsersResolveGroups(t *testing.T) {
 					types.TeleportStaticGroup: {},
 				},
 			},
-			ui: services.HostUsersInfo{
-				Mode:   services.HostUserModeKeep,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 				Groups: []string{"baz", "qux"},
 			},
 
 			expectGroups: nil,
-			expectErr:    staticConversionErr,
+			expectErr:    errStaticConversion,
 		},
 		{
 			name: "don't convert static to drop",
@@ -967,13 +966,13 @@ func TestHostUsersResolveGroups(t *testing.T) {
 					types.TeleportStaticGroup: {},
 				},
 			},
-			ui: services.HostUsersInfo{
-				Mode:   services.HostUserModeDrop,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_DROP,
 				Groups: []string{"baz", "qux"},
 			},
 
 			expectGroups: nil,
-			expectErr:    staticConversionErr,
+			expectErr:    errStaticConversion,
 		},
 		{
 			name: "don't update unmanaged user in drop mode",
@@ -984,14 +983,14 @@ func TestHostUsersResolveGroups(t *testing.T) {
 					"bar": {},
 				},
 			},
-			ui: services.HostUsersInfo{
-				Mode:          services.HostUserModeDrop,
-				TakeOwnership: true,                                            // this flag should be a no-op for DROP, so we include it to ensure that behavior
-				Groups:        []string{"baz", "qux", types.TeleportDropGroup}, // similarly including TeleportDropGroup to ensure no-op
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_DROP,
+				Groups: []string{"baz", "qux", types.TeleportDropGroup}, // similarly including TeleportDropGroup to ensure no-op
 			},
+			takeOwnership: true, // this flag should be a no-op for DROP, so we include it to ensure that behavior
 
 			expectGroups: nil,
-			expectErr:    unmanagedUserErr,
+			expectErr:    errUnmanagedUser,
 		},
 		{
 			name: "don't update unmanaged user in keep mode",
@@ -1001,13 +1000,13 @@ func TestHostUsersResolveGroups(t *testing.T) {
 					"bar": {},
 				},
 			},
-			ui: services.HostUsersInfo{
-				Mode:   services.HostUserModeKeep,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 				Groups: []string{"baz", "qux"},
 			},
 
 			expectGroups: nil,
-			expectErr:    unmanagedUserErr,
+			expectErr:    errUnmanagedUser,
 		},
 		{
 			name: "don't update unmanaged user in static mode",
@@ -1017,13 +1016,13 @@ func TestHostUsersResolveGroups(t *testing.T) {
 					"bar": {},
 				},
 			},
-			ui: services.HostUsersInfo{
-				Mode:   services.HostUserModeStatic,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
 				Groups: []string{"baz", "qux"},
 			},
 
 			expectGroups: nil,
-			expectErr:    unmanagedUserErr,
+			expectErr:    errUnmanagedUser,
 		},
 		{
 			name: "take over unmanaged user in keep mode when migrating",
@@ -1033,8 +1032,8 @@ func TestHostUsersResolveGroups(t *testing.T) {
 					"bar": {},
 				},
 			},
-			ui: services.HostUsersInfo{
-				Mode:   services.HostUserModeKeep,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 				Groups: []string{"baz", "qux", types.TeleportKeepGroup},
 			},
 
@@ -1048,11 +1047,12 @@ func TestHostUsersResolveGroups(t *testing.T) {
 					"bar": {},
 				},
 			},
-			ui: services.HostUsersInfo{
-				Mode:          services.HostUserModeStatic,
-				Groups:        []string{"baz", "qux"},
-				TakeOwnership: true,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
+				Groups: []string{"baz", "qux"},
 			},
+
+			takeOwnership: true,
 
 			expectGroups: []string{"baz", "qux", types.TeleportStaticGroup},
 		},
@@ -1066,8 +1066,8 @@ func TestHostUsersResolveGroups(t *testing.T) {
 					types.TeleportDropGroup: {},
 				},
 			},
-			ui: services.HostUsersInfo{
-				Mode:   services.HostUserModeDrop,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_DROP,
 				Groups: []string{"baz", types.TeleportStaticGroup, types.TeleportKeepGroup, types.TeleportDropGroup},
 			},
 
@@ -1083,8 +1083,8 @@ func TestHostUsersResolveGroups(t *testing.T) {
 					types.TeleportDropGroup: {},
 				},
 			},
-			ui: services.HostUsersInfo{
-				Mode:   services.HostUserModeDrop,
+			ui: &decisionpb.HostUsersInfo{
+				Mode:   decisionpb.HostUserMode_HOST_USER_MODE_DROP,
 				Groups: []string{"foo", "bar", types.TeleportDropGroup},
 			},
 
@@ -1095,7 +1095,7 @@ func TestHostUsersResolveGroups(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			log := utils.NewSlogLoggerForTests()
-			groups, err := ResolveGroups(log, c.hostUser, c.ui)
+			groups, err := ResolveGroups(log, c.hostUser, c.ui, c.takeOwnership)
 			if c.expectErr == nil {
 				assert.NoError(t, err)
 			} else {
@@ -1118,13 +1118,13 @@ func TestRegressionGroupErrorDoesNotPanic(t *testing.T) {
 	allGroups := []string{"foo", "bar", "baz"}
 	users, backend := initBackend(t, allGroups)
 
-	userinfo := services.HostUsersInfo{
+	userinfo := decisionpb.HostUsersInfo{
 		Groups: slices.Clone(allGroups[:2]),
-		Mode:   services.HostUserModeKeep,
+		Mode:   decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 	}
 
 	// Create user
-	closer, err := users.UpsertUser("alice", userinfo)
+	closer, err := users.UpsertUser("alice", &userinfo)
 	assert.NoError(t, err)
 	assert.Equal(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
@@ -1132,6 +1132,6 @@ func TestRegressionGroupErrorDoesNotPanic(t *testing.T) {
 	assert.NotContains(t, backend.users["alice"], types.TeleportDropGroup)
 
 	backend.groupDatabaseErr = errors.New("could not find group")
-	_, err = users.UpsertUser("alice", userinfo)
+	_, err = users.UpsertUser("alice", &userinfo)
 	require.Error(t, err)
 }

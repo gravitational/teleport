@@ -124,11 +124,12 @@ func Run(args []string) int {
 		BoolVar(&ccfg.AllowProxyConflict)
 	enableCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Hidden().Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
+	enableCmd.Flag("force-flag", "Force the provided version flags instead of using the version flags provided by the Teleport cluster.").
+		Hidden().StringsVar(&ccfg.ForceFlags)
 	enableCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates.").
 		Hidden().BoolVar(&ccfg.SelfSetup)
 	enableCmd.Flag("path", "Directory to link the active Teleport installation's binaries into.").
 		Hidden().StringVar(&ccfg.Path)
-	// TODO(sclevine): add force-fips and force-enterprise as hidden flags
 
 	disableCmd := app.Command("disable", "Disable agent managed updates. Does not affect the active installation of Teleport.")
 
@@ -145,6 +146,8 @@ func Run(args []string) int {
 		BoolVar(&ccfg.AllowProxyConflict)
 	pinCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
+	pinCmd.Flag("force-flag", "Force the provided version flags instead of using the version flags provided by the Teleport cluster.").
+		Hidden().StringsVar(&ccfg.ForceFlags)
 	pinCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates.").
 		Hidden().BoolVar(&ccfg.SelfSetup)
 	pinCmd.Flag("path", "Directory to link the active Teleport installation's binaries into.").

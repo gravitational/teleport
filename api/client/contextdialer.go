@@ -196,7 +196,7 @@ func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration, 
 
 	return tracedDialer(ctx, func(ctx context.Context, network, addr string) (net.Conn, error) {
 		// Base direct dialer.
-		var dialer ContextDialer = cfg.baseDialer
+		dialer := cfg.baseDialer
 		if dialer == nil {
 			dialer = newDirectDialer(keepAlivePeriod, dialTimeout)
 		}
