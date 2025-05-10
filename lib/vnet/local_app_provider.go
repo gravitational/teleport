@@ -24,74 +24,35 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
-// ClientApplication is the common interface implemented by each VNet client
-// application: Connect and tsh. It provides methods to list user profiles, get
-// cluster clients, issue app certificates, and report metrics and errors -
-// anything that uses the user's credentials or a Teleport client.
-// The name "client application" refers to a user-facing client application, in
-// constrast to the MacOS daemon or Windows service.
-type ClientApplication interface {
-	// ListProfiles lists the names of all profiles saved for the user.
-	ListProfiles() ([]string, error)
-
-	// GetCachedClient returns a [*client.ClusterClient] for the given profile and leaf cluster.
-	// [leafClusterName] may be empty when requesting a client for the root cluster. Returned clients are
-	// expected to be cached, as this may be called frequently.
-	GetCachedClient(ctx context.Context, profileName, leafClusterName string) (ClusterClient, error)
-
-	// ReissueAppCert issues a new cert for the target app.
-	ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) (tls.Certificate, error)
-
-	// GetDialOptions returns ALPN dial options for the profile.
-	GetDialOptions(ctx context.Context, profileName string) (*vnetv1.DialOptions, error)
-
-	// OnNewConnection gets called whenever a new connection is about to be established through VNet.
-	// By the time OnNewConnection, VNet has already verified that the user holds a valid cert for the
-	// app.
-	//
-	// The connection won't be established until OnNewConnection returns. Returning an error prevents
-	// the connection from being made.
-	OnNewConnection(ctx context.Context, appKey *vnetv1.AppKey) error
-
-	// OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
-	// because the provided port does not match any of the TCP ports in the app spec.
-	OnInvalidLocalPort(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16)
-}
-
-// ClusterClient is an interface defining the subset of [client.ClusterClient]
-// methods used by via [ClientApplication].
-type ClusterClient interface {
-	CurrentCluster() authclient.ClientI
-	ClusterName() string
-	RootClusterName() string
-}
-
-// localAppProvider implements wraps a [ClientApplication] to implement
-// appProvider.
+// localAppProvider implements [appProvider] in the VNet user process.
+// Its methods get exposed by [clientApplicationService] so that
+// [remoteAppProvider] can by implemented by calling these methods from the VNet
+// admin process.
 type localAppProvider struct {
-	ClientApplication
+	cfg *localAppProviderConfig
+}
+
+type localAppProviderConfig struct {
+	clientApplication  ClientApplication
 	clusterConfigCache *ClusterConfigCache
 }
 
-func newLocalAppProvider(clientApp ClientApplication, clock clockwork.Clock) *localAppProvider {
+func newLocalAppProvider(cfg *localAppProviderConfig) *localAppProvider {
 	return &localAppProvider{
-		ClientApplication:  clientApp,
-		clusterConfigCache: NewClusterConfigCache(clock),
+		cfg: cfg,
 	}
 }
 
 // ResolveAppInfo implements [appProvider.ResolveAppInfo].
 func (p *localAppProvider) ResolveAppInfo(ctx context.Context, fqdn string) (*vnetv1.AppInfo, error) {
-	profileNames, err := p.ClientApplication.ListProfiles()
+	profileNames, err := p.cfg.clientApplication.ListProfiles()
 	if err != nil {
 		return nil, trace.Wrap(err, "listing profiles")
 	}
@@ -130,7 +91,7 @@ func (p *localAppProvider) ResolveAppInfo(ctx context.Context, fqdn string) (*vn
 }
 
 func (p *localAppProvider) clusterClientForAppFQDN(ctx context.Context, profileName, fqdn string) (ClusterClient, error) {
-	rootClient, err := p.ClientApplication.GetCachedClient(ctx, profileName, "")
+	rootClient, err := p.cfg.clientApplication.GetCachedClient(ctx, profileName, "")
 	if err != nil {
 		log.ErrorContext(ctx, "Failed to get root cluster client, apps in this cluster will not be resolved.", "profile", profileName, "error", err)
 		return nil, errNoMatch
@@ -151,13 +112,13 @@ func (p *localAppProvider) clusterClientForAppFQDN(ctx context.Context, profileN
 	// Prefix with an empty string to represent the root cluster.
 	allClusters := append([]string{""}, leafClusters...)
 	for _, leafClusterName := range allClusters {
-		clusterClient, err := p.ClientApplication.GetCachedClient(ctx, profileName, leafClusterName)
+		clusterClient, err := p.cfg.clientApplication.GetCachedClient(ctx, profileName, leafClusterName)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to get cluster client, apps in this cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
 			continue
 		}
 
-		clusterConfig, err := p.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
+		clusterConfig, err := p.cfg.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to get VNet config, apps in the cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
 			continue
@@ -172,23 +133,6 @@ func (p *localAppProvider) clusterClientForAppFQDN(ctx context.Context, profileN
 }
 
 var errNoMatch = errors.New("cluster does not match queried FQDN")
-
-func getLeafClusters(ctx context.Context, rootClient ClusterClient) ([]string, error) {
-	var leafClusters []string
-	nextPage := ""
-	for {
-		remoteClusters, nextPage, err := rootClient.CurrentCluster().ListRemoteClusters(ctx, 0, nextPage)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for _, rc := range remoteClusters {
-			leafClusters = append(leafClusters, rc.GetName())
-		}
-		if nextPage == "" {
-			return leafClusters, nil
-		}
-	}
-}
 
 func (p *localAppProvider) resolveAppInfoForCluster(
 	ctx context.Context,
@@ -221,12 +165,12 @@ func (p *localAppProvider) resolveAppInfoForCluster(
 	if !ok {
 		return nil, trace.BadParameter("expected *types.AppV3, got %T", resp.Resources[0].GetApp())
 	}
-	clusterConfig, err := p.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
+	clusterConfig, err := p.cfg.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
 	if err != nil {
 		log.ErrorContext(ctx, "Failed to get cluster VNet config for matching app", "error", err)
 		return nil, trace.Wrap(err, "getting cached cluster VNet config for matching app")
 	}
-	dialOpts, err := p.ClientApplication.GetDialOptions(ctx, profileName)
+	dialOpts, err := p.cfg.clientApplication.GetDialOptions(ctx, profileName)
 	if err != nil {
 		log.ErrorContext(ctx, "Failed to get cluster dial options", "error", err)
 		return nil, trace.Wrap(err, "getting dial options for matching app")
@@ -245,72 +189,17 @@ func (p *localAppProvider) resolveAppInfoForCluster(
 	return appInfo, nil
 }
 
-// getTargetOSConfiguration returns the configuration values that should be
-// configured in the OS, including DNS zones that should be handled by the VNet
-// DNS nameserver and the IPv4 CIDR ranges that should be routed to the VNet TUN
-// interface. This is not all of the OS configuration values, only the ones that
-// must be communicated from the client application to the admin process.
-func (p *localAppProvider) getTargetOSConfiguration(ctx context.Context) (*vnetv1.GetTargetOSConfigurationResponse, error) {
-	profiles, err := p.ClientApplication.ListProfiles()
-	if err != nil {
-		return nil, trace.Wrap(err, "listing profiles")
-	}
-	var targetOSConfig vnetv1.TargetOSConfiguration
-	for _, profileName := range profiles {
-		profileTargetConfig := p.targetOSConfigurationForProfile(ctx, profileName)
-		targetOSConfig.DnsZones = append(targetOSConfig.DnsZones, profileTargetConfig.DnsZones...)
-		targetOSConfig.Ipv4CidrRanges = append(targetOSConfig.Ipv4CidrRanges, profileTargetConfig.Ipv4CidrRanges...)
-	}
-	return &vnetv1.GetTargetOSConfigurationResponse{
-		TargetOsConfiguration: &targetOSConfig,
-	}, nil
+// ReissueAppCert implements [appProvider.ReissueAppCert].
+func (p *localAppProvider) ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) (tls.Certificate, error) {
+	return p.cfg.clientApplication.ReissueAppCert(ctx, appInfo, targetPort)
 }
 
-// targetOSConfigurationForProfile does not return errors, it is better to
-// configure VNet for any working profiles and log errors for failures.
-func (p *localAppProvider) targetOSConfigurationForProfile(ctx context.Context, profileName string) *vnetv1.TargetOSConfiguration {
-	targetOSConfig := &vnetv1.TargetOSConfiguration{}
-	rootClusterClient, err := p.GetCachedClient(ctx, profileName, "" /*leafClusterName*/)
-	if err != nil {
-		log.WarnContext(ctx,
-			"Failed to get root cluster client from cache, profile may be expired, not configuring VNet for this cluster",
-			"profile", profileName, "error", err)
-		return targetOSConfig
-	}
-	rootClusterConfig, err := p.clusterConfigCache.GetClusterConfig(ctx, rootClusterClient)
-	if err != nil {
-		log.WarnContext(ctx,
-			"Failed to load VNet configuration, profile may be expired, not configuring VNet for this cluster",
-			"profile", profileName, "error", err)
-		return targetOSConfig
-	}
-	targetOSConfig.DnsZones = rootClusterConfig.DNSZones
-	targetOSConfig.Ipv4CidrRanges = []string{rootClusterConfig.IPv4CIDRRange}
+// OnNewConnection implements [appProvider.OnNewConnection].
+func (p *localAppProvider) OnNewConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
+	return p.cfg.clientApplication.OnNewConnection(ctx, appKey)
+}
 
-	leafClusterNames, err := getLeafClusters(ctx, rootClusterClient)
-	if err != nil {
-		log.WarnContext(ctx,
-			"Failed to list leaf clusters, profile may be expired, not configuring VNet for leaf clusters of this cluster",
-			"profile", profileName, "error", err)
-		return targetOSConfig
-	}
-	for _, leafClusterName := range leafClusterNames {
-		leafClusterClient, err := p.GetCachedClient(ctx, profileName, leafClusterName)
-		if err != nil {
-			log.WarnContext(ctx,
-				"Failed to create leaf cluster client, not configuring VNet for this cluster",
-				"profile", profileName, "leaf_cluster", leafClusterName, "error", err)
-			return targetOSConfig
-		}
-		leafClusterConfig, err := p.clusterConfigCache.GetClusterConfig(ctx, leafClusterClient)
-		if err != nil {
-			log.WarnContext(ctx,
-				"Failed to load VNet configuration, not configuring VNet for this cluster",
-				"profile", profileName, "leaf_cluster", leafClusterName, "error", err)
-			return targetOSConfig
-		}
-		targetOSConfig.DnsZones = append(targetOSConfig.DnsZones, leafClusterConfig.DNSZones...)
-		targetOSConfig.Ipv4CidrRanges = append(targetOSConfig.Ipv4CidrRanges, leafClusterConfig.IPv4CIDRRange)
-	}
-	return targetOSConfig
+// OnInvalidLocalPort implements [appProvider.OnInvalidLocalPort].
+func (p *localAppProvider) OnInvalidLocalPort(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) {
+	p.cfg.clientApplication.OnInvalidLocalPort(ctx, appInfo, targetPort)
 }

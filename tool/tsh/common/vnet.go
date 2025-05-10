@@ -55,9 +55,7 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	processManager, nsi, err := vnet.RunUserProcess(cf.Context, &vnet.UserProcessConfig{
-		ClientApplication: clientApp,
-	})
+	vnetProcess, err := vnet.RunUserProcess(cf.Context, clientApp)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -67,7 +65,7 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 		go func() {
 			fmt.Println("Running diagnostics.")
 			//nolint:staticcheck // SA4023. runVnetDiagnostics on unsupported platforms always returns err.
-			if err := runVnetDiagnostics(cf.Context, nsi); err != nil {
+			if err := runVnetDiagnostics(cf.Context, vnetProcess.NetworkStackInfo()); err != nil {
 				logger.ErrorContext(cf.Context, "Ran into a problem while running diagnostics", "error", err)
 				return
 			}
@@ -75,8 +73,8 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 		}()
 	}
 
-	context.AfterFunc(cf.Context, processManager.Close)
-	return trace.Wrap(processManager.Wait())
+	context.AfterFunc(cf.Context, vnetProcess.Close)
+	return trace.Wrap(vnetProcess.Wait())
 }
 
 func newVnetAdminSetupCommand(app *kingpin.Application) vnetCLICommand {
