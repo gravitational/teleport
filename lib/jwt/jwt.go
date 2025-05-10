@@ -169,7 +169,7 @@ func (k *Key) getSigner(opts *jose.SignerOptions) (jose.Signer, error) {
 	default:
 		signer = cryptosigner.Opaque(k.config.PrivateKey)
 	}
-	algorithm, err := joseAlgorithm(k.config.PrivateKey.Public())
+	algorithm, err := AlgorithmForPublicKey(k.config.PrivateKey.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -189,7 +189,8 @@ func (k *Key) getSigner(opts *jose.SignerOptions) (jose.Signer, error) {
 	return sig, nil
 }
 
-func joseAlgorithm(pub crypto.PublicKey) (jose.SignatureAlgorithm, error) {
+// AlgorithmForPublicKey returns a jose algorithm for the given public key.
+func AlgorithmForPublicKey(pub crypto.PublicKey) (jose.SignatureAlgorithm, error) {
 	switch pub.(type) {
 	case *rsa.PublicKey:
 		return jose.RS256, nil
