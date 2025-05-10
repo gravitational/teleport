@@ -21,12 +21,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestAuthPreferenceValidate(t *testing.T) {
-	t.Parallel()
-
 	t.Run("default", func(t *testing.T) {
 		t.Parallel()
 
@@ -109,10 +109,60 @@ func TestAuthPreferenceValidate(t *testing.T) {
 				authPref := &types.AuthPreferenceV2{
 					Spec: types.AuthPreferenceSpecV2{
 						StableUnixUserConfig: tc.config,
+						SecondFactors:        []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP},
 					},
 				}
 				tc.check(t, ValidateAuthPreference(authPref))
 				tc.check(t, ValidateStableUNIXUserConfig(authPref.Spec.StableUnixUserConfig))
+			})
+		}
+	})
+
+	t.Run("no_second_factors", func(t *testing.T) {
+		type testCase struct {
+			name     string
+			spec     types.AuthPreferenceSpecV2
+			features modules.Features
+			bypass   bool
+			check    require.ErrorAssertionFunc
+		}
+
+		testCases := []testCase{
+			{
+				name:  "disabling prevented",
+				check: require.Error,
+			},
+			{
+				name:   "cloud prevents disabling",
+				bypass: true,
+				features: modules.Features{
+					Cloud: true,
+				},
+				check: require.Error,
+			},
+			{
+				name: "webauthn allowed",
+				spec: types.AuthPreferenceSpecV2{
+					SecondFactor: constants.SecondFactorWebauthn,
+					Webauthn: &types.Webauthn{
+						RPID: "test.example.com",
+					},
+				},
+				check: require.NoError,
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+
+				modules.SetTestModules(t, &modules.TestModules{
+					TestFeatures: tc.features,
+				})
+
+				authPref := &types.AuthPreferenceV2{
+					Spec: tc.spec,
+				}
+				tc.check(t, ValidateAuthPreference(authPref))
 			})
 		}
 	})
