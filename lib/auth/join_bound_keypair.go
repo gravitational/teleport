@@ -232,7 +232,7 @@ func mutateStatusConsumeJoin(mode boundkeypair.RecoveryMode, expectRecoveryCount
 		}
 
 		status.RecoveryCount += 1
-		status.LastJoinedAt = &now
+		status.LastRecoveredAt = &now
 
 		return nil
 	}
