@@ -351,7 +351,7 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 				return &IntegrationV1{
 					ResourceHeader: ResourceHeader{
 						Kind:    KindIntegration,
-						SubKind: IntegrationSubKindAWSRA,
+						SubKind: IntegrationSubKindAWSRolesAnywhere,
 						Version: V1,
 						Metadata: Metadata{
 							Name:      name,

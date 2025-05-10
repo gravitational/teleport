@@ -414,9 +414,9 @@ func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata
 		igMeta.GitHub = &apievents.GitHubIntegrationMetadata{
 			Organization: ig.GetGitHubIntegrationSpec().Organization,
 		}
-	case types.IntegrationSubKindAWSRA:
+	case types.IntegrationSubKindAWSRolesAnywhere:
 		igMeta.AWSRA = &apievents.AWSRAIntegrationMetadata{
-			TrustAnchorARN: ig.GetAWSRAIntegrationSpec().TrustAnchorARN,
+			TrustAnchorARN: ig.GetAWSRolesAnywhereIntegrationSpec().TrustAnchorARN,
 		}
 	default:
 		return apievents.IntegrationMetadata{}, fmt.Errorf("unknown integration subkind: %s", igMeta.SubKind)

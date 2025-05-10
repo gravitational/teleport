@@ -38,8 +38,8 @@ const (
 	// IntegrationSubKindGitHub is an integration with GitHub.
 	IntegrationSubKindGitHub = "github"
 
-	// IntegrationSubKindAWSRA is an integration with AWS that uses AWS IAM Roles Anywhere as trust and source of credentials.
-	IntegrationSubKindAWSRA = "aws-ra"
+	// IntegrationSubKindAWSRolesAnywhere is an integration with AWS that uses AWS IAM Roles Anywhere as trust and source of credentials.
+	IntegrationSubKindAWSRolesAnywhere = "aws-ra"
 )
 
 const (
@@ -75,10 +75,10 @@ type Integration interface {
 	// SetGitHubIntegrationSpec returns the GitHub spec.
 	SetGitHubIntegrationSpec(*GitHubIntegrationSpecV1)
 
-	// GetAWSRAIntegrationSpec returns the `aws-ra` spec fields.
-	GetAWSRAIntegrationSpec() *AWSRAIntegrationSpecV1
-	// SetAWSRAIntegrationSpec sets the `aws-ra` spec fields.
-	SetAWSRAIntegrationSpec(*AWSRAIntegrationSpecV1)
+	// GetAWSRolesAnywhereIntegrationSpec returns the `aws-ra` spec fields.
+	GetAWSRolesAnywhereIntegrationSpec() *AWSRAIntegrationSpecV1
+	// SetAWSRolesAnywhereIntegrationSpec sets the `aws-ra` spec fields.
+	SetAWSRolesAnywhereIntegrationSpec(*AWSRAIntegrationSpecV1)
 
 	// SetCredentials updates credentials.
 	SetCredentials(creds PluginCredentials) error
@@ -162,7 +162,7 @@ func NewIntegrationAWSRA(md Metadata, spec *AWSRAIntegrationSpecV1) (*Integratio
 			Metadata: md,
 			Kind:     KindIntegration,
 			Version:  V1,
-			SubKind:  IntegrationSubKindAWSRA,
+			SubKind:  IntegrationSubKindAWSRolesAnywhere,
 		},
 		Spec: IntegrationSpecV1{
 			SubKindSpec: &IntegrationSpecV1_AWSRA{
@@ -322,11 +322,11 @@ func (s *IntegrationSpecV1_GitHub) CheckAndSetDefaults() error {
 // CheckAndSetDefaults validates the configuration for AWS IAM Roles Anywhere integration subkind.
 func (s *IntegrationSpecV1_AWSRA) CheckAndSetDefaults() error {
 	if s == nil || s.AWSRA == nil {
-		return trace.BadParameter("aws_ra is required for %q subkind", IntegrationSubKindAWSRA)
+		return trace.BadParameter("aws_ra is required for %q subkind", IntegrationSubKindAWSRolesAnywhere)
 	}
 
 	if s.AWSRA.TrustAnchorARN == "" {
-		return trace.BadParameter("trust_anchor_arn is required for %q subkind", IntegrationSubKindAWSRA)
+		return trace.BadParameter("trust_anchor_arn is required for %q subkind", IntegrationSubKindAWSRolesAnywhere)
 	}
 
 	return nil
@@ -387,13 +387,13 @@ func (ig *IntegrationV1) SetGitHubIntegrationSpec(spec *GitHubIntegrationSpecV1)
 	}
 }
 
-// GetAWSRAIntegrationSpec returns the specific spec fields for `aws-ra` subkind integrations.
-func (ig *IntegrationV1) GetAWSRAIntegrationSpec() *AWSRAIntegrationSpecV1 {
+// GetAWSRolesAnywhereIntegrationSpec returns the specific spec fields for `aws-ra` subkind integrations.
+func (ig *IntegrationV1) GetAWSRolesAnywhereIntegrationSpec() *AWSRAIntegrationSpecV1 {
 	return ig.Spec.GetAWSRA()
 }
 
-// SetAWSRAIntegrationSpec sets the specific fields for the `aws-ra` subkind integration.
-func (ig *IntegrationV1) SetAWSRAIntegrationSpec(awsRASpec *AWSRAIntegrationSpecV1) {
+// SetAWSRolesAnywhereIntegrationSpec sets the specific fields for the `aws-ra` subkind integration.
+func (ig *IntegrationV1) SetAWSRolesAnywhereIntegrationSpec(awsRASpec *AWSRAIntegrationSpecV1) {
 	ig.Spec.SubKindSpec = &IntegrationSpecV1_AWSRA{
 		AWSRA: awsRASpec,
 	}
@@ -504,7 +504,7 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 
 		integration.Spec.SubKindSpec = subkindSpec
 
-	case IntegrationSubKindAWSRA:
+	case IntegrationSubKindAWSRolesAnywhere:
 		subkindSpec := &IntegrationSpecV1_AWSRA{
 			AWSRA: &AWSRAIntegrationSpecV1{},
 		}
@@ -570,11 +570,11 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 			return nil, trace.BadParameter("missing spec for %q subkind", ig.SubKind)
 		}
 		d.Spec.GitHub = *ig.GetGitHubIntegrationSpec()
-	case IntegrationSubKindAWSRA:
-		if ig.GetAWSRAIntegrationSpec() == nil {
+	case IntegrationSubKindAWSRolesAnywhere:
+		if ig.GetAWSRolesAnywhereIntegrationSpec() == nil {
 			return nil, trace.BadParameter("missing spec for %q subkind", ig.SubKind)
 		}
-		d.Spec.AWSRA = *ig.GetAWSRAIntegrationSpec()
+		d.Spec.AWSRA = *ig.GetAWSRolesAnywhereIntegrationSpec()
 	default:
 		return nil, trace.BadParameter("invalid subkind %q", ig.SubKind)
 	}
