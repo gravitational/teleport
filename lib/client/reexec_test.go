@@ -69,7 +69,7 @@ func buildBashForkCommand(t *testing.T, params ForkAuthenticateParams) *forkAuth
 	require.NoError(t, err)
 	cmd.Path = bash
 	cmd.Args[0] = bash
-	// Ensure that process doesn't outlive the test.
+	// Ensure that the process doesn't outlive the test.
 	t.Cleanup(func() { cmd.Process.Kill() })
 	return cmd
 }
