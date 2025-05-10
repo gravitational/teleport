@@ -678,11 +678,16 @@ func TestHealthCheck(t *testing.T) {
 
 	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
 		Databases: []types.Database{
+			withCassandra("cassandra")(t, ctx, testCtx),
+			withClickhouseHTTP("clickhouse-http")(t, ctx, testCtx),
+			withClickhouseNative("clickhouse-native")(t, ctx, testCtx),
 			withCloudSQLMySQLTLS("cloudsql-mysql", user, cloudSQLPassword)(t, ctx, testCtx),
 			withCloudSQLPostgres("cloudsql-postgres", cloudSQLAuthToken)(t, ctx, testCtx),
 			withSelfHostedMongo("self-hosted-mongo")(t, ctx, testCtx),
 			withSelfHostedMySQL("self-hosted-mysql")(t, ctx, testCtx),
 			withSelfHostedPostgres("self-hosted-postgres")(t, ctx, testCtx),
+			withSpanner("cloud-spanner", "cloud-spanner-auth-token")(t, ctx, testCtx),
+			withSQLServer("sqlserver")(t, ctx, testCtx),
 		},
 		GCPSQL: &mocks.GCPSQLAdminClientMock{
 			EphemeralCert: string(certPEM),

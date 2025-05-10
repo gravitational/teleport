@@ -83,7 +83,7 @@ export function DiscoveryConfigSsm() {
     'TeleportDiscoveryInstaller'
   );
   const [scriptUrl, setScriptUrl] = useState('');
-  const joinTokenRef = useRef<JoinToken>();
+  const joinTokenRef = useRef<JoinToken>(undefined);
   const [showRestOfSteps, setShowRestOfSteps] = useState(false);
 
   const [attempt, createJoinTokenAndDiscoveryConfig, setAttempt] = useAsync(

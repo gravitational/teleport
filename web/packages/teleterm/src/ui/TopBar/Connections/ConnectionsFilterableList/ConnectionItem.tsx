@@ -57,7 +57,7 @@ export function ConnectionItem(props: {
   };
 
   const actionIcon = offline ? actionIcons.remove : actionIcons.disconnect;
-  const ref = useRef<HTMLLIElement>();
+  const ref = useRef<HTMLLIElement>(null);
 
   useEffect(() => {
     scrollIntoViewIfActive(ref.current);

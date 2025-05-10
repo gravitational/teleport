@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { type JSX } from 'react';
 import styled, { css } from 'styled-components';
 
 import { Box, ButtonBorder, Indicator, Mark, Text } from 'design';
