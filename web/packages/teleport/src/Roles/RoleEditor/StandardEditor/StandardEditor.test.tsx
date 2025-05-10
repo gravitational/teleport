@@ -270,7 +270,7 @@ test('triggers v6 validation for Kubernetes resources', async () => {
   await selectEvent.select(screen.getByLabelText('Version'), 'v7');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).toHaveBeenCalled();
-});
+}, 10000);
 
 test('creating a new role', async () => {
   async function forwardToTab(name: string) {

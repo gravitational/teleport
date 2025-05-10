@@ -26,12 +26,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -91,13 +88,9 @@ type legacyCollections struct {
 	// byKind is a map of registered collections by resource Kind/SubKind
 	byKind map[resourceKind]legacyCollection
 
-	auditQueries                       collectionReader[services.SecurityAuditQueryGetter]
-	secReports                         collectionReader[services.SecurityReportGetter]
-	secReportsStates                   collectionReader[services.SecurityReportStateGetter]
-	discoveryConfigs                   collectionReader[services.DiscoveryConfigsGetter]
-	networkRestrictions                collectionReader[networkRestrictionGetter]
-	provisioningStates                 collectionReader[provisioningStateGetter]
-	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
+	auditQueries     collectionReader[services.SecurityAuditQueryGetter]
+	secReports       collectionReader[services.SecurityReportGetter]
+	secReportsStates collectionReader[services.SecurityReportStateGetter]
 }
 
 // setupLegacyCollections returns a registry of legacyCollections.
@@ -108,29 +101,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 	for _, watch := range watches {
 		resourceKind := resourceKindFromWatchKind(watch)
 		switch watch.Kind {
-		case types.KindAccessRequest:
-			if c.DynamicAccess == nil {
-				return nil, trace.BadParameter("missing parameter DynamicAccess")
-			}
-			collections.byKind[resourceKind] = &genericCollection[types.AccessRequest, noReader, accessRequestExecutor]{cache: c, watch: watch}
-		case types.KindNetworkRestrictions:
-			if c.Restrictions == nil {
-				return nil, trace.BadParameter("missing parameter Restrictions")
-			}
-			collections.networkRestrictions = &genericCollection[types.NetworkRestrictions, networkRestrictionGetter, networkRestrictionsExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.networkRestrictions
-		case types.KindDiscoveryConfig:
-			if c.DiscoveryConfigs == nil {
-				return nil, trace.BadParameter("missing parameter DiscoveryConfigs")
-			}
-			collections.discoveryConfigs = &genericCollection[*discoveryconfig.DiscoveryConfig, services.DiscoveryConfigsGetter, discoveryConfigExecutor]{cache: c, watch: watch}
-			collections.byKind[resourceKind] = collections.discoveryConfigs
-		case types.KindHeadlessAuthentication:
-			// For headless authentications, we need only process events. We don't need to keep the cache up to date.
-			collections.byKind[resourceKind] = &genericCollection[*types.HeadlessAuthentication, noReader, noopExecutor]{cache: c, watch: watch}
 		case types.KindAuditQuery:
 			if c.SecReports == nil {
 				return nil, trace.BadParameter("missing parameter SecReports")
@@ -149,32 +119,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 			}
 			collections.secReportsStates = &genericCollection[*secreports.ReportState, services.SecurityReportStateGetter, secReportStateExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.secReportsStates
-		case types.KindProvisioningPrincipalState:
-			if c.ProvisioningStates == nil {
-				return nil, trace.BadParameter("missing parameter KindProvisioningState")
-			}
-			collections.provisioningStates = &genericCollection[*provisioningv1.PrincipalState, provisioningStateGetter, provisioningStateExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.provisioningStates
-		case types.KindIdentityCenterPrincipalAssignment:
-			if c.IdentityCenter == nil {
-				return nil, trace.BadParameter("missing parameter IdentityCenter")
-			}
-			collections.identityCenterPrincipalAssignments = &genericCollection[
-				*identitycenterv1.PrincipalAssignment,
-				identityCenterPrincipalAssignmentGetter,
-				identityCenterPrincipalAssignmentExecutor,
-			]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.identityCenterPrincipalAssignments
-		default:
-			if _, ok := c.collections.byKind[resourceKind]; !ok {
-				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
-			}
 		}
 	}
 	return collections, nil
@@ -222,32 +166,6 @@ func (r resourceKind) String() string {
 	return fmt.Sprintf("%s/%s", r.kind, r.subkind)
 }
 
-type accessRequestExecutor struct{}
-
-func (accessRequestExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.AccessRequest, error) {
-	return cache.DynamicAccess.GetAccessRequests(ctx, types.AccessRequestFilter{})
-}
-
-func (accessRequestExecutor) upsert(ctx context.Context, cache *Cache, resource types.AccessRequest) error {
-	return cache.dynamicAccessCache.UpsertAccessRequest(ctx, resource)
-}
-
-func (accessRequestExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.dynamicAccessCache.DeleteAllAccessRequests(ctx)
-}
-
-func (accessRequestExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.dynamicAccessCache.DeleteAccessRequest(ctx, resource.GetName())
-}
-
-func (accessRequestExecutor) isSingleton() bool { return false }
-
-func (accessRequestExecutor) getReader(_ *Cache, _ bool) noReader {
-	return noReader{}
-}
-
-var _ executor[types.AccessRequest, noReader] = accessRequestExecutor{}
-
 type userExecutor struct{}
 
 func (userExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.User, error) {
@@ -284,43 +202,6 @@ type userGetter interface {
 
 var _ executor[types.User, userGetter] = userExecutor{}
 
-type networkRestrictionsExecutor struct{}
-
-func (networkRestrictionsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.NetworkRestrictions, error) {
-	restrictions, err := cache.Restrictions.GetNetworkRestrictions(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return []types.NetworkRestrictions{restrictions}, nil
-}
-
-func (networkRestrictionsExecutor) upsert(ctx context.Context, cache *Cache, resource types.NetworkRestrictions) error {
-	return cache.restrictionsCache.SetNetworkRestrictions(ctx, resource)
-}
-
-func (networkRestrictionsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.restrictionsCache.DeleteNetworkRestrictions(ctx)
-}
-
-func (networkRestrictionsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.restrictionsCache.DeleteNetworkRestrictions(ctx)
-}
-
-func (networkRestrictionsExecutor) isSingleton() bool { return true }
-
-func (networkRestrictionsExecutor) getReader(cache *Cache, cacheOK bool) networkRestrictionGetter {
-	if cacheOK {
-		return cache.restrictionsCache
-	}
-	return cache.Config.Restrictions
-}
-
-type networkRestrictionGetter interface {
-	GetNetworkRestrictions(context.Context) (types.NetworkRestrictions, error)
-}
-
-var _ executor[types.NetworkRestrictions, networkRestrictionGetter] = networkRestrictionsExecutor{}
-
 // collectionReader extends the collection interface, adding routing capabilities.
 type collectionReader[R any] interface {
 	legacyCollection
@@ -334,53 +215,6 @@ type collectionReader[R any] interface {
 type resourceGetter interface {
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
-
-type discoveryConfigExecutor struct{}
-
-func (discoveryConfigExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*discoveryconfig.DiscoveryConfig, error) {
-	var discoveryConfigs []*discoveryconfig.DiscoveryConfig
-	var nextToken string
-	for {
-		var page []*discoveryconfig.DiscoveryConfig
-		var err error
-
-		page, nextToken, err = cache.DiscoveryConfigs.ListDiscoveryConfigs(ctx, 0 /* default page size */, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		discoveryConfigs = append(discoveryConfigs, page...)
-
-		if nextToken == "" {
-			break
-		}
-	}
-	return discoveryConfigs, nil
-}
-
-func (discoveryConfigExecutor) upsert(ctx context.Context, cache *Cache, resource *discoveryconfig.DiscoveryConfig) error {
-	_, err := cache.discoveryConfigsCache.UpsertDiscoveryConfig(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (discoveryConfigExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.discoveryConfigsCache.DeleteAllDiscoveryConfigs(ctx)
-}
-
-func (discoveryConfigExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.discoveryConfigsCache.DeleteDiscoveryConfig(ctx, resource.GetName())
-}
-
-func (discoveryConfigExecutor) isSingleton() bool { return false }
-
-func (discoveryConfigExecutor) getReader(cache *Cache, cacheOK bool) services.DiscoveryConfigsGetter {
-	if cacheOK {
-		return cache.discoveryConfigsCache
-	}
-	return cache.Config.DiscoveryConfigs
-}
-
-var _ executor[*discoveryconfig.DiscoveryConfig, services.DiscoveryConfigsGetter] = discoveryConfigExecutor{}
 
 type auditQueryExecutor struct{}
 
@@ -516,31 +350,3 @@ func (secReportStateExecutor) getReader(cache *Cache, cacheOK bool) services.Sec
 }
 
 var _ executor[*secreports.ReportState, services.SecurityReportStateGetter] = secReportStateExecutor{}
-
-// noopExecutor can be used when a resource's events do not need to processed by
-// the cache itself, only passed on to other watchers.
-type noopExecutor struct{}
-
-func (noopExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*types.HeadlessAuthentication, error) {
-	return nil, nil
-}
-
-func (noopExecutor) upsert(ctx context.Context, cache *Cache, resource *types.HeadlessAuthentication) error {
-	return nil
-}
-
-func (noopExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return nil
-}
-
-func (noopExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return nil
-}
-
-func (noopExecutor) isSingleton() bool { return false }
-
-func (noopExecutor) getReader(_ *Cache, _ bool) noReader {
-	return noReader{}
-}
-
-var _ executor[*types.HeadlessAuthentication, noReader] = noopExecutor{}

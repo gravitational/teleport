@@ -772,19 +772,91 @@ You will need a YubiKey 4.3+ to test this feature.
 
 This feature has additional build requirements, so it should be tested with a pre-release build (eg: `https://cdn.teleport.dev/teleport-ent-v16.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
-#### Server Access
+Run all tests on Linux, MacOS, and Windows.
 
-This test should be carried out on Linux, MacOS, and Windows.
+#### `tsh`
 
-Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in your cluster auth settings and login.
+Configuration:
+
+```yaml
+### cap
+spec:
+  require_session_mfa: hardware_key_touch_and_pin
+  hardware_key:
+    pin_cache_ttl: 15s
+```
+
+In the tests below, note how touch and PIN are cached.
+
+- touch is cached on the YubiKey for 15 seconds.
+- pin is cached for 15 seconds within the `tsh` processes This will only appear to work for `tsh proxy` commands.
+- pin is cached in the YubiKey's PIV connection. The connection with intact PIN cache can be claimed within 5 seconds, meaning you can keep the PIN cached by running `tsh` commands one after the other within 5 seconds.
+
 - [ ] `tsh login`
-  - [ ] Prompts for Yubikey touch with message "Tap your YubiKey" (separate from normal MFA prompt).
+  - [ ] Prompts for PIV PIN ("Enter your PIV PIN:")
+  - [ ] Prompts for PIV touch ("Tap your Yubikey", separate from normal MFA prompt).
+- [ ] `tsh ls`
+  - [ ] Prompts for PIV PIN ("Enter your PIV PIN:")
+  - [ ] Prompts for PIV touch ("Tap your Yubikey", separate from normal MFA prompt).
 - [ ] Server Access `tsh ssh`
-  - [ ] Requires yubikey to be connected
-  - [ ] Prompts for touch (if not cached)
+  - [ ] Prompts for PIV PIN and touch
 - [ ] Database Access: `tsh proxy db --tunnel`
-  - [ ] Requires yubikey to be connected
-  - [ ] Prompts for touch (if not cached)
+  - [ ] Prompts for PIV PIN and touch on start
+  - [ ] Prompts for PIV PIN and Touch for incoming connections or queries
+- [ ] App Access: `tsh proxy app`
+  - [ ] Prompts for PIV PIN and touch on start
+  - [ ] [Prompts for MFA](https://github.com/gravitational/teleport/blob/master/rfd/0080-hardware-key-support.md#application-access) on start
+  - [ ] Prompts for PIV PIN and Touch for incoming http requests
+- [ ] Kube Access: `tsh proxy kube`
+  - [ ] Prompts for PIV PIN and touch on start
+  - [ ] Prompts for PIV PIN and Touch for incoming `kubectl` commands
+
+#### Teleport Connect and Hardware Key Agent
+
+Install Teleport Connect and open it. The hardware key agent automatically starts if you are running a
+release/dev build. If you are building Teleport Connect in development mode, you will need to set the
+config option `hardwareKeyAgent.enabled: true` and restart Connect. You can run a non-login `tsh`
+command to check if the agent is running.
+
+Before logging in to Teleport Connect:
+
+- [ ] `tsh login` prompts for PIV PIN and touch without using the Hardware Key Agent
+- [ ] All other `tsh` commands prompt for PIN and touch via the Hardware Key Agent
+  - [ ] Test a subset of the `tsh` commands from the test above
+    - [ ] The command is displayed in the PIN and touch prompts
+- [ ] Connecting with OpenSSH `ssh` prompts for PIN and touch via the hardware key agent
+- [ ] The PIN is cached for the configured duration between basic `tsh` commands (set `pin_cache_ttl` to something longer that 15s if needed)
+
+After logging in to Teleport Connect:
+
+- [ ] Login prompts for PIN and touch
+- [ ] Server Access
+  - [ ] Prompts for PIN and Touch via the Hardware Key Agent
+  - [ ] The `tsh ssh ...` command is displayed in the prompt
+- [ ] Database Access
+  - [ ] Prompts for PIN and Touch for incoming connections or queries
+- [ ] App Access (Proxy)
+  - [ ] Prompts for MFA on start
+  - [ ] Prompts for PIN and Touch for incoming http requets
+- [ ] Kube Access
+  - [ ] Prompts for PIN and Touch for incoming `kubectl` commands
+- [ ] VNet
+  - [ ] Prompts for PIN and Touch for incoming tcp connections
+
+### Local unit tests
+
+Currently, we do not have a way of testing any PIV funcionality that requires direct access
+to a YubiKey. However, we do have a test suite of local and interactive tests for realworld
+PIV funcionality.
+
+Plug in a YubiKey and run the test suite with the options below:
+
+```bash
+TELEPORT_TEST_YUBIKEY_PIV=yes go test github.com/gravitational/teleport/api/utils/keys/piv -tags=piv -v
+```
+
+Note that these tests will wipe any existing PIV data on the card (keys, certs, custom pin/puk).
+FIDO2 data is not affected.
 
 ### HSM Support
 

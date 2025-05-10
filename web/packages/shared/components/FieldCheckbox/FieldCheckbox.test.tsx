@@ -52,7 +52,7 @@ test('controlled flow', async () => {
 test('uncontrolled flow', async () => {
   let checkboxRef;
   function TestForm() {
-    const cbRefInternal = useRef();
+    const cbRefInternal = useRef(undefined);
     checkboxRef = cbRefInternal;
     return (
       <form data-testid="form">

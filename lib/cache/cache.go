@@ -38,11 +38,9 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -265,6 +263,8 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		{Kind: types.KindNode},
+		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
 		{Kind: types.KindReverseTunnel},
@@ -499,15 +499,11 @@ type Cache struct {
 	accessCache                  services.Access
 	dynamicAccessCache           services.DynamicAccessExt
 	presenceCache                services.Presence
-	restrictionsCache            services.Restrictions
 	userGroupsCache              services.UserGroups
-	discoveryConfigsCache        services.DiscoveryConfigs
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
 	secReportsCache              services.SecReports
 	eventsFanout                 *services.FanoutV2
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
-	provisioningStatesCache      *local.ProvisioningStateService
-	identityCenterCache          *local.IdentityCenterService
 	pluginStaticCredentialsCache *local.PluginStaticCredentialsService
 	gitServersCache              *local.GitServerService
 
@@ -901,18 +897,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	provisioningStatesCache, err := local.NewProvisioningStateService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	discoveryConfigsCache, err := local.NewDiscoveryConfigService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	secReportsCache, err := local.NewSecReportsService(config.Backend, config.Clock)
 	if err != nil {
 		cancel()
@@ -931,13 +915,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	identityCenterCache, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
-		Backend: config.Backend})
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	pluginStaticCredentialsCache, err := local.NewPluginStaticCredentialsService(config.Backend)
 	if err != nil {
 		cancel()
@@ -945,12 +922,6 @@ func New(config Config) (*Cache, error) {
 	}
 
 	gitServersCache, err := local.NewGitServerService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	collections, err := setupCollections(config)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -968,29 +939,32 @@ func New(config Config) (*Cache, error) {
 		accessCache:                  local.NewAccessService(config.Backend),
 		dynamicAccessCache:           local.NewDynamicAccessService(config.Backend),
 		presenceCache:                local.NewPresenceService(config.Backend),
-		restrictionsCache:            local.NewRestrictionsService(config.Backend),
 		userGroupsCache:              userGroupsCache,
-		discoveryConfigsCache:        discoveryConfigsCache,
 		headlessAuthenticationsCache: identityService,
 		secReportsCache:              secReportsCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
-		provisioningStatesCache:      provisioningStatesCache,
-		identityCenterCache:          identityCenterCache,
 		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
 		gitServersCache:              gitServersCache,
-		collections:                  collections,
 		Logger: slog.With(
 			teleport.ComponentKey, config.Component,
 			"target", config.target,
 		),
 	}
+
 	legacyCollections, err := setupLegacyCollections(cs, config.Watches)
 	if err != nil {
 		cs.Close()
 		return nil, trace.Wrap(err)
 	}
 	cs.legacyCacheCollections = legacyCollections
+
+	collections, err := setupCollections(config, legacyCollections.byKind)
+	if err != nil {
+		cs.Close()
+		return nil, trace.Wrap(err)
+	}
+	cs.collections = collections
 
 	if config.Unstarted {
 		return cs, nil
@@ -1217,7 +1191,7 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //	we assume that this cache will eventually end up in a correct state
 //	potentially lagging behind the state of the database.
 func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) error {
-	requestKinds := c.watchKinds()
+	requestKinds := c.Config.Watches
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		Name:                c.Component,
 		Kinds:               requestKinds,
@@ -1527,17 +1501,6 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 	return nil
 }
 
-func (c *Cache) watchKinds() []types.WatchKind {
-	out := make([]types.WatchKind, 0, len(c.legacyCacheCollections.byKind)+len(c.collections.byKind))
-	for _, collection := range c.legacyCacheCollections.byKind {
-		out = append(out, collection.watchKind())
-	}
-	for _, handler := range c.collections.byKind {
-		out = append(out, handler.watchKind())
-	}
-	return out
-}
-
 // isClosing checks if the cache has begun closing.
 func (c *Cache) isClosing() bool {
 	if c.closed.Load() {
@@ -1693,12 +1656,6 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	handler, handlerFound := c.collections.byKind[resourceKind]
 
 	switch {
-	case !legacyFound && !handlerFound:
-		c.Logger.WarnContext(ctx, "Skipping unsupported event",
-			"event_kind", event.Resource.GetKind(),
-			"event_sub_kind", event.Resource.GetSubKind(),
-		)
-		return nil
 	case legacyFound:
 		if err := legacyCollection.processEvent(ctx, event); err != nil {
 			return trace.Wrap(err)
@@ -1729,46 +1686,6 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	}
 
 	return nil
-}
-
-// GetNetworkRestrictions gets the network restrictions.
-func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetNetworkRestrictions")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.networkRestrictions)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	return rg.reader.GetNetworkRestrictions(ctx)
-}
-
-// ListDiscoveryConfigs returns a paginated list of all DiscoveryConfig resources.
-func (c *Cache) ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListDiscoveryConfigs")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.discoveryConfigs)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListDiscoveryConfigs(ctx, pageSize, nextKey)
-}
-
-// GetDiscoveryConfig returns the specified DiscoveryConfig resource.
-func (c *Cache) GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetDiscoveryConfig")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.discoveryConfigs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetDiscoveryConfig(ctx, name)
 }
 
 // GetSecurityAuditQuery returns the specified audit query resource.
@@ -2102,17 +2019,4 @@ func buildListResourcesResponse[T types.ResourceWithLabels](resources iter.Seq[T
 	}
 
 	return &resp, nil
-}
-
-func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.DownstreamID, id services.ProvisioningStateID) (*provisioningv1.PrincipalState, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetProvisioningState")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.provisioningStates)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	return rg.reader.GetProvisioningState(ctx, downstream, id)
 }

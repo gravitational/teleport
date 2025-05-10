@@ -66,12 +66,14 @@ func (t *TargetHealth) GetTransitionTimestamp() time.Time {
 	return *t.TransitionTimestamp
 }
 
-type targetHealthGetter interface {
+// TargetHealthGetter provides [TargetHealth] information.
+type TargetHealthGetter interface {
+	// GetTargetHealth returns the target health.
 	GetTargetHealth() TargetHealth
 }
 
 // GroupByTargetHealth groups resources by target health and returns [TargetHealthGroups].
-func GroupByTargetHealth[T targetHealthGetter](resources []T) TargetHealthGroups[T] {
+func GroupByTargetHealth[T TargetHealthGetter](resources []T) TargetHealthGroups[T] {
 	var groups TargetHealthGroups[T]
 	for _, r := range resources {
 		switch TargetHealthStatus(r.GetTargetHealth().Status) {
@@ -88,7 +90,7 @@ func GroupByTargetHealth[T targetHealthGetter](resources []T) TargetHealthGroups
 }
 
 // TargetHealthGroups holds resources grouped by target health status.
-type TargetHealthGroups[T targetHealthGetter] struct {
+type TargetHealthGroups[T TargetHealthGetter] struct {
 	// Healthy is the resources with [TargetHealthStatusHealthy].
 	Healthy []T
 	// Unhealthy is the resources with [TargetHealthStatusUnhealthy].

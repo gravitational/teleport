@@ -62,7 +62,9 @@ import useDesktopSession, {
 
 export interface DesktopSessionProps {
   client: TdpClient;
+  /** Username for display purposes. */
   username: string;
+  /** Desktop name for display purposes. */
   desktop: string;
   aclAttempt: Attempt<{
     clipboardSharingEnabled: boolean;

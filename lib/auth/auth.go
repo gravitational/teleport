@@ -449,6 +449,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating BackendInfo service")
 		}
 	}
+	if cfg.VnetConfigService == nil {
+		cfg.VnetConfigService, err = local.NewVnetConfigService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating VnetConfigService")
+		}
+	}
 
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
@@ -556,6 +562,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SigstorePolicies:                cfg.SigstorePolicies,
 		HealthCheckConfig:               cfg.HealthCheckConfig,
 		BackendInfoService:              cfg.BackendInfo,
+		VnetConfigService:               cfg.VnetConfigService,
 	}
 
 	as := Server{
@@ -799,6 +806,7 @@ type Services struct {
 	services.SigstorePolicies
 	services.HealthCheckConfig
 	services.BackendInfoService
+	services.VnetConfigService
 }
 
 // GetWebSession returns existing web session described by req.
