@@ -25,6 +25,7 @@ import {
   render as testingRender,
   waitFor,
   waitForElementToBeRemoved,
+  within,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -58,13 +59,23 @@ function render(ui: React.ReactElement<any>, options?: RenderOptions) {
   return testingRender(ui, { wrapper: Providers, ...options });
 }
 
+/*
+ Returns a Promise resolving on the next macrotask, allowing any pending state
+ updates / timeouts to finish.
+ */
+function tick() {
+  return new Promise<void>(res =>
+    jest.requireActual('timers').setImmediate(res)
+  );
+}
+
 screen.debug = () => {
   window.console.log(prettyDOM());
 };
 
 type RenderOptions = {
-  wrapper: React.FC;
-  container: HTMLElement;
+  wrapper?: React.FC;
+  container?: HTMLElement;
 };
 
 export {
@@ -72,6 +83,7 @@ export {
   screen,
   fireEvent,
   darkTheme as theme,
+  tick,
   render,
   prettyDOM,
   waitFor,
@@ -79,4 +91,5 @@ export {
   Router,
   userEvent,
   waitForElementToBeRemoved,
+  within,
 };
