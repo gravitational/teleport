@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=16.5.7
+VERSION=16.0.0-dev.gus-ew9
 
 DOCKER_IMAGE ?= teleport
 
@@ -1732,7 +1732,7 @@ ensure-wasm-pack:
 
 # TODO: Use CARGO_GET_VERSION_AWK instead of hardcoded version
 #       On 386 Arch, calling the variable produces a malformed command that fails the build.
-ensure-wasm-bindgen: NEED_VERSION = 0.2.99
+ensure-wasm-bindgen: NEED_VERSION = 0.2.95
 ensure-wasm-bindgen: INSTALLED_VERSION = $(lastword $(shell wasm-bindgen --version 2>/dev/null))
 ensure-wasm-bindgen:
 ifeq ($(CI),true)
