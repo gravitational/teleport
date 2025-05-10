@@ -898,6 +898,8 @@ func sshPubKeyFromSigner(signer crypto.Signer) (string, error) {
 	return strings.TrimSpace(string(ssh.MarshalAuthorizedKey(sshKey))), nil
 }
 
+// registerUsingBoundKeypairMethod performs bound keypair-type registration and
+// handles the joining ceremony.
 func registerUsingBoundKeypairMethod(
 	ctx context.Context,
 	client joinServiceClient,
@@ -929,7 +931,8 @@ func registerUsingBoundKeypairMethod(
 		PreviousJoinState: bkParams.PreviousJoinState,
 	}
 
-	// TODO: inform the caller about the returned public key?
+	// TODO: When implementing rotation, we should make use of the returned
+	// public key to ensure that key is marked as the primary.
 	certs, _, err := client.RegisterUsingBoundKeypairMethod(
 		ctx,
 		initReq,

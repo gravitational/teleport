@@ -34,7 +34,12 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// getSuiteFromProxy fetches cryptosuite config from the given remote proxy.
 func getSuiteFromProxy(proxyAddr string, insecure bool) cryptosuites.GetSuiteFunc {
+	// TODO: It's annoying to need to specify a proxy here. This won't be needed
+	// for keypairs generated at normal runtime since we'll have a proxy address
+	// available, but alternatives should be explored, since this UX is not
+	// good.
 	return func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
 		pr, err := webclient.Find(&webclient.Config{
 			Context:   ctx,
@@ -48,10 +53,14 @@ func getSuiteFromProxy(proxyAddr string, insecure bool) cryptosuites.GetSuiteFun
 	}
 }
 
+// KeypairDocument is the JSON struct printed to stdout when `--format=json` is
+// specified.
 type KeypairDocument struct {
 	PublicKey string `json:"public_key"`
 }
 
+// printKeypair prints the current keypair from the given client state using the
+// specified format.
 func printKeypair(state *boundkeypair.ClientState, format string) error {
 	publicKeyBytes, err := state.ToPublicKeyBytes()
 	if err != nil {
@@ -85,6 +94,7 @@ func printKeypair(state *boundkeypair.ClientState, format string) error {
 	return nil
 }
 
+// onKeypairCreate command handles `tbot keypair create`
 func onKeypairCreateCommand(ctx context.Context, globals *cli.GlobalArgs, cmd *cli.KeypairCreateCommand) error {
 	dest, err := config.DestinationFromURI(cmd.Storage)
 	if err != nil {
