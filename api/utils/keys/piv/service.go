@@ -188,10 +188,44 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 		return nil, trace.Wrap(err)
 	}
 
+	pivSlot, err := parsePIVSlot(ref.SlotKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Check that the public key in the slot matches our record.
+	slotCert, err := y.conn.attest(pivSlot)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	type cryptoPublicKeyI interface {
+		Equal(x crypto.PublicKey) bool
+	}
+	if slotPub, ok := slotCert.PublicKey.(cryptoPublicKeyI); !ok {
+		return nil, trace.BadParameter("expected crypto.PublicKey but got %T", slotCert.PublicKey)
+	} else if !slotPub.Equal(ref.PublicKey) {
+		return nil, trace.CompareFailed("public key mismatch on PIV slot 0x%x", pivSlot.Key)
+	}
+
+	// If this sign request is coming from the hardware key agent, ensure that the requested PIV
+	// slot was configured by a Teleport client, or manually configured by the user / hardware key
+	// administrator. Manual configuration is used in cases where the default PIV management key
+	// is not used, e.g. when the hardware key is managed by a third party provider by an admin.
+	if keyInfo.AgentKey {
+		cert, err := y.getCertificate(pivSlot)
+		switch {
+		case errors.Is(err, piv.ErrNotFound):
+			return nil, trace.Wrap(&ErrMissingTeleportCert, "certificate not found in PIV slot 0x%x", pivSlot.Key)
+		case err != nil:
+			return nil, trace.Wrap(err)
+		case !isTeleportMetadataCertificate(cert):
+			return nil, trace.Wrap(&ErrMissingTeleportCert, nonTeleportCertificateMessage(pivSlot, cert))
+		}
+	}
+
 	s.signMu.Lock()
 	defer s.signMu.Unlock()
-
-	return y.sign(ctx, ref, keyInfo, s.getPrompt(), rand, digest, opts)
+	return y.signWithRetry(ctx, ref, keyInfo, s.getPrompt(), rand, digest, opts)
 }
 
 // TODO(Joerger): Re-attesting the key every time we decode a hardware key signer is very resource
