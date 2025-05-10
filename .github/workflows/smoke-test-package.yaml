@@ -1,0 +1,236 @@
+name: Smoke test package rpm/deb
+run-name: Smoke test package rpm/deb
+
+on:
+  workflow_dispatch:
+    inputs:
+      release-version:
+        description: |
+          Override the build version from what is in the Makefile.
+          Use this override to specify a tag for build debugging purposes.
+        type: string
+
+  # TODO(vapopov): delete before merge.
+  push:
+    branches:
+      - vapopov/smoke-test-package
+
+  merge_group:
+    paths:
+      - 'lib/autoupdate/**.go'
+      - 'tool/teleport-update/**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+      - 'Makefile'
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.set-version.outputs.version }}
+    env:
+      # GOMODCACHE and GOCACHE can be removed when we commit to the self-hosted
+      # ARC runners, as these runners set up these vars for us. We still need
+      # these though for the GitHub runners (ubuntu).
+      GOMODCACHE: /tmp/gomodcache
+      GOCACHE: /tmp/gocache
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        with:
+          driver: docker
+
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+#      # Log into Docker Hub to increase rate limits
+#      - name: Login to Docker Hub
+#        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+#        with:
+#          username: ${{ secrets.DOCKERHUB_USERNAME }}
+#          password: ${{ secrets.DOCKERHUB_TOKEN }}
+#
+#      # Log into ECR to raise rate limits, needed for the public.ecr.aws/gravitational/fpm
+#      # image used for building .deb and .rpm files.
+#      - name: Log into ECR
+#        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+#        with:
+#          registry-type: public
+#        env:
+#          # GetAuthorizationToken command is only supported in us-east-1.
+#          AWS_REGION: us-east-1
+
+      # The step can be removed when we commit to the self-hosted ARC runners,
+      # as it runs with a consistent UID/GID and creates the directories with
+      # the correct ownership. We still need this for the GitHub runners though.
+      - name: Create cache directories with correct owner/group
+        run: |
+          sudo mkdir -p "$GOCACHE" "$GOMODCACHE"
+          sudo chown -Rf "$(id -u):$(id -g)" "$GOCACHE" "$GOMODCACHE"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          cache: false
+          go-version-file: 'go.mod'
+
+      - name: Set Version
+        id: set-version
+        env:
+          RELEASE_VERSION: ${{ inputs.release-version }}
+        run: |
+          VERSION=$(grep -oP '^VERSION=\K.*' Makefile)
+          echo "VERSION=${RELEASE_VERSION:-$VERSION}" >> "$GITHUB_ENV"
+          echo "version=${RELEASE_VERSION:-$VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Release
+        env:
+          RELEASE_TARGET: release
+          RELEASE_DIR: ${{ github.workspace }}/build/artifacts
+        run: |
+          mkdir -p "$RELEASE_DIR"
+          make -C build.assets "$RELEASE_TARGET" VERSION="$VERSION"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            ${{ github.workspace }}/build/artifacts
+
+      - name: Upload test-assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-assets
+          path: |
+            assets/package-test/*
+
+  build-packages:
+    runs-on: ubuntu-latest
+    needs: build
+    outputs:
+      version: ${{ needs.build.outputs.version }}
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
+      - name: Build Debian package
+        env:
+          ARCH: amd64
+          ENT_TARBALL_PATH: ${{ github.workspace }}
+          OSS_TARBALL_PATH: ${{ github.workspace }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          make deb VERSION="$VERSION"
+          cp build/*.deb build/artifacts
+
+      - name: Build RPM package
+        env:
+          ARCH: amd64
+          ENT_TARBALL_PATH: ${{ github.workspace }}
+          OSS_TARBALL_PATH: ${{ github.workspace }}
+          VERSION: ${{ needs.build.outputs.version }}
+          GNUPG_DIR: /tmp/gnupg
+        run: |
+          make rpm-unsigned VERSION="$VERSION"
+          cp build/*.rpm build/artifacts
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: |
+            ${{ github.workspace }}/build/*.deb
+            ${{ github.workspace }}/build/*.rpm
+
+  test-deb:
+    name: Run deb tests
+    runs-on: ubuntu-latest
+    needs: build-packages
+    strategy:
+      fail-fast: false
+      matrix:
+        container:
+          - { image: "ubuntu:24.04", package-manager: "apt" }
+          - { image: "ubuntu:22.04", package-manager: "apt" }
+          - { image: "debian:12", package-manager: "apt" }
+    container:
+      image: ${{ matrix.container.image }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      REPO_DOMAIN_NAME: "releases.teleport.dev"
+      PACKAGE_TO_TEST: "deb"
+      RELEASE_CHANNEL: "stable"
+      ARTIFACT_TAG: "${{ needs.build-packages.outputs.version }}"
+      INSTALLER: "${{ matrix.container.package-manager }}"
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+      - name: Download test-assets
+        uses: actions/download-artifact@v4
+        with:
+          name: test-assets
+
+      - name: Install test dependencies
+        run: |
+          source run.sh
+          install_dependencies
+
+      - name: Run test
+        run: |
+          source run.sh
+          test_upgrade_downgrade
+
+  test-rpm:
+    name: Run rpm tests
+    runs-on: ubuntu-latest
+    needs: build-packages
+    strategy:
+      fail-fast: false
+      matrix:
+        container:
+          - { image: "registry.access.redhat.com/ubi9:9.1", package-manager: "yum" }
+          - { image: "registry.suse.com/bci/bci-base:15.7", package-manager: "zypper", is-sles: false }
+    container:
+      image: ${{ matrix.container.image }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      REPO_DOMAIN_NAME: "releases.teleport.dev"
+      PACKAGE_TO_TEST: "rpm"
+      RELEASE_CHANNEL: "stable"
+      ARTIFACT_TAG: "${{ needs.build-packages.outputs.version }}"
+      INSTALLER: "${{ matrix.container.package-manager }}"
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+      - name: Download test-assets
+        uses: actions/download-artifact@v4
+        with:
+          name: test-assets
+
+      - name: Install test dependencies
+        run: |
+          source run.sh
+          install_dependencies
+
+      - name: Run test
+        run: |
+          source run.sh
+          test_upgrade_downgrade
