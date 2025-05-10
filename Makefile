@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=16.0.0-dev.gus-ew9
+VERSION=16.0.0-dev.gus-ew10
 
 DOCKER_IMAGE ?= teleport
 
@@ -1747,7 +1747,7 @@ endif
 endif
 
 .PHONY: build-ui
-build-ui: ensure-js-deps ensure-wasm-des
+build-ui: ensure-js-deps ensure-wasm-deps
 	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-oss
 
 .PHONY: build-ui-e
