@@ -156,6 +156,15 @@ var (
 	}
 )
 
+// If a pcsc transaction is closed by the pcsc daemon, all operations will result in the SCARD_W_RESET_CARD error code,
+// which the piv-go library replaces with the following error message. This error can be handled by starting a new
+// transactions or reconnecting.
+//
+// See https://github.com/go-piv/piv-go/pull/173 for more details.
+//
+// TODO(Joerger): Once ^ is merged and released upstream, remove this adhoc retry.
+const pcscResetCardErrMessage = "the smart card has been reset, so any shared state information is invalid"
+
 func (y *YubiKey) signWithRetry(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, prompt hardwarekey.Prompt, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	// For generic auth errors, such as when PIN is not provided, the smart card returns the error code 0x6982.
 	// The piv-go library wraps error codes like this with a user readable message: "security status not satisfied".
@@ -176,6 +185,10 @@ func (y *YubiKey) signWithRetry(ctx context.Context, ref *hardwarekey.PrivateKey
 		}
 		signature, err := y.sign(ctx, ref, keyInfo, prompt, rand, digest, opts)
 		return signature, trace.Wrap(err)
+	case strings.Contains(err.Error(), pcscResetCardErrMessage):
+		// Usually this error occurs on Windows, which times out exclusive transactions after 5 seconds without any activity,
+		// giving users only 5 seconds to answer PIN prompts. The PIN should now be cached on the card, so we simply retry.
+		return y.sign(ctx, ref, keyInfo, prompt, rand, digest, opts)
 	default:
 		return nil, trace.Wrap(err)
 	}
@@ -191,7 +204,36 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyI
 	}
 
 	promptPIN := func() (string, error) {
-		return y.promptPIN(ctx, prompt, hardwarekey.PINRequired, keyInfo, ref.PINCacheTTL)
+		pin, err := y.promptPIN(ctx, prompt, hardwarekey.PINRequired, keyInfo, ref.PINCacheTTL)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// If the pcsc transaction resets before the PIN prompt and the PIN gets cached in the transaction,
+		// then the PIN from this prompt would be lost. Retrying on [pcscResetCardErrMessage] would initiate
+		// another PIN prompt and potentially end with the same error.
+		//
+		// Instead, we verify the PIN up front so it gets cached on the transaction. If this fails with a
+		// [pcscResetCardErrMessage] error, we must cache the PIN in the local cache.
+		//
+		// TODO(Joerger): Once https://github.com/go-piv/piv-go/pull/173 is merged this can be removed.
+		if ref.PINCacheTTL == 0 {
+			switch err := y.verifyPIN(pin); {
+			case err == nil:
+				// We we able to verify the PIN and cache it on the transaction. If the signature still
+				// fails, it should still be cached in the transaction for the retry.
+			case strings.Contains(err.Error(), pcscResetCardErrMessage):
+				// cache the PIN for a short duration so the immediate signature retry can succeed.
+				const forcedCacheTTL = 10 * time.Second
+				y.pinCache.mu.Lock()
+				y.pinCache.setPIN(pin, forcedCacheTTL)
+				y.pinCache.mu.Unlock()
+			default:
+				return "", trace.Wrap(err)
+			}
+		}
+
+		return pin, nil
 	}
 
 	auth := piv.KeyAuth{
