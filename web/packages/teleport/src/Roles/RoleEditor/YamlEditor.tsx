@@ -61,6 +61,7 @@ export const YamlEditor = ({
     }
     onChange?.({
       isDirty: originalRole?.yaml !== newContent,
+      isTouched: true,
       content: newContent,
     });
   }

@@ -67,6 +67,7 @@ const initializeState = (originalRole?: Role): StandardEditorModel => {
     roleModel,
     originalRole,
     isDirty: !originalRole, // New role is dirty by default.
+    isTouched: false,
     validationResult:
       roleModel && validateRoleEditorModel(roleModel, undefined, undefined),
     currentTab: StandardEditorTab.Overview,
@@ -161,7 +162,7 @@ type RemoveResourceAccessAction = {
   type: ActionType.RemoveResourceAccess;
   payload: { kind: ResourceAccessKind };
 };
-type AddAdminRuleAction = { type: 'add-access-rule'; payload?: never };
+type AddAdminRuleAction = { type: ActionType.AddAdminRule; payload?: never };
 type SetAdminRuleResourcesAction = {
   type: ActionType.SetAdminRuleResources;
   payload: { id: string; resources: readonly ResourceKindOption[] };
@@ -207,11 +208,13 @@ const reduce = (
 
     case ActionType.SetModel:
       state.roleModel = payload;
+      state.isTouched = false;
       break;
 
     case ActionType.ResetToStandard:
       state.roleModel.conversionErrors = [];
       state.roleModel.requiresReset = false;
+      state.isTouched = true;
       break;
 
     case ActionType.SetMetadata:
@@ -220,6 +223,7 @@ const reduce = (
         state.roleModel.resources,
         payload.version.value
       );
+      state.isTouched = true;
       break;
 
     case ActionType.SetRoleNameCollision:
@@ -228,28 +232,33 @@ const reduce = (
 
     case ActionType.SetOptions:
       state.roleModel.options = payload;
+      state.isTouched = true;
       break;
 
     case ActionType.AddResourceAccess:
       state.roleModel.resources.push(
         newResourceAccess(payload.kind, state.roleModel.metadata.version.value)
       );
+      state.isTouched = true;
       break;
 
     case ActionType.SetResourceAccess:
       state.roleModel.resources = state.roleModel.resources.map(r =>
         r.kind === payload.kind ? payload : r
       );
+      state.isTouched = true;
       break;
 
     case ActionType.RemoveResourceAccess:
       state.roleModel.resources = state.roleModel.resources.filter(
         r => r.kind !== payload.kind
       );
+      state.isTouched = true;
       break;
 
-    case 'add-access-rule':
+    case ActionType.AddAdminRule:
       state.roleModel.rules.push(newRuleModel());
+      state.isTouched = true;
       break;
 
     case ActionType.SetAdminRuleResources: {
@@ -271,6 +280,7 @@ const reduce = (
         }
       }
       rule.verbs = newVerbs;
+      state.isTouched = true;
       break;
     }
 
@@ -280,6 +290,7 @@ const reduce = (
       if (!payload.checked) {
         rule.allVerbs = false;
       }
+      state.isTouched = true;
       break;
     }
 
@@ -292,18 +303,21 @@ const reduce = (
       for (const v of rule.verbs) {
         v.checked = payload.checked;
       }
+      state.isTouched = true;
       break;
     }
 
     case ActionType.SetAdminRuleWhere:
       state.roleModel.rules.find(r => r.id === payload.id).where =
         payload.where;
+      state.isTouched = true;
       break;
 
     case ActionType.RemoveAdminRule:
       state.roleModel.rules = state.roleModel.rules.filter(
         r => r.id !== payload.id
       );
+      state.isTouched = true;
       break;
 
     case ActionType.EnableValidation:

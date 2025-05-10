@@ -33,7 +33,11 @@ import { CatchError } from 'teleport/components/CatchError';
 import cfg from 'teleport/config';
 import { Role, RoleWithYaml } from 'teleport/services/resources';
 import { storageService } from 'teleport/services/storageService';
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+import {
+  CaptureEvent,
+  RoleEditorMode,
+  userEventService,
+} from 'teleport/services/userEvent';
 import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
@@ -107,6 +111,7 @@ export const RoleEditor = ({
   const [yamlModel, setYamlModel] = useState<YamlEditorModel>({
     content: originalRole?.yaml ?? '',
     isDirty: !originalRole, // New role is dirty by default.
+    isTouched: false,
   });
 
   const isDirty = (): boolean => {
@@ -167,8 +172,14 @@ export const RoleEditor = ({
   const [saveAttempt, handleSave] = useAsync(
     async (r: Partial<RoleWithYaml>) => {
       await onSave?.(r);
-      userEventService.captureUserEvent({
-        event: CaptureEvent.CreateNewRoleSaveClickEvent,
+      const fieldsWithConversionErrors = (
+        standardModel.roleModel?.conversionErrors ?? []
+      ).flatMap(group => group.errors.map(err => err.path));
+      userEventService.captureCreateNewRoleSaveClickEvent({
+        modeWhenSaved: editorTabToMode[selectedEditorTab],
+        standardUsed: standardModel.isTouched,
+        yamlUsed: yamlModel.isTouched,
+        fieldsWithConversionErrors: fieldsWithConversionErrors,
       });
     }
   );
@@ -191,10 +202,10 @@ export const RoleEditor = ({
     yamlifyAttempt.status === 'processing' ||
     saveAttempt.status === 'processing';
 
-  async function onTabChange(activeIndex: EditorTab, validator: Validator) {
+  async function onTabChange(newTab: EditorTab, validator: Validator) {
     // The code below is not idempotent, so we need to protect ourselves from
     // an accidental model replacement.
-    if (activeIndex === selectedEditorTab) return;
+    if (newTab === selectedEditorTab) return;
 
     // Validate the model on tab switch, because the server-side yamlification
     // requires model to be valid. However, if it's OK, we reset the validator.
@@ -209,7 +220,7 @@ export const RoleEditor = ({
     }
     validator.reset();
 
-    switch (activeIndex) {
+    switch (newTab) {
       case EditorTab.Standard: {
         if (!yamlModel.content) {
           //  nothing to parse.
@@ -236,14 +247,15 @@ export const RoleEditor = ({
         setYamlModel({
           content,
           isDirty: originalRole?.yaml != content,
+          isTouched: false,
         });
         break;
       }
       default:
-        activeIndex satisfies never;
+        newTab satisfies never;
     }
 
-    setSelectedEditorTab(activeIndex);
+    setSelectedEditorTab(newTab);
   }
 
   function confirmExit() {
@@ -357,6 +369,11 @@ export const RoleEditor = ({
       </Dialog>
     </>
   );
+};
+
+const editorTabToMode: Record<EditorTab, RoleEditorMode> = {
+  [EditorTab.Standard]: RoleEditorMode.Standard,
+  [EditorTab.Yaml]: RoleEditorMode.Yaml,
 };
 
 const yamlModelToRole = ({ content }: YamlEditorModel) =>
