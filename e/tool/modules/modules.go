@@ -90,6 +90,9 @@ func SetModules(licenseFile *licensefile.LicenseFile) error {
 
 	p.features = features
 
+	// copy config-based features from the previous modules
+	copyConfigBasedFeatures(modules.GetModules().Features(), &p.features)
+
 	modules.SetModules(&p)
 	return nil
 }
@@ -126,14 +129,24 @@ func (p *enterpriseModules) Features() modules.Features {
 func (p *enterpriseModules) SetFeatures(f modules.Features) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-
-	// since these fields are directly set based on config features and shouldn't be set automatically
-	f.RecoveryCodes = p.features.RecoveryCodes
-	f.Plugins = p.features.Plugins
-	f.AccessGraph = p.features.AccessGraph
-	f.AccessMonitoringConfigured = p.features.AccessMonitoringConfigured
+	copyConfigBasedFeatures(p.features, &f)
 
 	p.features = f
+}
+
+// copyConfigBasedFeatures copies config-based features from src into dest.
+// This features are usually setup at startup time based on other params, like
+// the environment, and shouldn't be updated via SetFeatures or SetModules.
+func copyConfigBasedFeatures(src modules.Features, dest *modules.Features) {
+	// RecoveryCodes are enabled during startup when running on Cloud
+	dest.RecoveryCodes = src.RecoveryCodes
+	// Plugins are enabled during startup when the plugin service is created
+	dest.Plugins = src.Plugins
+	// AccessGraph is enabled at startup when the Entitlements Policy is enabled
+	dest.AccessGraph = src.AccessGraph
+	// AccessMonitoringConfigured is enabled at startup when
+	// the entitlement AccessMonitoring is enabled
+	dest.AccessMonitoringConfigured = src.AccessMonitoringConfigured
 }
 
 // EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords

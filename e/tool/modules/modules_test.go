@@ -333,3 +333,127 @@ func TestGetLicenseFeatures_Entitlements(t *testing.T) {
 	actual := GetSelfHostedLicenseFeatures(license)
 	require.Equal(t, expected, actual)
 }
+
+func TestEnterpriseModules_SetFeatures(t *testing.T) {
+	tt := []struct {
+		name             string
+		initialFeatures  modules.Features
+		inputFeatures    modules.Features
+		expectedFeatures modules.Features
+	}{
+		{
+			name: "overwrites fields except config-based ones",
+			initialFeatures: modules.Features{
+				RecoveryCodes:              true,
+				Plugins:                    true,
+				AccessGraph:                true,
+				AccessMonitoringConfigured: true,
+			},
+			inputFeatures: modules.Features{
+				RecoveryCodes:              false, // should NOT overwrite
+				Plugins:                    false, // should NOT overwrite
+				AccessGraph:                false, // should NOT overwrite
+				AccessMonitoringConfigured: false, // should NOT overwrite
+				Cloud:                      true,  // should overwrite
+				CustomTheme:                "dark",
+			},
+			expectedFeatures: modules.Features{
+				RecoveryCodes:              true, // stays true
+				Plugins:                    true, // stays true
+				AccessGraph:                true, // stays true
+				AccessMonitoringConfigured: true, // stays true
+				Cloud:                      true, // updated
+				CustomTheme:                "dark",
+			},
+		},
+		{
+			name:            "no config-based features, only input values",
+			initialFeatures: modules.Features{},
+			inputFeatures: modules.Features{
+				Cloud:       true,
+				CustomTheme: "light",
+			},
+			expectedFeatures: modules.Features{
+				RecoveryCodes:              false,
+				Plugins:                    false,
+				AccessGraph:                false,
+				AccessMonitoringConfigured: false,
+				Cloud:                      true,
+				CustomTheme:                "light",
+			},
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &enterpriseModules{
+				features: tc.initialFeatures,
+			}
+			p.SetFeatures(tc.inputFeatures)
+			require.Equal(t, tc.expectedFeatures, p.features)
+		})
+	}
+}
+
+func TestCopyConfigBasedFeatures(t *testing.T) {
+	tt := []struct {
+		name     string
+		src      modules.Features
+		dest     modules.Features
+		expected modules.Features
+	}{
+		{
+			name: "copies config-based fields",
+			src: modules.Features{
+				RecoveryCodes:              true,
+				Plugins:                    true,
+				AccessGraph:                true,
+				AccessMonitoringConfigured: true,
+			},
+			dest: modules.Features{
+				RecoveryCodes:              false,
+				Plugins:                    false,
+				AccessGraph:                false,
+				AccessMonitoringConfigured: false,
+				Cloud:                      true,
+			},
+			expected: modules.Features{
+				RecoveryCodes:              true,
+				Plugins:                    true,
+				AccessGraph:                true,
+				AccessMonitoringConfigured: true,
+				Cloud:                      true, // unchanged
+			},
+		},
+		{
+			name: "src false overwrites dest true",
+			src: modules.Features{
+				RecoveryCodes:              false,
+				Plugins:                    false,
+				AccessGraph:                false,
+				AccessMonitoringConfigured: false,
+			},
+			dest: modules.Features{
+				RecoveryCodes:              true,
+				Plugins:                    true,
+				AccessGraph:                true,
+				AccessMonitoringConfigured: true,
+				IsStripeManaged:            true,
+			},
+			expected: modules.Features{
+				RecoveryCodes:              false,
+				Plugins:                    false,
+				AccessGraph:                false,
+				AccessMonitoringConfigured: false,
+				IsStripeManaged:            true, // unchanged
+			},
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			copyConfigBasedFeatures(tc.src, &tc.dest)
+			require.Equal(t, tc.expected, tc.dest)
+		})
+	}
+}
