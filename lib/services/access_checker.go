@@ -1353,6 +1353,8 @@ type UserState interface {
 
 	// GetGithubIdentities returns a list of connected GitHub identities
 	GetGithubIdentities() []types.ExternalIdentity
+	// SetGithubIdentities sets the list of connected GitHub identities
+	SetGithubIdentities(identities []types.ExternalIdentity)
 }
 
 // AccessInfoFromUserState return a new AccessInfo populated from the roles and

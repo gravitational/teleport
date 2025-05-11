@@ -161,3 +161,16 @@ func (u *UserLoginState) GetGithubIdentities() []types.ExternalIdentity {
 		Username: u.Spec.GitHubIdentity.Username,
 	}}
 }
+
+// SetGithubIdentities sets the list of connected GitHub identities.
+// Note that currently only one identity is kept in UserLoginState.
+func (u *UserLoginState) SetGithubIdentities(identities []types.ExternalIdentity) {
+	if len(identities) == 0 {
+		u.Spec.GitHubIdentity = nil
+	} else {
+		u.Spec.GitHubIdentity = &ExternalIdentity{
+			UserID:   identities[0].UserID,
+			Username: identities[0].Username,
+		}
+	}
+}

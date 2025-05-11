@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/okta"
+	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -3210,7 +3211,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// This call bypasses RBAC check for users read on purpose.
 	// Users who are allowed to impersonate other users might not have
 	// permissions to read user data.
-	impersonateUser, err := a.authServer.GetUser(ctx, req.Username, false)
+	user, err := a.authServer.GetUser(ctx, req.Username, false)
 	if err != nil {
 		a.authServer.logger.DebugContext(ctx, "Could not impersonate user, the user could not be fetched from local store",
 			"error", err,
@@ -3218,13 +3219,14 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		)
 		return nil, trace.AccessDenied("access denied")
 	}
-	// TODO(greedy52) use a.authServer.GetUserOrLoginState when
-	// AccessChecker.CheckImpersonate supports services.UserState.
-	var user services.UserState = impersonateUser
-	if userState, err := a.authServer.GetUserLoginState(ctx, req.Username); err == nil {
-		user = userState
-	} else if !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
+
+	// Note that user and their login states can be out of sync in the backend.
+	// For example, GitHub identities obtained from GitHub proxy OAuth flow are
+	// preserved in user login state, where local users may get updated roles
+	// from ConnectMyComputer setup. So here we retrieve additional fields from
+	// user login state. Ideally we should solve this some other way.
+	if err := userloginstate.UpdatePreservedAttributes(ctx, user, a.authServer.Services); err != nil {
+		return nil, trace.Wrap(err, "updating preserved attributes")
 	}
 
 	// Do not allow SSO users to be impersonated.
@@ -3356,7 +3358,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	default:
 		// check if this user is allowed to impersonate other users
-		err = a.context.Checker.CheckImpersonate(a.context.User, impersonateUser, parsedRoles)
+		err = a.context.Checker.CheckImpersonate(a.context.User, user, parsedRoles)
 		// adjust session TTL based on the impersonated role set limit
 		ttl := req.Expires.Sub(a.authServer.GetClock().Now())
 		ttl = checker.AdjustSessionTTL(ttl)
