@@ -54,7 +54,12 @@ func (its *IDTokenSource) GetIDToken(ctx context.Context) (string, error) {
 		)
 	}
 
-	return tok, nil
+	idToken, err := its.exchangeToken(ctx, tok, rawBaseURL)
+	if err != nil {
+		return "", trace.Wrap(err, "exchanging token")
+	}
+
+	return idToken, nil
 }
 
 // See https://learn.microsoft.com/en-us/rest/api/azure/devops/distributedtask/oidctoken/create?view=azure-devops-rest-7.1&preserve-view=true
