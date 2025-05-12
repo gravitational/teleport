@@ -129,8 +129,7 @@ rbac:
   # where the user deploying the operator is not allowed to edit RBAC resources.
   create: true
 
-# extraEnv(list)
-# Extra environment to be configured on the pod
+extraEnv(list) -- contains extra environment to be configured on the pod.
 extraEnv: []
 
 # extraArgs(list) -- contains extra arguments to pass to the operator
