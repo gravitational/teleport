@@ -30,8 +30,7 @@ func TestOpenSharedDirectory(t *testing.T) {
 	filePath := filepath.Join(path, testFilename)
 	err := os.WriteFile(filePath, []byte("test"), 0600)
 	require.NoError(t, err)
-	access := DirectoryAccess{}
-	err = access.Open(filePath)
+	_, err = NewDirectoryAccess(filePath)
 	require.True(t, trace.IsBadParameter(err), "%q is not a directory", filePath)
 }
 
@@ -49,10 +48,9 @@ func setUpSharedDir(t *testing.T) (*DirectoryAccess, string) {
 	require.NoError(t, err)
 	err = os.Symlink(filepath.Join(path, testFilename), filepath.Join(path, testSymlinkFilename))
 	require.NoError(t, err)
-	access := DirectoryAccess{}
-	err = access.Open(path)
+	access, err := NewDirectoryAccess(path)
 	require.NoError(t, err)
-	return &access, path
+	return access, path
 }
 
 func TestDirectoryAccessEscapingPaths(t *testing.T) {
