@@ -235,6 +235,7 @@ export function makeDocumentDesktopSession(
     desktopUri: windowsDesktopUri,
     login: 'admin',
     origin: 'resource_table',
+    status: '',
     ...props,
   };
 }
