@@ -113,6 +113,12 @@ attestors:
     # credentials_path is the path to a Docker or Podman configuration file
     # containing per-registry credentials.
     credentials_path: /path/to/docker/config.json
+    # allowed_network_prefixes are the private IP address prefixes (CIDR blocks)
+    # that the Sigstore attestor is allowed to connect to. By default, tbot will
+    # only connect to registries at publicly-routable IP addresses to reduce the
+    # surface area for SSRF attacks.
+    allowed_network_prefixes:
+      - "192.168.1.42/32"
   # systemd is configuration for the Systemd Workload attestor. See the Systemd
   # section below for more information.
   systemd:
