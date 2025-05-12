@@ -67,13 +67,12 @@ Get-WinEvent -LogName Teleport -FilterXPath "*[System[Provider[@Name='vnet']]]" 
 
 ## Message file
 
-The source of the message file lives in `msgfile.mc`. It needs to be compiled to a DLL before it's
-distributed, though we also keep a precompiled version of it in `msgfile.dll`.
+The source of the message file lives in `msgfile.mc`. It needs to be distributed as a DLL.
 
-To compile the `msgfile.dll`, you need to have [message
+To compile it to a DLL, you need to have [the message
 compiler](https://learn.microsoft.com/en-us/windows/win32/wes/message-compiler--mc-exe-) (mc.exe)
-and resource compiler (rc.exe). They're both available in Windows 11 SDK. This SDK is available as
-an individual component in Visual Studio Installer. If you followed [the Teleport Connect Windows
+and the resource compiler (rc.exe). They're both available in Windows 11 SDK. This SDK is available
+as an individual component in Visual Studio Installer. If you followed [the Teleport Connect Windows
 build process instructions](/web/packages/teleterm/README.md#native-dependencies-on-windows), then
 you most likely have installed it already.
 
@@ -84,7 +83,6 @@ result in `msgfile.dll` being created in the `msgfile` directory.
 . .\build.assets\windows\build.ps1
 Compile-Message-File -MessageFile "$PWD\lib\utils\log\eventlog\msgfile.mc" -CompileDir "$PWD\msgfile"
 ```
-
 
 In Teleport Connect we distribute this file next to `tsh.exe`. The path to the DLL can be specified
 as `CONNECT_MSGFILE_DLL_PATH` during `pnpm package-term`.
