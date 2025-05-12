@@ -29,7 +29,10 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	"github.com/gravitational/teleport/lib/cryptosuites"
 )
@@ -134,6 +137,7 @@ func (f *fakeIDP) issueToken(
 	issuer,
 	audience,
 	sub string,
+	orgID string,
 	issuedAt time.Time,
 	expiry time.Time,
 ) string {
@@ -145,7 +149,9 @@ func (f *fakeIDP) issueToken(
 		NotBefore: jwt.NewNumericDate(issuedAt),
 		Expiry:    jwt.NewNumericDate(expiry),
 	}
-	customClaims := map[string]interface{}{}
+	customClaims := map[string]interface{}{
+		"org_id": orgID,
+	}
 	token, err := jwt.Signed(f.signer).
 		Claims(stdClaims).
 		Claims(customClaims).
@@ -173,11 +179,16 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				idp.issuer(goodOrgId),
 				audience,
 				"p://noahstride0304/testing-azure-devops-join/strideynet.azure-devops-testing",
+				goodOrgId,
 				time.Now().Add(-5*time.Minute),
 				time.Now().Add(5*time.Minute),
 			),
 			want: &IDTokenClaims{
-				Sub: "p://noahstride0304/testing-azure-devops-join/strideynet.azure-devops-testing",
+				Sub:              "p://noahstride0304/testing-azure-devops-join/strideynet.azure-devops-testing",
+				OrganizationID:   goodOrgId,
+				OrganizationName: "noahstride0304",
+				ProjectName:      "testing-azure-devops-join",
+				PipelineName:     "strideynet.azure-devops-testing",
 			},
 		},
 		{
@@ -188,6 +199,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				idp.issuer(goodOrgId),
 				audience,
 				"p://noahstride0304/testing-azure-devops-join/strideynet.azure-devops-testing",
+				goodOrgId,
 				time.Now().Add(-15*time.Minute),
 				time.Now().Add(-5*time.Minute),
 			),
@@ -200,20 +212,9 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				idp.issuer(goodOrgId),
 				audience,
 				"p://noahstride0304/testing-azure-devops-join/strideynet.azure-devops-testing",
+				goodOrgId,
 				time.Now().Add(10*time.Minute),
 				time.Now().Add(20*time.Minute),
-			),
-		},
-		{
-			name:        "invalid audience",
-			assertError: require.Error,
-			token: idp.issueToken(
-				t,
-				idp.issuer(goodOrgId),
-				audience,
-				"p://noahstride0304/testing-azure-devops-join/strideynet.azure-devops-testing",
-				time.Now().Add(-5*time.Minute),
-				time.Now().Add(5*time.Minute),
 			),
 		},
 		{
@@ -224,6 +225,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				idp.issuer("0000-bad-0000"),
 				audience,
 				"p://noahstride0304/testing-azure-devops-join/strideynet.azure-devops-testing",
+				goodOrgId,
 				time.Now().Add(-5*time.Minute),
 				time.Now().Add(5*time.Minute),
 			),
@@ -236,6 +238,23 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				idp.issuer(goodOrgId),
 				"wrong-audience",
 				"p://noahstride0304/testing-azure-devops-join/strideynet.azure-devops-testing",
+				goodOrgId,
+				time.Now().Add(-5*time.Minute),
+				time.Now().Add(5*time.Minute),
+			),
+		},
+		{
+			name: "mismatched org id",
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "organization ID in token")
+			},
+			token: idp.issueToken(
+				t,
+				idp.issuer(goodOrgId),
+				audience,
+				"p://noahstride0304/testing-azure-devops-join/strideynet.azure-devops-testing",
+				"bad-org-id",
 				time.Now().Add(-5*time.Minute),
 				time.Now().Add(5*time.Minute),
 			),
@@ -254,7 +273,9 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				tt.token,
 			)
 			tt.assertError(t, err)
-			require.Equal(t, tt.want, claims)
+			require.Empty(t,
+				cmp.Diff(claims, tt.want, cmpopts.IgnoreTypes(oidc.TokenClaims{})),
+			)
 		})
 	}
 }
