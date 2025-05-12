@@ -615,8 +615,8 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 	return resourceSortKey{
 		// names should be stored as lowercase to keep items sorted as
 		// expected, regardless of case
-		byName: backend.NewKey(prefix, strings.ToLower(name), kind),
-		byType: backend.NewKey(prefix, kind, strings.ToLower(name)),
+		byName: backend.NewKey(prefix, strings.ToLower(name), name, kind),
+		byType: backend.NewKey(prefix, kind, strings.ToLower(name), name),
 	}
 }
 

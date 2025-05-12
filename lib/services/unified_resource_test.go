@@ -1221,3 +1221,53 @@ func mustCreateOktaAppServer(t *testing.T, name, friendlyName string) *types.App
 	require.NoError(t, err)
 	return resource
 }
+
+func TestUnifiedResourceWatcher_SortOrder(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	clt := newClient(t)
+	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentUnifiedResource,
+			Client:    clt,
+		},
+		ResourceGetter: clt,
+	})
+	require.NoError(t, err)
+
+	// upsert in some random order
+	names := []string{"qux", "bar", "FOO", "baz", "foo", "BAR"}
+	// sort first by case-insensitive alphabetical order, then resolve duplicates with case-sensitive order.
+	want := []string{"BAR", "bar", "baz", "FOO", "foo", "qux"}
+	for _, name := range names {
+		db, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol: "test-protocol",
+			URI:      "test-uri",
+		})
+		require.NoError(t, err)
+		dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseServerSpecV3{
+			Hostname: "db-hostname",
+			HostID:   uuid.NewString(),
+			Database: db,
+		})
+		require.NoError(t, err)
+		_, err = clt.UpsertDatabaseServer(ctx, dbServer)
+		require.NoError(t, err)
+	}
+
+	require.Eventually(t, func() bool {
+		res, _ := w.GetUnifiedResources(ctx)
+		return len(res) == len(names)
+	}, 5*time.Second, 100*time.Millisecond, "Timed out waiting for unified resources to be added")
+	got, _ := w.GetUnifiedResources(ctx)
+	gotNames := make([]string, 0, len(names))
+	for _, r := range got {
+		gotNames = append(gotNames, r.GetName())
+	}
+	require.EqualValues(t, want, gotNames)
+}
