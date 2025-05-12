@@ -47,9 +47,6 @@ type sessionCtx struct {
 }
 
 func (c *sessionCtx) checkAccessToTool(toolName string) error {
-	if c.allowedTools.WildcardAllowed() {
-		return nil
-	}
 	if c.allowedTools.WildcardDenied() {
 		return trace.AccessDenied("access to MCP tool %q is denied", toolName)
 	}
@@ -58,6 +55,10 @@ func (c *sessionCtx) checkAccessToTool(toolName string) error {
 		return trace.Wrap(err)
 	} else if result {
 		return trace.AccessDenied("access to MCP tool %q is denied", toolName)
+	}
+
+	if c.allowedTools.WildcardAllowed() {
+		return nil
 	}
 
 	if result, err := utils.SliceMatchesRegex(toolName, c.allowedTools.Allowed()); err != nil {
