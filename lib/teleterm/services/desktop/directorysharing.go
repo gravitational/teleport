@@ -168,22 +168,28 @@ func (d *DirectoryAccess) Read(relativePath string, offset int64, buf []byte) (i
 		return 0, trace.Wrap(err)
 	}
 
-	opened, err := os.Open(path)
+	file, err := os.Open(path)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
-	defer opened.Close()
+	defer func() {
+		closeErr := file.Close()
+		if closeErr != nil && err == nil {
+			// Only update err if no previous error occurred.
+			err = trace.Wrap(closeErr)
+		}
+	}()
 
-	_, err = opened.Seek(offset, io.SeekStart)
+	_, err = file.Seek(offset, io.SeekStart)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
 
-	n, err := opened.Read(buf)
+	n, err := file.Read(buf)
 	if err != nil && !errors.Is(err, io.EOF) {
 		return 0, trace.Wrap(err)
 	}
-	return n, nil
+	return n, trace.Wrap(err)
 }
 
 // Write writes data to a file at a given offset.
@@ -197,7 +203,14 @@ func (d *DirectoryAccess) Write(relativePath string, offset int64, data []byte) 
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
-	defer file.Close()
+
+	defer func() {
+		closeErr := file.Close()
+		if closeErr != nil && err == nil {
+			// Only update err if no previous error occurred.
+			err = trace.Wrap(closeErr)
+		}
+	}()
 
 	_, err = file.Seek(offset, io.SeekStart)
 	if err != nil {
@@ -205,11 +218,7 @@ func (d *DirectoryAccess) Write(relativePath string, offset int64, data []byte) 
 	}
 
 	n, err := file.Write(data)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	return n, nil
+	return n, trace.Wrap(err)
 }
 
 // Truncate truncates a file to the specified size.
@@ -274,25 +283,31 @@ func (d *DirectoryAccess) readFileOrDirInfo(relativePath string, f os.FileInfo) 
 		IsEmpty:      false,
 	}
 
-	if f.IsDir() {
-		r, err := os.Open(path)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		defer r.Close()
-		info.FileType = FileTypeDir
-		// Determine if the dir is not empty by checking if it contains at least one file.
-		if _, err := r.Readdirnames(1); err != nil {
-			if errors.Is(err, io.EOF) {
-				info.IsEmpty = true
-			} else {
-				return nil, trace.Wrap(err)
-			}
-		}
-		info.Size = StandardDirSize
-	} else {
+	if !f.IsDir() {
 		info.FileType = FileTypeFile
+		return info, nil
 	}
 
-	return info, nil
+	opened, err := os.Open(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer func() {
+		closeErr := opened.Close()
+		if closeErr != nil && err == nil {
+			// Only update err if no previous error occurred.
+			err = trace.Wrap(closeErr)
+		}
+	}()
+
+	info.FileType = FileTypeDir
+	info.Size = StandardDirSize
+
+	// Determine if the dir is not empty by checking if it contains at least one file.
+	_, err = opened.Readdirnames(1)
+	if errors.Is(err, io.EOF) {
+		err = nil
+		info.IsEmpty = true
+	}
+	return info, trace.Wrap(err)
 }
