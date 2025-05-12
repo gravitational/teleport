@@ -175,7 +175,7 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 			},
 		})
 
-		assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			assert.Equal(collect, "stdout: hello\n", stdout.String())
 			assert.Equal(collect, "stderr: hello\n", stderr.String())
 		}, time.Second, 10*time.Millisecond)
@@ -183,13 +183,12 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		cancel()
 		select {
 		case err := <-errorCh:
-			assert.ErrorIs(t, err, context.Canceled)
+			require.ErrorIs(t, err, context.Canceled)
 		case <-time.After(5 * time.Second):
-			fmt.Println(stdout.String())
-			assert.Fail(t, "timed out waiting for child to finish")
+			require.Fail(t, "timed out waiting for child to finish")
 		}
 
-		assert.Never(t, func() bool {
+		require.Never(t, func() bool {
 			return strings.Contains(stdout.String(), "extra output")
 		}, 3*time.Second, time.Second)
 	})
