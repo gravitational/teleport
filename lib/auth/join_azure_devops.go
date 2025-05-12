@@ -27,6 +27,10 @@ import (
 	"github.com/gravitational/teleport/lib/azuredevops"
 )
 
+type azureDevopsIDTokenValidator interface {
+	Validate(ctx context.Context, organizationID string, idToken string) (*azuredevops.IDTokenClaims, error)
+}
+
 func (a *Server) checkAzureDevopsJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*azuredevops.IDTokenClaims, error) {
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("IDToken not provided for %q join request", types.JoinMethodAzureDevops)
@@ -35,10 +39,52 @@ func (a *Server) checkAzureDevopsJoinRequest(ctx context.Context, req *types.Reg
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, ok := pt.(*types.ProvisionTokenV2)
+	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
 		return nil, trace.BadParameter("%q join method only support ProvisionTokenV2, '%T' was provided", types.JoinMethodAzureDevops, pt)
 	}
 
-	return nil, trace.NotImplemented("azuredevops join request not implemented yet")
+	claims, err := a.azureDevopsIDTokenValidator.Validate(
+		ctx,
+		token.Spec.CircleCI.OrganizationID,
+		req.IDToken,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return claims, trace.Wrap(checkAzureDevopsAllowRules(token, claims))
+}
+
+func checkAzureDevopsAllowRules(token *types.ProvisionTokenV2, claims *azuredevops.IDTokenClaims) error {
+	// If a single rule passes, accept the IDToken
+	for _, rule := range token.Spec.AzureDevops.Allow {
+		if rule.Sub != "" && rule.Sub != claims.Subject {
+			continue
+		}
+		if rule.ProjectName != "" && rule.ProjectName != claims.ProjectName {
+			continue
+		}
+		if rule.PipelineName != "" && rule.PipelineName != claims.PipelineName {
+			continue
+		}
+		if rule.ProjectID != "" && claims.ProjectID != rule.ProjectID {
+			continue
+		}
+		if rule.DefinitionID != "" && claims.DefinitionID != rule.DefinitionID {
+			continue
+		}
+		if rule.RepositoryURI != "" && claims.RepositoryURI != rule.RepositoryURI {
+			continue
+		}
+		if rule.RepositoryVersion != "" && claims.RepositoryVersion != rule.RepositoryVersion {
+			continue
+		}
+		if rule.RepositoryRef != "" && claims.RepositoryReference != rule.RepositoryRef {
+			continue
+		}
+		return nil
+	}
+
+	return trace.AccessDenied("id token claims failed to match any allow rules")
 }

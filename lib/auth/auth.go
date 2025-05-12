@@ -1115,6 +1115,11 @@ type Server struct {
 	// the auth server. It can be overridden for the purpose of tests.
 	gitlabIDTokenValidator gitlabIDTokenValidator
 
+	// azureDevopsIDTokenValidator allows ID tokens from Azure DevOps to be
+	// validated by the auth server. It can be overridden for the purpose of
+	// tests.
+	azureDevopsIDTokenValidator azureDevopsIDTokenValidator
+
 	// tpmValidator allows TPMs to be validated by the auth server. It can be
 	// overridden for the purpose of tests.
 	tpmValidator func(
