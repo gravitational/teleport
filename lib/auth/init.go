@@ -836,6 +836,8 @@ func applyAuthorityConfig(ctx context.Context, asrv *Server, ca types.CertAuthor
 	if err := ca.SetActiveKeys(activeKeys); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// This is only executed during cluster init while holding a lock to prevent
+	// other auth servers from updating CAs simulaniously.
 	ca, err = asrv.UpdateCertAuthority(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
