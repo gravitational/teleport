@@ -150,6 +150,7 @@ func TestGetResourceNames(t *testing.T) {
 	ctx := context.Background()
 
 	req, err := types.NewAccessRequestWithResources(uuid.New().String(), "some-user", []string{}, resourceIDs)
+	require.NoError(t, err)
 	names, err := GetResourceNames(ctx, presence, req)
 	require.NoError(t, err)
 	expected := []string{
