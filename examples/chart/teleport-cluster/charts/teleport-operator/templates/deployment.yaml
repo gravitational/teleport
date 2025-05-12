@@ -65,7 +65,7 @@ spec:
   {{- end }}
   {{- if or (.Values.tls.existingCASecretName) (.Values.teleportClusterName) (.Values.extraEnv)  }}
           env:
-    {{- if (gt (len .Values.extraEnv) 0) }}
+    {{- if .Values.extraEnv }}
           {{- toYaml .Values.extraEnv | nindent 12 }}
     {{- end }}
     {{- if .Values.tls.existingCASecretName }}
