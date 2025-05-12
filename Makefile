@@ -543,6 +543,8 @@ clean-ui:
 	rm -rf webassets/*
 	rm -rf build.assets/.cache/ts
 	rm -rf web/packages/teleterm/build
+	# .pnpm-store is generated during dockerized builds.
+	rm -rf .pnpm-store
 	find . -type d -name node_modules -prune -exec rm -rf {} \;
 
 # RELEASE_DIR is where release artifact files are put, such as tarballs, packages, etc.
