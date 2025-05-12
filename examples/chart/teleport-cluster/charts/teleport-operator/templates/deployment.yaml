@@ -60,8 +60,14 @@ spec:
             - -ca-pin
             - '{{ join "," .Values.caPins }}'
   {{- end }}
-  {{- if or (.Values.tls.existingCASecretName) (.Values.teleportClusterName) }}
+  {{- if .Values.extraArgs }}
+            {{- toYaml .Values.extraArgs | nindent 12 }}
+  {{- end }}
+  {{- if or (.Values.tls.existingCASecretName) (.Values.teleportClusterName) (.Values.extraEnv)  }}
           env:
+    {{- if .Values.extraEnv }}
+          {{- toYaml .Values.extraEnv | nindent 12 }}
+    {{- end }}
     {{- if .Values.tls.existingCASecretName }}
             - name: SSL_CERT_FILE
               value: /etc/teleport-tls-ca/ca.pem

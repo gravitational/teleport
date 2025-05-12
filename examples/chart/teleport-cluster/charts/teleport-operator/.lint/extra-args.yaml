@@ -1,0 +1,6 @@
+extraArgs:
+  - "--namespace"
+  - "teleport"
+teleportAddress: "example.teleport.sh:443"
+token: "my-operator-bot"
+teleportClusterName: "example.teleport.sh"
