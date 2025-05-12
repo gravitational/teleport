@@ -112,6 +112,9 @@ jobs:
         run: |
           corepack enable pnpm
 
+      - name: Install wasm-pack
+        run: make ensure-wasm-deps
+
       - name: Setup keychain
         env:
           APP_KEY: ${{ env.APPLE_APPLICATION_PRIVATE_KEY }}
