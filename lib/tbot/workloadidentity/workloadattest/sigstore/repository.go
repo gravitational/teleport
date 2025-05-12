@@ -198,6 +198,11 @@ func buildSafeTransport(allowedPrefixes []netip.Prefix) http.RoundTripper {
 	}
 	return &http.Transport{
 		DialContext: (&net.Dialer{
+			// By default, ssrf.New blocks all private IPv4 and IPv6 addresses
+			// including the loopback addresses, RFC 1918, link local addresses,
+			// broadcast addresses, and some other special cases.
+			//
+			// It also only allows port 80 and 443, but we relax that requirement.
 			Control: ssrf.New(
 				ssrf.WithAnyPort(),
 				ssrf.WithAllowedV4Prefixes(v4...),
