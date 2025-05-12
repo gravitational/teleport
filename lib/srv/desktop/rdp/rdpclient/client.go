@@ -357,7 +357,6 @@ func (c *Client) runLocal(ctx context.Context) error {
 				start := time.Now()
 				buf.Reset()
 				encoder.Reset(&buf)
-				buf.Grow(len(replay.Data) / 4)
 				if err := binary.Write(&buf, binary.BigEndian, rect.X); err != nil {
 					return trace.Wrap(err)
 				}
@@ -386,7 +385,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 				compressedSize += buf.Len()
 				if duration > 20*time.Millisecond {
 					c.cfg.Logger.WarnContext(ctx, "Slow frame rendering", "duration", duration)
-					os.WriteFile(fmt.Sprintf("../slow/slow%d_%dx%d.rgb565", i2, rect.Width, rect.Height), replay.Data, 0666)
+					//os.WriteFile(fmt.Sprintf("../slow/slow%d_%dx%d.rgb565", i2, rect.Width, rect.Height), replay.Data, 0666)
 				}
 				if err := c.cfg.Conn.WriteMessage(tdp.X11Frame(buf.Bytes())); err != nil {
 					return trace.Wrap(err)
