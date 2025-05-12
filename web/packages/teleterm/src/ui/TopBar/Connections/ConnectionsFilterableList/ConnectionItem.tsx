@@ -169,12 +169,6 @@ function getKindName(connection: ExtendedTrackedConnection): string {
     case 'connection.desktop':
       return 'DESKTOP';
     default:
-      // The default branch is triggered when the state read from the disk
-      // contains a connection not supported by the given Connect version.
-      //
-      // For example, the user can open an app connection in Connect v15
-      // and then downgrade to a version that doesn't support apps.
-      // That connection should be shown as 'UNKNOWN' in the connection list.
       return 'UNKNOWN';
   }
 }
