@@ -19,6 +19,7 @@ package desktop
 import (
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -85,7 +86,7 @@ func (s *DirectoryAccess) getSafePath(relativePath string) (string, error) {
 	if err != nil {
 		// EvalSymlinks returns an error if the target file does not exist.
 		// In that case, attempt to resolve the symlinks of the parent directory instead.
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			parent := filepath.Dir(full)
 			resolvedParent, perr := filepath.EvalSymlinks(parent)
 			if perr != nil {
