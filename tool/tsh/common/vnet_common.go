@@ -159,7 +159,7 @@ func (p *vnetAppProvider) retryWithRelogin(ctx context.Context, tc *client.Telep
 			if p.loginMu.TryLock() {
 				didLock = true
 			} else {
-				return fmt.Errorf("not attempting re-login to cluster %s, another login is current in progress.", tc.SiteName)
+				return fmt.Errorf("not attempting re-login to cluster %s, another login is current in progress", tc.SiteName)
 			}
 			fmt.Printf("Login for cluster %s expired, attempting to log in again.\n", tc.SiteName)
 			return nil

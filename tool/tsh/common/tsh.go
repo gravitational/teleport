@@ -3041,8 +3041,8 @@ func serializeDatabases(databases []types.Database, format string, accessChecker
 	}
 
 	var out []byte
-	switch {
-	case format == teleport.JSON:
+	switch format {
+	case teleport.JSON:
 		out, err = utils.FastMarshalIndent(printObj, "", "  ")
 	default:
 		out, err = yaml.Marshal(printObj)
@@ -3644,7 +3644,7 @@ func retryWithAccessRequest(
 
 	// Retry now that request has been approved and certs updated.
 	// Clear the original exit status.
-	tc.ExitStatus = 0
+	tc.SetExitStatus(0)
 	return trace.Wrap(fn())
 }
 
@@ -3747,7 +3747,7 @@ func onSSHLatency(cf *CLIConf) error {
 		tc.Config.HostLogin,
 	)
 	if err != nil {
-		tc.ExitStatus = 1
+		tc.SetExitStatus(1)
 		return trace.Wrap(err)
 	}
 	defer nodeClient.Close()
@@ -3958,7 +3958,7 @@ func onSSH(cf *CLIConf) error {
 		fmt.Sprintf("%s@%s", tc.HostLogin, tc.Host),
 	)
 	// Exit with the same exit status as the failed command.
-	if tc.ExitStatus != 0 {
+	if status := tc.ExitStatus(); status != 0 {
 		var exitErr *common.ExitCodeError
 		if errors.As(err, &exitErr) {
 			// Already have an exitCodeError, return that.
@@ -3968,7 +3968,7 @@ func onSSH(cf *CLIConf) error {
 			// Print the error here so we don't lose it when returning the exitCodeError.
 			fmt.Fprintln(tc.Stderr, utils.UserMessageFromError(err))
 		}
-		err = &common.ExitCodeError{Code: tc.ExitStatus}
+		err = &common.ExitCodeError{Code: status}
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(err)

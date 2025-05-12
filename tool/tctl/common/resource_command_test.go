@@ -1781,8 +1781,8 @@ version: v1
 	var expected databaseobjectimportrule.Resource
 	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
 
-	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
-	require.Equal(t, "", cmp.Diff(databaseobjectimportrule.ResourceToProto(&expected), databaseobjectimportrule.ResourceToProto(&resources[0]), cmpOpts...))
+	require.Empty(t, cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Empty(t, cmp.Diff(databaseobjectimportrule.ResourceToProto(&expected), databaseobjectimportrule.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
 func testCreateClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
@@ -2064,8 +2064,8 @@ version: v1
 	var expected databaseobject.Resource
 	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
 
-	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
-	require.Equal(t, "", cmp.Diff(databaseobject.ResourceToProto(&expected), databaseobject.ResourceToProto(&resources[0]), cmpOpts...))
+	require.Empty(t, cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Empty(t, cmp.Diff(databaseobject.ResourceToProto(&expected), databaseobject.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
 // TestCreateEnterpriseResources asserts that tctl create

@@ -85,7 +85,7 @@ func TestOIDCIdPPublicEndpoints(t *testing.T) {
 	require.Equal(t, key1.KeyType, key2.KeyType)
 	require.Equal(t, key1.Alg, key2.Alg)
 	require.NotEmpty(t, *key1.KeyID)
-	require.Equal(t, "", *key2.KeyID)
+	require.Empty(t, *key2.KeyID)
 }
 
 func TestThumbprint(t *testing.T) {

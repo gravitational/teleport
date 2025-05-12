@@ -1,6 +1,8 @@
+//go:build !linux
+
 /*
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,33 +18,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bitbucket
+package workloadattest
 
 import (
-	"testing"
+	"context"
+	"io"
+	"os"
 
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
-func TestIDTokenSource_GetIDToken(t *testing.T) {
-	t.Run("value present", func(t *testing.T) {
-		its := NewIDTokenSource(func(key string) string {
-			if key == "BITBUCKET_STEP_OIDC_TOKEN" {
-				return "foo"
-			}
-			return ""
-		})
-		tok, err := its.GetIDToken()
-		require.NoError(t, err)
-		require.Equal(t, "foo", tok)
-	})
+var unixOS UnixOS = nonLinux{}
 
-	t.Run("value missing", func(t *testing.T) {
-		its := NewIDTokenSource(func(key string) string { return "" })
-		tok, err := its.GetIDToken()
-		require.Error(t, err)
-		require.True(t, trace.IsBadParameter(err))
-		require.Empty(t, tok)
-	})
+// nonLinux implements the UnixOS interface for non-Linux systems.
+type nonLinux struct{}
+
+func (nonLinux) ExePath(ctx context.Context, proc *process.Process) (string, error) {
+	return proc.ExeWithContext(ctx)
+}
+
+func (n nonLinux) OpenExe(ctx context.Context, proc *process.Process) (io.ReadCloser, error) {
+	path, err := n.ExePath(ctx, proc)
+	if err != nil {
+		return nil, err
+	}
+	return os.Open(path)
 }

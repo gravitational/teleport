@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // JoinMethod is the method used for new nodes to join the cluster.
@@ -98,7 +98,7 @@ var JoinMethods = []JoinMethod{
 func ValidateJoinMethod(method JoinMethod) error {
 	hasJoinMethod := slices.Contains(JoinMethods, method)
 	if !hasJoinMethod {
-		return trace.BadParameter("join method must be one of %s", apiutils.JoinStrings(JoinMethods, ", "))
+		return trace.BadParameter("join method must be one of %s", utils.JoinStrings(JoinMethods, ", "))
 	}
 
 	return nil
@@ -642,7 +642,7 @@ func (a *ProvisionTokenSpecV2GitHub) checkAndSetDefaults() error {
 		repoSet := rule.Repository != ""
 		ownerSet := rule.RepositoryOwner != ""
 		subSet := rule.Sub != ""
-		if !(subSet || ownerSet || repoSet) {
+		if !subSet && !ownerSet && !repoSet {
 			return trace.BadParameter(
 				`allow rule for %q must include at least one of "repository", "repository_owner" or "sub"`,
 				JoinMethodGitHub,
@@ -718,7 +718,7 @@ func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 	default:
 		return trace.BadParameter(
 			"type: must be one of (%s), got %q",
-			apiutils.JoinStrings(JoinMethods, ", "),
+			utils.JoinStrings(JoinMethods, ", "),
 			a.Type,
 		)
 	}

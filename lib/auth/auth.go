@@ -392,7 +392,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+			return nil, fmt.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 	} else if cfg.KeyStoreConfig.AWSKMS != nil {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
@@ -2933,7 +2933,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 
 	if len(req.checker.GetAllowedResourceIDs()) > 0 && modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, fmt.Errorf("Resource Access Requests: %w", ErrRequiresEnterprise)
+		return nil, fmt.Errorf("resource access requests: %w", ErrRequiresEnterprise)
 	}
 
 	// Reject the cert request if there is a matching lock in force.
@@ -5960,7 +5960,7 @@ func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.Session
 	for _, policySet := range tracker.GetHostPolicySets() {
 		if len(policySet.RequireSessionJoin) != 0 {
 			if modules.GetModules().BuildType() != modules.BuildEnterprise {
-				return nil, fmt.Errorf("Moderated Sessions: %w", ErrRequiresEnterprise)
+				return nil, fmt.Errorf("moderated sessions: %w", ErrRequiresEnterprise)
 			}
 		}
 	}

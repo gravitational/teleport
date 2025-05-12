@@ -74,6 +74,17 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 					Listen: "tcp://0.0.0.0:4040",
 				}
 			},
+			want: &WorkloadIdentityAPIService{
+				Selector: WorkloadIdentitySelector{
+					Name: "my-workload-identity",
+				},
+				Listen: "tcp://0.0.0.0:4040",
+				Attestors: workloadattest.Config{
+					Unix: workloadattest.UnixAttestorConfig{
+						BinaryHashMaxSizeBytes: workloadattest.DefaultBinaryHashMaxBytes,
+					},
+				},
+			},
 		},
 		{
 			name: "valid with labels",
@@ -86,6 +97,19 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 					},
 					Listen: "tcp://0.0.0.0:4040",
 				}
+			},
+			want: &WorkloadIdentityAPIService{
+				Selector: WorkloadIdentitySelector{
+					Labels: map[string][]string{
+						"key": {"value"},
+					},
+				},
+				Listen: "tcp://0.0.0.0:4040",
+				Attestors: workloadattest.Config{
+					Unix: workloadattest.UnixAttestorConfig{
+						BinaryHashMaxSizeBytes: workloadattest.DefaultBinaryHashMaxBytes,
+					},
+				},
 			},
 		},
 		{

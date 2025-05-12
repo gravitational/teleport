@@ -134,7 +134,7 @@ func New(cfg *Config) (*Player, error) {
 		clk = clockwork.NewRealClock()
 	}
 
-	var log logrus.FieldLogger = cfg.Log
+	log := cfg.Log
 	if log == nil {
 		log = logrus.New().WithField(teleport.ComponentKey, "player")
 	}
