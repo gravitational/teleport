@@ -79,9 +79,9 @@ func NewDirectoryAccess(baseDir string) (*DirectoryAccess, error) {
 
 // getSafePath allows building a safe path by joining the base path
 // and a relative path.
-// If the joined path points out of the basePath, an error is returned.
-func (s *DirectoryAccess) getSafePath(relativePath string) (string, error) {
-	full := filepath.Join(s.basePath, relativePath)
+// Returns an error if the resolved path escapes the basePath, preventing directory traversal attacks.
+func (d *DirectoryAccess) getSafePath(relativePath string) (string, error) {
+	full := filepath.Join(d.basePath, relativePath)
 	resolved, err := filepath.EvalSymlinks(full)
 	if err != nil {
 		// EvalSymlinks returns an error if the target file does not exist.
@@ -99,7 +99,7 @@ func (s *DirectoryAccess) getSafePath(relativePath string) (string, error) {
 			return "", trace.Wrap(err)
 		}
 	}
-	if !isSubPath(s.basePath, resolved) {
+	if !isSubPath(d.basePath, resolved) {
 		return "", trace.BadParameter("path escapes from parent")
 	}
 	return resolved, nil
@@ -110,8 +110,8 @@ func isSubPath(parent, child string) bool {
 }
 
 // Stat retrieves metadata about a file or directory at the given path.
-func (s *DirectoryAccess) Stat(relativePath string) (*FileOrDirInfo, error) {
-	path, err := s.getSafePath(relativePath)
+func (d *DirectoryAccess) Stat(relativePath string) (*FileOrDirInfo, error) {
+	path, err := d.getSafePath(relativePath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,13 +121,13 @@ func (s *DirectoryAccess) Stat(relativePath string) (*FileOrDirInfo, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	info, err := s.readFileOrDirInfo(relativePath, stat)
+	info, err := d.readFileOrDirInfo(relativePath, stat)
 	return info, trace.Wrap(err)
 }
 
 // ReadDir lists files and directories within the given directory path, skips symlinks.
-func (s *DirectoryAccess) ReadDir(relativePath string) ([]*FileOrDirInfo, error) {
-	path, err := s.getSafePath(relativePath)
+func (d *DirectoryAccess) ReadDir(relativePath string) ([]*FileOrDirInfo, error) {
+	path, err := d.getSafePath(relativePath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -150,7 +150,7 @@ func (s *DirectoryAccess) ReadDir(relativePath string) ([]*FileOrDirInfo, error)
 		}
 
 		entryRelativePath := filepath.Join(relativePath, fileInfo.Name())
-		fileOrDir, err := s.readFileOrDirInfo(entryRelativePath, fileInfo)
+		fileOrDir, err := d.readFileOrDirInfo(entryRelativePath, fileInfo)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -162,8 +162,8 @@ func (s *DirectoryAccess) ReadDir(relativePath string) ([]*FileOrDirInfo, error)
 }
 
 // Read reads a slice of a file into buf. Returns the number of read bytes.
-func (s *DirectoryAccess) Read(relativePath string, offset int64, buf []byte) (int, error) {
-	path, err := s.getSafePath(relativePath)
+func (d *DirectoryAccess) Read(relativePath string, offset int64, buf []byte) (int, error) {
+	path, err := d.getSafePath(relativePath)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -187,8 +187,8 @@ func (s *DirectoryAccess) Read(relativePath string, offset int64, buf []byte) (i
 }
 
 // Write writes data to a file at a given offset.
-func (s *DirectoryAccess) Write(relativePath string, offset int64, data []byte) (int, error) {
-	path, err := s.getSafePath(relativePath)
+func (d *DirectoryAccess) Write(relativePath string, offset int64, data []byte) (int, error) {
+	path, err := d.getSafePath(relativePath)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -213,8 +213,8 @@ func (s *DirectoryAccess) Write(relativePath string, offset int64, data []byte) 
 }
 
 // Truncate truncates a file to the specified size.
-func (s *DirectoryAccess) Truncate(relativePath string, size int64) error {
-	path, err := s.getSafePath(relativePath)
+func (d *DirectoryAccess) Truncate(relativePath string, size int64) error {
+	path, err := d.getSafePath(relativePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -223,8 +223,8 @@ func (s *DirectoryAccess) Truncate(relativePath string, size int64) error {
 }
 
 // Create creates a new file or directory at the given path.
-func (s *DirectoryAccess) Create(relativePath string, fileType FileType) error {
-	path, err := s.getSafePath(relativePath)
+func (d *DirectoryAccess) Create(relativePath string, fileType FileType) error {
+	path, err := d.getSafePath(relativePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -251,8 +251,8 @@ func (s *DirectoryAccess) Create(relativePath string, fileType FileType) error {
 }
 
 // Delete removes a file or directory at the given path.
-func (s *DirectoryAccess) Delete(relativePath string) error {
-	path, err := s.getSafePath(relativePath)
+func (d *DirectoryAccess) Delete(relativePath string) error {
+	path, err := d.getSafePath(relativePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -261,8 +261,8 @@ func (s *DirectoryAccess) Delete(relativePath string) error {
 	return trace.Wrap(err)
 }
 
-func (s *DirectoryAccess) readFileOrDirInfo(relativePath string, f os.FileInfo) (*FileOrDirInfo, error) {
-	path, err := s.getSafePath(relativePath)
+func (d *DirectoryAccess) readFileOrDirInfo(relativePath string, f os.FileInfo) (*FileOrDirInfo, error) {
+	path, err := d.getSafePath(relativePath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
