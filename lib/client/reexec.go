@@ -22,6 +22,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -65,11 +66,14 @@ func buildForkAuthenticateCommand(params ForkAuthenticateParams) (*forkAuthCmd, 
 		return nil, trace.Wrap(err)
 	}
 	cmd := exec.Command(executable)
-	pipeR, pipeW, err := os.Pipe()
+	// Prevent unfinished IO from blocking the child's exit.
+	cmd.WaitDelay = 3 * time.Second
+	// Set up disown signal.
+	signalR, signalW, err := os.Pipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signalFd := addSignalFdToChild(cmd, pipeW)
+	signalFd := addSignalFdToChild(cmd, signalW)
 
 	cmd.Args = append(cmd.Args, params.GetArgs(signalFd)...)
 	cmd.Stdout = params.Stdout
@@ -86,7 +90,7 @@ func buildForkAuthenticateCommand(params ForkAuthenticateParams) (*forkAuthCmd, 
 	}
 	return &forkAuthCmd{
 		Cmd:          cmd,
-		disownSignal: pipeR,
+		disownSignal: signalR,
 		parentStdin:  params.Stdin,
 		childStdin:   stdin,
 	}, nil
