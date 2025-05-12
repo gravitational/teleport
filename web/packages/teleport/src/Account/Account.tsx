@@ -16,20 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useHistory } from 'react-router';
-import styled from 'styled-components';
 
 import { Flex } from 'design';
 import { Danger } from 'design/Alert';
 import { ArrowBack } from 'design/Icon';
-import {
-  Notification,
-  NotificationItem,
-  NotificationItemContent,
-  NotificationSeverity,
-} from 'shared/components/Notification';
-import { Attempt } from 'shared/hooks/useAttemptNext';
+import { NotificationSeverity } from 'shared/components/Notification';
 import { useStore } from 'shared/libs/stores';
 
 import {
@@ -45,6 +38,10 @@ import useTeleport from 'teleport/useTeleport';
 import useManageDevices, {
   State as ManageDevicesState,
 } from './ManageDevices/useManageDevices';
+import {
+  NotificationOutlet,
+  NotificationProvider,
+} from './NotificationContext';
 import { Preferences } from './Preferences';
 import { SecuritySettings } from './SecuritySettings';
 import { SideNav } from './SideNav';
@@ -122,38 +119,14 @@ export function Account({
 }: AccountProps) {
   const history = useHistory();
 
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [prevFetchStatus, setPrevFetchStatus] = useState<Attempt['status']>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  function addNotification(
-    severity: NotificationSeverity,
-    content: NotificationItemContent
-  ) {
-    setNotifications(n => [
-      ...n,
-      {
-        id: crypto.randomUUID(),
-        severity,
-        content,
-      },
-    ]);
-  }
-
-  function removeNotification(id: string) {
-    setNotifications(n => n.filter(item => item.id !== id));
-  }
-
-  // TODO(bl.nero): Modify `useManageDevices` and export callbacks from there instead.
-  if (prevFetchStatus !== fetchDevicesAttempt.status) {
-    setPrevFetchStatus(fetchDevicesAttempt.status);
-    if (fetchDevicesAttempt.status === 'failed') {
-      addNotification('error', fetchDevicesAttempt.statusText);
-    }
-  }
+  const stableSetErrorMessage = useCallback((message: string | null) => {
+    setErrorMessage(message);
+  }, []);
 
   return (
-    <Relative>
+    <NotificationProvider>
       <FeatureBox margin="auto">
         <FeatureHeader>
           <ArrowBack
@@ -165,8 +138,12 @@ export function Account({
           />
           <FeatureHeaderTitle>Account Settings</FeatureHeaderTitle>
         </FeatureHeader>
-        {!!errorMessage && <Danger dismissible onDismiss={() => setErrorMessage(null)}>{errorMessage}</Danger>}
-        <Flex flexDirection="row" gap={4} maxWidth={'1440px'} margin={'auto'}>
+        {!!errorMessage && (
+          <Danger dismissible onDismiss={() => setErrorMessage(null)}>
+            {errorMessage}
+          </Danger>
+        )}
+        <Flex flexDirection="row" gap={4} maxWidth={'1440px'} margin={'0 auto'}>
           <Flex flexDirection="column" gap={1} width="16rem">
             <SideNav
               recoveryEnabled={EnterpriseComponent !== undefined}
@@ -204,50 +181,20 @@ export function Account({
                     enterpriseComponent={EnterpriseComponent}
                     userTrustedDevicesComponent={TrustedDeviceListComponent}
                     onPasswordChange={onPasswordChangeCb}
-                    addNotification={addNotification}
                   />
                 )}
               />
               <Route
                 path={cfg.routes.accountPreferences}
                 component={() => (
-                  <Preferences
-                    setErrorMessage={setErrorMessage}
-                    addNotification={addNotification}
-                  />
+                  <Preferences setErrorMessage={stableSetErrorMessage} />
                 )}
               />
             </Switch>
           </Flex>
         </Flex>
       </FeatureBox>
-
-      {/* Note: Although notifications appear on top, we deliberately place the
-          container on the bottom to avoid manipulating z-index. The stacking
-          context from one of the buttons appears on top otherwise.
-
-          TODO(bl-nero): Consider reusing the Notifications component from
-          Teleterm. */}
-      <NotificationContainer>
-        {notifications.map(item => (
-          <Notification
-            mb={3}
-            key={item.id}
-            item={item}
-            onRemove={() => removeNotification(item.id)}
-          />
-        ))}
-      </NotificationContainer>
-    </Relative>
+      <NotificationOutlet />
+    </NotificationProvider>
   );
 }
-
-const NotificationContainer = styled.div`
-  position: absolute;
-  top: ${props => props.theme.space[2]}px;
-  right: ${props => props.theme.space[5]}px;
-`;
-
-const Relative = styled.div`
-  position: relative;
-`;

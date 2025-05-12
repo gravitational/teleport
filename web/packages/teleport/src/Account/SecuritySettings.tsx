@@ -20,10 +20,6 @@ import styled, { useTheme } from 'styled-components';
 
 import { Box, Flex, H2, Indicator, Subtitle2 } from 'design';
 import * as Icon from 'design/Icon';
-import {
-  NotificationItemContent,
-  NotificationSeverity,
-} from 'shared/components/Notification';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { useStore } from 'shared/libs/stores';
 
@@ -38,16 +34,12 @@ import {
   AddAuthDeviceWizard,
   DeleteAuthDeviceWizard,
 } from './ManageDevices/wizards';
+import { useNotification } from './NotificationContext';
 import { PasswordBox } from './PasswordBox';
 import { Headings } from './SideNav';
 import { StatePill } from './StatePill';
 
-export interface SecuritySettingsProps extends AccountProps {
-  addNotification: (
-    severity: NotificationSeverity,
-    content: NotificationItemContent
-  ) => void;
-}
+export interface SecuritySettingsProps extends AccountProps {}
 
 /**
  * For use by the account setting's side nav to determine which headings to show.
@@ -88,8 +80,9 @@ export function SecuritySettings({
   userTrustedDevicesComponent: TrustedDeviceListComponent,
   passwordState,
   onPasswordChange: onPasswordChangeCb,
-  addNotification,
 }: SecuritySettingsProps) {
+  const { addNotification } = useNotification();
+
   const passkeys = devices.filter(d => d.usage === 'passwordless');
   const mfaDevices = devices.filter(d => d.usage === 'mfa');
   const disableAddPasskey = !canAddPasskeys;

@@ -26,16 +26,13 @@ import { Box, Flex } from 'design';
 import * as Icon from 'design/Icon';
 import { SingleRowBox } from 'design/MultiRowBox';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
-import {
-  NotificationItemContent,
-  NotificationSeverity,
-} from 'shared/components/Notification';
 import Select from 'shared/components/Select';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { useUser } from 'teleport/User/UserContext';
 
 import { Header } from './Header';
+import { useNotification } from './NotificationContext';
 import DarkThemeIcon from './ThemeImages/dark_theme.svg';
 import LightThemeIcon from './ThemeImages/light_theme.svg';
 import SystemThemeIcon from './ThemeImages/system_theme.svg';
@@ -218,19 +215,13 @@ export function preferencesHeadings(): Array<{ name: string; id: string }> {
 }
 
 export interface PreferencesProps {
-  addNotification: (
-    severity: NotificationSeverity,
-    content: NotificationItemContent
-  ) => void;
-  setErrorMessage: (message: string) => void;
+  setErrorMessage: (message: string | null) => void;
 }
 
-export function Preferences({
-  addNotification,
-  setErrorMessage,
-}: PreferencesProps) {
+export function Preferences({ setErrorMessage }: PreferencesProps) {
   const { preferences, updatePreferences } = useUser();
   const theme = useTheme();
+  const { addNotification } = useNotification();
 
   const layout = preferences.keyboardLayout;
   const layoutValue =
@@ -246,7 +237,7 @@ export function Preferences({
         `Failed to update the keyboard layout: ${updatePreferenceAttempt.statusText}`
       );
     }
-  }, [updatePreferenceAttempt.status]);
+  }, [updatePreferenceAttempt.status, setErrorMessage]);
 
   return (
     <Flex gap={4} flexDirection="column">
