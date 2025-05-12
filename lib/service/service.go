@@ -3303,7 +3303,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(role types.SystemRole, ev
 	serviceName := strings.ToLower(role.String())
 
 	process.RegisterCriticalFunc(fmt.Sprintf("register.%v", serviceName), func() error {
-		if role.IsLocalService() && !(process.instanceRoleExpected(role) || process.hostedPluginRoleExpected(role)) {
+		if role.IsLocalService() && !process.instanceRoleExpected(role) && !process.hostedPluginRoleExpected(role) {
 			// if you hit this error, your probably forgot to call SetExpectedInstanceRole inside of
 			// the registerExpectedServices function, or forgot to call SetExpectedHostedPluginRole during
 			// the hosted plugin init process.
@@ -4762,6 +4762,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			LocalAccessPoint: accessPoint,
 			SiteGetter:       tsrv,
 			TracerProvider:   process.TracingProvider,
+			Logger:           process.logger.With(teleport.ComponentKey, "router"),
 		})
 		if err != nil {
 			return trace.Wrap(err)

@@ -52,7 +52,7 @@ export type Cfg = typeof cfg;
 const cfg = {
   /** @deprecated Use cfg.edition instead. */
   isEnterprise: false,
-  edition: 'oss',
+  edition: 'oss', // oss, community, ent
   isCloud: false,
   automaticUpgrades: false,
   // TODO (avatus) this is a temporary escape hatch. Delete in v18
@@ -266,7 +266,7 @@ const cfg = {
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     changeUserPasswordPath: '/v1/webapi/users/password',
     unifiedResourcesPath:
-      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?&includedResourceMode=:includedResourceMode?',
+      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?&includedResourceMode=:includedResourceMode?&status=:status?',
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     nodesPathNoParams: '/v1/webapi/sites/:clusterId/nodes',
@@ -282,7 +282,7 @@ const cfg = {
     databasesPath: `/v1/webapi/sites/:clusterId/databases?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
 
     databaseServer: {
-      list: `/v1/webapi/sites/:clusterId/databaseservers?&limit=:limit?&startKey=:startKey?&query=:query?`,
+      list: `/v1/webapi/sites/:clusterId/databaseservers?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?`,
     },
 
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,

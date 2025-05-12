@@ -89,7 +89,7 @@ export function FieldMultiInput({
 
   const theme = useTheme();
   // Index of the input to be focused after the next rendering.
-  const toFocus = useRef<number | undefined>();
+  const toFocus = useRef<number | undefined>(undefined);
 
   const setFocus = (element: HTMLInputElement) => {
     element?.focus();

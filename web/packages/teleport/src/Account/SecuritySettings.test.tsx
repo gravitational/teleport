@@ -398,11 +398,13 @@ test('removing an MFA method', async () => {
   cfg.auth.allowPasswordless = true;
 
   await renderComponent(ctx);
+
   await user.click(
     within(screen.getByTestId('mfa-list')).getByRole('button', {
       name: 'Delete',
     })
   );
+
   await user.click(screen.getByText('Verify my identity'));
   const deleteStep = within(screen.getByTestId('delete-step'));
   await user.click(deleteStep.getByRole('button', { name: 'Delete' }));

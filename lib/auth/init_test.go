@@ -41,6 +41,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
@@ -53,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/backendinfo"
 	"github.com/gravitational/teleport/api/types/label"
+	"github.com/gravitational/teleport/api/types/vnet"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
@@ -585,6 +587,22 @@ func TestAuthPreference(t *testing.T) {
 			return authPref
 		},
 	})
+}
+
+func TestVnetConfig(t *testing.T) {
+	t.Parallel()
+
+	conf := setupConfig(t)
+	authServer, err := Init(context.Background(), conf)
+	require.NoError(t, err)
+	t.Cleanup(func() { authServer.Close() })
+
+	actualVnetConfig, err := authServer.GetVnetConfig(t.Context())
+	require.NoError(t, err)
+
+	defaultVnetConfig, err := vnet.DefaultVnetConfig()
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(defaultVnetConfig.GetSpec(), actualVnetConfig.GetSpec(), protocmp.Transform()))
 }
 
 func TestAuthPreferenceSecondFactorOnly(t *testing.T) {

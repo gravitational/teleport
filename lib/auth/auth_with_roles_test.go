@@ -160,8 +160,8 @@ func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
 			require.NoError(t, err)
 			mfaVerified := sshCert.Permissions.Extensions[teleport.CertExtensionMFAVerified]
 
-			switch {
-			case mfaResponse == nil:
+			switch mfaResponse {
+			case nil:
 				require.Empty(t, mfaVerified, "GenerateUserCerts returned certificate with non-empty CertExtensionMFAVerified")
 			default:
 				require.Equal(t, mfaVerified, u.totpDev.MFA.Id, "GenerateUserCerts returned certificate with unexpected CertExtensionMFAVerified")
@@ -191,11 +191,12 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	})
 
 	for _, test := range []struct {
-		desc         string
-		renewable    bool
-		roleRequests bool
-		reqTTL       time.Duration
-		expiresIn    time.Duration
+		desc           string
+		renewable      bool
+		roleRequests   bool
+		reqTTL         time.Duration
+		expiresIn      time.Duration
+		githubIdentity *types.ExternalIdentity
 	}{
 		{
 			desc:      "not-renewable",
@@ -240,6 +241,17 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			reqTTL:       2 * defaults.MaxRenewableCertTTL,
 			expiresIn:    defaults.MaxRenewableCertTTL,
 		},
+		{
+			desc:         "github-identity-from-login-state-preserved",
+			renewable:    false,
+			roleRequests: true,
+			reqTTL:       4 * time.Hour,
+			expiresIn:    4 * time.Hour,
+			githubIdentity: &types.ExternalIdentity{
+				UserID:   "1024025",
+				Username: "torvalds",
+			},
+		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			ctx := context.Background()
@@ -265,6 +277,14 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				id = TestUser(user.GetName())
+			}
+
+			// Simulate authenticated GitHub OAuth flow where GitHub identity is
+			// saved in login state.
+			if test.githubIdentity != nil {
+				user.SetGithubIdentities([]types.ExternalIdentity{*test.githubIdentity})
+				_, err := srv.Auth().ulsGenerator.Refresh(ctx, user, srv.Auth().UserLoginStates)
+				require.NoError(t, err)
 			}
 
 			client, err := srv.NewClient(id)
@@ -297,8 +317,16 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			sshCert, err := sshutils.ParseCertificate(certs.SSH)
 			require.NoError(t, err)
 
+			sshIdentity, err := sshca.DecodeIdentity(sshCert)
+			require.NoError(t, err)
+
 			require.WithinDuration(t, start.Add(test.expiresIn), x509.NotAfter, 1*time.Second)
 			require.WithinDuration(t, start.Add(test.expiresIn), time.Unix(int64(sshCert.ValidBefore), 0), 1*time.Second)
+
+			if test.githubIdentity != nil {
+				require.Equal(t, test.githubIdentity.UserID, sshIdentity.GitHubUserID)
+				require.Equal(t, test.githubIdentity.Username, sshIdentity.GitHubUsername)
+			}
 		})
 	}
 }
@@ -2902,7 +2930,7 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	require.NoError(t, err)
 	servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServers), len(servers))
+	require.Len(t, testServers, len(servers))
 	require.Empty(t, cmp.Diff(testServers, servers))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -2946,7 +2974,7 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	require.NoError(t, err)
 	servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServers[1:]), len(servers))
+	require.Len(t, testServers[1:], len(servers))
 	require.Empty(t, cmp.Diff(testServers[1:], servers))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -3029,7 +3057,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	require.NoError(t, err)
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServers), len(servers))
+	require.Len(t, testServers, len(servers))
 	require.Empty(t, cmp.Diff(testServers, servers))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -3073,7 +3101,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	require.NoError(t, err)
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServers[1:]), len(servers))
+	require.Len(t, testServers[1:], len(servers))
 	require.Empty(t, cmp.Diff(testServers[1:], servers))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -3160,7 +3188,7 @@ func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 	require.NoError(t, err)
 	sps, _, err = clt.ListSAMLIdPServiceProviders(ctx, 0, "")
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServiceProviders), len(sps))
+	require.Len(t, testServiceProviders, len(sps))
 	require.Empty(t, cmp.Diff(testServiceProviders, sps))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -3204,7 +3232,7 @@ func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 	require.NoError(t, err)
 	sps, _, err = clt.ListSAMLIdPServiceProviders(ctx, 0, "")
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServiceProviders[1:]), len(sps))
+	require.Len(t, testServiceProviders[1:], len(sps))
 	require.Empty(t, cmp.Diff(testServiceProviders[1:], sps))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -4314,7 +4342,7 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 	require.NoError(t, err)
 	desktops, err = clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
-	require.EqualValues(t, len(testDesktops), len(desktops))
+	require.Len(t, testDesktops, len(desktops))
 	require.Empty(t, cmp.Diff(testDesktops, desktops))
 
 	resp, err = clt.ListResources(ctx, listRequest)
@@ -4369,7 +4397,7 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 
 	desktops, err = clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
-	require.EqualValues(t, len(testDesktops[1:]), len(desktops))
+	require.Len(t, testDesktops[1:], len(desktops))
 	require.Empty(t, cmp.Diff(testDesktops[1:], desktops))
 
 	resp, err = clt.ListResources(ctx, listRequest)
@@ -7946,6 +7974,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
 		},
@@ -7954,6 +7983,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{}, types.VerbDelete),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
@@ -7963,6 +7993,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
 		},
@@ -7972,6 +8003,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
@@ -7979,6 +8011,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			name:      "without any permissions",
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
 		},
@@ -8036,6 +8069,7 @@ func samlIdPRoleCondition(label types.Labels, verb ...string) (rc types.RoleCond
 
 // modifyAndWaitForEvent performs the function fn() and then waits for the given event.
 func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, srv *TestTLSServer, eventCode string, fn func() error) apievents.AuditEvent {
+	t.Helper()
 	// Make sure we ignore events after consuming this one.
 	defer func() {
 		srv.AuthServer.AuthServer.emitter = events.NewDiscardEmitter()
@@ -8057,6 +8091,7 @@ func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, srv *
 // newTestHeadlessAuthn returns the headless authentication resource
 // used across headless authentication tests.
 func newTestHeadlessAuthn(t *testing.T, user string, clock clockwork.Clock) *types.HeadlessAuthentication {
+	t.Helper()
 	sshKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 	sshPub, err := ssh.NewPublicKey(sshKey.Public())
@@ -8099,12 +8134,14 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 	_, _, err = CreateUserAndRole(srv.Auth(), otherUsername, nil, nil)
 	require.NoError(t, err)
 
-	assertTimeout := func(t require.TestingT, err error, i ...interface{}) {
+	assertTimeout := func(t require.TestingT, err error, _ ...any) {
+		t.(*testing.T).Helper()
 		require.Error(t, err)
 		require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
 	}
 
-	assertAccessDenied := func(t require.TestingT, err error, i ...interface{}) {
+	assertAccessDenied := func(t require.TestingT, err error, _ ...any) {
+		t.(*testing.T).Helper()
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error but got: %v", err)
 	}
@@ -8155,6 +8192,12 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 			}
 
 			retrievedHeadlessAuthn, err := client.GetHeadlessAuthentication(ctx, tc.headlessID)
+			// handle context canceled error ambiguity
+			// TODO(gavin): remove this after this issue is fixed:
+			// https://github.com/grpc/grpc-go/issues/8281
+			if err != nil && ctx.Err() != nil {
+				err = trace.Wrap(err, ctx.Err())
+			}
 			tc.assertError(t, err)
 			if err == nil {
 				require.Equal(t, headlessAuthn, retrievedHeadlessAuthn)
