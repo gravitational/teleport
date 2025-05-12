@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = [ "lib/srv/desktop/rdp/qoim","lib/srv/desktop/rdp/rdpclient", "web/packages/shared/libs/ironrdp"]
+members = ["lib/srv/desktop/rdp/qoim", "lib/srv/desktop/rdp/rdpclient", "web/packages/shared/libs/ironrdp"]
 
 [workspace.package]
 edition = "2021"
@@ -10,12 +10,7 @@ repository = "https://github.com/gravitational/teleport"
 publish = false
 
 [profile.dev]
-debug = 1
-lto = "off"
-opt-level = 0
-
-[profile.test]
-debug = 1
+debug = "full"
 lto = "off"
 opt-level = 0
 

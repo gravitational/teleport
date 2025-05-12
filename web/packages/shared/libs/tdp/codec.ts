@@ -56,7 +56,7 @@ export enum MessageType {
   SHARED_DIRECTORY_TRUNCATE_REQUEST = 33,
   SHARED_DIRECTORY_TRUNCATE_RESPONSE = 34,
   LATENCY_STATS = 35,
-  X11_FRAME = 36,
+  X11_FRAME = 37,
   __LAST, // utility value
 }
 

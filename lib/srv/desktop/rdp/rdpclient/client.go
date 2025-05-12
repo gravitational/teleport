@@ -84,8 +84,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 	"log/slog"
-	"net"
 	"math"
+	"net"
 	"os"
 	"os/exec"
 	"runtime/cgo"
@@ -324,6 +324,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 		totalSize := 1
 		compressedSize := 0
 		var buf bytes.Buffer
+		var qoim []byte
 		encoder, err := zstd.NewWriter(&buf)
 		if err != nil {
 			return trace.Wrap(err)
@@ -369,7 +370,13 @@ func (c *Client) runLocal(ctx context.Context) error {
 				if err := binary.Write(&buf, binary.BigEndian, rect.Height); err != nil {
 					return trace.Wrap(err)
 				}
-				encode(replay.Data, encoder)
+				if len(qoim) < len(replay.Data)*3/2 {
+					qoim = make([]byte, len(replay.Data)*3/2)
+				}
+				encodedSize := C.encode_qoim((*C.uint8_t)(&replay.Data[0]), C.uintptr_t(len(replay.Data)), (*C.uint8_t)(&qoim[0]))
+				if _, err := encoder.Write(qoim[:encodedSize]); err != nil {
+					return trace.Wrap(err)
+				}
 				if err := encoder.Close(); err != nil {
 					return trace.Wrap(err)
 				}

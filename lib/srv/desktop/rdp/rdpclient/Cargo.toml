@@ -46,6 +46,7 @@ rustls = { version = "0.23.25", default-features = false, features = [
 ] }
 rustix = { version = "1.0.5", features = ["pipe"] }
 x11rb = { version = "0.13.1", features = ["image", "randr", "damage", "xtest", "extra-traits"] }
+qoim = { path = "../qoim" }
 
 [build-dependencies]
 cbindgen = "0.28.0"

@@ -17,7 +17,6 @@
 use crate::client::{
     global, ClientError, ClientFunction, ClientHandle, ClientResult, FunctionReceiver, TOKIO_RT,
 };
-use crate::qoim::encode;
 use crate::util::from_c_string;
 use crate::{
     cgo_handle_rdp_connection_activated, cgo_handle_x11_update, CGOConnectParams, CGOErrCode,
@@ -321,7 +320,7 @@ unsafe fn run(
                             encoded.extend_from_slice(&(start_row as u16).to_be_bytes());
                             encoded.extend_from_slice(&area.width.to_be_bytes());
                             encoded.extend_from_slice(&rows.to_be_bytes());
-                            encode(&mut encoded, &diff);
+                            // encode(&mut encoded, &diff);
                             cgo_handle_x11_update(
                                 cgo_handle,
                                 encoded.as_mut_ptr(),
@@ -338,7 +337,7 @@ unsafe fn run(
                         encoded.extend_from_slice(&(start_row as u16).to_be_bytes());
                         encoded.extend_from_slice(&area.width.to_be_bytes());
                         encoded.extend_from_slice(&rows.to_be_bytes());
-                        encode(&mut encoded, &diff);
+                        // encode(&mut encoded, &diff);
                         cgo_handle_x11_update(
                             cgo_handle,
                             encoded.as_mut_ptr(),

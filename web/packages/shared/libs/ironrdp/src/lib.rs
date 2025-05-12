@@ -17,9 +17,6 @@
 // default trait not supported in wasm
 #![allow(clippy::new_without_default)]
 
-mod qoim;
-
-use crate::qoim::decode;
 use ironrdp_core::decode_cursor;
 use ironrdp_core::ReadCursor;
 use ironrdp_core::WriteBuf;
@@ -36,6 +33,7 @@ use ironrdp_session::{
 };
 use js_sys::Uint8Array;
 use log::{debug, info, warn};
+use qoim::decode::decode;
 use wasm_bindgen::{prelude::*, Clamped};
 use web_sys::ImageData;
 

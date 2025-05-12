@@ -1434,6 +1434,7 @@ dependencies = [
  "ironrdp-session",
  "js-sys",
  "log",
+ "qoim",
  "time",
  "tracing",
  "tracing-subscriber",
@@ -2275,6 +2276,9 @@ dependencies = [
 [[package]]
 name = "qoim"
 version = "0.1.0"
+dependencies = [
+ "rand 0.9.1",
+]
 
 [[package]]
 name = "quote"
@@ -2304,13 +2308,12 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3779b94aeb87e8bd4e834cee3650289ee9e0d5677f976ecdb6d219e5f4f6cd94"
+checksum = "9fbfd9d094a40bf3ae768db9361049ace4c0e04a4fd6b359518bd7b73a73dd97"
 dependencies = [
  "rand_chacha 0.9.0",
  "rand_core 0.9.0",
- "zerocopy",
 ]
 
 [[package]]
@@ -2389,7 +2392,8 @@ dependencies = [
  "picky",
  "picky-asn1-der",
  "picky-asn1-x509",
- "rand 0.9.0",
+ "qoim",
+ "rand 0.9.1",
  "reqwest",
  "rsa",
  "rustix 1.0.5",

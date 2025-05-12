@@ -1,11 +1,27 @@
-use std::iter;
+/*
+ * *
+ * Teleport
+ * Copyright (C) 2025 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-const QOI_OP_INDEX: u8 = 0x40; //           01xxxxxx
-const QOI_OP_DIFF: u8 = 0x80; //            10xxxxxx
-const QOI_OP_LUMA: u8 = 0xc0; //            110xxxxx
-const QOI_OP_RUN: u8 = 0xe0; //             111xxxxx
-const QOI_OP_EXTENDED_RUN: u8 = 0xfe; //    11111110
-const QOI_OP_RGB: u8 = 0xff; //             11111111
+use crate::{
+    hash_index, rgb565_to_888, QOI_OP_DIFF, QOI_OP_EXTENDED_RUN, QOI_OP_INDEX, QOI_OP_LUMA,
+    QOI_OP_RGB, QOI_OP_RUN,
+};
+use std::iter;
 
 const EXTENDED_RUN_BIAS_1: usize = 31;
 const EXTENDED_RUN_BIAS_2: usize = (1 << 7) - EXTENDED_RUN_BIAS_1;
@@ -13,23 +29,19 @@ const EXTENDED_RUN_BIAS_3: usize = EXTENDED_RUN_BIAS_2 + (1 << 14);
 const EXTENDED_RUN_BIAS_4: usize = EXTENDED_RUN_BIAS_3 + (1 << 21);
 const EXTENDED_RUN_BIAS_5: usize = EXTENDED_RUN_BIAS_4 + (1 << 28);
 
-fn hash_index(data: &[u8]) -> u8 {
-    (data[0] ^ data[1] ^ data[2]) % 64
-}
-
 const QOI_OP_INDEX_END: u8 = QOI_OP_INDEX | 0x3f;
 const QOI_OP_RUN_END: u8 = QOI_OP_RUN | 0x1d; // <- note, 0x1d (not 0x1f)
 const QOI_OP_DIFF_END: u8 = QOI_OP_DIFF | 0x3f;
 const QOI_OP_LUMA_END: u8 = QOI_OP_LUMA | 0x1f;
 
-pub(crate) fn decode(data: &[u8], v: &mut Vec<u8>) {
+pub fn decode(data: &[u8], v: &mut Vec<u8>) {
     let mut data = data;
 
-    let mut index = [[0u8, 0, 0, 0xFF]; 64];
+    let mut index = [[0u8, 0, 0]; 64];
     let mut px = [0u8, 0, 0, 0xFF];
     let mut px565 = [0u8, 0, 0];
 
-    while data.len() > 0 {
+    while !data.is_empty() {
         match data {
             [b1 @ 0..QOI_OP_INDEX, b2, dtail @ ..] => {
                 px565 = [b1 >> 3, ((b1 & 7) << 3) + (b2 >> 5), b2 & 31];
@@ -38,7 +50,8 @@ pub(crate) fn decode(data: &[u8], v: &mut Vec<u8>) {
                 data = dtail;
             }
             [b1 @ QOI_OP_INDEX..=QOI_OP_INDEX_END, dtail @ ..] => {
-                px = index[(*b1 ^ QOI_OP_INDEX) as usize];
+                px565 = index[(*b1 ^ QOI_OP_INDEX) as usize];
+                px = rgb565_to_888(&px565);
                 v.extend_from_slice(&px);
                 data = dtail;
                 continue;
@@ -89,13 +102,13 @@ pub(crate) fn decode(data: &[u8], v: &mut Vec<u8>) {
                 continue;
             }
             [b1 @ QOI_OP_DIFF..=QOI_OP_DIFF_END, dtail @ ..] => {
-                px565 = update_diff(&px, *b1);
+                px565 = update_diff(&px565, *b1);
                 px = rgb565_to_888(&px565);
                 v.extend_from_slice(&px);
                 data = dtail;
             }
             [b1 @ QOI_OP_LUMA..=QOI_OP_LUMA_END, b2, dtail @ ..] => {
-                px565 = update_luma(&px, *b1, *b2);
+                px565 = update_luma(&px565, *b1, *b2);
                 px = rgb565_to_888(&px565);
                 v.extend_from_slice(&px);
                 data = dtail;
@@ -104,7 +117,7 @@ pub(crate) fn decode(data: &[u8], v: &mut Vec<u8>) {
                 panic!("unexpected")
             }
         }
-        index[hash_index(&px565) as usize] = px;
+        index[hash_index(&px565) as usize] = px565;
     }
 }
 
@@ -126,108 +139,84 @@ fn update_diff(data: &[u8], b1: u8) -> [u8; 3] {
 fn update_luma(data: &[u8], b1: u8, b2: u8) -> [u8; 3] {
     let vg = b1.wrapping_sub(16);
     let vg_8 = vg.wrapping_sub(8);
-    let vr = vg_8.wrapping_add((b2 >> 4) & 0x0f);
+    let vr = vg_8.wrapping_add(b2 >> 4);
     let vb = vg_8.wrapping_add(b2 & 0x0f);
     [
-        data[0].wrapping_add(vr) & 31,
-        data[1].wrapping_add(vg) & 63,
-        data[2].wrapping_add(vb) & 31,
-    ]
-}
-
-#[inline]
-fn rgb565_to_888(data: &[u8]) -> [u8; 4] {
-    [
-        (((data[0] as u32) * 527 + 23) >> 6) as u8,
-        (((data[1] as u32) * 259 + 33) >> 6) as u8,
-        (((data[2] as u32) * 527 + 23) >> 6) as u8,
-        0xff,
+        data[0].wrapping_add(vr) % 32,
+        data[1].wrapping_add(vg) % 64,
+        data[2].wrapping_add(vb) % 32,
     ]
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::{fs, io};
 
-    #[test]
-    fn compare() -> Result<(), io::Error> {
-        let raw = fs::read("../../../../../build/3.raw")?;
-        let uncompressed = zstd::decode_all(fs::File::open("../../../../../build/3.compressed")?)?;
-        let mut decoded = Vec::with_capacity(2000 * 2000 * 4);
-        decode(&uncompressed, &mut decoded);
+    fn test_decode_iter<T>(input: &[u8], output: T)
+    where
+        T: IntoIterator<Item = [u8; 4]>,
+    {
+        let out: Vec<u8> = output.into_iter().flat_map(|s| s.into_iter()).collect();
+        test_decode(input, &out);
+    }
 
-        let raw888: Vec<u8> = raw
-            .chunks_exact(2)
-            .flat_map(|data| {
-                rgb565_to_888(&[
-                    data[1] >> 3,
-                    ((data[1] & 7) << 3) + (data[0] >> 5),
-                    data[0] & 31,
-                ])
-            })
-            .collect();
-
-        // assert_eq!(decoded.len(), raw888.len());
-        // assert_eq!(decoded[..32], raw888[..32], "");
-        fs::write("../../../../../build/decoded.raw", decoded)?;
-        fs::write("../../../../../build/decoded2.raw", raw888)?;
-
-        Ok(())
+    fn test_decode(input: &[u8], output: &[u8]) {
+        let mut v = vec![];
+        decode(input, &mut v);
+        assert_eq!(v, output)
     }
 
     #[test]
-    pub fn test_encode() {
-        struct Case<'a>((&'a str, &'a [u8], &'a [u8]));
-        for tt in [
-            Case((
-                "short run",
-                &[0xe3],
-                &iter::repeat_n([0x00u8, 0x00, 0x00, 0xff], 4)
-                    .flat_map(|s| s.into_iter())
-                    .collect::<Vec<u8>>(),
-            )),
-            Case((
-                "max short run",
-                &[0xfd],
-                &iter::repeat_n([0x00u8, 0x00, 0x00, 0xff], 30)
-                    .flat_map(|s| s.into_iter())
-                    .collect::<Vec<u8>>(),
-            )),
-            Case((
-                "extended run 1",
-                &[0xfe, 0x01],
-                &iter::repeat_n([0x00u8, 0x00, 0x00, 0xff], 30 + 2)
-                    .flat_map(|s| s.into_iter())
-                    .collect::<Vec<u8>>(),
-            )),
-            Case((
-                "extended run 2",
-                &[0xfe, 0x81, 0x01],
-                &iter::repeat_n([0x00u8, 0x00, 0x00, 0xff], 30 + 128 + 2)
-                    .flat_map(|s| s.into_iter())
-                    .collect::<Vec<u8>>(),
-            )),
-            Case((
-                "extended run 3",
-                &[0xfe, 0xd1, 0x04],
-                &iter::repeat_n([0x00u8, 0x00, 0x00, 0xff], 624)
-                    .flat_map(|s| s.into_iter())
-                    .collect::<Vec<u8>>(),
-            )),
-            Case(("diff", &[0xab], &[0x00, 0x00, 0x01, 0xff])),
-            Case(("small red", &[0x00, 155], &[0x00, 0x04, 0x1b, 0xff])),
-            Case(("luma", &[0xd8, 0x88], &[0x08, 0x08, 0x08, 0xff])),
-            Case(("rgb", &[0xff, 0xc3, 0x18], &[0x18, 0x18, 0x18, 0xff])),
-            Case((
-                "index",
-                &[0xab, 0x40],
-                &[0x00, 0x00, 0x01, 0xff, 0x00, 0x00, 0x00, 0xff],
-            )),
-        ] {
-            let mut v = vec![];
-            decode(tt.0 .1, &mut v);
-            assert_eq!(v, tt.0 .2, "{}", tt.0 .0)
-        }
+    pub fn short_run() {
+        test_decode_iter(&[0xe3], iter::repeat_n([0x00u8, 0x00, 0x00, 0xff], 4));
+    }
+
+    #[test]
+    pub fn max_short_run() {
+        test_decode_iter(&[0xfd], iter::repeat_n([0x00u8, 0x00, 0x00, 0xff], 30));
+    }
+
+    #[test]
+    pub fn extended_run1() {
+        test_decode_iter(
+            &[0xfe, 0x01],
+            iter::repeat_n([0x00u8, 0x00, 0x00, 0xff], 30 + 2),
+        );
+    }
+
+    #[test]
+    pub fn extended_run2() {
+        test_decode_iter(
+            &[0xfe, 0x81, 0x01],
+            iter::repeat_n([0x00u8, 0x00, 0x00, 0xff], 30 + 128 + 2),
+        );
+    }
+
+    #[test]
+    pub fn diff() {
+        test_decode(&[0xab], &[0x00, 0x00, 0x08, 0xff]);
+    }
+
+    #[test]
+    pub fn small_red() {
+        test_decode(&[0x00, 155], &rgb565_to_888(&[0x00, 0x04, 0x1b]));
+    }
+
+    #[test]
+    pub fn luma() {
+        test_decode(&[0xd8, 0x88], &rgb565_to_888(&[0x08, 0x08, 0x08, 0xff]));
+    }
+
+    #[test]
+    pub fn rgb() {
+        test_decode(&[0xff, 0xc3, 0x18], &rgb565_to_888(&[0x18, 0x18, 0x18]));
+    }
+
+    #[test]
+    pub fn index() {
+        test_decode(
+            &[0xab, 0x40],
+            &[0x00, 0x00, 0x08, 0xff, 0x00, 0x00, 0x00, 0xff],
+        );
     }
 }

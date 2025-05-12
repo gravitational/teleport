@@ -28,6 +28,7 @@ use crate::client::global::get_client_handle;
 use crate::client::Client;
 use crate::rdpdr::tdp::SharedDirectoryAnnounce;
 use client::{ClientHandle, ClientResult, ConnectParams};
+use ironrdp_core::size;
 use ironrdp_session::x224::DisconnectDescription;
 use log::{error, trace, warn};
 use rdpdr::path::UnixPath;
@@ -41,14 +42,14 @@ use std::ffi::CString;
 use std::fmt::Debug;
 use std::io::ErrorKind;
 use std::os::raw::c_char;
-use std::ptr;
+use std::ptr::slice_from_raw_parts;
+use std::{ptr, slice};
 use util::{from_c_string, from_go_array};
 pub mod client;
 mod cliprdr;
 mod license;
 mod network_client;
 mod piv;
-mod qoim;
 mod rdpdr;
 mod ssl;
 mod util;
@@ -74,6 +75,11 @@ pub unsafe extern "C" fn free_string(ptr: *mut c_char) {
     if !ptr.is_null() {
         drop(CString::from_raw(ptr));
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn encode_qoim(input: *const u8, size: usize, out: *mut u8) -> u64 {
+    qoim::encode::encode_ptr(slice::from_raw_parts(input, size), out)
 }
 
 /// client_run establishes an RDP connection with the provided `params`
