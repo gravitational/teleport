@@ -1236,22 +1236,26 @@ message JWTKeyPair {
   PrivateKeyType PrivateKeyType = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
 }
 
-// EncryptionKeyPair is a keypair used for encrypting and decrypting data.
+// EncryptionKeyPair is a PEM encoded keypair used for encrypting and decrypting data.
 message EncryptionKeyPair {
-  // PublicKey is the public encryption key.
-  bytes PublicKey = 1 [(gogoproto.jsontag) = "public_key,omitempty"];
-  // PrivateKey is the private decryption key.
-  bytes PrivateKey = 2 [(gogoproto.jsontag) = "private_key,omitempty"];
+  // PublicKey is a PEM encoded public key.
+  bytes public_key = 1 [(gogoproto.jsontag) = "public_key,omitempty"];
+  // PrivateKey is a PEM private key.
+  bytes private_key = 2 [(gogoproto.jsontag) = "private_key,omitempty"];
   // PrivateKeyType is the type of the PrivateKey.
-  PrivateKeyType PrivateKeyType = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
-  // Hash function used to OAEP encrypt/decrypt data.
-  uint32 Hash = 4 [(gogoproto.jsontag) = "hash,omitempty"];
+  PrivateKeyType private_key_type = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
+  // Hash function used during OAEP encryption/decryption. It maps directly to the possible
+  // values of [crypto.Hash] in the go crypto package.
+  uint32 hash = 4 [(gogoproto.jsontag) = "hash,omitempty"];
 }
 
 // EncryptionKey is a public key combined with a hash meant to be used during
 // asymmetric encryption.
 message EncryptionKey {
+  // PublicKey is a PEM encoded public key.
   bytes public_key = 1 [(gogoproto.jsontag) = "public_key"];
+  // Hash function used during OAEP encryption/decryption. It maps directly to the possible
+  // values of [crypto.Hash] in the go crypto package.
   uint32 hash = 2 [(gogoproto.jsontag) = "hash"];
 }
 

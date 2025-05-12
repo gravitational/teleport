@@ -148,22 +148,9 @@ func (s *softwareKeyStore) getDecrypter(ctx context.Context, rawKey []byte, publ
 	return newOAEPDecrypter(softwareHash, decrypter), nil
 }
 
-// canSignWithKey returns true if the given key is a raw key.
-func (s *softwareKeyStore) canSignWithKey(ctx context.Context, _ []byte, keyType types.PrivateKeyType) (bool, error) {
+// canUseKey returns true if the given key is a raw key.
+func (s *softwareKeyStore) canUseKey(ctx context.Context, _ []byte, keyType types.PrivateKeyType) (bool, error) {
 	return keyType == types.PrivateKeyType_RAW, nil
-}
-
-// canDecryptWithKey returns true if the given key is a raw key.
-func (s *softwareKeyStore) canDecryptWithKey(ctx context.Context, rawKey []byte, keyType types.PrivateKeyType) (bool, error) {
-	if keyType != types.PrivateKeyType_RAW {
-		return false, nil
-	}
-
-	if _, err := s.getDecrypter(ctx, rawKey, nil, softwareHash); err != nil {
-		return false, nil
-	}
-
-	return true, nil
 }
 
 // deleteKey is a no-op for softwareKeyStore because the keys are not actually

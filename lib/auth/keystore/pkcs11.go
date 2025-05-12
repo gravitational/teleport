@@ -47,7 +47,7 @@ type pkcs11KeyStore struct {
 	log       *slog.Logger
 	isYubiHSM bool
 	semaphore chan struct{}
-	hash      crypto.Hash
+	oaepHash  crypto.Hash
 }
 
 func newPKCS11KeyStore(config *servicecfg.PKCS11Config, opts *Options) (*pkcs11KeyStore, error) {
@@ -70,9 +70,9 @@ func newPKCS11KeyStore(config *servicecfg.PKCS11Config, opts *Options) (*pkcs11K
 		return nil, trace.Wrap(err, "getting PKCS#11 module info")
 	}
 
-	hash := crypto.SHA256
-	if opts.Hash != crypto.Hash(0) {
-		hash = opts.Hash
+	oaepHash := crypto.SHA256
+	if opts.OAEPHash != crypto.Hash(0) {
+		oaepHash = opts.OAEPHash
 	}
 
 	return &pkcs11KeyStore{
@@ -81,7 +81,7 @@ func newPKCS11KeyStore(config *servicecfg.PKCS11Config, opts *Options) (*pkcs11K
 		log:       opts.Logger,
 		isYubiHSM: strings.HasPrefix(info.ManufacturerID, "Yubico"),
 		semaphore: make(chan struct{}, 1),
-		hash:      hash,
+		oaepHash:  oaepHash,
 	}, nil
 }
 
@@ -148,7 +148,6 @@ func (p *pkcs11KeyStore) generateSigner(ctx context.Context, alg cryptosuites.Al
 		return nil, nil, trace.Wrap(err)
 	}
 
-	id.Usage = keyUsageSign
 	rawTeleportID, err := id.marshal()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -182,7 +181,7 @@ func (p *pkcs11KeyStore) generateDecrypter(ctx context.Context, alg cryptosuites
 	select {
 	case p.semaphore <- struct{}{}:
 	case <-ctx.Done():
-		return nil, nil, p.hash, trace.Wrap(ctx.Err())
+		return nil, nil, p.oaepHash, trace.Wrap(ctx.Err())
 	}
 	defer func() {
 		<-p.semaphore
@@ -190,19 +189,17 @@ func (p *pkcs11KeyStore) generateDecrypter(ctx context.Context, alg cryptosuites
 
 	id, err := p.findUnusedID(ctx)
 	if err != nil {
-		return nil, nil, p.hash, trace.Wrap(err)
+		return nil, nil, p.oaepHash, trace.Wrap(err)
 	}
 
-	id.Usage = keyUsageDecrypt
-	id.Hash = p.hash
 	rawTeleportID, err := id.marshal()
 	if err != nil {
-		return nil, nil, p.hash, trace.Wrap(err)
+		return nil, nil, p.oaepHash, trace.Wrap(err)
 	}
 
 	rawPKCS11ID, err := id.pkcs11Key(p.isYubiHSM)
 	if err != nil {
-		return nil, nil, p.hash, trace.Wrap(err)
+		return nil, nil, p.oaepHash, trace.Wrap(err)
 	}
 
 	p.log.InfoContext(ctx, "Creating new HSM keypair.", "id", id, "algorithm", alg.String())
@@ -211,9 +208,9 @@ func (p *pkcs11KeyStore) generateDecrypter(ctx context.Context, alg cryptosuites
 	switch alg {
 	case cryptosuites.RSA2048:
 		decrypter, err := p.generateRSA2048(rawPKCS11ID, label)
-		return rawTeleportID, newOAEPDecrypter(crypto.SHA1, decrypter), p.hash, trace.Wrap(err, "generating RSA2048 key")
+		return rawTeleportID, newOAEPDecrypter(p.oaepHash, decrypter), p.oaepHash, trace.Wrap(err, "generating RSA2048 key")
 	default:
-		return nil, nil, p.hash, trace.BadParameter("unsupported key algorithm for PKCS#11 HSM decryption: %v", alg)
+		return nil, nil, p.oaepHash, trace.BadParameter("unsupported key algorithm for PKCS#11 HSM decryption: %v", alg)
 	}
 }
 
@@ -271,11 +268,11 @@ func (p *pkcs11KeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey [
 	return signer, nil
 }
 
-// canSignWithKey returns true if the given key is PKCS11 and was created by
+// canUseKey returns true if the given key is PKCS11 and was created by
 // this host. If the HSM is disconnected or the key material has been deleted
-// the error will not be detected here but when the first signature is
-// attempted.
-func (p *pkcs11KeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
+// the error will not be detected here but when the first signature or
+// decryption is attempted.
+func (p *pkcs11KeyStore) canUseKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
 	if keyType != types.PrivateKeyType_PKCS11 {
 		return false, nil
 	}
@@ -284,27 +281,7 @@ func (p *pkcs11KeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType
 		return false, trace.Wrap(err)
 	}
 
-	if keyID.Usage != keyUsageSign && keyID.Usage != keyUsageNone {
-		return false, nil
-	}
-
-	return keyID.Usage != keyUsageDecrypt && keyID.HostID == p.hostUUID, nil
-}
-
-// canDecryptWithKey returns true if the given key is PKCS11 and was created by
-// this host. If the HSM is disconnected or the key material has been deleted
-// the error will not be detected here but when the first signature is
-// attempted.
-func (p *pkcs11KeyStore) canDecryptWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
-	if keyType != types.PrivateKeyType_PKCS11 {
-		return false, nil
-	}
-	keyID, err := parsePKCS11KeyID(raw)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	return keyID.Usage == keyUsageDecrypt && keyID.HostID == p.hostUUID, nil
+	return keyID.HostID == p.hostUUID, nil
 }
 
 // deleteKey deletes the given key from the HSM
@@ -410,10 +387,8 @@ type publicKey interface {
 }
 
 type keyID struct {
-	HostID string      `json:"host_id"`
-	KeyID  string      `json:"key_id"`
-	Usage  keyUsage    `json:"key_usage,omitempty"`
-	Hash   crypto.Hash `json:"hash,omitempty"`
+	HostID string `json:"host_id"`
+	KeyID  string `json:"key_id"`
 }
 
 func (k keyID) marshal() ([]byte, error) {

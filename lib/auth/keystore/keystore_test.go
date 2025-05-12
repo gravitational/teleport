@@ -299,7 +299,7 @@ func TestManager(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, backendDesc.expectedKeyType, jwtKeyPair.PrivateKeyType)
 
-			encKeyPair, err := manager.NewEncryptionKeyPair(ctx, cryptosuites.RecordingEncryption)
+			encKeyPair, err := manager.NewEncryptionKeyPair(ctx, cryptosuites.RecordingKeyWrapping)
 			require.NoError(t, err)
 			require.Equal(t, backendDesc.expectedKeyType, encKeyPair.PrivateKeyType)
 
@@ -586,7 +586,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	if config, ok := softHSMTestConfig(t); ok {
 		hsmOpts := baseOpts
 		// softhsm2 seems to only support OAEP with SHA1
-		hsmOpts.Hash = crypto.SHA1
+		hsmOpts.OAEPHash = crypto.SHA1
 		backend, err := newPKCS11KeyStore(&config.PKCS11, &hsmOpts)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{

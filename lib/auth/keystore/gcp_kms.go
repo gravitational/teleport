@@ -45,9 +45,8 @@ import (
 const (
 	// GCP does not allow "." or "/" in labels
 	hostLabel                      = "teleport_auth_host"
-	gcpkmsPrefix                   = "gcpkms"
-	gcpKeySep                      = ":"
-	gcpHash                        = crypto.SHA256
+	gcpkmsPrefix                   = "gcpkms:"
+	gcpOAEPHash                    = crypto.SHA256
 	defaultGCPRequestTimeout       = 30 * time.Second
 	defaultGCPPendingTimeout       = 2 * time.Minute
 	defaultGCPPendingRetryInterval = 5 * time.Second
@@ -112,7 +111,7 @@ func (g *gcpKMSKeyStore) keyTypeDescription() string {
 	return fmt.Sprintf("GCP KMS keys in keyring %s", g.keyRing)
 }
 
-func (g *gcpKMSKeyStore) generateKeyID(ctx context.Context, algorithm cryptosuites.Algorithm, usage keyUsage) (gcpKMSKeyID, error) {
+func (g *gcpKMSKeyStore) generateKey(ctx context.Context, algorithm cryptosuites.Algorithm, usage keyUsage) (gcpKMSKeyID, error) {
 	alg, err := gcpAlgorithm(algorithm)
 	if err != nil {
 		return gcpKMSKeyID{}, trace.Wrap(err)
@@ -150,7 +149,7 @@ func (g *gcpKMSKeyStore) generateKeyID(ctx context.Context, algorithm cryptosuit
 // identifier for gcpKMSKeyStore encodes the full GCP KMS key version name, and can be passed to getSigner
 // later to get an equivalent crypto.Signer.
 func (g *gcpKMSKeyStore) generateSigner(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
-	keyID, err := g.generateKeyID(ctx, algorithm, keyUsageSign)
+	keyID, err := g.generateKey(ctx, algorithm, keyUsageSign)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -166,16 +165,16 @@ func (g *gcpKMSKeyStore) generateSigner(ctx context.Context, algorithm cryptosui
 // identifier for gcpKMSKeyStore encodes the full GCP KMS key version name, and can be passed to getDecrypter
 // later to get an equivalent crypto.Decrypter.
 func (g *gcpKMSKeyStore) generateDecrypter(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Decrypter, crypto.Hash, error) {
-	keyID, err := g.generateKeyID(ctx, algorithm, keyUsageDecrypt)
+	keyID, err := g.generateKey(ctx, algorithm, keyUsageDecrypt)
 	if err != nil {
-		return nil, nil, gcpHash, trace.Wrap(err)
+		return nil, nil, gcpOAEPHash, trace.Wrap(err)
 	}
 
 	decrypter, err := g.newKmsKey(ctx, keyID)
 	if err != nil {
-		return nil, nil, gcpHash, trace.Wrap(err)
+		return nil, nil, gcpOAEPHash, trace.Wrap(err)
 	}
-	return keyID.marshal(), decrypter, gcpHash, nil
+	return keyID.marshal(), decrypter, gcpOAEPHash, nil
 }
 
 func gcpAlgorithm(alg cryptosuites.Algorithm) (kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm, error) {
@@ -222,13 +221,13 @@ func (g *gcpKMSKeyStore) deleteKey(ctx context.Context, rawKey []byte) error {
 	return trace.Wrap(err, "error while attempting to delete GCP KMS key")
 }
 
-// canSignWithKey returns true if given a GCP_KMS key in the same key ring
-// managed by this keystore. This means that it's possible (and expected) for
+// canUseKey returns true if given a GCP_KMS key in the same key ring managed
+// by this keystore. This means that it's possible (and expected) for
 // multiple auth servers in a cluster to sign with the same KMS keys if they are
 // configured with the same keyring. This is a divergence from the PKCS#11
 // keystore where different auth servers will always create their own keys even
 // if configured to use the same HSM
-func (g *gcpKMSKeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
+func (g *gcpKMSKeyStore) canUseKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
 	if keyType != types.PrivateKeyType_GCP_KMS {
 		return false, nil
 	}
@@ -240,21 +239,7 @@ func (g *gcpKMSKeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType
 		return false, nil
 	}
 
-	return keyID.usage == keyUsageSign || keyID.usage == keyUsageNone, nil
-}
-
-func (g *gcpKMSKeyStore) canDecryptWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
-	if keyType != types.PrivateKeyType_GCP_KMS {
-		return false, nil
-	}
-	keyID, err := parseGCPKMSKeyID(raw)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	if !strings.HasPrefix(keyID.keyVersionName, g.keyRing) {
-		return false, nil
-	}
-	return keyID.usage == keyUsageDecrypt, nil
+	return true, nil
 }
 
 // deleteUnusedKeys deletes all keys from the configured KMS keyring if they:
@@ -279,7 +264,7 @@ func (g *gcpKMSKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 	// check which keys in KMS are unused.
 	activeKmsKeyVersions := make(map[string]int)
 	for _, activeKey := range activeKeys {
-		keyIsRelevant, err := g.canSignWithKey(ctx, activeKey, keyType(activeKey))
+		keyIsRelevant, err := g.canUseKey(ctx, activeKey, keyType(activeKey))
 		if err != nil {
 			// Don't expect this error to ever hit, safer to return if it does.
 			return trace.Wrap(err)
@@ -291,7 +276,7 @@ func (g *gcpKMSKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 		}
 		keyID, err := parseGCPKMSKeyID(activeKey)
 		if err != nil {
-			// Realistically we should not hit this since canSignWithKey already
+			// Realistically we should not hit this since canUseKey already
 			// calls parseGCPKMSKeyID.
 			return trace.Wrap(err)
 		}
@@ -460,12 +445,7 @@ type gcpKMSKeyID struct {
 }
 
 func (g gcpKMSKeyID) marshal() []byte {
-	keyParts := []string{gcpkmsPrefix, g.keyVersionName}
-	if g.usage != keyUsageNone {
-		keyParts = append(keyParts, string(g.usage))
-	}
-
-	return []byte(strings.Join(keyParts, gcpKeySep))
+	return []byte(gcpkmsPrefix + g.keyVersionName)
 }
 
 func (g gcpKMSKeyID) keyring() (string, error) {
@@ -486,13 +466,8 @@ func parseGCPKMSKeyID(key []byte) (gcpKMSKeyID, error) {
 	if keyType(key) != types.PrivateKeyType_GCP_KMS {
 		return keyID, trace.BadParameter("unable to parse invalid GCP KMS key")
 	}
-	// strip gcpkms: prefix and split out usage if present
-	keyWithoutPrefix := strings.TrimPrefix(string(key), gcpkmsPrefix+gcpKeySep)
-	keyVersionName, usage, _ := strings.Cut(keyWithoutPrefix, gcpKeySep)
-
-	keyID.usage = keyUsage(usage)
-	keyID.keyVersionName = keyVersionName
-
+	// strip gcpkms: prefix
+	keyID.keyVersionName = strings.TrimPrefix(string(key), gcpkmsPrefix)
 	return keyID, nil
 }
 
