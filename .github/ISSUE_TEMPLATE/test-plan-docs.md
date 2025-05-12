@@ -66,9 +66,17 @@ version of Teleport.
   on the docs website) must include a `CHANGELOG.md` file in which the most
   recent major version is the one that corresponds to its release branch. 
 
+  On `master`, edit `CHANGELOG.md` to include a heading for the next major
+  version. We can add notes for features in development under this heading on
+  `master`.
+
   For example, if we cut `branch/v20` from `master`, the `CHANGELOG.md` on
-  `branch/v20` must end with `v20` release notes and `master` must end with
-  `v21` release notes.
+  `branch/v20` must include `v20` release notes at the top. `master` must begin
+  with a heading for `v21` development notes, e.g.:
+
+  ```markdown
+  ## 21.0.0 (xx/xx/xx)
+  ```
 
 - [ ] Verify the accuracy of critical docs pages. Follow the docs guides below
   and verify their accuracy while using the newly released major version of
