@@ -161,30 +161,29 @@ func (s *DirectoryAccess) ReadDir(relativePath string) ([]*FileOrDirInfo, error)
 	return results, nil
 }
 
-// Read reads a slice of a file.
-func (s *DirectoryAccess) Read(relativePath string, offset int64, length uint32) ([]byte, error) {
+// Read reads a slice of a file into buf. Returns the number of read bytes.
+func (s *DirectoryAccess) Read(relativePath string, offset int64, buf []byte) (int, error) {
 	path, err := s.getSafePath(relativePath)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 
 	opened, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return 0, trace.Wrap(err)
 	}
 	defer opened.Close()
 
-	buf := make([]byte, length)
 	_, err = opened.Seek(offset, io.SeekStart)
 	if err != nil {
-		return nil, err
+		return 0, trace.Wrap(err)
 	}
 
 	n, err := opened.Read(buf)
 	if err != nil && !errors.Is(err, io.EOF) {
-		return nil, trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
-	return buf[:n], nil
+	return n, nil
 }
 
 // Write writes data to a file at a given offset.

@@ -61,7 +61,11 @@ func TestDirectoryAccessEscapingPaths(t *testing.T) {
 	}{
 		{"Stat", func(a *DirectoryAccess) error { _, err := a.Stat(outOfRootPath); return err }},
 		{"ReadDir", func(a *DirectoryAccess) error { _, err := a.ReadDir(outOfRootPath); return err }},
-		{"Read", func(a *DirectoryAccess) error { _, err := a.Read(outOfRootPath, 0, 100); return err }},
+		{"Read", func(a *DirectoryAccess) error {
+			buf := make([]byte, 10)
+			_, err := a.Read(outOfRootPath, 0, buf)
+			return err
+		}},
 		{"Write", func(a *DirectoryAccess) error { _, err := a.Write(outOfRootPath, 0, []byte("test")); return err }},
 		{"Truncate", func(a *DirectoryAccess) error { err := a.Truncate(outOfRootPath, 100); return err }},
 		{"Create", func(a *DirectoryAccess) error { err := a.Create(outOfRootPath, FileTypeDir); return err }},
@@ -124,9 +128,11 @@ func TestDirectoryAccessSuccessOperations(t *testing.T) {
 
 	t.Run("Read", func(t *testing.T) {
 		access, _ := setUpSharedDir(t)
-		read, err := access.Read(testFilename, 0, 100)
+		buf := make([]byte, 4)
+		read, err := access.Read(testFilename, 0, buf)
 		require.NoError(t, err)
-		require.Equal(t, []byte("test"), read)
+		require.Equal(t, 4, read)
+		require.Equal(t, []byte("test"), buf)
 	})
 
 	t.Run("Write", func(t *testing.T) {
@@ -135,9 +141,11 @@ func TestDirectoryAccessSuccessOperations(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 12, written)
 
-		read, err := access.Read(testFilename, 0, 100)
+		buf := make([]byte, 16)
+		read, err := access.Read(testFilename, 0, buf)
 		require.NoError(t, err)
-		require.Equal(t, []byte("test_new_content"), read)
+		require.Equal(t, 16, read)
+		require.Equal(t, []byte("test_new_content"), buf)
 	})
 
 	t.Run("Truncate", func(t *testing.T) {
