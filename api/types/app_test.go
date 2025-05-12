@@ -38,7 +38,7 @@ func TestAppPublicAddrValidation(t *testing.T) {
 	}
 	hasErrTypeBadParameter := func() check {
 		return func(t *testing.T, err error) {
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+			require.True(t, trace.IsBadParameter(err))
 		}
 	}
 

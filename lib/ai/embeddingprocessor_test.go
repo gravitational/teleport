@@ -189,7 +189,7 @@ func validateEmbeddings(t *testing.T, nodes []types.Server, embeddingsStream str
 	embeddings, err := stream.Collect(embeddingsStream)
 	require.NoError(t, err)
 
-	require.Equal(t, len(nodes), len(embeddings), "Number of nodes and embeddings should be equal")
+	require.Len(t, nodes, len(embeddings), "Number of nodes and embeddings should be equal")
 
 	for i, node := range nodes {
 		emb := embeddings[i]

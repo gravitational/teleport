@@ -2960,8 +2960,8 @@ func serializeDatabases(databases []types.Database, format string, accessChecker
 	}
 
 	var out []byte
-	switch {
-	case format == teleport.JSON:
+	switch format {
+	case teleport.JSON:
 		out, err = utils.FastMarshalIndent(printObj, "", "  ")
 	default:
 		out, err = yaml.Marshal(printObj)

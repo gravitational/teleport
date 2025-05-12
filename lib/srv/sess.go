@@ -328,7 +328,7 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext) (bool,
 	if err != nil {
 		log.DebugContext(ctx, "Error creating user", "error", err)
 
-		if errors.Is(err, unmanagedUserErr) {
+		if errors.Is(err, errUnmanagedUser) {
 			log.WarnContext(ctx, "User is not managed by teleport. Either manually delete the user from this machine or update the host_groups defined in their role to include 'teleport-keep'. https://goteleport.com/docs/enroll-resources/server-access/guides/host-user-creation/#migrating-unmanaged-users")
 			return false, nil, nil
 		}
@@ -1788,14 +1788,8 @@ func (s *session) expandFileTransferRequestPath(p string) (string, error) {
 	expanded := path.Clean(p)
 	dir := path.Dir(expanded)
 
-	var tildePrefixed bool
-	var noBaseDir bool
-	if dir == "~" {
-		tildePrefixed = true
-	} else if dir == "." {
-		noBaseDir = true
-	}
-
+	tildePrefixed := dir == "~"
+	noBaseDir := dir == "."
 	if tildePrefixed || noBaseDir {
 		localUser, err := user.Lookup(s.login)
 		if err != nil {
