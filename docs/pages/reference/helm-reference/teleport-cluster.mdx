@@ -303,12 +303,12 @@ Defaults to Teleport's binary default when empty: `best_effort`.
 ### `authentication.secondFactor`
 
 <Admonition type="warning">
-Deprecated, you should use [`authentication.secondFactors`](#authenticationsecondfactors) instead.
+Deprecated, after upgrading your Teleport cluster to v17.0.0 or higher you should use [`authentication.secondFactors`](#authenticationsecondfactors) instead.
 </Admonition>
 
 | Type     | Default value | Required? | `teleport.yaml` equivalent                  |
 |----------|---------------|-----------|---------------------------------------------|
-| `string` | none          | Yes       | `auth_service.authentication.second_factor` |
+| `string` | `on`          | Yes       | `auth_service.authentication.second_factor` |
 
 `authentication.secondFactor` configures multi-factor authentication for local users.
 Possible values supported by this chart are `on`, `otp`, and `webauthn`.
@@ -338,7 +338,7 @@ Changing the RP ID will invalidate all already registered webauthn second factor
 
 | Type    | Default value         | Required? | `teleport.yaml` equivalent                   |
 |---------|-----------------------|-----------|----------------------------------------------|
-| `array` | `["otp", "webauthn"]` | No        | `auth_service.authentication.second_factors` |
+| `array` | none                  | No        | `auth_service.authentication.second_factors` |
 
 `authentication.secondFactors` configures multi-factor authentication types.
 Supported item values are `otp`, `sso`, and `webauthn`.
