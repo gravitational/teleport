@@ -188,9 +188,9 @@ services:
       sigstore:
         enabled: true
         additional_registries:
-          - uri: https://ghcr.io
-          - uri: https://public.ecr.aws
-          - uri: http://localhost:1234
+          - host: ghcr.io
+          - host: public.ecr.aws
+          - host: localhost:1234
         credentials_path: /path/to/docker/config.json
     # docker:
     #   enabled: true
