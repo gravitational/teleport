@@ -37,10 +37,10 @@ const maxPayloads = 25
 
 // DiscoveryConfig contains configuration for the Sigstore discovery process.
 type DiscoveryConfig struct {
-	Logger                 *slog.Logger
-	Keychain               authn.Keychain
-	AdditionalRegistries   []string
-	AllowedNetworkPrefixes []string
+	Logger                        *slog.Logger
+	Keychain                      authn.Keychain
+	AdditionalRegistries          []string
+	AllowedPrivateNetworkPrefixes []string
 }
 
 // Discover signatures and attestations for the given image digest.
@@ -64,8 +64,8 @@ func Discover(ctx context.Context, image, digest string, cfg DiscoveryConfig) ([
 		return nil, trace.Wrap(err, "parsing image digest")
 	}
 
-	allowedPrefixes := make([]netip.Prefix, len(cfg.AllowedNetworkPrefixes))
-	for idx, prefix := range cfg.AllowedNetworkPrefixes {
+	allowedPrefixes := make([]netip.Prefix, len(cfg.AllowedPrivateNetworkPrefixes))
+	for idx, prefix := range cfg.AllowedPrivateNetworkPrefixes {
 		nip, err := netip.ParsePrefix(prefix)
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing allowed network prefix [%d]: %q", idx, prefix)

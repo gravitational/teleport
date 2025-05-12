@@ -248,7 +248,7 @@ services:
         additional_registries:
           - host: ghcr.io
         credentials_path: /path/to/docker/config.json
-        allowed_network_prefixes:
+        allowed_private_network_prefixes:
           - "192.168.1.42/32"
 ```
 
@@ -284,8 +284,8 @@ to use `docker login` and copy the `auths` and `credHelpers` sections out of
 By default, `tbot` will refuse to connect to registries hosted at private network
 addresses (e.g. in IP ranges designated for private use by [RFC 1918](https://datatracker.ietf.org/doc/html/rfc1918))
 to reduce the surface area for SSRF attacks. If your registry is on a private
-network, you can add its IP to the `allowed_network_prefixes` list using CIDR
-notation.
+network, you can add its IP to the `allowed_private_network_prefixes` list using
+CIDR notation.
 
 
 ### Using Kubernetes registry credentials

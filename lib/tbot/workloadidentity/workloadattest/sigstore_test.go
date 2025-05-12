@@ -74,12 +74,12 @@ func TestSigstoreAttestorConfig_CheckAndSetDefaults(t *testing.T) {
 			},
 			err: "registries must be valid RFC 3986 URI authorities",
 		},
-		"allowed_network_prefixes is invalid": {
+		"allowed_private_network_prefixes is invalid": {
 			cfg: SigstoreAttestorConfig{
-				Enabled:                true,
-				AllowedNetworkPrefixes: []string{"::1/128", "NOT VALID"},
+				Enabled:                       true,
+				AllowedPrivateNetworkPrefixes: []string{"::1/128", "NOT VALID"},
 			},
-			err: "parsing allowed_network_prefixes[1]",
+			err: "parsing allowed_private_network_prefixes[1]",
 		},
 	}
 	for desc, tc := range testCases {
@@ -114,9 +114,9 @@ func TestSigstoreAttestor_Attest_WithCredentials(t *testing.T) {
 
 	attestor, err := NewSigstoreAttestor(
 		SigstoreAttestorConfig{
-			Enabled:                true,
-			CredentialsPath:        dockerConfigFile,
-			AllowedNetworkPrefixes: loopbackPrefixes,
+			Enabled:                       true,
+			CredentialsPath:               dockerConfigFile,
+			AllowedPrivateNetworkPrefixes: loopbackPrefixes,
 		},
 		utils.NewSlogLoggerForTests(),
 	)
@@ -148,8 +148,8 @@ func TestSigstoreAttestor_Attest_Caching(t *testing.T) {
 
 	attestor, err := NewSigstoreAttestor(
 		SigstoreAttestorConfig{
-			Enabled:                true,
-			AllowedNetworkPrefixes: loopbackPrefixes,
+			Enabled:                       true,
+			AllowedPrivateNetworkPrefixes: loopbackPrefixes,
 		},
 		utils.NewSlogLoggerForTests(),
 	)

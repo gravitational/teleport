@@ -56,11 +56,11 @@ type SigstoreAttestorConfig struct {
 	// the default locations (e.g. `$HOME/.docker/config.json`).
 	CredentialsPath string `yaml:"credentials_path,omitempty"`
 
-	// AllowedNetworkPrefixes configures the private network prefixes at which
-	// registries can be reached. By default, the attestor will refuse to connect
-	// to registries hosted at IPs designated for private use (e.g. 10.0.0.0/8)
+	// AllowedPrivateNetworkPrefixes configures the private network prefixes at
+	// which registries can be reached. By default, the attestor will refuse to
+	// connect to registries hosted at IPs designated for private use (e.g. 10.0.0.0/8)
 	// in order to mitigate SSRF attacks.
-	AllowedNetworkPrefixes []string `yaml:"allowed_network_prefixes,omitempty"`
+	AllowedPrivateNetworkPrefixes []string `yaml:"allowed_private_network_prefixes,omitempty"`
 }
 
 func (s SigstoreAttestorConfig) CheckAndSetDefaults() error {
@@ -90,9 +90,9 @@ func (s SigstoreAttestorConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	for idx, prefix := range s.AllowedNetworkPrefixes {
+	for idx, prefix := range s.AllowedPrivateNetworkPrefixes {
 		if _, err := netip.ParsePrefix(prefix); err != nil {
-			return trace.Wrap(err, "parsing allowed_network_prefixes[%d])", idx)
+			return trace.Wrap(err, "parsing allowed_private_network_prefixes[%d])", idx)
 		}
 	}
 
@@ -171,10 +171,10 @@ func (a *SigstoreAttestor) Attest(ctx context.Context, ctr Container) (*workload
 		ctr.GetImage(),
 		ctr.GetImageDigest(),
 		sigstore.DiscoveryConfig{
-			Logger:                 a.log,
-			Keychain:               a.keychain,
-			AdditionalRegistries:   a.registryHosts,
-			AllowedNetworkPrefixes: a.cfg.AllowedNetworkPrefixes,
+			Logger:                        a.log,
+			Keychain:                      a.keychain,
+			AdditionalRegistries:          a.registryHosts,
+			AllowedPrivateNetworkPrefixes: a.cfg.AllowedPrivateNetworkPrefixes,
 		},
 	)
 	if err != nil {
