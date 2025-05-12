@@ -646,6 +646,8 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 		return nil, trace.Wrap(err)
 	}
 	if describeKeyOut.KeyMetadata.MultiRegionConfiguration == nil {
+		// This error is not expected to be reached since we check that the key
+		// is a multi-region key above.
 		return nil, trace.Errorf("kms key %s missing multi-region configuration", currRegionKey.arn)
 	}
 
