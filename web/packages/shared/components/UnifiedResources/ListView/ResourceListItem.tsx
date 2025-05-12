@@ -35,6 +35,7 @@ import {
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
 import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
+import { isUnhealthy } from '../shared/StatusInfo';
 import { ResourceItemProps } from '../types';
 
 export function ResourceListItem({
@@ -70,7 +71,7 @@ export function ResourceListItem({
   }, [expandAllLabels]);
 
   const showLabelsButton = labels.length > 0 && (hovered || showLabels);
-  const hasUnhealthyStatus = status && status !== 'healthy';
+  const hasUnhealthyStatus = isUnhealthy(status);
 
   // Determines which column the resource type text should end at.
   // We do this because if there is no address, or the labels button
