@@ -3,12 +3,12 @@
 # Update packages
 dnf -y update
 
-# Install 
+# Install
 #  - uuid used for random token generation,
 #  - python for certbot
 dnf install -y uuid python3
 
-# Install certbot 
+# Install certbot
 python3 -m venv /opt/certbot
 /opt/certbot/bin/pip install --upgrade pip
 /opt/certbot/bin/pip install certbot certbot-dns-route53
@@ -23,11 +23,16 @@ usermod -a -G adm teleport
 # Setup teleport run dir for pid files
 install -d -m 0700 -o teleport -g adm /var/lib/teleport
 install -d -m 0755 -o teleport -g adm /run/teleport /etc/teleport.d
+# Setup teleport/system directory
+install -d -m 0755 -o teleport -g adm /opt/teleport/system/bin
+install -d -m 0755 -o teleport -g adm /opt/teleport/system/lib/systemd/system
 
 # Extract tarball to /tmp/teleport to get the binaries out
 mkdir /tmp/teleport
 tar -C /tmp/teleport -x -z -f /tmp/teleport.tar.gz --strip-components=1
-install -m 755 /tmp/teleport/{tctl,tsh,teleport,tbot} /usr/local/bin
+install -m 755 /tmp/teleport/{tctl,tsh,teleport,tbot,teleport-update} /opt/teleport/system/bin
+install -m 755 /tmp/teleport/examples/systemd/teleport.service /opt/teleport/system/lib/systemd/system
+/opt/teleport/system/bin/teleport-update link-package
 rm -rf /tmp/teleport /tmp/teleport.tar.gz
 
 if [[ "${TELEPORT_FIPS}" == 1 ]]; then

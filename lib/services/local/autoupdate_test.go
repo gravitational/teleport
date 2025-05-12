@@ -92,8 +92,7 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 	var notFoundError *trace.NotFoundError
 	require.ErrorAs(t, err, &notFoundError)
 
-	_, err = service.UpdateAutoUpdateConfig(ctx, config)
-	require.ErrorAs(t, err, &notFoundError)
+	// In the v14 backport, we removed conditional updates (the backend primitives are not available).
 }
 
 // TestAutoUpdateServiceVersionCRUD verifies get/create/update/upsert/delete methods of the backend service
@@ -153,8 +152,7 @@ func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 	var notFoundError *trace.NotFoundError
 	require.ErrorAs(t, err, &notFoundError)
 
-	_, err = service.UpdateAutoUpdateVersion(ctx, version)
-	require.ErrorAs(t, err, &notFoundError)
+	// In the v14 backport, we removed conditional updates (the backend primitives are not available).
 }
 
 // TestAutoUpdateServiceInvalidNameCreate verifies that configuration and version
