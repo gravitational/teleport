@@ -26,10 +26,9 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/credentials/insecure"
-
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekeyagent"
