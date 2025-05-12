@@ -394,7 +394,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				return nil
-			case <-ticker.C:
+			case <-time.NewTimer(40 * time.Millisecond).C:
 			}
 			i++
 			if i%25 == 0 {
