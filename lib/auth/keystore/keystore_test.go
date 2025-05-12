@@ -685,11 +685,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 			AWSKMS: &servicecfg.AWSKMSConfig{
 				AWSAccount: "123456789012",
 				AWSRegion:  "us-west-2",
-				MultiRegion: struct {
-					Enabled        bool
-					PrimaryRegion  string
-					ReplicaRegions []string
-				}{
+				MultiRegion: servicecfg.MultiRegionKeyStore{
 					Enabled: multiRegion,
 				},
 			},

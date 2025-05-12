@@ -297,11 +297,7 @@ func TestAWSKeyCreationParameters(t *testing.T) {
 				AWSKMS: &servicecfg.AWSKMSConfig{
 					AWSAccount: "123456789012",
 					AWSRegion:  "us-west-2",
-					MultiRegion: struct {
-						Enabled        bool
-						PrimaryRegion  string
-						ReplicaRegions []string
-					}{
+					MultiRegion: servicecfg.MultiRegionKeyStore{
 						Enabled: tc.multiRegion,
 					},
 					Tags: tc.tags,
@@ -649,11 +645,7 @@ func TestMultiRegionKeyReplication(t *testing.T) {
 			config: servicecfg.AWSKMSConfig{
 				AWSAccount: testAccount,
 				AWSRegion:  testPrimary,
-				MultiRegion: struct {
-					Enabled        bool
-					PrimaryRegion  string
-					ReplicaRegions []string
-				}{
+				MultiRegion: servicecfg.MultiRegionKeyStore{
 					Enabled: true,
 				},
 			},
@@ -666,11 +658,7 @@ func TestMultiRegionKeyReplication(t *testing.T) {
 			config: servicecfg.AWSKMSConfig{
 				AWSAccount: testAccount,
 				AWSRegion:  testPrimary,
-				MultiRegion: struct {
-					Enabled        bool
-					PrimaryRegion  string
-					ReplicaRegions []string
-				}{
+				MultiRegion: servicecfg.MultiRegionKeyStore{
 					Enabled:        true,
 					PrimaryRegion:  testPrimary,
 					ReplicaRegions: testReplicas,
@@ -685,11 +673,7 @@ func TestMultiRegionKeyReplication(t *testing.T) {
 			config: servicecfg.AWSKMSConfig{
 				AWSAccount: testAccount,
 				AWSRegion:  testSecondary,
-				MultiRegion: struct {
-					Enabled        bool
-					PrimaryRegion  string
-					ReplicaRegions []string
-				}{
+				MultiRegion: servicecfg.MultiRegionKeyStore{
 					Enabled:        true,
 					PrimaryRegion:  testPrimary,
 					ReplicaRegions: testReplicas,
@@ -704,11 +688,7 @@ func TestMultiRegionKeyReplication(t *testing.T) {
 			config: servicecfg.AWSKMSConfig{
 				AWSAccount: testAccount,
 				AWSRegion:  testPrimary,
-				MultiRegion: struct {
-					Enabled        bool
-					PrimaryRegion  string
-					ReplicaRegions []string
-				}{
+				MultiRegion: servicecfg.MultiRegionKeyStore{
 					Enabled:        true,
 					PrimaryRegion:  testSecondary,
 					ReplicaRegions: []string{testPrimary},
@@ -724,11 +704,7 @@ func TestMultiRegionKeyReplication(t *testing.T) {
 			config: servicecfg.AWSKMSConfig{
 				AWSAccount: testAccount,
 				AWSRegion:  testSecondary,
-				MultiRegion: struct {
-					Enabled        bool
-					PrimaryRegion  string
-					ReplicaRegions []string
-				}{
+				MultiRegion: servicecfg.MultiRegionKeyStore{
 					Enabled:        true,
 					PrimaryRegion:  testSecondary,
 					ReplicaRegions: testReplicas,
@@ -769,11 +745,7 @@ func TestMultiRegionKeyReplication(t *testing.T) {
 				AWSKMS: &servicecfg.AWSKMSConfig{
 					AWSAccount: tc.config.AWSAccount,
 					AWSRegion:  testPrimary,
-					MultiRegion: struct {
-						Enabled        bool
-						PrimaryRegion  string
-						ReplicaRegions []string
-					}{
+					MultiRegion: servicecfg.MultiRegionKeyStore{
 						Enabled:        true,
 						PrimaryRegion:  existingPrimary,
 						ReplicaRegions: tc.existingReplicas,
