@@ -159,13 +159,9 @@ type backend interface {
 	// from the underlying backend.
 	getDecrypter(ctx context.Context, keyID []byte, pub crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error)
 
-	// canSignWithKey returns true if this backend is able to sign with the
+	// canUseKey returns true if this backend is able to sign or decrypt with the
 	// given key.
-	canSignWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error)
-
-	// canDecryptWithKey returns true if this backend is able to decrypt with the
-	// given key.
-	canDecryptWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error)
+	canUseKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error)
 
 	// deleteKey deletes the given key from the backend.
 	deleteKey(ctx context.Context, keyID []byte) error
@@ -197,8 +193,8 @@ type Options struct {
 	AuthPreferenceGetter cryptosuites.AuthPreferenceGetter
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
-	// Hash function to use with keystores that support a configurable hash.
-	Hash crypto.Hash
+	// OAEPHash function to use with keystores that support OAEP with a configurable hash.
+	OAEPHash crypto.Hash
 
 	awsKMSClient      kmsClient
 	awsSTSClient      stsClient
@@ -332,11 +328,11 @@ func (m *Manager) GetAdditionalTrustedSSHSigner(ctx context.Context, ca types.Ce
 func (m *Manager) GetSSHSignerFromKeySet(ctx context.Context, keySet types.CAKeySet) (ssh.Signer, error) {
 	for _, backend := range m.usableSigningBackends {
 		for _, keyPair := range keySet.SSH {
-			canSign, err := backend.canSignWithKey(ctx, keyPair.PrivateKey, keyPair.PrivateKeyType)
+			canUse, err := backend.canUseKey(ctx, keyPair.PrivateKey, keyPair.PrivateKeyType)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if !canSign {
+			if !canUse {
 				continue
 			}
 			pub, err := publicKeyFromSSHAuthorizedKey(keyPair.PublicKey)
@@ -460,11 +456,11 @@ func (m *Manager) GetAdditionalTrustedTLSCertAndSigner(ctx context.Context, ca t
 func (m *Manager) getTLSCertAndSigner(ctx context.Context, keySet types.CAKeySet) ([]byte, crypto.Signer, error) {
 	for _, backend := range m.usableSigningBackends {
 		for _, keyPair := range keySet.TLS {
-			canSign, err := backend.canSignWithKey(ctx, keyPair.Key, keyPair.KeyType)
+			canUse, err := backend.canUseKey(ctx, keyPair.Key, keyPair.KeyType)
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
-			if !canSign {
+			if !canUse {
 				continue
 			}
 			pub, err := publicKeyFromTLSCertPem(keyPair.Cert)
@@ -499,11 +495,11 @@ func publicKeyFromTLSCertPem(certPem []byte) (crypto.PublicKey, error) {
 func (m *Manager) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error) {
 	for _, backend := range m.usableSigningBackends {
 		for _, keyPair := range ca.GetActiveKeys().JWT {
-			canSign, err := backend.canSignWithKey(ctx, keyPair.PrivateKey, keyPair.PrivateKeyType)
+			canUse, err := backend.canUseKey(ctx, keyPair.PrivateKey, keyPair.PrivateKeyType)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if !canSign {
+			if !canUse {
 				continue
 			}
 			pub, err := keys.ParsePublicKey(keyPair.PublicKey)
@@ -523,12 +519,12 @@ func (m *Manager) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (cry
 // GetDecrypter returns the [crypto.Decrypter] associated with a given EncryptionKeyPair if accessible.
 func (m *Manager) GetDecrypter(ctx context.Context, keyPair *types.EncryptionKeyPair) (crypto.Decrypter, error) {
 	for _, backend := range m.usableDecryptionBackends {
-		canDecrypt, err := backend.canDecryptWithKey(ctx, keyPair.PrivateKey, keyPair.PrivateKeyType)
+		canUse, err := backend.canUseKey(ctx, keyPair.PrivateKey, keyPair.PrivateKeyType)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		if !canDecrypt {
+		if !canUse {
 			continue
 		}
 		pub, err := keys.ParsePublicKey(keyPair.PublicKey)
@@ -740,7 +736,7 @@ func (m *Manager) hasUsableKeys(ctx context.Context, keySet types.CAKeySet) (*Us
 	for i, backend := range m.usableSigningBackends {
 		preferredBackend := i == 0
 		for _, sshKeyPair := range keySet.SSH {
-			usable, err := backend.canSignWithKey(ctx, sshKeyPair.PrivateKey, sshKeyPair.PrivateKeyType)
+			usable, err := backend.canUseKey(ctx, sshKeyPair.PrivateKey, sshKeyPair.PrivateKeyType)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -754,7 +750,7 @@ func (m *Manager) hasUsableKeys(ctx context.Context, keySet types.CAKeySet) (*Us
 			allRawKeys = append(allRawKeys, sshKeyPair.PrivateKey)
 		}
 		for _, tlsKeyPair := range keySet.TLS {
-			usable, err := backend.canSignWithKey(ctx, tlsKeyPair.Key, tlsKeyPair.KeyType)
+			usable, err := backend.canUseKey(ctx, tlsKeyPair.Key, tlsKeyPair.KeyType)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -768,7 +764,7 @@ func (m *Manager) hasUsableKeys(ctx context.Context, keySet types.CAKeySet) (*Us
 			allRawKeys = append(allRawKeys, tlsKeyPair.Key)
 		}
 		for _, jwtKeyPair := range keySet.JWT {
-			usable, err := backend.canSignWithKey(ctx, jwtKeyPair.PrivateKey, jwtKeyPair.PrivateKeyType)
+			usable, err := backend.canUseKey(ctx, jwtKeyPair.PrivateKey, jwtKeyPair.PrivateKeyType)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
