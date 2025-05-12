@@ -1,4 +1,4 @@
-.version: &version "18.0.0-dev.steve.mcp.7"
+.version: &version "18.0.0-dev.steve.mcp.8"
 
 name: tbot
 apiVersion: v2
