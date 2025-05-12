@@ -250,6 +250,7 @@ services:
         credentials_path: /path/to/docker/config.json
         allowed_private_network_prefixes:
           - "192.168.1.42/32"
+          - "fd12:3456:789a:1::1/128"
 ```
 
 In order for `tbot` to discover signatures for a workload's container image, you
