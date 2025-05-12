@@ -638,18 +638,18 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 		return nil, trace.Wrap(err)
 	}
 
-	currRegion, err := keyIDFromArn(*describeKeyOut.KeyMetadata.Arn)
+	currRegionKey, err := keyIDFromArn(*describeKeyOut.KeyMetadata.Arn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.waitForKeyEnabled(ctx, client, currRegion); err != nil {
+	if err := a.waitForKeyEnabled(ctx, client, currRegionKey); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if describeKeyOut.KeyMetadata.MultiRegionConfiguration == nil {
-		return nil, trace.Errorf("kms key %s missing multi-region configuration", currRegion.arn)
+		return nil, trace.Errorf("kms key %s missing multi-region configuration", currRegionKey.arn)
 	}
 
-	currPrimary, err := keyIDFromArn(*describeKeyOut.KeyMetadata.MultiRegionConfiguration.PrimaryKey.Arn)
+	currPrimaryKey, err := keyIDFromArn(*describeKeyOut.KeyMetadata.MultiRegionConfiguration.PrimaryKey.Arn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -667,7 +667,7 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 
 	// Only the primary region can replicate keys and update the primary region
 	// so return early if we are operating outside of the primary region.
-	if currRegion.region != currPrimary.region {
+	if currRegionKey.region != currPrimaryKey.region {
 		return key.marshal(), nil
 	}
 
@@ -677,7 +677,7 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 		}) {
 			continue
 		}
-		a.logger.DebugContext(ctx, "Replicating key", "kms_arn", currPrimary.arn, "replica_region", region)
+		a.logger.DebugContext(ctx, "Replicating key", "kms_arn", currPrimaryKey.arn, "replica_region", region)
 		out, err := client.ReplicateKey(ctx, &kms.ReplicateKeyInput{
 			KeyId:         &key.id,
 			ReplicaRegion: &region,
@@ -692,14 +692,14 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 		}
 		replicas = append(replicas, key)
 	}
-	if currPrimary.region == a.primary {
-		return currPrimary.marshal(), nil
+	if currPrimaryKey.region == a.primary {
+		return currPrimaryKey.marshal(), nil
 	}
 
 	err = a.retryOnConsistencyError(ctx, func(ctx context.Context) error {
-		a.logger.DebugContext(ctx, "Updating primary region", "kms_arn", currPrimary.arn, "primary", a.primary)
+		a.logger.DebugContext(ctx, "Updating primary region", "kms_arn", currPrimaryKey.arn, "primary", a.primary)
 		_, err := client.UpdatePrimaryRegion(ctx, &kms.UpdatePrimaryRegionInput{
-			KeyId:         aws.String(currPrimary.id),
+			KeyId:         aws.String(currPrimaryKey.id),
 			PrimaryRegion: aws.String(a.primary),
 		})
 		if err != nil {
