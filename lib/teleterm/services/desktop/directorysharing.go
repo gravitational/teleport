@@ -195,13 +195,13 @@ func (s *DirectoryAccess) Write(relativePath string, offset int64, data []byte) 
 
 	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		return 0, err
+		return 0, trace.Wrap(err)
 	}
 	defer file.Close()
 
 	_, err = file.Seek(offset, io.SeekStart)
 	if err != nil {
-		return 0, err
+		return 0, trace.Wrap(err)
 	}
 
 	n, err := file.Write(data)
@@ -236,9 +236,9 @@ func (s *DirectoryAccess) Create(relativePath string, fileType FileType) error {
 			if os.IsExist(err) {
 				return nil // Ignore if file already exists
 			}
-			return err
+			return trace.Wrap(err)
 		}
-		return file.Close()
+		return trace.Wrap(file.Close())
 	case FileTypeDir:
 		err := os.Mkdir(path, 0700)
 		if os.IsExist(err) {
@@ -281,7 +281,7 @@ func (s *DirectoryAccess) readFileOrDirInfo(relativePath string, f os.FileInfo) 
 		}
 		defer r.Close()
 		info.FileType = FileTypeDir
-		// Read up to one entry.
+		// Determine if the dir is not empty by checking if it contains at least one file.
 		if _, err := r.Readdirnames(1); err != nil {
 			if errors.Is(err, io.EOF) {
 				info.IsEmpty = true
