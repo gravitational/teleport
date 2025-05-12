@@ -178,6 +178,12 @@ file. Instead, we'll use go-containerregistry's `authn` package, which supports
 loading a Docker or Podman configuration file, and allow the user to supply a
 path to an existing configuration file.
 
+Given the image name (and therefore the registry) is user-controlled, it would
+technically be possible to use `tbot` to mount an SSRF attack against private
+systems. To mitigate this, we'll refuse to connect to registries at private IPs
+by default, and allow the user to specify a list of CIDR blocks to override this
+if their registry is not publicly-routable.
+
 ```yaml
 services:
   - type: workload-identity-api
@@ -192,6 +198,8 @@ services:
           - host: public.ecr.aws
           - host: localhost:1234
         credentials_path: /path/to/docker/config.json
+        allowed_network_prefixes:
+          - "192.168.1.42/32"
     # docker:
     #   enabled: true
 ```
