@@ -368,7 +368,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 			AcceptedUsage: []string{teleport.UsageWindowsDesktopOnly},
 		},
 		dnsResolver: resolver,
-		lc:          &windows.LDAPClient{Cfg: cfg.LDAPConfig},
+		lc:          windows.NewLDAPClient(nil),
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
 		close:       close,

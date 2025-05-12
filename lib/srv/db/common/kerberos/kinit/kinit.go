@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"log/slog"
 	"os"
@@ -96,8 +97,6 @@ type CommandConfig struct {
 	AdminServer string
 	// DataDir is the Teleport Data Directory
 	DataDir string
-	// LDAPCA is the Windows LDAP Certificate for client signing
-	LDAPCA *x509.Certificate
 	// LDAPCAPEM contains the same certificate as LDAPCA but in PEM format. It
 	// can be used to embed the LDAPCA into files without needing to convert
 	// it.
@@ -124,7 +123,6 @@ func NewCommandLineInitializer(config CommandConfig) *CommandLineInitializer {
 		binary:             kinitBinary,
 		command:            config.Command,
 		certGetter:         config.CertGetter,
-		ldapCertificate:    config.LDAPCA,
 		ldapCertificatePEM: config.LDAPCAPEM,
 		logger:             slog.Default(),
 	}
@@ -171,7 +169,6 @@ type CommandLineInitializer struct {
 	command    CommandGenerator
 	certGetter CertGetter
 
-	ldapCertificate    *x509.Certificate
 	ldapCertificatePEM string
 	logger             *slog.Logger
 }
@@ -186,16 +183,12 @@ type CertGetter interface {
 type DBCertGetter struct {
 	// Auth is the auth client
 	Auth windows.AuthInterface
-	// KDCHostName is the Name of the key distribution center host
-	KDCHostName string
-	// RealmName is the kerberos realm Name (domain Name)
-	RealmName string
-	// AdminServerName is the Name of the admin server. Usually same as the KDC
-	AdminServerName string
+	// Logger is the logger to use.
+	Logger *slog.Logger
+	// ADConfig is the database-level Active Directory config
+	ADConfig types.AD
 	// UserName is the database username
 	UserName string
-	// LDAPCA is the windows ldap certificate
-	LDAPCA *x509.Certificate
 }
 
 // WindowsCAAndKeyPair is a wrapper around PEM bytes for Windows authentication
@@ -212,20 +205,70 @@ func (d *DBCertGetter) GetCertificateBytes(ctx context.Context) (*WindowsCAAndKe
 		return nil, trace.Wrap(err)
 	}
 
-	certPEM, keyPEM, caCerts, err := windows.DatabaseCredentials(ctx, &windows.GenerateCredentialsRequest{
-		CAType:      types.DatabaseClientCA,
-		Username:    d.UserName,
-		Domain:      d.RealmName,
-		TTL:         certTTL,
-		ClusterName: clusterName.GetClusterName(),
-		AuthClient:  d.Auth,
-	})
+	sid, err := d.GetActiveDirectorySID(ctx, clusterName.GetClusterName())
+	if err != nil {
+		d.Logger.WarnContext(ctx, "Failed to get SID from ActiveDirectory; PKINIT flow is likely to fail.", "error", err)
+	}
 
+	req := &windows.GenerateCredentialsRequest{
+		CAType:             types.DatabaseClientCA,
+		Username:           d.UserName,
+		Domain:             d.ADConfig.Domain,
+		TTL:                certTTL,
+		ClusterName:        clusterName.GetClusterName(),
+		AuthClient:         d.Auth,
+		ActiveDirectorySID: sid,
+		OmitCDP:            true,
+	}
+
+	certPEM, keyPEM, caCerts, err := windows.DatabaseCredentials(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &WindowsCAAndKeyPair{certPEM: certPEM, keyPEM: keyPEM, caCert: bytes.Join(caCerts, []byte("\n"))}, nil
+}
+
+func (d *DBCertGetter) getLDAPCACert() (*x509.Certificate, error) {
+	ldapPem, _ := pem.Decode([]byte(d.ADConfig.LDAPCert))
+	if ldapPem == nil {
+		return nil, trace.BadParameter("cannot find valid LDAP certificate block in AD configuration")
+	}
+	cert, err := x509.ParseCertificate(ldapPem.Bytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cert, nil
+}
+
+func (d *DBCertGetter) GetActiveDirectorySID(ctx context.Context, clusterName string) (string, error) {
+	if d.ADConfig.LDAPServiceAccountName == "" || d.ADConfig.LDAPServiceAccountSID == "" {
+		return "", trace.BadParameter("cannot query AD: missing LDAP service principal name or SID")
+	}
+
+	ldapCert, err := d.getLDAPCACert()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	conn := newLDAPConnector(ldapConnectorConfig{
+		logger:      d.Logger,
+		authClient:  d.Auth,
+		clusterName: clusterName,
+
+		ldapConfig: ldapConfig{
+			Address:           d.ADConfig.KDCHostName,
+			TLSServerName:     d.ADConfig.KDCHostName,
+			Domain:            d.ADConfig.Domain,
+			ServiceAccount:    d.ADConfig.LDAPServiceAccountName,
+			ServiceAccountSID: d.ADConfig.LDAPServiceAccountSID,
+			TLSCACert:         ldapCert,
+		},
+	})
+
+	sid, err := conn.GetActiveDirectorySID(ctx, d.UserName)
+
+	return sid, trace.Wrap(err)
 }
 
 // UseOrCreateCredentials uses an existing cacheData or creates a new one
@@ -247,7 +290,6 @@ func (k *CommandLineInitializer) UseOrCreateCredentials(ctx context.Context) (*c
 	userCAPath := filepath.Join(tmp, "userca.pem")
 
 	cacheDir := filepath.Join(k.dataDir, "krb5_cache")
-
 	err = os.MkdirAll(cacheDir, os.ModePerm)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -297,10 +339,14 @@ func (k *CommandLineInitializer) UseOrCreateCredentials(ctx context.Context) (*c
 		return nil, nil, trace.Wrap(cmd.Err)
 	}
 
-	cmd.Env = append(cmd.Env, []string{fmt.Sprintf("%s=%s", krb5ConfigEnv, krbConfPath)}...)
+	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", krb5ConfigEnv, krbConfPath))
+	cmd.Env = append(cmd.Env, "KRB5_TRACE=/dev/stdout")
+
+	k.logger.DebugContext(ctx, "running kinit command", "cmd", cmd, "env", cmd.Env)
+
 	kinitOutput, err := cmd.CombinedOutput()
 	if err != nil {
-		k.logger.ErrorContext(ctx, "Failed to authenticate with KDC", "cmd_output", string(kinitOutput))
+		k.logger.ErrorContext(ctx, "Failed to authenticate with KDC", "cmd_output", string(kinitOutput), "error", err)
 		return nil, nil, trace.AccessDenied("authentication failed")
 	}
 	ccache, err := credentials.LoadCCache(cachePath)

@@ -1935,6 +1935,10 @@ type DatabaseAD struct {
 	LDAPCert string `yaml:"ldap_cert,omitempty"`
 	// KDCHostName is the host name for a KDC for x509 Authentication.
 	KDCHostName string `yaml:"kdc_host_name,omitempty"`
+	// LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+	LDAPServiceAccountName string `yaml:"ldap_service_account_name,omitempty"`
+	// LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+	LDAPServiceAccountSID string `yaml:"ldap_service_account_sid,omitempty"`
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.

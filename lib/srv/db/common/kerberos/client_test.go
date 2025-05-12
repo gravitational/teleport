@@ -23,6 +23,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -130,17 +131,17 @@ func TestConnectorKInitClient(t *testing.T) {
 
 	dir := t.TempDir()
 
-	provider := newClientProvider(&mockAuth{}, dir)
+	provider := newClientProvider(&mockAuth{}, dir, slog.Default())
 	provider.kinitCommandGenerator = &staticCache{t: t, pass: true}
 
 	krbConfPath := filepath.Join(dir, "krb5.conf")
-	err := os.WriteFile(krbConfPath, []byte(krb5Conf), 0664)
-	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(krbConfPath, []byte(krb5Conf), 0664))
 
 	for i, tt := range []struct {
-		desc         string
-		databaseSpec types.DatabaseSpecV3
-		errAssertion require.ErrorAssertionFunc
+		desc                  string
+		databaseSpec          types.DatabaseSpecV3
+		errAssertionGetClient require.ErrorAssertionFunc
+		errAssertionLogin     require.ErrorAssertionFunc
 	}{
 		{
 			desc: "AD-x509-Loads_and_fails_with_expired_cache",
@@ -154,7 +155,7 @@ func TestConnectorKInitClient(t *testing.T) {
 				},
 			},
 			// When using a non-Azure database, the connector should attempt to get a kinit client
-			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
+			errAssertionLogin: func(t require.TestingT, err error, _ ...interface{}) {
 				require.Error(t, err)
 				// we can't get a new TGT without an actual kerberos implementation, so we are relying on the existing
 				// credentials cache being expired
@@ -169,11 +170,10 @@ func TestConnectorKInitClient(t *testing.T) {
 				AD:       types.AD{},
 			},
 			// When using a non-Azure database, the connector should attempt to get a kinit client
-			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
-				require.Error(t, err)
+			errAssertionGetClient: func(t require.TestingT, err error, _ ...interface{}) {
 				// we can't get a new TGT without an actual kerberos implementation, so we are relying on the existing
 				// credentials cache being expired
-				require.ErrorIs(t, err, errBadKerberosConfig)
+				require.ErrorContains(t, err, "configuration must have either keytab_file or kdc_host_name and ldap_cert")
 			},
 		},
 		{
@@ -188,11 +188,10 @@ func TestConnectorKInitClient(t *testing.T) {
 				},
 			},
 			// When using a non-Azure database, the connector should attempt to get a kinit client
-			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
-				require.Error(t, err)
+			errAssertionGetClient: func(t require.TestingT, err error, _ ...interface{}) {
 				// we can't get a new TGT without an actual kerberos implementation, so we are relying on the existing
 				// credentials cache being expired
-				require.ErrorIs(t, err, errBadCertificate)
+				require.ErrorContains(t, err, "invalid certificate was provided via AD configuration")
 			},
 		},
 	} {
@@ -205,11 +204,24 @@ func TestConnectorKInitClient(t *testing.T) {
 			databaseUser := "alice"
 
 			client, err := provider.GetKerberosClient(ctx, database.GetAD(), databaseUser)
-			if client == nil {
-				tt.errAssertion(t, err)
+			// expecting GetKerberosClient() to fail?
+			if tt.errAssertionGetClient != nil {
+				require.Error(t, err, "expected GetKerberosClient to fail")
+				require.Nil(t, client)
+				tt.errAssertionGetClient(t, err)
+				return
 			} else {
-				err = client.Login()
-				tt.errAssertion(t, err)
+				require.NoError(t, err)
+				require.NotNil(t, client)
+			}
+
+			err = client.Login()
+			// expecting Login() to fail()?
+			if tt.errAssertionLogin != nil {
+				require.Error(t, err)
+				tt.errAssertionLogin(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
