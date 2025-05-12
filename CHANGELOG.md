@@ -1,7 +1,8 @@
 # Changelog
 
-## 16.5.7 (05/08/25)
+## 16.5.8 (05/09/25)
 
+* Fixed a bug causing a malformed user to break Teleport web UI's "Users" page. [#54682](https://github.com/gravitational/teleport/pull/54682)
 * Fixed an issue preventing connections due to missing client IPs when using class E address space with GKE or CloudFlare pseudo IPv4 forward headers. [#54598](https://github.com/gravitational/teleport/pull/54598)
 * Fixed a possible moderator/observer terminal freeze when joining a Kubernetes moderated session. [#54522](https://github.com/gravitational/teleport/pull/54522)
 * Removed background color for resources that required access request in the web UI Resources view. [#54466](https://github.com/gravitational/teleport/pull/54466)
