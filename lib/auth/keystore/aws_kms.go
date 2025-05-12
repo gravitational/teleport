@@ -67,8 +67,8 @@ type awsKMSKeystore struct {
 	awsAccount         string
 	awsRegion          string
 	multiRegionEnabled bool
-	primary            string
-	replicas           map[string]struct{}
+	primaryRegion      string
+	replicaRegions     map[string]struct{}
 	tags               map[string]string
 	clock              clockwork.Clock
 	logger             *slog.Logger
@@ -144,8 +144,8 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 		awsRegion:          cfg.AWSRegion,
 		tags:               tags,
 		multiRegionEnabled: cfg.MultiRegion.Enabled,
-		primary:            primary,
-		replicas:           replicas,
+		primaryRegion:      primary,
+		replicaRegions:     replicas,
 		kms:                kmsClient,
 		mrk:                mrkClient,
 		clock:              clock,
@@ -655,7 +655,7 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var replicas []awsKMSKeyID
+	var existingReplicas []awsKMSKeyID
 	for _, replica := range append(
 		describeKeyOut.KeyMetadata.MultiRegionConfiguration.ReplicaKeys,
 		*describeKeyOut.KeyMetadata.MultiRegionConfiguration.PrimaryKey,
@@ -664,7 +664,7 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		replicas = append(replicas, key)
+		existingReplicas = append(existingReplicas, key)
 	}
 
 	// Only the primary region can replicate keys and update the primary region
@@ -673,8 +673,9 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 		return key.marshal(), nil
 	}
 
-	for region := range a.replicas {
-		if slices.ContainsFunc(replicas, func(key awsKMSKeyID) bool {
+	for region := range a.replicaRegions {
+		// Check if a replica already exists in this region.
+		if slices.ContainsFunc(existingReplicas, func(key awsKMSKeyID) bool {
 			return key.region == region
 		}) {
 			continue
@@ -692,17 +693,17 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		replicas = append(replicas, key)
+		existingReplicas = append(existingReplicas, key)
 	}
-	if currPrimaryKey.region == a.primary {
+	if currPrimaryKey.region == a.primaryRegion {
 		return currPrimaryKey.marshal(), nil
 	}
 
 	err = a.retryOnConsistencyError(ctx, func(ctx context.Context) error {
-		a.logger.DebugContext(ctx, "Updating primary region", "kms_arn", currPrimaryKey.arn, "primary", a.primary)
+		a.logger.DebugContext(ctx, "Updating primary region", "kms_arn", currPrimaryKey.arn, "primary", a.primaryRegion)
 		_, err := client.UpdatePrimaryRegion(ctx, &kms.UpdatePrimaryRegionInput{
 			KeyId:         aws.String(currPrimaryKey.id),
-			PrimaryRegion: aws.String(a.primary),
+			PrimaryRegion: aws.String(a.primaryRegion),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -713,12 +714,12 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 		return nil, trace.Wrap(err)
 	}
 
-	for _, key := range replicas {
-		if key.region == a.primary {
+	for _, key := range existingReplicas {
+		if key.region == a.primaryRegion {
 			return key.marshal(), nil
 		}
 	}
-	return nil, trace.Errorf("failed to find updated primary key region=%s key_id=%s", a.primary, key.id)
+	return nil, trace.Errorf("failed to find updated primary key region=%s key_id=%s", a.primaryRegion, key.id)
 }
 
 func (a *awsKMSKeystore) waitForKeyEnabled(ctx context.Context, client mrkClient, key awsKMSKeyID) error {
