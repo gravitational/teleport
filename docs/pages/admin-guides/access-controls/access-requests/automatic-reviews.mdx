@@ -3,7 +3,7 @@ title: Configure Automatic Reviews
 description: Describes how to configure Access Monitoring Rules for Automatic Reviews.
 ---
 
-Teleport supports automatic reviews of Access Requests for Teleport Roles. This
+Teleport supports automatic reviews of Access Requests for Teleport roles. This
 feature enables teams to enforce a zero standing privilege policy, while
 still allowing users to receive temporary access without manual approval.
 
@@ -14,22 +14,22 @@ Teleport to monitor specific Access Requests and automatically submit a review
 when certain conditions are met. The conditions can be configured based on the
 requested roles, and based on the requesting user's Teleport traits.
 
-Example:
-An Access Monitoring Rule can configure automatic Access Request approval when a
-user with the Teleport traits `team: demo` requests access to the `access` role.
+For example, an Access Monitoring Rule can configure automatic Access Request
+approval when a user with the Teleport traits `team: demo` requests access to
+the `access` role.
 
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-## Step 1/4. Create Requester Role and User
+## Step 1/4. Create a requester role and user
 
 In this example, we'll first create:
 - A role named `demo-access-request`, which allows requesting access to the
 `access` role.
 - A user named `demo-access-requester`, assigned the above role.
 
-### Role Definition
+### Create the role
 
 Create a role configuration file named `demo-role.yaml`:
 ```yaml
@@ -52,7 +52,7 @@ Create the role with:
 $ tctl create demo-role.yaml
 ```
 
-### Create the User
+### Create the user
 
 Use the following command to create the user and assign the role:
 ```sh
@@ -63,7 +63,7 @@ Alternatively, you can assign the role after creating the user:
 
   (!docs/pages/includes/add-role-to-user.mdx role="demo-access-request" user="\`demo-access-requester\`"!)
 
-## Step 2/4. Assign User Traits
+## Step 2/4. Assign user traits
 
 To allow automatic review rules to evaluate the requesting user, assign them
 traits via the Teleport Web UI.
@@ -97,7 +97,7 @@ role will be automatically reviewed for approval if the Teleport user traits
 requirements are satisfied. In this case, any user with the traits `team: demo`
 will satisfy the requirement.
 
-## Step 4/4. Verify Automatic Review Rule
+## Step 4/4. Verify automatic review rule
 
 To verify the new Access Monitoring Rule, create an Access Request via the Teleport
 Web UI.
