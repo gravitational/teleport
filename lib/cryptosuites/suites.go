@@ -125,8 +125,8 @@ const (
 	// identity.
 	BoundKeypairJoining
 
-	// RecordingEncryption is a key used for encrypting session recordings.
-	RecordingEncryption
+	// RecordingKeyWrapping is a key used for wrapping session recording decryption keys.
+	RecordingKeyWrapping
 
 	// keyPurposeMax is 1 greater than the last valid key purpose, used to test that all values less than this
 	// are valid for each suite.
@@ -201,11 +201,11 @@ var (
 		ProxyToDatabaseAgent: RSA2048,
 		ProxyKubeClient:      RSA2048,
 		// EC2InstanceConnect has always used Ed25519 by default.
-		EC2InstanceConnect:  Ed25519,
-		GitClient:           Ed25519,
-		AWSRACATLS:          ECDSAP256,
-		BoundKeypairJoining: Ed25519,
-		RecordingEncryption: RSA2048,
+		EC2InstanceConnect:   Ed25519,
+		GitClient:            Ed25519,
+		AWSRACATLS:           ECDSAP256,
+		BoundKeypairJoining:  Ed25519,
+		RecordingKeyWrapping: RSA2048,
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and
@@ -239,7 +239,7 @@ var (
 		GitClient:               Ed25519,
 		AWSRACATLS:              ECDSAP256,
 		BoundKeypairJoining:     Ed25519,
-		RecordingEncryption:     RSA2048,
+		RecordingKeyWrapping:    RSA2048,
 	}
 
 	// fipsv1 is an algorithm suite tailored for FIPS compliance. It is based on
@@ -274,7 +274,7 @@ var (
 		GitClient:               ECDSAP256,
 		AWSRACATLS:              ECDSAP256,
 		BoundKeypairJoining:     ECDSAP256,
-		RecordingEncryption:     RSA2048,
+		RecordingKeyWrapping:    RSA2048,
 	}
 
 	// hsmv1 in an algorithm suite tailored for clusters using an HSM or KMS
@@ -311,7 +311,7 @@ var (
 		GitClient:               Ed25519,
 		AWSRACATLS:              ECDSAP256,
 		BoundKeypairJoining:     Ed25519,
-		RecordingEncryption:     RSA2048,
+		RecordingKeyWrapping:    RSA2048,
 	}
 
 	allSuites = map[types.SignatureAlgorithmSuite]suite{
