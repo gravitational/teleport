@@ -71,7 +71,20 @@ func (c *IDTokenClaims) GetSubject() string {
 // JoinAttrs returns the protobuf representation of the attested identity.
 // This is used for auditing and for evaluation of WorkloadIdentity rules and
 // templating.
-func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsBitbucket {
-	// TODO!!! in this pR!
-	return nil
+func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsAzureDevops {
+	return &workloadidentityv1pb.JoinAttrsAzureDevops{
+		Pipeline: &workloadidentityv1pb.JoinAttrsAzureDevopsPipeline{
+			Sub:                 c.Sub,
+			OrganizationName:    c.OrganizationName,
+			ProjectName:         c.ProjectName,
+			PipelineName:        c.PipelineName,
+			OrganizationId:      c.OrganizationID,
+			ProjectId:           c.ProjectID,
+			DefinitionId:        c.DefinitionID,
+			RepositoryId:        c.RepositoryID,
+			RepositoryVersion:   c.RepositoryVersion,
+			RepositoryReference: c.RepositoryReference,
+			RunId:               c.RunID,
+		},
+	}
 }
