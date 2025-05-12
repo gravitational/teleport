@@ -1,6 +1,6 @@
 # Changelog
 
-## 18.0.0 (xx/xx/xx)
+## 18.0.0 (05/xx/25)
 
 ### Breaking changes
 
