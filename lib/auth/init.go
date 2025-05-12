@@ -824,7 +824,7 @@ func collectKeysInUse(cas ...types.CAKeySet) (keysInUse [][]byte) {
 	return keysInUse
 }
 
-// applyAuthroityConfig applies the latest keystore config to active keys updating
+// applyAuthorityConfig applies the latest keystore config to active keys updating
 // the stored CA if any changes occur.
 func applyAuthorityConfig(ctx context.Context, asrv *Server, ca types.CertAuthority) (types.CertAuthority, error) {
 	activeKeys := ca.GetActiveKeys()
