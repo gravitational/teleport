@@ -13,6 +13,7 @@ require (
 	cloud.google.com/go/resourcemanager v1.10.3
 	cloud.google.com/go/spanner v1.76.1
 	cloud.google.com/go/storage v1.50.0
+	code.dny.dev/ssrf v0.2.0
 	connectrpc.com/connect v1.17.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.1
