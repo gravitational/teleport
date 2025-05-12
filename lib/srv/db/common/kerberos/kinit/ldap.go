@@ -164,7 +164,7 @@ func (s *ldapConnector) tlsConfigForLDAP(ctx context.Context) (*tls.Config, erro
 		return nil, trace.Wrap(err)
 	}
 
-	s.logger.DebugContext(ctx, "Received credentials for LDAP access", "caCertsCountIgnored", len(caCerts))
+	s.logger.DebugContext(ctx, "Received credentials for LDAP access", "ignored_ca_cert_count", len(caCerts))
 
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
