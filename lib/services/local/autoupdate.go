@@ -99,7 +99,6 @@ func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 			BackendPrefix: backend.NewKey(autoUpdateAgentRolloutPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateAgentReport],
 			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateAgentReport],
-			ValidateFunc:  update.ValidateAutoUpdateAgentReport,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -241,18 +240,27 @@ func (s *AutoUpdateService) GetAutoUpdateAgentReport(ctx context.Context, name s
 
 // CreateAutoUpdateAgentReport creates a new AutoUpdateAgentReport resource.
 func (s *AutoUpdateService) CreateAutoUpdateAgentReport(ctx context.Context, agentReport *autoupdate.AutoUpdateAgentReport) (*autoupdate.AutoUpdateAgentReport, error) {
+	if err := update.ValidateAutoUpdateAgentReport(agentReport); err != nil {
+		return nil, trace.Wrap(err, "validating autoupdate agent report")
+	}
 	created, err := s.report.CreateResource(ctx, agentReport)
 	return created, trace.Wrap(err)
 }
 
 // UpdateAutoUpdateAgentReport updates an existing AutoUpdateAgentReport resource.
 func (s *AutoUpdateService) UpdateAutoUpdateAgentReport(ctx context.Context, agentReport *autoupdate.AutoUpdateAgentReport) (*autoupdate.AutoUpdateAgentReport, error) {
+	if err := update.ValidateAutoUpdateAgentReport(agentReport); err != nil {
+		return nil, trace.Wrap(err, "validating autoupdate agent report")
+	}
 	updated, err := s.report.ConditionalUpdateResource(ctx, agentReport)
 	return updated, trace.Wrap(err)
 }
 
 // UpsertAutoUpdateAgentReport upserts a AutoUpdateAgentReport resource.
 func (s *AutoUpdateService) UpsertAutoUpdateAgentReport(ctx context.Context, agentReport *autoupdate.AutoUpdateAgentReport) (*autoupdate.AutoUpdateAgentReport, error) {
+	if err := update.ValidateAutoUpdateAgentReport(agentReport); err != nil {
+		return nil, trace.Wrap(err, "validating autoupdate agent report")
+	}
 	upserted, err := s.report.UpsertResource(ctx, agentReport)
 	return upserted, trace.Wrap(err)
 }
