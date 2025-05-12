@@ -95,7 +95,13 @@ func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement hardwareke
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return res.Pin, nil
+
+	pin := res.Pin
+	if pin == "" {
+		pin = hardwarekey.DefaultPIN
+	}
+
+	return pin, nil
 }
 
 // ChangePIN asks for a new PIN.
