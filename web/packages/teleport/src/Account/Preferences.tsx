@@ -335,7 +335,7 @@ export function Preferences({ setErrorMessage }: PreferencesProps) {
                     });
                     addNotification('success', {
                       title: 'Change saved',
-                      isAutoRemovable: true,
+                      isAutoRemovable: false,
                     });
                   }}
                   isDisabled={updatePreferenceAttempt.status === 'processing'}

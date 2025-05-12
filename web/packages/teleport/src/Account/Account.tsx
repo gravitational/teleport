@@ -45,6 +45,7 @@ import {
 import { Preferences } from './Preferences';
 import { SecuritySettings } from './SecuritySettings';
 import { SideNav } from './SideNav';
+import styled from 'styled-components';
 
 export interface EnterpriseComponentProps {
   // TODO(bl-nero): Consider moving the notifications to its own store and
@@ -127,6 +128,7 @@ export function Account({
 
   return (
     <NotificationProvider>
+      <Relative>
       <FeatureBox margin="auto">
         <FeatureHeader>
           <ArrowBack
@@ -193,8 +195,13 @@ export function Account({
             </Switch>
           </Flex>
         </Flex>
+        <NotificationOutlet />
       </FeatureBox>
-      <NotificationOutlet />
+      </Relative>
     </NotificationProvider>
   );
 }
+
+const Relative = styled.div`
+  position: relative;
+`;

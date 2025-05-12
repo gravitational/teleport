@@ -106,7 +106,7 @@ export const NotificationOutlet = () => {
 };
 
 const NotificationContainer = styled.div`
-  position: fixed;
+  position: absolute;
   top: ${props => props.theme.space[2]}px;
   right: ${props => props.theme.space[5]}px;
   z-index: 1000;
