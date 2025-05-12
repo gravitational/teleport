@@ -255,19 +255,19 @@ export class TrackedConnectionOperationsFactory {
       rootClusterUri,
       leafClusterUri,
       activate: params => {
-        let gwDoc = documentsService
+        let doc = documentsService
           .getDocuments()
           .find(getDesktopDocumentByConnection(connection));
 
-        if (!gwDoc) {
-          gwDoc = createDesktopSessionDocument({
+        if (!doc) {
+          doc = createDesktopSessionDocument({
             desktopUri: connection.desktopUri,
             login: connection.login,
             origin: params.origin,
           });
-          documentsService.add(gwDoc);
+          documentsService.add(doc);
         }
-        documentsService.open(gwDoc.uri);
+        documentsService.open(doc.uri);
       },
       disconnect: async () => {
         documentsService
