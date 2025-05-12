@@ -237,13 +237,15 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 			return trace.Wrap(err)
 		}
 
-		// If MFA was not required, we do not require certs be stored solely in memory.
-		// Save it to disk to avoid additional roundtrips for future requests.
-		if result.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
-			if err := c.Client.LocalAgent().AddDatabaseKeyRing(result.KeyRing); err != nil {
-				return trace.Wrap(err)
+		/*
+			// If MFA was not required, we do not require certs be stored solely in memory.
+			// Save it to disk to avoid additional roundtrips for future requests.
+			if result.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
+				if err := c.Client.LocalAgent().AddDatabaseKeyRing(result.KeyRing); err != nil {
+					return trace.Wrap(err)
+				}
 			}
-		}
+		*/
 
 		keyRing = result.KeyRing
 		return trace.Wrap(err)
