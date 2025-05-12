@@ -86,14 +86,12 @@ func (f *fakeIDP) issuer(orgID string) string {
 
 func (f *fakeIDP) handleOpenIDConfig(w http.ResponseWriter, r *http.Request) {
 	response := map[string]interface{}{
-		// TODO: UPDATE THESE TO MATCH THE REAL ONES
 		"claims_supported": []string{
 			"sub",
 			"aud",
 			"exp",
 			"iat",
 			"iss",
-			"jti",
 			"nbf",
 		},
 		"id_token_signing_alg_values_supported": []string{"RS256"},
@@ -101,7 +99,7 @@ func (f *fakeIDP) handleOpenIDConfig(w http.ResponseWriter, r *http.Request) {
 		"jwks_uri":                              f.server.URL + "/.well-known/jwks",
 		"response_types_supported":              []string{"id_token"},
 		"scopes_supported":                      []string{"openid"},
-		"subject_types_supported":               []string{"public"},
+		"subject_types_supported":               []string{"public", "pairwise"},
 	}
 	responseBytes, err := json.Marshal(response)
 	require.NoError(f.t, err)
