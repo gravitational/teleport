@@ -180,6 +180,9 @@ importers:
       jest:
         specifier: ^29.7.0
         version: 29.7.0(@types/node@22.14.1)(babel-plugin-macros@3.1.0)
+      jest-canvas-mock:
+        specifier: ^2.5.2
+        version: 2.5.2
       jsdom-testing-mocks:
         specifier: ^1.13.1
         version: 1.13.1
@@ -421,9 +424,6 @@ importers:
       babel-plugin-transform-vite-meta-env:
         specifier: ^1.0.3
         version: 1.0.3
-      jest-canvas-mock:
-        specifier: ^2.5.2
-        version: 2.5.2
       jest-websocket-mock:
         specifier: ^2.5.0
         version: 2.5.0
@@ -503,9 +503,6 @@ importers:
       events:
         specifier: 3.3.0
         version: 3.3.0
-      jest-canvas-mock:
-        specifier: ^2.5.2
-        version: 2.5.2
       react-dnd:
         specifier: ^14.0.4
         version: 14.0.5(@types/node@22.14.1)(@types/react@18.3.10)(react@18.3.1)

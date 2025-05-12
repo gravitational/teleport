@@ -513,6 +513,12 @@ const (
 	// KindServerInfo contains info that should be applied to joining Nodes.
 	KindServerInfo = "server_info"
 
+	// KindBackendInfo contains backend info.
+	KindBackendInfo = "backend_info"
+
+	// MetaNameBackendInfo name backend info entity.
+	MetaNameBackendInfo = "backend-info"
+
 	// SubKindCloudInfo is a ServerInfo that was created by the Discovery
 	// service to match with a single discovered instance.
 	SubKindCloudInfo = "cloud_info"

@@ -450,7 +450,7 @@ func ConfigureLegacyACL(path string, owner *user.User, opts *ACLOptions) error {
 // resolveACLReaderSelector attempts to convert an ACL selector into a
 // platform-specific acl.Entry that can be applied to a file.
 func resolveACLReaderSelector(s *ACLSelector, dir bool) (acl.Entry, error) {
-	var perm fs.FileMode = modeACLRead
+	perm := modeACLRead
 	if dir {
 		perm = modeACLReadExecute
 	}

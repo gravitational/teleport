@@ -432,6 +432,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			Backend: cfg.Backend,
 		}
 	}
+	if cfg.BackendInfo == nil {
+		cfg.BackendInfo, err = local.NewBackendInfoService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating BackendInfo service")
+		}
+	}
 
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
@@ -451,7 +457,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+			return nil, fmt.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 	} else if cfg.KeyStoreConfig.AWSKMS != nil {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
@@ -536,6 +542,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
 		StableUNIXUsersInternal:         cfg.StableUNIXUsers,
 		WorkloadIdentityX509Overrides:   cfg.WorkloadIdentityX509Overrides,
+		BackendInfoService:              cfg.BackendInfo,
 	}
 
 	as := Server{
@@ -760,6 +767,7 @@ type Services struct {
 	services.WorkloadIdentityX509Revocations
 	services.StableUNIXUsersInternal
 	services.WorkloadIdentityX509Overrides
+	services.BackendInfoService
 }
 
 // GetWebSession returns existing web session described by req.
@@ -3096,7 +3104,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 
 	if len(req.checker.GetAllowedResourceIDs()) > 0 && modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, fmt.Errorf("Resource Access Requests: %w", ErrRequiresEnterprise)
+		return nil, fmt.Errorf("resource access requests: %w", ErrRequiresEnterprise)
 	}
 
 	// Reject the cert request if there is a matching lock in force.
@@ -6585,7 +6593,7 @@ func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.Session
 	for _, policySet := range tracker.GetHostPolicySets() {
 		if len(policySet.RequireSessionJoin) != 0 {
 			if modules.GetModules().BuildType() != modules.BuildEnterprise {
-				return nil, fmt.Errorf("Moderated Sessions: %w", ErrRequiresEnterprise)
+				return nil, fmt.Errorf("moderated sessions: %w", ErrRequiresEnterprise)
 			}
 		}
 	}

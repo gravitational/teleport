@@ -82,6 +82,14 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
     if (!global.ResizeObserver) {
       global.ResizeObserver = NullResizeObserver;
     }
+
+    if (!global.navigator.permissions) {
+      global.navigator.permissions = {
+        query: async () => ({
+          onchange: () => {},
+        }),
+      };
+    }
   }
 }
 export const TestEnvironment = PatchedJSDOMEnvironment;

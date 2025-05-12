@@ -1,5 +1,16 @@
 # Changelog
 
+## 17.4.8 (05/06/25)
+
+* Fixed a possible moderator/observer terminal freeze when joining a Kubernetes moderated session. [#54523](https://github.com/gravitational/teleport/pull/54523)
+* Removed background color for resources that required access request in the web UI Resources view. [#54465](https://github.com/gravitational/teleport/pull/54465)
+* Show human readable title for access list audit logs. [#54459](https://github.com/gravitational/teleport/pull/54459)
+* Fixed race conditions in `tsh ssh` multi-node output. [#54456](https://github.com/gravitational/teleport/pull/54456)
+* Fixed an issue causing Join Token expiries to be overwritten when editing a token. [#54450](https://github.com/gravitational/teleport/pull/54450)
+* Workload Identity: Fixed bugs for the Kubernetes workload attestor's container resolution. [#54442](https://github.com/gravitational/teleport/pull/54442)
+* Fixed a bug in the EC2 installer script causing `Illegal option -o pipefail` errors on several distros when Managed Updates v2 are enabled. [#54429](https://github.com/gravitational/teleport/pull/54429)
+* Include access request's max duration in MsTeams plugin messages. [#54388](https://github.com/gravitational/teleport/pull/54388)
+
 ## 17.4.7 (04/29/25)
 
 * AWS Roles Anywhere output now includes the expiration time as milliseconds since unix epoch. [#54386](https://github.com/gravitational/teleport/pull/54386)

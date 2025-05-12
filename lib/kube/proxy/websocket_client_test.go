@@ -336,7 +336,7 @@ func (e *wsStreamClient) stream(conn *gwebsocket.Conn, options clientremotecomma
 				}
 				e.mu.Lock()
 				// the stdout and stderr streams receive the last stdin input and we must trim it.
-				s := strings.Replace(string(buf[1:]), e.cacheBuff.String(), "", -1)
+				s := strings.ReplaceAll(string(buf[1:]), e.cacheBuff.String(), "")
 				e.mu.Unlock()
 				_, err = w.Write([]byte(s))
 				if err != nil {

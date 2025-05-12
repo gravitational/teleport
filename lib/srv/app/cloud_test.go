@@ -240,7 +240,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 				values := r.URL.Query()
 				require.Equal(t, "getSigninToken", values.Get("Action"))
 				require.Equal(t, `{"sessionId":"keyid","sessionKey":"accesskey","sessionToken":"sessiontoken"}`, values.Get("Session"))
-				require.Equal(t, "", values.Get("SessionDuration"))
+				require.Empty(t, values.Get("SessionDuration"))
 				w.Write([]byte(`{"SigninToken":"generated-token"}`))
 			}),
 			expectedToken: "generated-token",
