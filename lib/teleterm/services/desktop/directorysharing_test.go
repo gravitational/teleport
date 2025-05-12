@@ -41,6 +41,7 @@ const (
 )
 
 func setUpSharedDir(t *testing.T) (*DirectoryAccess, string) {
+	t.Helper()
 	path := t.TempDir()
 	err := os.Mkdir(filepath.Join(path, testDirname), 0700)
 	require.NoError(t, err)
@@ -74,7 +75,6 @@ func TestDirectoryAccessEscapingPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name+"_Escape", func(t *testing.T) {
-			t.Helper()
 			access, _ := setUpSharedDir(t)
 			err := tt.call(access)
 			require.ErrorContains(t, err, "path escapes from parent")
