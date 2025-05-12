@@ -384,7 +384,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 				totalSize += len(replay.Data)
 				compressedSize += buf.Len()
 				if duration > 20*time.Millisecond {
-					c.cfg.Logger.WarnContext(ctx, "Slow frame rendering", "duration", duration)
+					c.cfg.Logger.WarnContext(ctx, "Slow frame rendering", "duration", duration, "width", rect.Width, "height", rect.Height, "uncompressed", len(replay.Data), "compressed", buf.Len())
 					//os.WriteFile(fmt.Sprintf("../slow/slow%d_%dx%d.rgb565", i2, rect.Width, rect.Height), replay.Data, 0666)
 				}
 				if err := c.cfg.Conn.WriteMessage(tdp.X11Frame(buf.Bytes())); err != nil {
