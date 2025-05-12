@@ -26,3 +26,4 @@ peerDependencyRules:
     # This dep is needed only when using Squirrel.Windows as an installer in electron-build which we
     # don't use. https://www.electron.build/squirrel-windows.html
     - electron-builder-squirrel-windows
+shellEmulator: true
