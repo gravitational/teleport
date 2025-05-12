@@ -73,8 +73,16 @@ func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement
 		msg = fmt.Sprintf("%v to continue with command %q", msg, keyInfo.Command)
 	}
 
-	password, err := prompt.Password(ctx, c.writer, c.reader, msg)
-	return password, trace.Wrap(err)
+	pin, err := prompt.Password(ctx, c.writer, c.reader, msg)
+	if err != nil {
+		return "", nil
+	}
+
+	if pin == "" {
+		pin = DefaultPIN
+	}
+
+	return pin, trace.Wrap(err)
 }
 
 // Touch prompts the user to touch the hardware key.

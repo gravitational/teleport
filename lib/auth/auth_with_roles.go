@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/okta"
+	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1833,7 +1834,8 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindUserGroup,
 		types.KindSAMLIdPServiceProvider,
 		types.KindIdentityCenterAccount,
-		types.KindIdentityCenterAccountAssignment:
+		types.KindIdentityCenterAccountAssignment,
+		types.KindGitServer:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -2001,7 +2003,8 @@ func newResourceAccessChecker(authCtx authz.Context, resource string) (*resource
 		types.KindUnifiedResource,
 		types.KindSAMLIdPServiceProvider,
 		types.KindIdentityCenterAccount,
-		types.KindIdentityCenterAccountAssignment:
+		types.KindIdentityCenterAccountAssignment,
+		types.KindGitServer:
 		return &resourceChecker{AccessChecker: authCtx.Checker}, nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
@@ -2971,7 +2974,7 @@ func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role
 // determine if the user is allowed to assume the returned roles. Will set
 // `req.AccessRequests` and potentially shorten `req.Expires` based on the
 // access request expirations.
-func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.UserCertsRequest, user services.UserState) (*services.AccessInfo, error) {
 	if req.Username != a.context.User.GetName() {
 		if isRoleImpersonation(*req) {
 			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for another user while adding role requests",
@@ -3001,7 +3004,7 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 
 // desiredAccessInfoForImpersonation returns the desired AccessInfo for an
 // impersonation request.
-func (a *ServerWithRoles) desiredAccessInfoForImpersonation(user types.User) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfoForImpersonation(user services.UserState) (*services.AccessInfo, error) {
 	return &services.AccessInfo{
 		Roles:  user.GetRoles(),
 		Traits: user.GetTraits(),
@@ -3032,7 +3035,7 @@ func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRe
 
 // desiredAccessInfoForUser returns the desired AccessInfo
 // cert request which may contain access requests.
-func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *proto.UserCertsRequest, user services.UserState) (*services.AccessInfo, error) {
 	currentIdentity := a.context.Identity.GetIdentity()
 
 	// Start with the base AccessInfo for current logged-in identity, before
@@ -3048,7 +3051,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 		// Reset to the base roles and traits stored in the backend user,
 		// currently active requests (not being dropped) and new access requests
 		// will be filled in below.
-		accessInfo = services.AccessInfoFromUser(user)
+		accessInfo = services.AccessInfoFromUserState(user)
 
 		// Check for ["*"] as special case to drop all requests.
 		if len(req.DropAccessRequests) == 1 && req.DropAccessRequests[0] == "*" {
@@ -3131,7 +3134,7 @@ func isRoleImpersonation(req proto.UserCertsRequest) bool {
 
 // getBotName returns the name of the bot embedded in the user metadata, if any.
 // For non-bot users, returns "".
-func getBotName(user types.User) string {
+func getBotName(user services.UserState) string {
 	name, ok := user.GetLabel(types.BotLabel)
 	if ok {
 		return name
@@ -3218,6 +3221,15 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			"user", req.Username,
 		)
 		return nil, trace.AccessDenied("access denied")
+	}
+
+	// Note that user and their login states can be out of sync in the backend.
+	// For example, GitHub identities obtained from GitHub proxy OAuth flow are
+	// preserved in user login state, where local users may get updated roles
+	// from ConnectMyComputer setup. So here we retrieve additional fields from
+	// user login state. Ideally we should solve this some other way.
+	if err := userloginstate.UpdatePreservedAttributes(ctx, user, a.authServer.Services); err != nil {
+		return nil, trace.Wrap(err, "updating preserved attributes")
 	}
 
 	// Do not allow SSO users to be impersonated.

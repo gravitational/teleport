@@ -832,7 +832,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// - Kingpin is strict about syntax, so TELEPORT_DEBUG=rubbish will crash a program; we don't want such behavior for this variable.
 	app.Flag("debug", "Verbose logging to stdout.").Short('d').IsSetByUser(&cf.DebugSetByUser).BoolVar(&cf.Debug)
 	osLogFlag := app.Flag("os-log",
-		fmt.Sprintf("Verbose logging to the unified logging system. This flag implies --debug. Also available through the %s env var. https://developer.apple.com/documentation/os/viewing-log-messages",
+		fmt.Sprintf("Verbose logging to the unified logging system. This flag implies --debug. Also available through the %s env var. https://goteleport.com/docs/connect-your-client/tsh/#debug-logs",
 			osLogEnvVar)).
 		IsSetByUser(&cf.OSLogSetByUser)
 	if runtime.GOOS != constants.DarwinOS {

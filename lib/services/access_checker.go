@@ -1386,20 +1386,16 @@ type UserState interface {
 	// GetUserType returns the user type for the user login state.
 	GetUserType() types.UserType
 
+	// GetLabel fetches the given user label.
+	GetLabel(key string) (value string, ok bool)
+
 	// IsBot returns true if the user belongs to a bot.
 	IsBot() bool
 
 	// GetGithubIdentities returns a list of connected GitHub identities
 	GetGithubIdentities() []types.ExternalIdentity
-}
-
-// AccessInfoFromUser return a new AccessInfo populated from the roles and
-// traits held be the given user. This should only be used in cases where the
-// user does not have any active access requests (initial web login, initial
-// tbot certs, tests).
-// TODO(mdwn): Remove this once enterprise has been moved away from this function.
-func AccessInfoFromUser(user types.User) *AccessInfo {
-	return AccessInfoFromUserState(user)
+	// SetGithubIdentities sets the list of connected GitHub identities
+	SetGithubIdentities(identities []types.ExternalIdentity)
 }
 
 // AccessInfoFromUserState return a new AccessInfo populated from the roles and
