@@ -315,7 +315,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	ticker := time.NewTicker(40 * time.Millisecond)
+	//ticker := time.NewTicker(40 * time.Millisecond)
 	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
 		i := int64(0)
