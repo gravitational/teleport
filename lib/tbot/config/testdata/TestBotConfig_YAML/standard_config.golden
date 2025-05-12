@@ -48,6 +48,7 @@ services:
         enabled: false
       systemd:
         enabled: false
+      unix: {}
   - type: example
     message: llama
   - type: ssh-multiplexer
@@ -78,6 +79,7 @@ services:
         enabled: false
       systemd:
         enabled: false
+      unix: {}
     selector:
       name: my-workload-identity
   - type: workload-identity-jwt
