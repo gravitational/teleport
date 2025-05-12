@@ -84,14 +84,14 @@ func New(cfg Config) (*Service, error) {
 	go connectUsageReporter.Run(closeContext)
 
 	service := &Service{
-		cfg:                            &cfg,
-		closeContext:                   closeContext,
-		cancel:                         cancel,
-		gateways:                       make(map[string]gateway.Gateway),
-		usageReporter:                  connectUsageReporter,
-		headlessWatcherClosers:         make(map[string]context.CancelFunc),
-		headlessAuthSemaphore:          newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton),
-		desktopDirectorySharingManager: desktop.NewDirectorySharingManager(),
+		cfg:                    &cfg,
+		closeContext:           closeContext,
+		cancel:                 cancel,
+		gateways:               make(map[string]gateway.Gateway),
+		desktopSessions:        make(map[string]*desktop.Session),
+		usageReporter:          connectUsageReporter,
+		headlessWatcherClosers: make(map[string]context.CancelFunc),
+		headlessAuthSemaphore:  newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton),
 	}
 
 	// TODO(gzdunek): The client cache should be created outside of daemon.New.
@@ -210,10 +210,10 @@ func (s *Service) AddCluster(ctx context.Context, webProxyAddress string) (*clus
 }
 
 // ConnectToDesktop establishes a desktop connection.
-func (s *Service) ConnectToDesktop(stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse], uri uri.ResourceURI, desktopName, login string) error {
+func (s *Service) ConnectToDesktop(stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse], desktopURI uri.ResourceURI, login string) error {
 	ctx := stream.Context()
 
-	cluster, clusterClient, err := s.ResolveClusterURI(uri)
+	cluster, clusterClient, err := s.ResolveClusterURI(desktopURI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -223,16 +223,44 @@ func (s *Service) ConnectToDesktop(stream grpc.BidiStreamingServer[api.ConnectTo
 		return trace.Wrap(err)
 	}
 
-	dir, unregister, err := s.desktopDirectorySharingManager.Register(desktop.TargetSession{DesktopURI: uri, Login: login})
+	session, cleanup, err := s.newDesktopSession(desktopURI, login)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer unregister()
+	defer cleanup()
 
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		return trace.Wrap(desktop.Connect(ctx, stream, clusterClient, cachedClient.ProxyClient, desktopName, login, dir))
+		return trace.Wrap(session.Start(ctx, stream, clusterClient, cachedClient.ProxyClient))
 	})
 	return trace.Wrap(err)
+}
+
+// TODO Comment, returns cleanup function.
+func (s *Service) newDesktopSession(desktopURI uri.ResourceURI, login string) (*desktop.Session, func(), error) {
+	s.desktopSessionsMu.Lock()
+	defer s.desktopSessionsMu.Unlock()
+
+	key := desktopSessionKey(desktopURI, login)
+
+	if _, ok := s.desktopSessions[key]; ok {
+		return nil, nil, trace.AlreadyExists("TODO: Error message")
+	}
+
+	session, err := desktop.NewSession(desktopURI, login)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	s.desktopSessions[key] = session
+
+	cleanup := func() {
+		s.desktopSessionsMu.Lock()
+		defer s.desktopSessionsMu.Unlock()
+
+		delete(s.desktopSessions, key)
+	}
+
+	return session, cleanup, nil
 }
 
 // RemoveCluster removes cluster
@@ -1245,12 +1273,20 @@ func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
 // If there is no active desktop session associated with the specified desktop_uri and login,
 // an error is returned.
 func (s *Service) AttachDirectoryToDesktopSession(_ context.Context, desktopURI uri.ResourceURI, login, path string) error {
-	manager, err := s.desktopDirectorySharingManager.Get(desktop.TargetSession{DesktopURI: desktopURI, Login: login})
-	if err != nil {
-		return trace.Wrap(err)
+	s.desktopSessionsMu.Lock()
+	defer s.desktopSessionsMu.Unlock()
+
+	session, ok := s.desktopSessions[desktopSessionKey(desktopURI, login)]
+	if !ok {
+		return trace.BadParameter("TODO: Error message")
 	}
 
-	return trace.Wrap(manager.Open(path))
+	err := session.AttachSharedDirectory(path)
+	return trace.Wrap(err)
+}
+
+func desktopSessionKey(desktopURI uri.ResourceURI, login string) string {
+	return desktopURI.String() + "-" + login
 }
 
 // Service is the daemon service
@@ -1267,6 +1303,11 @@ type Service struct {
 	gateways map[string]gateway.Gateway
 	// gatewaysMu guards gateways.
 	gatewaysMu sync.RWMutex
+
+	// TODO: Comments, explain why a map is needed in the first place (two different RPCs, one needs
+	// to deliver something to a struct created in another).
+	desktopSessions   map[string]*desktop.Session
+	desktopSessionsMu sync.Mutex
 
 	// The Electron App can display multiple important modals by showing the latest one and hiding the others.
 	// However, we should be careful with it, and generally try to limit the number of prompts on the tshd side,
@@ -1297,8 +1338,6 @@ type Service struct {
 	headlessWatcherClosers   map[string]context.CancelFunc
 	headlessWatcherClosersMu sync.Mutex
 	clientCache              ClientCache
-
-	desktopDirectorySharingManager *desktop.DirectorySharingManager
 }
 
 type CreateGatewayParams struct {

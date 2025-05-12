@@ -22,70 +22,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
-
-// DirectorySharingManager coordinates access to shared directories across multiple desktop sessions.
-type DirectorySharingManager struct {
-	directories map[TargetSession]*DirectoryAccess
-	mu          sync.Mutex
-}
-
-// NewDirectorySharingManager initializes DirectorySharingManager.
-func NewDirectorySharingManager() *DirectorySharingManager {
-	return &DirectorySharingManager{
-		directories: make(map[TargetSession]*DirectoryAccess),
-	}
-}
-
-// TargetSession uniquely describes a desktop session.
-// There can be only one session for the given desktop and login pair.
-type TargetSession struct {
-	DesktopURI uri.ResourceURI
-	Login      string
-}
-
-// Register initializes shared directory access for given desktop session.
-// When the session ends, it should unregister the directory access for it.
-// Registering dir access for the same session without unregistering it first, is not allowed.
-func (g *DirectorySharingManager) Register(session TargetSession) (access *DirectoryAccess, unregister func(), err error) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	access, ok := g.directories[session]
-	if ok {
-		return nil, nil, trace.AlreadyExists("directory access for %v is already registered", session)
-	}
-	access = &DirectoryAccess{}
-	g.directories[session] = access
-
-	unregister = func() {
-		g.mu.Lock()
-		defer g.mu.Unlock()
-
-		delete(g.directories, session)
-	}
-
-	return access, unregister, nil
-}
-
-// Get returns the directory access for the given session.
-// It must be registered by the desktop session first.
-func (g *DirectorySharingManager) Get(target TargetSession) (*DirectoryAccess, error) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	manager, ok := g.directories[target]
-	if !ok {
-		return nil, trace.NotFound("directory sharing has not been initialized for desktop %q and login %q", target.DesktopURI, target.Login)
-	}
-
-	return manager, nil
-}
 
 // DirectoryAccess allows access to the shared directory.
 // Should be kept in sync with web/packages/shared/libs/tdp/sharedDirectoryAccess.ts
@@ -97,7 +36,7 @@ type DirectoryAccess struct {
 	//
 	// TODO(gzdunek): This code can be greatly simplified with os.OpenRoot.
 	// Switch to it when branch/v17 is updated to Go 1.24.
-	safePathGetter func(relativePath string) (string, error)
+	basePath string
 }
 
 // FileOrDirInfo contains metadata about a file or a directory.
@@ -118,49 +57,49 @@ const (
 
 const StandardDirSize = 4096
 
-func (s *DirectoryAccess) Open(baseDir string) error {
-	if s.safePathGetter != nil {
-		return errors.New("only one shared directory is supported")
+func NewDirectoryAccess(baseDir string) (*DirectoryAccess, error) {
+	basePath, err := filepath.EvalSymlinks(baseDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	base, err := filepath.EvalSymlinks(baseDir)
+	stat, err := os.Stat(basePath)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	stat, err := os.Stat(base)
-	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if !stat.IsDir() {
-		return trace.BadParameter("%q is not a directory", baseDir)
+		return nil, trace.BadParameter("%q is not a directory", baseDir)
 	}
 
-	s.safePathGetter = func(relativePath string) (string, error) {
-		full := filepath.Join(base, relativePath)
-		resolved, err := filepath.EvalSymlinks(full)
-		if err != nil {
-			// EvalSymlinks returns an error if the target file does not exist.
-			// In that case, attempt to resolve the symlinks of the parent directory instead.
-			if os.IsNotExist(err) {
-				parent := filepath.Dir(full)
-				resolvedParent, perr := filepath.EvalSymlinks(parent)
-				if perr != nil {
-					return "", trace.Wrap(perr)
-				}
+	return &DirectoryAccess{
+		basePath: basePath,
+	}, nil
 
-				// Reconstruct the full path by joining the resolved parent with the original file name.
-				resolved = filepath.Join(resolvedParent, filepath.Base(full))
-			} else {
-				return "", trace.Wrap(err)
+}
+
+func (s *DirectoryAccess) safePathGetter(relativePath string) (string, error) {
+	full := filepath.Join(s.basePath, relativePath)
+	resolved, err := filepath.EvalSymlinks(full)
+	if err != nil {
+		// EvalSymlinks returns an error if the target file does not exist.
+		// In that case, attempt to resolve the symlinks of the parent directory instead.
+		if os.IsNotExist(err) {
+			parent := filepath.Dir(full)
+			resolvedParent, perr := filepath.EvalSymlinks(parent)
+			if perr != nil {
+				return "", trace.Wrap(perr)
 			}
+
+			// Reconstruct the full path by joining the resolved parent with the original file name.
+			resolved = filepath.Join(resolvedParent, filepath.Base(full))
+		} else {
+			return "", trace.Wrap(err)
 		}
-		if !isSubPath(base, resolved) {
-			return "", trace.BadParameter("path escapes from parent")
-		}
-		return resolved, nil
 	}
-	return nil
+	if !isSubPath(s.basePath, resolved) {
+		return "", trace.BadParameter("path escapes from parent")
+	}
+	return resolved, nil
 }
 
 func isSubPath(parent, child string) bool {

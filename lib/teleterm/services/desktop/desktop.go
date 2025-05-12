@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -30,23 +31,77 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
+// Session uniquely describes a desktop session.
+// There can be only one session for the given desktop and login pair.
+type Session struct {
+	desktopURI uri.ResourceURI
+	login      string
+
+	dirAccess   *DirectoryAccess
+	dirAccessMu sync.RWMutex
+}
+
+func NewSession(desktopURI uri.ResourceURI, login string) (*Session, error) {
+	if desktopURI.GetWindowsDesktopName() == "" {
+		return nil, trace.BadParameter("invalid desktop URI %q", desktopURI)
+	}
+
+	return &Session{
+		desktopURI: desktopURI,
+		login:      login,
+	}, nil
+}
+
+func (s *Session) desktopName() string {
+	return s.desktopURI.GetWindowsDesktopName()
+}
+
+func (s *Session) AttachSharedDirectory(basePath string) error {
+	s.dirAccessMu.Lock()
+	defer s.dirAccessMu.Unlock()
+
+	if s.dirAccess != nil {
+		return trace.AlreadyExists("TODO: error message")
+	}
+
+	dirAccess, err := NewDirectoryAccess(basePath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.dirAccess = dirAccess
+
+	return nil
+}
+
+func (s *Session) GetDirectoryAccess() (*DirectoryAccess, error) {
+	s.dirAccessMu.RLock()
+	s.dirAccessMu.RUnlock()
+
+	if s.dirAccess == nil {
+		return nil, trace.Errorf("TODO: error message")
+	}
+
+	return s.dirAccess, nil
+}
+
 // Connect starts a remote desktop session.
-func Connect(ctx context.Context, stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse], clusterClient *client.TeleportClient, proxyClient *proxy.Client, desktopName, login string, directoryAccess *DirectoryAccess) error {
+func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse], clusterClient *client.TeleportClient, proxyClient *proxy.Client) error {
 	keyRing, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToCluster: clusterClient.SiteName,
 		TTL:            clusterClient.KeyTTL,
 		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
-			WindowsDesktop: desktopName,
-			Login:          login,
+			WindowsDesktop: s.desktopName(),
+			Login:          s.login,
 		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	cert, err := keyRing.WindowsDesktopTLSCert(desktopName)
+	cert, err := keyRing.WindowsDesktopTLSCert(s.desktopName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -56,7 +111,7 @@ func Connect(ctx context.Context, stream grpc.BidiStreamingServer[api.ConnectToD
 		return trace.Wrap(err)
 	}
 
-	conn, err := proxyClient.ProxyWindowsDesktopSession(ctx, clusterClient.SiteName, desktopName, cert, tlsConfig.RootCAs)
+	conn, err := proxyClient.ProxyWindowsDesktopSession(ctx, clusterClient.SiteName, s.desktopName(), cert, tlsConfig.RootCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -66,7 +121,7 @@ func Connect(ctx context.Context, stream grpc.BidiStreamingServer[api.ConnectToD
 	// send the username.
 	tdpConn := tdp.NewConn(conn)
 	defer tdpConn.Close()
-	err = tdpConn.WriteMessage(tdp.ClientUsername{Username: login})
+	err = tdpConn.WriteMessage(tdp.ClientUsername{Username: s.login})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -79,7 +134,7 @@ func Connect(ctx context.Context, stream grpc.BidiStreamingServer[api.ConnectToD
 	}
 
 	interceptor := serverInterceptor{
-		directoryAccess: directoryAccess,
+		directoryAccessProvider: s,
 	}
 
 	tdpConnProxy := tdp.NewConnProxy(downstreamRW, conn, func(tdpConn *tdp.Conn, message tdp.Message) (tdp.Message, error) {
@@ -160,7 +215,11 @@ func isClientMessageAllowed(msg tdp.Message) error {
 
 // serverInterceptor intercepts and processes messages sent from the server to the client.
 type serverInterceptor struct {
-	directoryAccess *DirectoryAccess
+	directoryAccessProvider directoryAccessProvider
+}
+
+type directoryAccessProvider interface {
+	GetDirectoryAccess() (*DirectoryAccess, error)
 }
 
 func (d *serverInterceptor) process(msg tdp.Message, sendToServer func(message tdp.Message) error) (tdp.Message, error) {
@@ -196,7 +255,12 @@ const (
 )
 
 func (d *serverInterceptor) handleSharedDirectoryInfoRequest(r tdp.SharedDirectoryInfoRequest, sendToServer func(message tdp.Message) error) error {
-	info, err := d.directoryAccess.Stat(r.Path)
+	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	info, err := dirAccess.Stat(r.Path)
 	if err == nil {
 		return trace.Wrap(sendToServer(tdp.SharedDirectoryInfoResponse{
 			CompletionID: r.CompletionID,
@@ -220,7 +284,11 @@ func (d *serverInterceptor) handleSharedDirectoryInfoRequest(r tdp.SharedDirecto
 }
 
 func (d *serverInterceptor) handleSharedDirectoryListRequest(r tdp.SharedDirectoryListRequest, sendToServer func(message tdp.Message) error) error {
-	contents, err := d.directoryAccess.ReadDir(r.Path)
+	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	contents, err := dirAccess.ReadDir(r.Path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -239,7 +307,11 @@ func (d *serverInterceptor) handleSharedDirectoryListRequest(r tdp.SharedDirecto
 }
 
 func (d *serverInterceptor) handleSharedDirectoryReadRequest(r tdp.SharedDirectoryReadRequest, sendToServer func(message tdp.Message) error) error {
-	contents, err := d.directoryAccess.Read(r.Path, int64(r.Offset), r.Length)
+	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	contents, err := dirAccess.Read(r.Path, int64(r.Offset), r.Length)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -266,7 +338,11 @@ func (d *serverInterceptor) handleSharedDirectoryMoveRequest(r tdp.SharedDirecto
 }
 
 func (d *serverInterceptor) handleSharedDirectoryWriteRequest(r tdp.SharedDirectoryWriteRequest, sendToServer func(message tdp.Message) error) error {
-	bytesWritten, err := d.directoryAccess.Write(r.Path, int64(r.Offset), r.WriteData)
+	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	bytesWritten, err := dirAccess.Write(r.Path, int64(r.Offset), r.WriteData)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -280,7 +356,11 @@ func (d *serverInterceptor) handleSharedDirectoryWriteRequest(r tdp.SharedDirect
 }
 
 func (d *serverInterceptor) handleSharedDirectoryTruncateRequest(r tdp.SharedDirectoryTruncateRequest, sendToServer func(message tdp.Message) error) error {
-	err := d.directoryAccess.Truncate(r.Path, int64(r.EndOfFile))
+	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = dirAccess.Truncate(r.Path, int64(r.EndOfFile))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -293,12 +373,16 @@ func (d *serverInterceptor) handleSharedDirectoryTruncateRequest(r tdp.SharedDir
 }
 
 func (d *serverInterceptor) handleSharedDirectoryCreateRequest(r tdp.SharedDirectoryCreateRequest, sendToServer func(message tdp.Message) error) error {
-	err := d.directoryAccess.Create(r.Path, FileType(r.FileType))
+	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = dirAccess.Create(r.Path, FileType(r.FileType))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	info, err := d.directoryAccess.Stat(r.Path)
+	info, err := dirAccess.Stat(r.Path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -312,7 +396,11 @@ func (d *serverInterceptor) handleSharedDirectoryCreateRequest(r tdp.SharedDirec
 }
 
 func (d *serverInterceptor) handleSharedDirectoryDeleteRequest(r tdp.SharedDirectoryDeleteRequest, sendToServer func(message tdp.Message) error) error {
-	err := d.directoryAccess.Delete(r.Path)
+	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = dirAccess.Delete(r.Path)
 	if err != nil {
 		return trace.Wrap(err)
 	}

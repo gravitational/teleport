@@ -63,7 +63,7 @@ func (s *Handler) ConnectToDesktop(stream grpc.BidiStreamingServer[api.ConnectTo
 		return trace.Wrap(err)
 	}
 
-	err = s.DaemonService.ConnectToDesktop(stream, parsed, parsed.GetWindowsDesktopName(), login)
+	err = s.DaemonService.ConnectToDesktop(stream, parsed, login)
 	return trace.Wrap(err)
 }
 
