@@ -86,7 +86,7 @@ type UserPreferencesResponse struct {
 	DiscoverResourcePreferences DiscoverResourcePreferencesResponse `json:"discoverResourcePreferences"`
 	AccessGraph                 AccessGraphPreferencesResponse      `json:"accessGraph,omitempty"`
 	SideNavDrawerMode           userpreferencesv1.SideNavDrawerMode `json:"sideNavDrawerMode"`
-	KeyboardLayout              int32                               `json:"keyboardLayout"`
+	KeyboardLayout              uint32                              `json:"keyboardLayout"`
 }
 
 func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {

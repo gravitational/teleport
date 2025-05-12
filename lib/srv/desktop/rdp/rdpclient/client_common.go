@@ -98,7 +98,7 @@ type Config struct {
 
 	// KeyboardLayout is the keyboard layout preference for the user.
 	// Possible values: https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
-	KeyboardLayout int32
+	KeyboardLayout uint32
 }
 
 // GenerateUserCertFn generates user certificates for RDP authentication.

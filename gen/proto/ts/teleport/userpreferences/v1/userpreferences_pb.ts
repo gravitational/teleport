@@ -89,7 +89,7 @@ export interface UserPreferences {
      * keyboard layout identifiers can be found here:
      * https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
      *
-     * @generated from protobuf field: int32 keyboard_layout = 9;
+     * @generated from protobuf field: uint32 keyboard_layout = 9;
      */
     keyboardLayout: number;
 }
@@ -133,7 +133,7 @@ export interface GetKeyboardLayoutResponse {
     /**
      * keyboard_layout is the code of keyboard layout preferred by the user.
      *
-     * @generated from protobuf field: int32 keyboard_layout = 1;
+     * @generated from protobuf field: uint32 keyboard_layout = 1;
      */
     keyboardLayout: number;
 }
@@ -161,7 +161,7 @@ class UserPreferences$Type extends MessageType<UserPreferences> {
             { no: 6, name: "access_graph", kind: "message", T: () => AccessGraphUserPreferences },
             { no: 7, name: "side_nav_drawer_mode", kind: "enum", T: () => ["teleport.userpreferences.v1.SideNavDrawerMode", SideNavDrawerMode, "SIDE_NAV_DRAWER_MODE_"] },
             { no: 8, name: "discover_resource_preferences", kind: "message", T: () => DiscoverResourcePreferences },
-            { no: 9, name: "keyboard_layout", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+            { no: 9, name: "keyboard_layout", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<UserPreferences>): UserPreferences {
@@ -199,8 +199,8 @@ class UserPreferences$Type extends MessageType<UserPreferences> {
                 case /* teleport.userpreferences.v1.DiscoverResourcePreferences discover_resource_preferences */ 8:
                     message.discoverResourcePreferences = DiscoverResourcePreferences.internalBinaryRead(reader, reader.uint32(), options, message.discoverResourcePreferences);
                     break;
-                case /* int32 keyboard_layout */ 9:
-                    message.keyboardLayout = reader.int32();
+                case /* uint32 keyboard_layout */ 9:
+                    message.keyboardLayout = reader.uint32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -235,9 +235,9 @@ class UserPreferences$Type extends MessageType<UserPreferences> {
         /* teleport.userpreferences.v1.DiscoverResourcePreferences discover_resource_preferences = 8; */
         if (message.discoverResourcePreferences)
             DiscoverResourcePreferences.internalBinaryWrite(message.discoverResourcePreferences, writer.tag(8, WireType.LengthDelimited).fork(), options).join();
-        /* int32 keyboard_layout = 9; */
+        /* uint32 keyboard_layout = 9; */
         if (message.keyboardLayout !== 0)
-            writer.tag(9, WireType.Varint).int32(message.keyboardLayout);
+            writer.tag(9, WireType.Varint).uint32(message.keyboardLayout);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -370,7 +370,7 @@ export const GetKeyboardLayoutRequest = new GetKeyboardLayoutRequest$Type();
 class GetKeyboardLayoutResponse$Type extends MessageType<GetKeyboardLayoutResponse> {
     constructor() {
         super("teleport.userpreferences.v1.GetKeyboardLayoutResponse", [
-            { no: 1, name: "keyboard_layout", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+            { no: 1, name: "keyboard_layout", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<GetKeyboardLayoutResponse>): GetKeyboardLayoutResponse {
@@ -385,8 +385,8 @@ class GetKeyboardLayoutResponse$Type extends MessageType<GetKeyboardLayoutRespon
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* int32 keyboard_layout */ 1:
-                    message.keyboardLayout = reader.int32();
+                case /* uint32 keyboard_layout */ 1:
+                    message.keyboardLayout = reader.uint32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -400,9 +400,9 @@ class GetKeyboardLayoutResponse$Type extends MessageType<GetKeyboardLayoutRespon
         return message;
     }
     internalBinaryWrite(message: GetKeyboardLayoutResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* int32 keyboard_layout = 1; */
+        /* uint32 keyboard_layout = 1; */
         if (message.keyboardLayout !== 0)
-            writer.tag(1, WireType.Varint).int32(message.keyboardLayout);
+            writer.tag(1, WireType.Varint).uint32(message.keyboardLayout);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

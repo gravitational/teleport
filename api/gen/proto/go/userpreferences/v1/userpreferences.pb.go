@@ -56,7 +56,7 @@ type UserPreferences struct {
 	// keyboard_layout is the layout used by the user in Windows Desktop sessions
 	// keyboard layout identifiers can be found here:
 	// https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
-	KeyboardLayout int32 `protobuf:"varint,9,opt,name=keyboard_layout,json=keyboardLayout,proto3" json:"keyboard_layout,omitempty"`
+	KeyboardLayout uint32 `protobuf:"varint,9,opt,name=keyboard_layout,json=keyboardLayout,proto3" json:"keyboard_layout,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -140,7 +140,7 @@ func (x *UserPreferences) GetDiscoverResourcePreferences() *DiscoverResourcePref
 	return nil
 }
 
-func (x *UserPreferences) GetKeyboardLayout() int32 {
+func (x *UserPreferences) GetKeyboardLayout() uint32 {
 	if x != nil {
 		return x.KeyboardLayout
 	}
@@ -279,7 +279,7 @@ func (x *GetKeyboardLayoutRequest) GetUsername() string {
 type GetKeyboardLayoutResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// keyboard_layout is the code of keyboard layout preferred by the user.
-	KeyboardLayout int32 `protobuf:"varint,1,opt,name=keyboard_layout,json=keyboardLayout,proto3" json:"keyboard_layout,omitempty"`
+	KeyboardLayout uint32 `protobuf:"varint,1,opt,name=keyboard_layout,json=keyboardLayout,proto3" json:"keyboard_layout,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -314,7 +314,7 @@ func (*GetKeyboardLayoutResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_userpreferences_v1_userpreferences_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *GetKeyboardLayoutResponse) GetKeyboardLayout() int32 {
+func (x *GetKeyboardLayoutResponse) GetKeyboardLayout() uint32 {
 	if x != nil {
 		return x.KeyboardLayout
 	}
@@ -380,14 +380,14 @@ const file_teleport_userpreferences_v1_userpreferences_proto_rawDesc = "" +
 	"\faccess_graph\x18\x06 \x01(\v27.teleport.userpreferences.v1.AccessGraphUserPreferencesR\vaccessGraph\x12_\n" +
 	"\x14side_nav_drawer_mode\x18\a \x01(\x0e2..teleport.userpreferences.v1.SideNavDrawerModeR\x11sideNavDrawerMode\x12|\n" +
 	"\x1ddiscover_resource_preferences\x18\b \x01(\v28.teleport.userpreferences.v1.DiscoverResourcePreferencesR\x1bdiscoverResourcePreferences\x12'\n" +
-	"\x0fkeyboard_layout\x18\t \x01(\x05R\x0ekeyboardLayoutJ\x04\b\x01\x10\x02R\x06assist\"+\n" +
+	"\x0fkeyboard_layout\x18\t \x01(\rR\x0ekeyboardLayoutJ\x04\b\x01\x10\x02R\x06assist\"+\n" +
 	"\x19GetUserPreferencesRequestJ\x04\b\x01\x10\x02R\busername\"l\n" +
 	"\x1aGetUserPreferencesResponse\x12N\n" +
 	"\vpreferences\x18\x01 \x01(\v2,.teleport.userpreferences.v1.UserPreferencesR\vpreferences\"6\n" +
 	"\x18GetKeyboardLayoutRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\"D\n" +
 	"\x19GetKeyboardLayoutResponse\x12'\n" +
-	"\x0fkeyboard_layout\x18\x01 \x01(\x05R\x0ekeyboardLayout\"~\n" +
+	"\x0fkeyboard_layout\x18\x01 \x01(\rR\x0ekeyboardLayout\"~\n" +
 	"\x1cUpsertUserPreferencesRequest\x12N\n" +
 	"\vpreferences\x18\x01 \x01(\v2,.teleport.userpreferences.v1.UserPreferencesR\vpreferencesJ\x04\b\x02\x10\x03R\busername2\x91\x03\n" +
 	"\x16UserPreferencesService\x12\x85\x01\n" +
