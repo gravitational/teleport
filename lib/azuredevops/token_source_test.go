@@ -39,6 +39,7 @@ func TestIDTokenSource(t *testing.T) {
 		authHeader := req.Header.Get("Authorization")
 		require.NotEmpty(t, authHeader)
 		require.Equal(t, "Bearer FAKE_ACCESS_TOKEN", authHeader)
+		require.Equal(t, "7.1", req.URL.Query().Get("api-version"))
 		// Send response
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)

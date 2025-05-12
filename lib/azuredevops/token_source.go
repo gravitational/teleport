@@ -76,7 +76,9 @@ func (its *IDTokenSource) exchangeToken(
 	if err != nil {
 		return "", trace.Wrap(err, "parsing base URL")
 	}
-	apiURL.Query().Set("api-version", "7.1")
+	query := apiURL.Query()
+	query.Set("api-version", "7.1")
+	apiURL.RawQuery = query.Encode()
 
 	req, err := http.NewRequestWithContext(
 		ctx, http.MethodPost, apiURL.String(), nil,
