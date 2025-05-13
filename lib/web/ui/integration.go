@@ -52,7 +52,22 @@ type IntegrationAWSOIDCSpec struct {
 // IntegrationAWSRASpec contain the specific fields for the `aws-ra` subkind integration.
 type IntegrationAWSRASpec struct {
 	// TrustAnchorARN is the IAM Roles Anywhere Trust Anchor ARN associated with the integration.
-	TrustAnchorARN string `json:"trustAnchorARN,omitempty"`
+	TrustAnchorARN string `json:"trustAnchorARN"`
+
+	// ProfileSync contains the Profile sync configuration.
+	ProfileSyncConfig AWSRAProfileSync `json:"profileSyncConfig"`
+}
+
+// AWSRAProfileSync contains the configuration for the AWS Roles Anywhere Profile Sync.
+type AWSRAProfileSync struct {
+	// Enabled indicates if the Profile Sync is enabled.
+	Enabled bool `json:"enabled"`
+
+	// ProfileARN is the ARN of the IAM Roles Anywhere Profile that is used to sync profiles.
+	ProfileARN string `json:"profileArn"`
+
+	// RoleARN is the ARN of the IAM Role that is used to sync profiles.
+	RoleARN string `json:"roleArn"`
 }
 
 // CheckAndSetDefaults for the aws oidc integration spec.
@@ -226,6 +241,14 @@ func (r *CreateIntegrationRequest) CheckAndSetDefaults() error {
 		if r.AWSRA.TrustAnchorARN == "" {
 			return trace.BadParameter("missing awsra.trustAnchorArn field")
 		}
+		if r.AWSRA.ProfileSyncConfig.Enabled {
+			if r.AWSRA.ProfileSyncConfig.ProfileARN == "" {
+				return trace.BadParameter("missing awsra.profileSync.profileArn field")
+			}
+			if r.AWSRA.ProfileSyncConfig.RoleARN == "" {
+				return trace.BadParameter("missing awsra.profileSync.roleArn field")
+			}
+		}
 	}
 	return nil
 }
@@ -331,6 +354,11 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 		}
 		ret.AWSRA = &IntegrationAWSRASpec{
 			TrustAnchorARN: spec.TrustAnchorARN,
+			ProfileSyncConfig: AWSRAProfileSync{
+				Enabled:    spec.ProfileSyncConfig.Enabled,
+				ProfileARN: spec.ProfileSyncConfig.ProfileARN,
+				RoleARN:    spec.ProfileSyncConfig.RoleARN,
+			},
 		}
 	}
 
