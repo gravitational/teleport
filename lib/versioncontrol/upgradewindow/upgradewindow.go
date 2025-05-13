@@ -360,13 +360,17 @@ func (e *kubeDriver) Kind() string {
 }
 
 func (e *kubeDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsResponse) error {
-	if rsp.KubeControllerSchedule == "" {
+	return trace.Wrap(e.setSchedule(ctx, rsp.KubeControllerSchedule))
+}
+
+func (e *kubeDriver) setSchedule(ctx context.Context, schedule string) error {
+	if schedule == "" {
 		return e.Reset(ctx)
 	}
 
 	_, err := e.cfg.Backend.Put(ctx, backend.Item{
 		Key:   []byte(kubeSchedKey),
-		Value: []byte(rsp.KubeControllerSchedule),
+		Value: []byte(schedule),
 	})
 
 	return trace.Wrap(err)
@@ -406,7 +410,11 @@ func (e *systemdDriver) Kind() string {
 }
 
 func (e *systemdDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsResponse) error {
-	if len(rsp.SystemdUnitSchedule) == 0 {
+	return trace.Wrap(e.setSchedule(ctx, rsp.SystemdUnitSchedule))
+}
+
+func (e *systemdDriver) setSchedule(ctx context.Context, schedule string) error {
+	if len(schedule) == 0 {
 		// treat an empty schedule value as equivalent to a reset
 		return e.Reset(ctx)
 	}
@@ -418,7 +426,7 @@ func (e *systemdDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindows
 	}
 
 	// export schedule file. if created it is set to 644, which is reasonable for a sensitive but non-secret config value.
-	if err := os.WriteFile(e.scheduleFile(), []byte(rsp.SystemdUnitSchedule), defaults.FilePermissions); err != nil {
+	if err := os.WriteFile(e.scheduleFile(), []byte(schedule), defaults.FilePermissions); err != nil {
 		return trace.Errorf("failed to write schedule file: %v", err)
 	}
 

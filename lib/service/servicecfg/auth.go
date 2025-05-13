@@ -15,6 +15,8 @@
 package servicecfg
 
 import (
+	"time"
+
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
@@ -115,6 +117,12 @@ type AuthConfig struct {
 
 	// AccessMonitoring configures access monitoring.
 	AccessMonitoring *AccessMonitoringOptions
+
+	// AgentRolloutControllerSyncPeriod controls the period between two
+	// reconciliations of the agent rollout controller. This value is jittered.
+	// Empty value means the controller uses its default.
+	// Used in tests.
+	AgentRolloutControllerSyncPeriod time.Duration
 }
 
 // AccessMonitoringOptions configures access monitoring.

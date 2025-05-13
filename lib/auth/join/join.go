@@ -52,7 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
-	"github.com/gravitational/teleport/lib/kubernetestoken"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -201,7 +201,7 @@ func Register(ctx context.Context, params RegisterParams) (certs *proto.Certs, e
 			return nil, trace.Wrap(err)
 		}
 	} else if params.JoinMethod == types.JoinMethodKubernetes {
-		params.IDToken, err = kubernetestoken.GetIDToken(os.Getenv, os.ReadFile)
+		params.IDToken, err = kubetoken.GetIDToken(os.Getenv, os.ReadFile)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

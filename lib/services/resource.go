@@ -234,6 +234,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAutoUpdateConfig, nil
 	case types.KindAutoUpdateVersion:
 		return types.KindAutoUpdateVersion, nil
+	case types.KindAutoUpdateAgentRollout:
+		return types.KindAutoUpdateAgentRollout, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -675,35 +677,6 @@ func CheckAndSetDefaults(r any) error {
 	return nil
 }
 
-// MarshalResource attempts to marshal a resource dynamically, returning NotImplementedError
-// if no marshaler has been registered.
-//
-// NOTE: This function only supports the subset of resources which may be imported/exported
-// by users (e.g. via `tctl get`).
-func MarshalResource(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
-	if err := resource.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	marshal, ok := getResourceMarshaler(resource.GetKind())
-	if !ok {
-		return nil, trace.NotImplemented("cannot dynamically marshal resources of kind %q", resource.GetKind())
-	}
-	// Handle the case where `resource` was never fully unmarshaled.
-	if r, ok := resource.(*UnknownResource); ok {
-		u, err := UnmarshalResource(r.GetKind(), r.Raw, opts...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resource = u
-	}
-	m, err := marshal(resource, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return m, nil
-}
-
 // UnmarshalResource attempts to unmarshal a resource dynamically, returning NotImplementedError
 // if no unmarshaler has been registered.
 //
@@ -721,22 +694,26 @@ func UnmarshalResource(kind string, raw []byte, opts ...MarshalOption) (types.Re
 	return u, nil
 }
 
+type MetadataWithRawID struct {
+	ID json.RawMessage `json:"id,omitempty"`
+	types.Metadata
+}
+
 // UnknownResource is used to detect resources
 type UnknownResource struct {
-	types.ResourceHeader
+	Kind              string `json:"kind,omitempty"`
+	MetadataWithRawID `json:"metadata,omitempty"`
 	// Raw is raw representation of the resource
-	Raw []byte
+	Raw []byte `json:"-"`
 }
 
 // UnmarshalJSON unmarshals header and captures raw state
 func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
-	var h types.ResourceHeader
-	if err := json.Unmarshal(raw, &h); err != nil {
+	type rawUnknownResource UnknownResource
+	if err := json.Unmarshal(raw, (*rawUnknownResource)(u)); err != nil {
 		return trace.Wrap(err)
 	}
-	u.Raw = make([]byte, len(raw))
-	u.ResourceHeader = h
-	copy(u.Raw, raw)
+	u.Raw = append([]byte(nil), raw...)
 	return nil
 }
 

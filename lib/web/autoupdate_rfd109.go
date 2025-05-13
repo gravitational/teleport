@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -28,17 +29,16 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 const defaultChannelTimeout = 5 * time.Second
 
-// automaticUpgrades implements a version server in the Teleport Proxy.
+// automaticUpgrades109 implements a version server in the Teleport Proxy following the RFD 109 spec.
 // It is configured through the Teleport Proxy configuration and tells agent updaters
 // which version they should install.
-func (h *Handler) automaticUpgrades(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) automaticUpgrades109(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	if h.cfg.AutomaticUpgradesChannels == nil {
 		return nil, trace.AccessDenied("This proxy is not configured to serve automatic upgrades channels.")
 	}
@@ -59,31 +59,25 @@ func (h *Handler) automaticUpgrades(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.BadParameter("a channel name is required")
 	}
 
-	// We check if the channel is configured
-	channel, ok := h.cfg.AutomaticUpgradesChannels[channelName]
-	if !ok {
-		return nil, trace.NotFound("channel %s not found", channelName)
-	}
-
 	// Finally, we treat the request based on its type
 	switch requestType {
 	case "version":
 		h.log.Debugf("Agent requesting version for channel %s", channelName)
-		return h.automaticUpgradesVersion(w, r, channel)
+		return h.automaticUpgradesVersion109(w, r, channelName)
 	case "critical":
 		h.log.Debugf("Agent requesting criticality for channel %s", channelName)
-		return h.automaticUpgradesCritical(w, r, channel)
+		return h.automaticUpgradesCritical109(w, r, channelName)
 	default:
 		return nil, trace.BadParameter("requestType path must end with 'version' or 'critical'")
 	}
 }
 
-// automaticUpgradesVersion handles version requests from upgraders
-func (h *Handler) automaticUpgradesVersion(w http.ResponseWriter, r *http.Request, channel *automaticupgrades.Channel) (interface{}, error) {
+// automaticUpgradesVersion109 handles version requests from upgraders
+func (h *Handler) automaticUpgradesVersion109(w http.ResponseWriter, r *http.Request, channelName string) (interface{}, error) {
 	ctx, cancel := context.WithTimeout(r.Context(), defaultChannelTimeout)
 	defer cancel()
 
-	targetVersion, err := channel.GetVersion(ctx)
+	targetVersion, err := h.autoUpdateAgentVersion(ctx, channelName, "" /* updater UUID */)
 	if err != nil {
 		// If the error is that the upstream channel has no version
 		// We gracefully handle by serving "none"
@@ -96,16 +90,20 @@ func (h *Handler) automaticUpgradesVersion(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = w.Write([]byte(targetVersion))
+	// RFD 109 specifies that version from channels must have the leading "v".
+	// As h.autoUpdateAgentVersion doesn't, we must add it.
+	_, err = fmt.Fprintf(w, "v%s", targetVersion)
 	return nil, trace.Wrap(err)
 }
 
-// automaticUpgradesCritical handles criticality requests from upgraders
-func (h *Handler) automaticUpgradesCritical(w http.ResponseWriter, r *http.Request, channel *automaticupgrades.Channel) (interface{}, error) {
+// automaticUpgradesCritical109 handles criticality requests from upgraders
+func (h *Handler) automaticUpgradesCritical109(w http.ResponseWriter, r *http.Request, channelName string) (interface{}, error) {
 	ctx, cancel := context.WithTimeout(r.Context(), defaultChannelTimeout)
 	defer cancel()
 
-	critical, err := channel.GetCritical(ctx)
+	// RFD109 agents already retrieve maintenance windows from the CMC, no need to
+	// do a maintenance window lookup for them.
+	critical, err := h.autoUpdateAgentShouldUpdate(ctx, channelName, "" /* updater UUID */, false /* window lookup */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

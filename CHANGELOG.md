@@ -1,5 +1,39 @@
 # Changelog
 
+## 14.4.0 (Upcoming)
+
+While Teleport 14 is discontinued and out-of-support, some users are still running it.
+To help updating to a supported version, we are issuing exceptional v14 releases to
+backport Managed Updates v2.
+
+Managed Updates v2 offer a smoother upgrade path for existing users and should reduce
+the cost and pain of updating Teleport agents in large deployments.
+
+### Automatic Updates
+
+14.4 introduces a new automatic update mechanism for system administrators to control which Teleport version their
+agents are running. You can now configure the agent update schedule and desired agent version via the `autoupdate_config`
+and `autoupdate_version` resources.
+
+Updates are performed by the new `teleport-update` binary.
+This new system is package manager-agnostic and opt-in. Existing agents won't be automatically enrolled, you can enroll
+existing 14.4+ agents by running `teleport-update enable`.
+
+`teleport-update` will become the new standard way of installing Teleport as it always picks the appropriate Teleport
+edition (Community vs Enterprise), the cluster's desired version, and the correct Teleport variant (e.g. FIPS-compliant
+cryptography).
+
+You can find more information about the feature in [our documentation]().
+
+### Package layout changes
+
+Starting with 14.4.0, the Teleport DEB and RPM packages, notably used by the `apt`, `yum`, `dnf` and `zypper` package
+managers, will place the Teleport binaries in `/opt/teleport` instead of `/usr/local/bin`.
+
+The binaries will be symlinked to their previous location, no change should be required in your scripts or systemd units.
+
+This change allows us to do automatic updates without conflicting with the package manager.
+
 ## 14.3.36 (02/13/25)
 
 ### Security Fixes
