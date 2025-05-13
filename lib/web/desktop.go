@@ -29,7 +29,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"net/http"
 	"strings"
@@ -160,9 +159,6 @@ func (h *Handler) createDesktopConnection(
 		}
 		validServiceIDs = append(validServiceIDs, desktop.GetHostID())
 	}
-	rand.Shuffle(len(validServiceIDs), func(i, j int) {
-		validServiceIDs[i], validServiceIDs[j] = validServiceIDs[j], validServiceIDs[i]
-	})
 
 	// Parse the private key of the user from the session context.
 	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetPriv())
@@ -489,7 +485,7 @@ type connector struct {
 func (c *connector) connectToWindowsService(
 	clusterName string,
 	desktopServiceIDs []string) (conn net.Conn, version string, err error) {
-	for _, id := range desktopServiceIDs {
+	for _, id := range utils.ShuffleVisit(desktopServiceIDs) {
 		conn, ver, err := c.tryConnect(clusterName, id)
 		if err != nil && !trace.IsConnectionProblem(err) {
 			return nil, "", trace.WrapWithMessage(err,
