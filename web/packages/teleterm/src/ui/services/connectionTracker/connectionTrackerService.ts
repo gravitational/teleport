@@ -85,7 +85,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
         //
         // For example, the user can open a desktop connection in Connect v18
         // and then downgrade to a version that doesn't support desktops.
-        // That connection should be shown as 'UNKNOWN' in the connection list.
+        // That connection shouldn't be shown on the list.
         if (!trackedConnection) {
           return;
         }
