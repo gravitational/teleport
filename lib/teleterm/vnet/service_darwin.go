@@ -77,17 +77,14 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 }
 
 func (s *Service) getNetworkStack(ctx context.Context) (*diagv1.NetworkStack, error) {
-	profileNames, err := s.cfg.DaemonService.ListProfileNames()
+	targetOSConfig, err := s.vnetProcess.GetOSConfigProvider().GetTargetOSConfiguration(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	dnsZones, cidrRanges := s.listDNSZonesAndCIDRRanges(ctx, profileNames)
-
 	return &diagv1.NetworkStack{
 		InterfaceName:  s.networkStackInfo.InterfaceName,
 		Ipv6Prefix:     s.networkStackInfo.Ipv6Prefix,
-		Ipv4CidrRanges: cidrRanges,
-		DnsZones:       dnsZones,
+		Ipv4CidrRanges: targetOSConfig.GetIpv4CidrRanges(),
+		DnsZones:       targetOSConfig.GetDnsZones(),
 	}, nil
 }
