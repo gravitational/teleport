@@ -5387,13 +5387,24 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 				"17.2.7",
 			},
 			inputRole: role,
-			expectedRole: newRole(role.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					Rules: []types.Rule{
-						types.NewRule(types.KindRole, services.RW()),
+			expectedRole: func() types.Role {
+				r := newRole(role.GetName(), types.V7, types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: []types.Rule{
+							types.NewRule(types.KindRole, services.RW()),
+						},
 					},
-				},
-			}),
+					Options: types.RoleOptions{
+						IDP: nil,
+					},
+				})
+				// idp option is always set to true in role version v7 and below
+				// but role v8 does not allow to set them.
+				idpOption := r.GetOptions()
+				idpOption.IDP = nil
+				r.SetOptions(idpOption)
+				return r
+			}(),
 			expectDowngraded: true,
 		},
 	} {

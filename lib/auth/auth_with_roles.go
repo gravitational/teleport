@@ -4497,6 +4497,10 @@ func (a *ServerWithRoles) validateRole(role types.Role) error {
 		}
 	}
 
+	if role.GetOptions().IDP != nil && !types.IsLegacySAMLRBAC(role.GetVersion()) {
+		return trace.BadParameter("idp option is only supported in role version 7 and below")
+	}
+
 	return nil
 }
 
