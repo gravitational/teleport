@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { memo, useCallback, useEffect, useMemo } from 'react';
+import { memo, useCallback, useEffect, useMemo, type JSX } from 'react';
 
 import { Box, ButtonPrimary, Flex, H1, Link, ResourceIcon, Text } from 'design';
 import * as icons from 'design/Icon';
@@ -402,6 +402,8 @@ const Resources = memo(
         })}
       >
         <SharedUnifiedResources
+          // TODO(kimlisa): add support later
+          onShowStatusInfo={() => null}
           params={props.queryParams}
           setParams={props.onParamsChange}
           unifiedResourcePreferencesAttempt={props.userPreferencesAttempt}

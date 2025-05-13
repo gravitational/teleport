@@ -50,5 +50,21 @@
 		<string>Main</string>
 		<key>NSPrincipalClass</key>
 		<string>NSApplication</string>
+		<key>OSLogPreferences</key>
+		<dict>
+			<key>com.gravitational.teleport.tsh.vnetd</key>
+			<dict>
+				<key>DEFAULT-OPTIONS</key>
+				<dict>
+					<key>Level</key>
+					<dict>
+						<key>Enable</key>
+						<string>Info</string>
+						<key>Persist</key>
+						<string>Info</string>
+					</dict>
+				</dict>
+			</dict>
+		</dict>
 	</dict>
 </plist>

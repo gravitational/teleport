@@ -83,6 +83,9 @@ type genericLister[T any, I comparable] struct {
 	nextToken func(T) string
 	// clone is used to make a copy of the item returned.
 	clone func(T) T
+	// filter is an optional function used to exclude items from
+	// cache reads.
+	filter func(T) bool
 }
 
 // list retrieves a page of items from the configured cache collection.
@@ -115,6 +118,9 @@ func (l genericLister[T, I]) list(ctx context.Context, pageSize int, startToken 
 			return out, l.nextToken(sf), nil
 		}
 
+		if l.filter != nil && !l.filter(sf) {
+			continue
+		}
 		out = append(out, l.clone(sf))
 	}
 

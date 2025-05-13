@@ -689,7 +689,7 @@ class AccessListSpec$Type extends MessageType<AccessListSpec> {
     constructor() {
         super("teleport.accesslist.v1.AccessListSpec", [
             { no: 1, name: "description", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "owners", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => AccessListOwner },
+            { no: 2, name: "owners", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AccessListOwner },
             { no: 3, name: "audit", kind: "message", T: () => AccessListAudit },
             { no: 4, name: "membership_requires", kind: "message", T: () => AccessListRequires },
             { no: 5, name: "ownership_requires", kind: "message", T: () => AccessListRequires },
@@ -1019,7 +1019,7 @@ class AccessListRequires$Type extends MessageType<AccessListRequires> {
     constructor() {
         super("teleport.accesslist.v1.AccessListRequires", [
             { no: 1, name: "roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "traits", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Trait }
+            { no: 2, name: "traits", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Trait }
         ]);
     }
     create(value?: PartialMessage<AccessListRequires>): AccessListRequires {
@@ -1074,7 +1074,7 @@ class AccessListGrants$Type extends MessageType<AccessListGrants> {
     constructor() {
         super("teleport.accesslist.v1.AccessListGrants", [
             { no: 1, name: "roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "traits", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Trait }
+            { no: 2, name: "traits", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Trait }
         ]);
     }
     create(value?: PartialMessage<AccessListGrants>): AccessListGrants {

@@ -89,7 +89,7 @@ export function useAsync<Args extends unknown[], AttemptData>(
 ) {
   const [state, setState] = useState<Attempt<AttemptData>>(makeEmptyAttempt);
   const isMounted = useIsMounted();
-  const asyncTask = useRef<Promise<AttemptData>>();
+  const asyncTask = useRef<Promise<AttemptData>>(undefined);
 
   const run: (...args: Args) => RunFuncReturnValue<AttemptData> = useCallback(
     (...args: Args) => {

@@ -255,10 +255,10 @@ class App$Type extends MessageType<App> {
             { no: 6, name: "public_addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "friendly_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 8, name: "saml_app", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 9, name: "labels", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Label },
+            { no: 9, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label },
             { no: 10, name: "fqdn", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 11, name: "aws_roles", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => AWSRole },
-            { no: 12, name: "tcp_ports", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => PortRange }
+            { no: 11, name: "aws_roles", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AWSRole },
+            { no: 12, name: "tcp_ports", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => PortRange }
         ]);
     }
     create(value?: PartialMessage<App>): App {

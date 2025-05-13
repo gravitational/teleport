@@ -406,10 +406,7 @@ type deadline struct {
 // its data with cond.L, which is assumed to be held by the caller.
 func (d *deadline) setDeadlineLocked(t time.Time, cond *sync.Cond, clock clockwork.Clock) {
 	if d.timer != nil {
-		for {
-			if d.stopped {
-				break
-			}
+		for !d.stopped {
 			if d.timer.Stop() {
 				d.stopped = true
 				break

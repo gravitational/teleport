@@ -354,8 +354,22 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 			nil
 
 	case createNewRoleSaveClickEvent:
+		roleEvent := struct {
+			StandardUsed               bool     `json:"standardUsed"`
+			YAMLUsed                   bool     `json:"yamlUsed"`
+			ModeWhenSaved              string   `json:"modeWhenSaved"`
+			FieldsWithConversionErrors []string `json:"fieldsWithConversionErrors"`
+		}{}
+		if err := json.Unmarshal([]byte(*req.EventData), &roleEvent); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
 		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiCreateNewRoleSaveClick{
-				UiCreateNewRoleSaveClick: &usageeventsv1.UICreateNewRoleSaveClickEvent{},
+				UiCreateNewRoleSaveClick: &usageeventsv1.UICreateNewRoleSaveClickEvent{
+					StandardUsed:               roleEvent.StandardUsed,
+					YamlUsed:                   roleEvent.YAMLUsed,
+					ModeWhenSaved:              roleEvent.ModeWhenSaved,
+					FieldsWithConversionErrors: roleEvent.FieldsWithConversionErrors,
+				},
 			}},
 			nil
 
