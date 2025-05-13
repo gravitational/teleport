@@ -1364,6 +1364,7 @@ export type RawEvents = {
     {
       bot_name: string;
       method: string;
+      token_name: string;
     }
   >;
   [eventCodes.BOT_JOIN_FAILURE]: RawEvent<
@@ -1371,6 +1372,7 @@ export type RawEvents = {
     {
       bot_name: string;
       method: string;
+      token_name: string;
     }
   >;
   [eventCodes.INSTANCE_JOIN]: RawEvent<
