@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/trace"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -55,7 +54,7 @@ type Adapter[T Resource] interface {
 type KubernetesCR[T Resource] interface {
 	kclient.Object
 	ToTeleport() T
-	StatusConditions() *[]v1.Condition
+	StatusConditions() *[]metav1.Condition
 }
 
 // resourceClient is a CRUD client for a specific Teleport Resource.

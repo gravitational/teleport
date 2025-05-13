@@ -1412,7 +1412,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 15)
-	require.NotEqual(t, "", res.StartKey)
+	require.NotEmpty(t, res.StartKey)
 
 	// should return second page and have no third page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
@@ -1422,7 +1422,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 10)
-	require.Equal(t, "", res.StartKey)
+	require.Empty(t, res.StartKey)
 
 	// Only list valid AWS Roles for AWS Apps
 	query = url.Values{
@@ -7553,7 +7553,7 @@ func addCSRFCookieToReq(req *http.Request, token string) {
 
 func removeSpace(in string) string {
 	for _, c := range []string{"\n", "\r", "\t"} {
-		in = strings.Replace(in, c, " ", -1)
+		in = strings.ReplaceAll(in, c, " ")
 	}
 	return strings.TrimSpace(in)
 }

@@ -108,8 +108,7 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 
 	stdout := utils.NewSyncWriter(term.Stdout())
 
-	go handleOutgoingResizeEvents(ctx, stream, term)
-	go handleIncomingResizeEvents(stream, term)
+	go handleResizeEvents(ctx, stream, term)
 
 	s := &KubeSession{stream, term, ctx, cancel, meta, sync.WaitGroup{}}
 	err = s.handleMFA(ctx, tc, mode, stdout)
@@ -143,42 +142,39 @@ func kubeSessionNetDialer(ctx context.Context, tc *TeleportClient, kubeAddr stri
 	)
 }
 
-func handleOutgoingResizeEvents(ctx context.Context, stream *streamproto.SessionStream, term *terminal.Terminal) {
-	queue := stream.ResizeQueue()
-
-	select {
-	case <-ctx.Done():
-		return
-	case size := <-queue:
-		if size == nil {
-			return
-		}
-
-		term.Resize(int16(size.Width), int16(size.Height))
-	}
-}
-
-func handleIncomingResizeEvents(stream *streamproto.SessionStream, term *terminal.Terminal) {
-	events := term.Subscribe()
-
+func handleResizeEvents(ctx context.Context, stream *streamproto.SessionStream, term *terminal.Terminal) {
+	streamResizes := stream.ResizeQueue()
+	terminalResizes := term.Subscribe()
 	for {
-		event, more := <-events
-		_, ok := event.(terminal.ResizeEvent)
-		if ok {
-			w, h, err := term.Size()
-			if err != nil {
-				fmt.Printf("Error attempting to fetch terminal size: %v\n\r", err)
+		select {
+		case <-ctx.Done():
+			return
+		case <-stream.Done():
+			return
+		case size := <-streamResizes:
+			if size == nil {
+				return
 			}
 
-			size := remotecommand.TerminalSize{Width: uint16(w), Height: uint16(h)}
-			err = stream.Resize(&size)
-			if err != nil {
-				fmt.Printf("Error attempting to resize terminal: %v\n\r", err)
-			}
-		}
+			term.Resize(int16(size.Width), int16(size.Height))
+		case event, more := <-terminalResizes:
+			_, ok := event.(terminal.ResizeEvent)
+			if ok {
+				w, h, err := term.Size()
+				if err != nil {
+					fmt.Printf("Error attempting to fetch terminal size: %v\n\r", err)
+				}
 
-		if !more {
-			break
+				size := remotecommand.TerminalSize{Width: uint16(w), Height: uint16(h)}
+				err = stream.Resize(&size)
+				if err != nil {
+					fmt.Printf("Error attempting to resize terminal: %v\n\r", err)
+				}
+			}
+			if !more {
+				// The terminal has been closed, stop listening for resize events.
+				return
+			}
 		}
 	}
 }

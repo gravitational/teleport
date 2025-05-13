@@ -162,7 +162,7 @@ func TestGetEmbeddings(t *testing.T) {
 			tc.assertErr(t, err)
 			sort.Sort(embeddings)
 			sort.Sort(tc.expected)
-			require.Equal(t, len(tc.expected), len(embeddings))
+			require.Len(t, tc.expected, len(embeddings))
 			for i, expected := range tc.expected {
 				requireEmbeddingsEqual(t, expected, embeddings[i])
 			}

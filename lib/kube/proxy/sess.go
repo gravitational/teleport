@@ -39,7 +39,6 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
-	kubeapitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/remotecommand"
@@ -1466,7 +1465,7 @@ func (s *session) patchAndWaitForPodEphemeralContainer(
 	podClient := clientSet.CoreV1().Pods(authCtx.kubeResource.Namespace)
 	result, err := podClient.Patch(ctx,
 		waitingCont.Spec.PodName,
-		kubeapitypes.StrategicMergePatchType,
+		apimachinerytypes.StrategicMergePatchType,
 		waitingCont.Spec.Patch,
 		metav1.PatchOptions{},
 		"ephemeralcontainers")

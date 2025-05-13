@@ -123,8 +123,9 @@ func (s *PagerdutyBaseSuite) SetupTest() {
 
 // startApp starts the Pagerduty plugin, waits for it to become ready and returns.
 func (s *PagerdutyBaseSuite) startApp() {
+	s.T().Helper()
+
 	t := s.T()
-	t.Helper()
 
 	app, err := pagerduty.NewApp(s.appConfig)
 	require.NoError(t, err)
@@ -413,8 +414,9 @@ func (s *PagerdutySuiteEnterprise) TestDenialByReview() {
 }
 
 func (s *PagerdutyBaseSuite) assertNewEvent(ctx context.Context, watcher types.Watcher, opType types.OpType, resourceKind, resourceName string) types.Event {
+	s.T().Helper()
+
 	t := s.T()
-	t.Helper()
 
 	var ev types.Event
 	select {
@@ -438,8 +440,9 @@ func (s *PagerdutyBaseSuite) assertNewEvent(ctx context.Context, watcher types.W
 }
 
 func (s *PagerdutyBaseSuite) assertNoNewEvents(ctx context.Context, watcher types.Watcher) {
+	s.T().Helper()
+
 	t := s.T()
-	t.Helper()
 
 	select {
 	case ev := <-watcher.Events():
@@ -451,8 +454,9 @@ func (s *PagerdutyBaseSuite) assertNoNewEvents(ctx context.Context, watcher type
 }
 
 func (s *PagerdutyBaseSuite) assertReviewSubmitted(ctx context.Context, userName string) {
+	s.T().Helper()
+
 	t := s.T()
-	t.Helper()
 
 	watcher, err := s.Ruler().NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}},
@@ -481,8 +485,9 @@ func (s *PagerdutyBaseSuite) assertReviewSubmitted(ctx context.Context, userName
 }
 
 func (s *PagerdutyBaseSuite) assertNoReviewSubmitted(ctx context.Context, userName string) {
+	s.T().Helper()
+
 	t := s.T()
-	t.Helper()
 
 	watcher, err := s.Ruler().NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}},
