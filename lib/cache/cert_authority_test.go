@@ -78,7 +78,7 @@ func TestNodeCAFiltering(t *testing.T) {
 		ClusterName: "example.com",
 	})
 	require.NoError(t, err)
-	err = p.cache.clusterConfigCache.UpsertClusterName(clusterName)
+	err = p.clusterConfigS.UpsertClusterName(clusterName)
 	require.NoError(t, err)
 
 	nodeCacheBackend, err := memory.New(memory.Config{})
@@ -88,15 +88,15 @@ func TestNodeCAFiltering(t *testing.T) {
 	// this mimics a cache for a node pulling events from the auth server via WatchEvents
 	nodeCache, err := New(ForNode(Config{
 		Events:                  p.cache,
-		Trust:                   p.cache.trustCache,
-		ClusterConfig:           p.cache.clusterConfigCache,
-		Access:                  p.cache.accessCache,
-		DynamicAccess:           p.cache.dynamicAccessCache,
-		Presence:                p.cache.presenceCache,
+		Trust:                   p.cache.Trust,
+		ClusterConfig:           p.cache.ClusterConfig,
+		Access:                  p.cache.Access,
+		DynamicAccess:           p.cache.DynamicAccess,
+		Presence:                p.cache.Presence,
 		Restrictions:            p.cache.Restrictions,
-		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
-		UserGroups:              p.userGroups,
-		StaticHostUsers:         p.staticHostUsers,
+		SAMLIdPServiceProviders: p.cache.SAMLIdPServiceProviders,
+		UserGroups:              p.cache.UserGroups,
+		StaticHostUsers:         p.cache.StaticHostUsers,
 		Backend:                 nodeCacheBackend,
 	}))
 	require.NoError(t, err)

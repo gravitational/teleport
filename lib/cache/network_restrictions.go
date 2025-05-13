@@ -35,9 +35,11 @@ func newNetworkingRestrictionCollection(upstream services.Restrictions, w types.
 	}
 
 	return &collection[types.NetworkRestrictions, networkingRestrictionIndex]{
-		store: newStore(map[networkingRestrictionIndex]func(types.NetworkRestrictions) string{
-			networkingRestrictionNameIndex: types.NetworkRestrictions.GetName,
-		}),
+		store: newStore(
+			types.NetworkRestrictions.Clone,
+			map[networkingRestrictionIndex]func(types.NetworkRestrictions) string{
+				networkingRestrictionNameIndex: types.NetworkRestrictions.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.NetworkRestrictions, error) {
 			restrictions, err := upstream.GetNetworkRestrictions(ctx)
 			if err != nil {
@@ -71,7 +73,6 @@ func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestri
 			restriction, err := c.Config.Restrictions.GetNetworkRestrictions(ctx)
 			return restriction, trace.Wrap(err)
 		},
-		clone: types.NetworkRestrictions.Clone,
 	}
 	out, err := getter.get(ctx, types.MetaNameNetworkRestrictions)
 	return out, trace.Wrap(err)

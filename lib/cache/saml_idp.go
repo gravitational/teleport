@@ -35,11 +35,11 @@ func newSAMLIdPServiceProviderCollection(upstream services.SAMLIdPServiceProvide
 	}
 
 	return &collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex]{
-		store: newStore(map[samlIdPServiceProviderIndex]func(types.SAMLIdPServiceProvider) string{
-			samlIdPServiceProviderNameIndex: func(r types.SAMLIdPServiceProvider) string {
-				return r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			types.SAMLIdPServiceProvider.Copy,
+			map[samlIdPServiceProviderIndex]func(types.SAMLIdPServiceProvider) string{
+				samlIdPServiceProviderNameIndex: types.SAMLIdPServiceProvider.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.SAMLIdPServiceProvider, error) {
 			var startKey string
 			var sps []types.SAMLIdPServiceProvider
@@ -89,7 +89,6 @@ func (c *Cache) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, p
 		nextToken: func(t types.SAMLIdPServiceProvider) string {
 			return t.GetMetadata().Name
 		},
-		clone: types.SAMLIdPServiceProvider.Copy,
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
@@ -105,7 +104,6 @@ func (c *Cache) GetSAMLIdPServiceProvider(ctx context.Context, name string) (typ
 		collection:  c.collections.samlIdPServiceProviders,
 		index:       samlIdPServiceProviderNameIndex,
 		upstreamGet: c.Config.SAMLIdPServiceProviders.GetSAMLIdPServiceProvider,
-		clone:       types.SAMLIdPServiceProvider.Copy,
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
@@ -121,11 +119,11 @@ func newSAMLIdPSessionCollection(upstream services.SAMLIdPSession, w types.Watch
 	}
 
 	return &collection[types.WebSession, samlIdPSessionIndex]{
-		store: newStore(map[samlIdPSessionIndex]func(types.WebSession) string{
-			samlIdPSessionNameIndex: func(r types.WebSession) string {
-				return r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			types.WebSession.Copy,
+			map[samlIdPSessionIndex]func(types.WebSession) string{
+				samlIdPSessionNameIndex: types.WebSession.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WebSession, error) {
 			var startKey string
 			var sessions []types.WebSession
@@ -180,7 +178,6 @@ func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessi
 			session, err := c.Config.SAMLIdPSession.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{SessionID: s})
 			return session, trace.Wrap(err)
 		},
-		clone: types.WebSession.Copy,
 	}
 	out, err := getter.get(ctx, req.SessionID)
 	if trace.IsNotFound(err) && !upstreamRead {
