@@ -162,7 +162,7 @@ func (d *DirectoryAccess) ReadDir(relativePath string) ([]*FileOrDirInfo, error)
 }
 
 // Read reads a slice of a file into buf. Returns the number of read bytes.
-func (d *DirectoryAccess) Read(relativePath string, offset int64, buf []byte) (int, error) {
+func (d *DirectoryAccess) Read(relativePath string, offset int64, buf []byte) (n int, err error) {
 	path, err := d.getSafePath(relativePath)
 	if err != nil {
 		return 0, trace.Wrap(err)
@@ -174,7 +174,7 @@ func (d *DirectoryAccess) Read(relativePath string, offset int64, buf []byte) (i
 	}
 	defer func() {
 		closeErr := file.Close()
-		if closeErr != nil && err == nil {
+		if err == nil {
 			// Only update err if no previous error occurred.
 			err = trace.Wrap(closeErr)
 		}
@@ -185,7 +185,7 @@ func (d *DirectoryAccess) Read(relativePath string, offset int64, buf []byte) (i
 		return 0, trace.Wrap(err)
 	}
 
-	n, err := file.Read(buf)
+	n, err = file.Read(buf)
 	if err != nil && !errors.Is(err, io.EOF) {
 		return 0, trace.Wrap(err)
 	}
@@ -193,7 +193,7 @@ func (d *DirectoryAccess) Read(relativePath string, offset int64, buf []byte) (i
 }
 
 // Write writes data to a file at a given offset.
-func (d *DirectoryAccess) Write(relativePath string, offset int64, data []byte) (int, error) {
+func (d *DirectoryAccess) Write(relativePath string, offset int64, data []byte) (n int, err error) {
 	path, err := d.getSafePath(relativePath)
 	if err != nil {
 		return 0, trace.Wrap(err)
@@ -206,7 +206,7 @@ func (d *DirectoryAccess) Write(relativePath string, offset int64, data []byte) 
 
 	defer func() {
 		closeErr := file.Close()
-		if closeErr != nil && err == nil {
+		if err == nil {
 			// Only update err if no previous error occurred.
 			err = trace.Wrap(closeErr)
 		}
@@ -217,7 +217,7 @@ func (d *DirectoryAccess) Write(relativePath string, offset int64, data []byte) 
 		return 0, trace.Wrap(err)
 	}
 
-	n, err := file.Write(data)
+	n, err = file.Write(data)
 	return n, trace.Wrap(err)
 }
 
@@ -270,13 +270,13 @@ func (d *DirectoryAccess) Delete(relativePath string) error {
 	return trace.Wrap(err)
 }
 
-func (d *DirectoryAccess) readFileOrDirInfo(relativePath string, f os.FileInfo) (*FileOrDirInfo, error) {
+func (d *DirectoryAccess) readFileOrDirInfo(relativePath string, f os.FileInfo) (info *FileOrDirInfo, err error) {
 	path, err := d.getSafePath(relativePath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	info := &FileOrDirInfo{
+	info = &FileOrDirInfo{
 		Size:         f.Size(),
 		LastModified: f.ModTime().Unix(),
 		Path:         relativePath,
@@ -294,7 +294,7 @@ func (d *DirectoryAccess) readFileOrDirInfo(relativePath string, f os.FileInfo) 
 	}
 	defer func() {
 		closeErr := opened.Close()
-		if closeErr != nil && err == nil {
+		if err == nil {
 			// Only update err if no previous error occurred.
 			err = trace.Wrap(closeErr)
 		}
