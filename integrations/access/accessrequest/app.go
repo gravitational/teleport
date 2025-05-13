@@ -548,6 +548,9 @@ func (a *App) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map
 			return nil, trace.Wrap(err)
 		}
 		logins := currentRole.GetLogins(types.Allow)
+		if logins == nil {
+			logins = []string{}
+		}
 		loginsByRole[role] = logins
 	}
 	return loginsByRole, nil
