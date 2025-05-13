@@ -76,15 +76,22 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	// Create database resources from databases defined in the static configuration.
 	var databases types.Databases
-	for _, db := range process.Config.Databases.Databases {
-		db, err := db.ToDatabase()
+	for _, dbSpec := range process.Config.Databases.Databases {
+		err = func() error {
+			database, err := dbSpec.ToDatabase()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			err = services.ValidateDatabase(database)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			databases = append(databases, database)
+			return nil
+		}()
 		if err != nil {
-			return trace.Wrap(err)
+			process.logger.WarnContext(process.ExitContext(), "Skipping invalid database configuration.", "name", dbSpec.Name, "protocol", dbSpec.Protocol, "uri", dbSpec.URI, "err", err)
 		}
-		if err := services.ValidateDatabase(db); err != nil {
-			return trace.Wrap(err)
-		}
-		databases = append(databases, db)
 	}
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
