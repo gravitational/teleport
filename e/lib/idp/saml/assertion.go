@@ -238,6 +238,10 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 	// the response using its local certificate and key.
 	req.ResponseEl = respDoc.Root()
 
+	// Emit success event here since the assertion is signed.
+	// The only step remaining now is to respond with HTML post form.
+	s.emitAuthAttemptEvent(ctx, session.UserName, req.ServiceProviderMetadata.EntityID, "", nil)
+
 	return nil
 }
 

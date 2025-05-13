@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
-	"errors"
 	"net/http"
 	"strings"
 
@@ -13,8 +12,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -69,29 +68,20 @@ func (h *Service) withHighLimiter(fn httprouter.Handle) httprouter.Handle {
 	})
 }
 
+// withAuthCtx checks for a valid user session.
 func (s *Service) withAuthCtx(fn httprouter.Handle) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		identity, err := s.authorize(r)
+		identity, err := s.validateSession(r)
 		if err != nil {
-			if errors.Is(err, services.ErrSessionMFARequired) {
-				// redirect user to /web/saml-idp-login to provide mfa and try again.
-				redirectURL, err := SSORedirectURL(r, IdPRoute+r.URL.Path)
-				if err != nil {
-					trace.Wrap(err)
-				}
-				http.Redirect(w, r, "/web/saml-idp/login?redirect_uri="+redirectURL.String(), http.StatusSeeOther)
-				return
-			}
-
 			if !trace.IsAccessDenied(err) { // access denied are expected
-				s.logger.ErrorContext(r.Context(), "error authorizing user for SAML IdP", "error", err)
+				s.logger.ErrorContext(r.Context(), "Error authorizing user for SAML IdP", "error", err)
 			}
 
-			var user string
+			var username string
 			if identity != nil {
-				user = identity.Username
+				username = identity.Username
 			}
-			s.emitAuthAttemptEvent(r.Context(), user, "", "", err)
+			s.emitAuthAttemptEvent(r.Context(), username, "", "", err)
 			s.writeError(w, http.StatusUnauthorized)
 			return
 		}
@@ -99,14 +89,23 @@ func (s *Service) withAuthCtx(fn httprouter.Handle) httprouter.Handle {
 	}
 }
 
-func (s *Service) authorize(r *http.Request) (*tlsca.Identity, error) {
+func (s *Service) validateSession(r *http.Request) (*tlsca.Identity, error) {
 	authCtx, err := s.authorizer.Authorize(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Only allow local users to use the SAML IdP.
+	identity, err := s.identityFromAuthCtx(authCtx)
+	if err != nil {
+		return identity, trace.Wrap(err)
+	}
+
+	return identity, nil
+}
+
+func (s *Service) identityFromAuthCtx(authCtx *authz.Context) (*tlsca.Identity, error) {
 	var identity tlsca.Identity
+	// Only allow local users to use the SAML IdP.
 	switch user := authCtx.Identity.(type) {
 	case authz.LocalUser:
 		identity = user.GetIdentity()
@@ -115,9 +114,31 @@ func (s *Service) authorize(r *http.Request) (*tlsca.Identity, error) {
 		return &identity, trace.BadParameter("unsupported user type: %T", user)
 	}
 
+	if s.clock.Now().After(identity.Expires) {
+		return &identity, trace.AccessDenied("identity is expired")
+	}
+
+	return &identity, nil
+}
+
+// authorize applies RBAC to service provider resource.
+// A valid user session is expected before calling this method.
+// Returns user identity in any case in order to provide username
+// for audit logging at the call site.
+func (s *Service) authorize(r *http.Request, sp types.SAMLIdPServiceProvider) (*tlsca.Identity, error) {
+	authCtx, err := s.authorizer.Authorize(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := s.identityFromAuthCtx(authCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authPref, err := s.accessPoint.GetAuthPreference(r.Context())
 	if err != nil && !trace.IsNotFound(err) {
-		return &identity, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	accessState := authCtx.Checker.GetAccessState(authPref)
@@ -128,17 +149,20 @@ func (s *Service) authorize(r *http.Request) (*tlsca.Identity, error) {
 		accessState.MFAVerified = true
 	}
 
-	// If the auth preference is not found, the CheckAccessToSAMLIdP function will handle it.
-	if err := authCtx.Checker.CheckAccessToSAMLIdP(authPref, accessState); err != nil {
-		return &identity, trace.Wrap(err)
+	if err := authCtx.CheckAccessToKind(
+		types.KindSAMLIdPServiceProvider,
+		types.VerbRead,
+		types.VerbList,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// CheckAccessToSAMLIdPV2 checks for session MFA and a role option
+	// that enables access to IdP (legacy SAML IdP RBAC).
+	if err := authCtx.Checker.CheckAccessToSAMLIdPV2(sp, authPref, accessState); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// If the user's cert is expired, return immediately.
-	if s.clock.Now().After(identity.Expires) {
-		return &identity, trace.AccessDenied("identity is expired")
-	}
-
-	return &identity, nil
+	return identity, nil
 }
 
 // handleMetadata handles metadata requests. The response is handled by IdP, which serves

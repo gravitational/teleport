@@ -2,6 +2,7 @@ package saml
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/crewjam/saml"
@@ -10,37 +11,57 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/idp/saml/attribute"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const samlIdpLoginPath = "/web/saml-idp/login?redirect_uri="
+
+// GetSession ensures user session and applies RBAC against service provider resource.
 func (s *Service) GetSession(w http.ResponseWriter, r *http.Request, req *saml.IdpAuthnRequest) *saml.Session {
-	sess, err := s.getSession(r.Context(), req)
+	ctx := r.Context()
+	// username for the audit event.
+	username, err := getUsernameFromCtx(ctx)
 	if err != nil {
-		s.logger.ErrorContext(r.Context(), "Failed to get session", "error", err)
-		s.writeError(w, trace.ErrorToCode(err))
+		// It isn't expected for missing user identity at this stage so we log error here.
+		s.logger.WarnContext(ctx, "Error getting username from context", "error", err)
 	}
-	return sess
-}
 
-func (s *Service) getSession(ctx context.Context, req *saml.IdpAuthnRequest) (*saml.Session, error) {
 	entityID := s.getSPEntityID(ctx, req)
-
-	identity, err := getIdentityFromCtx(ctx)
+	sp, err := s.getServiceProvider(ctx, entityID)
 	if err != nil {
-		s.logger.DebugContext(ctx, "error getting identity from context", "error", err)
-		s.emitAuthAttemptEvent(ctx, "", entityID, "", err)
-		return nil, trace.Wrap(err)
+		s.emitAuthAttemptEvent(ctx, username, entityID, "", err)
+		s.writeError(w, trace.ErrorToCode(err))
+		return nil
+	}
+
+	identity, err := s.authorize(r, sp)
+	if err != nil {
+		if errors.Is(err, services.ErrSessionMFARequired) {
+			// redirect user to /web/saml-idp/login to provide mfa and try again.
+			redirectURL, err := SSORedirectURL(r, IdPRoute+r.URL.Path)
+			if err != nil {
+				trace.Wrap(err)
+			}
+			http.Redirect(w, r, samlIdpLoginPath+redirectURL.String(), http.StatusSeeOther)
+			return nil
+		}
+		s.emitAuthAttemptEvent(ctx, username, entityID, "", err)
+		s.logger.DebugContext(ctx, "User not authorized", "error", err)
+		s.writeError(w, http.StatusForbidden)
+		return nil
 	}
 
 	session, err := s.createSession(identity)
 	if err != nil {
-		s.emitAuthAttemptEvent(ctx, identity.Username, entityID, "", err)
-		return nil, trace.Wrap(err, "failed to create session")
+		s.emitAuthAttemptEvent(ctx, username, entityID, "", err)
+		s.logger.ErrorContext(ctx, "Failed to get session", "error", err)
+		s.writeError(w, trace.ErrorToCode(err))
+		return nil
 	}
 
-	s.emitAuthAttemptEvent(ctx, identity.Username, entityID, "", err)
-	return session, nil
+	return session
 }
 
 func (s *Service) getSPEntityID(ctx context.Context, req *saml.IdpAuthnRequest) string {
@@ -104,31 +125,47 @@ func SamlMappableAttributeToCustomAttribute(userSpec attribute.SAMLMappableUserS
 	return customAttributes
 }
 
-// GetServiceProvider will return service providers from the API.
+// GetServiceProvider will return matching service provider based on entity ID.
 func (s *Service) GetServiceProvider(r *http.Request, serviceProviderID string) (*saml.EntityDescriptor, error) {
-	var nextToken string
+	ctx := r.Context()
+	// username for the audit event.
+	username, err := getUsernameFromCtx(ctx)
+	if err != nil {
+		// It isn't expected for missing user identity at this stage so we log error here.
+		s.logger.WarnContext(ctx, "Error getting username from context", "error", err)
+	}
 
+	sp, err := s.getServiceProvider(ctx, serviceProviderID)
+	if err != nil {
+		s.emitAuthAttemptEvent(ctx, username, serviceProviderID, "", err)
+		return nil, trace.Wrap(err)
+	}
+	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+	if err != nil {
+		s.emitAuthAttemptEvent(ctx, username, serviceProviderID, "", err)
+		return nil, trace.Wrap(err)
+	}
+
+	return ed, err
+}
+
+func (s *Service) getServiceProvider(ctx context.Context, entityID string) (types.SAMLIdPServiceProvider, error) {
+	var nextToken string
 	for {
 		var sps []types.SAMLIdPServiceProvider
 		var err error
-		sps, nextToken, err = s.accessPoint.ListSAMLIdPServiceProviders(r.Context(), 0, nextToken)
+		sps, nextToken, err = s.accessPoint.ListSAMLIdPServiceProviders(ctx, 0, nextToken)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		// Search for the service provider with a matching entity ID.
 		for _, sp := range sps {
-			if sp.GetEntityID() == serviceProviderID {
+			if sp.GetEntityID() == entityID {
 				if err := validateAssertionConsumerServices(sp); err != nil {
 					return nil, trace.Wrap(err)
 				}
-
-				ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				return ed, nil
+				return sp, nil
 			}
 		}
 
@@ -137,14 +174,5 @@ func (s *Service) GetServiceProvider(r *http.Request, serviceProviderID string) 
 		}
 	}
 
-	// Getting metadata for the audit event.
-	user, err := getUsernameFromCtx(r.Context())
-	if err != nil {
-		s.logger.WarnContext(r.Context(), "error getting username from context", "error", err)
-	}
-
-	err = trace.NotFound("could not find service provider")
-	s.emitAuthAttemptEvent(r.Context(), user, serviceProviderID, "", err)
-
-	return nil, err
+	return nil, trace.NotFound("could not find service provider")
 }

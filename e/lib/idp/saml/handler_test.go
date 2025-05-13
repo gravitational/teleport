@@ -1,8 +1,6 @@
 package saml
 
 import (
-	"bytes"
-	"compress/flate"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -92,13 +90,13 @@ func TestAuth(t *testing.T) {
 	r = r.WithContext(authz.ContextWithUser(ctx, user))
 
 	env.samlIdPService.ServeHTTP(w, r)
-	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Equal(t, http.StatusForbidden, w.Code)
 
 	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
 		require.False(t, event.Success)
 		require.Equal(t, user.Username, event.User)
 		require.Equal(t, "SAML IdP is disabled at the cluster level", event.Error)
-		require.Empty(t, event.ServiceProviderEntityID)
+		require.Equal(t, sp1.GetEntityID(), event.ServiceProviderEntityID)
 	})
 
 	// Reenable the SAML IdP.
@@ -226,36 +224,11 @@ func TestMetadataValues(t *testing.T) {
 }
 
 func TestSSOGET(t *testing.T) {
-	testSSO(t, http.MethodGet, func(r *http.Request, authnRequest saml.AuthnRequest, relayState string) {
-		var buf bytes.Buffer
-		require.NoError(t, xml.NewEncoder(&buf).Encode(authnRequest))
-
-		var compressedBuf bytes.Buffer
-		flateWriter, err := flate.NewWriter(&compressedBuf, flate.DefaultCompression)
-		flateWriter.Write(buf.Bytes())
-		require.NoError(t, flateWriter.Close())
-
-		encodedRequest := base64.StdEncoding.EncodeToString(compressedBuf.Bytes())
-		require.NoError(t, err)
-
-		values := r.URL.Query()
-		values.Add("SAMLRequest", encodedRequest)
-		values.Add("RelayState", relayState)
-		r.URL.RawQuery = values.Encode()
-	})
+	testSSO(t, http.MethodGet)
 }
 
 func TestSSOPOST(t *testing.T) {
-	testSSO(t, http.MethodPost, func(r *http.Request, authnRequest saml.AuthnRequest, relayState string) {
-		var buf bytes.Buffer
-		require.NoError(t, xml.NewEncoder(&buf).Encode(authnRequest))
-
-		encodedRequest := base64.StdEncoding.EncodeToString(buf.Bytes())
-
-		r.PostForm = url.Values{}
-		r.PostForm.Add("SAMLRequest", encodedRequest)
-		r.PostForm.Add("RelayState", relayState)
-	})
+	testSSO(t, http.MethodPost)
 }
 
 // Note: The XML validator will return error on a valid tag supplied to ACS field,
@@ -289,7 +262,7 @@ func createSamlIdPServiceProviderItem(t *testing.T, ctx context.Context, env *tE
 	return sp1
 }
 
-func testSSO(t *testing.T, method string, addRequest func(*http.Request, saml.AuthnRequest, string)) {
+func testSSO(t *testing.T, method string) {
 	ctx := context.Background()
 	clock := clockwork.NewRealClock()
 	env := newTEnv(ctx, t, clock)
@@ -311,7 +284,12 @@ func testSSO(t *testing.T, method string, addRequest func(*http.Request, saml.Au
 	r := httptest.NewRequest(method, path.Join(IdPRoute, "sso"), nil)
 	r = r.WithContext(authz.ContextWithUser(r.Context(), user))
 
-	addRequest(r, authnRequest, relayStateWithHTMlTag)
+	authnMessage := testenv.MakeAuthnMessage(t, authnRequest, method, relayStateWithHTMlTag)
+	if method == http.MethodGet {
+		r.URL.RawQuery = authnMessage.Encode()
+	} else {
+		r.PostForm = authnMessage
+	}
 
 	env.samlIdPService.ServeHTTP(w, r)
 	require.Equal(t, http.StatusOK, w.Code)
@@ -469,20 +447,268 @@ func TestLockUser(t *testing.T) {
 	}, time.Second*3, time.Millisecond*250)
 }
 
-func setupUser(t *testing.T, svcs testenv.TEnv, expireTime time.Time) authz.LocalUser {
-	ctx := context.Background()
+func TestIdPInitiatedSSOWithRBAC(t *testing.T) {
+	t.Parallel()
 
-	type client struct {
-		services.Access
-		services.Identity
+	ctx := context.Background()
+	clock := clockwork.NewRealClock()
+	env := newTEnv(ctx, t, clock)
+	env.testServices.Client.SigningCtx = testenv.WithRole(ctx, types.RoleProxy)
+	user := setupUser(t, env.testServices, clock.Now().Add(time.Hour))
+
+	sp1, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "saml-app",
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: testenv.NewTestEntityDescriptor("saml-app", "https://saml-app/acs"),
+			EntityID:         "saml-app",
+			RelayState:       "test-relay-state",
+		},
+	)
+	require.NoError(t, err)
+	require.NoError(t, env.testServices.SPService.CreateSAMLIdPServiceProvider(ctx, sp1))
+
+	tests := []struct {
+		name             string
+		allow            types.RoleConditions
+		deny             types.RoleConditions
+		httpStatus       int
+		authAttemptEvent func(*apievents.SAMLIdPAuthAttempt)
+	}{
+		{
+			name:       "without app label",
+			allow:      types.RoleConditions{},
+			httpStatus: http.StatusForbidden,
+			authAttemptEvent: func(event *apievents.SAMLIdPAuthAttempt) {
+				require.False(t, event.Success)
+				require.Equal(t, user.Username, event.User)
+				require.Contains(t, event.Error, "User does not have permissions")
+				require.Equal(t, sp1.GetEntityID(), event.ServiceProviderEntityID)
+			},
+		},
+		{
+			name: "with app label but denied saml_idp_service_provider resource read verb",
+			allow: types.RoleConditions{
+				AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			},
+			deny: types.RoleConditions{
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindSAMLIdPServiceProvider},
+						Verbs:     services.RO(),
+					},
+				},
+			},
+			httpStatus: http.StatusForbidden,
+			authAttemptEvent: func(event *apievents.SAMLIdPAuthAttempt) {
+				require.False(t, event.Success)
+				require.Equal(t, user.Username, event.User)
+				require.Contains(t, event.Error, "access denied")
+				require.Equal(t, sp1.GetEntityID(), event.ServiceProviderEntityID)
+			},
+		},
+		{
+			name: "with wildcard app label",
+			allow: types.RoleConditions{
+				AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindSAMLIdPServiceProvider},
+						Verbs:     services.RO(),
+					},
+				},
+			},
+			httpStatus: http.StatusOK,
+			authAttemptEvent: func(event *apievents.SAMLIdPAuthAttempt) {
+				require.True(t, event.Success)
+				require.Equal(t, user.Username, event.User)
+				require.Empty(t, event.Error)
+				require.Equal(t, sp1.GetEntityID(), event.ServiceProviderEntityID)
+			},
+		},
 	}
 
-	clt := client{
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			role, err := env.testServices.AccessService.GetRole(ctx, roleName)
+			require.NoError(t, err)
+
+			role.SetRules(types.Allow, test.allow.Rules)
+			role.SetRules(types.Deny, test.deny.Rules)
+			role.SetAppLabels(types.Allow, test.allow.AppLabels)
+			_, err = env.testServices.AccessService.UpsertRole(ctx, role)
+			require.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			// try with Get
+			r := httptest.NewRequest(http.MethodGet, path.Join(IdPRoute, "login", "saml-app"), nil)
+			r = r.WithContext(authz.ContextWithUser(r.Context(), user))
+
+			env.samlIdPService.ServeHTTP(w, r)
+			require.Equal(t, test.httpStatus, w.Code)
+			expectAuthAttemptEvent(t, env.testServices.Emitter, test.authAttemptEvent)
+
+			// try with POST
+			r = httptest.NewRequest(http.MethodPost, path.Join(IdPRoute, "login", "saml-app"), nil)
+			r = r.WithContext(authz.ContextWithUser(r.Context(), user))
+
+			env.samlIdPService.ServeHTTP(w, r)
+			require.Equal(t, test.httpStatus, w.Code)
+			expectAuthAttemptEvent(t, env.testServices.Emitter, test.authAttemptEvent)
+		})
+	}
+}
+
+func TestSPInitiatedSSOWithRBAC(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewRealClock()
+	env := newTEnv(ctx, t, clock)
+	env.testServices.Client.SigningCtx = testenv.WithRole(ctx, types.RoleProxy)
+	user := setupUser(t, env.testServices, clock.Now().Add(time.Hour))
+
+	sp1, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "saml-app",
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: testenv.NewTestEntityDescriptor("saml-app", "https://saml-app/acs"),
+			EntityID:         "saml-app",
+			RelayState:       "test-relay-state",
+		},
+	)
+	require.NoError(t, err)
+	require.NoError(t, env.testServices.SPService.CreateSAMLIdPServiceProvider(ctx, sp1))
+
+	tests := []struct {
+		name             string
+		allow            types.RoleConditions
+		deny             types.RoleConditions
+		httpStatus       int
+		authAttemptEvent func(*apievents.SAMLIdPAuthAttempt)
+	}{
+		{
+			name:       "without app label and saml_idp_service_provider resource read verb",
+			allow:      types.RoleConditions{},
+			httpStatus: http.StatusForbidden,
+			authAttemptEvent: func(event *apievents.SAMLIdPAuthAttempt) {
+				require.False(t, event.Success)
+				require.Equal(t, user.Username, event.User)
+				require.Contains(t, event.Error, "User does not have permissions")
+				require.Equal(t, sp1.GetEntityID(), event.ServiceProviderEntityID)
+			},
+		},
+		{
+			name: "with app label but denied saml_idp_service_provider resource read verb",
+			allow: types.RoleConditions{
+				AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			},
+			deny: types.RoleConditions{
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindSAMLIdPServiceProvider},
+						Verbs:     services.RO(),
+					},
+				},
+			},
+			httpStatus: http.StatusForbidden,
+			authAttemptEvent: func(event *apievents.SAMLIdPAuthAttempt) {
+				require.False(t, event.Success)
+				require.Equal(t, user.Username, event.User)
+				require.Contains(t, event.Error, "access denied")
+				require.Equal(t, sp1.GetEntityID(), event.ServiceProviderEntityID)
+			},
+		},
+		{
+			name: "with read verb and wildcard app label",
+			allow: types.RoleConditions{
+				AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindSAMLIdPServiceProvider},
+						Verbs:     services.RO(),
+					},
+				},
+			},
+			httpStatus: http.StatusOK,
+			authAttemptEvent: func(event *apievents.SAMLIdPAuthAttempt) {
+				require.True(t, event.Success)
+				require.Equal(t, user.Username, event.User)
+				require.Empty(t, event.Error)
+				require.Equal(t, sp1.GetEntityID(), event.ServiceProviderEntityID)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+
+			role, err := env.testServices.AccessService.GetRole(ctx, roleName)
+			require.NoError(t, err)
+
+			role.SetRules(types.Allow, test.allow.Rules)
+			role.SetRules(types.Deny, test.deny.Rules)
+			role.SetAppLabels(types.Allow, test.allow.AppLabels)
+			_, err = env.testServices.AccessService.UpsertRole(ctx, role)
+			require.NoError(t, err)
+
+			authnRequest := saml.AuthnRequest{
+				ID:           "auth-id",
+				Version:      "2.0",
+				IssueInstant: clock.Now(),
+				Issuer: &saml.Issuer{
+					Value: sp1.GetEntityID(),
+				},
+			}
+			w := httptest.NewRecorder()
+
+			// HTTP-POST binding
+			r := httptest.NewRequest(http.MethodPost, path.Join(IdPRoute, "sso"), nil)
+			r = r.WithContext(authz.ContextWithUser(r.Context(), user))
+			r.PostForm = testenv.MakeAuthnMessage(t, authnRequest, http.MethodPost, "")
+
+			env.samlIdPService.ServeHTTP(w, r)
+			require.Equal(t, test.httpStatus, w.Code)
+			expectAuthAttemptEvent(t, env.testServices.Emitter, test.authAttemptEvent)
+
+			// HTTP-Redirect binding
+			r = httptest.NewRequest(http.MethodGet, path.Join(IdPRoute, "sso"), nil)
+			r = r.WithContext(authz.ContextWithUser(r.Context(), user))
+			r.URL.RawQuery = testenv.MakeAuthnMessage(t, authnRequest, http.MethodGet, "").Encode()
+
+			env.samlIdPService.ServeHTTP(w, r)
+			require.Equal(t, test.httpStatus, w.Code)
+			expectAuthAttemptEvent(t, env.testServices.Emitter, test.authAttemptEvent)
+		})
+	}
+}
+
+const roleName = "test-role"
+
+// setupUser creates user with specified role. If roleSpec is nil, default role is applied
+// that has an Allow condition with a wildcard App Label and rule for KindSAMLIdPServiceProvider
+// resource with services.RO() verbs.
+func setupUser(t *testing.T, svcs testenv.TEnv, expireTime time.Time) authz.LocalUser {
+	ctx := context.Background()
+	clt := struct {
+		services.Access
+		services.Identity
+	}{
 		Access:   svcs.AccessService,
 		Identity: svcs.UserService,
 	}
 
-	role, err := auth.CreateRole(ctx, clt, "test-group", types.RoleSpecV6{})
+	role, err := auth.CreateRole(ctx, clt, roleName, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSAMLIdPServiceProvider},
+					Verbs:     services.RO(),
+				},
+			},
+		},
+	})
 	require.NoError(t, err)
 
 	user, err := types.NewUser("user1")
@@ -493,13 +719,9 @@ func setupUser(t *testing.T, svcs testenv.TEnv, expireTime time.Time) authz.Loca
 
 	identity := tlsca.Identity{
 		Username: user.GetName(),
-		Groups:   []string{"test-group"},
+		Groups:   []string{roleName},
 		Expires:  expireTime,
 	}
-
-	s, err := identity.Subject()
-	require.NoError(t, err)
-	s.Names = s.ExtraNames
 
 	return authz.LocalUser{
 		Username: user.GetName(),

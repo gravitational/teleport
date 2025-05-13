@@ -1,12 +1,19 @@
 package testenv
 
 import (
+	"bytes"
+	"compress/flate"
 	"context"
 	"crypto/x509/pkix"
+	"encoding/base64"
+	"encoding/xml"
 	"fmt"
+	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
+	"github.com/crewjam/saml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -161,8 +168,7 @@ func NewTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 	})
 	require.NoError(t, err)
 
-	emitter := eventstest.NewChannelEmitter(1)
-
+	emitter := eventstest.NewChannelEmitter(20)
 	keyStore := keystore.NewSoftwareKeystoreForTests(t)
 
 	svc, err := generic.NewService(&generic.ServiceConfig[types.SAMLIdPServiceProvider]{
@@ -253,4 +259,29 @@ func FindNode(node *html.Node, name string) *html.Node {
 	}
 
 	return nil
+}
+
+// MakeAuthnMessage returns url.Values as per SAML HTTP-Redirect binding or HTTP-POST binding format.
+func MakeAuthnMessage(t *testing.T, authnRequest saml.AuthnRequest, httpMethod, relayState string) url.Values {
+	t.Helper()
+	var buf bytes.Buffer
+	require.NoError(t, xml.NewEncoder(&buf).Encode(authnRequest))
+
+	var encodedRequest string
+	if httpMethod == http.MethodGet {
+		var compressedBuf bytes.Buffer
+		flateWriter, err := flate.NewWriter(&compressedBuf, flate.DefaultCompression)
+		flateWriter.Write(buf.Bytes())
+		require.NoError(t, flateWriter.Close())
+
+		encodedRequest = base64.StdEncoding.EncodeToString(compressedBuf.Bytes())
+		require.NoError(t, err)
+	} else {
+		encodedRequest = base64.StdEncoding.EncodeToString(buf.Bytes())
+	}
+
+	return url.Values{
+		"SAMLRequest": []string{encodedRequest},
+		"RelayState":  []string{relayState},
+	}
 }

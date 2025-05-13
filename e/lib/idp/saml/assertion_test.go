@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/idp/saml/attribute"
 	"github.com/gravitational/teleport/e/lib/idp/saml/testenv"
+	"github.com/gravitational/teleport/lib/authz"
 )
 
 func TestMakeAssertion(t *testing.T) {
@@ -72,7 +73,8 @@ func TestMakeAssertion(t *testing.T) {
 	ed, err := samlsp.ParseMetadata([]byte(sp1.GetEntityDescriptor()))
 	require.NoError(t, err)
 
-	testReq := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
+	user := setupUser(t, env.testServices, clock.Now().Add(time.Hour))
+	testReq := httptest.NewRequest("GET", "/", nil).WithContext(authz.ContextWithUser(ctx, user))
 
 	// Create a valid AuthnRequest.
 	authnReq := saml.AuthnRequest{
