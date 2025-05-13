@@ -93,7 +93,7 @@ func (id *IDTokenValidator) Validate(
 	// based on the issuer.
 	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
 	verifier := rp.NewIDTokenVerifier(issuer, audience, ks)
-	// TODO(noah): It'd be ideal if we could extent the verifier to use an
+	// TODO(noah): It'd be ideal if we could extend the verifier to use an
 	// injected "now" time.
 
 	claims, err := rp.VerifyIDToken[*IDTokenClaims](timeoutCtx, token, verifier)
