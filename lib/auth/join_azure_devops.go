@@ -46,7 +46,7 @@ func (a *Server) checkAzureDevopsJoinRequest(ctx context.Context, req *types.Reg
 
 	claims, err := a.azureDevopsIDTokenValidator.Validate(
 		ctx,
-		token.Spec.CircleCI.OrganizationID,
+		token.Spec.AzureDevops.OrganizationID,
 		req.IDToken,
 	)
 	if err != nil {
@@ -59,7 +59,7 @@ func (a *Server) checkAzureDevopsJoinRequest(ctx context.Context, req *types.Reg
 func checkAzureDevopsAllowRules(token *types.ProvisionTokenV2, claims *azuredevops.IDTokenClaims) error {
 	// If a single rule passes, accept the IDToken
 	for _, rule := range token.Spec.AzureDevops.Allow {
-		if rule.Sub != "" && rule.Sub != claims.Subject {
+		if rule.Sub != "" && rule.Sub != claims.Sub {
 			continue
 		}
 		if rule.ProjectName != "" && rule.ProjectName != claims.ProjectName {

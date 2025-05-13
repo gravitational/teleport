@@ -94,6 +94,7 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/azuredevops"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/cache"
@@ -668,6 +669,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+	if as.azureDevopsIDTokenValidator == nil {
+		as.azureDevopsIDTokenValidator = azuredevops.NewIDTokenValidator()
 	}
 	if as.circleCITokenValidate == nil {
 		as.circleCITokenValidate = func(
