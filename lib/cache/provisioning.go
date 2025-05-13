@@ -20,88 +20,106 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
-type provisioningStateGetter interface {
-	GetProvisioningState(context.Context, services.DownstreamID, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
-	ListProvisioningStatesForAllDownstreams(context.Context, int, *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error)
-}
+type principalStateIndex string
 
-type provisioningStateExecutor struct{}
+const principalStateNameIndex principalStateIndex = "name"
 
-func (provisioningStateExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*provisioningv1.PrincipalState, error) {
-	if cache == nil {
-		return nil, trace.BadParameter("cache is nil")
+func newPrincipalStateCollection(upstream services.ProvisioningStates, w types.WatchKind) (*collection[*provisioningv1.PrincipalState, principalStateIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter ProvisioningStates")
 	}
 
-	if cache.ProvisioningStates == nil {
-		return nil, trace.BadParameter("cache provisioning state source is not set")
+	return &collection[*provisioningv1.PrincipalState, principalStateIndex]{
+		store: newStore(
+			proto.CloneOf[*provisioningv1.PrincipalState],
+			map[principalStateIndex]func(*provisioningv1.PrincipalState) string{
+				principalStateNameIndex: func(r *provisioningv1.PrincipalState) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*provisioningv1.PrincipalState, error) {
+			var page pagination.PageRequestToken
+			var resources []*provisioningv1.PrincipalState
+			for {
+				var resourcesPage []*provisioningv1.PrincipalState
+				var err error
+
+				resourcesPage, nextPage, err := upstream.ListProvisioningStatesForAllDownstreams(ctx, 0, &page)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				resources = append(resources, resourcesPage...)
+
+				if nextPage == "" {
+					break
+				}
+				page.Update(nextPage)
+			}
+
+			return resources, nil
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *provisioningv1.PrincipalState {
+			return &provisioningv1.PrincipalState{
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
+				Metadata: &headerv1.Metadata{
+					Name: hdr.Metadata.Name,
+				},
+			}
+		},
+		watch: w,
+	}, nil
+}
+
+func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.DownstreamID, id services.ProvisioningStateID) (*provisioningv1.PrincipalState, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetProvisioningState")
+	defer span.End()
+
+	getter := genericGetter[*provisioningv1.PrincipalState, principalStateIndex]{
+		cache:      c,
+		collection: c.collections.provisioningStates,
+		index:      principalStateNameIndex,
+		upstreamGet: func(ctx context.Context, s string) (*provisioningv1.PrincipalState, error) {
+			out, err := c.Config.ProvisioningStates.GetProvisioningState(ctx, downstream, id)
+			return out, trace.Wrap(err)
+		},
+	}
+	out, err := getter.get(ctx, string(id))
+	return out, trace.Wrap(err)
+}
+
+func (c *Cache) ListProvisioningStatesForAllDownstreams(ctx context.Context, pageSize int, req *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListProvisioningStatesForAllDownstreams")
+	defer span.End()
+
+	lister := genericLister[*provisioningv1.PrincipalState, principalStateIndex]{
+		cache:      c,
+		collection: c.collections.provisioningStates,
+		index:      principalStateNameIndex,
+		upstreamList: func(ctx context.Context, pageSize int, s string) ([]*provisioningv1.PrincipalState, string, error) {
+			out, next, err := c.Config.ProvisioningStates.ListProvisioningStatesForAllDownstreams(ctx, pageSize, req)
+			return out, string(next), trace.Wrap(err)
+		},
+		nextToken: func(t *provisioningv1.PrincipalState) string {
+			return t.GetMetadata().GetName()
+		},
 	}
 
-	var page pagination.PageRequestToken
-	var resources []*provisioningv1.PrincipalState
-	for {
-		var resourcesPage []*provisioningv1.PrincipalState
-		var err error
-
-		resourcesPage, nextPage, err := cache.ProvisioningStates.ListProvisioningStatesForAllDownstreams(ctx, 0, &page)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resources = append(resources, resourcesPage...)
-
-		if nextPage == pagination.EndOfList {
-			break
-		}
-		page.Update(nextPage)
-	}
-	return resources, nil
-}
-
-func (provisioningStateExecutor) upsert(ctx context.Context, cache *Cache, resource *provisioningv1.PrincipalState) error {
-	_, err := cache.provisioningStatesCache.UpsertProvisioningState(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (provisioningStateExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	unwrapper, ok := resource.(types.Resource153UnwrapperT[*provisioningv1.PrincipalState])
-	if !ok {
-		return trace.BadParameter("resource must implement Resource153Unwrapper: %T", resource)
+	nextToken, err := req.Consume()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
-	principalState := unwrapper.UnwrapT()
-	principalStateID := principalState.GetMetadata().GetName()
-	downstreamID := principalState.GetSpec().GetDownstreamId()
-	if principalStateID == "" || downstreamID == "" {
-		return trace.BadParameter("malformed PrincipalState")
-	}
-
-	err := cache.provisioningStatesCache.DeleteProvisioningState(
-		ctx,
-		services.DownstreamID(downstreamID),
-		services.ProvisioningStateID(principalStateID))
-	return trace.Wrap(err)
+	out, next, err := lister.list(ctx, pageSize, nextToken)
+	return out, pagination.NextPageToken(next), trace.Wrap(err)
 }
-
-func (provisioningStateExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return trace.Wrap(cache.provisioningStatesCache.DeleteAllProvisioningStates(ctx))
-}
-
-func (provisioningStateExecutor) getReader(cache *Cache, cacheOK bool) provisioningStateGetter {
-	if cacheOK {
-		return cache.provisioningStatesCache
-	}
-	return cache.Config.ProvisioningStates
-}
-
-func (provisioningStateExecutor) isSingleton() bool {
-	return false
-}
-
-var _ executor[*provisioningv1.PrincipalState, provisioningStateGetter] = provisioningStateExecutor{}

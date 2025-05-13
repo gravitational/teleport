@@ -140,7 +140,7 @@ type testPack struct {
 	crownJewels             services.CrownJewels
 	databaseObjects         services.DatabaseObjects
 	spiffeFederations       *local.SPIFFEFederationService
-	staticHostUsers         services.StaticHostUser
+	staticHostUsers         *local.StaticHostUserService
 	autoUpdateService       services.AutoUpdateService
 	provisioningStates      services.ProvisioningStates
 	identityCenter          services.IdentityCenter
@@ -1249,45 +1249,6 @@ func newUserTasks(t *testing.T) *usertasksv1.UserTask {
 	return ut
 }
 
-// TestDiscoveryConfig tests that CRUD operations on DiscoveryConfig resources are
-// replicated from the backend to the cache.
-func TestDiscoveryConfig(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[*discoveryconfig.DiscoveryConfig]{
-		newResource: func(name string) (*discoveryconfig.DiscoveryConfig, error) {
-			dc, err := discoveryconfig.NewDiscoveryConfig(
-				header.Metadata{Name: "mydc"},
-				discoveryconfig.Spec{
-					DiscoveryGroup: "group001",
-				})
-			require.NoError(t, err)
-			return dc, nil
-		},
-		create: func(ctx context.Context, discoveryConfig *discoveryconfig.DiscoveryConfig) error {
-			_, err := p.discoveryConfigs.CreateDiscoveryConfig(ctx, discoveryConfig)
-			return trace.Wrap(err)
-		},
-		list: func(ctx context.Context) ([]*discoveryconfig.DiscoveryConfig, error) {
-			results, _, err := p.discoveryConfigs.ListDiscoveryConfigs(ctx, 0, "")
-			return results, err
-		},
-		cacheGet: p.cache.GetDiscoveryConfig,
-		cacheList: func(ctx context.Context) ([]*discoveryconfig.DiscoveryConfig, error) {
-			results, _, err := p.cache.ListDiscoveryConfigs(ctx, 0, "")
-			return results, err
-		},
-		update: func(ctx context.Context, discoveryConfig *discoveryconfig.DiscoveryConfig) error {
-			_, err := p.discoveryConfigs.UpdateDiscoveryConfig(ctx, discoveryConfig)
-			return trace.Wrap(err)
-		},
-		deleteAll: p.discoveryConfigs.DeleteAllDiscoveryConfigs,
-	})
-}
-
 // TestAuditQuery tests that CRUD operations on access list rule resources are
 // replicated from the backend to the cache.
 func TestAuditQuery(t *testing.T) {
@@ -1369,34 +1330,6 @@ func TestSecurityReportState(t *testing.T) {
 	})
 }
 
-// TestStaticHostUsers tests that CRUD operations on static host user resources are
-// replicated from the backend to the cache.
-func TestStaticHostUsers(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources153(t, p, testFuncs153[*userprovisioningpb.StaticHostUser]{
-		newResource: func(name string) (*userprovisioningpb.StaticHostUser, error) {
-			return newStaticHostUser(t, name), nil
-		},
-		create: func(ctx context.Context, item *userprovisioningpb.StaticHostUser) error {
-			_, err := p.staticHostUsers.CreateStaticHostUser(ctx, item)
-			return trace.Wrap(err)
-		},
-		list: func(ctx context.Context) ([]*userprovisioningpb.StaticHostUser, error) {
-			items, _, err := p.staticHostUsers.ListStaticHostUsers(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context) ([]*userprovisioningpb.StaticHostUser, error) {
-			items, _, err := p.cache.ListStaticHostUsers(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		deleteAll: p.cache.staticHostUsersCache.DeleteAllStaticHostUsers,
-	})
-}
-
 // testResources is a generic tester for resources.
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
@@ -1430,11 +1363,11 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Wait until the information has been replicated to the cache.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Make sure the cache has a single resource in it.
 		out, err = funcs.cacheList(ctx)
 		assert.NoError(t, err)
-		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
+		assert.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 	}, time.Second*2, time.Millisecond*250)
 
 	// cacheGet is optional as not every resource implements it
@@ -1460,11 +1393,11 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Check that information has been replicated to the cache.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Make sure the cache has a single resource in it.
 		out, err = funcs.cacheList(ctx)
 		assert.NoError(t, err)
-		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
+		assert.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 	}, time.Second*2, time.Millisecond*250)
 
 	// Remove all service providers from the backend.
@@ -1497,23 +1430,24 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 	cmpOpts := []cmp.Option{
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
+		cmpopts.EquateEmpty(),
 	}
 
 	assertCacheContents := func(expected []T) {
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			out, err := funcs.cacheList(ctx)
-			assert.NoError(collect, err)
+			assert.NoError(t, err)
 
 			// If the cache is expected to be empty, then test explicitly for
 			// *that* rather than do an equality test. An equality test here
 			// would be overly-pedantic about a service returning `nil` rather
 			// than an empty slice.
 			if len(expected) == 0 {
-				assert.Empty(collect, out)
+				assert.Empty(t, out)
 				return
 			}
 
-			assert.Empty(collect, cmp.Diff(expected, out, cmpOpts...))
+			assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))
 		}, 2*time.Second, 10*time.Millisecond)
 	}
 
@@ -2120,9 +2054,7 @@ func TestPartialHealth(t *testing.T) {
 	require.Equal(t, "cache", resultUser.GetMetadata().Labels["origin"])
 
 	// query cache storage directly to ensure roles haven't been replicated
-	rolesStoredInCache, err := p.cache.accessCache.GetRoles(ctx)
-	require.NoError(t, err)
-	require.Empty(t, rolesStoredInCache)
+	require.Empty(t, p.cache.collections.roles.store.len())
 
 	// non-empty result here proves that it was not served from cache
 	resultRoles, err := p.cache.GetRoles(ctx)

@@ -332,6 +332,9 @@ const (
 	// KindAutoUpdateAgentRollout is the resource that controls and tracks agent rollouts.
 	KindAutoUpdateAgentRollout = "autoupdate_agent_rollout"
 
+	// KindAutoUpdateAgentReport is the resource that tracks connected agents.
+	KindAutoUpdateAgentReport = "autoupdate_agent_report"
+
 	// MetaNameAutoUpdateConfig is the name of a configuration resource for autoupdate config.
 	MetaNameAutoUpdateConfig = "autoupdate-config"
 
@@ -636,6 +639,9 @@ const (
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
+
+	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
+	MetaNameVnetConfig = "vnet-config"
 
 	// V8 is the eighth version of resources.
 	V8 = "v8"
@@ -1370,6 +1376,7 @@ var RequestableResourceKinds = []string{
 	KindSAMLIdPServiceProvider,
 	KindIdentityCenterAccount,
 	KindIdentityCenterAccountAssignment,
+	KindGitServer,
 }
 
 // The list below needs to be kept in sync with `kubernetesResourceKindOptions`

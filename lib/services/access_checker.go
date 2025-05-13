@@ -95,7 +95,14 @@ type AccessChecker interface {
 	// CheckAccessToSAMLIdP checks access to the SAML IdP.
 	//
 	//nolint:revive // Because we want this to be IdP.
+	// TODO(sshah): Delete after enterprise changes is merged to use v2.
 	CheckAccessToSAMLIdP(readonly.AuthPreference, AccessState) error
+
+	// CheckAccessToSAMLIdPV2 checks access to SAML IdP service provider resource.
+	// It checks for both the legacy RBAC (role v7 and below) that checks for IDP
+	// role option and MFA, as well as non-legacy RBAC (role v8 and above) that checks
+	// for labels, MFA and Device Trust.
+	CheckAccessToSAMLIdPV2(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error
 
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
@@ -485,6 +492,18 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 	}
 
 	return trace.Wrap(a.RoleSet.checkAccess(r, a.info.Traits, state, matchers...))
+}
+
+// CheckAccessToSAMLIdPV2 checks access to SAML IdP service provider resource.
+// It checks for both the legacy RBAC (role v7 and below) that checks for IDP
+// role option and MFA, as well as non-legacy RBAC (role v8 and above) that checks
+// for labels, MFA and Device Trust.
+func (a *accessChecker) CheckAccessToSAMLIdPV2(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
+	if err := a.checkAllowedResources(r); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.RoleSet.CheckAccessToSAMLIdPV2(r, a.info.Traits, authPref, state, matchers...))
 }
 
 // GetKubeResources returns the allowed and denied Kubernetes Resources configured
@@ -1345,20 +1364,16 @@ type UserState interface {
 	// GetUserType returns the user type for the user login state.
 	GetUserType() types.UserType
 
+	// GetLabel fetches the given user label.
+	GetLabel(key string) (value string, ok bool)
+
 	// IsBot returns true if the user belongs to a bot.
 	IsBot() bool
 
 	// GetGithubIdentities returns a list of connected GitHub identities
 	GetGithubIdentities() []types.ExternalIdentity
-}
-
-// AccessInfoFromUser return a new AccessInfo populated from the roles and
-// traits held be the given user. This should only be used in cases where the
-// user does not have any active access requests (initial web login, initial
-// tbot certs, tests).
-// TODO(mdwn): Remove this once enterprise has been moved away from this function.
-func AccessInfoFromUser(user types.User) *AccessInfo {
-	return AccessInfoFromUserState(user)
+	// SetGithubIdentities sets the list of connected GitHub identities
+	SetGithubIdentities(identities []types.ExternalIdentity)
 }
 
 // AccessInfoFromUserState return a new AccessInfo populated from the roles and

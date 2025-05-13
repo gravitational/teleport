@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { type JSX } from 'react';
 import styled, { css } from 'styled-components';
 
 import { Box, ButtonBorder, Indicator, Mark, Text } from 'design';
@@ -38,7 +39,11 @@ import { useInfiniteScroll } from 'shared/hooks';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { pluralize } from 'shared/utils/text';
 
-import { SharedResourceServer, UnifiedResourceDefinition } from '../types';
+import {
+  ResourceStatus,
+  SharedResourceServer,
+  UnifiedResourceDefinition,
+} from '../types';
 import { SingleLineBox } from './SingleLineBox';
 import { getDatabaseIconName } from './viewItemsFactory';
 
@@ -309,4 +314,8 @@ export function openStatusInfoPanel({
       viewHasOwnSidePanel: isEnterprise,
     });
   }
+}
+
+export function isUnhealthy(status: ResourceStatus): boolean {
+  return status && status === 'unhealthy';
 }

@@ -24,6 +24,7 @@ import React, {
   useLayoutEffect,
   useRef,
   useState,
+  type JSX,
 } from 'react';
 import styled from 'styled-components';
 
@@ -201,7 +202,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     onShowStatusInfo,
   } = props;
 
-  const containerRef = useRef<HTMLDivElement>();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const { setTrigger } = useInfiniteScroll({
     fetch: fetchResources,

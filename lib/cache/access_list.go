@@ -39,11 +39,13 @@ func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (
 	}
 
 	return &collection[*accesslist.AccessList, accessListIndex]{
-		store: newStore(map[accessListIndex]func(*accesslist.AccessList) string{
-			accessListNameIndex: func(al *accesslist.AccessList) string {
-				return al.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			(*accesslist.AccessList).Clone,
+			map[accessListIndex]func(*accesslist.AccessList) string{
+				accessListNameIndex: func(al *accesslist.AccessList) string {
+					return al.GetMetadata().Name
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.AccessList, error) {
 			var resources []*accesslist.AccessList
 			var nextToken string
@@ -115,9 +117,6 @@ func (c *Cache) ListAccessLists(ctx context.Context, pageSize int, pageToken str
 		nextToken: func(t *accesslist.AccessList) string {
 			return t.GetMetadata().Name
 		},
-		clone: func(al *accesslist.AccessList) *accesslist.AccessList {
-			return al.Clone()
-		},
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
@@ -136,9 +135,6 @@ func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.Acc
 		upstreamGet: func(ctx context.Context, s string) (*accesslist.AccessList, error) {
 			upstreamRead = true
 			return c.Config.AccessLists.GetAccessList(ctx, s)
-		},
-		clone: func(al *accesslist.AccessList) *accesslist.AccessList {
-			return al.Clone()
 		},
 	}
 	out, err := getter.get(ctx, name)
@@ -165,14 +161,16 @@ func newAccessListMemberCollection(upstream services.AccessLists, w types.WatchK
 	}
 
 	return &collection[*accesslist.AccessListMember, accessListMemberIndex]{
-		store: newStore(map[accessListMemberIndex]func(*accesslist.AccessListMember) string{
-			accessListMemberNameIndex: func(r *accesslist.AccessListMember) string {
-				return r.Spec.AccessList + "/" + r.GetName()
-			},
-			accessListMemberKindIndex: func(r *accesslist.AccessListMember) string {
-				return r.Spec.AccessList + "/" + r.Spec.MembershipKind + "/" + r.GetName()
-			},
-		}),
+		store: newStore(
+			(*accesslist.AccessListMember).Clone,
+			map[accessListMemberIndex]func(*accesslist.AccessListMember) string{
+				accessListMemberNameIndex: func(r *accesslist.AccessListMember) string {
+					return r.Spec.AccessList + "/" + r.GetName()
+				},
+				accessListMemberKindIndex: func(r *accesslist.AccessListMember) string {
+					return r.Spec.AccessList + "/" + r.Spec.MembershipKind + "/" + r.GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.AccessListMember, error) {
 			var resources []*accesslist.AccessListMember
 			var nextToken string
@@ -288,9 +286,6 @@ func (c *Cache) ListAllAccessListMembers(ctx context.Context, pageSize int, page
 		nextToken: func(t *accesslist.AccessListMember) string {
 			return t.GetMetadata().Name
 		},
-		clone: func(al *accesslist.AccessListMember) *accesslist.AccessListMember {
-			return al.Clone()
-		},
 	}
 	out, next, err := lister.list(ctx, pageSize, nextToken)
 	return out, next, trace.Wrap(err)
@@ -332,11 +327,13 @@ func newAccessListReviewCollection(upstream services.AccessLists, w types.WatchK
 	}
 
 	return &collection[*accesslist.Review, accessListReviewIndex]{
-		store: newStore(map[accessListReviewIndex]func(*accesslist.Review) string{
-			accessListReviewNameIndex: func(r *accesslist.Review) string {
-				return r.Spec.AccessList + "/" + r.GetName()
-			},
-		}),
+		store: newStore(
+			(*accesslist.Review).Clone,
+			map[accessListReviewIndex]func(*accesslist.Review) string{
+				accessListReviewNameIndex: func(r *accesslist.Review) string {
+					return r.Spec.AccessList + "/" + r.GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.Review, error) {
 			var resources []*accesslist.Review
 			var nextToken string
@@ -390,9 +387,6 @@ func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pa
 		},
 		nextToken: func(t *accesslist.Review) string {
 			return t.GetName()
-		},
-		clone: func(r *accesslist.Review) *accesslist.Review {
-			return r.Clone()
 		},
 	}
 

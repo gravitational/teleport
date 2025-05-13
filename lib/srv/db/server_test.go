@@ -23,12 +23,14 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"net"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -50,8 +52,24 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
+	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
+	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 )
+
+func registerTestEndpointResolver(t *testing.T, builder endpoints.ResolverBuilder, names ...string) {
+	// prevent parallel tests from running with the modified endpoint resolver.
+	t.Setenv("registerTestEndpointResolver", "NO PARALLEL ALLOWED")
+	origBuilders, err := endpoints.GetResolverBuilders(names...)
+	require.NoError(t, err, "trying to override a resolver that isn't registered")
+	endpoints.RegisterResolver(builder, names...)
+	t.Cleanup(func() {
+		for name, origBuilder := range origBuilders {
+			endpoints.RegisterResolver(origBuilder, name)
+		}
+	})
+}
 
 // TestDatabaseServerStart validates that started database server updates its
 // dynamic labels and heartbeats its presence to the auth server.
@@ -676,14 +694,51 @@ func TestHealthCheck(t *testing.T) {
 		Bytes: ephemeralCert.Certificate[0],
 	})
 
-	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
-		Databases: []types.Database{
-			withCloudSQLMySQLTLS("cloudsql-mysql", user, cloudSQLPassword)(t, ctx, testCtx),
-			withCloudSQLPostgres("cloudsql-postgres", cloudSQLAuthToken)(t, ctx, testCtx),
-			withSelfHostedMongo("self-hosted-mongo")(t, ctx, testCtx),
-			withSelfHostedMySQL("self-hosted-mysql")(t, ctx, testCtx),
-			withSelfHostedPostgres("self-hosted-postgres")(t, ctx, testCtx),
+	databases := []types.Database{
+		withCassandra("cassandra")(t, ctx, testCtx),
+		withClickhouseHTTP("clickhouse-http")(t, ctx, testCtx),
+		withClickhouseNative("clickhouse-native")(t, ctx, testCtx),
+		withCloudSQLMySQLTLS("cloudsql-mysql", user, cloudSQLPassword)(t, ctx, testCtx),
+		withCloudSQLPostgres("cloudsql-postgres", cloudSQLAuthToken)(t, ctx, testCtx),
+		withDynamoDB("dynamodb")(t, ctx, testCtx),
+		withElasticsearch("self-hosted-elasticsearch")(t, ctx, testCtx),
+		withOpenSearch("self-hosted-opensearch")(t, ctx, testCtx),
+		withSelfHostedMongo("self-hosted-mongo")(t, ctx, testCtx),
+		withSelfHostedMySQL("self-hosted-mysql")(t, ctx, testCtx),
+		withSelfHostedPostgres("self-hosted-postgres")(t, ctx, testCtx),
+		withSpanner("cloud-spanner", "cloud-spanner-auth-token")(t, ctx, testCtx),
+		withSQLServer("sqlserver")(t, ctx, testCtx),
+		withAzureRedis("redis-azure", azureRedisToken)(t, ctx, testCtx),
+		withElastiCacheRedis("redis-elasticache", elastiCacheRedisToken, "7.0.0")(t, ctx, testCtx),
+		withMemoryDBRedis("redis-memorydb", memorydbToken, "7.0")(t, ctx, testCtx),
+		withSelfHostedRedis("redis-self-hosted")(t, ctx, testCtx),
+		withSnowflake("snowflake")(t, ctx, testCtx),
+	}
+	for _, db := range databases {
+		require.True(t, endpoints.IsRegistered(db), "database %v does not have a registered endpoint resolver", db.GetName())
+	}
+	dynamoListenAddr := net.JoinHostPort("localhost", testCtx.dynamodb["dynamodb"].db.Port())
+	dynamoResolver := &fakeEndpointResolver{
+		t:       t,
+		builder: dynamodb.NewEndpointsResolver,
+		rewrite: map[string]string{
+			"123456789012.ddb.us-west-1.amazonaws.com:443": dynamoListenAddr,
+			"streams.dynamodb.us-west-1.amazonaws.com:443": dynamoListenAddr,
 		},
+	}
+	snowflakeListenAddr := net.JoinHostPort("localhost", testCtx.snowflake["snowflake"].db.Port())
+	snowflakeResolver := &fakeEndpointResolver{
+		t:       t,
+		builder: snowflake.NewEndpointsResolver,
+		rewrite: map[string]string{
+			testCtx.snowflake["snowflake"].resource.GetURI(): snowflakeListenAddr,
+		},
+	}
+	registerTestEndpointResolver(t, dynamoResolver.build, defaults.ProtocolDynamoDB)
+	registerTestEndpointResolver(t, snowflakeResolver.build, defaults.ProtocolSnowflake)
+
+	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases: databases,
 		GCPSQL: &mocks.GCPSQLAdminClientMock{
 			EphemeralCert: string(certPEM),
 			DatabaseInstance: &sqladmin.DatabaseInstance{
@@ -695,8 +750,9 @@ func TestHealthCheck(t *testing.T) {
 			},
 		},
 	})
+
 	go testCtx.startHandlingConnections()
-	for _, db := range testCtx.server.cfg.Databases {
+	for _, db := range databases {
 		t.Run(db.GetName(), func(t *testing.T) {
 			t.Parallel()
 			waitForHealthStatus(t, ctx, db.GetName(), testCtx.authServer, types.TargetHealthStatusHealthy)
@@ -749,4 +805,35 @@ func newHealthCheckConfig(t *testing.T, name string) *healthcheckconfigv1.Health
 	)
 	require.NoError(t, err)
 	return out
+}
+
+type fakeEndpointResolver struct {
+	t *testing.T
+	// builder is the builder that this fake resolver wraps.
+	builder endpoints.ResolverBuilder
+	// rewrite is a map of host:port addresses to rewrite.
+	// The resolver asserts an error if an address is not found in this map.
+	rewrite map[string]string
+}
+
+func (f *fakeEndpointResolver) build(ctx context.Context, db types.Database, cfg endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
+	f.t.Helper()
+	resolver, err := f.builder(ctx, db, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return endpoints.ResolverFn(func(ctx context.Context) ([]string, error) {
+		f.t.Helper()
+		addrs, err := resolver.Resolve(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out := make([]string, 0, len(addrs))
+		for _, addr := range addrs {
+			if assert.Contains(f.t, f.rewrite, addr, "the real endpoint resolver resolved an unexpected address") {
+				out = append(out, f.rewrite[addr])
+			}
+		}
+		return out, nil
+	}), nil
 }

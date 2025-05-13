@@ -58,6 +58,7 @@ import (
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	vnetv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
@@ -66,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -5273,6 +5275,31 @@ func TestGetAccessGraphConfig(t *testing.T) {
 	}
 }
 
+func TestGetVnetConfig(t *testing.T) {
+	server := newTestTLSServer(t)
+	user, _, err := CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
+	require.NoError(t, err)
+
+	// Create newConfig.
+	newConfig, err := vnet.NewVnetConfig(&vnetv1pb.VnetConfigSpec{
+		Ipv4CidrRange:  vnet.DefaultIPv4CIDRRange,
+		CustomDnsZones: []*vnetv1pb.CustomDNSZone{&vnetv1pb.CustomDNSZone{Suffix: "example.com"}},
+	})
+	require.NoError(t, err)
+	createdConfig, err := server.Auth().CreateVnetConfig(t.Context(), newConfig)
+	require.NoError(t, err)
+
+	// Verify that a regular user is able to fetch the config.
+	identity := authz.LocalUser{
+		Username: user.GetName(),
+	}
+	client, err := server.NewClient(TestIdentity{I: identity})
+	require.NoError(t, err)
+	actualConfig, err := client.GetVnetConfig(t.Context())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(createdConfig, actualConfig, protocmp.Transform()))
+}
+
 func TestCreateAuditStreamLimit(t *testing.T) {
 	const N = 5
 	t.Setenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT", fmt.Sprintf("%d", N))
@@ -5360,13 +5387,24 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 				"17.2.7",
 			},
 			inputRole: role,
-			expectedRole: newRole(role.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					Rules: []types.Rule{
-						types.NewRule(types.KindRole, services.RW()),
+			expectedRole: func() types.Role {
+				r := newRole(role.GetName(), types.V7, types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: []types.Rule{
+							types.NewRule(types.KindRole, services.RW()),
+						},
 					},
-				},
-			}),
+					Options: types.RoleOptions{
+						IDP: nil,
+					},
+				})
+				// idp option is always set to true in role version v7 and below
+				// but role v8 does not allow to set them.
+				idpOption := r.GetOptions()
+				idpOption.IDP = nil
+				r.SetOptions(idpOption)
+				return r
+			}(),
 			expectDowngraded: true,
 		},
 	} {

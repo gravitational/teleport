@@ -164,7 +164,7 @@ export function Users(props: State) {
           <Indicator />
         </Box>
       )}
-      {showMauInfo && (
+      {showMauInfo && !users.isFetching && (
         <Alert
           data-testid="users-not-mau-alert"
           dismissible
