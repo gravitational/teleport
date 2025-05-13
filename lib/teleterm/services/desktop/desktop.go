@@ -137,12 +137,12 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 		return trace.Wrap(err)
 	}
 
-	interceptor := serverInterceptor{
+	fsHandle := fsRequestHandler{
 		directoryAccessProvider: s,
 	}
 
 	tdpConnProxy := tdp.NewConnProxy(downstreamRW, conn, func(tdpConn *tdp.Conn, message tdp.Message) (tdp.Message, error) {
-		msg, intErr := interceptor.process(message, func(message tdp.Message) error {
+		msg, intErr := fsHandle.process(message, func(message tdp.Message) error {
 			return trace.Wrap(tdpConn.WriteMessage(message))
 		})
 		if intErr != nil {
@@ -217,8 +217,12 @@ func isClientMessageAllowed(msg tdp.Message) error {
 	}
 }
 
-// serverInterceptor intercepts and processes messages sent from the server to the client.
-type serverInterceptor struct {
+// fsRequestHandler handles file system messages sent from the server to the client.
+//
+// If a message is a file system request, it is handled internally via DirectoryAccess instead of being
+// forwarded to the Electron app. The response is then sent back to the server.
+// If the message is not a file system request, it is returned as-is to be forwarded to the client.
+type fsRequestHandler struct {
 	directoryAccessProvider directoryAccessProvider
 }
 
@@ -226,7 +230,7 @@ type directoryAccessProvider interface {
 	GetDirectoryAccess() (*DirectoryAccess, error)
 }
 
-func (d *serverInterceptor) process(msg tdp.Message, sendToServer func(message tdp.Message) error) (tdp.Message, error) {
+func (d *fsRequestHandler) process(msg tdp.Message, sendToServer func(message tdp.Message) error) (tdp.Message, error) {
 	switch r := msg.(type) {
 	case tdp.SharedDirectoryInfoRequest:
 		return nil, trace.Wrap(d.handleSharedDirectoryInfoRequest(r, sendToServer))
@@ -258,7 +262,7 @@ const (
 	SharedDirectoryErrCodeAlreadyExists
 )
 
-func (d *serverInterceptor) handleSharedDirectoryInfoRequest(r tdp.SharedDirectoryInfoRequest, sendToServer func(message tdp.Message) error) error {
+func (d *fsRequestHandler) handleSharedDirectoryInfoRequest(r tdp.SharedDirectoryInfoRequest, sendToServer func(message tdp.Message) error) error {
 	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
 	if err != nil {
 		return trace.Wrap(err)
@@ -287,7 +291,7 @@ func (d *serverInterceptor) handleSharedDirectoryInfoRequest(r tdp.SharedDirecto
 	return trace.Wrap(err)
 }
 
-func (d *serverInterceptor) handleSharedDirectoryListRequest(r tdp.SharedDirectoryListRequest, sendToServer func(message tdp.Message) error) error {
+func (d *fsRequestHandler) handleSharedDirectoryListRequest(r tdp.SharedDirectoryListRequest, sendToServer func(message tdp.Message) error) error {
 	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
 	if err != nil {
 		return trace.Wrap(err)
@@ -310,7 +314,7 @@ func (d *serverInterceptor) handleSharedDirectoryListRequest(r tdp.SharedDirecto
 	return trace.Wrap(err)
 }
 
-func (d *serverInterceptor) handleSharedDirectoryReadRequest(r tdp.SharedDirectoryReadRequest, sendToServer func(message tdp.Message) error) error {
+func (d *fsRequestHandler) handleSharedDirectoryReadRequest(r tdp.SharedDirectoryReadRequest, sendToServer func(message tdp.Message) error) error {
 	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
 	if err != nil {
 		return trace.Wrap(err)
@@ -331,7 +335,7 @@ func (d *serverInterceptor) handleSharedDirectoryReadRequest(r tdp.SharedDirecto
 	return trace.Wrap(err)
 }
 
-func (d *serverInterceptor) handleSharedDirectoryMoveRequest(r tdp.SharedDirectoryMoveRequest, sendToServer func(message tdp.Message) error) error {
+func (d *fsRequestHandler) handleSharedDirectoryMoveRequest(r tdp.SharedDirectoryMoveRequest, sendToServer func(message tdp.Message) error) error {
 	err := sendToServer(tdp.SharedDirectoryMoveResponse{
 		CompletionID: r.CompletionID,
 		ErrCode:      uint32(SharedDirectoryErrCodeFailed),
@@ -343,7 +347,7 @@ func (d *serverInterceptor) handleSharedDirectoryMoveRequest(r tdp.SharedDirecto
 	return trace.NotImplemented("Moving or renaming files and directories within a shared directory is not supported.")
 }
 
-func (d *serverInterceptor) handleSharedDirectoryWriteRequest(r tdp.SharedDirectoryWriteRequest, sendToServer func(message tdp.Message) error) error {
+func (d *fsRequestHandler) handleSharedDirectoryWriteRequest(r tdp.SharedDirectoryWriteRequest, sendToServer func(message tdp.Message) error) error {
 	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
 	if err != nil {
 		return trace.Wrap(err)
@@ -361,7 +365,7 @@ func (d *serverInterceptor) handleSharedDirectoryWriteRequest(r tdp.SharedDirect
 	return trace.Wrap(err)
 }
 
-func (d *serverInterceptor) handleSharedDirectoryTruncateRequest(r tdp.SharedDirectoryTruncateRequest, sendToServer func(message tdp.Message) error) error {
+func (d *fsRequestHandler) handleSharedDirectoryTruncateRequest(r tdp.SharedDirectoryTruncateRequest, sendToServer func(message tdp.Message) error) error {
 	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
 	if err != nil {
 		return trace.Wrap(err)
@@ -378,7 +382,7 @@ func (d *serverInterceptor) handleSharedDirectoryTruncateRequest(r tdp.SharedDir
 	return trace.Wrap(err)
 }
 
-func (d *serverInterceptor) handleSharedDirectoryCreateRequest(r tdp.SharedDirectoryCreateRequest, sendToServer func(message tdp.Message) error) error {
+func (d *fsRequestHandler) handleSharedDirectoryCreateRequest(r tdp.SharedDirectoryCreateRequest, sendToServer func(message tdp.Message) error) error {
 	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
 	if err != nil {
 		return trace.Wrap(err)
@@ -401,7 +405,7 @@ func (d *serverInterceptor) handleSharedDirectoryCreateRequest(r tdp.SharedDirec
 	return trace.Wrap(err)
 }
 
-func (d *serverInterceptor) handleSharedDirectoryDeleteRequest(r tdp.SharedDirectoryDeleteRequest, sendToServer func(message tdp.Message) error) error {
+func (d *fsRequestHandler) handleSharedDirectoryDeleteRequest(r tdp.SharedDirectoryDeleteRequest, sendToServer func(message tdp.Message) error) error {
 	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
 	if err != nil {
 		return trace.Wrap(err)

@@ -173,9 +173,10 @@ async function withErrorLogging<ReturnValue>(
  * Returns a copy of `TshdClient` with insecure methods disabled
  * to prevent access from the untrusted renderer process.
  *
- * This is possible thanks to the context bridge and the `cloneClient` function,
- * which selectively clones only RPC methods and nothing more.
- * As a result, disabled methods are inaccessible via the `tshdClient` prototype.
+ * As a result, disabled methods are inaccessible in the renderer process
+ * since the prototype of tshdClient is not shared with the renderer process.
+ * The renderer process also does not receive the ability to start a new arbitrary client,
+ * which could then be used to circumvent this protection.
  */
 function withoutInsecureTshdMethods(client: TshdClient): TshdClient {
   return {
