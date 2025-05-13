@@ -219,3 +219,86 @@ func (c *Cache) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdatev1.Au
 	out, err := getter.get(ctx, types.MetaNameAutoUpdateAgentRollout)
 	return out, trace.Wrap(err)
 }
+
+type autoUpdateAgentReportIndex string
+
+const autoUpdateAgentReportNameIndex autoUpdateAgentReportIndex = "name"
+
+func newAutoUpdateAgentReportCollection(upstream services.AutoUpdateServiceGetter, w types.WatchKind) (*collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter AutoUpdateAgentReports")
+	}
+
+	return &collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]{
+		store: newStore(map[autoUpdateAgentReportIndex]func(*autoupdatev1.AutoUpdateAgentReport) string{
+			autoUpdateAgentReportNameIndex: func(r *autoupdatev1.AutoUpdateAgentReport) string {
+				return r.GetMetadata().Name
+			},
+		}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*autoupdatev1.AutoUpdateAgentReport, error) {
+			var discoveryConfigs []*autoupdatev1.AutoUpdateAgentReport
+			var nextToken string
+			for {
+				var page []*autoupdatev1.AutoUpdateAgentReport
+				var err error
+
+				page, nextToken, err = upstream.ListAutoUpdateAgentReports(ctx, 0 /* default page size */, nextToken)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				discoveryConfigs = append(discoveryConfigs, page...)
+
+				if nextToken == "" {
+					break
+				}
+			}
+			return discoveryConfigs, nil
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *autoupdatev1.AutoUpdateAgentReport {
+			return &autoupdatev1.AutoUpdateAgentReport{
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
+				Metadata: &headerv1.Metadata{
+					Name: hdr.Metadata.Name,
+				},
+			}
+		},
+		watch: w,
+	}, nil
+}
+
+// GetAutoUpdateAgentReport gets the AutoUpdateAgentReport from the backend.
+func (c *Cache) GetAutoUpdateAgentReport(ctx context.Context, name string) (*autoupdatev1.AutoUpdateAgentReport, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateAgentReport")
+	defer span.End()
+
+	getter := genericGetter[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]{
+		cache:       c,
+		collection:  c.collections.autoUpdateReports,
+		index:       autoUpdateAgentReportNameIndex,
+		upstreamGet: c.Config.AutoUpdateService.GetAutoUpdateAgentReport,
+		clone:       apiutils.CloneProtoMsg[*autoupdatev1.AutoUpdateAgentReport],
+	}
+	out, err := getter.get(ctx, name)
+	return out, trace.Wrap(err)
+}
+
+// ListAutoUpdateAgentReports lists autoupdate_agent_reports.
+func (c *Cache) ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdatev1.AutoUpdateAgentReport, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAutoUpdateAgentReports")
+	defer span.End()
+
+	lister := genericLister[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]{
+		cache:        c,
+		collection:   c.collections.autoUpdateReports,
+		index:        autoUpdateAgentReportNameIndex,
+		upstreamList: c.Config.AutoUpdateService.ListAutoUpdateAgentReports,
+		nextToken: func(t *autoupdatev1.AutoUpdateAgentReport) string {
+			return t.GetMetadata().Name
+		},
+		clone: apiutils.CloneProtoMsg[*autoupdatev1.AutoUpdateAgentReport],
+	}
+	out, next, err := lister.list(ctx, pageSize, pageToken)
+	return out, next, trace.Wrap(err)
+}
