@@ -139,8 +139,7 @@ func parseSubClaim(sub string) (parsedSubClaim, error) {
 		)
 	}
 
-	out := parsedSubClaim{}
-	out.organizationName = parsed.Host
+	out := parsedSubClaim{organizationName: parsed.Host}
 	// Now we need to handle the path, which is something like
 	// /project-name/pipeline-name
 	path, _ := strings.CutPrefix(parsed.Path, "/")
