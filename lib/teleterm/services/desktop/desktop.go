@@ -68,7 +68,7 @@ func (s *Session) SetSharedDirectory(basePath string) error {
 	defer s.dirAccessMu.Unlock()
 
 	if s.dirAccess != nil {
-		return trace.AlreadyExists("directory is already shared for desktop %q and login", s.desktopName(), s.login)
+		return trace.AlreadyExists("directory is already shared for desktop %q and %q login", s.desktopName(), s.login)
 	}
 
 	dirAccess, err := NewDirectoryAccess(basePath)
