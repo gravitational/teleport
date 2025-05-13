@@ -33,15 +33,14 @@ type bitbucketIDTokenValidator interface {
 	) (*bitbucket.IDTokenClaims, error)
 }
 
-func (a *Server) checkBitbucketJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*bitbucket.IDTokenClaims, error) {
+func (a *Server) checkBitbucketJoinRequest(
+	ctx context.Context,
+	req *types.RegisterUsingTokenRequest,
+	pt types.ProvisionToken,
+) (*bitbucket.IDTokenClaims, error) {
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("id_token not provided for bitbucket join request")
 	}
-	pt, err := a.GetToken(ctx, req.Token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
 		return nil, trace.BadParameter("bitbucket join method only supports ProvisionTokenV2, '%T' was provided", pt)
