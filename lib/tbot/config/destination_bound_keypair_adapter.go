@@ -21,8 +21,9 @@ package config
 import (
 	"context"
 
-	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
 // BoundKeypairBotFSAdapter is an adapter to use bot destinations with the FS

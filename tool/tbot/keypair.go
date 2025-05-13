@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
@@ -31,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/trace"
 )
 
 // getSuiteFromProxy fetches cryptosuite config from the given remote proxy.
@@ -88,7 +89,7 @@ func printKeypair(state *boundkeypair.ClientState, format string) error {
 
 		fmt.Printf("%s\n", string(bytes))
 	default:
-		return trace.BadParameter("unsupported output format %s; keypair has been generated")
+		return trace.BadParameter("unsupported output format %s; keypair has been generated", format)
 	}
 
 	return nil

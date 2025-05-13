@@ -23,11 +23,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
