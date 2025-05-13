@@ -1,0 +1,95 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.recordingencryption.v1;
+
+import "teleport/header/v1/metadata.proto";
+import "teleport/legacy/types/types.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1;recordingencryptionv1";
+
+// KeyState represents that possible states a WrappedKey can be in.
+enum KeyState {
+  // Default KeyState
+  KEY_STATE_UNSPECIFIED = 0;
+  // KEY_STATE_ACTIVE marks a key in good standing.
+  KEY_STATE_ACTIVE = 1;
+  // KEY_STATE_ROTATING marks a key as waiting for its owning auth server to
+  // rotate it.
+  KEY_STATE_ROTATING = 2;
+  // KEY_STATE_ROTATED marks a key as fully rotated.
+  KEY_STATE_ROTATED = 3;
+}
+
+// WrappedKey wraps a PrivateKey using an asymmetric keypair.
+message WrappedKey {
+  // RecordingEncryptionPair is the asymmetric keypair used to wrap the
+  // private key. Expected to be RSA.
+  types.EncryptionKeyPair recording_encryption_pair = 1;
+  // KeyEncryptionPair is the asymmetric keypair used with age to encrypt
+  // and decrypt filekeys.
+  types.EncryptionKeyPair key_encryption_pair = 2;
+  // State represents whether the WrappedKey is rotating or not
+  KeyState state = 3;
+}
+
+// KeySet contains the list of active and rotated WrappedKeys for a
+// given usage.
+message KeySet {
+  // AciveKeys is a list of active, wrapped X25519 private keys. There should
+  // be at most one wrapped key per auth server using the
+  // SessionRecordingConfigV2 resource unless keys are being rotated.
+  repeated WrappedKey active_keys = 1;
+}
+
+// RecordingEncryptionSpec contains the active key set for encrypted
+// session recording.
+message RecordingEncryptionSpec {
+  KeySet key_set = 1;
+}
+
+// RecordingEncryptionStatus contains the status of the RecordingEncryption resource.
+message RecordingEncryptionStatus {}
+
+// RecordingEncryption contains cluster state for encrypted session recordings.
+message RecordingEncryption {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  RecordingEncryptionSpec spec = 5;
+  RecordingEncryptionStatus status = 6;
+}
+
+// RotatedKeysSpec contains the wrapped keys related to a given public key.
+message RotatedKeysSpec {
+  string public_key = 1;
+  repeated WrappedKey keys = 2;
+}
+
+// RotatedKeysStatus contains the status of RotatedKeys.
+message RotatedKeysStatus {}
+
+// RotatedKeys contains a set of rotated, wrapped keys related to a specific
+// public key.
+message RotatedKeys {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  RotatedKeysSpec spec = 5;
+  RotatedKeysStatus status = 6;
+}
