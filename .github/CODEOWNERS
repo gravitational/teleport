@@ -4,5 +4,5 @@
 /build.assets/tooling/cmd/difftest/ @klizhentas @russjones @r0mant @zmb3
 
 # Owners for dependency updates in JS packages.
-package.json @avatus @gzdunek @ravicious
+pnpm-lock.yaml @avatus @gzdunek @ravicious
 web/packages/teleterm/package.json @gzdunek @ravicious
