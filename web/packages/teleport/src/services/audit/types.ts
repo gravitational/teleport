@@ -1508,6 +1508,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_CREATE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1515,6 +1516,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_CREATE_FAILURE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1522,6 +1524,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_UPDATE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1529,6 +1532,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_UPDATE_FAILURE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1536,6 +1540,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_DELETE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1543,6 +1548,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_DELETE_FAILURE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1550,6 +1556,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_REVIEW,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1557,6 +1564,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_REVIEW_FAILURE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1582,6 +1590,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST,
     {
       access_list_name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1589,6 +1598,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE,
     {
       access_list_name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1596,6 +1606,7 @@ export type RawEvents = {
     typeof eventCodes.USER_LOGIN_INVALID_ACCESS_LIST,
     {
       access_list_name: string;
+      access_list_title: string;
       user: string;
       missing_roles: string[];
     }
@@ -1993,6 +2004,7 @@ type RawEventAccessList<T extends EventCode> = RawEvent<
     access_list_name: string;
     members: { member_name: string }[];
     updated_by: string;
+    access_list_title: string;
   }
 >;
 

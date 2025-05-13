@@ -20,7 +20,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 
 import {
-  AlertDialog,
+  DisconnectedState,
   DesktopSession as SharedDesktopSession,
 } from 'shared/components/DesktopSession';
 import { useAsync } from 'shared/hooks/useAsync';
@@ -57,7 +57,11 @@ export function DesktopSession() {
         )
       )
   );
-  const mfa = useMfaEmitter(client);
+  const mfa = useMfaEmitter(client, undefined, {
+    // When the user cancels the MFA prompt, shut down the connection.
+    // To get a new challenge, we need to recreate it.
+    onPromptCancel: useCallback(() => client.shutdown(), [client]),
+  });
 
   const [aclAttempt, fetchAcl] = useAsync(
     useCallback(async () => {
@@ -84,12 +88,17 @@ export function DesktopSession() {
         // Errors, except for dialog cancellations, are handled within the MFA dialog.
         if (mfa.attempt.status === 'error' && !shouldShowMfaPrompt(mfa)) {
           return (
-            <AlertDialog
+            <DisconnectedState
               message={{
                 title: 'This session requires multi factor authentication',
                 details: mfa.attempt.statusText,
               }}
-              onRetry={retry}
+              desktopName={desktopName}
+              onRetry={() => {
+                // Clear the MFA attempt to hide this alert state.
+                mfa.reset();
+                retry();
+              }}
             />
           );
         }

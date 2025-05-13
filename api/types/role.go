@@ -1063,7 +1063,7 @@ func (c *SPIFFERoleCondition) CheckAndSetDefaults() error {
 		return trace.BadParameter("path: should be non-empty")
 	}
 	isRegex := strings.HasPrefix(c.Path, "^") && strings.HasSuffix(c.Path, "$")
-	if !(strings.HasPrefix(c.Path, "/") || isRegex) {
+	if !strings.HasPrefix(c.Path, "/") && !isRegex {
 		return trace.BadParameter(
 			"path: should start with / or be a regex expression starting with ^ and ending with $",
 		)
@@ -1269,7 +1269,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	}
 	checkWildcardSelector := func(labels Labels) error {
 		for key, val := range labels {
-			if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
+			if key == Wildcard && (len(val) != 1 || val[0] != Wildcard) {
 				return trace.BadParameter("selector *:<val> is not supported")
 			}
 		}

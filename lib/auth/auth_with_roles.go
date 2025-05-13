@@ -50,7 +50,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -1679,7 +1678,7 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
 
-	matcher, err := apiutils.NewSSHRouteMatcherFromConfig(apiutils.SSHRouteMatcherConfig{
+	matcher, err := utils.NewSSHRouteMatcherFromConfig(utils.SSHRouteMatcherConfig{
 		Host:                      req.Host,
 		Port:                      req.Port,
 		CaseInsensitive:           caseInsensitiveRouting,
@@ -3147,7 +3146,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 			}
 		}
 	}
-	finalRequestIDs = apiutils.Deduplicate(finalRequestIDs)
+	finalRequestIDs = utils.Deduplicate(finalRequestIDs)
 
 	// Replace req.AccessRequests with final filtered values, these will be
 	// encoded into the cert.
@@ -3182,7 +3181,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 			accessInfo.AllowedResourceIDs = requestedResourceIDs
 		}
 	}
-	accessInfo.Roles = apiutils.Deduplicate(accessInfo.Roles)
+	accessInfo.Roles = utils.Deduplicate(accessInfo.Roles)
 
 	return accessInfo, nil
 }
@@ -7575,9 +7574,11 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 			return err
 		}
 
-		// Only WebAuthn is supported in headless login flow for superior phishing prevention.
-		if _, ok := mfaResp.Response.(*proto.MFAAuthenticateResponse_Webauthn); !ok {
-			err = trace.BadParameter("expected WebAuthn challenge response, but got %T", mfaResp.Response)
+		// Only WebAuthn and SSO are supported in headless login flow for superior phishing prevention.
+		switch mfaResp.Response.(type) {
+		case *proto.MFAAuthenticateResponse_Webauthn, *proto.MFAAuthenticateResponse_SSO:
+		default:
+			err = trace.BadParameter("MFA response of type %T is not supported for headless authentication", mfaResp.Response)
 			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
 			return err
 		}

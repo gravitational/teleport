@@ -19,6 +19,11 @@ plugins:
       - exec
       - --yes
       - --package=@protobuf-ts/plugin@2.9.3
+      - --package=@protobuf-ts/plugin-framework@2.9.3
+      - --package=@protobuf-ts/protoc@2.9.3
+      - --package=@protobuf-ts/runtime@2.9.3
+      - --package=@protobuf-ts/runtime-rpc@2.9.3
+      - --package=typescript@3.9.10
       - --
       - protoc-gen-ts
     out: gen/proto/ts

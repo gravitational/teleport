@@ -38,7 +38,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
-	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -205,7 +204,7 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 			SkipNameValidation: ptr.To(true),
 		},
 		// We enable cache to ensure the tests are close to how the manager is created when running in a real cluster
-		Client: ctrlclient.Options{Cache: &ctrlclient.CacheOptions{Unstructured: true}},
+		Client: kclient.Options{Cache: &kclient.CacheOptions{Unstructured: true}},
 	})
 	require.NoError(t, err)
 

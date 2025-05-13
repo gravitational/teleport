@@ -72,7 +72,7 @@ func TestSystemRoleAssertions(t *testing.T) {
 		assertions, err := unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
 		require.NoError(t, err)
 
-		require.Equal(t, len(expect), len(assertions.SystemRoles))
+		require.Len(t, expect, len(assertions.SystemRoles))
 		require.Subset(t, expect, assertions.SystemRoles)
 	}
 }

@@ -126,6 +126,8 @@ export function SlideTabs({
                   whose left edge is the left edge of the content (not the tab
                   button, which can be much wider). */}
                 <TabContent gap={1}>
+                  {Icon && <Icon size={size} role="graphics-symbol" />}
+                  {title}
                   <StatusIconContainer>
                     <StatusIconOrSpinner
                       statusKind={statusKind}
@@ -135,8 +137,6 @@ export function SlideTabs({
                       color={selected ? statusIconColorActive : undefined}
                     />
                   </StatusIconContainer>
-                  {Icon && <Icon size={size} role="graphics-symbol" />}
-                  {title}
                 </TabContent>
               </TabButton>
             </HoverTooltip>
@@ -317,6 +317,76 @@ const TabSliderInner = styled.div<{ appearance: Appearance }>`
   border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};
 `;
 
+// For the small and medium sizes, we don't use paddings between tab buttons.
+// Therefore, the area of tab list is evenly divided into segments, and we
+// anchor the slider relative to the box with horizontal padding. With larger
+// sizes, we expect to have some distance between the tab buttons. It means
+// that the positions of the slider, expressed as relative to what the padding
+// box would be, are no longer proportional to the tab index (there is distance
+// between the tabs, but no distance on the left of the first tab and on the
+// right of the last tab). Therefore, to calculate the position of slider as a
+// percentage of its container's width, we set the wrapper's horizontal padding
+// to 0, thus giving us a couple of pixels of breathing room; now we can go
+// back to using a linear formula to calculate the slider position. This lack
+// of padding will be then compensated for by adjusting tab button margins
+// appropriately.
+
+const wrapperPadding = ({ size }: { size: Size }) => {
+  switch (size) {
+    case 'small':
+      return { padding: '4px 4px' };
+    case 'medium':
+      return { padding: '8px 8px' };
+    case 'large':
+      return { padding: '8px 0' };
+    default:
+      size satisfies never;
+      return;
+  }
+};
+
+const buttonMargin = ({ size }: { size: Size }) => {
+  switch (size) {
+    case 'small':
+      return { margin: '0 0' };
+    case 'medium':
+      return { margin: '0 0' };
+    case 'large':
+      return { margin: '0 8px' };
+    default:
+      size satisfies never;
+      return;
+  }
+};
+
+const buttonPadding = ({ size }: { size: Size }) => {
+  switch (size) {
+    case 'small':
+      return { padding: '8px 8px' };
+    case 'medium':
+      return { padding: '8px 8px' };
+    case 'large':
+      return { padding: '8px 16px' };
+    default:
+      size satisfies never;
+      return;
+  }
+};
+
+const sliderPadding = ({ size }: { size: Size }) => {
+  switch (size) {
+    case 'small':
+      return { padding: '0 0' };
+    case 'medium':
+      return { padding: '0 0' };
+    case 'large':
+      return { padding: '0 8px' };
+    default:
+      size satisfies never;
+      return;
+  }
+};
+
 const Wrapper = styled.div<{
   fitContent: boolean;
   size: Size;
@@ -324,22 +394,7 @@ const Wrapper = styled.div<{
 }>`
   position: relative;
   ${props => (props.fitContent ? 'width: fit-content;' : '')}
-  /*
-   * For the small size, we don't use paddings between tab buttons. Therefore,
-   * the area of tab list is evenly divided into segments, and we anchor the
-   * slider relative to the box with horizontal padding. With larger sizes, we
-   * expect to have some distance between the tab buttons. It means that the
-   * positions of the slider, expressed as relative to what the padding box
-   * would be, are no longer proportional to the tab index (there is distance
-   * between the tabs, but no distance on the left of the first tab and on the
-   * right of the last tab). Therefore, to calculate the position of slider as
-   * a percentage of its container's width, we set the wrapper's horizontal
-   * padding to 0, thus giving us a couple of pixels of breathing room; now we
-   * can go back to using a linear formula to calculate the slider position.
-   * This lack of padding will be then compensated for by adjusting tab button
-   * margins appropriately.
-   */
-  padding: ${props => (props.size === 'small' ? '4px 4px' : '8px 0')};
+  ${wrapperPadding}
   background-color: ${props => props.theme.colors.interactive.tonal.neutral[0]};
   border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};
 
@@ -372,7 +427,7 @@ const TabButton = styled.button<{
   outline: none;
   border: none;
   background: transparent;
-  padding: ${props => (props.size === 'small' ? '8px 8px' : '8px 16px')};
+  ${buttonPadding}
 
   ${props => props.theme.typography.body2}
 
@@ -387,7 +442,7 @@ const TabButton = styled.button<{
    * Using similar logic as with wrapper padding, we compensate for the lack of
    * thereof with button margins if needed.
    */
-  margin: 0 ${props => (props.size === 'small' ? '0' : '8px')};
+  ${buttonMargin}
   color: ${props =>
     props.selected
       ? props.theme.colors.text.primaryInverse
@@ -410,7 +465,7 @@ const TabSlider = styled.div<{
   top: 0;
   bottom: 0;
   width: ${props => 100 / props.itemCount}%;
-  padding: 0 ${props => (props.size === 'small' ? '0' : '8px')};
+  ${sliderPadding}
   transition:
     all 0.3s ease,
     outline 0s,
@@ -436,9 +491,12 @@ const Spinner = styled(Indicator)`
   color: ${p => p.theme.colors.levels.deep};
 `;
 
-const StatusIconContainer = styled.div`
+const StatusIconContainer = styled(Flex)`
   position: absolute;
-  left: -${p => p.theme.space[5]}px;
+  transform: translate(100%, 0);
+  right: -${p => p.theme.space[1]}px;
+  top: 0;
+  bottom: 0;
 `;
 
 const TabContent = styled(Flex)`

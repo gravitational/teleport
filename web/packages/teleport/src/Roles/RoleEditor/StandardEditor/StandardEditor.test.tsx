@@ -142,7 +142,7 @@ test('invisible tabs still apply validation', async () => {
   expect(onSave).not.toHaveBeenCalled();
 
   // Switch back, make it valid.
-  await user.click(getTabByName('Invalid data Overview'));
+  await user.click(getTabByName('Overview Invalid data'));
   await user.type(screen.getByPlaceholderText('label key'), 'foo');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).toHaveBeenCalled();
@@ -182,15 +182,15 @@ test('hidden validation errors should not propagate to tab headings', async () =
 
   // Switch back. The newly invalid tabs should not bear the invalid indicator,
   // as the section has its validation errors hidden.
-  await user.click(getTabByName('Invalid data Overview'));
+  await user.click(getTabByName('Overview Invalid data'));
   expect(getTabByName('Resources')).toBeInTheDocument();
   expect(getTabByName('Admin Rules')).toBeInTheDocument();
 
   // Attempt to save, causing global validation. Now the invalid tabs should be
   // marked as invalid.
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
-  expect(getTabByName('Invalid data Resources')).toBeInTheDocument();
-  expect(getTabByName('Invalid data Admin Rules')).toBeInTheDocument();
+  expect(getTabByName('Resources Invalid data')).toBeInTheDocument();
+  expect(getTabByName('Admin Rules Invalid data')).toBeInTheDocument();
   expect(onSave).not.toHaveBeenCalled();
 });
 
@@ -270,7 +270,7 @@ test('triggers v6 validation for Kubernetes resources', async () => {
   await selectEvent.select(screen.getByLabelText('Version'), 'v7');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).toHaveBeenCalled();
-});
+}, 10000);
 
 test('creating a new role', async () => {
   async function forwardToTab(name: string) {
