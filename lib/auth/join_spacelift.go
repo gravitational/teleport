@@ -35,15 +35,14 @@ type spaceliftIDTokenValidator interface {
 	) (*spacelift.IDTokenClaims, error)
 }
 
-func (a *Server) checkSpaceliftJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*spacelift.IDTokenClaims, error) {
+func (a *Server) checkSpaceliftJoinRequest(
+	ctx context.Context,
+	req *types.RegisterUsingTokenRequest,
+	pt types.ProvisionToken,
+) (*spacelift.IDTokenClaims, error) {
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("id_token not provided for spacelift join request")
 	}
-	pt, err := a.GetToken(ctx, req.Token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
 		return nil, trace.BadParameter("spacelift join method only supports ProvisionTokenV2, '%T' was provided", pt)
