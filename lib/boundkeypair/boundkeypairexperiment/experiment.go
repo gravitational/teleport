@@ -14,21 +14,37 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package experiment
+package boundkeypairexperiment
 
 import (
 	"os"
+	"strconv"
 	"sync"
 )
 
 var mu sync.Mutex
 
-var experimentEnabled = os.Getenv("TELEPORT_BOUND_KEYPAIR_JOINING_EXPERIMENT") == "1"
+var envChecked = false
+var experimentEnabled = false
 
 // Enabled returns true if the bound keypair joining experiment is enabled.
 func Enabled() bool {
 	mu.Lock()
 	defer mu.Unlock()
+
+	if !envChecked {
+		if v, err := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_BOUND_KEYPAIR_JOINING_EXPERIMENT")); err == nil {
+			experimentEnabled = v
+		} else {
+			// Fall back to disabled. For our purposes here, we won't bother
+			// logging anything - that the feature is disabled should be clear
+			// enough, especially given this is an experimental feature.
+			experimentEnabled = false
+		}
+
+		envChecked = true
+	}
+
 	return experimentEnabled
 }
 
@@ -36,5 +52,7 @@ func Enabled() bool {
 func SetEnabled(enabled bool) {
 	mu.Lock()
 	defer mu.Unlock()
+
 	experimentEnabled = enabled
+	envChecked = true
 }
