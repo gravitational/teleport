@@ -102,69 +102,120 @@ func TestCLICeremony(t *testing.T) {
 
 func TestCLISAMLCeremony(t *testing.T) {
 	ctx := context.Background()
+	const username = "alice"
 
 	mockProxy := newMockProxy(t)
-	username := "alice"
 
-	// Capture stderr.
-	stderr := &bytes.Buffer{}
+	for _, tt := range []struct {
+		name        string
+		redirectURL string
+		postForm    string
+		assertErr   require.ErrorAssertionFunc
+		errExpected bool
+	}{
+		{
+			name:        "handles redirectURL param",
+			redirectURL: mockProxy.URL,
+			assertErr:   require.NoError,
+		},
+		{
+			name:      "handles postForm param",
+			postForm:  postform,
+			assertErr: require.NoError,
+		},
+		{
+			name:        "rejects if both redirectURL and postForm is provided",
+			redirectURL: mockProxy.URL,
+			postForm:    postform,
+			assertErr:   require.Error,
+			errExpected: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			// Capture stderr.
+			stderr := &bytes.Buffer{}
 
-	// Create a basic redirector.
-	rd, err := sso.NewRedirector(sso.RedirectorConfig{
-		ProxyAddr: mockProxy.URL,
-		Browser:   teleport.BrowserNone,
-		Stderr:    stderr,
-	})
-	require.NoError(t, err)
-	t.Cleanup(rd.Close)
+			// Create a basic redirector.
+			rd, err := sso.NewRedirector(sso.RedirectorConfig{
+				ProxyAddr: mockProxy.URL,
+				Stderr:    stderr,
+				Browser:   "none",
+			})
+			require.NoError(t, err)
+			t.Cleanup(rd.Close)
 
-	// Construct a fake ssh login response with the redirector's client callback URL.
-	successResponseURL, err := web.ConstructSSHResponse(web.AuthParams{
-		ClientRedirectURL: rd.ClientCallbackURL,
-		Username:          username,
-	})
-	require.NoError(t, err)
+			// Construct a fake ssh login response with the redirector's client callback URL.
+			successResponseURL, err := web.ConstructSSHResponse(web.AuthParams{
+				ClientRedirectURL: rd.ClientCallbackURL,
+				Username:          username,
+			})
+			require.NoError(t, err)
 
-	// Open a mock IdP server which will handle a redirect and result in the expected IdP session payload.
-	mockIdPServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, successResponseURL.String(), http.StatusPermanentRedirect)
-	}))
-	t.Cleanup(mockIdPServer.Close)
+			// Open a mock IdP server which will handle a redirect and result in the expected IdP session payload.
+			mockIdPServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, successResponseURL.String(), http.StatusPermanentRedirect)
+			}))
+			t.Cleanup(mockIdPServer.Close)
 
-	ceremony := sso.NewCLISAMLCeremony(rd, func(ctx context.Context, clientCallbackURL string) (redirectURL string, postForm string, err error) {
-		return mockIdPServer.URL, base64.StdEncoding.EncodeToString([]byte(postform)), nil
-	})
+			ceremony := sso.NewCLISAMLCeremony(rd, func(ctx context.Context, clientCallbackURL string) (redirectURL string, postForm string, err error) {
+				return mockIdPServer.URL, base64.StdEncoding.EncodeToString([]byte(postform)), nil
+			})
 
-	// Modify handle redirect to also browse to the clickable URL printed to stderr.
-	baseHandleRedirect := ceremony.HandleRequest
-	ceremony.HandleRequest = func(ctx context.Context, redirectURL, postForm string) error {
-		if err := baseHandleRedirect(ctx, redirectURL, postForm); err != nil {
-			return trace.Wrap(err)
-		}
+			// Modify handle redirect to also browse to the clickable URL printed to stderr.
+			baseHandleRedirect := ceremony.HandleRequest
+			ceremony.HandleRequest = func(ctx context.Context, redirectURL, postForm string) error {
+				if err := baseHandleRedirect(ctx, tt.redirectURL, tt.postForm); err != nil {
+					return trace.Wrap(err)
+				}
 
-		// Read the clickable url from stderr and navigate to it
-		// using a simplified regexp for http://127.0.0.1:<port>/<uuid>
-		const clickableURLPattern = `http://127.0.0.1:\d+/[0-9A-Fa-f-]+`
-		clickableURL := regexp.MustCompile(clickableURLPattern).FindString(stderr.String())
-		resp, err := http.Get(clickableURL)
-		require.NoError(t, err)
-		defer resp.Body.Close()
+				redirected := false
+				actualRedirectTo := ""
+				httpclient := mockIdPServer.Client()
+				httpclient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+					redirected = true
+					actualRedirectTo = req.URL.String()
+					// ignore redirect
+					return http.ErrUseLastResponse
+				}
 
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		require.Contains(t, string(body), "Teleport SAML Service Provider")
+				// Read the clickable url from stderr and navigate to it
+				// using a simplified regexp for http://127.0.0.1:<port>/<uuid>
+				const clickableURLPattern = `http://127.0.0.1:\d+/[0-9A-Fa-f-]+`
+				clickableURL := regexp.MustCompile(clickableURLPattern).FindString(stderr.String())
+				resp, err := httpclient.Get(string(clickableURL))
+				require.NoError(t, err)
+				defer resp.Body.Close()
 
-		// Redirect to success screen to continue the test
-		resp, err = http.Get(mockIdPServer.URL)
-		require.NoError(t, err)
-		defer resp.Body.Close()
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
 
-		return nil
+				if tt.redirectURL != "" {
+					require.True(t, redirected)
+					require.Equal(t, tt.redirectURL, actualRedirectTo)
+				} else {
+					require.Contains(t, string(body), "Teleport SAML Service Provider")
+				}
+
+				// Redirect to success screen to continue the test
+				resp, err = http.Get(mockIdPServer.URL)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+
+				// User should be redirected to success screen.
+				body, err = io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Equal(t, sso.LoginSuccessRedirectURL, string(body))
+
+				return nil
+			}
+
+			loginResp, err := ceremony.Run(ctx)
+			tt.assertErr(t, err)
+			if !tt.errExpected {
+				require.Equal(t, username, loginResp.Username)
+			}
+		})
 	}
-
-	loginResp, err := ceremony.Run(ctx)
-	require.NoError(t, err)
-	require.Equal(t, username, loginResp.Username)
 }
 
 const postform = `
