@@ -927,12 +927,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	collections, err := setupCollections(config)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -952,18 +946,25 @@ func New(config Config) (*Cache, error) {
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
 		gitServersCache:              gitServersCache,
-		collections:                  collections,
 		Logger: slog.With(
 			teleport.ComponentKey, config.Component,
 			"target", config.target,
 		),
 	}
+
 	legacyCollections, err := setupLegacyCollections(cs, config.Watches)
 	if err != nil {
 		cs.Close()
 		return nil, trace.Wrap(err)
 	}
 	cs.legacyCacheCollections = legacyCollections
+
+	collections, err := setupCollections(config, legacyCollections.byKind)
+	if err != nil {
+		cs.Close()
+		return nil, trace.Wrap(err)
+	}
+	cs.collections = collections
 
 	if config.Unstarted {
 		return cs, nil
@@ -1190,7 +1191,7 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //	we assume that this cache will eventually end up in a correct state
 //	potentially lagging behind the state of the database.
 func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) error {
-	requestKinds := c.watchKinds()
+	requestKinds := c.Config.Watches
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		Name:                c.Component,
 		Kinds:               requestKinds,
@@ -1500,17 +1501,6 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 	return nil
 }
 
-func (c *Cache) watchKinds() []types.WatchKind {
-	out := make([]types.WatchKind, 0, len(c.legacyCacheCollections.byKind)+len(c.collections.byKind))
-	for _, collection := range c.legacyCacheCollections.byKind {
-		out = append(out, collection.watchKind())
-	}
-	for _, handler := range c.collections.byKind {
-		out = append(out, handler.watchKind())
-	}
-	return out
-}
-
 // isClosing checks if the cache has begun closing.
 func (c *Cache) isClosing() bool {
 	if c.closed.Load() {
@@ -1666,12 +1656,6 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	handler, handlerFound := c.collections.byKind[resourceKind]
 
 	switch {
-	case !legacyFound && !handlerFound:
-		c.Logger.WarnContext(ctx, "Skipping unsupported event",
-			"event_kind", event.Resource.GetKind(),
-			"event_sub_kind", event.Resource.GetSubKind(),
-		)
-		return nil
 	case legacyFound:
 		if err := legacyCollection.processEvent(ctx, event); err != nil {
 			return trace.Wrap(err)
