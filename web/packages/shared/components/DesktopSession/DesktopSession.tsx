@@ -37,6 +37,7 @@ import {
   TdpClient,
   useListener,
 } from 'shared/libs/tdp';
+import { TdpError } from 'shared/libs/tdp/client';
 
 import { KeyboardHandler } from './KeyboardHandler';
 import TopBar from './TopBar';
@@ -130,7 +131,8 @@ export function DesktopSession({
       setClipboardSharingState(defaultClipboardSharingState);
       setTdpConnectionStatus({
         status: 'disconnected',
-        message: error.message || error.toString(),
+        fromTdpError: error instanceof TdpError,
+        message: error?.message || error?.toString(),
       });
       initialTdpConnectionSucceeded.current = false;
     },
@@ -166,8 +168,11 @@ export function DesktopSession({
   useListener(
     client.onTransportClose,
     useCallback(
-      statusText => {
-        setTdpConnectionStatus({ status: 'disconnected', message: statusText });
+      error => {
+        setTdpConnectionStatus({
+          status: 'disconnected',
+          message: error?.message || error?.toString(),
+        });
         initialTdpConnectionSucceeded.current = false;
       },
       [setTdpConnectionStatus]
@@ -350,7 +355,7 @@ export function DesktopSession({
         />
       )}
       {screenState.state === 'custom' && screenState.component}
-      {screenState.state === 'error' && (
+      {screenState.state === 'disconnected' && (
         <AlertDialog message={screenState.message} onRetry={onRetry} />
       )}
       {screenState.state === 'processing' && <Processing />}
@@ -447,7 +452,7 @@ function getScreenState(
 
   if (aclAttempt.status === 'error') {
     return {
-      state: 'error',
+      state: 'disconnected',
       message: {
         title: 'Could not fetch session details',
         details: aclAttempt.statusText,
@@ -456,7 +461,7 @@ function getScreenState(
   }
   if (anotherDesktopActiveAttempt.status === 'error') {
     return {
-      state: 'error',
+      state: 'disconnected',
       message: {
         title: 'Could not fetch session details',
         details: anotherDesktopActiveAttempt.statusText,
@@ -465,8 +470,8 @@ function getScreenState(
   }
   if (tdpConnectionStatus.status === 'disconnected') {
     return {
-      state: 'error',
-      message: { title: tdpConnectionStatus.message },
+      state: 'disconnected',
+      message: { title: tdpConnectionStatus.message || 'Session disconnected' },
     };
   }
 
@@ -499,6 +504,7 @@ type TdpConnectionStatus =
    */
   | {
       status: 'disconnected';
+      fromTdpError?: boolean;
       message: string;
     };
 
@@ -508,6 +514,11 @@ type ScreenState =
   | { state: 'processing' }
   | { state: 'canvas-visible' }
   | {
-      state: 'error';
-      message: { title: string; details?: string };
+      state: 'disconnected';
+      message: DisconnectedMessage;
     };
+
+interface DisconnectedMessage {
+  title: string;
+  details?: string;
+}
