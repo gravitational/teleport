@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -36,12 +37,6 @@ import (
 type syncBuffer struct {
 	buf *bytes.Buffer
 	mu  sync.Mutex
-}
-
-func newSyncBuffer() *syncBuffer {
-	return &syncBuffer{
-		buf: &bytes.Buffer{},
-	}
 }
 
 func (rw *syncBuffer) Read(b []byte) (int, error) {
@@ -60,6 +55,17 @@ func (rw *syncBuffer) String() string {
 	rw.mu.Lock()
 	defer rw.mu.Unlock()
 	return rw.buf.String()
+}
+
+func newOutput(t *testing.T) (*syncBuffer, *os.File) {
+	buf := &syncBuffer{
+		buf: &bytes.Buffer{},
+	}
+	pipeR, pipeW, err := os.Pipe()
+	require.NoError(t, err)
+	go io.Copy(buf, pipeR)
+	t.Cleanup(func() { require.NoError(t, pipeW.Close()) })
+	return buf, pipeW
 }
 
 func buildBashForkCommand(t *testing.T, params ForkAuthenticateParams) *forkAuthCmd {
@@ -91,13 +97,13 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		getArgs := func(signalFd uint64) []string {
 			return []string{"-c", fmt.Sprintf(script, signalFd)}
 		}
-		stdout := newSyncBuffer()
-		stderr := newSyncBuffer()
+		stdout, stdoutPipe := newOutput(t)
+		stderr, stderrPipe := newOutput(t)
 		params := ForkAuthenticateParams{
 			GetArgs: getArgs,
 			Stdin:   bytes.NewBufferString("hello\n"),
-			Stdout:  stdout,
-			Stderr:  stderr,
+			Stdout:  stdoutPipe,
+			Stderr:  stderrPipe,
 		}
 		cmd := buildBashForkCommand(t, params)
 
@@ -121,13 +127,13 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		getArgs := func(signalFd uint64) []string {
 			return []string{"-c", script}
 		}
-		stdout := newSyncBuffer()
-		stderr := newSyncBuffer()
+		stdout, stdoutPipe := newOutput(t)
+		stderr, stderrPipe := newOutput(t)
 		params := ForkAuthenticateParams{
 			GetArgs: getArgs,
 			Stdin:   bytes.NewBufferString("hello\n"),
-			Stdout:  stdout,
-			Stderr:  stderr,
+			Stdout:  stdoutPipe,
+			Stderr:  stderrPipe,
 		}
 		cmd := buildBashForkCommand(t, params)
 
@@ -153,13 +159,13 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 			echo "extra output"
 			`}
 		}
-		stdout := newSyncBuffer()
-		stderr := newSyncBuffer()
+		stdout, stdoutPipe := newOutput(t)
+		stderr, stderrPipe := newOutput(t)
 		params := ForkAuthenticateParams{
 			GetArgs: getArgs,
 			Stdin:   bytes.NewBufferString("hello\n"),
-			Stdout:  stdout,
-			Stderr:  stderr,
+			Stdout:  stdoutPipe,
+			Stderr:  stderrPipe,
 		}
 		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
@@ -206,13 +212,12 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		getArgs := func(signalFd uint64) []string {
 			return []string{"-c", fmt.Sprintf(script, signalFd, signalFd)}
 		}
-		stdout := newSyncBuffer()
+		stdout, stdoutPipe := newOutput(t)
 		stdinR, stdinW := io.Pipe()
 		params := ForkAuthenticateParams{
 			GetArgs: getArgs,
 			Stdin:   stdinR,
-			Stdout:  stdout,
-			Stderr:  io.Discard,
+			Stdout:  stdoutPipe,
 		}
 		cmd := buildBashForkCommand(t, params)
 		err := runForkAuthenticateChild(t.Context(), cmd)
