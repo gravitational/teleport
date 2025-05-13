@@ -31,13 +31,13 @@ type azureDevopsIDTokenValidator interface {
 	Validate(ctx context.Context, organizationID string, idToken string) (*azuredevops.IDTokenClaims, error)
 }
 
-func (a *Server) checkAzureDevopsJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*azuredevops.IDTokenClaims, error) {
+func (a *Server) checkAzureDevopsJoinRequest(
+	ctx context.Context,
+	req *types.RegisterUsingTokenRequest,
+	pt types.ProvisionToken,
+) (*azuredevops.IDTokenClaims, error) {
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("IDToken not provided for %q join request", types.JoinMethodAzureDevops)
-	}
-	pt, err := a.GetToken(ctx, req.Token)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {

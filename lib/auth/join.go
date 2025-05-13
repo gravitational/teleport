@@ -306,7 +306,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodAzureDevops:
-		claims, err := a.checkAzureDevopsJoinRequest(ctx, req)
+		claims, err := a.checkAzureDevopsJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims.ForAudit()
 			attrs.AzureDevops = claims.JoinAttrs()
