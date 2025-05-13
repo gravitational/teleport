@@ -24,26 +24,12 @@ import (
 
 var mu sync.Mutex
 
-var envChecked = false
-var experimentEnabled = false
+var experimentEnabled, _ = strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_BOUND_KEYPAIR_JOINING_EXPERIMENT"))
 
 // Enabled returns true if the bound keypair joining experiment is enabled.
 func Enabled() bool {
 	mu.Lock()
 	defer mu.Unlock()
-
-	if !envChecked {
-		if v, err := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_BOUND_KEYPAIR_JOINING_EXPERIMENT")); err == nil {
-			experimentEnabled = v
-		} else {
-			// Fall back to disabled. For our purposes here, we won't bother
-			// logging anything - that the feature is disabled should be clear
-			// enough, especially given this is an experimental feature.
-			experimentEnabled = false
-		}
-
-		envChecked = true
-	}
 
 	return experimentEnabled
 }
@@ -54,5 +40,4 @@ func SetEnabled(enabled bool) {
 	defer mu.Unlock()
 
 	experimentEnabled = enabled
-	envChecked = true
 }
