@@ -10414,3 +10414,75 @@ func newTestAppServerV3(t *testing.T, auth *Server, name string, labels map[stri
 
 	return appServer
 }
+
+func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	s := newTestServerWithRoles(t, srv.AuthServer, types.RoleAdmin)
+
+	const errMsg = "supported in role version 7 and below"
+	testCases := []struct {
+		desc         string
+		roleVersion  string
+		roleOptions  types.RoleOptions
+		errAssertion require.ErrorAssertionFunc
+	}{
+		{
+			desc:        "samlidp: role option not allowed in role v8",
+			roleVersion: types.V8,
+			roleOptions: types.RoleOptions{
+				IDP: &types.IdPOptions{
+					SAML: &types.IdPSAMLOptions{
+						Enabled: types.NewBoolOption(true),
+					},
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, errMsg)
+			},
+		},
+		{
+			desc:        "samlidp: role option allowed in role v7",
+			roleVersion: types.V7,
+			roleOptions: types.RoleOptions{
+				IDP: &types.IdPOptions{
+					SAML: &types.IdPSAMLOptions{
+						Enabled: types.NewBoolOption(true),
+					},
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for i, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			newRole := func(t *testing.T, name string, roleOption types.RoleOptions) types.Role {
+				t.Helper()
+				role, err := types.NewRoleWithVersion(name, tt.roleVersion, types.RoleSpecV6{
+					Options: roleOption,
+				})
+				require.NoError(t, err)
+				return role
+			}
+
+			roleToCreate := newRole(t, fmt.Sprintf("test-create-role-%d", i), tt.roleOptions)
+			_, err := s.CreateRole(ctx, roleToCreate)
+			tt.errAssertion(t, err)
+
+			roleToUpdate := newRole(t, fmt.Sprintf("test-update-role-%d", i), types.RoleOptions{})
+			updateRole, err := s.CreateRole(ctx, roleToUpdate)
+			require.NoError(t, err)
+			updateRole.SetOptions(tt.roleOptions)
+			_, err = s.UpdateRole(ctx, updateRole)
+			tt.errAssertion(t, err)
+
+			roleToUpsert := newRole(t, fmt.Sprintf("test-upsert-role-%d", i), tt.roleOptions)
+			_, err = s.UpsertRole(ctx, roleToUpsert)
+			tt.errAssertion(t, err)
+		})
+	}
+}
