@@ -79,6 +79,8 @@ export function Header({
             lineHeight={0}
             style={{ visibility: showIndicator ? 'visible' : 'hidden' }}
             data-testid="indicator-wrapper"
+            height={40}
+            width={40}
           >
             <Indicator size={40} delay="none" />
           </Box>

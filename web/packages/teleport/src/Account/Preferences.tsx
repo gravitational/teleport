@@ -395,6 +395,7 @@ function themePreferenceImage(
         src={imageSrc}
         alt={altText}
         width="120"
+        height="148"
         style={{ lineHeight: '0' }}
       />
     </Box>
