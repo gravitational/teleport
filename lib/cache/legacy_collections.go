@@ -101,14 +101,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 	for _, watch := range watches {
 		resourceKind := resourceKindFromWatchKind(watch)
 		switch watch.Kind {
-		case types.KindAccessRequest:
-			if c.DynamicAccess == nil {
-				return nil, trace.BadParameter("missing parameter DynamicAccess")
-			}
-			collections.byKind[resourceKind] = &genericCollection[types.AccessRequest, noReader, accessRequestExecutor]{cache: c, watch: watch}
-		case types.KindHeadlessAuthentication:
-			// For headless authentications, we need only process events. We don't need to keep the cache up to date.
-			collections.byKind[resourceKind] = &genericCollection[*types.HeadlessAuthentication, noReader, noopExecutor]{cache: c, watch: watch}
 		case types.KindAuditQuery:
 			if c.SecReports == nil {
 				return nil, trace.BadParameter("missing parameter SecReports")
@@ -127,10 +119,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 			}
 			collections.secReportsStates = &genericCollection[*secreports.ReportState, services.SecurityReportStateGetter, secReportStateExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.secReportsStates
-		default:
-			if _, ok := c.collections.byKind[resourceKind]; !ok {
-				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
-			}
 		}
 	}
 	return collections, nil
@@ -177,32 +165,6 @@ func (r resourceKind) String() string {
 	}
 	return fmt.Sprintf("%s/%s", r.kind, r.subkind)
 }
-
-type accessRequestExecutor struct{}
-
-func (accessRequestExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.AccessRequest, error) {
-	return cache.DynamicAccess.GetAccessRequests(ctx, types.AccessRequestFilter{})
-}
-
-func (accessRequestExecutor) upsert(ctx context.Context, cache *Cache, resource types.AccessRequest) error {
-	return cache.dynamicAccessCache.UpsertAccessRequest(ctx, resource)
-}
-
-func (accessRequestExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.dynamicAccessCache.DeleteAllAccessRequests(ctx)
-}
-
-func (accessRequestExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.dynamicAccessCache.DeleteAccessRequest(ctx, resource.GetName())
-}
-
-func (accessRequestExecutor) isSingleton() bool { return false }
-
-func (accessRequestExecutor) getReader(_ *Cache, _ bool) noReader {
-	return noReader{}
-}
-
-var _ executor[types.AccessRequest, noReader] = accessRequestExecutor{}
 
 type userExecutor struct{}
 
@@ -388,31 +350,3 @@ func (secReportStateExecutor) getReader(cache *Cache, cacheOK bool) services.Sec
 }
 
 var _ executor[*secreports.ReportState, services.SecurityReportStateGetter] = secReportStateExecutor{}
-
-// noopExecutor can be used when a resource's events do not need to processed by
-// the cache itself, only passed on to other watchers.
-type noopExecutor struct{}
-
-func (noopExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*types.HeadlessAuthentication, error) {
-	return nil, nil
-}
-
-func (noopExecutor) upsert(ctx context.Context, cache *Cache, resource *types.HeadlessAuthentication) error {
-	return nil
-}
-
-func (noopExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return nil
-}
-
-func (noopExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return nil
-}
-
-func (noopExecutor) isSingleton() bool { return false }
-
-func (noopExecutor) getReader(_ *Cache, _ bool) noReader {
-	return noReader{}
-}
-
-var _ executor[*types.HeadlessAuthentication, noReader] = noopExecutor{}

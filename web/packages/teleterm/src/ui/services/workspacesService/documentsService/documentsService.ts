@@ -23,6 +23,7 @@ import type { RuntimeSettings } from 'teleterm/mainProcess/types';
 import * as uri from 'teleterm/ui/uri';
 import {
   DocumentUri,
+  isWindowsDesktopUri,
   KubeUri,
   paths,
   RootClusterUri,
@@ -591,17 +592,20 @@ export function createClusterDocument(opts: {
 }
 
 export function createDesktopSessionDocument(opts: {
-  desktopUri: uri.WindowsDesktopUri;
+  desktopUri: uri.DesktopUri;
   login: string;
   origin: DocumentOrigin;
 }): DocumentDesktopSession {
   return {
     kind: 'doc.desktop_session' as const,
     uri: routing.getDocUri({ docId: unique() }),
-    title: `${opts.login} on ${routing.parseWindowsDesktopUri(opts.desktopUri).params?.windowsDesktopId}`,
+    title: isWindowsDesktopUri(opts.desktopUri)
+      ? `${opts.login} on ${routing.parseWindowsDesktopUri(opts.desktopUri).params.windowsDesktopId}`
+      : 'Unknown',
     desktopUri: opts.desktopUri,
     login: opts.login,
     origin: opts.origin,
+    status: '',
   };
 }
 
