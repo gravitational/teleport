@@ -4800,6 +4800,10 @@ func (a *ServerWithRoles) DeleteAllInstallers(ctx context.Context) error {
 // SetAuthPreference sets cluster auth preference.
 // Deprecated: Use Update/UpsertAuthPreference where appropriate.
 func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref types.AuthPreference) error {
+	if err := modules.ValidateResource(newAuthPref); err != nil {
+		return trace.Wrap(err)
+	}
+
 	storedAuthPref, err := a.authServer.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)

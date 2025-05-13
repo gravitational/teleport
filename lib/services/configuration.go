@@ -21,8 +21,11 @@ package services
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // ClusterConfiguration stores the cluster configuration in the backend. All
@@ -127,4 +130,17 @@ type ClusterConfiguration interface {
 	UpsertAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error)
 	// DeleteAccessGraphSettings deletes the access graph settings from the backend.
 	DeleteAccessGraphSettings(context.Context) error
+}
+
+// ValidateAuthPreference performs checks that should happen before persisting a
+// new version of the preference resource, typically only as part of Auth
+// service operations.
+func ValidateAuthPreference(ap types.AuthPreference) error {
+	// TODO(espadolini): the checks that are duplicated in
+	// {Set,Create,Update,Upsert}AuthPreference should be moved here
+	if err := modules.ValidateResource(ap); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
