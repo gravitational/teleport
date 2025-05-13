@@ -19,6 +19,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
@@ -108,12 +109,10 @@ func (s *Supervisor) Run(ctx context.Context) error {
 	s.mu.Unlock()
 
 	err := group.Wait()
-	switch err {
-	case context.DeadlineExceeded, context.Canceled:
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return nil
-	default:
-		return err
 	}
+	return err
 }
 
 // OneShot runs any registered services that implement OneShotHandler.
@@ -195,7 +194,7 @@ func (s *Supervisor) oneShotService(ctx context.Context, svc InternalService) er
 
 	err := svc.runOneShotHandler(ctx)
 	switch {
-	case err == errNoOneShotHandler:
+	case errors.Is(err, errNoOneShotHandler):
 		logger.DebugContext(ctx, "Service does not support one-shot mode")
 		return nil
 	case err != nil:
