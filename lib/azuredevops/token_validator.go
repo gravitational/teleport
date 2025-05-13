@@ -21,7 +21,6 @@ package azuredevops
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -29,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/zitadel/oidc/v3/pkg/client"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // providerTimeout is the maximum time allowed to fetch provider metadata before
@@ -84,14 +84,14 @@ func (id *IDTokenValidator) Validate(
 	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
 	// aggressively across join tokens since this isn't going to change very
 	// regularly.
-	dc, err := client.Discover(timeoutCtx, issuer, http.DefaultClient)
+	dc, err := client.Discover(timeoutCtx, issuer, otelhttp.DefaultClient)
 	if err != nil {
 		return nil, trace.Wrap(err, "discovering oidc document")
 	}
 
 	// TODO(noah): Ideally we'd cache the remote keyset across joins/join tokens
 	// based on the issuer.
-	ks := rp.NewRemoteKeySet(http.DefaultClient, dc.JwksURI)
+	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
 	verifier := rp.NewIDTokenVerifier(issuer, audience, ks)
 	// TODO(noah): It'd be ideal if we could extent the verifier to use an
 	// injected "now" time.
