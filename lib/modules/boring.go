@@ -14,19 +14,29 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build boringcrypto
+//go:build fips
+
+//go:debug fips140=on
 
 package modules
 
-import "crypto/boring"
+import (
+	"crypto/fips140"
+	"fmt"
+	"os"
+)
 
-// IsBoringBinary checks if the binary was compiled with BoringCrypto.
-//
-// It's possible to enable the boringcrypto GOEXPERIMENT (which will enable the
-// boringcrypto build tag) even on platforms that don't support the boringcrypto
-// module, which results in crypto packages being available and working, but not
-// actually using a certified cryptographic module, so we have to check
-// [boring.Enabled] even if this is compiled in.
+func init() {
+	if !fips140.Enabled() {
+		fmt.Fprintln(
+			os.Stderr,
+			`Teleport FIPS builds don't allow setting the fips140 GODEBUG flag to "off". Please check your GODEBUG environment variable.`,
+		)
+		os.Exit(1)
+	}
+}
+
+// IsBoringBinary checks if the binary was compiled with FIPS support.
 func IsBoringBinary() bool {
-	return boring.Enabled()
+	return true
 }

@@ -1014,13 +1014,11 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		metricsRegistry = prometheus.NewRegistry()
 	}
 
-	// If FIPS mode was requested make sure binary is build against BoringCrypto.
-	if cfg.FIPS {
-		if !modules.GetModules().IsBoringBinary() {
-			return nil, trace.BadParameter("binary not compiled against BoringCrypto, check " +
-				"that Enterprise FIPS release was downloaded from " +
-				"a Teleport account https://teleport.sh")
-		}
+	// If FIPS mode was requested make sure that the binary is using FIPS mode
+	if cfg.FIPS && !modules.GetModules().IsBoringBinary() {
+		return nil, trace.BadParameter(
+			`binary not enabled for FIPS compliant operation, please confirm that the Teleport Enterprise FIPS release was downloaded from a Teleport account (https://teleport.sh)`,
+		)
 	}
 
 	if cfg.Auth.Preference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {

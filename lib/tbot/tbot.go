@@ -705,7 +705,7 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	if b.cfg.FIPS {
 		if !b.modules.IsBoringBinary() {
 			b.log.ErrorContext(ctx, "FIPS mode enabled but FIPS compatible binary not in use. Ensure you are using the Enterprise FIPS binary to use this flag.")
-			return nil, trace.BadParameter("fips mode enabled but binary was not compiled with boringcrypto")
+			return nil, trace.BadParameter("fips mode enabled but binary was not compiled in FIPS mode")
 		}
 		b.log.InfoContext(ctx, "Bot is running in FIPS compliant mode.")
 	}
@@ -779,7 +779,8 @@ func clientForFacade(
 	log *slog.Logger,
 	cfg *config.BotConfig,
 	facade *identity.Facade,
-	resolver reversetunnelclient.Resolver) (_ *authclient.Client, err error) {
+	resolver reversetunnelclient.Resolver,
+) (_ *authclient.Client, err error) {
 	ctx, span := tracer.Start(ctx, "clientForFacade")
 	defer func() { apitracing.EndSpan(span, err) }()
 

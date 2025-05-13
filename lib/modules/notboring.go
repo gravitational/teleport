@@ -14,11 +14,27 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !boringcrypto
+//go:build !fips
 
 package modules
 
-// IsBoringBinary checks if the binary was compiled with BoringCrypto.
+import (
+	"crypto/fips140"
+	"fmt"
+	"os"
+)
+
+func init() {
+	if fips140.Enabled() {
+		fmt.Fprintln(
+			os.Stderr,
+			`FIPS mode was requested for a non-FIPS build through the fips140 GODEBUG flag but non-FIPS builds would not be compliant due to other components in the build. Please check your GODEBUG environment variable.`,
+		)
+		os.Exit(1)
+	}
+}
+
+// IsBoringBinary checks if the binary was compiled with FIPS support.
 func IsBoringBinary() bool {
 	return false
 }
