@@ -641,7 +641,7 @@ func TestMultiRegionKeyReplication(t *testing.T) {
 		expectedPrimary  string
 	}{
 		{
-			name: "backwards compatability when no primary/replicas are configured",
+			name: "backwards compatibility when no primary/replicas are configured",
 			config: servicecfg.AWSKMSConfig{
 				AWSAccount: testAccount,
 				AWSRegion:  testPrimary,
