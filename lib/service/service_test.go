@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/breaker"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
 	autoupdate "github.com/gravitational/teleport/api/types/autoupdate"
@@ -1815,36 +1816,42 @@ func TestInitDatabaseService(t *testing.T) {
 	t.Parallel()
 
 	for _, test := range []struct {
-		desc      string
-		enabled   bool
-		databases []servicecfg.Database
-		expectErr bool
+		desc                string
+		enabled             bool
+		configuredDatabases []servicecfg.Database
+		enabledDatabases    []servicecfg.Database
 	}{
 		{
-			desc:    "enabled valid databases",
+			desc:    "enabled databases, valid",
 			enabled: true,
-			databases: []servicecfg.Database{
-				{Name: "pg", Protocol: defaults.ProtocolPostgres, URI: "localhost:0"},
+			configuredDatabases: []servicecfg.Database{
+				{Name: "pg1", Protocol: defaults.ProtocolPostgres, URI: "localhost:0"},
+				{Name: "pg2", Protocol: defaults.ProtocolPostgres, URI: "localhost:0"},
 			},
-			expectErr: false,
+			enabledDatabases: []servicecfg.Database{
+				{Name: "pg1", Protocol: defaults.ProtocolPostgres, URI: "localhost:0"},
+				{Name: "pg2", Protocol: defaults.ProtocolPostgres, URI: "localhost:0"},
+			},
 		},
 		{
-			desc:    "enabled invalid databases",
+			desc:    "enabled databases, some invalid",
 			enabled: true,
-			databases: []servicecfg.Database{
+			configuredDatabases: []servicecfg.Database{
 				{Name: "pg", Protocol: defaults.ProtocolPostgres, URI: "localhost:0"},
 				{Name: ""},
 			},
-			expectErr: true,
+			enabledDatabases: []servicecfg.Database{
+				{Name: "pg", Protocol: defaults.ProtocolPostgres, URI: "localhost:0"},
+			},
 		},
 		{
-			desc:    "disabled invalid databases",
+			desc:    "disabled databases, some invalid",
 			enabled: false,
-			databases: []servicecfg.Database{
+			configuredDatabases: []servicecfg.Database{
 				{Name: "pg", Protocol: defaults.ProtocolPostgres, URI: "localhost:0"},
 				{Name: ""},
 			},
-			expectErr: false,
+			enabledDatabases: []servicecfg.Database{},
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
@@ -1867,7 +1874,7 @@ func TestInitDatabaseService(t *testing.T) {
 			cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 			cfg.Databases.Enabled = test.enabled
-			cfg.Databases.Databases = test.databases
+			cfg.Databases.Databases = test.configuredDatabases
 
 			// This timeout should consider time to receive the event + shutdown
 			// time.
@@ -1892,33 +1899,36 @@ func TestInitDatabaseService(t *testing.T) {
 				require.NoError(t, process.Wait())
 			})
 
-			if !test.expectErr {
-				_, err := process.WaitForEvent(ctx, TeleportReadyEvent)
+			if test.enabled {
+				_, err = process.WaitForEvent(ctx, DatabasesReady)
 				require.NoError(t, err)
-				require.NoError(t, process.Close())
-				// Expect Teleport to shutdown without reporting any issue.
-				require.NoError(t, eg.Wait())
-				require.NoError(t, process.Wait())
-				return
 			}
 
-			// The first service to exit should be the db one, with a "db.init" event.
-			// We can't use WaitForEvents because it only returns the last event for this type.
-			// As the test causes Teleport to crash, other services might exit in error before
-			// we get the event, causing the test to fail.
-			select {
-			case event := <-serviceExitedEvents:
-				require.NotNil(t, event)
-				exitPayload, ok := event.Payload.(ExitEventPayload)
-				require.True(t, ok, "expected ExitEventPayload but got %T", event.Payload)
-				require.Equal(t, "db.init", exitPayload.Service.Name(), "expected db init failure, got instead %q with error %q", exitPayload.Service.Name(), exitPayload.Error)
-			case <-ctx.Done():
-				require.Fail(t, "context timed out, we never received the failed db.init event")
+			// even though we received the "databases ready" event,
+			// in practice the local auth is not aware of those for a few seconds still.
+			time.Sleep(time.Second * 3)
+
+			// validate expected databases
+			dbServers, err := process.localAuth.GetDatabaseServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			require.Len(t, dbServers, len(test.enabledDatabases))
+			for _, db := range test.enabledDatabases {
+				var found bool
+				for _, dbServer := range dbServers {
+					if dbServer.GetName() == db.Name {
+						found = true
+					}
+				}
+				require.True(t, found)
 			}
 
-			// Database service init is a critical service, meaning failures on
-			// it should cause the process to exit with error.
-			require.Error(t, eg.Wait())
+			_, err = process.WaitForEvent(ctx, TeleportReadyEvent)
+			require.NoError(t, err)
+			require.NoError(t, process.Close())
+			// expect clean shutdown.
+			require.NoError(t, eg.Wait())
+			require.NoError(t, process.Wait())
+			return
 		})
 	}
 }
