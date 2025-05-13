@@ -261,7 +261,13 @@ $ tsh request drop
 When you drop an Access Request, Teleport issues a new user certificate. The new
 certificate retains the expiration of the previous certificate. Once your
 session expires and you reauthenticate to Teleport, you receive a user
-certificate with your user's originally configured time to live.
+certificate with your user's originally configured time to live. For example:
+
+1. Suppose that you just logged in and your user certificate is valid for 12 hours.
+1. When you assume an Access Request, you receive a new user certificate which grants you access to a
+resource for, let's say, 3 hours.
+1. After you drop this Access Request, you get a new certificate that is valid only for the remaining time from those 3 hours.
+1. Once that certificate expires and you log in again, the new user certificate is valid for 12 hours.
 
 ## Next Steps
 
