@@ -7531,6 +7531,7 @@ func TestSSHForkAfterAuthentication(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// Configure command with a real file path.
 			testFile := filepath.Join(t.TempDir(), "test.txt")
 			cmd := make([]string, 0, len(tc.command))
@@ -7538,7 +7539,7 @@ func TestSSHForkAfterAuthentication(t *testing.T) {
 				cmd = append(cmd, strings.ReplaceAll(arg, "test.txt", testFile))
 			}
 
-			err = Run(t.Context(), append([]string{
+			err := Run(t.Context(), append([]string{
 				"ssh",
 				"--insecure",
 				"-f",
