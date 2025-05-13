@@ -3105,7 +3105,11 @@ service AuthService {
   // GetWebSession gets a web session.
   rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);
   // GetWebSessions gets all web sessions.
-  rpc GetWebSessions(google.protobuf.Empty) returns (GetWebSessionsResponse);
+  rpc GetWebSessions(google.protobuf.Empty) returns (GetWebSessionsResponse) {
+    option deprecated = true;
+  }
+  // StreamWebSessions gets all web sessions in a stream.
+  rpc StreamWebSessions(google.protobuf.Empty) returns (stream types.WebSessionV2);
   // DeleteWebSession deletes a web session.
   rpc DeleteWebSession(types.DeleteWebSessionRequest) returns (google.protobuf.Empty);
   // DeleteAllWebSessions deletes all web sessions.

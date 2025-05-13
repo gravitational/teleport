@@ -1823,6 +1823,32 @@ func (g *GRPCServer) GetWebSessions(ctx context.Context, _ *emptypb.Empty) (*aut
 	}, nil
 }
 
+// StreamWebSessions implements [authpb.AuthServiceServer].
+func (g *GRPCServer) StreamWebSessions(req *emptypb.Empty, srv authpb.AuthService_StreamWebSessionsServer) error {
+	ctx := srv.Context()
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sessions, err := auth.WebSessions().List(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, session := range sessions {
+		sess, ok := session.(*types.WebSessionV2)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", session)
+		}
+		if err := srv.Send(sess); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
 // DeleteWebSession removes the web session given with req.
 func (g *GRPCServer) DeleteWebSession(ctx context.Context, req *types.DeleteWebSessionRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
