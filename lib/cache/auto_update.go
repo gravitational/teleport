@@ -230,11 +230,13 @@ func newAutoUpdateAgentReportCollection(upstream services.AutoUpdateServiceGette
 	}
 
 	return &collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]{
-		store: newStore(map[autoUpdateAgentReportIndex]func(*autoupdatev1.AutoUpdateAgentReport) string{
-			autoUpdateAgentReportNameIndex: func(r *autoupdatev1.AutoUpdateAgentReport) string {
-				return r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			proto.CloneOf[*autoupdatev1.AutoUpdateAgentReport],
+			map[autoUpdateAgentReportIndex]func(*autoupdatev1.AutoUpdateAgentReport) string{
+				autoUpdateAgentReportNameIndex: func(r *autoupdatev1.AutoUpdateAgentReport) string {
+					return r.GetMetadata().Name
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*autoupdatev1.AutoUpdateAgentReport, error) {
 			var discoveryConfigs []*autoupdatev1.AutoUpdateAgentReport
 			var nextToken string
@@ -278,7 +280,6 @@ func (c *Cache) GetAutoUpdateAgentReport(ctx context.Context, name string) (*aut
 		collection:  c.collections.autoUpdateReports,
 		index:       autoUpdateAgentReportNameIndex,
 		upstreamGet: c.Config.AutoUpdateService.GetAutoUpdateAgentReport,
-		clone:       apiutils.CloneProtoMsg[*autoupdatev1.AutoUpdateAgentReport],
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
@@ -297,7 +298,6 @@ func (c *Cache) ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pa
 		nextToken: func(t *autoupdatev1.AutoUpdateAgentReport) string {
 			return t.GetMetadata().Name
 		},
-		clone: apiutils.CloneProtoMsg[*autoupdatev1.AutoUpdateAgentReport],
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)

@@ -529,6 +529,7 @@ func TestAutoUpdateAgentRolloutEvents(t *testing.T) {
 		authz.AdminActionAuthMFAVerified,
 		fakeChecker{
 			allowedVerbs: rwVerbs,
+			allowedKinds: []string{types.KindAutoUpdateAgentRollout},
 			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
 		},
 		mockEmitter)
