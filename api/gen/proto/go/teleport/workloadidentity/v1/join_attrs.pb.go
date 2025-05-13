@@ -1603,7 +1603,7 @@ type JoinAttrsAzureDevopsPipeline struct {
 	// For Git this will be the commit SHA.
 	RepositoryVersion string `protobuf:"bytes,9,opt,name=repository_version,json=repositoryVersion,proto3" json:"repository_version,omitempty"`
 	// The ref of the repository that the pipeline is running against.
-	RepositoryReference string `protobuf:"bytes,10,opt,name=repository_reference,json=repositoryReference,proto3" json:"repository_reference,omitempty"`
+	RepositoryRef string `protobuf:"bytes,10,opt,name=repository_ref,json=repositoryRef,proto3" json:"repository_ref,omitempty"`
 	// The ID of the run that is being executed.
 	RunId         string `protobuf:"bytes,11,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1703,9 +1703,9 @@ func (x *JoinAttrsAzureDevopsPipeline) GetRepositoryVersion() string {
 	return ""
 }
 
-func (x *JoinAttrsAzureDevopsPipeline) GetRepositoryReference() string {
+func (x *JoinAttrsAzureDevopsPipeline) GetRepositoryRef() string {
 	if x != nil {
-		return x.RepositoryReference
+		return x.RepositoryRef
 	}
 	return ""
 }
@@ -1848,7 +1848,7 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"\vinstance_id\x18\x03 \x01(\tR\n" +
 	"instanceId\"n\n" +
 	"\x14JoinAttrsAzureDevops\x12V\n" +
-	"\bpipeline\x18\x01 \x01(\v2:.teleport.workloadidentity.v1.JoinAttrsAzureDevopsPipelineR\bpipeline\"\xb0\x03\n" +
+	"\bpipeline\x18\x01 \x01(\v2:.teleport.workloadidentity.v1.JoinAttrsAzureDevopsPipelineR\bpipeline\"\xa4\x03\n" +
 	"\x1cJoinAttrsAzureDevopsPipeline\x12\x10\n" +
 	"\x03sub\x18\x01 \x01(\tR\x03sub\x12+\n" +
 	"\x11organization_name\x18\x02 \x01(\tR\x10organizationName\x12!\n" +
@@ -1859,9 +1859,9 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"project_id\x18\x06 \x01(\tR\tprojectId\x12#\n" +
 	"\rdefinition_id\x18\a \x01(\tR\fdefinitionId\x12#\n" +
 	"\rrepository_id\x18\b \x01(\tR\frepositoryId\x12-\n" +
-	"\x12repository_version\x18\t \x01(\tR\x11repositoryVersion\x121\n" +
-	"\x14repository_reference\x18\n" +
-	" \x01(\tR\x13repositoryReference\x12\x15\n" +
+	"\x12repository_version\x18\t \x01(\tR\x11repositoryVersion\x12%\n" +
+	"\x0erepository_ref\x18\n" +
+	" \x01(\tR\rrepositoryRef\x12\x15\n" +
 	"\x06run_id\x18\v \x01(\tR\x05runIdBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
 
 var (

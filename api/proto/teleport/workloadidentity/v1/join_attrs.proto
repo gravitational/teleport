@@ -354,7 +354,7 @@ message JoinAttrsAzureDevopsPipeline {
   // For Git this will be the commit SHA.
   string repository_version = 9;
   // The ref of the repository that the pipeline is running against.
-  string repository_reference = 10;
+  string repository_ref = 10;
   // The ID of the run that is being executed.
   string run_id = 11;
 }

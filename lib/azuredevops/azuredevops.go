@@ -56,10 +56,10 @@ type IDTokenClaims struct {
 	// RepositoryVersion is the "version" of the repository the pipeline is
 	// running against. For a git repo, this is the commit sha.
 	RepositoryVersion string `json:"rpo_ver"`
-	// RepositoryReference is the reference that the pipeline is running
+	// RepositoryRef is the reference that the pipeline is running
 	// against. Example:
 	// refs/heads/main
-	RepositoryReference string `json:"rpo_ref"`
+	RepositoryRef string `json:"rpo_ref"`
 	// RunID is the ID of the pipeline run that the token belongs to.
 	RunID string `json:"run_id"`
 }
@@ -74,17 +74,17 @@ func (c *IDTokenClaims) GetSubject() string {
 func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsAzureDevops {
 	return &workloadidentityv1pb.JoinAttrsAzureDevops{
 		Pipeline: &workloadidentityv1pb.JoinAttrsAzureDevopsPipeline{
-			Sub:                 c.Sub,
-			OrganizationName:    c.OrganizationName,
-			ProjectName:         c.ProjectName,
-			PipelineName:        c.PipelineName,
-			OrganizationId:      c.OrganizationID,
-			ProjectId:           c.ProjectID,
-			DefinitionId:        c.DefinitionID,
-			RepositoryId:        c.RepositoryID,
-			RepositoryVersion:   c.RepositoryVersion,
-			RepositoryReference: c.RepositoryReference,
-			RunId:               c.RunID,
+			Sub:               c.Sub,
+			OrganizationName:  c.OrganizationName,
+			ProjectName:       c.ProjectName,
+			PipelineName:      c.PipelineName,
+			OrganizationId:    c.OrganizationID,
+			ProjectId:         c.ProjectID,
+			DefinitionId:      c.DefinitionID,
+			RepositoryId:      c.RepositoryID,
+			RepositoryVersion: c.RepositoryVersion,
+			RepositoryRef:     c.RepositoryRef,
+			RunId:             c.RunID,
 		},
 	}
 }
