@@ -71,6 +71,21 @@ func RegisterResolver(builder ResolverBuilder, names ...string) {
 	}
 }
 
+// GetResolverBuilders is used in tests to cleanup after overriding a resolver.
+func GetResolverBuilders(names ...string) (map[string]ResolverBuilder, error) {
+	resolverBuildersMu.RLock()
+	defer resolverBuildersMu.RUnlock()
+	out := map[string]ResolverBuilder{}
+	for _, name := range names {
+		builder, ok := resolverBuilders[name]
+		if !ok {
+			return nil, trace.NotFound("database endpoint resolver builder %q is not registered", name)
+		}
+		out[name] = builder
+	}
+	return out, nil
+}
+
 // GetResolver returns a resolver for the given database.
 func GetResolver(ctx context.Context, db types.Database, cfg ResolverBuilderConfig) (Resolver, error) {
 	name := db.GetProtocol()
