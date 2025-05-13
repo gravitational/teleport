@@ -67,7 +67,7 @@ message RecordingEncryptionStatus {}
 // RecordingEncryption contains cluster state for encrypted session recordings.
 message RecordingEncryption {
   string kind = 1;
-  string subkind = 2;
+  string sub_kind = 2;
   string version = 3;
   teleport.header.v1.Metadata metadata = 4;
   RecordingEncryptionSpec spec = 5;

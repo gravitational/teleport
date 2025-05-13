@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"iter"
 	"slices"
 	"strings"
 	"time"
@@ -49,8 +50,9 @@ type SessionRecordingConfig interface {
 	// GetStatus gets the status for session recording config
 	GetStatus() SessionRecordingConfigStatus
 
-	// SetStatus sets the cluster's session recording status.
-	SetStatus(SessionRecordingConfigStatus)
+	// SetEncryptionKeys sets the encryption keys for the session recording config.
+	// It returns true if there was a change applied and false otherwise.
+	SetEncryptionKeys(iter.Seq[*EncryptionKey]) bool
 
 	// Clone returns a copy of the resource.
 	Clone() SessionRecordingConfig
@@ -187,9 +189,33 @@ func (c *SessionRecordingConfigV2) GetStatus() SessionRecordingConfigStatus {
 	return c.Status
 }
 
-// SetStatus sets the cluster's session recording status.
-func (c *SessionRecordingConfigV2) SetStatus(status SessionRecordingConfigStatus) {
-	c.Status = status
+// SetEncryptionKeys sets the cluster's session recording status.
+func (c *SessionRecordingConfigV2) SetEncryptionKeys(keys iter.Seq[*EncryptionKey]) bool {
+	existingKeys := make(map[string]struct{})
+	for _, key := range c.GetStatus().EncryptionKeys {
+		existingKeys[string(key.PublicKey)] = struct{}{}
+	}
+
+	var keysChanged bool
+	var newKeys []*EncryptionKey
+	addedKeys := make(map[string]struct{})
+	for key := range keys {
+		if _, exists := existingKeys[string(key.PublicKey)]; !exists {
+			keysChanged = true
+		}
+
+		if _, added := addedKeys[string(key.PublicKey)]; !added {
+			addedKeys[string(key.PublicKey)] = struct{}{}
+			newKeys = append(newKeys, key)
+		}
+
+	}
+
+	c.Status = SessionRecordingConfigStatus{
+		EncryptionKeys: newKeys,
+	}
+
+	return keysChanged || len(existingKeys) != len(addedKeys)
 }
 
 // Clone returns a copy of the resource.

@@ -368,7 +368,7 @@ type InitConfig struct {
 	BackendInfo services.BackendInfoService
 
 	// RecordingEncryption manages state for encrypted session recording.
-	RecordingEncryption services.RecordingEncryptionServiceInternal
+	RecordingEncryption services.RecordingEncryption
 
 	// SkipVersionCheck skips version check during major version upgrade/downgrade.
 	SkipVersionCheck bool
@@ -1008,113 +1008,7 @@ func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNet
 	return trace.LimitExceeded("failed to initialize cluster networking config in %v iterations", iterationLimit)
 }
 
-func handleSessionRecordingChange(ctx context.Context, asrv *Server) error {
-	asrv.logger.InfoContext(ctx, "fetching recording config")
-	lockCfg := backend.RunWhileLockedConfig{
-		LockConfiguration: backend.LockConfiguration{
-			Backend:            asrv.bk,
-			LockNameComponents: []string{"session_recording_config_watcher"},
-			TTL:                30 * time.Second,
-		},
-		RefreshLockInterval: 20 * time.Second,
-	}
-
-	return trace.Wrap(backend.RunWhileLocked(ctx, lockCfg, func(ctx context.Context) error {
-		recConfig, err := asrv.GetSessionRecordingConfig(ctx)
-		if err != nil {
-			return trace.Wrap(err, "fetching recording config")
-		}
-
-		if !recConfig.GetEncrypted() {
-			asrv.logger.InfoContext(ctx, "recording encryption disabled, bailing")
-			return nil
-		}
-
-		encryption, err := asrv.EvaluateRecordingEncryption(ctx, asrv.keyStore)
-		if err != nil {
-			asrv.logger.ErrorContext(ctx, "failed to evaluate recording_encryption", "error", err)
-			return trace.Wrap(err)
-		}
-
-		activeKeySet := make(map[string]types.EncryptionKey)
-		for _, wrappedKey := range encryption.GetSpec().GetKeySet().GetActiveKeys() {
-			encKey := wrappedKey.RecordingEncryptionPair.EncryptionKey()
-			if _, ok := activeKeySet[string(encKey.PublicKey)]; ok {
-				continue
-			}
-			activeKeySet[string(encKey.PublicKey)] = wrappedKey.RecordingEncryptionPair.EncryptionKey()
-		}
-
-		oldKeySet := make(map[string]types.EncryptionKey)
-		for _, encKey := range recConfig.GetStatus().EncryptionKeys {
-			if _, ok := oldKeySet[string(encKey.PublicKey)]; ok {
-				continue
-			}
-
-			oldKeySet[string(encKey.PublicKey)] = *encKey
-		}
-
-		shouldUpdate := len(oldKeySet) != len(activeKeySet)
-		for pubKey := range activeKeySet {
-			if _, ok := oldKeySet[pubKey]; !ok {
-				shouldUpdate = true
-				break
-			}
-		}
-
-		if !shouldUpdate {
-			return nil
-		}
-
-		encKeys := make([]*types.EncryptionKey, 0, len(activeKeySet))
-		for _, encKey := range activeKeySet {
-			encKeys = append(encKeys, &encKey)
-		}
-		recConfig.SetStatus(types.SessionRecordingConfigStatus{
-			EncryptionKeys: encKeys,
-		})
-
-		_, err = asrv.UpdateSessionRecordingConfig(ctx, recConfig)
-		return trace.Wrap(err)
-	}))
-}
-
 func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
-	w, err := asrv.NewWatcher(asrv.closeCtx, types.Watch{
-		Name: "session_recording_config watcher",
-		Kinds: []types.WatchKind{
-			{
-				Kind: types.KindSessionRecordingConfig,
-			},
-		},
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		for {
-			select {
-			case ev := <-w.Events():
-				if ev.Type != types.OpPut {
-					continue
-				}
-
-				for range 3 {
-					err := handleSessionRecordingChange(asrv.closeCtx, asrv)
-					if err == nil {
-						break
-					}
-
-					asrv.logger.ErrorContext(ctx, "failed to handle session recording config change", "error", err)
-				}
-
-			case <-w.Done():
-				return
-			}
-		}
-	}()
-
 	const iterationLimit = 3
 	for _ = range iterationLimit {
 		storedRecConfig, err := asrv.Services.GetSessionRecordingConfig(ctx)

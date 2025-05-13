@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
 	"github.com/gravitational/teleport/lib/authz"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
@@ -80,6 +81,7 @@ type ServiceConfig struct {
 	AccessGraph                   AccessGraphConfig
 	ReadOnlyCache                 ReadOnlyCache
 	SignatureAlgorithmSuiteParams types.SignatureAlgorithmSuiteParams
+	RecordingEncryption           *recordingencryptionv1.Service
 }
 
 // AccessGraphConfig contains the configuration about the access graph service
@@ -108,6 +110,7 @@ type Service struct {
 	accessGraph                   AccessGraphConfig
 	readOnlyCache                 ReadOnlyCache
 	signatureAlgorithmSuiteParams types.SignatureAlgorithmSuiteParams
+	recordingEncryption           *recordingencryptionv1.Service
 }
 
 // NewService validates the provided configuration and returns a [Service].
@@ -121,6 +124,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
+	case cfg.RecordingEncryption == nil:
+		return nil, trace.BadParameter("recording encryption service is required")
 	}
 
 	if cfg.ReadOnlyCache == nil {
@@ -141,6 +146,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		accessGraph:                   cfg.AccessGraph,
 		readOnlyCache:                 cfg.ReadOnlyCache,
 		signatureAlgorithmSuiteParams: cfg.SignatureAlgorithmSuiteParams,
+		recordingEncryption:           cfg.RecordingEncryption,
 	}, nil
 }
 
@@ -782,6 +788,15 @@ func (s *Service) CreateSessionRecordingConfig(ctx context.Context, cfg types.Se
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
+	if cfg.GetEncrypted() {
+		encryption, err := s.recordingEncryption.ResolveRecordingEncryption(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		cfg.SetEncryptionKeys(recordingencryptionv1.EncryptedKeyIter(encryption.GetSpec().GetKeySet().ActiveKeys))
+	}
+
 	created, err := s.backend.CreateSessionRecordingConfig(ctx, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -815,6 +830,15 @@ func (s *Service) UpdateSessionRecordingConfig(ctx context.Context, req *cluster
 	}
 
 	req.SessionRecordingConfig.SetOrigin(types.OriginDynamic)
+
+	if req.SessionRecordingConfig.GetEncrypted() {
+		encryption, err := s.recordingEncryption.ResolveRecordingEncryption(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		req.SessionRecordingConfig.SetEncryptionKeys(recordingencryptionv1.EncryptedKeyIter(encryption.GetSpec().GetKeySet().ActiveKeys))
+	}
 
 	updated, err := s.backend.UpdateSessionRecordingConfig(ctx, req.SessionRecordingConfig)
 
@@ -861,6 +885,15 @@ func (s *Service) UpsertSessionRecordingConfig(ctx context.Context, req *cluster
 	}
 
 	req.SessionRecordingConfig.SetOrigin(types.OriginDynamic)
+
+	if req.SessionRecordingConfig.GetEncrypted() {
+		encryption, err := s.recordingEncryption.ResolveRecordingEncryption(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		req.SessionRecordingConfig.SetEncryptionKeys(recordingencryptionv1.EncryptedKeyIter(encryption.GetSpec().GetKeySet().ActiveKeys))
+	}
 
 	upserted, err := s.backend.UpsertSessionRecordingConfig(ctx, req.SessionRecordingConfig)
 

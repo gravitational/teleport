@@ -504,7 +504,6 @@ func (s *ClusterConfigurationService) CreateSessionRecordingConfig(ctx context.C
 		Key:   backend.NewKey(clusterConfigPrefix, sessionRecordingPrefix),
 		Value: value,
 	}
-
 	lease, err := s.Backend.Create(ctx, item)
 	if err != nil {
 		return nil, trace.Wrap(err)

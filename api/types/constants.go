@@ -313,6 +313,10 @@ const (
 	// session recording configuration.
 	MetaNameSessionRecordingConfig = "session-recording-config"
 
+	// MetaNameRecordingEncryption is the exact name of the singleton resource for
+	// session recording configuration.
+	MetaNameRecordingEncryption = "recording-encryption"
+
 	// KindExternalAuditStorage the resource kind for External Audit Storage
 	// configuration.
 	KindExternalAuditStorage = "external_audit_storage"

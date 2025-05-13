@@ -18,7 +18,6 @@ package generic
 
 import (
 	"context"
-	"time"
 
 	"github.com/gravitational/trace"
 
@@ -149,9 +148,4 @@ func (s ServiceWrapper[T]) ListResourcesWithFilter(ctx context.Context, pageSize
 		out = append(out, adapter.resource)
 	}
 	return out, nextToken, trace.Wrap(err)
-}
-
-// RunWhileLocked will run the given function in a backend lock. This is a wrapper around the backend.RunWhileLocked function.
-func (s ServiceWrapper[T]) RunWhileLocked(ctx context.Context, lockNameComponents []string, ttl time.Duration, fn func(context.Context, backend.Backend) error) error {
-	return trace.Wrap(s.service.RunWhileLocked(ctx, lockNameComponents, ttl, fn))
 }

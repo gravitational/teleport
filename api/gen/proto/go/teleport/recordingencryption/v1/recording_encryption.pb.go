@@ -297,7 +297,7 @@ func (*RecordingEncryptionStatus) Descriptor() ([]byte, []int) {
 type RecordingEncryption struct {
 	state         protoimpl.MessageState     `protogen:"open.v1"`
 	Kind          string                     `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
-	Subkind       string                     `protobuf:"bytes,2,opt,name=subkind,proto3" json:"subkind,omitempty"`
+	SubKind       string                     `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	Version       string                     `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
 	Metadata      *v1.Metadata               `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Spec          *RecordingEncryptionSpec   `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
@@ -343,9 +343,9 @@ func (x *RecordingEncryption) GetKind() string {
 	return ""
 }
 
-func (x *RecordingEncryption) GetSubkind() string {
+func (x *RecordingEncryption) GetSubKind() string {
 	if x != nil {
-		return x.Subkind
+		return x.SubKind
 	}
 	return ""
 }
@@ -569,10 +569,10 @@ const file_teleport_recordingencryption_v1_recording_encryption_proto_rawDesc = 
 	"activeKeys\"[\n" +
 	"\x17RecordingEncryptionSpec\x12@\n" +
 	"\akey_set\x18\x01 \x01(\v2'.teleport.recordingencryption.v1.KeySetR\x06keySet\"\x1b\n" +
-	"\x19RecordingEncryptionStatus\"\xb9\x02\n" +
+	"\x19RecordingEncryptionStatus\"\xba\x02\n" +
 	"\x13RecordingEncryption\x12\x12\n" +
-	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x18\n" +
-	"\asubkind\x18\x02 \x01(\tR\asubkind\x12\x18\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
+	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12L\n" +
 	"\x04spec\x18\x05 \x01(\v28.teleport.recordingencryption.v1.RecordingEncryptionSpecR\x04spec\x12R\n" +
