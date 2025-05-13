@@ -117,7 +117,7 @@ func (a AccountAssignmentRole) Build(t *testing.T) *types.RoleV6 {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		SubKind: "aws_identity_center",
-		Version: types.V7,
+		Version: types.V8,
 		Metadata: types.Metadata{
 			Name: a.Name,
 			Labels: map[string]string{

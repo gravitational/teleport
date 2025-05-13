@@ -522,11 +522,6 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 			RecordSession: &types.RecordSession{
 				Desktop: types.NewBoolOption(false),
 			},
-			IDP: &types.IdPOptions{
-				SAML: &types.IdPSAMLOptions{
-					Enabled: types.NewBoolOption(true),
-				},
-			},
 		},
 		Allow: types.RoleConditions{
 			Logins:    []string{login},
