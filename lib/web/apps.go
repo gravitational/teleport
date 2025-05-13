@@ -389,7 +389,7 @@ func (h *Handler) resolveAppByName(ctx context.Context, proxy reversetunnelclien
 		return nil, "", trace.Wrap(err)
 	}
 
-	servers, err := app.Match(ctx, authClient, app.MatchName(appName))
+	servers, err := app.MatchUnshuffled(ctx, authClient, app.MatchName(appName))
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -414,7 +414,7 @@ func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnelclient.T
 		return nil, "", trace.Wrap(err)
 	}
 
-	servers, err := app.Match(ctx, authClient, app.MatchPublicAddr(publicAddr))
+	servers, err := app.MatchUnshuffled(ctx, authClient, app.MatchPublicAddr(publicAddr))
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

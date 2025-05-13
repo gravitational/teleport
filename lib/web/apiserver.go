@@ -31,6 +31,7 @@ import (
 	"html/template"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/url"
@@ -377,7 +378,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 	}
 	publicAddr := raddr.Host()
 
-	servers, err := app.Match(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
+	servers, err := app.MatchUnshuffled(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
 	if err != nil {
 		h.handler.log.Info("failed to match application with public addr %s", publicAddr)
 		return
@@ -388,7 +389,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	foundApp := servers[0].GetApp()
+	foundApp := servers[rand.N(len(servers))].GetApp()
 	corsPolicy := foundApp.GetCORS()
 	if corsPolicy == nil {
 		return
