@@ -28,18 +28,27 @@ import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserC
 
 import { ContextProvider } from '..';
 import { Preferences } from './Preferences';
+import { NotificationProvider, useNotification } from './NotificationContext';
+
+jest.mock('./NotificationContext', () => {
+  const originalContext = jest.requireActual('./NotificationContext');
+  return {
+    ...originalContext,
+    useNotification: jest.fn(),
+  };
+});
 
 function renderComponent(
   ctx: TeleportContext,
   setErrorMessageFn = jest.fn(),
-  addNotificationFn = jest.fn()
 ) {
   render(
     <ContextProvider ctx={ctx}>
-      <Preferences
-        setErrorMessage={setErrorMessageFn}
-        addNotification={addNotificationFn}
-      />
+      <NotificationProvider>
+        <Preferences
+          setErrorMessage={setErrorMessageFn}
+        />
+      </NotificationProvider>
     </ContextProvider>
   );
 }
@@ -55,6 +64,8 @@ describe('Account/Preferences', () => {
         }
         return { success: true };
       });
+
+    (useNotification as jest.Mock).mockReturnValue({ addNotification: jest.fn() });
 
     mockUserContextProviderWith(userContext);
     renderComponent(createTeleportContext());
@@ -100,7 +111,11 @@ describe('Account/Preferences', () => {
     mockUserContextProviderWith(userContext);
 
     const addNotification = jest.fn();
-    renderComponent(createTeleportContext(), undefined, addNotification);
+    (useNotification as jest.Mock).mockReturnValue({
+      addNotification,
+    });
+
+    renderComponent(createTeleportContext());
 
     expect(userContext.preferences.keyboardLayout).toBe(0);
 

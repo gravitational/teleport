@@ -32,6 +32,7 @@ import { PasswordState } from 'teleport/services/user';
 import TeleportContext from 'teleport/teleportContext';
 
 import useManageDevices from './ManageDevices/useManageDevices';
+import { NotificationProvider } from './NotificationContext';
 
 const defaultAuthType = cfg.auth.second_factor;
 const defaultPasswordless = cfg.auth.allowPasswordless;
@@ -55,15 +56,16 @@ function SecuritySettingsWrapper({ ctx }: { ctx: TeleportContext }) {
   }
 
   return (
-    <SecuritySettings
-      isSso={isSso}
-      canAddPasskeys={canAddPasskeys}
-      canAddMfa={canAddMfa}
-      passwordState={storeUser.getPasswordState()}
-      {...manageDevicesState}
-      onPasswordChange={onPasswordChange}
-      addNotification={jest.fn()}
-    />
+    <NotificationProvider>
+      <SecuritySettings
+        isSso={isSso}
+        canAddPasskeys={canAddPasskeys}
+        canAddMfa={canAddMfa}
+        passwordState={storeUser.getPasswordState()}
+        {...manageDevicesState}
+        onPasswordChange={onPasswordChange}
+      />
+    </NotificationProvider>
   );
 }
 
