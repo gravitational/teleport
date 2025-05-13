@@ -2358,6 +2358,22 @@ func TestWindowsDesktopService(t *testing.T) {
 			},
 		},
 		{
+			desc:        "NOK - legacy discovery and new discovery_configs both specified",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
+					BaseDN: "*",
+				}
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{BaseDN: "OU=stage,DC=example,DC=com"},
+					{BaseDN: "OU=prod,DC=example,DC=com"},
+				}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
+			},
+		},
+		{
 			desc:        "OK - valid config",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
