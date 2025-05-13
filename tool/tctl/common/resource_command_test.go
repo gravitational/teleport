@@ -1584,6 +1584,9 @@ spec:
     - command
     - network
     forward_agent: false
+    idp:
+      saml:
+        enabled: true
     max_session_ttl: 30h0m0s
     pin_source_ip: false
     port_forwarding: true
