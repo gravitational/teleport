@@ -82,7 +82,7 @@ func (s *Session) SetSharedDirectory(basePath string) error {
 
 func (s *Session) GetDirectoryAccess() (*DirectoryAccess, error) {
 	s.dirAccessMu.RLock()
-	s.dirAccessMu.RUnlock()
+	defer s.dirAccessMu.RUnlock()
 
 	if s.dirAccess == nil {
 		return nil, trace.NotFound("directory sharing has not been initialized for desktop %q and login %q", s.desktopName(), s.login)
