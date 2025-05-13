@@ -100,6 +100,7 @@ func TestListPodRBAC(t *testing.T) {
 						Name:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				})
 			},
@@ -123,6 +124,7 @@ func TestListPodRBAC(t *testing.T) {
 							Name:      types.Wildcard,
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{types.Wildcard},
+							APIGroup:  types.Wildcard,
 						},
 					})
 			},
@@ -148,6 +150,7 @@ func TestListPodRBAC(t *testing.T) {
 							Name:      types.Wildcard,
 							Namespace: "{{external.namespaces}}",
 							Verbs:     []string{types.Wildcard},
+							APIGroup:  types.Wildcard,
 						},
 					})
 			},
@@ -172,6 +175,7 @@ func TestListPodRBAC(t *testing.T) {
 							Name:      "nginx-*",
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{types.Wildcard},
+							APIGroup:  types.Wildcard,
 						},
 					},
 				)
@@ -196,6 +200,7 @@ func TestListPodRBAC(t *testing.T) {
 							Name:      "*",
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{"get"},
+							APIGroup:  types.Wildcard,
 						},
 					},
 				)
@@ -221,6 +226,7 @@ func TestListPodRBAC(t *testing.T) {
 							Name:      types.Wildcard,
 							Namespace: types.Wildcard,
 							Verbs:     []string{types.Wildcard},
+							APIGroup:  types.Wildcard,
 						},
 					},
 				)
@@ -231,6 +237,7 @@ func TestListPodRBAC(t *testing.T) {
 							Name:      types.Wildcard,
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{types.Wildcard},
+							APIGroup:  types.Wildcard,
 						},
 					},
 				)
@@ -476,7 +483,6 @@ func TestListPodRBAC(t *testing.T) {
 		return pods
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			// generate a kube client with user certs for auth
@@ -562,6 +568,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 						Namespace: "*",
 						Name:      "*",
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  "core",
 					},
 				},
 			},
@@ -576,6 +583,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 						Namespace: defaultNamespace,
 						Name:      "*",
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  "core",
 					},
 				},
 			},
@@ -590,6 +598,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 						Namespace: defaultNamespace,
 						Name:      "*",
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  "core",
 					},
 				},
 				denied: []types.KubernetesResource{
@@ -598,6 +607,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 						Namespace: defaultNamespace,
 						Name:      "otherPod",
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  "core",
 					},
 				},
 			},
@@ -612,6 +622,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 						Namespace: defaultNamespace,
 						Name:      "rand*",
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  "core",
 					},
 				},
 			},
@@ -627,11 +638,10 @@ func TestWatcherResponseWriter(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			userReader, userWriter := io.Pipe()
 			negotiator := newClientNegotiator(&globalKubeCodecs)
-			filterWrapper := newResourceFilterer(types.KindKubePod, types.KubeVerbWatch, &globalKubeCodecs, tt.args.allowed, tt.args.denied, utils.NewSlogLoggerForTests())
+			filterWrapper := newResourceFilterer(types.KindKubePod, "core", types.KubeVerbWatch, &globalKubeCodecs, tt.args.allowed, tt.args.denied, utils.NewSlogLoggerForTests())
 			// watcher parses the data written into itself and if the user is allowed to
 			// receive the update, it writes the event into target.
 			watcher, err := responsewriters.NewWatcherResponseWriter(newFakeResponseWriter(userWriter) /*target*/, negotiator, filterWrapper)
@@ -867,6 +877,7 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 						Name:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				})
 			},
@@ -890,6 +901,7 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 							Name:      types.Wildcard,
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{types.Wildcard},
+							APIGroup:  types.Wildcard,
 						},
 					})
 			},
@@ -914,6 +926,7 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 							Name:      "nginx-*",
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{types.Wildcard},
+							APIGroup:  types.Wildcard,
 						},
 					},
 				)
@@ -1052,9 +1065,10 @@ func TestListClusterRoleRBAC(t *testing.T) {
 			SetupRoleFunc: func(r types.Role) {
 				r.SetKubeResources(types.Allow, []types.KubernetesResource{
 					{
-						Kind:  types.KindKubeClusterRole,
-						Name:  types.Wildcard,
-						Verbs: []string{types.Wildcard},
+						Kind:     types.KindKubeClusterRole,
+						Name:     types.Wildcard,
+						Verbs:    []string{types.Wildcard},
+						APIGroup: types.Wildcard,
 					},
 				})
 			},
@@ -1075,9 +1089,10 @@ func TestListClusterRoleRBAC(t *testing.T) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
-							Kind:  types.KindKubeClusterRole,
-							Name:  "nginx-*",
-							Verbs: []string{types.Wildcard},
+							Kind:     types.KindKubeClusterRole,
+							Name:     "nginx-*",
+							Verbs:    []string{types.Wildcard},
+							APIGroup: types.Wildcard,
 						},
 					},
 				)
@@ -1276,9 +1291,10 @@ func TestCustomResourcesRBAC(t *testing.T) {
 			SetupRoleFunc: func(r types.Role) {
 				r.SetKubeResources(types.Allow, []types.KubernetesResource{
 					{
-						Kind:  types.KindKubeNamespace,
-						Name:  types.Wildcard,
-						Verbs: []string{types.Wildcard},
+						Kind:     types.KindKubeNamespace,
+						Name:     types.Wildcard,
+						Verbs:    []string{types.Wildcard},
+						APIGroup: types.Wildcard,
 					},
 				})
 			},
@@ -1298,9 +1314,10 @@ func TestCustomResourcesRBAC(t *testing.T) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
-							Kind:  types.KindKubeNamespace,
-							Name:  "dev",
-							Verbs: []string{types.Wildcard},
+							Kind:     types.KindKubeNamespace,
+							Name:     "dev",
+							Verbs:    []string{types.Wildcard},
+							APIGroup: types.Wildcard,
 						},
 					},
 				)
