@@ -314,7 +314,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodToken:
-		// carry on to common token checking logic
+		// no additional validation to perform - the name is enough.
 	default:
 		// this is a logic error, all valid join methods should be captured
 		// above (empty join method will be set to JoinMethodToken by
