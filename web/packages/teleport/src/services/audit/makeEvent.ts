@@ -1419,15 +1419,15 @@ export const formatters: Formatters = {
   [eventCodes.BOT_JOIN]: {
     type: 'bot.join',
     desc: 'Bot Joined',
-    format: ({ bot_name, method }) => {
-      return `Bot [${bot_name}] joined the cluster using the [${method}] join method`;
+    format: ({ bot_name, method, token_name }) => {
+      return `Bot [${bot_name}] joined the cluster using the [${method}] join method and the [${token_name || 'unknown'}] token`;
     },
   },
   [eventCodes.BOT_JOIN_FAILURE]: {
     type: 'bot.join',
     desc: 'Bot Join Failed',
-    format: ({ bot_name }) => {
-      return `Bot [${bot_name || 'unknown'}] failed to join the cluster`;
+    format: ({ bot_name, method, token_name }) => {
+      return `Bot [${bot_name || 'unknown'}] failed to join the cluster using the [${method || 'unknown'}] join method and the [${token_name || 'unknown'}] token`;
     },
   },
   [eventCodes.INSTANCE_JOIN]: {
