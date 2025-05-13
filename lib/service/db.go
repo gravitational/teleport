@@ -82,9 +82,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 			return trace.Wrap(err)
 		}
 		if err := services.ValidateDatabase(database); err != nil {
-			// return trace.Wrap(err)
-			process.logger.WarnContext(process.ExitContext(), "Database configuration invalid. Skipping.", "db", dbSpec, "err", err)
-			continue
+			return trace.Wrap(err)
 		}
 		databases = append(databases, database)
 	}
