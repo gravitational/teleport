@@ -1323,7 +1323,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          Bot [unknown] failed to join the cluster
+          Bot [unknown] failed to join the cluster using the [unknown] join method and the [unknown] token
         </td>
         <td
           style="min-width: 120px;"
@@ -5732,7 +5732,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          Bot [github-demo] joined the cluster using the [github] join method
+          Bot [github-demo] joined the cluster using the [github] join method and the [github-bot] token
         </td>
         <td
           style="min-width: 120px;"
