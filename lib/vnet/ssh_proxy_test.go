@@ -92,17 +92,22 @@ func TestProxySSHConnection(t *testing.T) {
 			clientConfig := sshClientConfig(t)
 			sshConn, chans, reqs, err := ssh.NewClientConn(tcpConn, "localhost", clientConfig)
 			require.NoError(t, err)
-			clt := ssh.NewClient(sshConn, chans, reqs)
-			defer clt.Close()
+			defer sshConn.Close()
+			go ssh.DiscardRequests(reqs)
+			go func() {
+				for newChan := range chans {
+					newChan.Reject(ssh.Prohibited, "test")
+				}
+			}()
 
 			// Try sending some global requests.
 			t.Run("global requests", func(t *testing.T) {
-				testGlobalRequests(t, clt)
+				testGlobalRequests(t, sshConn)
 			})
 
 			// Try opening a channel that the target server will reject.
 			t.Run("unexpected channel", func(t *testing.T) {
-				_, _, err := clt.OpenChannel("unexpected", nil)
+				_, _, err := sshConn.OpenChannel("unexpected", nil)
 				require.Error(t, err)
 				require.ErrorAs(t, err, new(*ssh.OpenChannelError))
 			})
@@ -111,32 +116,32 @@ func TestProxySSHConnection(t *testing.T) {
 			// it twice to make sure multiple channels can be opened.
 			// testEchoChannel will also send channel requests.
 			t.Run("echo channel 1", func(t *testing.T) {
-				testEchoChannel(t, clt)
+				testEchoChannel(t, sshConn)
 			})
 			t.Run("echo channel 2", func(t *testing.T) {
-				testEchoChannel(t, clt)
+				testEchoChannel(t, sshConn)
 			})
 		})
 	}
 }
 
-func testGlobalRequests(t *testing.T, clt *ssh.Client) {
+func testGlobalRequests(t *testing.T, conn ssh.Conn) {
 	// Send an echo request.
 	msg := []byte("hello")
-	reply, replyPayload, err := clt.SendRequest("echo", true, msg)
+	reply, replyPayload, err := conn.SendRequest("echo", true, msg)
 	assert.NoError(t, err)
 	assert.True(t, reply)
 	assert.Equal(t, msg, replyPayload)
 
 	// Send an unexepected request type.
-	reply, replyPayload, err = clt.SendRequest("unexpected", true, msg)
+	reply, replyPayload, err = conn.SendRequest("unexpected", true, msg)
 	assert.NoError(t, err)
 	assert.False(t, reply)
 	assert.Empty(t, replyPayload)
 }
 
-func testEchoChannel(t *testing.T, clt *ssh.Client) {
-	ch, reqs, err := clt.OpenChannel("echo", nil)
+func testEchoChannel(t *testing.T, conn ssh.Conn) {
+	ch, reqs, err := conn.OpenChannel("echo", nil)
 	require.NoError(t, err)
 	go ssh.DiscardRequests(reqs)
 	defer ch.Close()
@@ -227,8 +232,16 @@ func runTestSSHProxyInstance(
 	if err != nil {
 		return trace.Wrap(err, "proxying SSH conn in test")
 	}
-	outgoingClient := ssh.NewClient(outgoingSSHConn, outgoingChans, outgoingReqs)
-	err = proxySSHConnection(ctx, outgoingClient, incomingChans, incomingReqs)
+	defer outgoingSSHConn.Close()
+	proxySSHConnection(ctx, sshConn{
+		conn:  incomingSSHConn,
+		chans: incomingChans,
+		reqs:  incomingReqs,
+	}, sshConn{
+		conn:  outgoingSSHConn,
+		chans: outgoingChans,
+		reqs:  outgoingReqs,
+	})
 	return trace.Wrap(err)
 }
 
@@ -255,60 +268,44 @@ func runTestSSHServerInstance(tcpConn net.Conn, cfg *ssh.ServerConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer sshConn.Close()
-loop:
-	for {
-		select {
-		case newChan, ok := <-chans:
-			if !ok {
-				return nil
-			}
-			switch newChan.ChannelType() {
-			case "echo":
-				if err := handleEchoChannel(newChan); err != nil {
-					return trace.Wrap(err)
-				}
-			default:
-				newChan.Reject(ssh.UnknownChannelType, "unknown channel type")
-				continue loop
-			}
-		case req, ok := <-reqs:
-			if !ok {
-				return nil
-			}
-			switch req.Type {
-			case "echo":
-				// Handle global SSH requests of type "echo" by replying with
-				// the request payload.
-				req.Reply(true, req.Payload)
-			default:
-				req.Reply(false, nil)
-			}
+	go func() {
+		handleEchoRequests(reqs)
+		sshConn.Close()
+	}()
+	handleEchoChannels(chans)
+	sshConn.Close()
+	return nil
+}
+
+func handleEchoRequests(reqs <-chan *ssh.Request) {
+	for req := range reqs {
+		switch req.Type {
+		case "echo":
+			req.Reply(true, req.Payload)
+		default:
+			req.Reply(false, nil)
 		}
 	}
 }
 
-func handleEchoChannel(newChan ssh.NewChannel) error {
+func handleEchoChannels(chans <-chan ssh.NewChannel) {
+	for newChan := range chans {
+		switch newChan.ChannelType() {
+		case "echo":
+			go handleEchoChannel(newChan)
+		default:
+			newChan.Reject(ssh.UnknownChannelType, "unknown channel type")
+		}
+	}
+}
+
+func handleEchoChannel(newChan ssh.NewChannel) {
 	ch, reqs, err := newChan.Accept()
 	if err != nil {
-		return trace.Wrap(err)
+		return
 	}
-	// Handle all channel requests in the background.
-	go func() {
-		for req := range reqs {
-			switch req.Type {
-			case "echo":
-				// Channel requests have no payload.
-				req.Reply(true, nil)
-			default:
-				req.Reply(false, nil)
-			}
-		}
-	}()
-	defer ch.Close()
-	// Copy input channel data back to the output.
-	_, err = io.Copy(ch, ch)
-	return trace.Wrap(err)
+	go handleEchoRequests(reqs)
+	io.Copy(ch, ch)
 }
 
 func sshServerConfig(t *testing.T) *ssh.ServerConfig {
