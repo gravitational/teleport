@@ -308,9 +308,11 @@ export interface DocumentAuthorizeWebSession extends DocumentBase {
 
 export interface DocumentDesktopSession extends DocumentBase {
   kind: 'doc.desktop_session';
-  desktopUri: uri.WindowsDesktopUri;
+  desktopUri: uri.DesktopUri;
   login: string;
   origin: DocumentOrigin;
+  // status is used merely to indicate that a connection is established in the connection tracker.
+  status: '' | 'connected' | 'error';
 }
 
 export interface WebSessionRequest {
