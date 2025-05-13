@@ -28,7 +28,11 @@ import (
 	"github.com/gravitational/teleport/lib/circleci"
 )
 
-func (a *Server) checkCircleCIJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*circleci.IDTokenClaims, error) {
+func (a *Server) checkCircleCIJoinRequest(
+	ctx context.Context,
+	req *types.RegisterUsingTokenRequest,
+	pt types.ProvisionToken,
+) (*circleci.IDTokenClaims, error) {
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("IDToken not provided for %q join request", types.JoinMethodCircleCI)
 	}
