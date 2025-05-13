@@ -1257,11 +1257,11 @@ export interface ConnectToDesktopResponse {
     data: Uint8Array;
 }
 /**
- * Request for AttachDirectoryToDesktopSession.
+ * Request for SetSharedDirectoryForDesktopSession.
  *
- * @generated from protobuf message teleport.lib.teleterm.v1.AttachDirectoryToDesktopSessionRequest
+ * @generated from protobuf message teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest
  */
-export interface AttachDirectoryToDesktopSessionRequest {
+export interface SetSharedDirectoryForDesktopSessionRequest {
     /**
      * URI of the desktop.
      *
@@ -1282,11 +1282,11 @@ export interface AttachDirectoryToDesktopSessionRequest {
     path: string;
 }
 /**
- * Response for AttachDirectoryToDesktopSession.
+ * Response for SetSharedDirectoryForDesktopSession.
  *
- * @generated from protobuf message teleport.lib.teleterm.v1.AttachDirectoryToDesktopSessionResponse
+ * @generated from protobuf message teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
  */
-export interface AttachDirectoryToDesktopSessionResponse {
+export interface SetSharedDirectoryForDesktopSessionResponse {
 }
 /**
  * PasswordlessPrompt describes different prompts we need from users
@@ -5604,24 +5604,24 @@ class ConnectToDesktopResponse$Type extends MessageType<ConnectToDesktopResponse
  */
 export const ConnectToDesktopResponse = new ConnectToDesktopResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class AttachDirectoryToDesktopSessionRequest$Type extends MessageType<AttachDirectoryToDesktopSessionRequest> {
+class SetSharedDirectoryForDesktopSessionRequest$Type extends MessageType<SetSharedDirectoryForDesktopSessionRequest> {
     constructor() {
-        super("teleport.lib.teleterm.v1.AttachDirectoryToDesktopSessionRequest", [
+        super("teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest", [
             { no: 1, name: "desktop_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "login", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
-    create(value?: PartialMessage<AttachDirectoryToDesktopSessionRequest>): AttachDirectoryToDesktopSessionRequest {
+    create(value?: PartialMessage<SetSharedDirectoryForDesktopSessionRequest>): SetSharedDirectoryForDesktopSessionRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.desktopUri = "";
         message.login = "";
         message.path = "";
         if (value !== undefined)
-            reflectionMergePartial<AttachDirectoryToDesktopSessionRequest>(this, message, value);
+            reflectionMergePartial<SetSharedDirectoryForDesktopSessionRequest>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AttachDirectoryToDesktopSessionRequest): AttachDirectoryToDesktopSessionRequest {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SetSharedDirectoryForDesktopSessionRequest): SetSharedDirectoryForDesktopSessionRequest {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
@@ -5646,7 +5646,7 @@ class AttachDirectoryToDesktopSessionRequest$Type extends MessageType<AttachDire
         }
         return message;
     }
-    internalBinaryWrite(message: AttachDirectoryToDesktopSessionRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: SetSharedDirectoryForDesktopSessionRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* string desktop_uri = 1; */
         if (message.desktopUri !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.desktopUri);
@@ -5663,24 +5663,24 @@ class AttachDirectoryToDesktopSessionRequest$Type extends MessageType<AttachDire
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AttachDirectoryToDesktopSessionRequest
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest
  */
-export const AttachDirectoryToDesktopSessionRequest = new AttachDirectoryToDesktopSessionRequest$Type();
+export const SetSharedDirectoryForDesktopSessionRequest = new SetSharedDirectoryForDesktopSessionRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class AttachDirectoryToDesktopSessionResponse$Type extends MessageType<AttachDirectoryToDesktopSessionResponse> {
+class SetSharedDirectoryForDesktopSessionResponse$Type extends MessageType<SetSharedDirectoryForDesktopSessionResponse> {
     constructor() {
-        super("teleport.lib.teleterm.v1.AttachDirectoryToDesktopSessionResponse", []);
+        super("teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse", []);
     }
-    create(value?: PartialMessage<AttachDirectoryToDesktopSessionResponse>): AttachDirectoryToDesktopSessionResponse {
+    create(value?: PartialMessage<SetSharedDirectoryForDesktopSessionResponse>): SetSharedDirectoryForDesktopSessionResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
         if (value !== undefined)
-            reflectionMergePartial<AttachDirectoryToDesktopSessionResponse>(this, message, value);
+            reflectionMergePartial<SetSharedDirectoryForDesktopSessionResponse>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AttachDirectoryToDesktopSessionResponse): AttachDirectoryToDesktopSessionResponse {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SetSharedDirectoryForDesktopSessionResponse): SetSharedDirectoryForDesktopSessionResponse {
         return target ?? this.create();
     }
-    internalBinaryWrite(message: AttachDirectoryToDesktopSessionResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: SetSharedDirectoryForDesktopSessionResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -5688,9 +5688,9 @@ class AttachDirectoryToDesktopSessionResponse$Type extends MessageType<AttachDir
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AttachDirectoryToDesktopSessionResponse
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
  */
-export const AttachDirectoryToDesktopSessionResponse = new AttachDirectoryToDesktopSessionResponse$Type();
+export const SetSharedDirectoryForDesktopSessionResponse = new SetSharedDirectoryForDesktopSessionResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.v1.TerminalService
  */
@@ -5737,5 +5737,5 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "AuthenticateWebDevice", options: {}, I: AuthenticateWebDeviceRequest, O: AuthenticateWebDeviceResponse },
     { name: "GetApp", options: {}, I: GetAppRequest, O: GetAppResponse },
     { name: "ConnectToDesktop", serverStreaming: true, clientStreaming: true, options: {}, I: ConnectToDesktopRequest, O: ConnectToDesktopResponse },
-    { name: "AttachDirectoryToDesktopSession", options: {}, I: AttachDirectoryToDesktopSessionRequest, O: AttachDirectoryToDesktopSessionResponse }
+    { name: "SetSharedDirectoryForDesktopSession", options: {}, I: SetSharedDirectoryForDesktopSessionRequest, O: SetSharedDirectoryForDesktopSessionResponse }
 ]);

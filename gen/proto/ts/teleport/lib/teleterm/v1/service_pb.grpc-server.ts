@@ -21,8 +21,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-import { AttachDirectoryToDesktopSessionResponse } from "./service_pb";
-import { AttachDirectoryToDesktopSessionRequest } from "./service_pb";
+import { SetSharedDirectoryForDesktopSessionResponse } from "./service_pb";
+import { SetSharedDirectoryForDesktopSessionRequest } from "./service_pb";
 import { ConnectToDesktopResponse } from "./service_pb";
 import { ConnectToDesktopRequest } from "./service_pb";
 import { GetAppResponse } from "./service_pb";
@@ -407,16 +407,16 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      */
     connectToDesktop: grpc.handleBidiStreamingCall<ConnectToDesktopRequest, ConnectToDesktopResponse>;
     /**
-     * AttachDirectoryToDesktopSession opens a directory for a desktop session and enables file system operations for it.
+     * SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
      * If there is no active desktop session associated with the specified desktop_uri and login,
      * the RPC returns an error.
      *
      * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
      * It only registers file system handlers for processing file system-related TDP events.
      *
-     * @generated from protobuf rpc: AttachDirectoryToDesktopSession(teleport.lib.teleterm.v1.AttachDirectoryToDesktopSessionRequest) returns (teleport.lib.teleterm.v1.AttachDirectoryToDesktopSessionResponse);
+     * @generated from protobuf rpc: SetSharedDirectoryForDesktopSession(teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse);
      */
-    attachDirectoryToDesktopSession: grpc.handleUnaryCall<AttachDirectoryToDesktopSessionRequest, AttachDirectoryToDesktopSessionResponse>;
+    setSharedDirectoryForDesktopSession: grpc.handleUnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.v1.TerminalService.
@@ -850,14 +850,14 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         responseSerialize: value => Buffer.from(ConnectToDesktopResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(ConnectToDesktopRequest.toBinary(value))
     },
-    attachDirectoryToDesktopSession: {
-        path: "/teleport.lib.teleterm.v1.TerminalService/AttachDirectoryToDesktopSession",
-        originalName: "AttachDirectoryToDesktopSession",
+    setSharedDirectoryForDesktopSession: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/SetSharedDirectoryForDesktopSession",
+        originalName: "SetSharedDirectoryForDesktopSession",
         requestStream: false,
         responseStream: false,
-        responseDeserialize: bytes => AttachDirectoryToDesktopSessionResponse.fromBinary(bytes),
-        requestDeserialize: bytes => AttachDirectoryToDesktopSessionRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(AttachDirectoryToDesktopSessionResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(AttachDirectoryToDesktopSessionRequest.toBinary(value))
+        responseDeserialize: bytes => SetSharedDirectoryForDesktopSessionResponse.fromBinary(bytes),
+        requestDeserialize: bytes => SetSharedDirectoryForDesktopSessionRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(SetSharedDirectoryForDesktopSessionResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(SetSharedDirectoryForDesktopSessionRequest.toBinary(value))
     }
 };

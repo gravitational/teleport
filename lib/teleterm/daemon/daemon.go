@@ -1273,10 +1273,10 @@ func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
 	return trace.Wrap(s.clientCache.ClearForRoot(profileName))
 }
 
-// AttachDirectoryToDesktopSession opens a directory for a desktop session and enables file system operations for it.
+// SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
 // If there is no active desktop session associated with the specified desktop_uri and login,
 // an error is returned.
-func (s *Service) AttachDirectoryToDesktopSession(_ context.Context, desktopURI uri.ResourceURI, login, path string) error {
+func (s *Service) SetSharedDirectoryForDesktopSession(_ context.Context, desktopURI uri.ResourceURI, login, path string) error {
 	s.desktopSessionsMu.Lock()
 	defer s.desktopSessionsMu.Unlock()
 
@@ -1285,7 +1285,7 @@ func (s *Service) AttachDirectoryToDesktopSession(_ context.Context, desktopURI 
 		return trace.BadParameter("there is no desktop session for desktop %s and login %q", desktopURI, login)
 	}
 
-	err := session.AttachSharedDirectory(path)
+	err := session.SetSharedDirectory(path)
 	return trace.Wrap(err)
 }
 
@@ -1310,7 +1310,7 @@ type Service struct {
 
 	// desktopSessions maps a desktop key (derived from desktop URI and login) to desktop sessions.
 	//
-	// Each session is created by the ConnectToDesktop RPC and later used by the AttachDirectoryToDesktopSession RPC
+	// Each session is created by the ConnectToDesktop RPC and later used by the SetSharedDirectoryForDesktopSession RPC
 	// to share a directory within the session.
 	desktopSessions   map[string]*desktop.Session
 	desktopSessionsMu sync.Mutex

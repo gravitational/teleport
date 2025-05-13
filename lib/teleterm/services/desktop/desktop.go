@@ -63,7 +63,7 @@ func (s *Session) desktopName() string {
 	return s.desktopURI.GetWindowsDesktopName()
 }
 
-func (s *Session) AttachSharedDirectory(basePath string) error {
+func (s *Session) SetSharedDirectory(basePath string) error {
 	s.dirAccessMu.Lock()
 	defer s.dirAccessMu.Unlock()
 

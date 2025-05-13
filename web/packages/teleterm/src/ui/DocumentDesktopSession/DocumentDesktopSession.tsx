@@ -179,7 +179,7 @@ async function adaptGRPCStreamToTdpTransport(
  * The tshd daemon is responsible for handling directory sharing.
  *
  * The process begins when the Electron main process opens a directory picker.
- * Once a path is selected, it is passed to tshd via the AttachDirectoryToDesktopSession API.
+ * Once a path is selected, it is passed to tshd via the SetSharedDirectoryForDesktopSession API.
  *
  * tshd then verifies whether there is an active session for the specified desktop user and attempts to open the directory.
  * Once that's done, everything is ready on the tsh daemon to intercept and handle the file system events.

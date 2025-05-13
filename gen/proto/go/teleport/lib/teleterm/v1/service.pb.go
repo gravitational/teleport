@@ -4252,8 +4252,8 @@ func (x *ConnectToDesktopResponse) GetData() []byte {
 	return nil
 }
 
-// Request for AttachDirectoryToDesktopSession.
-type AttachDirectoryToDesktopSessionRequest struct {
+// Request for SetSharedDirectoryForDesktopSession.
+type SetSharedDirectoryForDesktopSessionRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// URI of the desktop.
 	DesktopUri string `protobuf:"bytes,1,opt,name=desktop_uri,json=desktopUri,proto3" json:"desktop_uri,omitempty"`
@@ -4265,20 +4265,20 @@ type AttachDirectoryToDesktopSessionRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AttachDirectoryToDesktopSessionRequest) Reset() {
-	*x = AttachDirectoryToDesktopSessionRequest{}
+func (x *SetSharedDirectoryForDesktopSessionRequest) Reset() {
+	*x = SetSharedDirectoryForDesktopSessionRequest{}
 	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AttachDirectoryToDesktopSessionRequest) String() string {
+func (x *SetSharedDirectoryForDesktopSessionRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AttachDirectoryToDesktopSessionRequest) ProtoMessage() {}
+func (*SetSharedDirectoryForDesktopSessionRequest) ProtoMessage() {}
 
-func (x *AttachDirectoryToDesktopSessionRequest) ProtoReflect() protoreflect.Message {
+func (x *SetSharedDirectoryForDesktopSessionRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -4290,53 +4290,53 @@ func (x *AttachDirectoryToDesktopSessionRequest) ProtoReflect() protoreflect.Mes
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AttachDirectoryToDesktopSessionRequest.ProtoReflect.Descriptor instead.
-func (*AttachDirectoryToDesktopSessionRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use SetSharedDirectoryForDesktopSessionRequest.ProtoReflect.Descriptor instead.
+func (*SetSharedDirectoryForDesktopSessionRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{75}
 }
 
-func (x *AttachDirectoryToDesktopSessionRequest) GetDesktopUri() string {
+func (x *SetSharedDirectoryForDesktopSessionRequest) GetDesktopUri() string {
 	if x != nil {
 		return x.DesktopUri
 	}
 	return ""
 }
 
-func (x *AttachDirectoryToDesktopSessionRequest) GetLogin() string {
+func (x *SetSharedDirectoryForDesktopSessionRequest) GetLogin() string {
 	if x != nil {
 		return x.Login
 	}
 	return ""
 }
 
-func (x *AttachDirectoryToDesktopSessionRequest) GetPath() string {
+func (x *SetSharedDirectoryForDesktopSessionRequest) GetPath() string {
 	if x != nil {
 		return x.Path
 	}
 	return ""
 }
 
-// Response for AttachDirectoryToDesktopSession.
-type AttachDirectoryToDesktopSessionResponse struct {
+// Response for SetSharedDirectoryForDesktopSession.
+type SetSharedDirectoryForDesktopSessionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AttachDirectoryToDesktopSessionResponse) Reset() {
-	*x = AttachDirectoryToDesktopSessionResponse{}
+func (x *SetSharedDirectoryForDesktopSessionResponse) Reset() {
+	*x = SetSharedDirectoryForDesktopSessionResponse{}
 	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AttachDirectoryToDesktopSessionResponse) String() string {
+func (x *SetSharedDirectoryForDesktopSessionResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AttachDirectoryToDesktopSessionResponse) ProtoMessage() {}
+func (*SetSharedDirectoryForDesktopSessionResponse) ProtoMessage() {}
 
-func (x *AttachDirectoryToDesktopSessionResponse) ProtoReflect() protoreflect.Message {
+func (x *SetSharedDirectoryForDesktopSessionResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -4348,8 +4348,8 @@ func (x *AttachDirectoryToDesktopSessionResponse) ProtoReflect() protoreflect.Me
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AttachDirectoryToDesktopSessionResponse.ProtoReflect.Descriptor instead.
-func (*AttachDirectoryToDesktopSessionResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use SetSharedDirectoryForDesktopSessionResponse.ProtoReflect.Descriptor instead.
+func (*SetSharedDirectoryForDesktopSessionResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{76}
 }
 
@@ -4884,13 +4884,13 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	"\x04data\x18\x01 \x01(\fR\x04data\x12N\n" +
 	"\x0etarget_desktop\x18\x02 \x01(\v2'.teleport.lib.teleterm.v1.TargetDesktopR\rtargetDesktop\".\n" +
 	"\x18ConnectToDesktopResponse\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data\"s\n" +
-	"&AttachDirectoryToDesktopSessionRequest\x12\x1f\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"w\n" +
+	"*SetSharedDirectoryForDesktopSessionRequest\x12\x1f\n" +
 	"\vdesktop_uri\x18\x01 \x01(\tR\n" +
 	"desktopUri\x12\x14\n" +
 	"\x05login\x18\x02 \x01(\tR\x05login\x12\x12\n" +
-	"\x04path\x18\x03 \x01(\tR\x04path\")\n" +
-	"'AttachDirectoryToDesktopSessionResponse*\x97\x01\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\"-\n" +
+	"+SetSharedDirectoryForDesktopSessionResponse*\x97\x01\n" +
 	"\x12PasswordlessPrompt\x12#\n" +
 	"\x1fPASSWORDLESS_PROMPT_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17PASSWORDLESS_PROMPT_PIN\x10\x01\x12\x1b\n" +
@@ -4904,7 +4904,7 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	")HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED\x10\x00\x12)\n" +
 	"%HEADLESS_AUTHENTICATION_STATE_PENDING\x10\x01\x12(\n" +
 	"$HEADLESS_AUTHENTICATION_STATE_DENIED\x10\x02\x12*\n" +
-	"&HEADLESS_AUTHENTICATION_STATE_APPROVED\x10\x032\x86+\n" +
+	"&HEADLESS_AUTHENTICATION_STATE_APPROVED\x10\x032\x92+\n" +
 	"\x0fTerminalService\x12\xa0\x01\n" +
 	"\x1dUpdateTshdEventsServerAddress\x12>.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest\x1a?.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse\x12q\n" +
 	"\x10ListRootClusters\x12-.teleport.lib.teleterm.v1.ListClustersRequest\x1a..teleport.lib.teleterm.v1.ListClustersResponse\x12u\n" +
@@ -4951,8 +4951,8 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	"\x15UpdateUserPreferences\x126.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest\x1a7.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse\x12\x88\x01\n" +
 	"\x15AuthenticateWebDevice\x126.teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest\x1a7.teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse\x12[\n" +
 	"\x06GetApp\x12'.teleport.lib.teleterm.v1.GetAppRequest\x1a(.teleport.lib.teleterm.v1.GetAppResponse\x12}\n" +
-	"\x10ConnectToDesktop\x121.teleport.lib.teleterm.v1.ConnectToDesktopRequest\x1a2.teleport.lib.teleterm.v1.ConnectToDesktopResponse(\x010\x01\x12\xa6\x01\n" +
-	"\x1fAttachDirectoryToDesktopSession\x12@.teleport.lib.teleterm.v1.AttachDirectoryToDesktopSessionRequest\x1aA.teleport.lib.teleterm.v1.AttachDirectoryToDesktopSessionResponseBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
+	"\x10ConnectToDesktop\x121.teleport.lib.teleterm.v1.ConnectToDesktopRequest\x1a2.teleport.lib.teleterm.v1.ConnectToDesktopResponse(\x010\x01\x12\xb2\x01\n" +
+	"#SetSharedDirectoryForDesktopSession\x12D.teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest\x1aE.teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponseBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
 
 var (
 	file_teleport_lib_teleterm_v1_service_proto_rawDescOnce sync.Once
@@ -5047,8 +5047,8 @@ var file_teleport_lib_teleterm_v1_service_proto_goTypes = []any{
 	(*TargetDesktop)(nil),                                                // 75: teleport.lib.teleterm.v1.TargetDesktop
 	(*ConnectToDesktopRequest)(nil),                                      // 76: teleport.lib.teleterm.v1.ConnectToDesktopRequest
 	(*ConnectToDesktopResponse)(nil),                                     // 77: teleport.lib.teleterm.v1.ConnectToDesktopResponse
-	(*AttachDirectoryToDesktopSessionRequest)(nil),                       // 78: teleport.lib.teleterm.v1.AttachDirectoryToDesktopSessionRequest
-	(*AttachDirectoryToDesktopSessionResponse)(nil),                      // 79: teleport.lib.teleterm.v1.AttachDirectoryToDesktopSessionResponse
+	(*SetSharedDirectoryForDesktopSessionRequest)(nil),                   // 78: teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest
+	(*SetSharedDirectoryForDesktopSessionResponse)(nil),                  // 79: teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
 	(*LoginPasswordlessRequest_LoginPasswordlessRequestInit)(nil),        // 80: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit
 	(*LoginPasswordlessRequest_LoginPasswordlessPINResponse)(nil),        // 81: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse
 	(*LoginPasswordlessRequest_LoginPasswordlessCredentialResponse)(nil), // 82: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse
@@ -5158,7 +5158,7 @@ var file_teleport_lib_teleterm_v1_service_proto_depIdxs = []int32{
 	71,  // 81: teleport.lib.teleterm.v1.TerminalService.AuthenticateWebDevice:input_type -> teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest
 	73,  // 82: teleport.lib.teleterm.v1.TerminalService.GetApp:input_type -> teleport.lib.teleterm.v1.GetAppRequest
 	76,  // 83: teleport.lib.teleterm.v1.TerminalService.ConnectToDesktop:input_type -> teleport.lib.teleterm.v1.ConnectToDesktopRequest
-	78,  // 84: teleport.lib.teleterm.v1.TerminalService.AttachDirectoryToDesktopSession:input_type -> teleport.lib.teleterm.v1.AttachDirectoryToDesktopSessionRequest
+	78,  // 84: teleport.lib.teleterm.v1.TerminalService.SetSharedDirectoryForDesktopSession:input_type -> teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest
 	49,  // 85: teleport.lib.teleterm.v1.TerminalService.UpdateTshdEventsServerAddress:output_type -> teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse
 	35,  // 86: teleport.lib.teleterm.v1.TerminalService.ListRootClusters:output_type -> teleport.lib.teleterm.v1.ListClustersResponse
 	35,  // 87: teleport.lib.teleterm.v1.TerminalService.ListLeafClusters:output_type -> teleport.lib.teleterm.v1.ListClustersResponse
@@ -5201,7 +5201,7 @@ var file_teleport_lib_teleterm_v1_service_proto_depIdxs = []int32{
 	72,  // 124: teleport.lib.teleterm.v1.TerminalService.AuthenticateWebDevice:output_type -> teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
 	74,  // 125: teleport.lib.teleterm.v1.TerminalService.GetApp:output_type -> teleport.lib.teleterm.v1.GetAppResponse
 	77,  // 126: teleport.lib.teleterm.v1.TerminalService.ConnectToDesktop:output_type -> teleport.lib.teleterm.v1.ConnectToDesktopResponse
-	79,  // 127: teleport.lib.teleterm.v1.TerminalService.AttachDirectoryToDesktopSession:output_type -> teleport.lib.teleterm.v1.AttachDirectoryToDesktopSessionResponse
+	79,  // 127: teleport.lib.teleterm.v1.TerminalService.SetSharedDirectoryForDesktopSession:output_type -> teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
 	85,  // [85:128] is the sub-list for method output_type
 	42,  // [42:85] is the sub-list for method input_type
 	42,  // [42:42] is the sub-list for extension type_name

@@ -584,7 +584,7 @@ export default class MainProcess {
 
         const [dirPath] = value.filePaths;
         const tshClient = await this.getTshdClient();
-        await tshClient.attachDirectoryToDesktopSession({
+        await tshClient.setSharedDirectoryForDesktopSession({
           desktopUri: args.desktopUri,
           login: args.login,
           path: dirPath,

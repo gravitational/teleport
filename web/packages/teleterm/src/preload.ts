@@ -180,7 +180,7 @@ async function withErrorLogging<ReturnValue>(
 function withoutInsecureTshdMethods(client: TshdClient): TshdClient {
   return {
     ...client,
-    attachDirectoryToDesktopSession: () => {
+    setSharedDirectoryForDesktopSession: () => {
       // Prevent the renderer process from sharing directories at arbitrary paths.
       throw new Error('This method is not permitted in the renderer process.');
     },

@@ -13,17 +13,17 @@ import (
 var desktopURI = uri.NewClusterURI("foo").AppendWindowsDesktop("bar")
 var login = "admin"
 
-func TestAttachDirectory(t *testing.T) {
+func TestSetDirectory(t *testing.T) {
 	path := t.TempDir()
 	session, err := NewSession(desktopURI, login)
 	require.NoError(t, err)
 
 	// Clean state, share the directory.
-	err = session.AttachSharedDirectory(path)
+	err = session.SetSharedDirectory(path)
 	require.NoError(t, err)
 
 	// Attempt to share another directory.
-	err = session.AttachSharedDirectory("any_path")
+	err = session.SetSharedDirectory("any_path")
 	require.True(t, trace.IsAlreadyExists(err))
 }
 
@@ -35,7 +35,7 @@ func TestGetDirectory(t *testing.T) {
 	_, err = session.GetDirectoryAccess()
 	require.True(t, trace.IsNotFound(err))
 
-	err = session.AttachSharedDirectory(path)
+	err = session.SetSharedDirectory(path)
 	require.NoError(t, err)
 
 	access, err := session.GetDirectoryAccess()

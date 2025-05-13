@@ -196,7 +196,7 @@ export type MainProcessClient = {
   signalUserInterfaceReadiness(args: { success: boolean }): void;
   refreshClusterList(): void;
   /**
-   * Opens the Electron directory picker and sends the selected path to tshd through AttachDirectoryToDesktopSession.
+   * Opens the Electron directory picker and sends the selected path to tshd through SetSharedDirectoryForDesktopSession.
    * tshd then verifies whether there is an active session for the specified desktop user and attempts to open the directory.
    * Once that's done, everything is ready on the tsh daemon to intercept and handle the file system events.
    *
