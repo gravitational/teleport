@@ -1240,6 +1240,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 					Namespace: Wildcard,
 					Name:      Wildcard,
 					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
 				},
 			}
 		}
