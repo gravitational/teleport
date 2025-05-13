@@ -76,15 +76,27 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
   }
 
   getConnections(): ExtendedTrackedConnection[] {
-    return this.state.connections.map(connection => {
-      const { rootClusterUri, leafClusterUri } =
-        this._trackedConnectionOperationsFactory.create(connection);
-      const clusterUri = leafClusterUri || rootClusterUri;
-      const clusterName =
-        this._clusterService.findCluster(clusterUri)?.name ||
-        routing.parseClusterName(clusterUri);
-      return { ...connection, clusterName };
-    });
+    return this.state.connections
+      .map(connection => {
+        const trackedConnection =
+          this._trackedConnectionOperationsFactory.create(connection);
+        // A connection is undefined when the state read from the disk
+        // contains a connection not supported by the given Connect version.
+        //
+        // For example, the user can open a desktop connection in Connect v18
+        // and then downgrade to a version that doesn't support desktops.
+        // That connection should be shown as 'UNKNOWN' in the connection list.
+        if (!trackedConnection) {
+          return;
+        }
+        const { rootClusterUri, leafClusterUri } = trackedConnection;
+        const clusterUri = leafClusterUri || rootClusterUri;
+        const clusterName =
+          this._clusterService.findCluster(clusterUri)?.name ||
+          routing.parseClusterName(clusterUri);
+        return { ...connection, clusterName };
+      })
+      .filter(Boolean);
   }
 
   async activateItem(
