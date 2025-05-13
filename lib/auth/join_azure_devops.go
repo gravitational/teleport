@@ -80,7 +80,7 @@ func checkAzureDevopsAllowRules(token *types.ProvisionTokenV2, claims *azuredevo
 		if rule.RepositoryVersion != "" && claims.RepositoryVersion != rule.RepositoryVersion {
 			continue
 		}
-		if rule.RepositoryRef != "" && claims.RepositoryReference != rule.RepositoryRef {
+		if rule.RepositoryRef != "" && claims.RepositoryRef != rule.RepositoryRef {
 			continue
 		}
 		return nil
