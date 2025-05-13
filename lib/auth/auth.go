@@ -5274,6 +5274,9 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		}
 	}
 	resourceNames, err := accessrequest.GetResourceNames(ctx, a.Services, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
