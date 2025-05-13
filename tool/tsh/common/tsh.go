@@ -4056,14 +4056,6 @@ func onSSH(cf *CLIConf) error {
 
 	// Handle fork after authentication.
 	if cf.ForkAfterAuthentication && cf.forkSignalFd == 0 {
-		stdoutFile, ok := tc.Stdout.(*os.File)
-		if !ok {
-			stdoutFile = os.Stdout
-		}
-		stderrFile, ok := tc.Stderr.(*os.File)
-		if !ok {
-			stderrFile = os.Stderr
-		}
 		if len(cf.RemoteCommand) == 0 {
 			return trace.BadParameter("fork after authentication not allowed for interactive sessions")
 		}
@@ -4075,8 +4067,8 @@ func onSSH(cf *CLIConf) error {
 				}, cf.rawArgs...)
 			},
 			Stdin:  tc.Stdin,
-			Stdout: stdoutFile,
-			Stderr: stderrFile,
+			Stdout: tc.Stdout,
+			Stderr: tc.Stderr,
 		}
 		if err := client.RunForkAuthenticate(cf.Context, forkParams); err != nil {
 			var execErr *exec.ExitError

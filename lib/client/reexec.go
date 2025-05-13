@@ -34,12 +34,10 @@ type ForkAuthenticateParams struct {
 	GetArgs func(signalFd uint64) []string
 	// Stdin is the child process' stdin.
 	Stdin io.Reader
-	// Stdout is the child process' stdout. Must be a file so it can outlive
-	// the parent process.
-	Stdout *os.File
-	// Stderr is the child process' stderr. Must be a file so it can outlive
-	// the parent process.
-	Stderr *os.File
+	// Stdout is the child process' stdout.
+	Stdout io.Writer
+	// Stderr is the child process' stderr.
+	Stderr io.Writer
 }
 
 type forkAuthCmd struct {
@@ -68,8 +66,6 @@ func buildForkAuthenticateCommand(params ForkAuthenticateParams) (*forkAuthCmd, 
 		return nil, trace.Wrap(err)
 	}
 	cmd := exec.Command(executable)
-	cmd.Stdout = params.Stdout
-	cmd.Stderr = params.Stderr
 	// Prevent unfinished IO from blocking the child's exit.
 	cmd.WaitDelay = 3 * time.Second
 	// Set up disown signal.
@@ -78,7 +74,10 @@ func buildForkAuthenticateCommand(params ForkAuthenticateParams) (*forkAuthCmd, 
 		return nil, trace.Wrap(err)
 	}
 	signalFd := addSignalFdToChild(cmd, signalW)
+
 	cmd.Args = append(cmd.Args, params.GetArgs(signalFd)...)
+	cmd.Stdout = params.Stdout
+	cmd.Stderr = params.Stderr
 
 	// Stdin needs to go through an explicit pipe so we can cut it off without
 	// actually closing stdin.
