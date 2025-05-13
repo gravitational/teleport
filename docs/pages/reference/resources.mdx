@@ -590,14 +590,14 @@ spec:
   # monitoring rule. The condition accepts a predicate expression which must
   # evaluate to a boolean value.
   #
-  # This condition would be satsified by an access request if the `access` role
+  # This condition would be satisfied by an access request if the `access` role
   # is requested, and if the requesting user has the `team: dev` user trait.
   condition: |-
     contains_all(set("access"), access_request.spec.roles) &&
     contains_any(user.traits["team"], set("dev"))
 
   # Optional: desired_state specifies the desired reconciled state of the access
-  # request after the rule is appled. This field must be set to "reviewed" to
+  # request after the rule is applied. This field must be set to "reviewed" to
   # enable automatic reviews.
   # Possible values: "reviewed".
   desired_state: reviewed
