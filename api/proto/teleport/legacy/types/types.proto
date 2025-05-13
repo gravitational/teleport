@@ -6353,6 +6353,11 @@ message UIConfigSpecV1 {
     (gogoproto.jsontag) = "show_resources,omitempty",
     (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.ShowResources"
   ];
+  // HideMFADevicesAndPasskeys hides the MFA and Passkey devices sections from
+  // the account settings screen. This may be useful in situations where users
+  // are authenticated via SSO and the IDP is configured to require an MFA on
+  // its own.
+  bool HideMFADevicesAndPasskeys = 3 [(gogoproto.jsontag) = "hide_mfa_devices_and_passkeys,omitempty"];
 }
 
 // InstallerV1 represents an installer script resource. Used to

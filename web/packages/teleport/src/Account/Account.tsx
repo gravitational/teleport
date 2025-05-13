@@ -20,6 +20,7 @@ import React, { useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import { Box, Flex, H2, Indicator, Subtitle2 } from 'design';
+import { Info } from 'design/Alert';
 import * as Icon from 'design/Icon';
 import {
   Notification,
@@ -179,6 +180,99 @@ export function Account({
     onDeviceRemoved();
   }
 
+  // A list of all sections to be rendered. We collect them in the array to
+  // make sure that it's easy to figure out if there are none to be rendered.
+  const sections = [];
+
+  if (!cfg.ui.hideMfaDevicesAndPasskeys) {
+    sections.push(
+      <Box data-testid="passkey-list" key="passkey-list">
+        <AuthDeviceList
+          header={
+            <PasskeysHeader
+              empty={passkeys.length === 0}
+              passkeysEnabled={canAddPasskeys}
+              disableAddPasskey={disableAddPasskey}
+              fetchDevicesAttempt={fetchDevicesAttempt}
+              onAddDevice={onAddDevice}
+            />
+          }
+          deviceTypeColumnName="Passkey Type"
+          devices={passkeys}
+          onRemove={onRemoveDevice}
+        />
+      </Box>
+    );
+  }
+
+  if (!isSso) {
+    sections.push(
+      <PasswordBox
+        key="password-box"
+        devices={devices}
+        passwordState={passwordState}
+        onPasswordChange={onPasswordChange}
+      />
+    );
+  }
+
+  if (!cfg.ui.hideMfaDevicesAndPasskeys) {
+    sections.push(
+      <Box data-testid="mfa-list" key="mfa-list">
+        <AuthDeviceList
+          header={
+            <Header
+              title={
+                <Flex gap={2} alignItems="center">
+                  Multi-factor Authentication
+                  <StatePill
+                    data-testid="mfa-state-pill"
+                    state={mfaPillState}
+                  />
+                </Flex>
+              }
+              description="Provide secondary authentication when signing in
+                    with a password. Unlike passkeys, multi-factor methods do
+                    not enable passwordless sign-in."
+              icon={<Icon.ShieldCheck />}
+              showIndicator={fetchDevicesAttempt.status === 'processing'}
+              actions={
+                <ActionButtonSecondary
+                  disabled={disableAddMfa}
+                  title={
+                    disableAddMfa
+                      ? 'Multi-factor authentication is disabled'
+                      : ''
+                  }
+                  onClick={() => onAddDevice('mfa')}
+                >
+                  <Icon.Add size={20} />
+                  Add MFA
+                </ActionButtonSecondary>
+              }
+            />
+          }
+          deviceTypeColumnName="MFA Type"
+          devices={mfaDevices}
+          onRemove={onRemoveDevice}
+        />
+      </Box>
+    );
+  }
+
+  if (EnterpriseComponent) {
+    sections.push(
+      <EnterpriseComponent
+        key="enterprise-section"
+        addNotification={addNotification}
+      />
+    );
+  }
+
+  if (TrustedDeviceListComponent) {
+    sections.push(<TrustedDeviceListComponent key="trusted-devices" />);
+  }
+
   return (
     <Relative>
       <FeatureBox maxWidth={1440} margin="auto">
@@ -186,72 +280,13 @@ export function Account({
           <FeatureHeaderTitle>Account Settings</FeatureHeaderTitle>
         </FeatureHeader>
         <Flex flexDirection="column" gap={4}>
-          <Box data-testid="passkey-list">
-            <AuthDeviceList
-              header={
-                <PasskeysHeader
-                  empty={passkeys.length === 0}
-                  passkeysEnabled={canAddPasskeys}
-                  disableAddPasskey={disableAddPasskey}
-                  fetchDevicesAttempt={fetchDevicesAttempt}
-                  onAddDevice={onAddDevice}
-                />
-              }
-              deviceTypeColumnName="Passkey Type"
-              devices={passkeys}
-              onRemove={onRemoveDevice}
-            />
-          </Box>
-          {!isSso && (
-            <PasswordBox
-              devices={devices}
-              passwordState={passwordState}
-              onPasswordChange={onPasswordChange}
-            />
+          {sections.length > 0 ? (
+            sections
+          ) : (
+            <Info>
+              There are no account settings available for customization.
+            </Info>
           )}
-          <Box data-testid="mfa-list">
-            <AuthDeviceList
-              header={
-                <Header
-                  title={
-                    <Flex gap={2} alignItems="center">
-                      Multi-factor Authentication
-                      <StatePill
-                        data-testid="mfa-state-pill"
-                        state={mfaPillState}
-                      />
-                    </Flex>
-                  }
-                  description="Provide secondary authentication when signing in
-                    with a password. Unlike passkeys, multi-factor methods do
-                    not enable passwordless sign-in."
-                  icon={<Icon.ShieldCheck />}
-                  showIndicator={fetchDevicesAttempt.status === 'processing'}
-                  actions={
-                    <ActionButtonSecondary
-                      disabled={disableAddMfa}
-                      title={
-                        disableAddMfa
-                          ? 'Multi-factor authentication is disabled'
-                          : ''
-                      }
-                      onClick={() => onAddDevice('mfa')}
-                    >
-                      <Icon.Add size={20} />
-                      Add MFA
-                    </ActionButtonSecondary>
-                  }
-                />
-              }
-              deviceTypeColumnName="MFA Type"
-              devices={mfaDevices}
-              onRemove={onRemoveDevice}
-            />
-          </Box>
-          {EnterpriseComponent && (
-            <EnterpriseComponent addNotification={addNotification} />
-          )}
-          {TrustedDeviceListComponent && <TrustedDeviceListComponent />}
         </Flex>
       </FeatureBox>
 

@@ -22,7 +22,10 @@ import userEvent from '@testing-library/user-event';
 import { render, screen, waitFor } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
-import { AccountPage as Account } from 'teleport/Account/Account';
+import {
+  AccountPage as Account,
+  AccountPageProps,
+} from 'teleport/Account/Account';
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import auth from 'teleport/services/auth/auth';
@@ -32,25 +35,30 @@ import TeleportContext from 'teleport/teleportContext';
 
 const defaultAuthType = cfg.auth.second_factor;
 const defaultPasswordless = cfg.auth.allowPasswordless;
+const defaultHideMfaDevicesAndPasskeys = cfg.ui.hideMfaDevicesAndPasskeys;
 
 afterEach(() => {
   jest.clearAllMocks();
   cfg.auth.second_factor = defaultAuthType;
   cfg.auth.allowPasswordless = defaultPasswordless;
+  cfg.ui.hideMfaDevicesAndPasskeys = defaultHideMfaDevicesAndPasskeys;
 });
 
-async function renderComponent(ctx: TeleportContext) {
+async function renderComponent(
+  ctx: TeleportContext,
+  props: Partial<AccountPageProps> = {}
+) {
   render(
     <ContextProvider ctx={ctx}>
-      <Account />
+      <Account {...props} />
     </ContextProvider>
   );
   await waitFor(() => {
-    // We can't use getAllByTestId('indicator') directly, because it's
+    // We can't use queryAllByTestId('indicator') directly, because it's
     // unreliable: the indicators are displayed only after a default timeout
     // passes to minimize UI disruptions. That's why we need to make use of
     // their wrappers to indicate whether they are visible or not.
-    for (const iwr of screen.getAllByTestId('indicator-wrapper')) {
+    for (const iwr of screen.queryAllByTestId('indicator-wrapper')) {
       expect(iwr).not.toBeVisible();
     }
   });
@@ -386,4 +394,46 @@ test('removing an MFA method', async () => {
     'touch_id'
   );
   expect(screen.queryByTestId('delete-step')).not.toBeInTheDocument();
+});
+
+test('all sections visible', async () => {
+  const ctx = createTeleportContext();
+  jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([]);
+  await renderComponent(ctx, {
+    enterpriseComponent: () => <div data-testid="dummy-enterprise-component" />,
+    userTrustedDevicesComponent: () => (
+      <div data-testid="dummy-trusted-devices" />
+    ),
+  });
+
+  expect(
+    screen.getByRole('heading', { name: 'Passwordless sign-in using Passkeys' })
+  ).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Password' })).toBeVisible();
+  expect(
+    screen.getByRole('heading', { name: /^Multi-factor Authentication/ })
+  ).toBeVisible();
+  expect(screen.getByTestId('dummy-enterprise-component')).toBeVisible();
+  expect(screen.getByTestId('dummy-trusted-devices')).toBeVisible();
+});
+
+test('all sections hidden', async () => {
+  cfg.ui.hideMfaDevicesAndPasskeys = true;
+  const ctx = createTeleportContext();
+  ctx.storeUser.setState({ authType: 'sso' });
+  jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([]);
+  await renderComponent(ctx);
+
+  expect(
+    screen.queryByRole('heading', {
+      name: 'Passwordless sign-in using Passkeys',
+    })
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('heading', { name: 'Password' })
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('heading', { name: /^Multi-factor Authentication/ })
+  ).not.toBeInTheDocument();
+  expect(screen.getByText(/There are no account settings/)).toBeVisible();
 });

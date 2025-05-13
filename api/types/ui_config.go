@@ -36,6 +36,12 @@ type UIConfig interface {
 	GetScrollbackLines() int32
 	// SetScrollbackLines sets the amount of scrollback lines the terminal remembers
 	SetScrollbackLines(int32)
+	// GetHideMFADevicesAndPasskeys indicates if the MFA and Passkey devices
+	// sections should be hidden from the account settings screen.
+	GetHideMFADevicesAndPasskeys() bool
+	// SetHideMFADevicesAndPasskeys sets if the MFA and Passkey devices sections
+	// should be hidden from the account settings screen.
+	SetHideMFADevicesAndPasskeys(bool)
 
 	String() string
 	// Clone returns a copy of the config.
@@ -134,6 +140,14 @@ func (c *UIConfigV1) GetScrollbackLines() int32 {
 
 func (c *UIConfigV1) SetScrollbackLines(lines int32) {
 	c.Spec.ScrollbackLines = lines
+}
+
+func (c *UIConfigV1) GetHideMFADevicesAndPasskeys() bool {
+	return c.Spec.HideMFADevicesAndPasskeys
+}
+
+func (c *UIConfigV1) SetHideMFADevicesAndPasskeys(hide bool) {
+	c.Spec.HideMFADevicesAndPasskeys = hide
 }
 
 // setStaticFields sets static resource header and metadata fields.

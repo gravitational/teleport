@@ -2284,6 +2284,11 @@ type UIConfig struct {
 	// which means resources the user has access to and resources they can request will be shown in the
 	// resources UI. If set to `accessible_only`, only resources the user already has access to will be shown.
 	ShowResources constants.ShowResources `yaml:"show_resources,omitempty"`
+	// HideMFADevicesAndPasskeys hides the MFA and Passkey devices sections from
+	// the account settings screen. This may be useful in situations where users
+	// are authenticated via SSO and the IDP is configured to require an MFA on
+	// its own.
+	HideMFADevicesAndPasskeys bool `yaml:"hide_mfa_devices_and_passkeys,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
