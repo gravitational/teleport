@@ -92,6 +92,7 @@ describe('validateRoleEditorModel', () => {
         awsRoleARNs: ['some-arn'],
         azureIdentities: ['some-azure-id'],
         gcpServiceAccounts: ['some-gcp-acct'],
+        mcpTools: ['some-mcp-tools'],
         hideValidationErrors: false,
       },
       {
@@ -204,6 +205,7 @@ describe('validateRoleEditorModel', () => {
         awsRoleARNs: [],
         azureIdentities: [],
         gcpServiceAccounts: [],
+        mcpTools: [],
         hideValidationErrors: false,
       },
       {

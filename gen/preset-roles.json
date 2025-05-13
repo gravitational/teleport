@@ -140,7 +140,12 @@
               "{{internal.github_orgs}}"
             ]
           }
-        ]
+        ],
+        "mcp": {
+          "tools": [
+            "{{internal.mcp_tools}}"
+          ]
+        }
       },
       "deny": {}
     }
