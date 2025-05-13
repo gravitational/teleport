@@ -18,6 +18,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { useHistory } from 'react-router';
+import styled from 'styled-components';
 
 import { Flex } from 'design';
 import { Danger } from 'design/Alert';
@@ -45,7 +46,6 @@ import {
 import { Preferences } from './Preferences';
 import { SecuritySettings } from './SecuritySettings';
 import { SideNav } from './SideNav';
-import styled from 'styled-components';
 
 export interface EnterpriseComponentProps {
   // TODO(bl-nero): Consider moving the notifications to its own store and
@@ -129,74 +129,81 @@ export function Account({
   return (
     <NotificationProvider>
       <Relative>
-      <FeatureBox margin="auto">
-        <FeatureHeader>
-          <ArrowBack
-            mr={2}
-            size="large"
-            color="text.main"
-            onClick={history.goBack}
-            style={{ cursor: 'pointer' }}
-          />
-          <FeatureHeaderTitle>Account Settings</FeatureHeaderTitle>
-        </FeatureHeader>
-        {!!errorMessage && (
-          <Danger dismissible onDismiss={() => setErrorMessage(null)}>
-            {errorMessage}
-          </Danger>
-        )}
-        <Flex flexDirection="row" gap={4} maxWidth={'1440px'} margin={'0 auto'}>
-          <Flex flexDirection="column" gap={1} width="16rem">
-            <SideNav
-              recoveryEnabled={EnterpriseComponent !== undefined}
-              trustedDevicesEnabled={TrustedDeviceListComponent !== undefined}
+        <FeatureBox margin="auto">
+          <FeatureHeader>
+            <ArrowBack
+              mr={2}
+              size="large"
+              color="text.main"
+              onClick={history.goBack}
+              style={{ cursor: 'pointer' }}
             />
+            <FeatureHeaderTitle>Account Settings</FeatureHeaderTitle>
+          </FeatureHeader>
+          {!!errorMessage && (
+            <Danger dismissible onDismiss={() => setErrorMessage(null)}>
+              {errorMessage}
+            </Danger>
+          )}
+          <Flex
+            flexDirection="row"
+            gap={4}
+            maxWidth={'1440px'}
+            margin={'0 auto'}
+          >
+            <Flex flexDirection="column" gap={1} width="16rem">
+              <SideNav
+                recoveryEnabled={EnterpriseComponent !== undefined}
+                trustedDevicesEnabled={TrustedDeviceListComponent !== undefined}
+              />
+            </Flex>
+            <Flex flexDirection="column" gap={4}>
+              <Switch>
+                <Route
+                  exact
+                  path={cfg.routes.account}
+                  component={() => <Redirect to={cfg.routes.accountSecurity} />}
+                />
+                <Route
+                  path={cfg.routes.accountSecurity}
+                  component={() => (
+                    <SecuritySettings
+                      isSso={isSso}
+                      canAddPasskeys={canAddPasskeys}
+                      canAddMfa={canAddMfa}
+                      passwordState={passwordState}
+                      devices={devices}
+                      onAddDevice={onAddDevice}
+                      onRemoveDevice={onRemoveDevice}
+                      onDeviceAdded={onDeviceAdded}
+                      onDeviceRemoved={onDeviceRemoved}
+                      deviceToRemove={deviceToRemove}
+                      fetchDevicesAttempt={fetchDevicesAttempt}
+                      addDeviceWizardVisible={addDeviceWizardVisible}
+                      hideRemoveDevice={hideRemoveDevice}
+                      closeAddDeviceWizard={closeAddDeviceWizard}
+                      mfaDisabled={mfaDisabled}
+                      createRestrictedTokenAttempt={
+                        createRestrictedTokenAttempt
+                      }
+                      newDeviceUsage={newDeviceUsage}
+                      enterpriseComponent={EnterpriseComponent}
+                      userTrustedDevicesComponent={TrustedDeviceListComponent}
+                      onPasswordChange={onPasswordChangeCb}
+                    />
+                  )}
+                />
+                <Route
+                  path={cfg.routes.accountPreferences}
+                  component={() => (
+                    <Preferences setErrorMessage={stableSetErrorMessage} />
+                  )}
+                />
+              </Switch>
+            </Flex>
           </Flex>
-          <Flex flexDirection="column" gap={4}>
-            <Switch>
-              <Route
-                exact
-                path={cfg.routes.account}
-                component={() => <Redirect to={cfg.routes.accountSecurity} />}
-              />
-              <Route
-                path={cfg.routes.accountSecurity}
-                component={() => (
-                  <SecuritySettings
-                    isSso={isSso}
-                    canAddPasskeys={canAddPasskeys}
-                    canAddMfa={canAddMfa}
-                    passwordState={passwordState}
-                    devices={devices}
-                    onAddDevice={onAddDevice}
-                    onRemoveDevice={onRemoveDevice}
-                    onDeviceAdded={onDeviceAdded}
-                    onDeviceRemoved={onDeviceRemoved}
-                    deviceToRemove={deviceToRemove}
-                    fetchDevicesAttempt={fetchDevicesAttempt}
-                    addDeviceWizardVisible={addDeviceWizardVisible}
-                    hideRemoveDevice={hideRemoveDevice}
-                    closeAddDeviceWizard={closeAddDeviceWizard}
-                    mfaDisabled={mfaDisabled}
-                    createRestrictedTokenAttempt={createRestrictedTokenAttempt}
-                    newDeviceUsage={newDeviceUsage}
-                    enterpriseComponent={EnterpriseComponent}
-                    userTrustedDevicesComponent={TrustedDeviceListComponent}
-                    onPasswordChange={onPasswordChangeCb}
-                  />
-                )}
-              />
-              <Route
-                path={cfg.routes.accountPreferences}
-                component={() => (
-                  <Preferences setErrorMessage={stableSetErrorMessage} />
-                )}
-              />
-            </Switch>
-          </Flex>
-        </Flex>
-        <NotificationOutlet />
-      </FeatureBox>
+          <NotificationOutlet />
+        </FeatureBox>
       </Relative>
     </NotificationProvider>
   );
