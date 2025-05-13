@@ -78,8 +78,8 @@ func (v *WatchedValue[T]) Watch() (current T, watcher *ValueWatcher[T]) {
 	}
 	item := v.watchers.PushBack(w)
 	w.closeFn = func() {
-		w.mu.Lock()
-		defer w.mu.Unlock()
+		v.mu.Lock()
+		defer v.mu.Unlock()
 		v.watchers.Remove(item)
 	}
 
