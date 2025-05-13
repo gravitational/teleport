@@ -746,7 +746,12 @@ func GetRevision(v any) (string, error) {
 	case Resource:
 		return r.GetRevision(), nil
 	case ResourceMetadata:
-		return r.GetMetadata().Revision, nil
+		if meta := r.GetMetadata(); meta != nil {
+			return meta.Revision, nil
+		}
+		// returning this as an error instead of using GetRevision() because there are other panics
+		// downstream that are not as easily fixed (e.g. SetRevision)
+		return "", trace.BadParameter("unable to get revision from nil metadata of resource of type %T", v)
 	}
 	return "", trace.BadParameter("unable to determine revision from resource of type %T", v)
 }
