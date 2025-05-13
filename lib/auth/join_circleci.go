@@ -36,10 +36,6 @@ func (a *Server) checkCircleCIJoinRequest(
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("IDToken not provided for %q join request", types.JoinMethodCircleCI)
 	}
-	pt, err := a.GetToken(ctx, req.Token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
 		return nil, trace.BadParameter("%q join method only support ProvisionTokenV2, '%T' was provided", types.JoinMethodCircleCI, pt)
