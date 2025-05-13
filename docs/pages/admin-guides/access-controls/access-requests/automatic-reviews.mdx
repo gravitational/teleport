@@ -122,15 +122,20 @@ process, so you may have to refresh the page.
 
 ### Conflicting automatic review rules
 
-Automatic review rules can automatically approve or deny access requests based
-on the selected review decision. If an access request meets the conditions for
+Automatic review rules can automatically approve or deny Access Requests based
+on the selected review decision. If an Access Request meets the conditions for
 both an approval rule and a denial rule, neither rule will be applied.
 
-If you suspect this issue, review your access monitoring rules in the Teleport
+If you suspect this issue, review your Access Monitoring Rules in the Teleport
 Web UI or by running `tctl get access_monitoring_rules`.
 
 ### Resource access requests
 
-Automatic review rules are not currently supported for resource access requests.
-These rules will not be applied to any access requests that include a resource
+Automatic review rules are not currently supported for resource Access Requests.
+These rules will not be applied to any Access Requests that include a resource
 other than a role.
+
+## Next Steps
+
+- For more configuration options with Access Monitoring Rules, refer to the
+  [Access Monitoring Rules Reference](../../../reference/resources.mdx#access-monitoring-rule).

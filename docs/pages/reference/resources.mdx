@@ -63,6 +63,7 @@ Here's the list of resources currently exposed via [`tctl`](./cli/tctl.mdx):
 | [database_object_import_rule](#database-object-import-rule) | Database object import rules. |
 | [autoupdate_config](#auto-update-config) | Client tools auto-update configuration |
 | [autoupdate_version](#auto-update-version) | Client tools auto-update target version configuration |
+| [access_monitoring_rule](#access-monitoring-rule) | Access monitoring rules. |
 
 ## User
 
@@ -568,3 +569,76 @@ status:
 ```
 
 See [Teleport Agent Managed Updates](../upgrading/agent-managed-updates.mdx) for more details.
+
+## Access monitoring rule
+
+Access monitoring rules allows cluster administrators to monitor access requests
+and apply notification routing and automatic review rules.
+
+```yaml
+kind: access_monitoring_rule
+version: v1
+metadata:
+  name: access_monitoring_rule
+spec:
+  # subjects specifies the kinds of subjects to monitor.
+  # Possible values: "access_request"
+  subjects:
+  - access_request
+
+  # condition specifies the conditions that should be met to apply the access
+  # monitoring rule. The condition accepts a predicate expression which must
+  # evaluate to a boolean value.
+  #
+  # This condition would be satsified by an access request if the `access` role
+  # is requested, and if the requesting user has the `team: dev` user trait.
+  condition: |-
+    contains_all(set("access"), access_request.spec.roles) &&
+    contains_any(user.traits["team"], set("dev"))
+
+  # Optional: desired_state specifies the desired reconciled state of the access
+  # request after the rule is appled. This field must be set to "reviewed" to
+  # enable automatic reviews.
+  # Possible values: "reviewed".
+  desired_state: reviewed
+
+  # Optional: automatic_review configures the automatic review rules.
+  automatic_review:
+    # integration specifies the name of an external integration source used to
+    # help determine if a requesting user satisfies the rule conditions.
+    # Use "builtin" to specify no external integration.
+    # Possible values: "builtin"
+    integration: builtin
+
+    # decision determines whether to automatically approve or deny the
+    # access request.
+    # Possible values: "APPROVED" or "DENIED"
+    decision: APPROVED
+
+  # Optional: notification configures notification routing rules.
+  notification:
+    # name specifies the external integration to which the notifications should
+    # be routed.
+    # Possible values: "email", "discord", "slack", "pagerduty", "jira",
+    # "mattermost", "msteams", "opsgenie", "servicenow", "datadog"
+    name: email
+
+    # recipients specifies the list of recipients to be notified when the
+    # access monitoring rule is applied.
+    recipients:
+    - example@goteleport.com
+```
+
+Accepted fields within the condition predicate expression:
+| Field                                   | Description                                    |
+| --------------------------------------- | ---------------------------------------------- |
+| access_request.spec.roles               | The set of roles requested.                    |
+| access_request.spec.suggested_reviewers | The set of reviewers specified in the request. |
+| access_request.spec.system_annotations  | A map of system annotations on the request.    |
+| access_request.spec.user                | The requesting user.                           |
+| access_request.spec.request_reason      | The request reason.                            |
+| access_request.spec.creation_time       | The creation time of the request.              |
+| access_request.spec.expiry              | The expiry time of the request.                |
+| user.traits                             | A map of traits of the requesting user.        |
+
+See [Predicate Language](./predicate-language.mdx) for more details.
