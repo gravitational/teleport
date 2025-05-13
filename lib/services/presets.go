@@ -282,6 +282,7 @@ func NewPresetAccessRole() types.Role {
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				},
 				GitHubPermissions: []types.GitHubPermission{{

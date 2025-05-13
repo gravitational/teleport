@@ -172,6 +172,9 @@ func (r rbacSupportedResources) getResourceWithKey(k allowedResourcesKey) string
 	if k.apiGroup == "" {
 		k.apiGroup = "core"
 	}
+	if plural, ok := types.KubernetesResourcesKindsPlurals[r[k]]; ok {
+		return plural
+	}
 	return r[k]
 }
 
@@ -183,6 +186,7 @@ func (r rbacSupportedResources) getTeleportResourceKindFromAPIResource(api apiRe
 
 // defaultRBACResources is a map of supported resources and their corresponding
 // teleport resource kind for the purpose of resource rbac.
+// TODO(@creack): Remove this (keep a form of it for maybedowngraderole).
 var defaultRBACResources = rbacSupportedResources{
 	{apiGroup: "core", resourceKind: "pods"}:                                      types.KindKubePod,
 	{apiGroup: "core", resourceKind: "secrets"}:                                   types.KindKubeSecret,
@@ -194,6 +198,7 @@ var defaultRBACResources = rbacSupportedResources{
 	{apiGroup: "core", resourceKind: "nodes"}:                                     types.KindKubeNode,
 	{apiGroup: "core", resourceKind: "persistentvolumes"}:                         types.KindKubePersistentVolume,
 	{apiGroup: "core", resourceKind: "persistentvolumeclaims"}:                    types.KindKubePersistentVolumeClaim,
+	{apiGroup: "core", resourceKind: "replicationcontrollers"}:                    types.KindKubeReplicationController,
 	{apiGroup: "apps", resourceKind: "deployments"}:                               types.KindKubeDeployment,
 	{apiGroup: "apps", resourceKind: "replicasets"}:                               types.KindKubeReplicaSet,
 	{apiGroup: "apps", resourceKind: "statefulsets"}:                              types.KindKubeStatefulset,
@@ -249,6 +254,7 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (*types
 		Namespace: apiResource.namespace,
 		Name:      apiResource.resourceName,
 		Verbs:     []string{verb},
+		APIGroup:  apiResource.apiGroup,
 	}, apiResource, nil
 }
 

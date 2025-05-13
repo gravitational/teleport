@@ -152,7 +152,8 @@ func TestRole_GetKubeResources(t *testing.T) {
 	kubeLabels := Labels{
 		Wildcard: {Wildcard},
 	}
-	labelsExpression := "contains(user.spec.traits[\"groups\"], \"prod\")"
+	const labelsExpression = "contains(user.spec.traits[\"groups\"], \"prod\")"
+
 	type args struct {
 		version          string
 		labels           Labels
@@ -162,9 +163,100 @@ func TestRole_GetKubeResources(t *testing.T) {
 	tests := []struct {
 		name                string
 		args                args
-		want                []KubernetesResource
+		wantAllow           []KubernetesResource
+		wantDeny            []KubernetesResource
 		assertErrorCreation require.ErrorAssertionFunc
 	}{
+		{
+			name: "v8 with unknown kind",
+			args: args{
+				version: V8,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						Kind:      "unknown kind",
+						Namespace: "test",
+						Name:      "test",
+						APIGroup:  Wildcard,
+					},
+				},
+			},
+			wantAllow: []KubernetesResource{
+				{
+					Kind:      "unknown kind",
+					Namespace: "test",
+					Name:      "test",
+					APIGroup:  Wildcard,
+				},
+			},
+			assertErrorCreation: require.NoError,
+		},
+		{
+			name: "v8 without group",
+			args: args{
+				version: V8,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						Kind:      "pods",
+						Namespace: "test",
+						Name:      "test",
+					},
+				},
+			},
+			assertErrorCreation: require.Error,
+		},
+		{
+			name: "v8 deny",
+			args: args{
+				version: V8,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						Kind:      "crontabs",
+						Namespace: "test",
+						Name:      "test",
+						Verbs:     []string{Wildcard},
+						APIGroup:  "stable.example.com",
+					},
+				},
+			},
+			wantDeny: []KubernetesResource{
+				{
+					Kind:      "crontabs",
+					Namespace: "test",
+					Name:      "test",
+					Verbs:     []string{Wildcard},
+					APIGroup:  "stable.example.com",
+				},
+			},
+			assertErrorCreation: require.NoError,
+		},
+		{
+			name: "v7 deny",
+			args: args{
+				version: V7,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						Kind:      KindKubePod,
+						Namespace: "test",
+						Name:      "test",
+						Verbs:     []string{Wildcard},
+					},
+				},
+			},
+			wantDeny: []KubernetesResource{
+				{
+					Kind:      "pods",
+					Namespace: "test",
+					Name:      "test",
+					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
+				},
+			},
+			assertErrorCreation: require.NoError,
+		},
 		{
 			name: "v7 with error",
 			args: args{
@@ -181,7 +273,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 			assertErrorCreation: require.Error,
 		},
 		{
-			name: "v7",
+			name: "v7 without group",
 			args: args{
 				version: V7,
 				labels:  kubeLabels,
@@ -194,16 +286,33 @@ func TestRole_GetKubeResources(t *testing.T) {
 				},
 			},
 			assertErrorCreation: require.NoError,
-			want: []KubernetesResource{
+			wantAllow: []KubernetesResource{
 				{
-					Kind:      KindKubePod,
+					Kind:      "pods",
 					Namespace: "test",
 					Name:      "test",
+					APIGroup:  Wildcard,
 				},
 			},
 		},
 		{
-			name: "v7 with labels expression",
+			name: "v7 with group",
+			args: args{
+				version: V7,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						Kind:      KindKubePod,
+						Namespace: "test",
+						Name:      "test",
+						APIGroup:  "apps",
+					},
+				},
+			},
+			assertErrorCreation: require.Error,
+		},
+		{
+			name: "v7 with label expression",
 			args: args{
 				version:          V7,
 				labelsExpression: labelsExpression,
@@ -216,16 +325,17 @@ func TestRole_GetKubeResources(t *testing.T) {
 				},
 			},
 			assertErrorCreation: require.NoError,
-			want: []KubernetesResource{
+			wantAllow: []KubernetesResource{
 				{
-					Kind:      KindKubePod,
+					Kind:      "pods",
 					Namespace: "test",
 					Name:      "test",
+					APIGroup:  Wildcard,
 				},
 			},
 		},
 		{
-			name: "v6 to v7 without wildcard; labels expression",
+			name: "v6 without wildcard; labels expression",
 			args: args{
 				version:          V6,
 				labelsExpression: labelsExpression,
@@ -238,18 +348,19 @@ func TestRole_GetKubeResources(t *testing.T) {
 				},
 			},
 			assertErrorCreation: require.NoError,
-			want: append([]KubernetesResource{
+			wantAllow: append([]KubernetesResource{
 				{
-					Kind:      KindKubePod,
+					Kind:      "pods",
 					Namespace: "test",
 					Name:      "test",
 					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
 				},
 			},
 				appendV7KubeResources()...),
 		},
 		{
-			name: "v6 to v7 with wildcard",
+			name: "v6 with wildcard",
 			args: args{
 				version: V6,
 				labels:  kubeLabels,
@@ -262,17 +373,18 @@ func TestRole_GetKubeResources(t *testing.T) {
 				},
 			},
 			assertErrorCreation: require.NoError,
-			want: []KubernetesResource{
+			wantAllow: []KubernetesResource{
 				{
 					Kind:      Wildcard,
 					Namespace: Wildcard,
 					Name:      Wildcard,
 					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
 				},
 			},
 		},
 		{
-			name: "v6 to v7 without wildcard",
+			name: "v6 without wildcard",
 			args: args{
 				version: V6,
 				labels:  kubeLabels,
@@ -285,65 +397,75 @@ func TestRole_GetKubeResources(t *testing.T) {
 				},
 			},
 			assertErrorCreation: require.NoError,
-			want: append([]KubernetesResource{
+			wantAllow: append([]KubernetesResource{
 				{
-					Kind:      KindKubePod,
+					Kind:      "pods",
 					Namespace: "test",
 					Name:      "test",
 					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
 				},
 			},
 				appendV7KubeResources()...),
 		},
 		{
-			name: "v5 to v7: populate with defaults.",
+			name: "v5: populate with defaults.",
 			args: args{
 				version:   V5,
 				labels:    kubeLabels,
 				resources: nil,
 			},
 			assertErrorCreation: require.NoError,
-			want: []KubernetesResource{
+			wantAllow: []KubernetesResource{
 				{
 					Kind:      Wildcard,
 					Namespace: Wildcard,
 					Name:      Wildcard,
 					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
 				},
 			},
 		},
 		{
-			name: "v5 to v7 without kube labels",
+			name: "v5 without kube labels",
 			args: args{
 				version:   V5,
 				resources: nil,
 			},
 			assertErrorCreation: require.NoError,
-			want:                nil,
+			wantAllow:           nil,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			cond := RoleConditions{
+				Namespaces:                 []string{"default"},
+				KubernetesLabels:           tt.args.labels,
+				KubernetesResources:        tt.args.resources,
+				KubernetesLabelsExpression: tt.args.labelsExpression,
+			}
+			spec := RoleSpecV6{}
+			if tt.wantDeny == nil {
+				spec.Allow = cond
+			} else {
+				spec.Deny = cond
+			}
+
 			r, err := NewRoleWithVersion(
 				"test",
 				tt.args.version,
-				RoleSpecV6{
-					Allow: RoleConditions{
-						Namespaces:                 []string{"default"},
-						KubernetesLabels:           tt.args.labels,
-						KubernetesResources:        tt.args.resources,
-						KubernetesLabelsExpression: tt.args.labelsExpression,
-					},
-				},
+				spec,
 			)
 			tt.assertErrorCreation(t, err)
 			if err != nil {
 				return
 			}
-			got := r.GetKubeResources(Allow)
-			require.Equal(t, tt.want, got)
-			got = r.GetKubeResources(Deny)
-			require.Empty(t, got)
+			if tt.wantDeny == nil {
+				got := r.GetKubeResources(Allow)
+				require.Equal(t, tt.wantAllow, got)
+			}
+			got := r.GetKubeResources(Deny)
+			require.Equal(t, tt.wantDeny, got)
 		})
 	}
 }
@@ -558,7 +680,8 @@ func appendV7KubeResources() []KubernetesResource {
 	resources := []KubernetesResource{}
 	// append other kubernetes resources
 	for _, resource := range KubernetesResourcesKinds {
-		if resource == KindKubePod || resource == KindKubeNamespace {
+		resource = KubernetesResourcesKindsPlurals[resource]
+		if resource == "pods" || resource == "namespaces" {
 			continue
 		}
 		resources = append(resources, KubernetesResource{
@@ -566,6 +689,7 @@ func appendV7KubeResources() []KubernetesResource {
 			Namespace: Wildcard,
 			Name:      Wildcard,
 			Verbs:     []string{Wildcard},
+			APIGroup:  Wildcard,
 		},
 		)
 	}

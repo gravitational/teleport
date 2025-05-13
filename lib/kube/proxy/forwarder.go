@@ -809,6 +809,11 @@ func (f *Forwarder) setupContext(
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// TODO(@creack): Remove this once we have the new RBAC system in place using subresources.
+		// We use the verb to determine access to subresource.
+		if kubeResource != nil {
+			kubeResource.Kind = strings.Split(apiResource.resourceKind, "/")[0]
+		}
 	}
 
 	netConfig, err := f.cfg.CachingAuthClient.GetClusterNetworkingConfig(f.ctx)
