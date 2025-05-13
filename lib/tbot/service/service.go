@@ -28,7 +28,7 @@ import (
 // Handler implements the logic of a long-running service.
 type Handler interface {
 	// Run performs the task (potentially on an interval) until the given
-	// context is cancelled, or an irrecoverable error is encountered.
+	// context is canceled, or an irrecoverable error is encountered.
 	//
 	// It should call runtime.SetStatus to report its health to the supervisor
 	// and other services. If Run returns an error, the service's status will be
@@ -86,7 +86,7 @@ var ErrWrongStatus = errors.New("supervisor: service has wrong status")
 
 // Wait blocks until the service's status is Ready and then returns the handler.
 //
-// If the given context is cancelled or reaches its deadline, Wait will unblock
+// If the given context is canceled or reaches its deadline, Wait will unblock
 // immediately and return the context's error. This is useful for implementing
 // timeout/fallback behavior.
 //
@@ -101,7 +101,7 @@ func (s *Service[HandlerT]) Wait(ctx context.Context) (HandlerT, error) {
 // WaitForStatus blocks until the service's status matches one of the given
 // statuses and then returns the handler.
 //
-// If the given context is cancelled or reaches its deadline, WaitForStatus will
+// If the given context is canceled or reaches its deadline, WaitForStatus will
 // unblock immediately and return the context's error. This is useful for
 // implementing timeout/fallback behavior.
 //

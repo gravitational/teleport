@@ -65,6 +65,6 @@ func TestWatchedValue(t *testing.T) {
 	// We shouldn't get any more values after the watcher is closed.
 	ctx, cancel = context.WithTimeout(ctx, 500*time.Millisecond)
 	t.Cleanup(cancel)
-	next, ok := watcher.Wait(ctx)
+	_, ok := watcher.Wait(ctx)
 	require.False(t, ok)
 }

@@ -105,6 +105,7 @@ func TestService_OneShot(t *testing.T) {
 	supervisor, err := service.NewSupervisor(service.SupervisorConfig{
 		Logger: utils.NewSlogLoggerForTests(),
 	})
+	require.NoError(t, err)
 	require.NoError(t, supervisor.Register(a))
 	require.NoError(t, supervisor.Register(b))
 	require.NoError(t, supervisor.Register(c))
