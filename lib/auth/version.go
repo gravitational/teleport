@@ -87,9 +87,9 @@ func validateAndUpdateTeleportVersion(
 		}
 		if lastKnownVersion.Major > currentVersion.Major {
 			return trace.BadParameter("Unsupported downgrade path detected: from %v to %v. "+
-				"Teleport doesn't support major version downgrade. Downgrading may lead to an inconsistent database state.\n  "+
-				"Use at your own risk: to allow downgrade, set the environment variable `TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK=yes`.\n  "+
-				"See compatibility guarantees for details: "+
+				"Teleport doesn't support major version downgrades. Downgrading may lead to an inconsistent cluster state.\n  "+
+				"Use at your own risk: to allow downgrading, set the environment variable `TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK=yes`.\n  "+
+				"See our upgrading guide for details: "+
 				"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
 				lastKnownVersion, currentVersion.String())
 		}
