@@ -99,6 +99,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
+	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
@@ -3721,6 +3722,45 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 
 	retErr := trace.AccessDenied(MaxFailedAttemptsErrMsg)
 	return trace.WithField(retErr, ErrFieldKeyUserMaxedAttempts, true)
+}
+
+// CreateAuthPreference creates a new auth preference if one does not exist. This
+// is an internal API and is not exposed via [clusterconfigv1.ClusterConfigServiceServer] or
+// [proto.AuthServiceServer]. It is only meant to be called directly from within auth
+// initialization to seed the [types.AuthPreference] for brand new clusters.
+func (a *Server) CreateAuthPreference(ctx context.Context, p types.AuthPreference) (types.AuthPreference, error) {
+	if err := services.ValidateAuthPreference(p); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// check that the given RequireMFAType is supported in this build.
+	if p.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
+	}
+
+	if err := dtconfig.ValidateConfigAgainstModules(p.GetDeviceTrust()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := p.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+		FIPS:          a.fips,
+		UsingHSMOrKMS: a.keyStore.UsingHSMOrKMS(),
+		Cloud:         modules.GetModules().Features().Cloud,
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := a.Services.CreateAuthPreference(ctx, p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authPrefV2, ok := created.(*types.AuthPreferenceV2)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected auth preference type %T (expected %T)", created, authPrefV2))
+	}
+
+	return authPrefV2, nil
 }
 
 // CreateAuthenticateChallenge implements AuthService.CreateAuthenticateChallenge.
