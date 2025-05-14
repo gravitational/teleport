@@ -53,6 +53,7 @@ import (
 const (
 	awskmsPrefix  = "awskms:"
 	clusterTagKey = "TeleportCluster"
+	awsOAEPHash   = crypto.SHA256
 
 	pendingKeyBaseRetryInterval = time.Second / 2
 	pendingKeyMaxRetryInterval  = 4 * time.Second
@@ -137,12 +138,19 @@ func (a *awsKMSKeystore) keyTypeDescription() string {
 	return fmt.Sprintf("AWS KMS keys in account %s and region %s", a.awsAccount, a.awsRegion)
 }
 
-// generateKey creates a new private key and returns its identifier and a crypto.Signer. The returned
-// identifier can be passed to getSigner later to get an equivalent crypto.Signer.
-func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
+func (u keyUsage) toAWS() kmstypes.KeyUsageType {
+	switch u {
+	case keyUsageDecrypt:
+		return kmstypes.KeyUsageTypeEncryptDecrypt
+	default:
+		return kmstypes.KeyUsageTypeSignVerify
+	}
+}
+
+func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites.Algorithm, usage keyUsage) (awsKMSKeyID, error) {
 	alg, err := awsAlgorithm(algorithm)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return awsKMSKeyID{}, trace.Wrap(err)
 	}
 
 	a.logger.InfoContext(ctx, "Creating new AWS KMS keypair.",
@@ -160,27 +168,57 @@ func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites
 	output, err := a.kms.CreateKey(ctx, &kms.CreateKeyInput{
 		Description: aws.String("Teleport CA key"),
 		KeySpec:     alg,
-		KeyUsage:    kmstypes.KeyUsageTypeSignVerify,
+		KeyUsage:    usage.toAWS(),
 		Tags:        tags,
 		MultiRegion: aws.Bool(a.multiRegionEnabled),
 	})
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return awsKMSKeyID{}, trace.Wrap(err)
 	}
 	if output.KeyMetadata == nil {
-		return nil, nil, trace.Errorf("KeyMetadata of generated key is nil")
+		return awsKMSKeyID{}, trace.Errorf("KeyMetadata of generated key is nil")
 	}
 	keyARN := aws.ToString(output.KeyMetadata.Arn)
-	signer, err := a.newSigner(ctx, keyARN)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
 	keyID := awsKMSKeyID{
 		arn:     keyARN,
 		account: a.awsAccount,
 		region:  a.awsRegion,
-	}.marshal()
-	return keyID, signer, nil
+	}
+
+	return keyID, nil
+
+}
+
+// generateSigner creates a new private key and returns its identifier and a crypto.Signer. The returned
+// identifier can be passed to getSigner later to get an equivalent crypto.Signer.
+func (a *awsKMSKeystore) generateSigner(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
+	keyID, err := a.generateKey(ctx, algorithm, keyUsageSign)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	signer, err := a.newKMSKey(ctx, keyID.arn)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return keyID.marshal(), signer, nil
+}
+
+// generateDecrypter creates a new private key and returns its identifier and a crypto.Decrypter. The returned
+// identifier can be passed to getDecrypter later to get an equivalent crypto.Decrypter.
+func (a *awsKMSKeystore) generateDecrypter(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Decrypter, crypto.Hash, error) {
+	keyID, err := a.generateKey(ctx, algorithm, keyUsageDecrypt)
+	if err != nil {
+		return nil, nil, awsOAEPHash, trace.Wrap(err)
+	}
+
+	decrypter, err := a.newKMSKey(ctx, keyID.arn)
+	if err != nil {
+		return nil, nil, awsOAEPHash, trace.Wrap(err)
+	}
+
+	return keyID.marshal(), decrypter, awsOAEPHash, nil
 }
 
 func awsAlgorithm(alg cryptosuites.Algorithm) (kmstypes.KeySpec, error) {
@@ -199,16 +237,25 @@ func (a *awsKMSKeystore) getSigner(ctx context.Context, rawKey []byte, publicKey
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.newSignerWithPublicKey(ctx, keyID.arn, publicKey)
+	return a.newKMSKeyWithPublicKey(ctx, keyID.arn, publicKey)
 }
 
-type awsKMSSigner struct {
+// getDecrypter returns a crypto.Decrypter for the given key identifier, if it is found.
+func (a *awsKMSKeystore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
+	keyID, err := parseAWSKMSKeyID(rawKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.newKMSKeyWithPublicKey(ctx, keyID.arn, publicKey)
+}
+
+type awsKMSKey struct {
 	keyARN string
 	pub    crypto.PublicKey
 	kms    kmsClient
 }
 
-func (a *awsKMSKeystore) newSigner(ctx context.Context, keyARN string) (*awsKMSSigner, error) {
+func (a *awsKMSKeystore) newKMSKey(ctx context.Context, keyARN string) (*awsKMSKey, error) {
 	pubkeyDER, err := a.getPublicKeyDER(ctx, keyARN)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -218,7 +265,7 @@ func (a *awsKMSKeystore) newSigner(ctx context.Context, keyARN string) (*awsKMSS
 	if err != nil {
 		return nil, trace.Wrap(err, "unexpected error parsing public key der")
 	}
-	return a.newSignerWithPublicKey(ctx, keyARN, pub)
+	return a.newKMSKeyWithPublicKey(ctx, keyARN, pub)
 }
 
 func (a *awsKMSKeystore) getPublicKeyDER(ctx context.Context, keyARN string) ([]byte, error) {
@@ -270,8 +317,8 @@ func (a *awsKMSKeystore) getPublicKeyDER(ctx context.Context, keyARN string) ([]
 	}
 }
 
-func (a *awsKMSKeystore) newSignerWithPublicKey(ctx context.Context, keyARN string, publicKey crypto.PublicKey) (*awsKMSSigner, error) {
-	return &awsKMSSigner{
+func (a *awsKMSKeystore) newKMSKeyWithPublicKey(ctx context.Context, keyARN string, publicKey crypto.PublicKey) (*awsKMSKey, error) {
+	return &awsKMSKey{
 		keyARN: keyARN,
 		pub:    publicKey,
 		kms:    a.kms,
@@ -279,12 +326,12 @@ func (a *awsKMSKeystore) newSignerWithPublicKey(ctx context.Context, keyARN stri
 }
 
 // Public returns the public key for the signer.
-func (a *awsKMSSigner) Public() crypto.PublicKey {
+func (a *awsKMSKey) Public() crypto.PublicKey {
 	return a.pub
 }
 
 // Sign signs the message digest.
-func (a *awsKMSSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
+func (a *awsKMSKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
 	var signingAlg kmstypes.SigningAlgorithmSpec
 	switch opts.HashFunc() {
 	case crypto.SHA256:
@@ -320,6 +367,27 @@ func (a *awsKMSSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpt
 	return output.Signature, nil
 }
 
+// Decrypt decrypts data encrypted with the public key
+func (a *awsKMSKey) Decrypt(rand io.Reader, ciphertext []byte, opts crypto.DecrypterOpts) (plaintext []byte, err error) {
+	var encAlg kmstypes.EncryptionAlgorithmSpec
+	switch a.pub.(type) {
+	case *rsa.PublicKey:
+		encAlg = kmstypes.EncryptionAlgorithmSpecRsaesOaepSha256
+	default:
+		return nil, trace.BadParameter("unsupported key algorithm for AWS KMS decryption")
+	}
+
+	output, err := a.kms.Decrypt(context.TODO(), &kms.DecryptInput{
+		KeyId:               aws.String(a.keyARN),
+		CiphertextBlob:      ciphertext,
+		EncryptionAlgorithm: encAlg,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return output.Plaintext, nil
+}
+
 // deleteKey deletes the given key from the KeyStore.
 func (a *awsKMSKeystore) deleteKey(ctx context.Context, rawKey []byte) error {
 	keyID, err := parseAWSKMSKeyID(rawKey)
@@ -333,9 +401,9 @@ func (a *awsKMSKeystore) deleteKey(ctx context.Context, rawKey []byte) error {
 	return trace.Wrap(err, "error deleting AWS KMS key")
 }
 
-// canSignWithKey returns true if this KeyStore is able to sign with the given
-// key.
-func (a *awsKMSKeystore) canSignWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
+// canUseKey returns true if this KeyStore is able to sign or decrypt with
+// the given key.
+func (a *awsKMSKeystore) canUseKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
 	if keyType != types.PrivateKeyType_AWS_KMS {
 		return false, nil
 	}
@@ -343,6 +411,7 @@ func (a *awsKMSKeystore) canSignWithKey(ctx context.Context, raw []byte, keyType
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
+
 	return keyID.account == a.awsAccount && keyID.region == a.awsRegion, nil
 }
 
@@ -363,7 +432,7 @@ func (a *awsKMSKeystore) canSignWithKey(ctx context.Context, raw []byte, keyType
 func (a *awsKMSKeystore) deleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
 	activeAWSKMSKeys := make(map[string]int)
 	for _, activeKey := range activeKeys {
-		keyIsRelevent, err := a.canSignWithKey(ctx, activeKey, keyType(activeKey))
+		keyIsRelevent, err := a.canUseKey(ctx, activeKey, keyType(activeKey))
 		if err != nil {
 			// Don't expect this error to ever hit, safer to return if it does.
 			return trace.Wrap(err)
@@ -375,7 +444,7 @@ func (a *awsKMSKeystore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 		}
 		keyID, err := parseAWSKMSKeyID(activeKey)
 		if err != nil {
-			// Realistically we should not hit this since canSignWithKey already
+			// Realistically we should not hit this since canUseKey already
 			// calls parseAWSKMSKeyID.
 			return trace.Wrap(err)
 		}
@@ -536,6 +605,7 @@ type kmsClient interface {
 	DescribeKey(context.Context, *kms.DescribeKeyInput, ...func(*kms.Options)) (*kms.DescribeKeyOutput, error)
 	ListResourceTags(context.Context, *kms.ListResourceTagsInput, ...func(*kms.Options)) (*kms.ListResourceTagsOutput, error)
 	Sign(context.Context, *kms.SignInput, ...func(*kms.Options)) (*kms.SignOutput, error)
+	Decrypt(context.Context, *kms.DecryptInput, ...func(*kms.Options)) (*kms.DecryptOutput, error)
 }
 
 type stsClient interface {
