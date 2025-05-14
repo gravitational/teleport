@@ -2148,7 +2148,7 @@ func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
 			denied = append(denied, elem)
 			continue
 		}
-		// Othwesie, set a wildcard to block everything.
+		// Otherwise, set a wildcard to block everything.
 		denied = append(denied, types.KubernetesResource{
 			Kind:      types.Wildcard,
 			Name:      types.Wildcard,
