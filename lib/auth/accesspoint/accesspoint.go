@@ -112,6 +112,7 @@ type Config struct {
 	PluginStaticCredentials services.PluginStaticCredentials
 	GitServers              services.GitServers
 	HealthCheckConfig       services.HealthCheckConfigReader
+	RecordingEncryption     services.RecordingEncryption
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -213,6 +214,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		PluginStaticCredentials: cfg.PluginStaticCredentials,
 		GitServers:              cfg.GitServers,
 		HealthCheckConfig:       cfg.HealthCheckConfig,
+		RecordingEncryption:     cfg.RecordingEncryption,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))
