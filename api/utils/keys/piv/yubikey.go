@@ -580,6 +580,7 @@ func (c *sharedPIVConnection) holdConn() error {
 	if c.conn == nil || !c.connHealthy.Load() {
 		c.connMu.RUnlock()
 		if err := c.connect(); err != nil {
+			c.connMu.RLock()
 			return trace.Wrap(err)
 		}
 		c.connMu.RLock()
@@ -605,7 +606,7 @@ func (c *sharedPIVConnection) releaseConn() {
 		defer c.connMu.Unlock()
 
 		// Double check that a new hold wasn't added while waiting for the full lock.
-		if c.connHolds.Load() != 0 {
+		if c.connHolds.Load() == 0 {
 			c.conn.Close()
 			c.conn = nil
 		}
