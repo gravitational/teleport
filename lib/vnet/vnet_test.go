@@ -580,9 +580,13 @@ func TestDialFakeApp(t *testing.T) {
 		},
 	}, dialOpts, reissueClientCert, clock)
 
+	clusterConfigCache := NewClusterConfigCache(clock)
 	p := newTestPack(t, ctx, testPackConfig{
-		clock:       clock,
-		appProvider: newLocalAppProvider(clientApp, clock),
+		clock: clock,
+		appProvider: newLocalAppProvider(&localAppProviderConfig{
+			clientApplication:  clientApp,
+			clusterConfigCache: clusterConfigCache,
+		}),
 	})
 
 	validTestCases := []struct {
@@ -824,9 +828,13 @@ func TestOnNewConnection(t *testing.T) {
 	validAppName := "echo1.root1.example.com"
 	invalidAppName := "not.an.app.example.com."
 
+	clusterConfigCache := NewClusterConfigCache(clock)
 	p := newTestPack(t, ctx, testPackConfig{
-		clock:       clock,
-		appProvider: newLocalAppProvider(clientApp, clock),
+		clock: clock,
+		appProvider: newLocalAppProvider(&localAppProviderConfig{
+			clientApplication:  clientApp,
+			clusterConfigCache: clusterConfigCache,
+		}),
 	})
 
 	// Attempt to establish a connection to an invalid app and verify that OnNewConnection was not
@@ -901,8 +909,15 @@ func testRemoteAppProvider(t *testing.T, alg cryptosuites.Algorithm) {
 		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)
-	appProvider := newLocalAppProvider(clientApp, clock)
-	svc := newClientApplicationService(appProvider)
+	clusterConfigCache := NewClusterConfigCache(clock)
+	appProvider := newLocalAppProvider(&localAppProviderConfig{
+		clientApplication:  clientApp,
+		clusterConfigCache: clusterConfigCache,
+	})
+	svc := newClientApplicationService(&clientApplicationServiceConfig{
+		localAppProvider:      appProvider,
+		localOSConfigProvider: nil, // OS config is not needed for this test.
+	})
 	vnetv1.RegisterClientApplicationServiceServer(grpcServer, svc)
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
