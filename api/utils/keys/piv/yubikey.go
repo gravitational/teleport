@@ -561,6 +561,7 @@ func doWithSharedConn[T any](c *sharedPIVConnection, do func(*piv.YubiKey) (T, e
 	// Usually this error occurs on Windows, which times out exclusive transactions after 5 seconds without any activity,
 	// giving users only 5 seconds to answer PIN prompts. The PIN should now be cached locally, so we simply retry.
 	if err != nil && strings.Contains(err.Error(), pcscResetCardErrMessage) {
+		slog.DebugContext(context.Background(), "smart card connection timed out, reconnecting", "error", err)
 		if err := c.reconnect(); err != nil {
 			return nilT, trace.Wrap(err)
 		}
