@@ -196,6 +196,8 @@ type WindowsCAAndKeyPair struct {
 	certPEM []byte
 	keyPEM  []byte
 	caCert  []byte
+
+	sidLookupError error
 }
 
 // GetCertificateBytes returns a new cert/key pem and the DB CA bytes
@@ -205,9 +207,9 @@ func (d *DBCertGetter) GetCertificateBytes(ctx context.Context) (*WindowsCAAndKe
 		return nil, trace.Wrap(err)
 	}
 
-	sid, err := d.GetActiveDirectorySID(ctx, clusterName.GetClusterName())
-	if err != nil {
-		d.Logger.WarnContext(ctx, "Failed to get SID from ActiveDirectory; PKINIT flow is likely to fail.", "error", err)
+	sid, sidLookupError := d.GetActiveDirectorySID(ctx, clusterName.GetClusterName())
+	if sidLookupError != nil {
+		d.Logger.WarnContext(ctx, "Failed to get SID from ActiveDirectory; PKINIT flow is likely to fail.", "error", sidLookupError)
 	}
 
 	req := &windows.GenerateCredentialsRequest{
@@ -226,7 +228,12 @@ func (d *DBCertGetter) GetCertificateBytes(ctx context.Context) (*WindowsCAAndKe
 		return nil, trace.Wrap(err)
 	}
 
-	return &WindowsCAAndKeyPair{certPEM: certPEM, keyPEM: keyPEM, caCert: bytes.Join(caCerts, []byte("\n"))}, nil
+	return &WindowsCAAndKeyPair{
+		certPEM:        certPEM,
+		keyPEM:         keyPEM,
+		caCert:         bytes.Join(caCerts, []byte("\n")),
+		sidLookupError: sidLookupError,
+	}, nil
 }
 
 func (d *DBCertGetter) getLDAPCACert() (*x509.Certificate, error) {
@@ -347,6 +354,10 @@ func (k *CommandLineInitializer) UseOrCreateCredentials(ctx context.Context) (*c
 	kinitOutput, err := cmd.CombinedOutput()
 	if err != nil {
 		k.logger.ErrorContext(ctx, "Failed to authenticate with KDC", "cmd_output", string(kinitOutput), "error", err)
+		if wca.sidLookupError != nil {
+			k.logger.WarnContext(ctx, "The failed request was made with an empty SID due to an LDAP lookup failure. AD servers are likely to reject such requests. The lookup error may be due to a non-existent user or invalid configuration.", "sid_lookup_error", wca.sidLookupError)
+		}
+
 		return nil, nil, trace.AccessDenied("authentication failed")
 	}
 	ccache, err := credentials.LoadCCache(cachePath)
