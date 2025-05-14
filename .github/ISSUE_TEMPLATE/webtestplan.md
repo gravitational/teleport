@@ -45,6 +45,9 @@ There should be a cluster dropdown for:
       - [ ] Can login with added device
     - Recovery codes
       - [ ] Cloud only: can read and generate new recovery codes
+    - Windows Desktop Session Keyboard Layout
+      - [ ] Can change the keyboard layout
+      - [ ] Verify that the keyboard layout is saved upon relogin
   - [ ] Help & Support
     - [ ] Click on all the links and make sure they work (no 404) and are up to date
     - [ ] Renders cluster information
