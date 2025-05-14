@@ -44,6 +44,7 @@ message GitHubAuditLogV1 {
 // GitHubConfigV1 ..
 message GitHubConfigV1 {
   google.protobuf.Timestamp start_date = 1; // Start date for exporting audit logs.
+  string organization = 2; // Organization name.
 }
 
 // GithubTokenV1 is the token v1
