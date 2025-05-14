@@ -58,6 +58,15 @@ const (
 	RecoveryModeInsecure = "insecure"
 )
 
+// RecoveryModes returns a list of all supported recovery modes
+func RecoveryModes() []RecoveryMode {
+	return []RecoveryMode{
+		RecoveryModeStandard,
+		RecoveryModeRelaxed,
+		RecoveryModeInsecure,
+	}
+}
+
 // ChallengeDocument is a bound keypair challenge document. These documents are
 // sent in JSON form to clients attempting to authenticate, and are expected to
 // be sent back signed with the private counterpart of a known public key.
@@ -164,13 +173,4 @@ func (v *ChallengeValidator) ValidateChallengeResponse(issued *ChallengeDocument
 	}
 
 	return nil
-}
-
-// RecoveryModes returns a list of all supported recovery modes
-func RecoveryModes() []RecoveryMode {
-	return []RecoveryMode{
-		RecoveryModeStandard,
-		RecoveryModeRelaxed,
-		RecoveryModeInsecure,
-	}
 }

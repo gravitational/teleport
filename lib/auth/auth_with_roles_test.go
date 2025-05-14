@@ -191,11 +191,12 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	})
 
 	for _, test := range []struct {
-		desc         string
-		renewable    bool
-		roleRequests bool
-		reqTTL       time.Duration
-		expiresIn    time.Duration
+		desc           string
+		renewable      bool
+		roleRequests   bool
+		reqTTL         time.Duration
+		expiresIn      time.Duration
+		githubIdentity *types.ExternalIdentity
 	}{
 		{
 			desc:      "not-renewable",
@@ -240,6 +241,17 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			reqTTL:       2 * defaults.MaxRenewableCertTTL,
 			expiresIn:    defaults.MaxRenewableCertTTL,
 		},
+		{
+			desc:         "github-identity-from-login-state-preserved",
+			renewable:    false,
+			roleRequests: true,
+			reqTTL:       4 * time.Hour,
+			expiresIn:    4 * time.Hour,
+			githubIdentity: &types.ExternalIdentity{
+				UserID:   "1024025",
+				Username: "torvalds",
+			},
+		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			ctx := context.Background()
@@ -265,6 +277,14 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				id = TestUser(user.GetName())
+			}
+
+			// Simulate authenticated GitHub OAuth flow where GitHub identity is
+			// saved in login state.
+			if test.githubIdentity != nil {
+				user.SetGithubIdentities([]types.ExternalIdentity{*test.githubIdentity})
+				_, err := srv.Auth().ulsGenerator.Refresh(ctx, user, srv.Auth().UserLoginStates)
+				require.NoError(t, err)
 			}
 
 			client, err := srv.NewClient(id)
@@ -297,8 +317,16 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			sshCert, err := sshutils.ParseCertificate(certs.SSH)
 			require.NoError(t, err)
 
+			sshIdentity, err := sshca.DecodeIdentity(sshCert)
+			require.NoError(t, err)
+
 			require.WithinDuration(t, start.Add(test.expiresIn), x509.NotAfter, 1*time.Second)
 			require.WithinDuration(t, start.Add(test.expiresIn), time.Unix(int64(sshCert.ValidBefore), 0), 1*time.Second)
+
+			if test.githubIdentity != nil {
+				require.Equal(t, test.githubIdentity.UserID, sshIdentity.GitHubUserID)
+				require.Equal(t, test.githubIdentity.Username, sshIdentity.GitHubUsername)
+			}
 		})
 	}
 }
@@ -10385,4 +10413,76 @@ func newTestAppServerV3(t *testing.T, auth *Server, name string, labels map[stri
 	require.NoError(t, err, "upserting test Application Server")
 
 	return appServer
+}
+
+func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	s := newTestServerWithRoles(t, srv.AuthServer, types.RoleAdmin)
+
+	const errMsg = "supported in role version 7 and below"
+	testCases := []struct {
+		desc         string
+		roleVersion  string
+		roleOptions  types.RoleOptions
+		errAssertion require.ErrorAssertionFunc
+	}{
+		{
+			desc:        "samlidp: role option not allowed in role v8",
+			roleVersion: types.V8,
+			roleOptions: types.RoleOptions{
+				IDP: &types.IdPOptions{
+					SAML: &types.IdPSAMLOptions{
+						Enabled: types.NewBoolOption(true),
+					},
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, errMsg)
+			},
+		},
+		{
+			desc:        "samlidp: role option allowed in role v7",
+			roleVersion: types.V7,
+			roleOptions: types.RoleOptions{
+				IDP: &types.IdPOptions{
+					SAML: &types.IdPSAMLOptions{
+						Enabled: types.NewBoolOption(true),
+					},
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for i, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			newRole := func(t *testing.T, name string, roleOption types.RoleOptions) types.Role {
+				t.Helper()
+				role, err := types.NewRoleWithVersion(name, tt.roleVersion, types.RoleSpecV6{
+					Options: roleOption,
+				})
+				require.NoError(t, err)
+				return role
+			}
+
+			roleToCreate := newRole(t, fmt.Sprintf("test-create-role-%d", i), tt.roleOptions)
+			_, err := s.CreateRole(ctx, roleToCreate)
+			tt.errAssertion(t, err)
+
+			roleToUpdate := newRole(t, fmt.Sprintf("test-update-role-%d", i), types.RoleOptions{})
+			updateRole, err := s.CreateRole(ctx, roleToUpdate)
+			require.NoError(t, err)
+			updateRole.SetOptions(tt.roleOptions)
+			_, err = s.UpdateRole(ctx, updateRole)
+			tt.errAssertion(t, err)
+
+			roleToUpsert := newRole(t, fmt.Sprintf("test-upsert-role-%d", i), tt.roleOptions)
+			_, err = s.UpsertRole(ctx, roleToUpsert)
+			tt.errAssertion(t, err)
+		})
+	}
 }

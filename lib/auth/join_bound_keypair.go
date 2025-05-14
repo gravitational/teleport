@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/boundkeypair"
-	"github.com/gravitational/teleport/lib/boundkeypair/experiment"
+	"github.com/gravitational/teleport/lib/boundkeypair/boundkeypairexperiment"
 	"github.com/gravitational/teleport/lib/jwt"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
 )
@@ -48,7 +48,7 @@ func validateBoundKeypairTokenSpec(spec *types.ProvisionTokenSpecV2BoundKeypair)
 	// Various constant checks, shared between creation and update. Many of
 	// these checks are temporary and will be removed alongside the experiment
 	// flag.
-	if !experiment.Enabled() {
+	if !boundkeypairexperiment.Enabled() {
 		return trace.BadParameter("bound keypair joining experiment is not enabled")
 	}
 

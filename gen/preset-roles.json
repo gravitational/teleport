@@ -25,11 +25,6 @@
         "desktop_directory_sharing": true,
         "pin_source_ip": false,
         "ssh_file_copy": true,
-        "idp": {
-          "saml": {
-            "enabled": true
-          }
-        },
         "create_desktop_user": false,
         "create_db_user": false,
         "ssh_port_forwarding": {
@@ -176,11 +171,6 @@
         "desktop_directory_sharing": true,
         "pin_source_ip": false,
         "ssh_file_copy": true,
-        "idp": {
-          "saml": {
-            "enabled": true
-          }
-        },
         "create_desktop_user": false,
         "create_db_user": false
       },
@@ -300,11 +290,6 @@
         "desktop_directory_sharing": true,
         "pin_source_ip": false,
         "ssh_file_copy": true,
-        "idp": {
-          "saml": {
-            "enabled": true
-          }
-        },
         "create_desktop_user": false,
         "create_db_user": false,
         "ssh_port_forwarding": {
@@ -1073,6 +1058,18 @@
           {
             "resources": [
               "health_check_config"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "sigstore_policy"
             ],
             "verbs": [
               "list",

@@ -26,9 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -46,8 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
-	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
-	healthcheckconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
@@ -57,7 +53,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
-	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	igcredentials "github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -901,15 +896,14 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		}
 
 		if !shouldReplace {
-			if allowNoSecondFactor, _ := strconv.ParseBool(os.Getenv(teleport.EnvVarAllowNoSecondFactor)); allowNoSecondFactor {
-				err := modules.ValidateResource(storedAuthPref)
+			if err := modules.ValidateResource(storedAuthPref); err != nil {
 				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
 					return trace.Wrap(err, secondFactorUpgradeInstructions)
 				}
-				if err != nil {
-					return trace.Wrap(err)
-				}
+
+				return trace.Wrap(err)
 			}
+
 			return nil
 		}
 
@@ -937,6 +931,14 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 			// would unset the default suite after the first auth restart.
 			newAuthPref = newAuthPref.Clone()
 			newAuthPref.SetSignatureAlgorithmSuite(storedAuthPref.GetSignatureAlgorithmSuite())
+		}
+
+		if err := modules.ValidateResource(newAuthPref); err != nil {
+			if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
+				return trace.Wrap(err, secondFactorUpgradeInstructions)
+			}
+
+			return trace.Wrap(err)
 		}
 
 		if storedAuthPref == nil {
@@ -1577,6 +1579,15 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		return cmp.Compare(priorityA, priorityB)
 	})
 	for _, resource := range resources {
+		// DO NOT ADD EVERY RESOURCE TO THIS SWITCH
+		// Apply-on-startup should not be supported for every resource, this is a way to bootstrap a
+		// minimal cluster (bootstrap IaC user, role, bot, join token, config so you have enough
+		// trust to join core components without human intervention).
+		// Resources not required for a minimal cluster should be created via Infrastructure-as-Code
+		// (tctl, Terraform Provider, Kube Operator)
+		// You MUST also add a test case for your resource in `TestInit_ApplyOnStartup` because adding
+		// your resource to this switch in not enough for the --apply-on-startup flag to work, you also
+		// need to RegisterResourceUnmarshaler() your resource.
 		switch r := resource.(type) {
 		case types.ProvisionToken:
 			err = service.Provisioner.UpsertToken(ctx, r)
@@ -1594,14 +1605,10 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = service.ClusterConfigurationInternal.UpsertAuthPreference(ctx, r)
 		case types.Resource153UnwrapperT[*machineidv1pb.Bot]:
 			_, err = machineidv1.UpsertBot(ctx, service, r.UnwrapT(), time.Now(), "system")
-		case types.Resource153UnwrapperT[*dbobjectimportrulev1pb.DatabaseObjectImportRule]:
-			_, err = dbobjectimportrulev1.UpsertDatabaseObjectImportRule(ctx, service, r.UnwrapT())
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateConfig]:
 			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT())
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:
 			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r.UnwrapT())
-		case types.Resource153UnwrapperT[*healthcheckconfigv1pb.HealthCheckConfig]:
-			_, err = service.UpsertHealthCheckConfig(ctx, r.UnwrapT())
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

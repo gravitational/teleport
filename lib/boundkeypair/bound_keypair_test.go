@@ -36,6 +36,8 @@ import (
 )
 
 func newTestKeypair(t *testing.T) crypto.Signer {
+	t.Helper()
+
 	key, err := cryptosuites.GenerateKey(context.Background(), func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
 		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
 	}, cryptosuites.BoundKeypairJoining)
@@ -76,6 +78,8 @@ func TestChallengeValidator_IssueChallenge(t *testing.T) {
 }
 
 func signChallenge(t *testing.T, challenge string, signer crypto.Signer) string {
+	t.Helper()
+
 	alg, err := libjwt.AlgorithmForPublicKey(signer.Public())
 	require.NoError(t, err)
 
@@ -98,6 +102,8 @@ func signChallenge(t *testing.T, challenge string, signer crypto.Signer) string 
 }
 
 func jsonClone(t *testing.T, c *ChallengeDocument) *ChallengeDocument {
+	t.Helper()
+
 	bytes, err := json.Marshal(c)
 	require.NoError(t, err)
 

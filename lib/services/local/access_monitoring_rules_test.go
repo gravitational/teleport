@@ -132,7 +132,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 				},
 				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
-					Condition: "someCondition",
+					Condition: "true",
 					Notification: &accessmonitoringrulesv1.Notification{
 						Name: "notificationIntegration",
 					},
@@ -154,7 +154,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 				},
 				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
-					Condition: "someCondition",
+					Condition: "true",
 					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
 						Integration: "automaticReviewIntegration",
 						Decision:    types.RequestState_APPROVED.String(),
@@ -177,7 +177,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 				},
 				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
-					Condition: "someCondition",
+					Condition: "true",
 					Notification: &accessmonitoringrulesv1.Notification{
 						Name: "notificationIntegration",
 					},
@@ -204,7 +204,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 				},
 				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
-					Condition: "someCondition",
+					Condition: "true",
 					Notification: &accessmonitoringrulesv1.Notification{
 						Name: "notificationIntegration",
 					},
@@ -230,7 +230,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 				},
 				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
-					Condition: "someCondition",
+					Condition: "true",
 					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
 						Integration: types.BuiltInAutomaticReview,
 						Decision:    types.RequestState_APPROVED.String(),

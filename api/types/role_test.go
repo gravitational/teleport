@@ -769,6 +769,53 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 	}
 }
 
+func TestRoleV6CheckAndSetDefaults_SAMLIdPOptions(t *testing.T) {
+	t.Parallel()
+
+	newRole := func(t *testing.T, spec RoleSpecV6, version string) *RoleV6 {
+		t.Helper()
+		return &RoleV6{
+			Metadata: Metadata{
+				Name: "test",
+			},
+			Spec:    spec,
+			Version: version,
+		}
+	}
+
+	tests := []struct {
+		name              string
+		role              *RoleV6
+		expectedIdpOption *IdPOptions
+		requireError      require.ErrorAssertionFunc
+	}{
+		{
+			name:              "samlidp: idp option not enabled in role version 8",
+			role:              newRole(t, RoleSpecV6{}, V8),
+			expectedIdpOption: nil,
+			requireError:      require.NoError,
+		},
+		{
+			name: "samlidp: idp option enabled in role version v7 and below",
+			role: newRole(t, RoleSpecV6{}, V7),
+			expectedIdpOption: &IdPOptions{
+				SAML: &IdPSAMLOptions{
+					Enabled: NewBoolOption(true),
+				},
+			},
+			requireError: require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.role.CheckAndSetDefaults()
+			tt.requireError(t, err)
+			require.Equal(t, tt.expectedIdpOption, tt.role.GetOptions().IDP)
+		})
+	}
+}
+
 func TestRoleFilterMatch(t *testing.T) {
 	regularRole := RoleV6{
 		Metadata: Metadata{

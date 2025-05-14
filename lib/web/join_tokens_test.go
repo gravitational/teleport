@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/boundkeypair"
-	"github.com/gravitational/teleport/lib/boundkeypair/experiment"
+	"github.com/gravitational/teleport/lib/boundkeypair/boundkeypairexperiment"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
@@ -482,7 +482,7 @@ func TestCreateTokenExpiry(t *testing.T) {
 	})
 
 	// TODO: Remove this once bound keypair experiment flag is removed.
-	experiment.SetEnabled(true)
+	boundkeypairexperiment.SetEnabled(true)
 
 	ctx := context.Background()
 	username := "test-user@example.com"
@@ -616,6 +616,15 @@ func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.Jo
 			Allow: []*types.ProvisionTokenSpecV2Spacelift_Rule{
 				{
 					SpaceID: "test-space-id",
+				},
+			},
+		}
+	case types.JoinMethodAzureDevops:
+		spec.AzureDevops = &types.ProvisionTokenSpecV2AzureDevops{
+			OrganizationID: "0000-0000-0000-000",
+			Allow: []*types.ProvisionTokenSpecV2AzureDevops_Rule{
+				{
+					ProjectName: "my-project",
 				},
 			},
 		}

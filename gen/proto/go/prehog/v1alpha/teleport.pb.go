@@ -4521,9 +4521,24 @@ func (x *UICreateNewRoleClickEvent) GetUserName() string {
 type UICreateNewRoleSaveClickEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// anonymized
-	UserName      string `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	UserName string `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
+	// StandardUsed indicates if the user interacted with the standard editor
+	// tab.
+	StandardUsed bool `protobuf:"varint,2,opt,name=standard_used,json=standardUsed,proto3" json:"standard_used,omitempty"`
+	// YamlUsed indicates if the user interacted with the YAML editor tab.
+	YamlUsed bool `protobuf:"varint,3,opt,name=yaml_used,json=yamlUsed,proto3" json:"yaml_used,omitempty"`
+	// ModeWhenSaved indicates which editor tab was active when the Save button
+	// was clicked ("standard" or "yaml"). Note that it's inherently different
+	// from what `StandardUsed` or `YamlUsed` describe; the user can interact
+	// with one kind of editor, then verify the results in another, and
+	// ultimately click Save on any of them.
+	ModeWhenSaved string `protobuf:"bytes,4,opt,name=mode_when_saved,json=modeWhenSaved,proto3" json:"mode_when_saved,omitempty"`
+	// A list of field paths that prevented the standard editor from being
+	// operational, if any. Looking at these may provide insight into which
+	// missing features should be implemented first.
+	FieldsWithConversionErrors []string `protobuf:"bytes,5,rep,name=fields_with_conversion_errors,json=fieldsWithConversionErrors,proto3" json:"fields_with_conversion_errors,omitempty"`
+	unknownFields              protoimpl.UnknownFields
+	sizeCache                  protoimpl.SizeCache
 }
 
 func (x *UICreateNewRoleSaveClickEvent) Reset() {
@@ -4561,6 +4576,34 @@ func (x *UICreateNewRoleSaveClickEvent) GetUserName() string {
 		return x.UserName
 	}
 	return ""
+}
+
+func (x *UICreateNewRoleSaveClickEvent) GetStandardUsed() bool {
+	if x != nil {
+		return x.StandardUsed
+	}
+	return false
+}
+
+func (x *UICreateNewRoleSaveClickEvent) GetYamlUsed() bool {
+	if x != nil {
+		return x.YamlUsed
+	}
+	return false
+}
+
+func (x *UICreateNewRoleSaveClickEvent) GetModeWhenSaved() string {
+	if x != nil {
+		return x.ModeWhenSaved
+	}
+	return ""
+}
+
+func (x *UICreateNewRoleSaveClickEvent) GetFieldsWithConversionErrors() []string {
+	if x != nil {
+		return x.FieldsWithConversionErrors
+	}
+	return nil
 }
 
 // UICreateNewRoleCancelClickEvent is an event that can be triggered during custom role creation
@@ -10154,9 +10197,13 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\tuser_name\x18\x04 \x01(\tR\buserName\x12&\n" +
 	"\x0fbot_instance_id\x18\x05 \x01(\tR\rbotInstanceId\"8\n" +
 	"\x19UICreateNewRoleClickEvent\x12\x1b\n" +
-	"\tuser_name\x18\x01 \x01(\tR\buserName\"<\n" +
+	"\tuser_name\x18\x01 \x01(\tR\buserName\"\xe9\x01\n" +
 	"\x1dUICreateNewRoleSaveClickEvent\x12\x1b\n" +
-	"\tuser_name\x18\x01 \x01(\tR\buserName\">\n" +
+	"\tuser_name\x18\x01 \x01(\tR\buserName\x12#\n" +
+	"\rstandard_used\x18\x02 \x01(\bR\fstandardUsed\x12\x1b\n" +
+	"\tyaml_used\x18\x03 \x01(\bR\byamlUsed\x12&\n" +
+	"\x0fmode_when_saved\x18\x04 \x01(\tR\rmodeWhenSaved\x12A\n" +
+	"\x1dfields_with_conversion_errors\x18\x05 \x03(\tR\x1afieldsWithConversionErrors\">\n" +
 	"\x1fUICreateNewRoleCancelClickEvent\x12\x1b\n" +
 	"\tuser_name\x18\x01 \x01(\tR\buserName\"I\n" +
 	"*UICreateNewRoleViewDocumentationClickEvent\x12\x1b\n" +

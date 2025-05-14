@@ -1635,20 +1635,6 @@ func checkAccessToSAMLIdP(state AccessState, role types.Role) error {
 	return nil
 }
 
-// isLegacySAMLRBAC matches a role version
-// v7 and below, considered as the legacy SAML IdP RBAC.
-func isLegacySAMLRBAC(roleVersion string) bool {
-	return slices.Contains([]string{
-		types.V7,
-		types.V6,
-		types.V5,
-		types.V4,
-		types.V3,
-		types.V2,
-		types.V1,
-	}, roleVersion)
-}
-
 // CheckAccessToSAMLIdPV2 checks access to SAML service provider resource.
 // For Teleport role version v7 and below (legacy SAML IdP RBAC), only MFA
 // and IDP role option is checked.
@@ -1669,7 +1655,7 @@ func (set RoleSet) CheckAccessToSAMLIdPV2(r AccessCheckable, traits wrappers.Tra
 
 	var v8RoleSet RoleSet
 	for _, role := range set {
-		if !isLegacySAMLRBAC(role.GetVersion()) {
+		if !types.IsLegacySAMLRBAC(role.GetVersion()) {
 			v8RoleSet = append(v8RoleSet, role)
 			continue
 		}

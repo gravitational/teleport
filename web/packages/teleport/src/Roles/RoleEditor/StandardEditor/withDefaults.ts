@@ -16,7 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Role, RoleOptions } from 'teleport/services/resources';
+import {
+  isLegacySamlIdpRbac,
+  Role,
+  RoleOptions,
+  RoleVersion,
+} from 'teleport/services/resources';
 
 import { defaultRoleVersion } from './standardmodel';
 
@@ -31,9 +36,12 @@ export type DeepPartial<T> = {
  * server side, or the role editor will silently modify these fields on every
  * role it opens and saves without user intervention.
  */
-export const withDefaults = (role: DeepPartial<Role>): Role => ({
+export const withDefaults = (
+  role: DeepPartial<Role>,
+  roleVersion?: RoleVersion
+): Role => ({
   kind: 'role',
-  version: defaultRoleVersion,
+  version: roleVersion || defaultRoleVersion,
 
   ...role,
 
@@ -53,27 +61,23 @@ export const withDefaults = (role: DeepPartial<Role>): Role => ({
       ...role.spec?.deny,
     },
 
-    options: optionsWithDefaults(role.spec?.options),
+    options: optionsWithDefaults(
+      roleVersion || defaultRoleVersion,
+      role.spec?.options
+    ),
   },
 });
 
 export const optionsWithDefaults = (
+  roleVersion: RoleVersion,
   options?: DeepPartial<RoleOptions>
 ): RoleOptions => {
-  const defaults = defaultOptions();
+  const defaults = defaultOptions(roleVersion);
+  const idpOption = options?.idp || defaults.idp;
   return {
     ...defaults,
     ...options,
-
-    idp: {
-      ...defaults.idp,
-      ...options?.idp,
-
-      saml: {
-        ...defaults.idp.saml,
-        ...options?.idp?.saml,
-      },
-    },
+    ...(isLegacySamlIdpRbac(roleVersion) && { idp: idpOption }),
 
     record_session: {
       ...defaults.record_session,
@@ -90,7 +94,7 @@ export const optionsWithDefaults = (
  * editor will silently modify these options on every role it opens and saves
  * without user intervention.
  */
-export const defaultOptions = (): RoleOptions => ({
+export const defaultOptions = (roleVersion: RoleVersion): RoleOptions => ({
   cert_format: 'standard',
   create_db_user: false,
   create_desktop_user: false,
@@ -98,16 +102,18 @@ export const defaultOptions = (): RoleOptions => ({
   desktop_directory_sharing: true,
   enhanced_recording: ['command', 'network'],
   forward_agent: false,
-  idp: {
-    saml: {
-      enabled: true,
-    },
-  },
   max_session_ttl: '30h0m0s',
   pin_source_ip: false,
   record_session: {
     default: 'best_effort',
     desktop: true,
   },
+  idp: isLegacySamlIdpRbac(roleVersion)
+    ? {
+        saml: {
+          enabled: true,
+        },
+      }
+    : null,
   ssh_file_copy: true,
 });

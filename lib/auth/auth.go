@@ -5245,7 +5245,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 
 	// Always perform variable expansion on creation only; this ensures the
 	// access request that is reviewed is the same that is approved.
-	expandOpts := services.ExpandVars(true)
+	expandOpts := services.WithExpandVars(true)
 	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
 		return nil, trace.Wrap(err)
 	}

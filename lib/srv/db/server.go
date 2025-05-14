@@ -100,6 +100,11 @@ func init() {
 	endpoints.RegisterResolver(cassandra.NewEndpointsResolver, defaults.ProtocolCassandra)
 	endpoints.RegisterResolver(clickhouse.NewNativeEndpointsResolver, defaults.ProtocolClickHouse)
 	endpoints.RegisterResolver(clickhouse.NewHTTPEndpointsResolver, defaults.ProtocolClickHouseHTTP)
+	endpoints.RegisterResolver(dynamodb.NewEndpointsResolver, defaults.ProtocolDynamoDB)
+	endpoints.RegisterResolver(elasticsearch.NewEndpointsResolver, defaults.ProtocolElasticsearch)
+	endpoints.RegisterResolver(opensearch.NewEndpointsResolver, defaults.ProtocolOpenSearch)
+	endpoints.RegisterResolver(redis.NewEndpointsResolver, defaults.ProtocolRedis)
+	endpoints.RegisterResolver(snowflake.NewEndpointsResolver, defaults.ProtocolSnowflake)
 	endpoints.RegisterResolver(spanner.NewEndpointsResolver, defaults.ProtocolSpanner)
 	endpoints.RegisterResolver(sqlserver.NewEndpointsResolver, defaults.ProtocolSQLServer)
 }
