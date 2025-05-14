@@ -66,7 +66,7 @@ type UnifiedResourceCache struct {
 	typeTree *btree.BTreeG[*item]
 	// resources is a map of all resources currently tracked in the tree
 	// the key is always name/type
-	resources       map[string]resource
+	resources       map[string]*resourceCollection
 	initializationC chan struct{}
 	stale           bool
 	once            sync.Once
@@ -98,7 +98,7 @@ func NewUnifiedResourceCache(ctx context.Context, cfg UnifiedResourceCacheConfig
 		typeTree: btree.NewG(cfg.BTreeDegree, func(a, b *item) bool {
 			return a.Less(b)
 		}),
-		resources:       make(map[string]resource),
+		resources:       make(map[string]*resourceCollection),
 		initializationC: make(chan struct{}),
 		ResourceGetter:  cfg.ResourceGetter,
 		cache:           lazyCache,
@@ -128,31 +128,28 @@ func (cfg *UnifiedResourceCacheConfig) CheckAndSetDefaults() error {
 func (c *UnifiedResourceCache) putLocked(resource resource) {
 	key := resourceKey(resource)
 	sortKey := makeResourceSortKey(resource)
-	oldResource, exists := c.resources[key]
+	old, exists := c.resources[key]
 	if exists {
 		// If the resource has changed in such a way that the sort keys
 		// for the nameTree or typeTree change, remove the old entries
 		// from those trees before adding a new one. This can happen
 		// when a node's hostname changes
-		oldSortKey := makeResourceSortKey(oldResource)
-		if oldSortKey.byName.Compare(sortKey.byName) != 0 {
-			c.deleteSortKey(oldSortKey)
+		if old.sortKey.byName.Compare(sortKey.byName) != 0 {
+			c.deleteSortKey(old.sortKey)
 		}
+		old.sortKey = sortKey
 	}
-	c.resources[key] = resource
+	if c.resources[key] == nil {
+		c.resources[key] = newResourceCollection(sortKey)
+	}
+	c.resources[key].put(resource)
 	c.nameTree.ReplaceOrInsert(&item{Key: sortKey.byName, Value: key})
 	c.typeTree.ReplaceOrInsert(&item{Key: sortKey.byType, Value: key})
 }
 
 func putResources[T resource](cache *UnifiedResourceCache, resources []T) {
 	for _, resource := range resources {
-		// generate the unique resource key and add the resource to the resources map
-		key := resourceKey(resource)
-		cache.resources[key] = resource
-
-		sortKey := makeResourceSortKey(resource)
-		cache.nameTree.ReplaceOrInsert(&item{Key: sortKey.byName, Value: key})
-		cache.typeTree.ReplaceOrInsert(&item{Key: sortKey.byType, Value: key})
+		cache.putLocked(resource)
 	}
 }
 
@@ -173,9 +170,12 @@ func (c *UnifiedResourceCache) deleteLocked(res types.Resource) error {
 		return trace.NotFound("cannot delete resource: key %s not found in unified resource cache", key)
 	}
 
-	sortKey := makeResourceSortKey(resource)
-	c.deleteSortKey(sortKey)
-	delete(c.resources, key)
+	if resource.isSingular() {
+		c.deleteSortKey(resource.sortKey)
+		delete(c.resources, key)
+	} else {
+		resource.remove(res)
+	}
 	return nil
 }
 
@@ -191,8 +191,8 @@ func (c *UnifiedResourceCache) getSortTree(sortField string) (*btree.BTreeG[*ite
 }
 
 type iteratedItem struct {
-	resource resource
-	key      backend.Key
+	collection *resourceCollection
+	key        backend.Key
 }
 
 // iterateItems is a helper for iterating the correct cache, in the correct order
@@ -249,8 +249,8 @@ func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, s
 						return true
 					}
 
-					if len(kinds) == 0 || c.itemKindMatches(r, kindsMap) {
-						items = append(items, iteratedItem{key: item.Key, resource: r})
+					if len(kinds) == 0 || c.itemKindMatches(r.getKind(), kindsMap) {
+						items = append(items, iteratedItem{key: item.Key, collection: r})
 					}
 
 					if len(items) >= defaultPageSize {
@@ -287,6 +287,7 @@ func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, s
 // one of the provided kinds. If no kinds are provided, resources of all supported
 // kinds are returned.
 func (c *UnifiedResourceCache) Resources(ctx context.Context, start string, sortBy types.SortBy, kinds ...string) iter.Seq2[types.ResourceWithLabels, error] {
+	const includeHealth = false
 	return func(yield func(types.ResourceWithLabels, error) bool) {
 		for item, err := range c.iterateItems(ctx, start, sortBy, kinds...) {
 			if err != nil {
@@ -294,7 +295,7 @@ func (c *UnifiedResourceCache) Resources(ctx context.Context, start string, sort
 				return
 			}
 
-			if !yield(item.resource.CloneResource(), nil) {
+			if !yield(item.collection.cloneResource(includeHealth), nil) {
 				return
 			}
 		}
@@ -395,24 +396,26 @@ func iterateUnifiedResourceCache[T any](ctx context.Context, c *UnifiedResourceC
 				return
 			}
 
-			if !yield(cloneFn(i.resource.(T)), nil) {
+			if !yield(cloneFn(i.collection.latest.(T)), nil) {
 				return
 			}
 		}
 	}
 }
 
+type resourceMatchFunc func(types.ResourceWithLabels) (bool, error)
+
 // IterateUnifiedResources allows building a custom page of resources. All items within the
 // range and limit of the request are passed to the matchFn. Only those resource which
 // have a true value returned from the matchFn are included in the returned page.
-func (c *UnifiedResourceCache) IterateUnifiedResources(ctx context.Context, matchFn func(types.ResourceWithLabels) (bool, error), req *proto.ListUnifiedResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+func (c *UnifiedResourceCache) IterateUnifiedResources(ctx context.Context, matchFn resourceMatchFunc, req *proto.ListUnifiedResourcesRequest) ([]types.ResourceWithLabels, string, error) {
 	var resources []types.ResourceWithLabels
 	for item, err := range c.iterateItems(ctx, req.StartKey, req.SortBy, req.Kinds...) {
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 
-		match, err := matchFn(item.resource)
+		resource, match, err := item.collection.match(matchFn)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -422,22 +425,22 @@ func (c *UnifiedResourceCache) IterateUnifiedResources(ctx context.Context, matc
 				return resources, item.key.String(), nil
 			}
 
-			resources = append(resources, item.resource.CloneResource())
+			resources = append(resources, item.collection.cloneWithResource(resource, req.IncludeHealthStatus))
 		}
 	}
 
 	return resources, "", nil
 }
 
-func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]struct{}) bool {
-	switch r.GetKind() {
+func (c *UnifiedResourceCache) itemKindMatches(kind string, kinds map[string]struct{}) bool {
+	switch kind {
 	case types.KindNode,
 		types.KindWindowsDesktop,
 		types.KindIdentityCenterAccountAssignment,
 		types.KindGitServer,
 		types.KindDatabase,
 		types.KindKubernetesCluster:
-		_, ok := kinds[r.GetKind()]
+		_, ok := kinds[kind]
 		return ok
 	case types.KindIdentityCenterAccount:
 		if _, ok := kinds[types.KindApp]; ok {
@@ -501,7 +504,7 @@ func (c *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types
 }
 
 // GetUnifiedResourcesByIDs will take a list of ids and return any items found in the unifiedResourceCache tree by id and that return true from matchFn
-func (c *UnifiedResourceCache) GetUnifiedResourcesByIDs(ctx context.Context, ids []string, matchFn func(types.ResourceWithLabels) (bool, error)) ([]types.ResourceWithLabels, error) {
+func (c *UnifiedResourceCache) GetUnifiedResourcesByIDs(ctx context.Context, ids []string, matchFn resourceMatchFunc, includeHealth bool) ([]types.ResourceWithLabels, error) {
 	var resources []types.ResourceWithLabels
 
 	err := c.read(ctx, func(cache *UnifiedResourceCache) error {
@@ -511,13 +514,16 @@ func (c *UnifiedResourceCache) GetUnifiedResourcesByIDs(ctx context.Context, ids
 			if !found || res == nil {
 				continue
 			}
-			resource := cache.resources[res.Value]
-			match, err := matchFn(resource)
+			collection, ok := cache.resources[res.Value]
+			if !ok || collection == nil {
+				continue
+			}
+			resource, match, err := collection.match(matchFn)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			if match {
-				resources = append(resources, resource.CloneResource())
+				resources = append(resources, collection.cloneWithResource(resource, includeHealth))
 			}
 		}
 		return nil
@@ -872,7 +878,7 @@ func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedR
 			typeTree: btree.NewG(c.cfg.BTreeDegree, func(a, b *item) bool {
 				return a.Less(b)
 			}),
-			resources:       make(map[string]resource),
+			resources:       make(map[string]*resourceCollection),
 			ResourceGetter:  c.ResourceGetter,
 			initializationC: make(chan struct{}),
 		}
@@ -998,6 +1004,98 @@ type resource interface {
 	CloneResource() types.ResourceWithLabels
 }
 
+type resourceServer interface {
+	resource
+	GetHostID() string
+}
+
+type serverWithHealthStatus struct {
+	server resourceServer
+	status types.TargetHealthStatus
+}
+
+type resourceCollection struct {
+	latest  resource
+	servers map[string]serverWithHealthStatus
+	sortKey resourceSortKey
+}
+
+func newResourceCollection(sortKey resourceSortKey) *resourceCollection {
+	return &resourceCollection{
+		sortKey: sortKey,
+		servers: make(map[string]serverWithHealthStatus),
+	}
+}
+
+func (c *resourceCollection) put(r resource) {
+	c.latest = r
+	if server, ok := r.(resourceServer); ok {
+		id := server.GetHostID()
+		server := serverWithHealthStatus{
+			server: server,
+		}
+		if r, ok := r.(types.TargetHealthGetter); ok {
+			server.status = types.TargetHealthStatus(r.GetTargetHealth().Status)
+		}
+		c.servers[id] = server
+	}
+}
+
+func (c *resourceCollection) healthStatuses() []types.TargetHealthStatus {
+	var out []types.TargetHealthStatus
+	for _, r := range c.servers {
+		out = append(out, r.status)
+	}
+	return out
+}
+
+func (c *resourceCollection) remove(r types.Resource) {
+	if r, ok := r.(resourceServer); ok {
+		delete(c.servers, r.GetHostID())
+	}
+}
+
+func (c *resourceCollection) isSingular() bool {
+	return len(c.servers) <= 1
+}
+
+func (c *resourceCollection) getKind() string {
+	return c.latest.GetKind()
+}
+
+func (c *resourceCollection) match(fn resourceMatchFunc) (resource, bool, error) {
+	if c.isSingular() {
+		match, err := fn(c.latest)
+		return c.latest, match, trace.Wrap(err)
+	}
+
+	for _, r := range c.servers {
+		match, err := fn(r.server)
+		switch {
+		case err != nil:
+			return nil, false, trace.Wrap(err)
+		case match:
+			return r.server, true, nil
+		}
+	}
+
+	return c.latest, false, nil
+}
+
+func (c *resourceCollection) cloneResource(enrich bool) types.ResourceWithLabels {
+	return c.cloneWithResource(c.latest, enrich)
+}
+
+func (c *resourceCollection) cloneWithResource(r resource, enrich bool) types.ResourceWithLabels {
+	if enrich {
+		return &types.EnrichedResource{
+			ResourceWithLabels:   r.CloneResource(),
+			TargetHealthStatuses: c.healthStatuses(),
+		}
+	}
+	return r.CloneResource()
+}
+
 type item struct {
 	// Key is a key of the key value item. This will be different based on which sorting tree
 	// the item is in
@@ -1021,10 +1119,21 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 	}
 
 	var logins []string
+	var healthStats []proto.TargetHealthStatus
 	resource := r
 	if enriched, ok := r.(*types.EnrichedResource); ok {
 		resource = enriched.ResourceWithLabels
 		logins = enriched.Logins
+		for _, h := range enriched.TargetHealthStatuses {
+			var converted proto.TargetHealthStatus
+			switch h {
+			case types.TargetHealthStatusHealthy:
+				converted = proto.TargetHealthStatus_TARGET_HEALTH_STATUS_HEALTHY
+			case types.TargetHealthStatusUnhealthy:
+				converted = proto.TargetHealthStatus_TARGET_HEALTH_STATUS_UNHEALTHY
+			}
+			healthStats = append(healthStats, converted)
+		}
 	}
 
 	switch resourceKind {
@@ -1033,8 +1142,13 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 		if !ok {
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
-
-		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}, RequiresRequest: requiresRequest}
+		protoResource = &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_DatabaseServer{
+				DatabaseServer: database,
+			},
+			RequiresRequest:      requiresRequest,
+			TargetHealthStatuses: healthStats,
+		}
 	case types.KindDatabaseService:
 		databaseService, ok := resource.(*types.DatabaseServiceV1)
 		if !ok {
@@ -1048,28 +1162,53 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
 
-		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}, Logins: logins, RequiresRequest: requiresRequest}
+		protoResource = &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_AppServer{
+				AppServer: app,
+			},
+			Logins:               logins,
+			RequiresRequest:      requiresRequest,
+			TargetHealthStatuses: healthStats,
+		}
 	case types.KindNode:
 		srv, ok := resource.(*types.ServerV2)
 		if !ok {
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
 
-		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}, Logins: logins, RequiresRequest: requiresRequest}
+		protoResource = &proto.PaginatedResource{
+			Resource:             &proto.PaginatedResource_Node{Node: srv},
+			Logins:               logins,
+			RequiresRequest:      requiresRequest,
+			TargetHealthStatuses: healthStats,
+		}
 	case types.KindKubeServer:
 		srv, ok := resource.(*types.KubernetesServerV3)
 		if !ok {
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
 
-		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: srv}, RequiresRequest: requiresRequest}
+		protoResource = &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_KubernetesServer{
+				KubernetesServer: srv,
+			},
+			RequiresRequest:      requiresRequest,
+			TargetHealthStatuses: healthStats,
+		}
 	case types.KindWindowsDesktop:
 		desktop, ok := resource.(*types.WindowsDesktopV3)
 		if !ok {
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
 
-		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}, Logins: logins, RequiresRequest: requiresRequest}
+		protoResource = &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_WindowsDesktop{
+				WindowsDesktop: desktop,
+			},
+			Logins:               logins,
+			RequiresRequest:      requiresRequest,
+			TargetHealthStatuses: healthStats,
+		}
 	case types.KindWindowsDesktopService:
 		desktopService, ok := resource.(*types.WindowsDesktopServiceV3)
 		if !ok {
@@ -1083,7 +1222,13 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
 
-		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeCluster{KubeCluster: cluster}, RequiresRequest: requiresRequest}
+		protoResource = &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_KubeCluster{
+				KubeCluster: cluster,
+			},
+			RequiresRequest:      requiresRequest,
+			TargetHealthStatuses: healthStats,
+		}
 	case types.KindUserGroup:
 		userGroup, ok := resource.(*types.UserGroupV1)
 		if !ok {
@@ -1132,7 +1277,8 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 			Resource: &proto.PaginatedResource_GitServer{
 				GitServer: server,
 			},
-			RequiresRequest: requiresRequest,
+			RequiresRequest:      requiresRequest,
+			TargetHealthStatuses: healthStats,
 		}
 
 	default:

@@ -107,7 +107,7 @@ export function fetchDatabaseServers({
 }): Promise<ResourcesResponse<DatabaseServer>> {
   return (
     api
-      .get(cfg.getDatabaseServerUrl(clusterId, params), signal)
+      .get(cfg.getDatabaseServersUrl(clusterId, params), signal)
       .then(json => {
         const items = json?.items || [];
 

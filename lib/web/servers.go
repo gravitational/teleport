@@ -120,7 +120,13 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 
 	uiItems := make([]webui.Database, 0, len(page.Resources))
 	for _, dbServer := range page.Resources {
-		db := webui.MakeDatabaseFromDatabaseServer(dbServer, accessChecker, h.cfg.DatabaseREPLRegistry, false /* requires reset*/)
+		db := webui.MakeDatabaseFromDatabaseServer(
+			dbServer,
+			accessChecker,
+			h.cfg.DatabaseREPLRegistry,
+			false, /* requires reset*/
+			nil,   /* health statuses */
+		)
 		uiItems = append(uiItems, db)
 	}
 
@@ -143,9 +149,12 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	dbServer, err := fetchDatabaseServerByDatabaseName(r.Context(), clt, r, databaseName)
+	dbServers, err := fetchDatabaseServersWithName(r.Context(), clt, r, databaseName)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if len(dbServers) == 0 {
+		return nil, trace.NotFound("database %q not found", databaseName)
 	}
 
 	accessChecker, err := sctx.GetUserAccessChecker()
@@ -153,7 +162,17 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	return webui.MakeDatabaseFromDatabaseServer(dbServer, accessChecker, h.cfg.DatabaseREPLRegistry, false /* requiresRequest */), nil
+	var healthStats []types.TargetHealthStatus
+	for _, dbServer := range dbServers {
+		healthStats = append(healthStats, types.TargetHealthStatus(dbServer.GetTargetHealth().Status))
+	}
+	return webui.MakeDatabaseFromDatabaseServer(
+		dbServers[0],
+		accessChecker,
+		h.cfg.DatabaseREPLRegistry,
+		false, /* requiresRequest */
+		healthStats,
+	), nil
 }
 
 // clusterDatabaseServicesList returns a list of DatabaseServices (database agents) in a form the UI can present.

@@ -4012,31 +4012,49 @@ type ResourcePage[T types.ResourceWithLabels] struct {
 // convertEnrichedResource extracts the resource and any enriched information from the
 // PaginatedResource returned from the rpc ListUnifiedResources.
 func convertEnrichedResource(resource *proto.PaginatedResource) (*types.EnrichedResource, error) {
+	healthStats := convertTargetHealthStatus(resource.TargetHealthStatuses)
 	if r := resource.GetNode(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest, TargetHealthStatuses: healthStats}, nil
 	} else if r := resource.GetDatabaseServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest, TargetHealthStatuses: healthStats}, nil
 	} else if r := resource.GetDatabaseService(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetWindowsDesktop(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest, TargetHealthStatuses: healthStats}, nil
 	} else if r := resource.GetWindowsDesktopService(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetKubeCluster(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest, TargetHealthStatuses: healthStats}, nil
 	} else if r := resource.GetKubernetesServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest, TargetHealthStatuses: healthStats}, nil
 	} else if r := resource.GetUserGroup(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetAppServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest, TargetHealthStatuses: healthStats}, nil
 	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetGitServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest, TargetHealthStatuses: healthStats}, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
 	}
+}
+
+// convertTargetHealthStatus converts [proto.TargetHealthStatus] returned from
+// the rpc ListUnifiedResources.
+func convertTargetHealthStatus(statuses []proto.TargetHealthStatus) []types.TargetHealthStatus {
+	var out []types.TargetHealthStatus
+	for _, status := range statuses {
+		switch status {
+		case proto.TargetHealthStatus_TARGET_HEALTH_STATUS_HEALTHY:
+			out = append(out, types.TargetHealthStatusHealthy)
+		case proto.TargetHealthStatus_TARGET_HEALTH_STATUS_UNHEALTHY:
+			out = append(out, types.TargetHealthStatusUnhealthy)
+		default:
+			out = append(out, types.TargetHealthStatusUnknown)
+		}
+	}
+	return out
 }
 
 // GetUnifiedResourcePage is a helper for getting a single page of unified resources that match the provided request.
@@ -4160,7 +4178,11 @@ func GetEnrichedResourcePage(ctx context.Context, clt GetResourcesClient, req *p
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 			}
 
-			out.Resources = append(out.Resources, &types.EnrichedResource{ResourceWithLabels: resource, Logins: respResource.Logins})
+			out.Resources = append(out.Resources, &types.EnrichedResource{
+				ResourceWithLabels:   resource,
+				Logins:               respResource.Logins,
+				TargetHealthStatuses: convertTargetHealthStatus(respResource.TargetHealthStatuses),
+			})
 		}
 
 		out.NextKey = resp.NextKey

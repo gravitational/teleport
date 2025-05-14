@@ -2049,10 +2049,24 @@ message PaginatedResource {
   // that IncludeRequestable.
   bool RequiresRequest = 14 [(gogoproto.jsontag) = "requires_request,omitempty"];
 
+  // TargetHealthStatuses is a list of health statuses for the resource. There
+  // can be multiple statuses if multiple agents proxy the same resource.
+  repeated TargetHealthStatus TargetHealthStatuses = 17 [(gogoproto.jsontag) = "target_health_statuses,omitempty"];
+
   reserved 4;
   reserved "KubeService";
   reserved 11;
   reserved "AppServerOrSAMLIdPServiceProvider";
+}
+
+// TargetHealthStatus is the health status of a resource's target endpoint.
+enum TargetHealthStatus {
+  // TARGET_HEALTH_STATUS_UNKNOWN means the resource endpoint healthy is unknown.
+  TARGET_HEALTH_STATUS_UNKNOWN = 0;
+  // TARGET_HEALTH_STATUS_HEALTHY means the resource endpoint is healthy.
+  TARGET_HEALTH_STATUS_HEALTHY = 1;
+  // TARGET_HEALTH_STATUS_UNHEALTHY means the resource endpoint is unhealthy.
+  TARGET_HEALTH_STATUS_UNHEALTHY = 2;
 }
 
 // ListUnifiedResourcesRequest is a request to receive a paginated list of unified resources
@@ -2096,6 +2110,9 @@ message ListUnifiedResourcesRequest {
   bool IncludeLogins = 12 [(gogoproto.jsontag) = "include_logins,omitempty"];
   // IncludeRequestable indicates that the response should include resources that the user must request access to.
   bool IncludeRequestable = 14 [(gogoproto.jsontag) = "include_proto,omitempty"];
+  // IncludeHealthStatus indicates that the response should include the health statuses associated with the resource.
+  // This only affects health checked resources.
+  bool IncludeHealthStatus = 15 [(gogoproto.jsontag) = "include_health_status,omitempty"];
 }
 
 // ListUnifiedResourceResponse response of ListUnifiedResources.

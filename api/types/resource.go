@@ -146,6 +146,9 @@ type EnrichedResource struct {
 	// an access request to access. This is done during `ListUnifiedResources` when
 	// searchAsRoles is true
 	RequiresRequest bool
+	// TargetHealthStatuses is the health status of the resource.
+	// Only set if the resource supports health checks.
+	TargetHealthStatuses []TargetHealthStatus
 }
 
 // EnrichedResources is a wrapper of []*EnrichedResource.

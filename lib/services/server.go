@@ -131,6 +131,7 @@ func compareServers(a, b types.Server) int {
 	if !cmp.Equal(a.GetGitHub(), b.GetGitHub()) {
 		return Different
 	}
+
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
@@ -247,8 +248,31 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
+
+	// TODO(gavin): nopush remove this it's just to speed up testing manually
+	healthDiff := compareTargetHealth(a.GetTargetHealth(), b.GetTargetHealth())
+	if healthDiff != Equal {
+		return healthDiff
+	}
+
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
+	}
+	return Equal
+}
+
+// TODO(gavin): nopush remove this it's just to speed up testing manually
+func compareTargetHealth(a, b types.TargetHealth) int {
+	if a.Address != b.Address ||
+		a.Protocol != b.Protocol ||
+		a.Status != b.Status ||
+		a.TransitionReason != b.TransitionReason ||
+		a.TransitionError != b.TransitionError ||
+		a.Message != b.Message {
+		return Different
+	}
+	if !a.GetTransitionTimestamp().Equal(b.GetTransitionTimestamp()) {
 		return OnlyTimestampsDifferent
 	}
 	return Equal

@@ -26,14 +26,11 @@ import { DbProtocol } from 'shared/services/databases';
 import { ResourceLabel } from 'teleport/services/agents';
 import { AppSubKind, PermissionSet } from 'teleport/services/apps';
 
-/**
- * status == '' is a result of an older agent that does not
- * support the health check feature.
- */
-export type ResourceStatus = 'healthy' | 'unhealthy' | 'unknown' | '';
+export type ResourceHealthStatus = 'healthy' | 'unhealthy' | 'unknown';
 
 export type ResourceTargetHealth = {
-  status: ResourceStatus;
+  status: ResourceHealthStatus;
+  message?: string;
   error?: string;
 };
 
@@ -60,7 +57,7 @@ export interface UnifiedResourceDatabase {
   protocol: DbProtocol;
   labels: ResourceLabel[];
   requiresRequest?: boolean;
-  targetHealth?: ResourceTargetHealth;
+  statuses?: ResourceHealthStatus[];
 }
 
 export interface UnifiedResourceNode {
@@ -156,7 +153,7 @@ export interface UnifiedResourceViewItem {
   cardViewProps: CardViewSpecificProps;
   listViewProps: ListViewSpecificProps;
   requiresRequest?: boolean;
-  status?: ResourceStatus;
+  statuses?: ResourceHealthStatus[];
 }
 
 export enum PinningSupport {

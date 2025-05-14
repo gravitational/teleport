@@ -280,7 +280,7 @@ func ConnectionDiagnosticTraceUIFromTypes(traces []*types.ConnectionDiagnosticTr
 	return ret
 }
 
-// Database describes a database server.
+// Database describes an enriched database server.
 type Database struct {
 	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
 	Kind string `json:"kind"`
@@ -318,12 +318,9 @@ type Database struct {
 	// reported from an agent (db_service) that is proxying this database.
 	//
 	// This field will be empty if the database was not extracted from
-	// a db_server resource. The following endpoints will set this field
-	// since these endpoints query for db_server under the hood and then
-	// extract db from it:
-	// - webapi/sites/:site/databases/:database (singular)
+	// an enriched resource. The following endpoints will set this field:
 	// - webapi/sites/:site/resources (unified resources)
-	TargetHealth types.TargetHealth `json:"targetHealth,omitempty"`
+	TargetHealthStatuses []types.TargetHealthStatus `json:"targetHealthStatuses,omitempty"`
 }
 
 // AWS contains AWS specific fields.
@@ -404,9 +401,18 @@ func MakeDatabase(database types.Database, accessChecker services.AccessChecker,
 }
 
 // MakeDatabaseFromDatabaseServer creates a database object with db_server target health info.
-func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
+func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool, healthStatuses []types.TargetHealthStatus) Database {
 	db := MakeDatabase(dbServer.GetDatabase(), accessChecker, interactiveChecker, requiresRequest)
-	db.TargetHealth = dbServer.GetTargetHealth()
+	if len(healthStatuses) > 0 {
+		db.TargetHealthStatuses = healthStatuses
+	} else {
+		// TODO(gavin): Delete this. It exists to preserve the behavior for the
+		// endpoints that set health status without using the unified resources
+		// API (which returns an enriched resource with all health statuses).
+		db.TargetHealthStatuses = []types.TargetHealthStatus{
+			types.TargetHealthStatus(dbServer.GetTargetHealth().Status),
+		}
+	}
 	return db
 }
 

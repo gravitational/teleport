@@ -1403,10 +1403,15 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		if len(prefs.ClusterPreferences.PinnedResources.ResourceIds) == 0 {
 			return &proto.ListUnifiedResourcesResponse{}, nil
 		}
-		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) (bool, error) {
-			match, err := resourceLister.canList(resource, userFilter)
-			return match, trace.Wrap(err)
-		})
+		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(
+			ctx,
+			prefs.ClusterPreferences.PinnedResources.GetResourceIds(),
+			func(resource types.ResourceWithLabels) (bool, error) {
+				match, err := resourceLister.canList(resource, userFilter)
+				return match, trace.Wrap(err)
+			},
+			req.IncludeHealthStatus,
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1418,10 +1423,14 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			}
 		}
 	} else {
-		unifiedResources, nextKey, err = a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
-			match, err := resourceLister.canList(resource, userFilter)
-			return match, trace.Wrap(err)
-		}, req)
+		unifiedResources, nextKey, err = a.authServer.UnifiedResourceCache.IterateUnifiedResources(
+			ctx,
+			func(resource types.ResourceWithLabels) (bool, error) {
+				match, err := resourceLister.canList(resource, userFilter)
+				return match, trace.Wrap(err)
+			},
+			req,
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

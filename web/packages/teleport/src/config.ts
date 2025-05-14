@@ -947,7 +947,7 @@ const cfg = {
     });
   },
 
-  getDatabaseServerUrl(clusterId: string, params?: UrlResourcesParams) {
+  getDatabaseServersUrl(clusterId: string, params?: UrlResourcesParams) {
     return generateResourcePath(cfg.api.databaseServer.list, {
       clusterId,
       ...params,

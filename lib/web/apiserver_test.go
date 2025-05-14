@@ -1437,14 +1437,14 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &dbRes))
 	require.Len(t, dbRes.Items, 1)
 	require.ElementsMatch(t, dbRes.Items, []webui.Database{{
-		Kind:         types.KindDatabase,
-		Name:         "dbdb",
-		Type:         types.DatabaseTypeSelfHosted,
-		Labels:       []ui.Label{{Name: "env", Value: "prod"}},
-		Protocol:     "test-protocol",
-		Hostname:     "test-uri",
-		URI:          "test-uri",
-		TargetHealth: types.TargetHealth{Status: "testing-status"},
+		Kind:                 types.KindDatabase,
+		Name:                 "dbdb",
+		Type:                 types.DatabaseTypeSelfHosted,
+		Labels:               []ui.Label{{Name: "env", Value: "prod"}},
+		Protocol:             "test-protocol",
+		Hostname:             "test-uri",
+		URI:                  "test-uri",
+		TargetHealthStatuses: []types.TargetHealthStatus{"testing-status"},
 	}})
 
 	// should return first page and have a second page
@@ -4151,16 +4151,17 @@ func TestClusterDatabasesGet_NoRole(t *testing.T) {
 	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1)
-	require.ElementsMatch(t, resp.Items, []webui.Database{{
-		Kind:         types.KindDatabase,
-		Name:         "dbdb",
-		Type:         types.DatabaseTypeSelfHosted,
-		Labels:       []ui.Label{{Name: "env", Value: "prod"}},
-		Protocol:     "test-protocol",
-		Hostname:     "test-uri",
-		URI:          "test-uri:1234",
-		TargetHealth: types.TargetHealth{Status: "testing-status"},
-	}})
+	want := []webui.Database{{
+		Kind:                 types.KindDatabase,
+		Name:                 "dbdb",
+		Type:                 types.DatabaseTypeSelfHosted,
+		Labels:               []ui.Label{{Name: "env", Value: "prod"}},
+		Protocol:             "test-protocol",
+		Hostname:             "test-uri",
+		URI:                  "test-uri:1234",
+		TargetHealthStatuses: []types.TargetHealthStatus{"testing-status"},
+	}}
+	require.ElementsMatch(t, want, resp.Items)
 }
 
 func TestClusterDatabasesGet_WithRole(t *testing.T) {

@@ -25,7 +25,7 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import {
   DatabaseServer,
-  ResourceStatus,
+  ResourceHealthStatus,
   SharedResourceServer,
   UnifiedResourceDefinition,
 } from '../types';
@@ -37,7 +37,7 @@ import {
 type StoryProps = {
   attemptState: 'success' | 'processing' | 'failed' | '';
   resourceKind: 'db';
-  healthStatus: ResourceStatus | 'empty';
+  healthStatus: ResourceHealthStatus | 'empty';
   serverLength: 'few' | 'none' | 'many' | 'single';
 };
 
@@ -88,9 +88,7 @@ export function UnhealthyStatusInfo(props: StoryProps) {
       name: 'testing-database-resource-long-title-name',
       protocol: 'postgres',
       labels: [],
-      targetHealth: {
-        status: props.healthStatus === 'empty' ? '' : props.healthStatus,
-      },
+      statuses: [props.healthStatus === 'empty' ? 'unknown' : props.healthStatus],
     };
     if (props.serverLength === 'many') {
       servers = manyDbServers;
