@@ -649,6 +649,7 @@ func filterResourceList[T kubeObjectInterface](kind, group, verb string, origina
 // implement to be able to filter them. It is used to extract the kind of the
 // object from the GroupVersionKind object, the namespace and the name.
 type kubeObjectInterface interface {
+	GroupVersionKind() schema.GroupVersionKind
 	GetNamespace() string
 	GetName() string
 }
