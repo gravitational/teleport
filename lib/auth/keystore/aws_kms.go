@@ -183,7 +183,6 @@ func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites
 		arn:     keyARN,
 		account: a.awsAccount,
 		region:  a.awsRegion,
-		usage:   usage,
 	}
 
 	return keyID, nil
