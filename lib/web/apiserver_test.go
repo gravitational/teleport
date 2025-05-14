@@ -4357,14 +4357,15 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 				},
 				KubeGroups: []string{"groups"},
 				KubernetesResources: []types.KubernetesResource{
+					// NOTE: Here we use the k8s resource kinds, i.e. plurals.
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 						APIGroup:  types.Wildcard,
 					},
 					{
-						Kind:     types.KindKubeNamespace,
+						Kind:     "namespaces",
 						Name:     types.Wildcard,
 						APIGroup: types.Wildcard,
 					},
@@ -4393,18 +4394,18 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 	}{
 		{
 			name:        "get pods from gRPC server",
-			kind:        types.KindKubePod,
+			kind:        types.KindKubePod, // NOTE: Here we use the teleport kind.
 			kubeCluster: kubeClusterName,
 			expectedResponse: []webui.KubeResource{
 				{
-					Kind:        types.KindKubePod,
+					Kind:        "pods",
 					Name:        "test-pod",
 					Namespace:   "default",
 					Labels:      []ui.Label{{Name: "app", Value: "test"}},
 					KubeCluster: kubeClusterName,
 				},
 				{
-					Kind:        types.KindKubePod,
+					Kind:        "pods",
 					Name:        "test-pod2",
 					Namespace:   "default",
 					Labels:      []ui.Label{{Name: "app", Value: "test2"}},
@@ -4418,7 +4419,7 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 			kubeCluster: kubeClusterName,
 			expectedResponse: []webui.KubeResource{
 				{
-					Kind:        types.KindKubeNamespace,
+					Kind:        "namespaces",
 					Name:        "default",
 					Namespace:   "",
 					Labels:      []ui.Label{{Name: "app", Value: "test"}},
@@ -6845,7 +6846,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				KubeUsers:  kubeUsers,
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 						Verbs:     []string{types.Wildcard},
@@ -6871,7 +6872,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				KubeUsers:  kubeUsers,
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 						Verbs:     []string{types.Wildcard},
@@ -9654,12 +9655,13 @@ type fakeKubeService struct {
 
 func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kubeproto.ListKubernetesResourcesRequest) (*kubeproto.ListKubernetesResourcesResponse, error) {
 	switch req.GetResourceType() {
+	// NOTE: Here we are using the Teleport kinds.
 	case types.KindKubePod:
 		{
 			return &kubeproto.ListKubernetesResourcesResponse{
 				Resources: []*types.KubernetesResourceV1{
 					{
-						Kind: types.KindKubePod,
+						Kind: "pods",
 						Metadata: types.Metadata{
 							Name: "test-pod",
 							Labels: map[string]string{
@@ -9671,7 +9673,7 @@ func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kube
 						},
 					},
 					{
-						Kind: types.KindKubePod,
+						Kind: "pods",
 						Metadata: types.Metadata{
 							Name: "test-pod2",
 							Labels: map[string]string{
@@ -9691,7 +9693,7 @@ func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kube
 			return &kubeproto.ListKubernetesResourcesResponse{
 				Resources: []*types.KubernetesResourceV1{
 					{
-						Kind: types.KindNamespace,
+						Kind: "namespaces",
 						Metadata: types.Metadata{
 							Name: "default",
 							Labels: map[string]string{

@@ -42,7 +42,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -247,6 +246,20 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// if err is not nil or result is false, we should not include it.
 		return result, false, nil
 	case *corev1.EndpointsList:
+		o.Items = slices.FromPointers(
+			filterResourceList(
+				d.kind, d.group, d.verb,
+				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
+		)
+		return len(o.Items) > 0, true, nil
+	case *corev1.ReplicationController:
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
+		if err != nil {
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
+		}
+		// if err is not nil or result is false, we should not include it.
+		return result, false, nil
+	case *corev1.ReplicationControllerList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
 				d.kind, d.group, d.verb,
@@ -547,7 +560,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 
 	case *unstructured.Unstructured:
 		if o.IsList() {
-			hasElemts := filterUnstructuredList(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources, d.log)
+			hasElemts := filterUnstructuredList(d.kind, d.verb, o, d.allowedResources, d.deniedResources, d.log)
 			return hasElemts, true, nil
 		}
 
@@ -636,6 +649,7 @@ func filterResourceList[T kubeObjectInterface](kind, group, verb string, origina
 // implement to be able to filter them. It is used to extract the kind of the
 // object from the GroupVersionKind object, the namespace and the name.
 type kubeObjectInterface interface {
+	GroupVersionKind() schema.GroupVersionKind
 	GetNamespace() string
 	GetName() string
 }
@@ -790,7 +804,7 @@ func filterBuffer(filterWrapper responsewriters.FilterWrapper, src *responsewrit
 // filterUnstructuredList filters the unstructured list object to exclude resources
 // that the user must not have access to.
 // The filtered list is re-assigned to `obj.Object["items"]`.
-func filterUnstructuredList(kind, group, verb string, obj *unstructured.Unstructured, allowed, denied []types.KubernetesResource, log *slog.Logger) (hasElems bool) {
+func filterUnstructuredList(kind, verb string, obj *unstructured.Unstructured, allowed, denied []types.KubernetesResource, log *slog.Logger) (hasElems bool) {
 	const (
 		itemsKey = "items"
 	)
@@ -806,7 +820,8 @@ func filterUnstructuredList(kind, group, verb string, obj *unstructured.Unstruct
 
 	filteredList := make([]any, 0, len(objList.Items))
 	for _, resource := range objList.Items {
-		r := getKubeResource(utils.KubeCustomResource, group, verb, &resource)
+		gvk := resource.GroupVersionKind()
+		r := getKubeResource(kind, gvk.Group, verb, &resource)
 		if result, err := matchKubernetesResource(
 			r,
 			allowed, denied,

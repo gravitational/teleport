@@ -131,14 +131,14 @@ func failsForCluster(clusterName string) servicecfg.ImpersonationPermissionsChec
 func TestGetKubeCreds(t *testing.T) {
 	t.Parallel()
 	// kubeMock is a Kubernetes API mock for the session tests.
-	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	kubeMock, err := testingkubemock.NewKubeAPIMock(testingkubemock.WithTeleportRoleCRD)
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
 	targetAddr := kubeMock.Address
 
 	rbacSupportedTypes := maps.Clone(defaultRBACResources)
-	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles"}] = utils.KubeCustomResource
-	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles/status"}] = utils.KubeCustomResource
+	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles"}] = "teleportroles"
+	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles/status"}] = "teleportroles"
 
 	ctx := context.TODO()
 	const teleClusterName = "teleport-cluster"
