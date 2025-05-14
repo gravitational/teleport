@@ -59,6 +59,7 @@ var SupportedJoinMethods = []types.JoinMethod{
 	types.JoinMethodTPM,
 	types.JoinMethodTerraformCloud,
 	types.JoinMethodBitbucket,
+	types.JoinMethodBoundKeypair,
 }
 
 // BotResourceName returns the default name for resources associated with the
