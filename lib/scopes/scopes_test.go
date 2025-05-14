@@ -230,9 +230,9 @@ func TestWeakValidate(t *testing.T) {
 			ok:    true,
 		},
 		{
-			name:  "empty passes",
+			name:  "empty rejected",
 			scope: "",
-			ok:    true,
+			ok:    false,
 		},
 	}
 
@@ -522,56 +522,84 @@ func TestValidateGlob(t *testing.T) {
 	t.Parallel()
 
 	tts := []struct {
-		name string
-		glob string
-		ok   bool
+		name     string
+		glob     string
+		strongOk bool
+		weakOk   bool
 	}{
 		{
-			name: "standard literal",
-			glob: "/aa/bb/cc",
-			ok:   true,
+			name:     "standard literal",
+			glob:     "/aa/bb/cc",
+			strongOk: true,
+			weakOk:   true,
 		},
 		{
-			name: "root literal",
-			glob: "/",
-			ok:   true,
+			name:     "root literal",
+			glob:     "/",
+			strongOk: true,
+			weakOk:   true,
 		},
 		{
-			name: "valid exclusive child glob",
-			glob: "/aa/bb/**",
-			ok:   true,
+			name:     "valid exclusive child glob",
+			glob:     "/aa/bb/**",
+			strongOk: true,
+			weakOk:   true,
 		},
 		{
-			name: "inclusive glob rejected",
-			glob: "/aa/bb/*",
-			ok:   false,
+			name:     "inclusive glob rejected",
+			glob:     "/aa/bb/*",
+			strongOk: false,
+			weakOk:   false,
 		},
 		{
-			name: "inline exclusive glob rejected",
-			glob: "/aa/**/cc",
-			ok:   false,
+			name:     "inline exclusive glob rejected",
+			glob:     "/aa/**/cc",
+			strongOk: false,
+			weakOk:   false,
 		},
 		{
-			name: "root exclusive child glob",
-			glob: "/**",
-			ok:   true,
+			name:     "root exclusive child glob",
+			glob:     "/**",
+			strongOk: true,
+			weakOk:   true,
 		},
 		{
-			name: "root exclusive child glob with trailing slash",
-			glob: "/**/",
-			ok:   false,
+			name:     "root exclusive child glob with trailing slash",
+			glob:     "/**/",
+			strongOk: false,
+			weakOk:   true,
 		},
 		{
-			name: "root glob without leading slash",
-			glob: "**",
-			ok:   false,
+			name:     "root glob without leading slash",
+			glob:     "**",
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name:     "glob with mildly invalid segment",
+			glob:     "/a/**",
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name:     "glob with very invalid segment",
+			glob:     "/a@/**",
+			strongOk: false,
+			weakOk:   false,
 		},
 	}
 
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateGlob(tt.glob)
-			if tt.ok {
+			err := StrongValidateGlob(tt.glob)
+			if tt.strongOk {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
+
+			err = WeakValidateGlob(tt.glob)
+			if tt.weakOk {
 				require.NoError(t, err)
 			} else {
 				require.Error(t, err)
@@ -580,8 +608,8 @@ func TestValidateGlob(t *testing.T) {
 	}
 }
 
-// TestGlob tests Glob.Matches for various combinations of globs and scopes.
-func TestGlob(t *testing.T) {
+// TestGlobMatch tests Glob.Matches for various combinations of globs and scopes.
+func TestGlobMatch(t *testing.T) {
 	t.Parallel()
 
 	tts := []struct {
@@ -591,7 +619,7 @@ func TestGlob(t *testing.T) {
 		match bool
 	}{
 		{
-			name:  "simple literal match",
+			name:  "simple literal exact match",
 			glob:  "/aa/bb/cc",
 			scope: "/aa/bb/cc",
 			match: true,
@@ -603,16 +631,33 @@ func TestGlob(t *testing.T) {
 			match: false,
 		},
 		{
-			name:  "root literal match",
+			name:  "simple literal mismatch root",
+			glob:  "/aa/bb",
+			scope: "/",
+		},
+		{
+			name:  "root literal exact match",
 			glob:  "/",
 			scope: "/",
 			match: true,
 		},
 		{
-			name:  "root literal mismatch",
+			name:  "simple literal match child",
+			glob:  "/aa/bb",
+			scope: "/aa/bb/cc",
+			match: true,
+		},
+		{
+			name:  "simple literal mismatch child",
+			glob:  "/aa/bb",
+			scope: "/aa/cc/bb",
+			match: false,
+		},
+		{
+			name:  "root literal match child",
 			glob:  "/",
 			scope: "/aa",
-			match: false,
+			match: true,
 		},
 		{
 			name:  "exclusive child glob match",
@@ -674,6 +719,103 @@ func TestGlob(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.match, Glob(tt.glob).Matches(tt.scope),
 				"Glob(%q).Matches(%q)", tt.glob, tt.scope)
+		})
+	}
+}
+
+func TestGlobIsSubjectToPolicyResourceScope(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name    string
+		glob    string
+		scope   string
+		subject bool
+	}{
+		{
+			name:    "equivalent root",
+			glob:    "/",
+			scope:   "/",
+			subject: true,
+		},
+		{
+			name:    "non-subject root",
+			glob:    "/",
+			scope:   "/aa",
+			subject: false,
+		},
+		{
+			name:    "exclusive child glob root",
+			glob:    "/**",
+			scope:   "/",
+			subject: true,
+		},
+		{
+			name:    "non-subject exclusive child glob root",
+			glob:    "/**",
+			scope:   "/aa",
+			subject: false,
+		},
+		{
+			name:    "child of root",
+			glob:    "/foo",
+			scope:   "/",
+			subject: true,
+		},
+		{
+			name:    "exclusive child glob in child of root",
+			glob:    "/foo/**",
+			scope:   "/",
+			subject: true,
+		},
+		{
+			name:    "equivalent children",
+			glob:    "/foo",
+			scope:   "/foo",
+			subject: true,
+		},
+		{
+			name:    "orthogonal children",
+			glob:    "/foo",
+			scope:   "/bar",
+			subject: false,
+		},
+		{
+			name:    "orthogonal exclusive child glob",
+			glob:    "/foo/**",
+			scope:   "/bar",
+			subject: false,
+		},
+		{
+			name:    "exclusive child glob in child",
+			glob:    "/foo/**",
+			scope:   "/foo",
+			subject: true,
+		},
+		{
+			name:    "child of child",
+			glob:    "/foo/bar",
+			scope:   "/foo",
+			subject: true,
+		},
+		{
+			name:    "orthogonal child of child",
+			glob:    "/foo/bar",
+			scope:   "/foo/baz",
+			subject: false,
+		},
+		{
+			name:    "exclusive child glob in child of child",
+			glob:    "/foo/bar/**",
+			scope:   "/foo",
+			subject: true,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.subject, Glob(tt.glob).IsSubjectToPolicyResourceScope(tt.scope),
+				"Glob(%q).IsSubjectToPolicyResourceScope(%q)", tt.glob, tt.scope)
 		})
 	}
 }
