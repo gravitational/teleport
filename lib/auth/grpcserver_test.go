@@ -5393,6 +5393,13 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 						types.NewRule(types.KindRole, services.RW()),
 					},
 				},
+				Options: types.RoleOptions{
+					IDP: &types.IdPOptions{
+						SAML: &types.IdPSAMLOptions{
+							Enabled: types.NewBoolOption(false),
+						},
+					},
+				},
 			}),
 			expectDowngraded: true,
 		},
@@ -5420,6 +5427,7 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 						if tc.expectDowngraded {
 							require.NotEmpty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
 							require.Contains(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel], "Role V8 is only supported")
+							require.Contains(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel], "SAML IdP will be disabled")
 						}
 					}
 

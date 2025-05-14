@@ -65,7 +65,7 @@ func (cfg LDAPConfig) Check() error {
 	return nil
 }
 
-// DomainDN returns the distinguished name for the domain.
+// DomainDN returns the distinguished name for an Active Directory Domain.
 func DomainDN(domain string) string {
 	var sb strings.Builder
 	parts := strings.Split(domain, ".")

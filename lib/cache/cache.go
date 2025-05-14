@@ -492,20 +492,9 @@ type Cache struct {
 	// regularly called methods.
 	fnCache *utils.FnCache
 
-	trustCache                   services.Trust
-	clusterConfigCache           services.ClusterConfigurationInternal
-	provisionerCache             services.Provisioner
-	usersCache                   services.UsersService
-	accessCache                  services.Access
-	dynamicAccessCache           services.DynamicAccessExt
-	presenceCache                services.Presence
-	userGroupsCache              services.UserGroups
-	headlessAuthenticationsCache services.HeadlessAuthenticationService
-	secReportsCache              services.SecReports
-	eventsFanout                 *services.FanoutV2
-	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
-	pluginStaticCredentialsCache *local.PluginStaticCredentialsService
-	gitServersCache              *local.GitServerService
+	secReportsCache       services.SecReports
+	eventsFanout          *services.FanoutV2
+	lowVolumeEventsFanout *utils.RoundRobin[*services.FanoutV2]
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -871,12 +860,8 @@ func New(config Config) (*Cache, error) {
 	if err := metrics.RegisterPrometheusCollectors(cacheCollectors...); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := config.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	clusterConfigCache, err := local.NewClusterConfigurationService(config.Backend)
-	if err != nil {
+	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -886,12 +871,6 @@ func New(config Config) (*Cache, error) {
 		Clock:   config.Clock,
 		Context: ctx,
 	})
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	userGroupsCache, err := local.NewUserGroupService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -909,43 +888,15 @@ func New(config Config) (*Cache, error) {
 		lowVolumeFanouts = append(lowVolumeFanouts, services.NewFanoutV2(services.FanoutV2Config{}))
 	}
 
-	identityService, err := local.NewIdentityService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	pluginStaticCredentialsCache, err := local.NewPluginStaticCredentialsService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	gitServersCache, err := local.NewGitServerService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	cs := &Cache{
-		ctx:                          ctx,
-		cancel:                       cancel,
-		Config:                       config,
-		initC:                        make(chan struct{}),
-		fnCache:                      fnCache,
-		trustCache:                   local.NewCAService(config.Backend),
-		clusterConfigCache:           clusterConfigCache,
-		provisionerCache:             local.NewProvisioningService(config.Backend),
-		accessCache:                  local.NewAccessService(config.Backend),
-		dynamicAccessCache:           local.NewDynamicAccessService(config.Backend),
-		presenceCache:                local.NewPresenceService(config.Backend),
-		userGroupsCache:              userGroupsCache,
-		headlessAuthenticationsCache: identityService,
-		secReportsCache:              secReportsCache,
-		eventsFanout:                 fanout,
-		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
-		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
-		gitServersCache:              gitServersCache,
+		ctx:                   ctx,
+		cancel:                cancel,
+		Config:                config,
+		initC:                 make(chan struct{}),
+		fnCache:               fnCache,
+		secReportsCache:       secReportsCache,
+		eventsFanout:          fanout,
+		lowVolumeEventsFanout: utils.NewRoundRobin(lowVolumeFanouts),
 		Logger: slog.With(
 			teleport.ComponentKey, config.Component,
 			"target", config.target,

@@ -203,16 +203,10 @@ type WindowsServiceConfig struct {
 	// If empty LDAP address will be used.
 	// Used for NLA support when AD is true.
 	KDCAddr string
-	// DiscoveryBaseDN is the base DN for searching for Windows Desktops.
-	// Desktop discovery is disabled if this field is empty.
-	DiscoveryBaseDN string
-	// DiscoveryLDAPFilters are additional LDAP filters for searching for
-	// Windows Desktops. If multiple filters are specified, they are ANDed
-	// together into a single search.
-	DiscoveryLDAPFilters []string
-	// DiscoveryLDAPAttributeLabels are optional LDAP attributes to convert
-	// into Teleport labels.
-	DiscoveryLDAPAttributeLabels []string
+	// Discovery contains policies for configuring LDAP-based discovery.
+	Discovery []servicecfg.LDAPDiscoveryConfig
+	// DiscoveryInterval configures how frequently the discovery process runs.
+	DiscoveryInterval time.Duration
 	// Hostname of the Windows desktop service
 	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
@@ -236,20 +230,24 @@ type HeartbeatConfig struct {
 }
 
 func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
-	switch {
-	case cfg.DiscoveryBaseDN == types.Wildcard:
-		cfg.DiscoveryBaseDN = windows.DomainDN(cfg.Domain)
-	case len(cfg.DiscoveryBaseDN) > 0:
-		if _, err := ldap.ParseDN(cfg.DiscoveryBaseDN); err != nil {
-			return trace.BadParameter("WindowsServiceConfig contains an invalid base_dn: %v", err)
+	for i := range cfg.Discovery {
+		switch {
+		case cfg.Discovery[i].BaseDN == types.Wildcard:
+			cfg.Discovery[i].BaseDN = windows.DomainDN(cfg.Domain)
+		case len(cfg.Discovery[i].BaseDN) > 0:
+			if _, err := ldap.ParseDN(cfg.Discovery[i].BaseDN); err != nil {
+				return trace.BadParameter("WindowsServiceConfig contains an invalid base_dn %q: %v", cfg.Discovery[i].BaseDN, err)
+			}
+		}
+
+		for _, filter := range cfg.Discovery[i].Filters {
+			if _, err := ldap.CompileFilter(filter); err != nil {
+				return trace.BadParameter("WindowsServiceConfig contains an invalid LDAP filter %q: %v", filter, err)
+			}
 		}
 	}
 
-	for _, filter := range cfg.DiscoveryLDAPFilters {
-		if _, err := ldap.CompileFilter(filter); err != nil {
-			return trace.BadParameter("WindowsServiceConfig contains an invalid LDAP filter %q: %v", filter, err)
-		}
-	}
+	cfg.DiscoveryInterval = cmp.Or(cfg.DiscoveryInterval, 5*time.Minute)
 
 	return nil
 }
@@ -417,7 +415,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(s.cfg.DiscoveryBaseDN) > 0 {
+	if len(s.cfg.Discovery) > 0 {
 		if err := s.startDesktopDiscovery(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -430,7 +428,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	// if LDAP-based discovery is not enabled, but we have configured LDAP
 	// then it's important that we periodically try to use the LDAP connection
 	// to detect connection closure
-	if s.ldapConfigured && len(s.cfg.DiscoveryBaseDN) == 0 {
+	if s.ldapConfigured && len(s.cfg.Discovery) == 0 {
 		s.startLDAPConnectionCheck(ctx)
 	}
 

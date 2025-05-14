@@ -20,11 +20,11 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
@@ -39,11 +39,13 @@ func newPrincipalStateCollection(upstream services.ProvisioningStates, w types.W
 	}
 
 	return &collection[*provisioningv1.PrincipalState, principalStateIndex]{
-		store: newStore(map[principalStateIndex]func(*provisioningv1.PrincipalState) string{
-			principalStateNameIndex: func(r *provisioningv1.PrincipalState) string {
-				return r.GetMetadata().GetName()
-			},
-		}),
+		store: newStore(
+			proto.CloneOf[*provisioningv1.PrincipalState],
+			map[principalStateIndex]func(*provisioningv1.PrincipalState) string{
+				principalStateNameIndex: func(r *provisioningv1.PrincipalState) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*provisioningv1.PrincipalState, error) {
 			var page pagination.PageRequestToken
 			var resources []*provisioningv1.PrincipalState
@@ -91,7 +93,6 @@ func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.Do
 			out, err := c.Config.ProvisioningStates.GetProvisioningState(ctx, downstream, id)
 			return out, trace.Wrap(err)
 		},
-		clone: utils.CloneProtoMsg[*provisioningv1.PrincipalState],
 	}
 	out, err := getter.get(ctx, string(id))
 	return out, trace.Wrap(err)
@@ -112,7 +113,6 @@ func (c *Cache) ListProvisioningStatesForAllDownstreams(ctx context.Context, pag
 		nextToken: func(t *provisioningv1.PrincipalState) string {
 			return t.GetMetadata().GetName()
 		},
-		clone: utils.CloneProtoMsg[*provisioningv1.PrincipalState],
 	}
 
 	nextToken, err := req.Consume()

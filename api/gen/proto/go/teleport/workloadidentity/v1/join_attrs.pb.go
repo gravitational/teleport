@@ -64,7 +64,9 @@ type JoinAttrs struct {
 	// Attributes that are specific to the Kubernetes (`kubernetes`) join method.
 	Kubernetes *JoinAttrsKubernetes `protobuf:"bytes,12,opt,name=kubernetes,proto3" json:"kubernetes,omitempty"`
 	// Attributes that are specific to the Oracle (`oracle`) join method.
-	Oracle        *JoinAttrsOracle `protobuf:"bytes,13,opt,name=oracle,proto3" json:"oracle,omitempty"`
+	Oracle *JoinAttrsOracle `protobuf:"bytes,13,opt,name=oracle,proto3" json:"oracle,omitempty"`
+	// Attributes that are specific to the Azure Devops (`azure_devops`) join method.
+	AzureDevops   *JoinAttrsAzureDevops `protobuf:"bytes,14,opt,name=azure_devops,json=azureDevops,proto3" json:"azure_devops,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -186,6 +188,13 @@ func (x *JoinAttrs) GetKubernetes() *JoinAttrsKubernetes {
 func (x *JoinAttrs) GetOracle() *JoinAttrsOracle {
 	if x != nil {
 		return x.Oracle
+	}
+	return nil
+}
+
+func (x *JoinAttrs) GetAzureDevops() *JoinAttrsAzureDevops {
+	if x != nil {
+		return x.AzureDevops
 	}
 	return nil
 }
@@ -1524,11 +1533,195 @@ func (x *JoinAttrsOracle) GetInstanceId() string {
 	return ""
 }
 
+// Attributes that are specific to the Azure Devops (`azure_devops`) join method.
+type JoinAttrsAzureDevops struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Attributes specific to joins that occur with the pipeline ID token.
+	Pipeline      *JoinAttrsAzureDevopsPipeline `protobuf:"bytes,1,opt,name=pipeline,proto3" json:"pipeline,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JoinAttrsAzureDevops) Reset() {
+	*x = JoinAttrsAzureDevops{}
+	mi := &file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JoinAttrsAzureDevops) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JoinAttrsAzureDevops) ProtoMessage() {}
+
+func (x *JoinAttrsAzureDevops) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JoinAttrsAzureDevops.ProtoReflect.Descriptor instead.
+func (*JoinAttrsAzureDevops) Descriptor() ([]byte, []int) {
+	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *JoinAttrsAzureDevops) GetPipeline() *JoinAttrsAzureDevopsPipeline {
+	if x != nil {
+		return x.Pipeline
+	}
+	return nil
+}
+
+// Attributes that are specific to the Azure DevOps join method when the
+// pipeline ID token is used for authentication
+type JoinAttrsAzureDevopsPipeline struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The `sub` claim of the Azure DevOps pipeline ID token that was used to join.
+	Sub string `protobuf:"bytes,1,opt,name=sub,proto3" json:"sub,omitempty"`
+	// The name of the organization that the pipeline is running within.
+	OrganizationName string `protobuf:"bytes,2,opt,name=organization_name,json=organizationName,proto3" json:"organization_name,omitempty"`
+	// The name of the project that the pipeline is running within.
+	ProjectName string `protobuf:"bytes,3,opt,name=project_name,json=projectName,proto3" json:"project_name,omitempty"`
+	// The name of the pipeline that is running.
+	PipelineName string `protobuf:"bytes,4,opt,name=pipeline_name,json=pipelineName,proto3" json:"pipeline_name,omitempty"`
+	// The ID of the organization that the pipeline is running within.
+	OrganizationId string `protobuf:"bytes,5,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
+	// The ID of the project that the pipeline is running within.
+	ProjectId string `protobuf:"bytes,6,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	// The ID of the pipeline that is running.
+	DefinitionId string `protobuf:"bytes,7,opt,name=definition_id,json=definitionId,proto3" json:"definition_id,omitempty"`
+	// The ID of the repository that the pipeline is running within.
+	RepositoryId string `protobuf:"bytes,8,opt,name=repository_id,json=repositoryId,proto3" json:"repository_id,omitempty"`
+	// The version of the repository that the pipeline is running against.
+	// For Git this will be the commit SHA.
+	RepositoryVersion string `protobuf:"bytes,9,opt,name=repository_version,json=repositoryVersion,proto3" json:"repository_version,omitempty"`
+	// The ref of the repository that the pipeline is running against.
+	RepositoryRef string `protobuf:"bytes,10,opt,name=repository_ref,json=repositoryRef,proto3" json:"repository_ref,omitempty"`
+	// The ID of the run that is being executed.
+	RunId         string `protobuf:"bytes,11,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) Reset() {
+	*x = JoinAttrsAzureDevopsPipeline{}
+	mi := &file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JoinAttrsAzureDevopsPipeline) ProtoMessage() {}
+
+func (x *JoinAttrsAzureDevopsPipeline) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JoinAttrsAzureDevopsPipeline.ProtoReflect.Descriptor instead.
+func (*JoinAttrsAzureDevopsPipeline) Descriptor() ([]byte, []int) {
+	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) GetSub() string {
+	if x != nil {
+		return x.Sub
+	}
+	return ""
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) GetOrganizationName() string {
+	if x != nil {
+		return x.OrganizationName
+	}
+	return ""
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) GetProjectName() string {
+	if x != nil {
+		return x.ProjectName
+	}
+	return ""
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) GetPipelineName() string {
+	if x != nil {
+		return x.PipelineName
+	}
+	return ""
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) GetOrganizationId() string {
+	if x != nil {
+		return x.OrganizationId
+	}
+	return ""
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) GetDefinitionId() string {
+	if x != nil {
+		return x.DefinitionId
+	}
+	return ""
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) GetRepositoryId() string {
+	if x != nil {
+		return x.RepositoryId
+	}
+	return ""
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) GetRepositoryVersion() string {
+	if x != nil {
+		return x.RepositoryVersion
+	}
+	return ""
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) GetRepositoryRef() string {
+	if x != nil {
+		return x.RepositoryRef
+	}
+	return ""
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
 var File_teleport_workloadidentity_v1_join_attrs_proto protoreflect.FileDescriptor
 
 const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/workloadidentity/v1/join_attrs.proto\x12\x1cteleport.workloadidentity.v1\"\xc2\a\n" +
+	"-teleport/workloadidentity/v1/join_attrs.proto\x12\x1cteleport.workloadidentity.v1\"\x99\b\n" +
 	"\tJoinAttrs\x12?\n" +
 	"\x04meta\x18\x01 \x01(\v2+.teleport.workloadidentity.v1.JoinAttrsMetaR\x04meta\x12E\n" +
 	"\x06gitlab\x18\x02 \x01(\v2-.teleport.workloadidentity.v1.JoinAttrsGitLabR\x06gitlab\x12E\n" +
@@ -1545,7 +1738,8 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"\n" +
 	"kubernetes\x18\f \x01(\v21.teleport.workloadidentity.v1.JoinAttrsKubernetesR\n" +
 	"kubernetes\x12E\n" +
-	"\x06oracle\x18\r \x01(\v2-.teleport.workloadidentity.v1.JoinAttrsOracleR\x06oracle\"X\n" +
+	"\x06oracle\x18\r \x01(\v2-.teleport.workloadidentity.v1.JoinAttrsOracleR\x06oracle\x12U\n" +
+	"\fazure_devops\x18\x0e \x01(\v22.teleport.workloadidentity.v1.JoinAttrsAzureDevopsR\vazureDevops\"X\n" +
 	"\rJoinAttrsMeta\x12&\n" +
 	"\x0fjoin_token_name\x18\x01 \x01(\tR\rjoinTokenName\x12\x1f\n" +
 	"\vjoin_method\x18\x02 \x01(\tR\n" +
@@ -1652,7 +1846,23 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"tenancy_id\x18\x01 \x01(\tR\ttenancyId\x12%\n" +
 	"\x0ecompartment_id\x18\x02 \x01(\tR\rcompartmentId\x12\x1f\n" +
 	"\vinstance_id\x18\x03 \x01(\tR\n" +
-	"instanceIdBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
+	"instanceId\"n\n" +
+	"\x14JoinAttrsAzureDevops\x12V\n" +
+	"\bpipeline\x18\x01 \x01(\v2:.teleport.workloadidentity.v1.JoinAttrsAzureDevopsPipelineR\bpipeline\"\xa4\x03\n" +
+	"\x1cJoinAttrsAzureDevopsPipeline\x12\x10\n" +
+	"\x03sub\x18\x01 \x01(\tR\x03sub\x12+\n" +
+	"\x11organization_name\x18\x02 \x01(\tR\x10organizationName\x12!\n" +
+	"\fproject_name\x18\x03 \x01(\tR\vprojectName\x12#\n" +
+	"\rpipeline_name\x18\x04 \x01(\tR\fpipelineName\x12'\n" +
+	"\x0forganization_id\x18\x05 \x01(\tR\x0eorganizationId\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x06 \x01(\tR\tprojectId\x12#\n" +
+	"\rdefinition_id\x18\a \x01(\tR\fdefinitionId\x12#\n" +
+	"\rrepository_id\x18\b \x01(\tR\frepositoryId\x12-\n" +
+	"\x12repository_version\x18\t \x01(\tR\x11repositoryVersion\x12%\n" +
+	"\x0erepository_ref\x18\n" +
+	" \x01(\tR\rrepositoryRef\x12\x15\n" +
+	"\x06run_id\x18\v \x01(\tR\x05runIdBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
 
 var (
 	file_teleport_workloadidentity_v1_join_attrs_proto_rawDescOnce sync.Once
@@ -1666,7 +1876,7 @@ func file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP() []byte {
 	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescData
 }
 
-var file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_teleport_workloadidentity_v1_join_attrs_proto_goTypes = []any{
 	(*JoinAttrs)(nil),                         // 0: teleport.workloadidentity.v1.JoinAttrs
 	(*JoinAttrsMeta)(nil),                     // 1: teleport.workloadidentity.v1.JoinAttrsMeta
@@ -1685,6 +1895,8 @@ var file_teleport_workloadidentity_v1_join_attrs_proto_goTypes = []any{
 	(*JoinAttrsKubernetesServiceAccount)(nil), // 14: teleport.workloadidentity.v1.JoinAttrsKubernetesServiceAccount
 	(*JoinAttrsKubernetes)(nil),               // 15: teleport.workloadidentity.v1.JoinAttrsKubernetes
 	(*JoinAttrsOracle)(nil),                   // 16: teleport.workloadidentity.v1.JoinAttrsOracle
+	(*JoinAttrsAzureDevops)(nil),              // 17: teleport.workloadidentity.v1.JoinAttrsAzureDevops
+	(*JoinAttrsAzureDevopsPipeline)(nil),      // 18: teleport.workloadidentity.v1.JoinAttrsAzureDevopsPipeline
 }
 var file_teleport_workloadidentity_v1_join_attrs_proto_depIdxs = []int32{
 	1,  // 0: teleport.workloadidentity.v1.JoinAttrs.meta:type_name -> teleport.workloadidentity.v1.JoinAttrsMeta
@@ -1700,14 +1912,16 @@ var file_teleport_workloadidentity_v1_join_attrs_proto_depIdxs = []int32{
 	12, // 10: teleport.workloadidentity.v1.JoinAttrs.gcp:type_name -> teleport.workloadidentity.v1.JoinAttrsGCP
 	15, // 11: teleport.workloadidentity.v1.JoinAttrs.kubernetes:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetes
 	16, // 12: teleport.workloadidentity.v1.JoinAttrs.oracle:type_name -> teleport.workloadidentity.v1.JoinAttrsOracle
-	11, // 13: teleport.workloadidentity.v1.JoinAttrsGCP.gce:type_name -> teleport.workloadidentity.v1.JoinAttrsGCPGCE
-	14, // 14: teleport.workloadidentity.v1.JoinAttrsKubernetes.service_account:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesServiceAccount
-	13, // 15: teleport.workloadidentity.v1.JoinAttrsKubernetes.pod:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesPod
-	16, // [16:16] is the sub-list for method output_type
-	16, // [16:16] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	17, // 13: teleport.workloadidentity.v1.JoinAttrs.azure_devops:type_name -> teleport.workloadidentity.v1.JoinAttrsAzureDevops
+	11, // 14: teleport.workloadidentity.v1.JoinAttrsGCP.gce:type_name -> teleport.workloadidentity.v1.JoinAttrsGCPGCE
+	14, // 15: teleport.workloadidentity.v1.JoinAttrsKubernetes.service_account:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesServiceAccount
+	13, // 16: teleport.workloadidentity.v1.JoinAttrsKubernetes.pod:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesPod
+	18, // 17: teleport.workloadidentity.v1.JoinAttrsAzureDevops.pipeline:type_name -> teleport.workloadidentity.v1.JoinAttrsAzureDevopsPipeline
+	18, // [18:18] is the sub-list for method output_type
+	18, // [18:18] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_teleport_workloadidentity_v1_join_attrs_proto_init() }
@@ -1721,7 +1935,7 @@ func file_teleport_workloadidentity_v1_join_attrs_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc), len(file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   17,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
@@ -39,11 +40,13 @@ func newIdentityCenterAccountCollection(ic services.IdentityCenter, w types.Watc
 	}
 
 	return &collection[*identitycenterv1.Account, identityCenterAccountIndex]{
-		store: newStore(map[identityCenterAccountIndex]func(*identitycenterv1.Account) string{
-			identityCenterAccountNameIndex: func(r *identitycenterv1.Account) string {
-				return r.GetMetadata().GetName()
-			},
-		}),
+		store: newStore(
+			proto.CloneOf[*identitycenterv1.Account],
+			map[identityCenterAccountIndex]func(*identitycenterv1.Account) string{
+				identityCenterAccountNameIndex: func(r *identitycenterv1.Account) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*identitycenterv1.Account, error) {
 			var pageToken pagination.PageRequestToken
 			var accounts []*identitycenterv1.Account
@@ -146,11 +149,13 @@ func newIdentityCenterAccountAssignmentCollection(ic services.IdentityCenter, w 
 	}
 
 	return &collection[*identitycenterv1.AccountAssignment, identityCenterAccountAssignmentIndex]{
-		store: newStore(map[identityCenterAccountAssignmentIndex]func(*identitycenterv1.AccountAssignment) string{
-			identityCenterAccountAssignmentNameIndex: func(r *identitycenterv1.AccountAssignment) string {
-				return r.GetMetadata().GetName()
-			},
-		}),
+		store: newStore(
+			proto.CloneOf[*identitycenterv1.AccountAssignment],
+			map[identityCenterAccountAssignmentIndex]func(*identitycenterv1.AccountAssignment) string{
+				identityCenterAccountAssignmentNameIndex: func(r *identitycenterv1.AccountAssignment) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*identitycenterv1.AccountAssignment, error) {
 			var pageToken pagination.PageRequestToken
 			var accounts []*identitycenterv1.AccountAssignment
@@ -256,11 +261,13 @@ func newIdentityCenterPrincipalAssignmentCollection(upstream services.IdentityCe
 	}
 
 	return &collection[*identitycenterv1.PrincipalAssignment, identityCenterPrincipalAssignmentIndex]{
-		store: newStore(map[identityCenterPrincipalAssignmentIndex]func(*identitycenterv1.PrincipalAssignment) string{
-			identityCenterPrincipalAssignmentNameIndex: func(r *identitycenterv1.PrincipalAssignment) string {
-				return r.GetMetadata().GetName()
-			},
-		}),
+		store: newStore(
+			proto.CloneOf[*identitycenterv1.PrincipalAssignment],
+			map[identityCenterPrincipalAssignmentIndex]func(*identitycenterv1.PrincipalAssignment) string{
+				identityCenterPrincipalAssignmentNameIndex: func(r *identitycenterv1.PrincipalAssignment) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*identitycenterv1.PrincipalAssignment, error) {
 			var pageToken pagination.PageRequestToken
 			var resources []*identitycenterv1.PrincipalAssignment
@@ -304,7 +311,6 @@ func (c *Cache) GetPrincipalAssignment(ctx context.Context, id services.Principa
 			out, err := c.Config.IdentityCenter.GetPrincipalAssignment(ctx, services.PrincipalAssignmentID(s))
 			return out, trace.Wrap(err)
 		},
-		clone: utils.CloneProtoMsg[*identitycenterv1.PrincipalAssignment],
 	}
 	out, err := getter.get(ctx, string(id))
 	return out, trace.Wrap(err)
@@ -325,7 +331,6 @@ func (c *Cache) ListPrincipalAssignments(ctx context.Context, pageSize int, req 
 		nextToken: func(t *identitycenterv1.PrincipalAssignment) string {
 			return t.GetMetadata().GetName()
 		},
-		clone: utils.CloneProtoMsg[*identitycenterv1.PrincipalAssignment],
 	}
 
 	nextToken, err := req.Consume()

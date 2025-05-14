@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
+import { Text } from 'design';
 import { ACL } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { DesktopSession } from 'shared/components/DesktopSession';
 import {
@@ -25,17 +26,18 @@ import {
   makeProcessingAttempt,
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
-import { BrowserFileSystem, TdpClient } from 'shared/libs/tdp';
+import { BrowserFileSystem, TdpClient, useListener } from 'shared/libs/tdp';
 import { TdpTransport } from 'shared/libs/tdp/client';
 
 import Logger from 'teleterm/logger';
 import { cloneAbortSignal, TshdClient } from 'teleterm/services/tshd';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import * as types from 'teleterm/ui/services/workspacesService';
-import { routing, WindowsDesktopUri } from 'teleterm/ui/uri';
+import { DesktopUri, isWindowsDesktopUri, routing } from 'teleterm/ui/uri';
 
 // The check for another active session is disabled in Connect:
 // 1. This protection was added to the Web UI to prevent a situation where a user could be tricked
@@ -50,11 +52,12 @@ export function DocumentDesktopSession(props: {
   doc: types.DocumentDesktopSession;
 }) {
   const logger = useLogger('DocumentDesktopSession');
-  const { desktopUri, login, origin } = props.doc;
+  const { desktopUri, login, origin, uri } = props.doc;
   const appCtx = useAppContext();
+  const { documentsService } = useWorkspaceContext();
   const loggedInUser = useWorkspaceLoggedInUser();
   const acl = useMemo<Attempt<ACL>>(() => {
-    if (!loggedInUser) {
+    if (!loggedInUser?.acl) {
       return makeProcessingAttempt();
     }
     return makeSuccessAttempt(loggedInUser.acl);
@@ -83,8 +86,38 @@ export function DocumentDesktopSession(props: {
       }, new BrowserFileSystem())
   );
 
-  return (
-    <Document visible={props.visible}>
+  useListener(
+    client.onTransportOpen,
+    useCallback(
+      () => documentsService.update(uri, { status: 'connected' }),
+      [documentsService, uri]
+    )
+  );
+  useListener(
+    client.onTransportClose,
+    useCallback(
+      error => documentsService.update(uri, { status: error ? 'error' : '' }),
+      [documentsService, uri]
+    )
+  );
+  useListener(
+    client.onError,
+    useCallback(
+      () => documentsService.update(uri, { status: 'error' }),
+      [documentsService, uri]
+    )
+  );
+
+  let content = (
+    <Text m="auto" mt={10} textAlign="center">
+      Cannot open a connection to "{desktopUri}".
+      <br />
+      Only Windows desktops are supported.
+    </Text>
+  );
+
+  if (isWindowsDesktopUri(desktopUri)) {
+    content = (
       <DesktopSession
         hasAnotherSession={noOtherSession}
         desktop={
@@ -94,14 +127,16 @@ export function DocumentDesktopSession(props: {
         username={login}
         aclAttempt={acl}
       />
-    </Document>
-  );
+    );
+  }
+
+  return <Document visible={props.visible}>{content}</Document>;
 }
 
 async function adaptGRPCStreamToTdpTransport(
   stream: ReturnType<TshdClient['connectToDesktop']>,
   targetDesktop: {
-    desktopUri: WindowsDesktopUri;
+    desktopUri: DesktopUri;
     login: string;
   },
   logger: Logger

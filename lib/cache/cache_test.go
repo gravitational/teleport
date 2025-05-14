@@ -2054,9 +2054,7 @@ func TestPartialHealth(t *testing.T) {
 	require.Equal(t, "cache", resultUser.GetMetadata().Labels["origin"])
 
 	// query cache storage directly to ensure roles haven't been replicated
-	rolesStoredInCache, err := p.cache.accessCache.GetRoles(ctx)
-	require.NoError(t, err)
-	require.Empty(t, rolesStoredInCache)
+	require.Empty(t, p.cache.collections.roles.store.len())
 
 	// non-empty result here proves that it was not served from cache
 	resultRoles, err := p.cache.GetRoles(ctx)
