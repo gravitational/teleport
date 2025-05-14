@@ -143,9 +143,7 @@ func (s *Store) KnownHardwareKey(ref *hardwarekey.PrivateKeyRef, keyInfo hardwar
 	// We only need to compare the serial number and slot key. Other values, like the
 	// public key and prompt policy, will be validated against the hardware key directly
 	// when needed.
-	sameKeyRef :=
-		hwSigner.Ref.SerialNumber == ref.SerialNumber &&
-			hwSigner.Ref.SlotKey == ref.SlotKey
+	sameKeyRef := hwSigner.Ref.SerialNumber == ref.SerialNumber && hwSigner.Ref.SlotKey == ref.SlotKey
 
 	return sameKeyRef, nil
 }
