@@ -25,6 +25,7 @@ import (
 	"os"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/oauth2"
 
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/client/sso"
@@ -66,6 +67,8 @@ func (tc *TeleportClient) ssoLoginInitFn(keyRing *KeyRing, connectorID, connecto
 			return "", trace.Wrap(err)
 		}
 
+		codeVerifier := oauth2.GenerateVerifier()
+
 		// initiate SSO login through the Proxy.
 		req := SSOLoginConsoleReq{
 			RedirectURL: clientCallbackURL,
@@ -80,6 +83,7 @@ func (tc *TeleportClient) ssoLoginInitFn(keyRing *KeyRing, connectorID, connecto
 			Compatibility:     sshLogin.Compatibility,
 			RouteToCluster:    sshLogin.RouteToCluster,
 			KubernetesCluster: sshLogin.KubernetesCluster,
+			PKCEVerifier:      codeVerifier,
 		}
 
 		clt, _, err := initClient(sshLogin.ProxyAddr, sshLogin.Insecure, sshLogin.Pool, sshLogin.ExtraHeaders)
