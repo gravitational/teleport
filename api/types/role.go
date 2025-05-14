@@ -1927,9 +1927,10 @@ func setDefaultKubernetesVerbs(spec *RoleSpecV6) {
 }
 
 // validateKubeResources validates the following rules for each kubeResources entry:
-// - Kind belongs to KubernetesResourcesKinds
+// - Kind belongs to KubernetesResourcesKinds for roles <=v7, is set and doesn't belong to that list for >=v8
 // - Name is not empty
 // - Namespace is not empty
+// - APIGroup is empty for roles <=v7 and not empty for >=v8
 func validateKubeResources(roleVersion string, kubeResources []KubernetesResource) error {
 	for _, kubeResource := range kubeResources {
 		for _, verb := range kubeResource.Verbs {
@@ -1965,6 +1966,16 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 				return trace.BadParameter("KubernetesResource must include Namespace")
 			}
 		case V8:
+			if kubeResource.Kind == "" {
+				return trace.BadParameter("KubernetesResource kind is required in role version %q", roleVersion)
+			}
+			// If we have a kind that match a role v7 one, check the api group.
+			if slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) {
+				// If the api group is a wildcard or match v7, then it is mostly definitely a mistake, reject the role.
+				if kubeResource.APIGroup == Wildcard || KubernetesResourcesV7KindGroups[kubeResource.Kind] == kubeResource.APIGroup {
+					return trace.BadParameter("KubernetesResource kind %q is invalid. Please use plural name for role version %q", kubeResource.Kind, roleVersion)
+				}
+			}
 			if kubeResource.APIGroup == "" {
 				return trace.BadParameter("KubernetesResource group is required in role version %q", roleVersion)
 			}
@@ -1987,6 +1998,8 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 //   - Kind (belonging to KubernetesResourcesKinds)
 //
 // Mimics types.KubernetesResource data model, but opted to create own type as we don't support other fields yet.
+//
+// TODO(@creack): Handle rolev8 kind/group to support CRDs. Still use the teleport kinds for now.
 func validateRequestKubeResources(roleVersion string, kubeResources []RequestKubernetesResource) error {
 	for _, kubeResource := range kubeResources {
 		if !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != Wildcard {

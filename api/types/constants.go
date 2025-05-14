@@ -1414,6 +1414,30 @@ var KubernetesResourcesKinds = []string{
 	KindKubeIngress,
 }
 
+var KubernetesResourcesV7KindGroups = map[string]string{
+	KindKubePod:                       "core",
+	KindKubeSecret:                    "core",
+	KindKubeConfigmap:                 "core",
+	KindKubeNamespace:                 "core",
+	KindKubeService:                   "core",
+	KindKubeServiceAccount:            "core",
+	KindKubeNode:                      "core",
+	KindKubePersistentVolume:          "core",
+	KindKubePersistentVolumeClaim:     "core",
+	KindKubeDeployment:                "apps",
+	KindKubeReplicaSet:                "apps",
+	KindKubeStatefulset:               "apps",
+	KindKubeDaemonSet:                 "apps",
+	KindKubeClusterRole:               "rbac.authorization.k8s.io",
+	KindKubeRole:                      "rbac.authorization.k8s.io",
+	KindKubeClusterRoleBinding:        "rbac.authorization.k8s.io",
+	KindKubeRoleBinding:               "rbac.authorization.k8s.io",
+	KindKubeCronjob:                   "batch",
+	KindKubeJob:                       "batch",
+	KindKubeCertificateSigningRequest: "certificates.k8s.io",
+	KindKubeIngress:                   "networking.k8s.io",
+}
+
 // TODO(@creack): Remove this, find a better way to handle the mapping.
 var KubernetesResourcesKindsPlurals = map[string]string{
 	KindKubePod:                       "pods",
