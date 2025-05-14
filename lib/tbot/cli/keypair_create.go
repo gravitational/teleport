@@ -33,7 +33,7 @@ type KeypairCreateCommand struct {
 // NewKeypairCreateCommand initializes the `keypair create` command and returns
 // a struct to contain the parse result.
 func NewKeypairCreateCommand(parentCmd KingpinClause, action func(*KeypairCreateCommand) error) *KeypairCreateCommand {
-	cmd := parentCmd.Command("create", "Create a keypair to preregister for bound-keypair joining")
+	cmd := parentCmd.Command("create", "Create a keypair to preregister for bound-keypair joining").Hidden()
 
 	c := &KeypairCreateCommand{}
 	c.genericExecutorHandler = newGenericExecutorHandler(cmd, c, action)
