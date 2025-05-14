@@ -40,13 +40,21 @@ type Service struct {
 	agentClient hardwarekeyagentv1.HardwareKeyAgentServiceClient
 	// Used for non signature methods and as a fallback for signatures if the
 	// agent client fails to handle a sign request.
+	//
+	// When nil, the service will not fallback on failed sign requests and methods
+	// that aren't supported through the agent service, like NewPrivateKey, will
+	// return an error (used in tests).
 	fallbackService hardwarekey.Service
 }
 
 // NewService creates a new hardware key agent service from the given
-// agent client and fallback service. The fallback service is used for
-// non-signature methods of [hardwarekey.Service] which are not implemented
-// by the agent. Generally this fallback service is only used during login.
+// agent client and fallback service.
+//
+// The fallback service is used for methods unsupported by the agent service,
+// such as [Service.NewPrivateKey], and as a fallback for failed agent signatures.
+//
+// If the fallback service is not provided, the service will return an error
+// for unsupported services and skip the signature fallback logic (used in tests).
 func NewService(agentClient hardwarekeyagentv1.HardwareKeyAgentServiceClient, fallbackService hardwarekey.Service) *Service {
 	return &Service{
 		agentClient:     agentClient,

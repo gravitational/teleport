@@ -837,7 +837,7 @@ Slot %s:
 	)
 }
 
-var agentRequiresTeleportCertMessage = "hardware key agent cannot perform signatures on PIV slots that aren't configured for Teleport. " +
+const agentRequiresTeleportCertMessage = "hardware key agent cannot perform signatures on PIV slots that aren't configured for Teleport. " +
 	"The PIV slot should be configured automatically by the Teleport client during login. If you are " +
 	"are configuring the PIV slot manually, you must also generate a certificate in the slot with " +
 	"\"teleport\" as the organization name: " +

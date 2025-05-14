@@ -62,7 +62,7 @@ func NewClient(ctx context.Context, socketPath string, creds credentials.Transpo
 
 // NewServer returns a new hardware key agent server.
 //
-// If [knownKeyFn] is not provided, all PIV keys are treated as agent keys.
+// If a [KnownHardwareKeyFn] is not provided, all PIV keys are treated as agent keys (used in tests).
 func NewServer(_ context.Context, s hardwarekey.Service, creds credentials.TransportCredentials, knownKeyFn KnownHardwareKeyFn) *grpc.Server {
 	grpcServer := grpc.NewServer(
 		grpc.Creds(creds),
@@ -72,6 +72,8 @@ func NewServer(_ context.Context, s hardwarekey.Service, creds credentials.Trans
 	return grpcServer
 }
 
+// KnownHardwareKeyFn is a function to determine if the hardware private key described by the given key ref
+// and info is known or not, usually based on whether a matching key is found in the client's key store.
 type KnownHardwareKeyFn func(ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo) (bool, error)
 
 // agentService implements [hardwarekeyagentv1.HardwareKeyAgentServiceServer].
@@ -83,7 +85,7 @@ type agentService struct {
 	// treated as a known key or an unknown agent key. Unknown agent keys are treated with
 	// additional restrictions to ensure the PIV slot is intended for Teleport client usage.
 	//
-	// If knownKeyFn is nil, all keys are treated as agent keys.
+	// When nil, all keys are treated as agent keys (used in tests).
 	knownKeyFn KnownHardwareKeyFn
 }
 
