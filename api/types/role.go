@@ -1232,7 +1232,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 	case V7:
-		// Kubernetes resources default to {kind:*, name:*, namespace:*, group:*} for v7 and v8 roles.
+		// Kubernetes resources default to {kind:*, name:*, namespace:*} for v7 and v8 roles.
 		if len(r.Spec.Allow.KubernetesResources) == 0 && r.HasLabelMatchers(Allow, KindKubernetesCluster) {
 			r.Spec.Allow.KubernetesResources = []KubernetesResource{
 				{
@@ -1240,7 +1240,6 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 					Namespace: Wildcard,
 					Name:      Wildcard,
 					Verbs:     []string{Wildcard},
-					APIGroup:  Wildcard,
 				},
 			}
 		}
