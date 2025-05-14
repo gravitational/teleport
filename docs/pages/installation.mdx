@@ -56,9 +56,10 @@ server.
 
 Teleport maintains DEB and RPM package repositories for different operating
 systems, platforms, and Teleport versions. A server that installs Teleport from
-a DEB or RPM package must have systemd installed. You can also download TAR
-archives containing Teleport binaries. All installations include `teleport`,
-`teleport-update`, `tsh`, `tctl`, `fdpass-teleport` and `tbot`.
+a DEB or RPM package, or via `teleport-update`, must have systemd installed.
+You can also download TAR archives containing Teleport binaries. All installations
+include `teleport`,`teleport-update`, `tsh`, `tctl`, `fdpass-teleport` and `tbot`.
+Agent installations should use the one-line script or `teleport-update`.
 
 ### Recommended installation steps
 
@@ -106,9 +107,8 @@ See the following guides for help setting up a configuration file:
 ### One-line installation script
 
 You can run a one-line command to install Teleport binaries on a Linux server.
-The command takes the Teleport version and edition to install, then uses
-information about the operating system where it runs to choose a package manager
-and install Teleport.
+The command takes the Teleport version and edition to install, then uses the
+`teleport-update` command to install Teleport.
 
 The easiest installation method, for Teleport versions 17.3 and above, is the
 cluster install script. It will use the best version, edition, and installation
@@ -121,24 +121,11 @@ mode for your cluster.
    $ curl "https://<Var name="example.teleport.sh:443"/>/scripts/install.sh" | sudo bash
    ```
 
-If you are running older Teleport versions you must manually assign environment
-variables based on your edition:
+If you are installing a Teleport agent using an older version of Teleport, or if you are
+installing self-hosted control plane components, you must set the following environment
+variables:
 
 <Tabs>
-<TabItem label="Teleport Enterprise (Managed)">
-
-The following commands show you how to determine the Teleport version to install
-by querying your Teleport Cloud account. This way, the Teleport installation has
-the same major version as the service that manages automatic updates. Assign
-<Var name="example.teleport.sh" /> to your Teleport cluster address:
-
-```code
-$ TELEPORT_EDITION="cloud"
-$ TELEPORT_DOMAIN=<Var name="example.teleport.sh" />
-$ TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/stable/cloud/version | sed 's/v//')"
-```
-
-</TabItem>
 <TabItem label="Teleport Enterprise (Self-Hosted)">
 
 ```code
@@ -157,7 +144,7 @@ $ TELEPORT_VERSION="(=teleport.version=)"
 </TabItem>
 </Tabs>
 
-Then, download and run the generic installation script on the server where you
+Then, download and run the package-based installation script on the server where you
 want to install Teleport:
 
 ```code
@@ -167,12 +154,14 @@ $ curl (=teleport.teleport_install_script_url=) | bash -s ${TELEPORT_VERSION?} $
 ### Package repositories
 
 The [one-line installation script](#one-line-installation-script) automatically
-detects a package manager on the local system and uses it to install Teleport
-from an upstream repository.
+installs Teleport from the official Teleport CDN.
 
-If your system does not support the one-line installation script, read the
-instructions in this section for instructions on working with Teleport package
-repositories.
+If your system does not support the one-line installation script or the
+`teleport-update` command, read the instructions in this section for
+instructions on working with Teleport package repositories directly.
+Note that package installations have similar requirements to `teleport-update`.
+The package-based installation workflow is deprecated for Teleport agents,
+and may be converted to use `teleport-update` by running `teleport-update enable`.
 
 1. Assign the following environment variables in the terminal where you will run
    Teleport installation commands, indicating the package and version to
