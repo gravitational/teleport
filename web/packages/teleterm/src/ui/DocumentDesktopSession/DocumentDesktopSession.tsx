@@ -202,6 +202,8 @@ function makeTshdFileSystem(
         await mainProcessClient.selectDirectoryForDesktopSession(target);
     },
     getDirectoryName: () => directoryName,
+    // These functions are unimplemented because all file system operations
+    // are handled exclusively by the tsh daemon.
     stat: () => {
       throw new NotImplemented();
     },
