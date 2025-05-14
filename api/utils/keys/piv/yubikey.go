@@ -579,12 +579,9 @@ func doWithSharedConn[T any](c *sharedPIVConnection, do func(*piv.YubiKey) (T, e
 // Must be called under [sharedPIVConnection.connMu.RLock].
 func (c *sharedPIVConnection) holdConn() error {
 	if c.conn == nil || !c.connHealthy.Load() {
-		c.connMu.RUnlock()
 		if err := c.connect(); err != nil {
-			c.connMu.RLock()
 			return trace.Wrap(err)
 		}
-		c.connMu.RLock()
 	}
 
 	c.connHolds.Add(1)
@@ -601,16 +598,16 @@ func (c *sharedPIVConnection) releaseConn() {
 	// If there are no remaining holds on the connection, close it.
 	if remaining == 0 {
 		c.connMu.RUnlock()
-		defer c.connMu.RLock()
-
 		c.connMu.Lock()
-		defer c.connMu.Unlock()
 
 		// Double check that a new hold wasn't added while waiting for the full lock.
 		if c.connHolds.Load() == 0 {
 			c.conn.Close()
 			c.conn = nil
 		}
+
+		c.connMu.Unlock()
+		c.connMu.RLock()
 	}
 }
 
@@ -622,10 +619,6 @@ func (c *sharedPIVConnection) releaseConn() {
 func (c *sharedPIVConnection) reconnect() error {
 	// Prevent new callers from holding the unhealthy connection.
 	c.connHealthy.Store(false)
-
-	c.connMu.RUnlock()
-	defer c.connMu.RLock()
-
 	return c.connect()
 }
 
@@ -635,8 +628,12 @@ func (c *sharedPIVConnection) reconnect() error {
 // use it before it's released.
 // The YubiKey PIV module itself takes some additional time to handle closed
 // connections, so we use a retry loop to give the PIV module time to close prior connections.
+//
+// Must be called under [sharedPIVConnection.connMu.RLock].
 func (c *sharedPIVConnection) connect() error {
+	c.connMu.RUnlock()
 	c.connMu.Lock()
+	defer c.connMu.RLock()
 	defer c.connMu.Unlock()
 
 	// Check if there is an existing, healthy connection.
