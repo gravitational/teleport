@@ -93,7 +93,13 @@ describe('AccessMonitoringRulesDialog', () => {
       screen.getByRole('button', { name: /create access monitoring rule/i })
     );
 
-    expect(screen.getByText(/create a new/i)).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole('menuitem', { name: /notification routing rule/i })
+    );
+
+    expect(
+      screen.getByText(/create new notification routing rule/i)
+    ).toBeInTheDocument();
 
     expect(screen.getByText(/enroll an integration/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /create rule/i })).toBeDisabled();
@@ -134,6 +140,33 @@ describe('AccessMonitoringRulesDialog', () => {
     await userEvent.click(
       screen.getByRole('button', { name: /create access monitoring rule/i })
     );
+
+    await userEvent.click(
+      screen.getByRole('menuitem', { name: /notification routing rule/i })
+    );
+
+    await userEvent.click(screen.getByRole('tab', { name: /yaml/i }));
+    await userEvent.click(screen.getByRole('button', { name: /create rule/i }));
+
+    expect(screen.getAllByRole('button', { name: /view/i })).toHaveLength(3);
+    expect(screen.getByText(/created-rule/i)).toBeInTheDocument();
+
+    // sidebar is closed after create.
+    expect(screen.queryByTestId('yaml')).not.toBeInTheDocument();
+  });
+
+  test('create automatic review rule', async () => {
+    render(<Component />);
+    await waitForAllAsyncCalls();
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /create access monitoring rule/i })
+    );
+
+    await userEvent.click(
+      screen.getByRole('menuitem', { name: /automatic review rule/i })
+    );
+
     await userEvent.click(screen.getByRole('tab', { name: /yaml/i }));
     await userEvent.click(screen.getByRole('button', { name: /create rule/i }));
 

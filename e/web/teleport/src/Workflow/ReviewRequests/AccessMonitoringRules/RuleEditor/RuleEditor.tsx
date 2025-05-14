@@ -7,6 +7,7 @@ import { getErrMessage } from 'shared/utils/errorType';
 
 import {
   AccessMonitoringRule,
+  AccessMonitoringRuleType,
   AccessMonitoringRuleWithYaml,
 } from 'e-teleport/services/accessmonitoringrule/types';
 import { Plugin } from 'teleport/services/integrations';
@@ -23,11 +24,17 @@ import { RequiresResetToStandard } from './RequiresResetToStandard';
 import { EditorWrapper, Sidebar } from './Shared';
 import {
   buildRuleFromStandardEditor,
-  getConfigurableFieldsForStandardEditor,
+  ConfigurableFieldsForStandardEditor,
+  getConfigurableNotificationFieldsForStandardEditor,
+  getConfigurableReviewFieldsForStandardEditor,
   newAccessMonitoringRule,
   StandardEditor,
 } from './standardeditor';
-import { newYamlRuleFromTemplate, YamlEditor } from './yamleditor';
+import {
+  newNotificationRuleYaml,
+  newReviewRuleYaml,
+  YamlEditor,
+} from './yamleditor';
 
 export const RuleEditor = ({
   selectedRule,
@@ -35,6 +42,7 @@ export const RuleEditor = ({
   onEdit,
   plugins,
   onDelete,
+  editor,
 }: {
   // selectedRule can be null if a user is creaitng
   // a new rule instead.
@@ -43,15 +51,33 @@ export const RuleEditor = ({
   onEdit(r: AccessMonitoringRuleWithYaml): void;
   plugins: Plugin[];
   onDelete(r: AccessMonitoringRule): void;
+  editor: AccessMonitoringRuleType;
 }) => {
   const ctx = useTeleport();
   const fetchAttempt = useAttempt('');
   const { attempt, setAttempt } = fetchAttempt;
 
-  const [standardEditor, setStandardEditor] = useState<StandardEditor>({
-    rule: selectedRule ? selectedRule.object : newAccessMonitoringRule(),
-    ...getConfigurableFieldsForStandardEditor(selectedRule?.object, plugins),
-    isDirty: false,
+  const [standardEditor, setStandardEditor] = useState<StandardEditor>(() => {
+    let standardEditor = {
+      rule: selectedRule ? selectedRule.object : newAccessMonitoringRule(),
+      isDirty: false,
+    };
+
+    if (editor === AccessMonitoringRuleType.Review) {
+      return {
+        ...standardEditor,
+        ...getConfigurableReviewFieldsForStandardEditor(selectedRule?.object),
+      };
+    }
+
+    // Return notification fields by default.
+    return {
+      ...standardEditor,
+      ...getConfigurableNotificationFieldsForStandardEditor(
+        selectedRule?.object,
+        plugins
+      ),
+    };
   });
 
   const [yamlEditor, setYamlEditor] = useState<YamlEditor>({
@@ -63,6 +89,41 @@ export const RuleEditor = ({
   const [selectedEditorTab, setSelectedEditorTab] = useState<EditorTab>(() =>
     standardEditor.errors?.length > 0 ? EditorTab.Yaml : EditorTab.Standard
   );
+
+  function resetForNotificationsEditor() {
+    let configurableFields = getConfigurableNotificationFieldsForStandardEditor(
+      null,
+      plugins
+    );
+    configurableFields = {
+      ...configurableFields,
+      ruleName: standardEditor.ruleName || configurableFields.ruleName,
+      pluginOption: standardEditor.pluginOption?.value
+        ? standardEditor.pluginOption
+        : configurableFields.pluginOption,
+    };
+    return configurableFields;
+  }
+
+  function resetForReviewsEditor(): ConfigurableFieldsForStandardEditor {
+    let configurableFields = getConfigurableReviewFieldsForStandardEditor(null);
+    configurableFields = {
+      ...configurableFields,
+      ruleName: standardEditor.ruleName || configurableFields.ruleName,
+      desiredState:
+        standardEditor.desiredState || configurableFields.desiredState,
+      pluginOption: standardEditor.pluginOption?.value
+        ? standardEditor.pluginOption
+        : configurableFields.pluginOption,
+      automaticReview: standardEditor.automaticReview?.value
+        ? standardEditor.automaticReview
+        : configurableFields.automaticReview,
+      reviewDecisionOption: standardEditor.reviewDecisionOption?.value
+        ? standardEditor.reviewDecisionOption
+        : configurableFields.reviewDecisionOption,
+    };
+    return configurableFields;
+  }
 
   /**
    * resets the standard editor back into viewable state by setting
@@ -77,26 +138,13 @@ export const RuleEditor = ({
   function resetForStandardEditor() {
     setYamlEditor({ ...yamlEditor, requiresReset: false });
 
-    const rule = newAccessMonitoringRule();
-    const configurableFields = getConfigurableFieldsForStandardEditor(
-      {
-        ...rule,
-        metadata: {
-          name: standardEditor.ruleName,
-        },
-        spec: {
-          ...rule.spec,
-          notification: {
-            name: standardEditor.pluginOption?.value,
-            recipients: standardEditor.recipients.map(r => r.value),
-          },
-        },
-      },
-      plugins
-    );
+    const configurableFields =
+      editor === AccessMonitoringRuleType.Notification
+        ? resetForNotificationsEditor()
+        : resetForReviewsEditor();
 
     setStandardEditor({
-      rule,
+      rule: newAccessMonitoringRule(),
       ...configurableFields,
       errors: [],
       isDirty: false,
@@ -118,10 +166,13 @@ export const RuleEditor = ({
       return false;
     }
 
-    const configurableFields = getConfigurableFieldsForStandardEditor(
-      parsedRule,
-      plugins
-    );
+    const configurableFields =
+      editor === AccessMonitoringRuleType.Notification
+        ? getConfigurableNotificationFieldsForStandardEditor(
+            parsedRule,
+            plugins
+          )
+        : getConfigurableReviewFieldsForStandardEditor(parsedRule);
 
     setStandardEditor({
       rule: parsedRule,
@@ -180,9 +231,14 @@ export const RuleEditor = ({
           break;
         }
         if (!yamlEditor.content) {
-          const template = newYamlRuleFromTemplate(standardEditor);
+          let content = '';
+          if (editor === AccessMonitoringRuleType.Review) {
+            content = newReviewRuleYaml(standardEditor);
+          } else {
+            content = newNotificationRuleYaml(standardEditor);
+          }
           setYamlEditor({
-            content: template,
+            content,
             isDirty: true,
             requiresReset: standardEditor.errors?.length > 0,
           });
@@ -204,7 +260,10 @@ export const RuleEditor = ({
   const isCreating = !selectedRule?.object;
   const hasPluginAccess = ctx.storeUser.getPluginsAccess().read;
   const requiresEnrollingPlugins =
-    hasPluginAccess && isCreating && plugins.length === 0;
+    hasPluginAccess &&
+    isCreating &&
+    plugins.length === 0 &&
+    editor === AccessMonitoringRuleType.Notification; // plugin is only required for notification rules.
   return (
     <Sidebar p={4}>
       <EditorHeader
@@ -212,6 +271,7 @@ export const RuleEditor = ({
         onDelete={onDelete}
         requiresEnrollingPlugins={requiresEnrollingPlugins}
         onCancel={onCancel}
+        editor={editor}
       />
       {requiresEnrollingPlugins && <RequiresEnrollingPlugin />}
       {attempt.status === 'failed' && (
@@ -238,6 +298,7 @@ export const RuleEditor = ({
               onStandardEditorChange={setStandardEditor}
               fetchAttempt={fetchAttempt}
               yamlIsDirty={yamlEditor.isDirty}
+              editor={editor}
             />
           </>
         )}

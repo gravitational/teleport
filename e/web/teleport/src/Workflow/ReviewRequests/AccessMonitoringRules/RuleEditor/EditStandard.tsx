@@ -1,7 +1,8 @@
-import type { JSX } from 'react';
+import { useState, type JSX } from 'react';
 import { components } from 'react-select';
 
 import { Box, Mark, Text } from 'design';
+import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import FieldInput from 'shared/components/FieldInput';
 import {
   FieldSelect,
@@ -9,12 +10,16 @@ import {
 } from 'shared/components/FieldSelect';
 import { FieldSelectCreatableAsync } from 'shared/components/FieldSelect/FieldSelectCreatable';
 import { CustomSelectComponentProps, Option } from 'shared/components/Select';
+import { TraitsEditor, TraitsOption } from 'shared/components/TraitsEditor';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { State as Attempt } from 'shared/hooks/useAttemptNext';
 
 import { accessMonitoringRuleService } from 'e-teleport/services/accessmonitoringrule';
-import { AccessMonitoringRuleWithYaml } from 'e-teleport/services/accessmonitoringrule/types';
+import {
+  AccessMonitoringRuleType,
+  AccessMonitoringRuleWithYaml,
+} from 'e-teleport/services/accessmonitoringrule/types';
 import { Plugin } from 'teleport/services/integrations';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
@@ -34,6 +39,8 @@ import {
   buildRuleFromStandardEditor,
   ConfigurableFieldsForStandardEditor,
   hasModifiedFields,
+  ReviewDecisionOption,
+  reviewDecisionOptions,
   StandardEditor,
 } from './standardeditor';
 
@@ -46,6 +53,7 @@ export const EditStandard = ({
   onStandardEditorChange,
   fetchAttempt,
   yamlIsDirty,
+  editor,
 }: {
   selectedRule: AccessMonitoringRuleWithYaml;
   onEdit(r: AccessMonitoringRuleWithYaml): void;
@@ -62,14 +70,37 @@ export const EditStandard = ({
    * for this edge case.
    */
   yamlIsDirty: boolean;
+  editor: AccessMonitoringRuleType;
 }) => {
   const isEditing = !!selectedRule;
   const ctx = useTeleport();
   const { attempt, run } = fetchAttempt;
   const { clusterId } = useStickyClusterId();
   const { rule, ...configurableFields } = standardEditor;
-  const { ruleCondition, ruleName, recipients, pluginOption, errors } =
-    configurableFields;
+  const {
+    ruleCondition,
+    ruleName,
+    recipients,
+    pluginOption,
+    reviewDecisionOption,
+    errors,
+  } = configurableFields;
+
+  const [notificationEnabled, setNotificationEnabled] = useState<boolean>(
+    !!rule.spec?.notification?.name
+  );
+
+  function handleNotificationToggle(enabled: boolean) {
+    // Clear notification configuration when disabled.
+    if (!enabled) {
+      partialStandardEditorChange({
+        pluginOption: null,
+        recipients: [],
+      });
+    }
+
+    setNotificationEnabled(enabled);
+  }
 
   function onSave(validator: Validator) {
     if (!validator.validate()) {
@@ -116,7 +147,7 @@ export const EditStandard = ({
     return '';
   }
 
-  function handleStandardEditorChange(
+  function partialStandardEditorChange(
     modified: Partial<ConfigurableFieldsForStandardEditor>
   ) {
     const updatedFields: ConfigurableFieldsForStandardEditor = {
@@ -124,9 +155,17 @@ export const EditStandard = ({
         modified.ruleName === null
           ? ''
           : modified.ruleName || standardEditor.ruleName,
-      pluginOption: modified.pluginOption || standardEditor.pluginOption,
+      pluginOption:
+        modified.pluginOption === null
+          ? null
+          : modified.pluginOption || standardEditor.pluginOption,
       ruleCondition: modified.ruleCondition || standardEditor.ruleCondition,
       recipients: modified.recipients || standardEditor.recipients,
+      automaticReview:
+        modified.automaticReview || standardEditor.automaticReview,
+      reviewDecisionOption:
+        modified.reviewDecisionOption || standardEditor.reviewDecisionOption,
+      desiredState: modified.desiredState || standardEditor.desiredState,
     };
 
     onStandardEditorChange({
@@ -149,7 +188,7 @@ export const EditStandard = ({
           getLastFilter={getLastFilter}
           fetchRoleOptions={fetchRoleOptions}
           onChangeRuleConditionValues={(values: Option[]) => {
-            handleStandardEditorChange({
+            partialStandardEditorChange({
               ruleCondition: {
                 ...ruleCondition,
                 rolesCondition: {
@@ -181,7 +220,7 @@ export const EditStandard = ({
                 placeholder="name"
                 value={ruleName}
                 onChange={e =>
-                  handleStandardEditorChange({
+                  partialStandardEditorChange({
                     ruleName: e.target.value || null,
                   })
                 }
@@ -189,72 +228,137 @@ export const EditStandard = ({
                 readonly={isEditing || attempt.status === 'processing'}
               />
               <Box mb={4}>
-                <Text bold mb={2}>
-                  Match Condition
+                <Text bold>Match Condition</Text>
+                <Text mb={2}>
+                  {editor === AccessMonitoringRuleType.Review && (
+                    <>
+                      Select one or more roles, and optionally user traits, to
+                      define when this rule applies.
+                    </>
+                  )}
                 </Text>
                 <Box>
-                  <FieldSelect
-                    width="100%"
-                    mb={1}
-                    label="Notification Type"
-                    options={accessRequestMatchConditionOptions}
-                    isDisabled={attempt.status === 'processing'}
-                    onChange={(o: AccessRequestMatchConditionOption) =>
-                      handleStandardEditorChange({
-                        ruleCondition: {
-                          ...ruleCondition,
-                          rolesCondition: { field: o, values: undefined },
-                        },
-                      })
-                    }
-                    value={ruleCondition?.rolesCondition?.field}
-                  />
+                  {editor === AccessMonitoringRuleType.Notification && (
+                    <FieldSelect
+                      width="100%"
+                      mb={1}
+                      label="Notification Type"
+                      options={accessRequestMatchConditionOptions}
+                      isDisabled={attempt.status === 'processing'}
+                      onChange={(o: AccessRequestMatchConditionOption) =>
+                        partialStandardEditorChange({
+                          ruleCondition: {
+                            ...ruleCondition,
+                            rolesCondition: { field: o, values: undefined },
+                          },
+                        })
+                      }
+                      value={ruleCondition?.rolesCondition?.field}
+                    />
+                  )}
                   {notifyStateComponent}
+                  {editor === AccessMonitoringRuleType.Review && (
+                    <TraitsEditor
+                      label="User traits to match (Optional)"
+                      isLoading={attempt.status === 'processing'}
+                      configuredTraits={
+                        standardEditor.ruleCondition?.traitsCondition || []
+                      }
+                      setConfiguredTraits={(o: TraitsOption[]) =>
+                        partialStandardEditorChange({
+                          ruleCondition: {
+                            ...ruleCondition,
+                            traitsCondition: o,
+                          },
+                        })
+                      }
+                    />
+                  )}
                 </Box>
               </Box>
+              {editor === AccessMonitoringRuleType.Review && (
+                <Box mb={4}>
+                  <Text bold>Automatic Review</Text>
+                  <Text mb={2}>
+                    Select an automatic review decision for matching access
+                    requests.
+                  </Text>
+                  <FieldSelect
+                    label="Review decision"
+                    isSearchable={true}
+                    options={reviewDecisionOptions}
+                    onChange={(o: ReviewDecisionOption) =>
+                      partialStandardEditorChange({ reviewDecisionOption: o })
+                    }
+                    value={reviewDecisionOption}
+                    isDisabled={attempt.status === 'processing'}
+                    placeholder="Select the desired access request state"
+                    mb={1}
+                    rule={requiredField<Option>(
+                      'A review decision is required'
+                    )}
+                  />
+                </Box>
+              )}
               <Box>
                 <Text bold mb={2}>
                   Recipients
                 </Text>
-                <FieldSelect
-                  label="The integration to apply this rule to"
-                  isSearchable={true}
-                  options={plugins.map(p => ({ value: p.name, label: p.name }))}
-                  onChange={(o: Option) =>
-                    handleStandardEditorChange({ pluginOption: o })
-                  }
-                  value={pluginOption}
-                  isDisabled={attempt.status === 'processing'}
-                  placeholder="Select an integration"
-                  mb={1}
-                  rule={requiredField<Option>('An integration is required')}
-                />
-                <FieldSelectCreatable
-                  inputId="recipients"
-                  isDisabled={attempt.status === 'processing'}
-                  isMulti
-                  isClearable
-                  isSearchable
-                  label="Recipients to notify"
-                  placeholder="Start typing and press enter"
-                  onChange={(opts: Option[]) =>
-                    handleStandardEditorChange({ recipients: opts || [] })
-                  }
-                  options={recipients ?? []}
-                  value={recipients ?? []}
-                  toolTipContent={
-                    configurableFields.pluginOption
-                      ? getRecipientIconTooltip(
-                          configurableFields.pluginOption.value
-                        )
-                      : null
-                  }
-                />
-              </Box>
-              {standardEditor.pluginOption?.value &&
-                getDefaultPluginNotificationMessage(
-                  standardEditor.pluginOption.value
+                {editor === AccessMonitoringRuleType.Review && (
+                  <FieldCheckbox
+                    label="Enable notification routing"
+                    size="small"
+                    checked={notificationEnabled}
+                    onChange={e => handleNotificationToggle(e.target.checked)}
+                  />
                 )}
+                {(editor === AccessMonitoringRuleType.Notification ||
+                  notificationEnabled) && (
+                  <>
+                    <FieldSelect
+                      label="The integration to route notifications to"
+                      isSearchable={true}
+                      options={plugins.map(p => ({
+                        value: p.name,
+                        label: p.name,
+                      }))}
+                      onChange={(o: Option) =>
+                        partialStandardEditorChange({ pluginOption: o })
+                      }
+                      value={pluginOption}
+                      isDisabled={attempt.status === 'processing'}
+                      placeholder="Select an integration"
+                      mb={1}
+                      rule={requiredField<Option>('An integration is required')}
+                    />
+                    <FieldSelectCreatable
+                      inputId="recipients"
+                      isDisabled={attempt.status === 'processing'}
+                      isMulti
+                      isClearable
+                      isSearchable
+                      label="Recipients to notify (Optional)"
+                      placeholder="Start typing and press enter"
+                      onChange={(opts: Option[]) =>
+                        partialStandardEditorChange({ recipients: opts || [] })
+                      }
+                      options={recipients ?? []}
+                      value={recipients ?? []}
+                      toolTipContent={
+                        configurableFields.pluginOption
+                          ? getRecipientIconTooltip(
+                              configurableFields.pluginOption.value
+                            )
+                          : null
+                      }
+                    />
+                    {standardEditor.pluginOption?.value &&
+                      getDefaultPluginNotificationMessage(
+                        standardEditor.pluginOption.value
+                      )}
+                  </>
+                )}
+              </Box>
             </Box>
           </EditorWrapper>
           <EditorSaveCancelButton

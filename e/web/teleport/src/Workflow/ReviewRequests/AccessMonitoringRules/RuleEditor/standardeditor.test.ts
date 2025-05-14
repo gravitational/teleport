@@ -11,12 +11,13 @@ import {
 import {
   buildRuleFromStandardEditor,
   ConfigurableFieldsForStandardEditor,
-  getConfigurableFieldsForStandardEditor,
+  getConfigurableNotificationFieldsForStandardEditor,
+  getConfigurableReviewFieldsForStandardEditor,
   hasModifiedFields,
   newAccessMonitoringRule,
 } from './standardeditor';
 
-test('buildRuleFromStandardEditor: empty fields', () => {
+test('buildRuleFromStandardEditor: empty notification fields', () => {
   const emptyRule = newAccessMonitoringRule();
   expect(emptyRule).toStrictEqual({
     kind: 'access_monitoring_rule',
@@ -27,16 +28,12 @@ test('buildRuleFromStandardEditor: empty fields', () => {
     spec: {
       subjects: [AccessMonitoringRuleSubject.AccessRequest],
       condition: '',
-      notification: {
-        name: '',
-        recipients: [],
-      },
     },
   });
 
   const got = buildRuleFromStandardEditor({
     rule: emptyRule,
-    ...getConfigurableFieldsForStandardEditor(null, []),
+    ...getConfigurableNotificationFieldsForStandardEditor(null, []),
     isDirty: false,
   });
 
@@ -49,9 +46,47 @@ test('buildRuleFromStandardEditor: empty fields', () => {
     spec: {
       subjects: [AccessMonitoringRuleSubject.AccessRequest],
       condition: '',
-      notification: {
-        name: '',
-        recipients: [],
+      desired_state: null,
+      notification: null,
+      automatic_review: null,
+    },
+  });
+});
+
+test('buildRuleFromStandardEditor: empty review fields', () => {
+  const emptyRule = newAccessMonitoringRule();
+  expect(emptyRule).toStrictEqual({
+    kind: 'access_monitoring_rule',
+    version: 'v1',
+    metadata: {
+      name: '',
+    },
+    spec: {
+      subjects: [AccessMonitoringRuleSubject.AccessRequest],
+      condition: '',
+    },
+  });
+
+  const got = buildRuleFromStandardEditor({
+    rule: emptyRule,
+    ...getConfigurableReviewFieldsForStandardEditor(null),
+    isDirty: false,
+  });
+
+  expect(got).toStrictEqual({
+    kind: 'access_monitoring_rule',
+    version: 'v1',
+    metadata: {
+      name: '',
+    },
+    spec: {
+      subjects: [AccessMonitoringRuleSubject.AccessRequest],
+      condition: '',
+      desired_state: 'reviewed',
+      notification: null,
+      automatic_review: {
+        decision: 'APPROVED',
+        integration: 'builtin',
       },
     },
   });
@@ -73,6 +108,9 @@ test('buildRuleFromStandardEditor: empty rule with configurable fields defined',
         values: [],
       },
     },
+    automaticReview: { value: 'pagerduty', label: 'pagerduty' },
+    reviewDecisionOption: { label: 'Approved', value: 'APPROVED' },
+    desiredState: 'reviewed',
     isDirty: false,
   });
 
@@ -85,21 +123,28 @@ test('buildRuleFromStandardEditor: empty rule with configurable fields defined',
     spec: {
       subjects: [AccessMonitoringRuleSubject.AccessRequest],
       condition: '!is_empty(access_request.spec.roles)',
+      desired_state: 'reviewed',
       notification: {
         name: 'slack',
         recipients: ['llama'],
+      },
+      automatic_review: {
+        integration: 'pagerduty',
+        decision: 'APPROVED',
       },
     },
   });
 });
 
-test('buildRuleFromStandardEditor: partial configurable fields defined', () => {
+test('buildRuleFromStandardEditor: partial configurable notification fields defined', () => {
   const rule = newAccessMonitoringRule();
   rule.metadata.name = 'some-name';
-  rule.spec.notification.name = 'slack';
-  rule.spec.notification.recipients = ['llama'];
+  rule.spec.notification = {
+    name: 'slack',
+    recipients: ['llama'],
+  };
 
-  const cfg = getConfigurableFieldsForStandardEditor(rule, []);
+  const cfg = getConfigurableNotificationFieldsForStandardEditor(rule, []);
   expect(cfg).toStrictEqual({
     ruleName: 'some-name',
     pluginOption: { value: 'slack', label: 'slack' },
@@ -114,6 +159,9 @@ test('buildRuleFromStandardEditor: partial configurable fields defined', () => {
       traitsCondition: null,
     },
     errors: [],
+    automaticReview: null,
+    reviewDecisionOption: null,
+    desiredState: null,
   });
 
   const got = buildRuleFromStandardEditor({
@@ -137,11 +185,69 @@ test('buildRuleFromStandardEditor: partial configurable fields defined', () => {
         name: 'mattermost',
         recipients: ['llama'],
       },
+      automatic_review: null,
+      desired_state: null,
     },
   });
 });
 
-describe('getConfigurableFieldsForStandardEditor unsupported fields', () => {
+test('buildRuleFromStandardEditor: partial configurable review fields defined', () => {
+  const rule = newAccessMonitoringRule();
+  rule.metadata.name = 'some-name';
+  rule.spec.automatic_review = {
+    integration: 'builtin',
+    decision: 'APPROVED',
+  };
+  rule.spec.desired_state = 'reviewed';
+
+  const cfg = getConfigurableReviewFieldsForStandardEditor(rule);
+  expect(cfg).toStrictEqual({
+    ruleName: 'some-name',
+    pluginOption: null,
+    recipients: [],
+    ruleCondition: {
+      rolesCondition: {
+        field: accessRequestMatchConditionOptions.find(
+          a => a.value === AccessRequestMatchCondition.MatchAllRoles
+        ),
+        values: [],
+      },
+      traitsCondition: null,
+    },
+    errors: [],
+    automaticReview: { value: 'builtin', label: 'builtin' },
+    reviewDecisionOption: { label: 'Approved', value: 'APPROVED' },
+    desiredState: 'reviewed',
+  });
+
+  const got = buildRuleFromStandardEditor({
+    rule,
+    ...cfg,
+    automaticReview: { value: 'pagerduty', label: 'pagerduty' },
+    ruleCondition: null,
+    isDirty: false,
+  });
+
+  expect(got).toStrictEqual({
+    kind: 'access_monitoring_rule',
+    version: 'v1',
+    metadata: {
+      name: 'some-name',
+    },
+    spec: {
+      subjects: [AccessMonitoringRuleSubject.AccessRequest],
+      condition: '',
+      notification: null,
+      automatic_review: {
+        integration: 'pagerduty',
+        decision: 'APPROVED',
+      },
+      desired_state: 'reviewed',
+    },
+  });
+});
+
+describe('getConfigurableNotificationFieldsForStandardEditor unsupported fields', () => {
   const rule = newAccessMonitoringRule();
   const cases: {
     name: string;
@@ -187,7 +293,68 @@ describe('getConfigurableFieldsForStandardEditor unsupported fields', () => {
   ];
 
   test.each(cases)('$name', ({ rule, errors }) => {
-    const cfg = getConfigurableFieldsForStandardEditor(rule, []);
+    const cfg = getConfigurableNotificationFieldsForStandardEditor(rule, []);
+    expect(cfg.errors).toStrictEqual(errors);
+  });
+});
+
+describe('getConfigurableReviewFieldsForStandardEditor unsupported fields', () => {
+  const rule = newAccessMonitoringRule();
+  const cases: {
+    name: string;
+    rule: AccessMonitoringRule;
+    errors: string[];
+  }[] = [
+    {
+      name: 'unsupported desired_state',
+      rule: {
+        ...rule,
+        spec: {
+          ...rule.spec,
+          desired_state: 'unsupported_state',
+          automatic_review: {
+            integration: 'builtin',
+            decision: 'APPROVED',
+          },
+        },
+      },
+      errors: ['Unsupported desired_state: unsupported_state'],
+    },
+    {
+      name: 'unsupported decision',
+      rule: {
+        ...rule,
+        spec: {
+          ...rule.spec,
+          desired_state: 'reviewed',
+          automatic_review: {
+            integration: 'builtin',
+            decision: 'unsupported_decision',
+          },
+        },
+      },
+      errors: ['Unsupported automatic_review.decision: unsupported_decision'],
+    },
+    {
+      name: 'invalid condition',
+      rule: {
+        ...rule,
+        spec: {
+          ...rule.spec,
+          condition: 'invalid',
+          desired_state: 'reviewed',
+          automatic_review: {
+            integration: 'builtin',
+            decision: 'DENIED',
+          },
+        },
+      },
+      errors: ['Unsupported condition: invalid'],
+    },
+  ];
+
+  test.each(cases)('$name', ({ rule, errors }) => {
+    const cfg = getConfigurableReviewFieldsForStandardEditor(rule);
     expect(cfg.errors).toStrictEqual(errors);
   });
 });
@@ -197,20 +364,21 @@ test('hasModifiedFields: no modified fields', () => {
     kind: 'access_monitoring_rule',
     version: AccessMonitoringRuleVersion.V1,
     metadata: {
-      name: 'rule-name',
+      name: 'rule-name_no_modified',
     },
     spec: {
       subjects: [],
-      condition: 'condition',
+      condition: 'contains_any(access_request.spec.roles, set("test"))',
       notification: {
         name: 'slack',
         recipients: ['apple'],
       },
+      desired_state: null,
     },
   };
 
   const modified = hasModifiedFields(
-    getConfigurableFieldsForStandardEditor(originalRule, []),
+    getConfigurableNotificationFieldsForStandardEditor(originalRule, []),
     originalRule,
     false /* yamlModified */
   );
@@ -236,7 +404,7 @@ test('hasModifiedFields: if yaml is modified, always return true', () => {
   };
 
   const modified = hasModifiedFields(
-    getConfigurableFieldsForStandardEditor(originalRule, []),
+    getConfigurableNotificationFieldsForStandardEditor(originalRule, []),
     originalRule,
     true /* yamlModified */
   );
@@ -261,7 +429,10 @@ describe('hasModifiedFields', () => {
     },
   };
 
-  const cfg = getConfigurableFieldsForStandardEditor(originalRule, []);
+  const cfg = getConfigurableNotificationFieldsForStandardEditor(
+    originalRule,
+    []
+  );
 
   const cases: { name: string; cfg: ConfigurableFieldsForStandardEditor }[] = [
     {
@@ -300,8 +471,8 @@ describe('hasModifiedFields', () => {
         ruleCondition: {
           traitsCondition: [
             {
-              field: { label: 'trait-key', value: 'trait-key' },
-              values: [{ label: 'trait-val', value: 'trait-val' }],
+              traitKey: { label: 'trait-key', value: 'trait-key' },
+              traitValues: [{ label: 'trait-val', value: 'trait-val' }],
             },
           ],
         },

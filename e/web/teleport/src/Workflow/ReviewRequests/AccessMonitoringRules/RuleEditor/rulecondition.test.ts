@@ -182,8 +182,8 @@ describe('getReviewRuleCondition', () => {
         },
         traitsCondition: [
           {
-            field: { label: 'level', value: 'level' },
-            values: [{ label: 'L1', value: 'L1' }],
+            traitKey: { label: 'level', value: 'level' },
+            traitValues: [{ label: 'L1', value: 'L1' }],
           },
         ],
       },
@@ -205,8 +205,8 @@ describe('getReviewRuleCondition', () => {
         },
         traitsCondition: [
           {
-            field: { label: 'level', value: 'level' },
-            values: [
+            traitKey: { label: 'level', value: 'level' },
+            traitValues: [
               { label: 'L1', value: 'L1' },
               { label: 'L2', value: 'L2' },
             ],
@@ -232,15 +232,15 @@ describe('getReviewRuleCondition', () => {
         },
         traitsCondition: [
           {
-            field: { label: 'level', value: 'level' },
-            values: [
+            traitKey: { label: 'level', value: 'level' },
+            traitValues: [
               { label: 'L1', value: 'L1' },
               { label: 'L2', value: 'L2' },
             ],
           },
           {
-            field: { label: 'team', value: 'team' },
-            values: [{ label: 'Cloud', value: 'Cloud' }],
+            traitKey: { label: 'team', value: 'team' },
+            traitValues: [{ label: 'Cloud', value: 'Cloud' }],
           },
         ],
       },
@@ -395,15 +395,15 @@ describe('convertRuleConditionToPredicateExpression', () => {
         },
         traitsCondition: [
           {
-            field: { label: '', value: 'level' },
-            values: [
+            traitKey: { label: '', value: 'level' },
+            traitValues: [
               { label: 'L1', value: 'L1' },
               { label: 'L2', value: 'L2' },
             ],
           },
           {
-            field: { label: '', value: 'team' },
-            values: [{ label: 'Cloud', value: 'Cloud' }],
+            traitKey: { label: '', value: 'team' },
+            traitValues: [{ label: 'Cloud', value: 'Cloud' }],
           },
         ],
       },

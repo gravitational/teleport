@@ -30,6 +30,44 @@ export default {
   ],
 };
 
+const validCombinedRuleObject = {
+  metadata: { name: 'combined-rule' },
+  spec: {
+    subjects: ['access_request'],
+    condition: `|-
+      contains_all(set("access"), access_request.spec.roles) &&
+      contains_any(user.traits["level"], set("L1")) &&
+      contains_any(user.traits["team"], set("Dev")) &&
+      contains_any(user.traits["location"], set("Seattle"))`,
+    desired_state: 'reviewed',
+    notification: {
+      name: 'slack-plugin',
+      recipients: ['apple', 'banana', 'carrot'],
+    },
+    automatic_review: {
+      integration: 'builtin',
+      decision: 'APPROVED',
+    },
+  },
+};
+
+const validReviewRuleObject = {
+  metadata: { name: 'review-rule' },
+  spec: {
+    subjects: ['access_request'],
+    condition: `|-
+      contains_all(set("access"), access_request.spec.roles) &&
+      contains_any(user.traits["level"], set("L1")) &&
+      contains_any(user.traits["team"], set("Dev")) &&
+      contains_any(user.traits["location"], set("Seattle"))`,
+    desired_state: 'reviewed',
+    automatic_review: {
+      integration: 'builtin',
+      decision: 'APPROVED',
+    },
+  },
+};
+
 const validRuleObjectSlack = {
   metadata: { name: 'valid-default-to-standard-editor' },
   spec: {
@@ -117,12 +155,12 @@ subjects:
 - access_request
 version: v1`;
 
-const reviewRuleObject = {
+const invalidReviewRuleObject = {
   metadata: { name: 'review-rule' },
   spec: {
     subjects: ['access_request'],
     condition: `|-
-        contains_all(set("access"), access_request.spec.roles) &&
+        invalid_func(set("access"), access_request.spec.roles) &&
         contains_any(user.traits["level"], set("L1")) &&
         contains_any(user.traits["team"], set("Dev")) &&
         contains_any(user.traits["location"], set("Seattle"))`,
@@ -268,6 +306,26 @@ const withRule = http.get(accessMonitoringRuleListWithoutQuery, () =>
   })
 );
 
+const withReviewRule = http.get(accessMonitoringRuleListWithoutQuery, () =>
+  HttpResponse.json({
+    rules: [
+      {
+        object: {
+          ...validCombinedRuleObject,
+        },
+        yaml: ``,
+      },
+      {
+        object: {
+          ...validReviewRuleObject,
+        },
+        yaml: ``,
+      },
+    ],
+    startKey: '',
+  })
+);
+
 const noRules = http.get(accessMonitoringRuleListWithoutQuery, () =>
   HttpResponse.json({ rules: [], startKey: '' })
 );
@@ -332,6 +390,31 @@ CreateAndViewValidRule.parameters = {
   },
 };
 
+export const CreateAndViewReviewRule = () => {
+  return <Component />;
+};
+CreateAndViewReviewRule.parameters = {
+  msw: {
+    handlers: [
+      withReviewRule,
+      withPlugins,
+      deleteRule,
+      createRule,
+      getRoles,
+      http.post(cfg.oss.api.yaml.parse, () =>
+        HttpResponse.json({
+          resource: validCombinedRuleObject,
+        })
+      ),
+      http.post(cfg.oss.api.yaml.stringify, () =>
+        HttpResponse.json({
+          aml: reviewRuleYaml,
+        })
+      ),
+    ],
+  },
+};
+
 export const ViewRuleThatRequireReset = () => {
   return <Component />;
 };
@@ -376,7 +459,7 @@ ViewReviewRuleThatRequireReset.parameters = {
           rules: [
             {
               object: {
-                ...reviewRuleObject,
+                ...invalidReviewRuleObject,
                 metadata: { name: 'review-rule' },
               },
               yaml: reviewRuleYaml,
@@ -389,7 +472,7 @@ ViewReviewRuleThatRequireReset.parameters = {
       deleteRule,
       createRule,
       http.post(cfg.oss.api.yaml.parse, () =>
-        HttpResponse.json({ resource: reviewRuleObject })
+        HttpResponse.json({ resource: invalidReviewRuleObject })
       ),
       http.post(cfg.oss.api.yaml.stringify, () =>
         HttpResponse.json({ yaml: reviewRuleYaml })

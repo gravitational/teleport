@@ -6,12 +6,33 @@ import {
   AccessMonitoringRuleVersion,
 } from 'e-teleport/services/accessmonitoringrule/types';
 import { Plugin } from 'teleport/services/integrations';
+import {
+  AccessMonitoringRuleState,
+  AccessReviewDecision,
+} from 'teleport/services/resources';
 
 import {
   convertRuleConditionToPredicateExpression,
   getNotificationRuleCondition,
+  getReviewRuleCondition,
   RuleCondition,
 } from './rulecondition';
+
+export type ReviewDecisionOption = {
+  value: AccessReviewDecision;
+  label: string;
+};
+
+export const reviewDecisionOptions: ReviewDecisionOption[] = [
+  {
+    value: 'APPROVED',
+    label: 'Approved',
+  },
+  {
+    value: 'DENIED',
+    label: 'Denied',
+  },
+];
 
 /**
  * defines select few fields from the AccessMonitoringRule resource
@@ -22,6 +43,9 @@ export type ConfigurableFieldsForStandardEditor = {
   pluginOption: Option;
   recipients: Option[];
   ruleCondition: RuleCondition;
+  automaticReview: Option;
+  reviewDecisionOption: ReviewDecisionOption;
+  desiredState: AccessMonitoringRuleState;
   /**
    * errors will be populated with any unsupported fields
    * that are not editable within the standard editor.
@@ -54,10 +78,6 @@ export function newAccessMonitoringRule(): AccessMonitoringRule {
     spec: {
       subjects: [AccessMonitoringRuleSubject.AccessRequest],
       condition: '',
-      notification: {
-        name: '',
-        recipients: [],
-      },
     },
   };
 }
@@ -68,13 +88,54 @@ function unsupportedFieldErrors(obj: Record<string, any>): string[] {
   return Object.keys(obj).map(key => `Unsupported field: ${key}`);
 }
 
-// ruleToNotificationsEditor parses the notifications AccessMonitoringRule
-// object and extracts the fields that are editable in the standard editor.
-// Unsupported fields are returned in the errors array.
-function ruleToNotificationsEditor(
+function ruleToReviewsEditor(
   rule: AccessMonitoringRule
 ): ConfigurableFieldsForStandardEditor {
-  const errors: string[] = [];
+  const getAutomaticReviewIntegration = (integration: string): Option => {
+    switch (integration) {
+      case 'builtin':
+        return { label: integration, value: integration };
+      default:
+        return { label: '', value: '' };
+    }
+  };
+
+  const getReviewDecision = (decision: string): ReviewDecisionOption => {
+    const proposedState = decision?.toUpperCase();
+    switch (proposedState) {
+      case 'APPROVED':
+        return { label: 'Approved', value: proposedState };
+      case 'DENIED':
+        return { label: 'Denied', value: proposedState };
+      default:
+        return { label: '', value: '' };
+    }
+  };
+
+  const getDesiredState = (desiredState: string): AccessMonitoringRuleState => {
+    switch (desiredState) {
+      case 'reviewed':
+        return desiredState;
+      default:
+        return '';
+    }
+  };
+
+  const configurableFields = {
+    ruleName: '',
+    pluginOption: null,
+    recipients: [],
+    ruleCondition: {},
+    automaticReview: null,
+    reviewDecisionOption: null,
+    desiredState: getDesiredState(''),
+    errors: [],
+  };
+
+  if (!rule) {
+    configurableFields.errors.push(`rule is required`);
+    return configurableFields;
+  }
 
   // We use destructuring to strip fields from objects and assert that nothing
   // has been left. Therefore, we don't want Lint to warn us that we didn't use
@@ -82,7 +143,118 @@ function ruleToNotificationsEditor(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { kind, version, metadata, spec, ...unsupported } = rule;
   if (unsupported) {
-    errors.push(...unsupportedFieldErrors(unsupported));
+    configurableFields.errors.push(...unsupportedFieldErrors(unsupported));
+  }
+  configurableFields.ruleName = metadata?.name || '';
+
+  if (!spec) {
+    configurableFields.errors.push(`spec is required`);
+    return configurableFields;
+  }
+
+  const {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    subjects,
+    condition,
+    desired_state,
+    notification,
+    automatic_review,
+    ...unsupportedSpec
+  } = spec;
+  if (unsupportedSpec) {
+    configurableFields.errors.push(...unsupportedFieldErrors(unsupportedSpec));
+  }
+
+  if (notification) {
+    const { name, recipients, ...unsupportedNotification } = notification;
+    if (unsupportedNotification) {
+      configurableFields.errors.push(
+        ...unsupportedFieldErrors(unsupportedNotification)
+      );
+    }
+    if (name) {
+      configurableFields.pluginOption = { value: name, label: name };
+    }
+    if (recipients) {
+      configurableFields.recipients = recipients.map(r => ({
+        value: r,
+        label: r,
+      }));
+    }
+  }
+
+  if (automatic_review) {
+    const { integration, decision, ...unsupportedAutomaticReview } =
+      automatic_review;
+    if (unsupportedAutomaticReview) {
+      configurableFields.errors.push(
+        ...unsupportedFieldErrors(unsupportedAutomaticReview)
+      );
+    }
+    configurableFields.automaticReview =
+      getAutomaticReviewIntegration(integration);
+    if (!configurableFields.automaticReview.value) {
+      configurableFields.errors.push(
+        `Unsuported automatic_review.integration: ${configurableFields.automaticReview}`
+      );
+    }
+    configurableFields.reviewDecisionOption = getReviewDecision(decision);
+    if (!configurableFields.reviewDecisionOption.value) {
+      configurableFields.errors.push(
+        `Unsupported automatic_review.decision: ${automatic_review?.decision}`
+      );
+    }
+  }
+
+  configurableFields.ruleCondition = getReviewRuleCondition(condition);
+  if (!configurableFields.ruleCondition) {
+    configurableFields.errors.push(`Unsupported condition: ${condition}`);
+  }
+
+  configurableFields.desiredState = getDesiredState(desired_state);
+  if (!configurableFields.desiredState) {
+    configurableFields.errors.push(
+      `Unsupported desired_state: ${desired_state}`
+    );
+  }
+  return configurableFields;
+}
+
+// ruleToNotificationsEditor parses the notifications AccessMonitoringRule
+// object and extracts the fields that are editable in the standard editor.
+// Unsupported fields are returned in the errors array.
+function ruleToNotificationsEditor(
+  rule: AccessMonitoringRule
+): ConfigurableFieldsForStandardEditor {
+  const configurableFields = {
+    ruleName: '',
+    pluginOption: null,
+    recipients: [],
+    ruleCondition: {},
+    automaticReview: null,
+    reviewDecisionOption: null,
+    desiredState: null,
+    errors: [],
+  };
+
+  if (!rule) {
+    configurableFields.errors.push(`rule is required`);
+    return configurableFields;
+  }
+
+  // We use destructuring to strip fields from objects and assert that nothing
+  // has been left. Therefore, we don't want Lint to warn us that we didn't use
+  // some of the fields.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { kind, version, metadata, spec, ...unsupported } = rule;
+  if (unsupported) {
+    configurableFields.errors.push(...unsupportedFieldErrors(unsupported));
+  }
+  configurableFields.ruleName = metadata?.name || '';
+
+  if (!spec) {
+    configurableFields.errors.push(`spec is required`);
+    return configurableFields;
   }
 
   const {
@@ -93,38 +265,64 @@ function ruleToNotificationsEditor(
     ...unsupportedSpec
   } = spec;
   if (unsupportedSpec) {
-    errors.push(...unsupportedFieldErrors(unsupportedSpec));
+    configurableFields.errors.push(...unsupportedFieldErrors(unsupportedSpec));
   }
 
-  let recipients: Option[] = [];
-  if (notification?.recipients) {
-    recipients = notification.recipients.map(r => ({ value: r, label: r }));
+  if (notification) {
+    const { name, recipients, ...unsupportedNotification } = notification;
+    if (unsupportedNotification) {
+      configurableFields.errors.push(
+        ...unsupportedFieldErrors(unsupportedNotification)
+      );
+    }
+    if (name) {
+      configurableFields.pluginOption = { value: name, label: name };
+    }
+    if (recipients) {
+      configurableFields.recipients = recipients.map(r => ({
+        value: r,
+        label: r,
+      }));
+    }
   }
 
-  let pluginOption: Option = null;
-  if (notification?.name) {
-    pluginOption = { value: notification.name, label: notification.name };
+  configurableFields.ruleCondition = getNotificationRuleCondition(condition);
+  if (!configurableFields.ruleCondition) {
+    configurableFields.errors.push(`Unsupported condition: ${condition}`);
   }
-
-  const ruleCondition = getNotificationRuleCondition(condition);
-  if (!ruleCondition) {
-    errors.push(`Unsupported condition: ${condition}`);
-  }
-
-  return {
-    ruleName: metadata?.name || '',
-    pluginOption,
-    recipients,
-    ruleCondition,
-    errors,
-  };
+  return configurableFields;
 }
 
 /**
- * Returns configurable fields with default values
+ * Returns configurable fields for a review rule with default values
  * or extracts them from an existing rule.
  */
-export function getConfigurableFieldsForStandardEditor(
+export function getConfigurableReviewFieldsForStandardEditor(
+  rule: AccessMonitoringRule | null
+): ConfigurableFieldsForStandardEditor {
+  if (!rule) {
+    // creating a new rule
+    return {
+      ruleName: '',
+      recipients: [],
+      pluginOption: null,
+      ruleCondition: getReviewRuleCondition(''),
+      automaticReview: { label: 'builtin', value: 'builtin' },
+      reviewDecisionOption: reviewDecisionOptions.find(
+        o => o.value === 'APPROVED'
+      ),
+      desiredState: 'reviewed',
+    };
+  }
+
+  return ruleToReviewsEditor(rule);
+}
+
+/**
+ * Returns configurable fields for a notifications rule with default values
+ * or extracts them from an existing rule.
+ */
+export function getConfigurableNotificationFieldsForStandardEditor(
   rule: AccessMonitoringRule | null,
   plugins: Plugin[]
 ): ConfigurableFieldsForStandardEditor {
@@ -144,6 +342,9 @@ export function getConfigurableFieldsForStandardEditor(
       recipients: [],
       pluginOption: getFirstPluginOption(),
       ruleCondition: getNotificationRuleCondition(''),
+      automaticReview: null,
+      reviewDecisionOption: null,
+      desiredState: null,
     };
   }
 
@@ -162,8 +363,15 @@ export function buildRuleFromStandardEditor(
   standardEditor: StandardEditor
 ): AccessMonitoringRule {
   const { rule, ...configurableFields } = standardEditor;
-  const { ruleName, recipients, ruleCondition, pluginOption } =
-    configurableFields;
+  const {
+    ruleName,
+    recipients,
+    ruleCondition,
+    pluginOption,
+    automaticReview,
+    reviewDecisionOption,
+    desiredState,
+  } = configurableFields;
 
   const getSubjects = () => {
     const subjects = rule.spec.subjects;
@@ -172,6 +380,18 @@ export function buildRuleFromStandardEditor(
     }
     // Default.
     return [AccessMonitoringRuleSubject.AccessRequest];
+  };
+
+  const notificationRoutingSpec = {
+    ...rule.spec.notification,
+    name: pluginOption?.value || '',
+    recipients: recipients?.map(r => r.value),
+  };
+
+  const automaticReviewSpec = {
+    ...rule.spec.automatic_review,
+    integration: automaticReview?.value || '',
+    decision: reviewDecisionOption?.value || '',
   };
 
   return {
@@ -184,11 +404,11 @@ export function buildRuleFromStandardEditor(
       ...rule.spec,
       condition: convertRuleConditionToPredicateExpression(ruleCondition),
       subjects: getSubjects(),
-      notification: {
-        ...rule.spec.notification,
-        recipients: recipients?.map(r => r.value),
-        name: pluginOption?.value || '',
-      },
+      desired_state: desiredState,
+      notification:
+        notificationRoutingSpec.name !== '' ? notificationRoutingSpec : null,
+      automatic_review:
+        automaticReviewSpec.integration !== '' ? automaticReviewSpec : null,
     },
   };
 }
@@ -208,7 +428,6 @@ export function hasModifiedFields(
   if (yamlModified) {
     return true;
   }
-
   const originalRuleCondition = getNotificationRuleCondition(
     originalRule?.spec.condition
   );
@@ -227,10 +446,10 @@ export function hasModifiedFields(
 
     return (
       originalRuleCondition?.traitsCondition
-        ?.map(v => v.values.join(''))
+        ?.map(v => v.traitValues.join(''))
         .join('') !==
       updated.ruleCondition?.traitsCondition
-        ?.map(v => v.values.join(''))
+        ?.map(v => v.traitValues.join(''))
         .join('')
     );
   };
@@ -245,15 +464,27 @@ export function hasModifiedFields(
     updated.ruleCondition?.rolesCondition?.values?.map(v => v.value).join('');
 
   const modifiedPluginOption = () =>
-    updated.pluginOption?.value !== originalRule?.spec.notification.name;
+    updated.pluginOption?.value !== originalRule?.spec.notification?.name;
 
   const modifiedRecipients = () => {
-    const originalRecipients = originalRule?.spec.notification.recipients || [];
+    const originalRecipients =
+      originalRule?.spec.notification?.recipients || [];
     return (
       updated.recipients?.map(r => r.value).join('') !==
       originalRecipients.join('')
     );
   };
+
+  const modifiedAutomaticReview = () =>
+    updated.automaticReview?.value !==
+    originalRule?.spec.automatic_review?.integration;
+
+  const modifiedReviewDecision = () =>
+    updated.reviewDecisionOption?.value !==
+    originalRule?.spec.automatic_review?.decision;
+
+  const modifiedDesiredState = () =>
+    updated.desiredState !== originalRule?.spec.desired_state;
 
   return (
     modifiedRolesConditionField() ||
@@ -261,6 +492,9 @@ export function hasModifiedFields(
     modifiedRolesConditionValues() ||
     modifiedPluginOption() ||
     modifiedRecipients() ||
-    modifiedTraitsConditionField()
+    modifiedTraitsConditionField() ||
+    modifiedAutomaticReview() ||
+    modifiedReviewDecision() ||
+    modifiedDesiredState()
   );
 }

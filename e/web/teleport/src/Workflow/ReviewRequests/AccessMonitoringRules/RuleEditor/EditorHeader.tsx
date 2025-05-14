@@ -1,10 +1,13 @@
 import { useState } from 'react';
 
-import { ButtonText, Flex, H2 } from 'design';
+import { ButtonText, Flex, H2, Link } from 'design';
 import { Trash } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
-import { AccessMonitoringRule } from 'e-teleport/services/accessmonitoringrule/types';
+import {
+  AccessMonitoringRule,
+  AccessMonitoringRuleType,
+} from 'e-teleport/services/accessmonitoringrule/types';
 import useTeleport from 'teleport/useTeleport';
 
 import { DeleteRuleDialogue } from './DeleteRuleDialogue';
@@ -14,11 +17,13 @@ export const EditorHeader = ({
   requiresEnrollingPlugins,
   onCancel,
   onDelete,
+  editor,
 }: {
   onDelete?(r: AccessMonitoringRule): void;
   rule?: AccessMonitoringRule;
   requiresEnrollingPlugins: boolean;
   onCancel(): void;
+  editor: AccessMonitoringRuleType;
 }) => {
   const ctx = useTeleport();
   const isCreating = !rule;
@@ -26,12 +31,22 @@ export const EditorHeader = ({
 
   const hasDeleteAccess = ctx.storeUser.getAccessMonitoringRuleAccess().remove;
 
+  let header = rule?.metadata?.name || '';
+  if (isCreating) {
+    switch (editor) {
+      case AccessMonitoringRuleType.Review:
+        header = 'Create New Automatic Review Rule';
+        break;
+      case AccessMonitoringRuleType.Notification:
+        header = 'Create New Notification Routing Rule';
+        break;
+    }
+  }
+
   return (
     <>
       <Flex alignItems="center" mb={3} justifyContent="space-between" flex="1">
-        <H2>
-          {isCreating ? 'Create a New Notification Rule' : rule?.metadata?.name}
-        </H2>
+        <H2>{header}</H2>
         {requiresEnrollingPlugins && (
           <ButtonText onClick={onCancel}>Cancel</ButtonText>
         )}
@@ -42,7 +57,7 @@ export const EditorHeader = ({
               tipContent={
                 hasDeleteAccess
                   ? 'Delete'
-                  : 'You do not have access to delete a notification rule'
+                  : 'You do not have access to delete an access monitoring rule'
               }
             >
               <ButtonText
@@ -57,6 +72,7 @@ export const EditorHeader = ({
           </Flex>
         )}
       </Flex>
+      {isCreating && getDescriptionHeader(editor)}
       {deleteConfirm && (
         <DeleteRuleDialogue
           name={rule.metadata.name}
@@ -67,3 +83,35 @@ export const EditorHeader = ({
     </>
   );
 };
+
+function getDescriptionHeader(editor: AccessMonitoringRuleType) {
+  switch (editor) {
+    case AccessMonitoringRuleType.Review:
+      return (
+        <>
+          <p>
+            With automatic review rules, access requests can be automatically
+            reviewed based on the <b>match condition</b>.
+          </p>
+          <p>
+            Note: Automatic reviews are only supported for{' '}
+            <Link
+              target="_blank"
+              href="https://goteleport.com/docs/admin-guides/access-controls/access-requests/role-requests"
+            >
+              Role Access Requests
+            </Link>{' '}
+            at this time.
+          </p>
+        </>
+      );
+    case AccessMonitoringRuleType.Notification:
+      return (
+        <p>
+          With notification rules, access request notifications can be routed to
+          an external integration based on the <b>match condition</b> and the{' '}
+          <b>recipients</b>.
+        </p>
+      );
+  }
+}

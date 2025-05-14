@@ -2,11 +2,12 @@ import { forwardRef, useCallback, useEffect, useState } from 'react';
 import type { TransitionStatus } from 'react-transition-group';
 import { useTheme } from 'styled-components';
 
-import { Alert, Box, Button, ButtonIcon, Flex, Indicator, Text } from 'design';
+import { Alert, Box, ButtonIcon, Flex, Indicator, Text } from 'design';
 import Dialog from 'design/Dialog';
 import { Cross } from 'design/Icon';
 import { Theme } from 'design/theme/themes/types';
 import { HoverTooltip } from 'design/Tooltip';
+import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { useKeyBasedPagination } from 'shared/hooks/useInfiniteScroll';
@@ -14,6 +15,7 @@ import { useKeyBasedPagination } from 'shared/hooks/useInfiniteScroll';
 import { accessMonitoringRuleService } from 'e-teleport/services/accessmonitoringrule';
 import {
   AccessMonitoringRule,
+  AccessMonitoringRuleType,
   AccessMonitoringRuleWithYaml,
 } from 'e-teleport/services/accessmonitoringrule/types';
 import { pluginsService } from 'e-teleport/services/plugins';
@@ -45,11 +47,15 @@ export const AccessMonitoringRulesDialog = forwardRef<
 
   const theme = useTheme();
   const { clusterId } = useStickyClusterId();
-  const [showEditor, setShowEditor] = useState(false);
+  const [editor, setEditor] = useState<AccessMonitoringRuleType>();
   const [plugins, setPlugins] = useState<Plugin[]>([]);
 
   const [viewingRule, setViewingRule] =
     useState<AccessMonitoringRuleWithYaml>();
+
+  const showEditor =
+    editor === AccessMonitoringRuleType.Notification ||
+    editor === AccessMonitoringRuleType.Review;
 
   const {
     attempt: fetchPluginsAttempt,
@@ -114,10 +120,14 @@ export const AccessMonitoringRulesDialog = forwardRef<
       viewingRule.object.metadata.name != rule.object.metadata.name
     ) {
       setViewingRule(rule);
-      setShowEditor(true);
+      if (rule.object.spec.automatic_review) {
+        setEditor(AccessMonitoringRuleType.Review);
+      } else {
+        setEditor(AccessMonitoringRuleType.Notification);
+      }
     } else {
       setViewingRule(null);
-      setShowEditor(false);
+      setEditor(null);
     }
   }
 
@@ -125,8 +135,15 @@ export const AccessMonitoringRulesDialog = forwardRef<
     updateFetchedResources(
       rules.filter(r => r.object.metadata.name !== deletedRule.metadata.name)
     );
-    setShowEditor(false);
     setViewingRule(null);
+    setEditor(null);
+  }
+
+  function onCreateRule(editor: AccessMonitoringRuleType) {
+    if (showEditor) {
+      setViewingRule(null);
+    }
+    setEditor(editor);
   }
 
   function onEdit(editedRule: AccessMonitoringRuleWithYaml) {
@@ -140,12 +157,12 @@ export const AccessMonitoringRulesDialog = forwardRef<
     } else {
       updateFetchedResources([...rules, editedRule]);
     }
-    setShowEditor(false);
+    setEditor(null);
     setViewingRule(null);
   }
 
   function handleEditorCancel() {
-    setShowEditor(false);
+    setEditor(null);
     setViewingRule(null);
   }
 
@@ -157,7 +174,7 @@ export const AccessMonitoringRulesDialog = forwardRef<
       ref={ref}
       className={transitionState}
     >
-      <Flex css={{ flex: 1 }}>
+      <Flex css={{ flex: 1 }} width="100%">
         <Box
           p={4}
           css={`
@@ -190,26 +207,45 @@ export const AccessMonitoringRulesDialog = forwardRef<
                   )
                 }
               >
-                <Button
-                  intent="primary"
-                  fill={
-                    fetchRulesAttempt.status === 'success' && rules.length === 0
-                      ? 'filled'
-                      : 'border'
-                  }
-                  disabled={
-                    (showEditor && !viewingRule) || !hasAmRuleCreateAccess
-                  }
-                  onClick={() => {
-                    if (showEditor) {
-                      setViewingRule(null);
-                    } else {
-                      setShowEditor(true);
-                    }
+                <MenuButton
+                  menuProps={{ menuListCss }}
+                  buttonText="Create Access Monitoring Rule"
+                  buttonProps={{
+                    width: 240,
+                    padding: 0,
+                    size: 'medium',
+                    intent: 'primary',
+                    color: 'inherit',
+                    fill:
+                      fetchRulesAttempt.status === 'success' &&
+                      rules.length === 0
+                        ? 'filled'
+                        : 'border',
+                    disabled:
+                      (showEditor && !viewingRule) || !hasAmRuleCreateAccess,
                   }}
                 >
-                  Create Access Monitoring Rule
-                </Button>
+                  <MenuItem
+                    margin={1}
+                    px={3}
+                    borderRadius={2}
+                    onClick={() =>
+                      onCreateRule(AccessMonitoringRuleType.Notification)
+                    }
+                  >
+                    Notification Routing Rule
+                  </MenuItem>
+                  <MenuItem
+                    margin={1}
+                    px={3}
+                    borderRadius={2}
+                    onClick={() =>
+                      onCreateRule(AccessMonitoringRuleType.Review)
+                    }
+                  >
+                    Automatic Review Rule
+                  </MenuItem>
+                </MenuButton>
               </HoverTooltip>
             )}
           </Flex>
@@ -250,12 +286,17 @@ export const AccessMonitoringRulesDialog = forwardRef<
             onEdit={onEdit}
             onDelete={onDelete}
             plugins={plugins}
+            editor={editor}
           />
         )}
       </Flex>
     </Dialog>
   );
 });
+
+const menuListCss = () => `
+  width: 240px;
+`;
 
 const fullScreenDialogCss = (theme: Theme) => {
   return `

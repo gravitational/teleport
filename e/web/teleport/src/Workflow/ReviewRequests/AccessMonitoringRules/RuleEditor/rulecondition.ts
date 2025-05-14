@@ -1,4 +1,5 @@
 import { Option } from 'shared/components/Select';
+import { TraitsOption } from 'shared/components/TraitsEditor';
 import { RequestState } from 'shared/services/accessRequests';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 import { parseQuotedWordsDelimitedByComma } from 'shared/utils/parseString';
@@ -56,16 +57,11 @@ export type AccessRequestStateOption = {
 
 export type RuleCondition = {
   rolesCondition?: RolesCondition;
-  traitsCondition?: TraitsCondition[];
+  traitsCondition?: TraitsOption[];
 };
 
 export type RolesCondition = {
   field: AccessRequestMatchConditionOption;
-  values: Option[];
-};
-
-export type TraitsCondition = {
-  field: Option<string>;
   values: Option[];
 };
 
@@ -161,7 +157,7 @@ export function getNotificationRuleCondition(condition: string): RuleCondition {
  */
 export function getReviewRuleCondition(condition: string): RuleCondition {
   let rolesCondition: RolesCondition;
-  let traitsCondition: TraitsCondition[] = [];
+  let traitsCondition: TraitsOption[] = [];
 
   // Default to role condition.
   if (!condition) {
@@ -219,8 +215,8 @@ export function getReviewRuleCondition(condition: string): RuleCondition {
       );
       if (traitValues.length !== 0) {
         traitsCondition.push({
-          field: { label: trait, value: trait },
-          values: traitValues.map(v => ({ label: v, value: v })),
+          traitKey: { label: trait, value: trait },
+          traitValues: traitValues.map(v => ({ label: v, value: v })),
         });
       }
     }
@@ -272,15 +268,20 @@ function convertRolesConditionToPredicateExpression(
 }
 
 function convertTraitsConditionToPredicateExpression(
-  traitsCondition?: TraitsCondition[]
+  traitsCondition?: TraitsOption[]
 ) {
   if (!traitsCondition || traitsCondition.length === 0) {
     return ``;
   }
 
+  // Ignore empty traits
+  traitsCondition = traitsCondition.filter(
+    v => !!v.traitKey && v.traitValues.length > 0
+  );
+
   const expressions = traitsCondition.map(v => {
-    const joinedTraits = v.values.map(v => `"${v.value}"`).join(', ');
-    return `contains_any(${USER_TRAITS}["${v.field.value}"], set(${joinedTraits}))`;
+    const joinedTraits = v.traitValues.map(v => `"${v.value}"`).join(', ');
+    return `contains_any(${USER_TRAITS}["${v.traitKey.value}"], set(${joinedTraits}))`;
   });
 
   return expressions.join(` &&\n`);
