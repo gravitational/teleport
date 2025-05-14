@@ -141,7 +141,6 @@ func (g *gcpKMSKeyStore) generateKey(ctx context.Context, algorithm cryptosuites
 
 	return gcpKMSKeyID{
 		keyVersionName: resp.Name + keyVersionSuffix,
-		usage:          usage,
 	}, nil
 }
 
