@@ -187,7 +187,7 @@ func gcpAlgorithm(alg cryptosuites.Algorithm) (kmspb.CryptoKeyVersion_CryptoKeyV
 	return kmspb.CryptoKeyVersion_CRYPTO_KEY_VERSION_ALGORITHM_UNSPECIFIED, trace.BadParameter("unsupported algorithm: %v", alg)
 }
 
-// getSigner returns a crypto.Signer for the given pem-encoded private key.
+// getSigner returns a crypto.Signer for the given raw private key.
 func (g *gcpKMSKeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
 	keyID, err := parseGCPKMSKeyID(rawKey)
 	if err != nil {
@@ -197,7 +197,7 @@ func (g *gcpKMSKeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey
 	return signer, trace.Wrap(err)
 }
 
-// getDecrypter returns a crypto.Decrypter for the given pem-encoded private key.
+// getDecrypter returns a crypto.Decrypter for the given raw private key.
 func (g *gcpKMSKeyStore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
 	keyID, err := parseGCPKMSKeyID(rawKey)
 	if err != nil {
@@ -441,7 +441,6 @@ func (u keyUsage) toGCP() kmspb.CryptoKey_CryptoKeyPurpose {
 
 type gcpKMSKeyID struct {
 	keyVersionName string
-	usage          keyUsage
 }
 
 func (g gcpKMSKeyID) marshal() []byte {

@@ -576,7 +576,6 @@ func (a *awsKMSKeystore) forEachKey(ctx context.Context, fn func(ctx context.Con
 
 type awsKMSKeyID struct {
 	arn, account, region string
-	usage                keyUsage
 }
 
 func (a awsKMSKeyID) marshal() []byte {
