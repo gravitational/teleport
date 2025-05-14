@@ -515,6 +515,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.AccessGraph.CA = fc.AccessGraph.CA
 		// TODO(tigrato): change this behavior when we drop support for plain text connections
 		cfg.AccessGraph.Insecure = fc.AccessGraph.Insecure
+		cfg.AccessGraph.AuditLog = servicecfg.AuditLogConfig(fc.AccessGraph.AuditLog)
 	}
 
 	applyString(fc.NodeName, &cfg.Hostname)

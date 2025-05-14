@@ -19,6 +19,7 @@
 package export
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"sync"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/time/rate"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -50,6 +52,10 @@ type DateExporterConfig struct {
 	// Export is the callback used to export events. Must be safe for concurrent use if
 	// the Concurrency parameter is greater than 1.
 	Export func(ctx context.Context, event *auditlogpb.ExportEventUnstructured) error
+	// BatchExport is the callback with configuration used to export multiple
+	// events in batches.
+	BatchExport *BatchExportConfig
+
 	// OnIdle is an optional callback that gets invoked periodically when the exporter is idle. Note that it is
 	// safe to close the exporter or inspect its state from within this callback, but waiting on the exporter's
 	// Done channel within this callback will deadlock.
@@ -69,20 +75,24 @@ func (cfg *DateExporterConfig) CheckAndSetDefaults() error {
 	if cfg.Client == nil {
 		return trace.BadParameter("missing required parameter Client in DateExporterConfig")
 	}
-	if cfg.Export == nil {
-		return trace.BadParameter("missing required parameter Export in DateExporterConfig")
+	if cfg.Export == nil && cfg.BatchExport == nil {
+		return trace.BadParameter("missing required parameter Export or BatchExport in DateExporterConfig")
+	}
+	if cfg.BatchExport != nil && cfg.BatchExport.Callback == nil {
+		return trace.BadParameter("missing parameter BatchExport.Callback in DateExporterConfig")
+	}
+	if cfg.Export != nil && cfg.BatchExport != nil {
+		return trace.BadParameter("only one of Export or BatchExport may be set in ExporterConfig")
 	}
 	if cfg.Date.IsZero() {
 		return trace.BadParameter("missing required parameter Date in DateExporterConfig")
 	}
-	if cfg.Concurrency == 0 {
-		cfg.Concurrency = 1
-	}
-	if cfg.MaxBackoff == 0 {
-		cfg.MaxBackoff = 90 * time.Second
-	}
-	if cfg.PollInterval == 0 {
-		cfg.PollInterval = 16 * time.Second
+	cfg.Concurrency = cmp.Or(cfg.Concurrency, 1)
+	cfg.MaxBackoff = cmp.Or(cfg.MaxBackoff, 90*time.Second)
+	cfg.PollInterval = cmp.Or(cfg.PollInterval, 16*time.Second)
+	if cfg.BatchExport != nil {
+		cfg.BatchExport.MaxDelay = cmp.Or(cfg.BatchExport.MaxDelay, 5*time.Second)
+		cfg.BatchExport.MaxSize = cmp.Or(cfg.BatchExport.MaxSize, 2*1024*1024 /* 2MiB */)
 	}
 	return nil
 }
@@ -437,7 +447,13 @@ Outer:
 			Cursor: entry.getCursor(),
 		})
 
-		if err := e.exportEvents(ctx, events, entry); err != nil {
+		var err error
+		if e.cfg.Export != nil {
+			err = e.exportEvents(ctx, events, entry)
+		} else {
+			err = e.batchExportEvents(ctx, events, entry, chunk)
+		}
+		if err != nil {
 			failures++
 
 			if e.chunkLogLimiter.Allow() {
@@ -456,6 +472,121 @@ Outer:
 		entry.done.Store(true)
 		return
 	}
+}
+
+type batch struct {
+	maxSize int
+	chunk   string
+	entry   *chunkEntry
+
+	size   int
+	events []*auditlogpb.EventUnstructured
+	cursor string
+}
+
+func (b *batch) addEvent(event *auditlogpb.ExportEventUnstructured) bool {
+	e := event.GetEvent()
+	size := proto.Size(e)
+	if b.size+size <= b.maxSize || len(b.events) == 0 {
+		b.size += size
+		b.events = append(b.events, e)
+		b.cursor = event.GetCursor()
+		return true
+	}
+	return false
+}
+
+func (b *batch) reset() {
+	b.events = nil
+	b.size = 0
+	b.cursor = ""
+}
+
+func (b *batch) isEmpty() bool {
+	return len(b.events) == 0
+}
+
+// batchExportEvents reads events from the provided stream and exports them in batches.
+// Batching adheres to the export configuration: batches are sent either when
+// they reach the configured maximum size (MaxSize) or after the maximum delay
+// (MaxDelay) has passed with pending events. Processing continues until the
+// stream closes or an error occurs.
+func (e *DateExporter) batchExportEvents(ctx context.Context, stream stream.Stream[*auditlogpb.ExportEventUnstructured], entry *chunkEntry, chunk string) error {
+	exportEventCh := make(chan *auditlogpb.ExportEventUnstructured, 1)
+	go func() {
+		for stream.Next() {
+			exportEventCh <- stream.Item()
+		}
+		close(exportEventCh)
+	}()
+
+	batch := &batch{
+		maxSize: e.cfg.BatchExport.MaxSize,
+		chunk:   chunk,
+		entry:   entry,
+	}
+	timer := time.NewTimer(e.cfg.BatchExport.MaxDelay)
+	defer timer.Stop()
+loop:
+	for {
+		var unprocessedEvent *auditlogpb.ExportEventUnstructured
+		select {
+		case exportEvent, ok := <-exportEventCh:
+			if !ok {
+				// all events have been processed
+				break loop
+			}
+			if batch.addEvent(exportEvent) {
+				continue
+			}
+			unprocessedEvent = exportEvent
+		case <-timer.C:
+			if batch.isEmpty() {
+				timer.Reset(e.cfg.BatchExport.MaxDelay)
+				continue
+			}
+		}
+		err := e.batchExport(ctx, batch, false /*completed*/)
+		if err != nil {
+			stream.Done()
+			return trace.Wrap(err)
+		}
+
+		batch.reset()
+		timer.Reset(e.cfg.BatchExport.MaxDelay)
+
+		if unprocessedEvent != nil {
+			batch.addEvent(unprocessedEvent)
+		}
+	}
+
+	if err := stream.Done(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// One final call back with completed set to true, even if batch is empty.
+	err := e.batchExport(ctx, batch, true /*completed*/)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// batchExport calls the batch export callback with the given batched events and
+// the derived resume state.
+func (e *DateExporter) batchExport(ctx context.Context, batch *batch, completed bool) error {
+	cursor := batch.cursor
+	if completed {
+		cursor = ""
+	}
+	resumeState := BulkExportResumeState{
+		Chunk:     batch.chunk,
+		Cursor:    cursor,
+		Date:      e.cfg.Date,
+		Completed: completed,
+	}
+	batch.entry.setCursor(cursor)
+	return e.cfg.BatchExport.Callback(ctx, batch.events, resumeState)
 }
 
 // exportEvents exports all events from the provided stream, updating the supplied entry on each successful export.
