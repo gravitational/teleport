@@ -28,7 +28,7 @@ func (c *Cache) GetPluginStaticCredentials(ctx context.Context, name string) (ty
 	ctx, span := c.Tracer.Start(ctx, "cache/GetPluginStaticCredentials")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.pluginStaticCredentials)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.pluginStaticCredentials)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -40,7 +40,7 @@ func (c *Cache) GetPluginStaticCredentialsByLabels(ctx context.Context, labels m
 	ctx, span := c.Tracer.Start(ctx, "cache/GetPluginStaticCredentialsByLabels")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.pluginStaticCredentials)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.pluginStaticCredentials)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
