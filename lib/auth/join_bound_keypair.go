@@ -64,6 +64,10 @@ func validateBoundKeypairTokenSpec(spec *types.ProvisionTokenSpecV2BoundKeypair)
 		return trace.NotImplemented("spec.bound_keypair.onboarding.initial_public_key is currently required")
 	}
 
+	if spec.Recovery == nil {
+		return trace.BadParameter("spec.recovery: field is required")
+	}
+
 	if spec.Recovery.Mode != boundkeypair.RecoveryModeInsecure {
 		return trace.NotImplemented("spec.bound_keypair.recovery.mode currently must be %s", boundkeypair.RecoveryModeInsecure)
 	}
