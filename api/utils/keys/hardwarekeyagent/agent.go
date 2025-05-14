@@ -61,8 +61,6 @@ func NewClient(ctx context.Context, socketPath string, creds credentials.Transpo
 }
 
 // NewServer returns a new hardware key agent server.
-//
-// If a [KnownHardwareKeyFn] is not provided, all PIV keys are treated as agent keys (used in tests).
 func NewServer(_ context.Context, s hardwarekey.Service, creds credentials.TransportCredentials, knownKeyFn KnownHardwareKeyFn) *grpc.Server {
 	grpcServer := grpc.NewServer(
 		grpc.Creds(creds),
@@ -84,8 +82,6 @@ type agentService struct {
 	// knownKeyFn dictates whether a PIV key referenced in a [agentService.Sign] request is
 	// treated as a known key or an unknown agent key. Unknown agent keys are treated with
 	// additional restrictions to ensure the PIV slot is intended for Teleport client usage.
-	//
-	// When nil, all keys are treated as agent keys (used in tests).
 	knownKeyFn KnownHardwareKeyFn
 }
 
@@ -124,12 +120,9 @@ func (s *agentService) Sign(ctx context.Context, req *hardwarekeyagentv1.SignReq
 		Command:     req.Command,
 	}
 
-	var knownKey bool
-	if s.knownKeyFn != nil {
-		knownKey, err = s.knownKeyFn(keyRef, keyInfo)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	knownKey, err := s.knownKeyFn(keyRef, keyInfo)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	keyInfo.AgentKey = !knownKey
 

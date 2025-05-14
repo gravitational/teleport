@@ -76,6 +76,10 @@ type Server struct {
 //
 // [DefaultAgentDir] should be used for [keyAgentDir] outside of tests.
 func NewAgentServer(ctx context.Context, s hardwarekey.Service, keyAgentDir string, knownKeyFn hardwarekeyagent.KnownHardwareKeyFn) (*Server, error) {
+	if knownKeyFn == nil {
+		return nil, trace.BadParameter("knownKeyFn must be provided")
+	}
+
 	if err := os.MkdirAll(keyAgentDir, 0o700); err != nil {
 		return nil, trace.Wrap(err)
 	}
