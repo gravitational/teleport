@@ -49,7 +49,7 @@ message UserPreferences {
   // keyboard_layout is the layout used by the user in Windows Desktop sessions
   // keyboard layout identifiers can be found here:
   // https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
-  string keyboard_layout = 9;
+  uint32 keyboard_layout = 9;
 }
 
 // GetUserPreferencesRequest is a request to get the user preferences.
@@ -72,7 +72,7 @@ message GetKeyboardLayoutRequest {
 // GetKeyboardLayoutResponse is a response to get the user keyboard layout.
 message GetKeyboardLayoutResponse {
   // keyboard_layout is the code of keyboard layout preferred by the user.
-  string keyboard_layout = 1;
+  uint32 keyboard_layout = 1;
 }
 
 // UpsertUserPreferencesRequest is a request to create or update the user preferences.
