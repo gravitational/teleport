@@ -24,6 +24,7 @@ import (
 	"github.com/zitadel/oidc/v3/example/server/storage"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"github.com/zitadel/oidc/v3/pkg/op"
+	"golang.org/x/oauth2"
 
 	"github.com/gravitational/teleport/api/constants"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -198,6 +199,13 @@ type oidcSuiteOpts struct {
 	license  eauth.License
 	clock    clocki.FakeClock
 	proxy    func(http.Handler) http.Handler
+	pkceMode string
+}
+
+func overridePKCEMode(mode string) func(*oidcSuiteOpts) {
+	return func(opts *oidcSuiteOpts) {
+		opts.pkceMode = mode
+	}
 }
 
 func insecureOIDCSuite() func(*oidcSuiteOpts) {
@@ -245,9 +253,10 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 	ctx := context.Background()
 
 	o := oidcSuiteOpts{
-		license: eauth.ValidLicense{},
-		clock:   clockwork.NewFakeClock(),
-		proxy:   func(h http.Handler) http.Handler { return h },
+		license:  eauth.ValidLicense{},
+		clock:    clockwork.NewFakeClock(),
+		proxy:    func(h http.Handler) http.Handler { return h },
+		pkceMode: "disabled",
 	}
 
 	for _, opt := range opts {
@@ -413,6 +422,7 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 			ClientID:     "test",
 			ClientSecret: "secret",
 			Provider:     "test",
+			PKCEMode:     o.pkceMode,
 			Display:      "test",
 			Scope:        []string{oidc.ScopeOpenID, oidc.ScopeEmail, oidc.ScopeProfile},
 			ClaimsToRoles: []types.ClaimMapping{
@@ -509,14 +519,17 @@ func (s *OIDCSuite) authenticateUser(ctx context.Context, user string, req types
 		return "", nil, err
 	}
 
+	codeChallenge := oauth2.S256ChallengeFromVerifier(req.PkceVerifier)
 	request, err := s.store.CreateAuthRequest(
 		ctx,
 		&oidc.AuthRequest{
-			Scopes:      []string{oidc.ScopeOpenID, oidc.ScopeEmail, oidc.ScopeProfile},
-			ClientID:    s.connector.GetClientID(),
-			RedirectURI: s.connector.GetRedirectURLs()[0],
-			State:       authRequest.StateToken,
-			Display:     "none",
+			Scopes:              []string{oidc.ScopeOpenID, oidc.ScopeEmail, oidc.ScopeProfile},
+			ClientID:            s.connector.GetClientID(),
+			RedirectURI:         s.connector.GetRedirectURLs()[0],
+			State:               authRequest.StateToken,
+			Display:             "none",
+			CodeChallenge:       codeChallenge,
+			CodeChallengeMethod: "S256",
 		},
 		user,
 	)
@@ -648,15 +661,16 @@ func TestCreateOIDCAuthRequest(t *testing.T) {
 
 func TestValidateOIDCAuthCallback(t *testing.T) {
 	t.Parallel()
-	suite := newOIDCSuite(t)
+	suite := newOIDCSuite(t, overridePKCEMode("enabled"))
 
 	tests := []struct {
-		name          string
-		userID        string
-		createSession bool
-		testFlow      bool
-		q             url.Values
-		assertion     func(t *testing.T, resp *authclient.OIDCAuthResponse, err error)
+		name           string
+		userID         string
+		createSession  bool
+		testFlow       bool
+		noCodeVerifier bool
+		q              url.Values
+		assertion      func(t *testing.T, resp *authclient.OIDCAuthResponse, err error)
 	}{
 		{
 			name:   "successful authentication",
@@ -719,20 +733,35 @@ func TestValidateOIDCAuthCallback(t *testing.T) {
 				require.Nil(t, resp)
 			},
 		},
+		{
+			name:           "errors with no pkce code verifier if pkce enabled",
+			userID:         "id3",
+			noCodeVerifier: true,
+			assertion: func(t *testing.T, resp *authclient.OIDCAuthResponse, err error) {
+				require.ErrorContains(t, err, "pkce code verifier must not be empty")
+				require.Nil(t, resp)
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
 
+			codeVerifier := "123"
+
 			req := types.OIDCAuthRequest{
 				ConnectorID:      suite.connector.GetName(),
 				CreateWebSession: test.createSession,
 				CheckUser:        true,
+				PkceVerifier:     codeVerifier,
 				SSOTestFlow:      test.testFlow,
 			}
 			if test.testFlow {
 				req.ConnectorSpec = &suite.connector.Spec
+			}
+			if test.noCodeVerifier {
+				req.PkceVerifier = ""
 			}
 
 			_, resp, err := suite.authenticateUser(ctx, test.userID, req)

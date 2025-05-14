@@ -144,7 +144,7 @@ func newLimitReadCloser(reader io.Reader, closer io.Closer) *limitReadCloser {
 
 func (r *limitReadCloser) Read(p []byte) (int, error) {
 	if r.n <= 0 {
-		//discard rest of the body to free up connection
+		// discard rest of the body to free up connection
 		io.Copy(io.Discard, r.reader)
 		return 0, trace.Errorf("response exceeds maximum size of %d bytes", maxDataSize)
 	}
@@ -315,17 +315,30 @@ func (oas *OIDCAuthService) createOIDCAuthRequest(ctx context.Context, req types
 		return nil, trace.Wrap(err)
 	}
 
+	authCodeOpts := []oauth2.AuthCodeOption{
+		oauth2.AccessTypeOnline,
+		oauth2.SetAuthURLParam("prompt", connector.GetPrompt()),
+	}
+	// do not add code_challenge params if PKCE is disabled for this connector
+	if connector.IsPKCEEnabled() {
+		logger.DebugContext(ctx, "PKCE enabled, appending code challenge")
+
+		if req.PkceVerifier == "" {
+			return nil, trace.BadParameter("pkce code verifier must not be empty")
+		}
+		codeChallenge := oauth2.S256ChallengeFromVerifier(req.PkceVerifier)
+		authCodeOpts = append(authCodeOpts,
+			oauth2.SetAuthURLParam("code_challenge", codeChallenge),
+			oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+		)
+	}
 	req.StateToken = stateToken
 
 	acURL := rp.AuthURL(
 		req.StateToken,
 		relyingParty,
 		func() []oauth2.AuthCodeOption {
-			return []oauth2.AuthCodeOption{
-				// online indicates that this login should only work online
-				oauth2.AccessTypeOnline,
-				oauth2.SetAuthURLParam("prompt", connector.GetPrompt()),
-			}
+			return authCodeOpts
 		},
 	)
 	redirectURL, err := url.Parse(acURL)
@@ -526,7 +539,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 		}
 	}
 
-	idToken, err := oas.retrieveIDTokenClaims(ctx, connector, code, req.ProxyAddress, mfaSession != nil)
+	idToken, err := oas.retrieveIDTokenClaims(ctx, connector, code, req, q.Get("code_verifier"), mfaSession != nil)
 	if err != nil {
 		return nil, req.ClientLoginIP, trace.Wrap(err)
 	}
@@ -764,16 +777,29 @@ func (r *respCodeRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 
 	r.statusCode.CompareAndSwap(int32(0), int32(resp.StatusCode))
 	return resp, nil
-
 }
 
-func (oas *OIDCAuthService) retrieveIDTokenClaims(ctx context.Context, connector types.OIDCConnector, code, proxyAddress string, forMFA bool) (*oidc.Tokens[*oidc.IDTokenClaims], error) {
-	relyingParty, err := oas.getRelyingParty(ctx, connector, proxyAddress, forMFA)
+func (oas *OIDCAuthService) retrieveIDTokenClaims(ctx context.Context, connector types.OIDCConnector, code string, req *types.OIDCAuthRequest, codeVerifier string, forMFA bool) (*oidc.Tokens[*oidc.IDTokenClaims], error) {
+	relyingParty, err := oas.getRelyingParty(ctx, connector, req.ProxyAddress, forMFA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	idToken, err := rp.CodeExchange[*oidc.IDTokenClaims](ctx, code, relyingParty)
+	var opts []rp.CodeExchangeOpt
+	// For web sessions, the code verifier is automatically pulled from query params. For non web sessions,
+	// we must pull the verifier directly from the request.
+	if !req.CreateWebSession {
+		codeVerifier = req.PkceVerifier
+	}
+	// if PKCE is enabled, we must use the code verifier in the exchange. If the original request
+	// included a code challenge, even if PKCE is disabled, the code exchange will fail as it is expecting
+	// a code verifier included.
+	if connector.IsPKCEEnabled() {
+		logger.DebugContext(ctx, "PKCE enabled, using code verifier in code exchange")
+		opts = append(opts, rp.WithCodeVerifier(codeVerifier))
+	}
+
+	idToken, err := rp.CodeExchange[*oidc.IDTokenClaims](ctx, code, relyingParty, opts...)
 	if err != nil {
 		// different error message for Google Workspace as likely cause is different.
 		if isGoogleWorkspaceConnector(connector) {

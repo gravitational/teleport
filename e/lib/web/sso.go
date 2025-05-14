@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	saml2 "github.com/russellhaering/gosaml2"
+	"golang.org/x/oauth2"
 
 	"github.com/gravitational/teleport/api/types"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
@@ -36,10 +38,22 @@ func (p *Plugin) oidcLoginWeb(w http.ResponseWriter, r *http.Request, params htt
 		return client.LoginFailedRedirectURL
 	}
 
+	codeVerifier := oauth2.GenerateVerifier()
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     pkceCodeVerifierCookieName,
+		Value:    codeVerifier,
+		HttpOnly: true,
+		Secure:   true,
+		Path:     "/",
+		MaxAge:   300, // 5 minutes
+	})
+
 	proxyClient := p.h.GetProxyClient()
 	response, err := proxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
 		CSRFToken:         req.CSRFToken,
 		ConnectorID:       req.ConnectorID,
+		PkceVerifier:      codeVerifier,
 		CreateWebSession:  true,
 		ClientRedirectURL: req.ClientRedirectURL,
 		CheckUser:         true,
@@ -87,6 +101,7 @@ func (p *Plugin) oidcLoginConsole(w http.ResponseWriter, r *http.Request, params
 		SshAttestationStatement: req.SSHAttestationStatement.ToProto(),
 		TlsAttestationStatement: req.TLSAttestationStatement.ToProto(),
 		CertTTL:                 req.CertTTL,
+		PkceVerifier:            req.PKCEVerifier,
 		CheckUser:               true,
 		Compatibility:           req.Compatibility,
 		RouteToCluster:          req.RouteToCluster,
@@ -114,11 +129,26 @@ func (p *Plugin) oidcLoginConsole(w http.ResponseWriter, r *http.Request, params
 }
 
 func (p *Plugin) oidcCallback(w http.ResponseWriter, r *http.Request, params httprouter.Params) string {
+	queryValues := r.URL.Query()
+	if codeVerifier, err := r.Cookie(pkceCodeVerifierCookieName); err == nil {
+		queryValues.Add("code_verifier", codeVerifier.Value)
+	}
+
 	logger := p.Logger.With("auth", "oidc")
 	logger.DebugContext(r.Context(), "Callback start")
 
+	// remove our codeVerifier cookie regardless if we succeed or not. It should be one use
+	// and will be set again if the login fails
+	http.SetCookie(w, &http.Cookie{
+		Name:     pkceCodeVerifierCookieName,
+		HttpOnly: true,
+		Secure:   true,
+		Path:     "/",
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
+	})
 	proxyClient := p.h.GetProxyClient()
-	response, err := proxyClient.ValidateOIDCAuthCallback(r.Context(), r.URL.Query())
+	response, err := proxyClient.ValidateOIDCAuthCallback(r.Context(), queryValues)
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error while processing callback", "error", err)
 

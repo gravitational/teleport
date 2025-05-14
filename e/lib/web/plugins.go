@@ -29,7 +29,10 @@ import (
 
 var slackAuthBaseURL = "https://slack.com/oauth/v2/authorize"
 
+const pkceCodeVerifierCookieName = "__Host-code_verifier"
+
 const pluginOnboardingCookieName = "__Host-plugin-params"
+
 const pluginOnboardingCookieMaxAge = 1 * time.Hour
 
 var basePluginOnboardingCookie = http.Cookie{
@@ -352,7 +355,6 @@ func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, pa
 		return nil, err
 	}
 	_, err = pluginsClt.CreatePlugin(r.Context(), req)
-
 	if err != nil {
 		p.Logger.ErrorContext(r.Context(), "Failed to create plugin after web flow", "error", err)
 		return nil, trace.Wrap(err)
