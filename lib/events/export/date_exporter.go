@@ -474,70 +474,89 @@ Outer:
 	}
 }
 
+type batch struct {
+	maxSize int
+	chunk   string
+	entry   *chunkEntry
+
+	size   int
+	events []*auditlogpb.EventUnstructured
+	cursor string
+}
+
+func (b *batch) addEvent(event *auditlogpb.ExportEventUnstructured) bool {
+	e := event.GetEvent()
+	size := proto.Size(e)
+	if b.size+size <= b.maxSize || len(b.events) == 0 {
+		b.size += size
+		b.events = append(b.events, e)
+		b.cursor = event.GetCursor()
+		return true
+	}
+	return false
+}
+
+func (b *batch) reset() {
+	b.events = nil
+	b.size = 0
+	b.cursor = ""
+}
+
+func (b *batch) isEmpty() bool {
+	return len(b.events) == 0
+}
+
 // batchExportEvents reads events from the provided stream and exports them in batches.
 // Batching adheres to the export configuration: batches are sent either when
 // they reach the configured maximum size (MaxSize) or after the maximum delay
 // (MaxDelay) has passed with pending events. Processing continues until the
 // stream closes or an error occurs.
 func (e *DateExporter) batchExportEvents(ctx context.Context, stream stream.Stream[*auditlogpb.ExportEventUnstructured], entry *chunkEntry, chunk string) error {
-	var (
-		events []*auditlogpb.EventUnstructured
-		size   = 0
-		cursor = ""
-	)
-	eventsChan := make(chan *auditlogpb.ExportEventUnstructured, 100)
-
+	exportEventCh := make(chan *auditlogpb.ExportEventUnstructured, 1)
 	go func() {
 		for stream.Next() {
-			eventsChan <- stream.Item()
+			exportEventCh <- stream.Item()
 		}
-		close(eventsChan)
+		close(exportEventCh)
 	}()
 
+	batch := &batch{
+		maxSize: e.cfg.BatchExport.MaxSize,
+		chunk:   chunk,
+		entry:   entry,
+	}
 	timer := time.NewTimer(e.cfg.BatchExport.MaxDelay)
 	defer timer.Stop()
 loop:
 	for {
+		var unprocessedEvent *auditlogpb.ExportEventUnstructured
 		select {
-		case eventU, ok := <-eventsChan:
+		case exportEvent, ok := <-exportEventCh:
 			if !ok {
 				// all events have been processed
 				break loop
 			}
-
-			cursor := eventU.GetCursor()
-			event := eventU.GetEvent()
-			eventSize := proto.Size(event)
-			if size+eventSize > e.cfg.BatchExport.MaxSize {
-				err := e.batchExport(ctx, events, chunk, cursor, false /*completed*/)
-				if err != nil {
-					stream.Done()
-					return trace.Wrap(err)
-				}
-				entry.setCursor(cursor)
-				events = []*auditlogpb.EventUnstructured{event}
-				size = eventSize
-				timer.Reset(e.cfg.BatchExport.MaxDelay)
+			if batch.addEvent(exportEvent) {
 				continue
 			}
-			events = append(events, event)
-			size += eventSize
+			unprocessedEvent = exportEvent
 		case <-timer.C:
-			if len(events) == 0 {
-				// no events to export, so just reset the timer
+			if batch.isEmpty() {
 				timer.Reset(e.cfg.BatchExport.MaxDelay)
 				continue
 			}
+		}
+		err := e.batchExport(ctx, batch, false /*completed*/)
+		if err != nil {
+			stream.Done()
+			return trace.Wrap(err)
+		}
 
-			err := e.batchExport(ctx, events, chunk, cursor, false /*completed*/)
-			if err != nil {
-				stream.Done()
-				return trace.Wrap(err)
-			}
-			entry.setCursor(cursor)
-			events = nil
-			size = 0
-			timer.Reset(e.cfg.BatchExport.MaxDelay)
+		batch.reset()
+		timer.Reset(e.cfg.BatchExport.MaxDelay)
+
+		if unprocessedEvent != nil {
+			batch.addEvent(unprocessedEvent)
 		}
 	}
 
@@ -545,9 +564,9 @@ loop:
 		return trace.Wrap(err)
 	}
 
-	err := e.batchExport(ctx, events, chunk, "", true /*completed*/)
+	// One final call back with completed set to true, even if batch is empty.
+	err := e.batchExport(ctx, batch, true /*completed*/)
 	if err != nil {
-		stream.Done()
 		return trace.Wrap(err)
 	}
 	return nil
@@ -555,14 +574,19 @@ loop:
 
 // batchExport calls the batch export callback with the given batched events and
 // the derived resume state.
-func (e *DateExporter) batchExport(ctx context.Context, events []*auditlogpb.EventUnstructured, chunk string, cursor string, completed bool) error {
+func (e *DateExporter) batchExport(ctx context.Context, batch *batch, completed bool) error {
+	cursor := batch.cursor
+	if completed {
+		cursor = ""
+	}
 	resumeState := BulkExportResumeState{
-		Chunk:     chunk,
+		Chunk:     batch.chunk,
 		Cursor:    cursor,
 		Date:      e.cfg.Date,
 		Completed: completed,
 	}
-	return e.cfg.BatchExport.Callback(ctx, events, resumeState)
+	batch.entry.setCursor(cursor)
+	return e.cfg.BatchExport.Callback(ctx, batch.events, resumeState)
 }
 
 // exportEvents exports all events from the provided stream, updating the supplied entry on each successful export.

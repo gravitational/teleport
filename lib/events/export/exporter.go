@@ -105,7 +105,7 @@ type ExporterConfig struct {
 	// Export is the callback used to export events. Must be safe for concurrent use if
 	// the Concurrency parameter is greater than 1.
 	Export func(ctx context.Context, event *auditlogpb.ExportEventUnstructured) error
-	// BatchExport is the callback with configuration used to export events in bulk.
+	// BatchExport is the callback with configuration used to export bulk events in batches.
 	BatchExport *BatchExportConfig
 	// OnIdle is an optional callback that gets invoked periodically when the exporter is idle. Note that it is
 	// safe to close the exporter or inspect its state from within this callback, but waiting on the exporter's
