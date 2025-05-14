@@ -2918,7 +2918,6 @@ func TestValidate_RequestedPendingTTLAndMaxDuration(t *testing.T) {
 // kubernetes resources, the kinds are enforced defined by users static role
 // field `request.kubernetes_resources`
 func TestValidate_WithAllowRequestKubernetesResources(t *testing.T) {
-	t.SkipNow()
 	myClusterName := "teleport-cluster"
 
 	// set up test roles

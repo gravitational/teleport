@@ -539,11 +539,18 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 				namespace = splitted[0]
 				name = splitted[1]
 			}
+
+			// TODO(@creack): Find a better way. For now this only enables support for existing access requests.
+			// It doesnt support CRDs.
+			kind := types.KubernetesResourcesKindsPlurals[r.Kind]
+			if kind == "" {
+				kind = r.Kind
+			}
 			r := types.KubernetesResource{
-				Kind:      r.Kind,
+				Kind:      kind,
 				Namespace: namespace,
 				Name:      name,
-				// TODO(@creack): Add support for Groups in AccessRequests.
+				// TODO(@creack): Add support for CRDs in AccessRequests.
 				APIGroup: types.Wildcard,
 			}
 			// matchKubernetesResource checks if the Kubernetes Resource matches the tuple

@@ -185,241 +185,246 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 			wantDenied:   emptySet,
 			assertAccess: require.Error,
 		},
-		// {
-		// 	name:        "dev cluster with resource access request",
-		// 	kubeCluster: devKubeCluster,
-		// 	fields: fields{
-		// 		roleSet: roleSet,
-		// 		info: &AccessInfo{
-		// 			Roles: []string{"any", "dev"},
-		// 			AllowedResourceIDs: []types.ResourceID{
-		// 				{
-		// 					Kind:        types.KindApp,
-		// 					ClusterName: localCluster,
-		// 					Name:        "devapp",
-		// 				},
-		// 				{
-		// 					Kind:            types.KindKubePod,
-		// 					ClusterName:     localCluster,
-		// 					Name:            devKubeCluster.GetName(),
-		// 					SubResourceName: "dev/dev",
-		// 				},
-		// 				{
-		// 					Kind:            types.KindKubePod,
-		// 					ClusterName:     localCluster,
-		// 					Name:            devKubeCluster.GetName(),
-		// 					SubResourceName: "test/test-3",
-		// 				},
-		// 				{
-		// 					Kind:            types.KindKubePod,
-		// 					ClusterName:     localCluster,
-		// 					Name:            prodKubeCluster.GetName(),
-		// 					SubResourceName: "prod/test-2",
-		// 				},
-		// 			},
-		// 		},
-		// 		resource: types.KubernetesResource{
-		// 			Kind:      types.KindKubePod,
-		// 			Name:      "dev",
-		// 			Namespace: "dev",
-		// 			Verbs:     []string{types.KubeVerbGet},
-		// 		},
-		// 	},
-		// 	wantAllowed: []types.KubernetesResource{
-		// 		{
-		// 			Kind:      types.KindKubePod,
-		// 			Name:      "dev",
-		// 			Namespace: "dev",
-		// 			Verbs:     []string{types.Wildcard},
-		// 			APIGroup:  types.Wildcard,
-		// 		},
-		// 	},
-		// 	wantDenied:   emptySet,
-		// 	assertAccess: require.NoError,
-		// },
-		// {
-		// 	name:        "prod cluster with resource access request",
-		// 	kubeCluster: prodKubeCluster,
-		// 	fields: fields{
-		// 		info: &AccessInfo{
-		// 			Roles: []string{"any", "dev"},
-		// 			AllowedResourceIDs: []types.ResourceID{
-		// 				{
-		// 					Kind:        types.KindApp,
-		// 					ClusterName: localCluster,
-		// 					Name:        "devapp",
-		// 				},
-		// 				{
-		// 					Kind:            types.KindKubePod,
-		// 					ClusterName:     localCluster,
-		// 					Name:            devKubeCluster.GetName(),
-		// 					SubResourceName: "test/test-2",
-		// 				},
-		// 				{
-		// 					Kind:            types.KindKubePod,
-		// 					ClusterName:     localCluster,
-		// 					Name:            devKubeCluster.GetName(),
-		// 					SubResourceName: "test/test-3",
-		// 				},
-		// 				{
-		// 					Kind:            types.KindKubePod,
-		// 					ClusterName:     localCluster,
-		// 					Name:            prodKubeCluster.GetName(),
-		// 					SubResourceName: "prod/test-2",
-		// 				},
-		// 			},
-		// 		},
-		// 		resource: types.KubernetesResource{
-		// 			Kind:      types.KindKubePod,
-		// 			Name:      "any1",
-		// 			Namespace: "any1",
-		// 			Verbs:     []string{types.KubeVerbGet},
-		// 		},
-		// 	},
-		// 	wantAllowed:  nil,
-		// 	wantDenied:   emptySet,
-		// 	assertAccess: require.Error,
-		// },
-		// {
-		// 	name:        "dev cluster with kube_cluster resource access request",
-		// 	kubeCluster: devKubeCluster,
-		// 	fields: fields{
-		// 		roleSet: roleSet,
-		// 		info: &AccessInfo{
-		// 			Roles: []string{"any", "dev"},
-		// 			AllowedResourceIDs: []types.ResourceID{
-		// 				{
-		// 					Kind:        types.KindApp,
-		// 					ClusterName: localCluster,
-		// 					Name:        "devapp",
-		// 				},
-		// 				{
-		// 					Kind:        types.KindKubernetesCluster,
-		// 					ClusterName: localCluster,
-		// 					Name:        devKubeCluster.GetName(),
-		// 				},
-		// 			},
-		// 		},
-		// 		resource: types.KubernetesResource{
-		// 			Kind:      types.KindKubePod,
-		// 			Name:      "dev",
-		// 			Namespace: "dev",
-		// 			Verbs:     []string{types.KubeVerbGet},
-		// 		},
-		// 	},
-		// 	wantAllowed: []types.KubernetesResource{
-		// 		{
-		// 			Kind:      types.KindKubePod,
-		// 			Name:      "any1",
-		// 			Namespace: "any1",
-		// 			Verbs:     []string{types.Wildcard},
-		// 			APIGroup:  types.Wildcard,
-		// 		},
-		// 		{
-		// 			Kind:      types.KindKubePod,
-		// 			Name:      "any1",
-		// 			Namespace: "any2",
-		// 			Verbs:     []string{types.Wildcard},
-		// 			APIGroup:  types.Wildcard,
-		// 		},
-		// 		{
-		// 			Kind:      types.KindKubePod,
-		// 			Name:      "dev",
-		// 			Namespace: "dev",
-		// 			Verbs:     []string{types.Wildcard},
-		// 			APIGroup:  types.Wildcard,
-		// 		},
-		// 	},
-		// 	wantDenied:   emptySet,
-		// 	assertAccess: require.NoError,
-		// },
-		// {
-		// 	name:        "access dev cluster with kube cluster<prodCluster> and kube pod<devCluster> resource access request",
-		// 	kubeCluster: devKubeCluster,
-		// 	fields: fields{
-		// 		roleSet: roleSet,
-		// 		info: &AccessInfo{
-		// 			Roles: []string{"any"},
-		// 			AllowedResourceIDs: []types.ResourceID{
-		// 				{
-		// 					Kind:        types.KindKubernetesCluster,
-		// 					ClusterName: localCluster,
-		// 					Name:        prodKubeCluster.GetName(),
-		// 				},
-		// 				{
-		// 					Kind:            types.KindKubePod,
-		// 					ClusterName:     localCluster,
-		// 					Name:            devKubeCluster.GetName(),
-		// 					SubResourceName: "dev/dev",
-		// 				},
-		// 			},
-		// 		},
-		// 		resource: types.KubernetesResource{
-		// 			Kind:      types.KindKubePod,
-		// 			Name:      "dev",
-		// 			Namespace: "dev",
-		// 			Verbs:     []string{types.KubeVerbGet},
-		// 		},
-		// 	},
-		// 	wantAllowed: []types.KubernetesResource{
-		// 		{
-		// 			Kind:      types.KindKubePod,
-		// 			Name:      "dev",
-		// 			Namespace: "dev",
-		// 			Verbs:     []string{types.Wildcard},
-		// 			APIGroup:  types.Wildcard,
-		// 		},
-		// 	},
-		// 	wantDenied:   emptySet,
-		// 	assertAccess: require.NoError,
-		// },
-		// {
-		// 	name:        "access prod cluster with kube cluster<prodCluster> and kube pod<devCluster> resource access request",
-		// 	kubeCluster: prodKubeCluster,
-		// 	fields: fields{
-		// 		roleSet: roleSet,
-		// 		info: &AccessInfo{
-		// 			Roles: []string{"any"},
-		// 			AllowedResourceIDs: []types.ResourceID{
-		// 				{
-		// 					Kind:        types.KindKubernetesCluster,
-		// 					ClusterName: localCluster,
-		// 					Name:        prodKubeCluster.GetName(),
-		// 				},
-		// 				{
-		// 					Kind:            types.KindKubePod,
-		// 					ClusterName:     localCluster,
-		// 					Name:            devKubeCluster.GetName(),
-		// 					SubResourceName: "dev/dev",
-		// 				},
-		// 			},
-		// 		},
-		// 		resource: types.KubernetesResource{
-		// 			Kind:      types.KindKubePod,
-		// 			Name:      "dev",
-		// 			Namespace: "dev",
-		// 			Verbs:     []string{types.KubeVerbGet},
-		// 		},
-		// 	},
-		// 	wantAllowed: []types.KubernetesResource{
-		// 		{
-		// 			Kind:      types.KindKubePod,
-		// 			Name:      "any1",
-		// 			Namespace: "any1",
-		// 			Verbs:     []string{types.Wildcard},
-		// 			APIGroup:  types.Wildcard,
-		// 		},
-		// 		{
-		// 			Kind:      types.KindKubePod,
-		// 			Name:      "any1",
-		// 			Namespace: "any2",
-		// 			Verbs:     []string{types.Wildcard},
-		// 			APIGroup:  types.Wildcard,
-		// 		},
-		// 	},
-		// 	wantDenied:   emptySet,
-		// 	assertAccess: require.Error,
-		// },
+		{
+			name:        "dev cluster with resource access request",
+			kubeCluster: devKubeCluster,
+			fields: fields{
+				roleSet: roleSet,
+				info: &AccessInfo{
+					Roles: []string{"any", "dev"},
+					AllowedResourceIDs: []types.ResourceID{
+						{
+							Kind:        types.KindApp,
+							ClusterName: localCluster,
+							Name:        "devapp",
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            devKubeCluster.GetName(),
+							SubResourceName: "dev/dev",
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            devKubeCluster.GetName(),
+							SubResourceName: "test/test-3",
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            prodKubeCluster.GetName(),
+							SubResourceName: "prod/test-2",
+						},
+					},
+				},
+				resource: types.KubernetesResource{
+					Kind:      "pods",
+					Name:      "dev",
+					Namespace: "dev",
+					Verbs:     []string{types.KubeVerbGet},
+					APIGroup:  "*",
+				},
+			},
+			wantAllowed: []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "dev",
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  "*",
+				},
+			},
+			wantDenied:   emptySet,
+			assertAccess: require.NoError,
+		},
+		{
+			name:        "prod cluster with resource access request",
+			kubeCluster: prodKubeCluster,
+			fields: fields{
+				info: &AccessInfo{
+					Roles: []string{"any", "dev"},
+					AllowedResourceIDs: []types.ResourceID{
+						{
+							Kind:        types.KindApp,
+							ClusterName: localCluster,
+							Name:        "devapp",
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            devKubeCluster.GetName(),
+							SubResourceName: "test/test-2",
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            devKubeCluster.GetName(),
+							SubResourceName: "test/test-3",
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            prodKubeCluster.GetName(),
+							SubResourceName: "prod/test-2",
+						},
+					},
+				},
+				resource: types.KubernetesResource{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any1",
+					Verbs:     []string{types.KubeVerbGet},
+					APIGroup:  "core",
+				},
+			},
+			wantAllowed:  nil,
+			wantDenied:   emptySet,
+			assertAccess: require.Error,
+		},
+		{
+			name:        "dev cluster with kube_cluster resource access request",
+			kubeCluster: devKubeCluster,
+			fields: fields{
+				roleSet: roleSet,
+				info: &AccessInfo{
+					Roles: []string{"any", "dev"},
+					AllowedResourceIDs: []types.ResourceID{
+						{
+							Kind:        types.KindApp,
+							ClusterName: localCluster,
+							Name:        "devapp",
+						},
+						{
+							Kind:        types.KindKubernetesCluster,
+							ClusterName: localCluster,
+							Name:        devKubeCluster.GetName(),
+						},
+					},
+				},
+				resource: types.KubernetesResource{
+					Kind:      "pods",
+					Name:      "dev",
+					Namespace: "dev",
+					Verbs:     []string{types.KubeVerbGet},
+					APIGroup:  types.Wildcard,
+				},
+			},
+			wantAllowed: []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any1",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any2",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+				{
+					Kind:      "pods",
+					Name:      "dev",
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			},
+			wantDenied:   emptySet,
+			assertAccess: require.NoError,
+		},
+		{
+			name:        "access dev cluster with kube cluster<prodCluster> and kube pod<devCluster> resource access request",
+			kubeCluster: devKubeCluster,
+			fields: fields{
+				roleSet: roleSet,
+				info: &AccessInfo{
+					Roles: []string{"any"},
+					AllowedResourceIDs: []types.ResourceID{
+						{
+							Kind:        types.KindKubernetesCluster,
+							ClusterName: localCluster,
+							Name:        prodKubeCluster.GetName(),
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            devKubeCluster.GetName(),
+							SubResourceName: "dev/dev",
+						},
+					},
+				},
+				resource: types.KubernetesResource{
+					Kind:      "pods",
+					Name:      "dev",
+					Namespace: "dev",
+					Verbs:     []string{types.KubeVerbGet},
+					APIGroup:  "core",
+				},
+			},
+			wantAllowed: []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "dev",
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			},
+			wantDenied:   emptySet,
+			assertAccess: require.NoError,
+		},
+		{
+			name:        "access prod cluster with kube cluster<prodCluster> and kube pod<devCluster> resource access request",
+			kubeCluster: prodKubeCluster,
+			fields: fields{
+				roleSet: roleSet,
+				info: &AccessInfo{
+					Roles: []string{"any"},
+					AllowedResourceIDs: []types.ResourceID{
+						{
+							Kind:        types.KindKubernetesCluster,
+							ClusterName: localCluster,
+							Name:        prodKubeCluster.GetName(),
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            devKubeCluster.GetName(),
+							SubResourceName: "dev/dev",
+						},
+					},
+				},
+				resource: types.KubernetesResource{
+					Kind:      "pods",
+					Name:      "dev",
+					Namespace: "dev",
+					Verbs:     []string{types.KubeVerbGet},
+					APIGroup:  "core",
+				},
+			},
+			wantAllowed: []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any1",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any2",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			},
+			wantDenied:   emptySet,
+			assertAccess: require.Error,
+		},
 		{
 			name:        "access pod outside namespace allowed by roles",
 			kubeCluster: prodKubeCluster,

@@ -386,74 +386,74 @@ func TestListPodRBAC(t *testing.T) {
 				},
 			},
 		},
-		// {
-		// 	name: "list default namespace pods for user with limited access and a resource access request",
-		// 	args: args{
-		// 		user:      userWithNamespaceAccess,
-		// 		namespace: metav1.NamespaceDefault,
-		// 		opts: []GenTestKubeClientTLSCertOptions{
-		// 			WithResourceAccessRequests(
-		// 				types.ResourceID{
-		// 					ClusterName:     testCtx.ClusterName,
-		// 					Kind:            types.KindKubePod,
-		// 					Name:            kubeCluster,
-		// 					SubResourceName: "default/nginx-1",
-		// 				},
-		// 			),
-		// 		},
-		// 	},
-		// 	want: want{
-		// 		listPodsResult: []string{
-		// 			// Users roles allow access to all pods in default namespace
-		// 			// but the access request only allows access to default/nginx-1.
-		// 			"default/nginx-1",
-		// 		},
-		// 		getTestPodResult: &kubeerrors.StatusError{
-		// 			ErrStatus: metav1.Status{
-		// 				Status:  "Failure",
-		// 				Message: "pods \"test\" is forbidden: User \"default_user\" cannot get resource \"pods\" in API group \"\" in the namespace \"default\"",
-		// 				Code:    403,
-		// 				Reason:  metav1.StatusReasonForbidden,
-		// 			},
-		// 		},
-		// 	},
-		// },
-		// {
-		// 	name: "user with pod access request that no longer fullfills the role requirements",
-		// 	args: args{
-		// 		user:      userWithLimitedAccess,
-		// 		namespace: metav1.NamespaceDefault,
-		// 		opts: []GenTestKubeClientTLSCertOptions{
-		// 			WithResourceAccessRequests(
-		// 				types.ResourceID{
-		// 					ClusterName:     testCtx.ClusterName,
-		// 					Kind:            types.KindKubePod,
-		// 					Name:            kubeCluster,
-		// 					SubResourceName: fmt.Sprintf("%s/%s", metav1.NamespaceDefault, testPodName),
-		// 				},
-		// 			),
-		// 		},
-		// 	},
-		// 	want: want{
-		// 		listPodsResult: []string{},
-		// 		listPodErr: &kubeerrors.StatusError{
-		// 			ErrStatus: metav1.Status{
-		// 				Status:  "Failure",
-		// 				Message: "pods is forbidden: User \"limited_user\" cannot list resource \"pods\" in API group \"\" in the namespace \"default\"",
-		// 				Code:    403,
-		// 				Reason:  metav1.StatusReasonForbidden,
-		// 			},
-		// 		},
-		// 		getTestPodResult: &kubeerrors.StatusError{
-		// 			ErrStatus: metav1.Status{
-		// 				Status:  "Failure",
-		// 				Message: "pods \"test\" is forbidden: User \"limited_user\" cannot get resource \"pods\" in API group \"\" in the namespace \"default\"",
-		// 				Code:    403,
-		// 				Reason:  metav1.StatusReasonForbidden,
-		// 			},
-		// 		},
-		// 	},
-		// },
+		{
+			name: "list default namespace pods for user with limited access and a resource access request",
+			args: args{
+				user:      userWithNamespaceAccess,
+				namespace: metav1.NamespaceDefault,
+				opts: []GenTestKubeClientTLSCertOptions{
+					WithResourceAccessRequests(
+						types.ResourceID{
+							ClusterName:     testCtx.ClusterName,
+							Kind:            types.KindKubePod,
+							Name:            kubeCluster,
+							SubResourceName: "default/nginx-1",
+						},
+					),
+				},
+			},
+			want: want{
+				listPodsResult: []string{
+					// Users roles allow access to all pods in default namespace
+					// but the access request only allows access to default/nginx-1.
+					"default/nginx-1",
+				},
+				getTestPodResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "pods \"test\" is forbidden: User \"default_user\" cannot get resource \"pods\" in API group \"\" in the namespace \"default\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
+		},
+		{
+			name: "user with pod access request that no longer fullfills the role requirements",
+			args: args{
+				user:      userWithLimitedAccess,
+				namespace: metav1.NamespaceDefault,
+				opts: []GenTestKubeClientTLSCertOptions{
+					WithResourceAccessRequests(
+						types.ResourceID{
+							ClusterName:     testCtx.ClusterName,
+							Kind:            types.KindKubePod,
+							Name:            kubeCluster,
+							SubResourceName: fmt.Sprintf("%s/%s", metav1.NamespaceDefault, testPodName),
+						},
+					),
+				},
+			},
+			want: want{
+				listPodsResult: []string{},
+				listPodErr: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "pods is forbidden: User \"limited_user\" cannot list resource \"pods\" in API group \"\" in the namespace \"default\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+				getTestPodResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "pods \"test\" is forbidden: User \"limited_user\" cannot get resource \"pods\" in API group \"\" in the namespace \"default\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
+		},
 
 		{
 			name: "list default namespace pods for user with limited access",
@@ -1389,64 +1389,64 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 			},
 		},
 
-		// {
-		// 	name: "user with namespace access request that no longer fullfills the role requirements",
-		// 	args: args{
-		// 		user: userWithLimitedAccess,
-		// 		opts: []GenTestKubeClientTLSCertOptions{
-		// 			WithResourceAccessRequests(
-		// 				types.ResourceID{
-		// 					ClusterName:     testCtx.ClusterName,
-		// 					Kind:            types.KindKubeNamespace,
-		// 					Name:            kubeCluster,
-		// 					SubResourceName: "default",
-		// 				},
-		// 			),
-		// 		},
-		// 	},
-		// 	want: want{
-		// 		wantListErr: true,
-		// 		getTestResult: &kubeerrors.StatusError{
-		// 			ErrStatus: metav1.Status{
-		// 				Status:  "Failure",
-		// 				Message: "teleportroles \"telerole-test\" is forbidden: User \"limited_user\" cannot get resource \"teleportroles\" in API group \"resources.teleport.dev\"",
-		// 				Code:    403,
-		// 				Reason:  metav1.StatusReasonForbidden,
-		// 			},
-		// 		},
-		// 	},
-		// },
+		{
+			name: "user with namespace access request that no longer fullfills the role requirements",
+			args: args{
+				user: userWithLimitedAccess,
+				opts: []GenTestKubeClientTLSCertOptions{
+					WithResourceAccessRequests(
+						types.ResourceID{
+							ClusterName:     testCtx.ClusterName,
+							Kind:            types.KindKubeNamespace,
+							Name:            kubeCluster,
+							SubResourceName: "default",
+						},
+					),
+				},
+			},
+			want: want{
+				wantListErr: true,
+				getTestResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "teleportroles \"telerole-test\" is forbidden: User \"limited_user\" cannot get resource \"teleportroles\" in API group \"resources.teleport.dev\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
+		},
 
-		// {
-		// 	name: "user with namespace access request that restricts the role requirements",
-		// 	args: args{
-		// 		user: userWithFullAccess,
-		// 		opts: []GenTestKubeClientTLSCertOptions{
-		// 			WithResourceAccessRequests(
-		// 				types.ResourceID{
-		// 					ClusterName:     testCtx.ClusterName,
-		// 					Kind:            types.KindKubeNamespace,
-		// 					Name:            kubeCluster,
-		// 					SubResourceName: "dev",
-		// 				},
-		// 			),
-		// 		},
-		// 	},
-		// 	want: want{
-		// 		listTeleportRolesResult: []string{
-		// 			"dev/telerole-1",
-		// 			"dev/telerole-2",
-		// 		},
-		// 		getTestResult: &kubeerrors.StatusError{
-		// 			ErrStatus: metav1.Status{
-		// 				Status:  "Failure",
-		// 				Message: "teleportroles \"telerole-test\" is forbidden: User \"full_user\" cannot get resource \"teleportroles\" in API group \"resources.teleport.dev\"",
-		// 				Code:    403,
-		// 				Reason:  metav1.StatusReasonForbidden,
-		// 			},
-		// 		},
-		// 	},
-		// },
+		{
+			name: "user with namespace access request that restricts the role requirements",
+			args: args{
+				user: userWithFullAccess,
+				opts: []GenTestKubeClientTLSCertOptions{
+					WithResourceAccessRequests(
+						types.ResourceID{
+							ClusterName:     testCtx.ClusterName,
+							Kind:            types.KindKubeNamespace,
+							Name:            kubeCluster,
+							SubResourceName: "dev",
+						},
+					),
+				},
+			},
+			want: want{
+				listTeleportRolesResult: []string{
+					"dev/telerole-1",
+					"dev/telerole-2",
+				},
+				getTestResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "teleportroles \"telerole-test\" is forbidden: User \"full_user\" cannot get resource \"teleportroles\" in API group \"resources.teleport.dev\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
