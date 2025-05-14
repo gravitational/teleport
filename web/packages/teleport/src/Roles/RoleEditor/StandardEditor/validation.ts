@@ -297,7 +297,7 @@ const validKubernetesGroup = (
     case RoleVersion.V5:
     case RoleVersion.V6:
     case RoleVersion.V7:
-      const v7valid = group === '';
+      const v7valid = !group;
 
       return {
         valid: v7valid,
