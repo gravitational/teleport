@@ -197,10 +197,6 @@ func (y *YubiKey) signWithRetry(ctx context.Context, ref *hardwarekey.PrivateKey
 		// card to skip PIN verification in the first place (e.g. firmware bug).
 		pinPolicy = piv.PINPolicyAlways
 		return y.sign(ctx, ref, keyInfo, prompt, pinPolicy, rand, digest, opts)
-	case strings.Contains(err.Error(), pcscResetCardErrMessage):
-		// Usually this error occurs on Windows, which times out exclusive transactions after 5 seconds without any activity,
-		// giving users only 5 seconds to answer PIN prompts. The PIN should now be cached locally, so we simply retry.
-		return y.sign(ctx, ref, keyInfo, prompt, pinPolicy, rand, digest, opts)
 	default:
 		return nil, trace.Wrap(err)
 	}
@@ -530,7 +526,8 @@ type sharedPIVConnection struct {
 	// This value may change between OS's, or with other system changes.
 	card string
 
-	// conn is a shared PIV connection.
+	// conn is a shared PIV connection. This connection is only guaranteed to be non-nil
+	// and concurrency safe within a call to [doWithSharedConn].
 	conn *piv.YubiKey
 	// connMu is a RW mutex that protects conn. The conn is only opened/closed while under a full
 	// lock, meaning that multiple callers can utilize the connection concurrently while under a
@@ -539,50 +536,64 @@ type sharedPIVConnection struct {
 	// connHolds is the number of active holds on the connection. It should be modified under
 	// connMu.RLock to ensure a new hold isn't added for a closing connection.
 	connHolds atomic.Int32
+	// connHealthy signals whether the connection is healthy or needs to be reconnected.
+	connHealthy atomic.Bool
 
 	// attestMu prevents signatures from occurring concurrently with an attestation
 	// request, which would corrupt the resulting certificate.
 	attestMu sync.RWMutex
 }
 
+// doWithSharedConn holds a shared connection to perform the given function.
 func doWithSharedConn[T any](c *sharedPIVConnection, do func(*piv.YubiKey) (T, error)) (T, error) {
 	nilT := *new(T)
 
-	conn, err := c.holdConn()
-	if err != nil {
+	c.connMu.RLock()
+	defer c.connMu.RUnlock()
+
+	if err := c.holdConn(); err != nil {
 		return nilT, trace.Wrap(err)
 	}
 	defer c.releaseConn()
 
-	// TODO: retry on pcsc reset err.
-	return do(conn)
+	t, err := do(c.conn)
+
+	// Usually this error occurs on Windows, which times out exclusive transactions after 5 seconds without any activity,
+	// giving users only 5 seconds to answer PIN prompts. The PIN should now be cached locally, so we simply retry.
+	if err != nil && strings.Contains(err.Error(), pcscResetCardErrMessage) {
+		if err := c.reconnect(); err != nil {
+			return nilT, trace.Wrap(err)
+		}
+
+		t, err = do(c.conn)
+	}
+
+	return t, trace.Wrap(err)
 }
 
 // holdConn holds an existing shared connection, or opens and holds a new shared connection.
 // Unless holdConn returns an error, it must be followed by a call to releaseConn to ensure
 // the connection is closed once there are no remaining holds.
-func (c *sharedPIVConnection) holdConn() (*piv.YubiKey, error) {
-	c.connMu.RLock()
-	defer c.connMu.RUnlock()
-
-	if c.conn == nil {
+//
+// Must be called under [sharedPIVConnection.connMu.RLock].
+func (c *sharedPIVConnection) holdConn() error {
+	if c.conn == nil || !c.connHealthy.Load() {
 		c.connMu.RUnlock()
 		if err := c.connect(); err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		c.connMu.RLock()
 	}
 
 	c.connHolds.Add(1)
-	return c.conn, nil
+	return nil
 }
 
 // releaseConn releases a hold on a shared connection and,
 // if there are no remaining holds, closes the connection.
+//
+// Must be called under [sharedPIVConnection.connMu.RLock].
 func (c *sharedPIVConnection) releaseConn() {
-	c.connMu.RLock()
-	defer c.connMu.RUnlock()
-
 	remaining := c.connHolds.Add(-1)
 
 	// If there are no remaining holds on the connection, close it.
@@ -601,6 +612,21 @@ func (c *sharedPIVConnection) releaseConn() {
 	}
 }
 
+// reconnect marks the connection as unhealthy and waits for a new connection.
+// A new connection will not be created until all consumers of the unhealthy
+// connection complete. reconnect supports multiple concurrent callers.
+//
+// Must be called under [sharedPIVConnection.connMu.RLock].
+func (c *sharedPIVConnection) reconnect() error {
+	// Prevent new callers from holding the unhealthy connection.
+	c.connHealthy.Store(false)
+
+	c.connMu.RUnlock()
+	defer c.connMu.RLock()
+
+	return c.connect()
+}
+
 // connect establishes a connection to a YubiKey PIV module and returns a release function.
 // The release function should be called to properly close the shared connection.
 // The connection is not immediately terminated, allowing other callers to
@@ -611,8 +637,8 @@ func (c *sharedPIVConnection) connect() error {
 	c.connMu.Lock()
 	defer c.connMu.Unlock()
 
-	// Check if another goroutine was able to open a connection first.
-	if c.conn != nil {
+	// Check if there is an existing, healthy connection.
+	if c.conn != nil && c.connHealthy.Load() {
 		return nil
 	}
 
@@ -649,24 +675,27 @@ func (c *sharedPIVConnection) connect() error {
 	retryCtx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
-	err = linearRetry.For(retryCtx, tryConnect)
+	if err = linearRetry.For(retryCtx, tryConnect); err != nil {
+		// Using PIV synchronously causes issues since only one connection is allowed at a time.
+		// This shouldn't be an issue for `tsh` which primarily runs consecutively, but Teleport
+		// Connect works through callbacks, etc. and may try to open multiple connections at a time.
+		// If this error is being emitted more than rarely, the 1 second timeout may need to be increased.
+		//
+		// It's also possible that the user is running another PIV program, which may hold the PIV
+		// connection indefinitely (yubikey-agent). In this case, user action is necessary, so we
+		// alert them with this issue.
+		if trace.IsLimitExceeded(err) {
+			slog.WarnContext(ctx, "failed to connect to YubiKey as it is currently in use by another process. "+
+				"This can occur when running multiple Teleport clients simultaneously, or running long lived PIV "+
+				"applications like yubikey-agent. Try again once other PIV processes have completed.")
+			return trace.LimitExceeded("failed to connect to YubiKey as it is currently in use by another process")
+		}
 
-	// Using PIV synchronously causes issues since only one connection is allowed at a time.
-	// This shouldn't be an issue for `tsh` which primarily runs consecutively, but Teleport
-	// Connect works through callbacks, etc. and may try to open multiple connections at a time.
-	// If this error is being emitted more than rarely, the 1 second timeout may need to be increased.
-	//
-	// It's also possible that the user is running another PIV program, which may hold the PIV
-	// connection indefinitely (yubikey-agent). In this case, user action is necessary, so we
-	// alert them with this issue.
-	if trace.IsLimitExceeded(err) {
-		slog.WarnContext(ctx, "failed to connect to YubiKey as it is currently in use by another process. "+
-			"This can occur when running multiple Teleport clients simultaneously, or running long lived PIV "+
-			"applications like yubikey-agent. Try again once other PIV processes have completed.")
-		return trace.LimitExceeded("failed to connect to YubiKey as it is currently in use by another process")
+		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(err)
+	c.connHealthy.Store(true)
+	return nil
 }
 
 func (c *sharedPIVConnection) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, auth piv.KeyAuth, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
