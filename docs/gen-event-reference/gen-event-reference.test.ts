@@ -3,7 +3,7 @@ import {
   createReferencePage,
   eventsWithoutExamples,
   removeUnknowns,
-} from './gen-event-reference.js';
+} from './gen-event-reference.ts';
 
 describe('eventsWithoutExamples', () => {
   const testCases = [

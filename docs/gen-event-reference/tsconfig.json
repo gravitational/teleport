@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    // "target": "es2016",                                  /* Set the JavaScript language version for emitted JavaScript and include compatible library declarations. */
+    "module": "nodenext",                                /* Specify what module code is generated. */
+    "noEmit": true,                                   /* Disable emitting files from a compilation. */
+    "forceConsistentCasingInFileNames": true,            /* Ensure that casing is correct in imports. */
+    "strict": false,                                      /* Enable all strict type-checking options. */
+    "allowImportingTsExtensions": true
+  }
+}

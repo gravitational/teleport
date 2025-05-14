@@ -26,7 +26,7 @@ export default defineConfig(() => ({
           '../../web/packages/teleport/src/services/audit/makeEvent.ts'
         ),
       },
-      formats: ['es'],
+      formats: ['es' as const],
     },
   },
 }));

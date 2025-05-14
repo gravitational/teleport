@@ -4,17 +4,23 @@
   "type": "module",
   "scripts": {
     "build": "vite --config events.vite.config.mts build",
-    "gen-docs": "node index.js ../pages/reference/audit-events.mdx",
+    "gen-docs": "node --experimental-transform-types index.ts ../pages/reference/audit-events.mdx",
     "test": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
   "devDependencies": {
+    "@babel/core": "^7.27.1",
+    "@babel/parser": "^7.27.0",
+    "@babel/plugin-syntax-typescript": "^7.25.9",
+    "@babel/preset-env": "^7.27.2",
+    "@babel/preset-typescript": "^7.27.1",
+    "babel-jest": "^29.7.0",
+    "jest": "^29.7.0",
+    "typescript": "^5.8.3",
     "vite": "^6.3.5",
     "vite-tsconfig-paths": "^5.1.4"
   },
   "packageManager": "pnpm@9.8.0",
-  "dependencies": {
-    "@babel/parser": "^7.27.0",
-    "@babel/plugin-syntax-typescript": "^7.25.9",
-    "jest": "^29.7.0"
+  "engines": {
+    "node": ">= 22.7.0"
   }
 }
