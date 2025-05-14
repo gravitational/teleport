@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils/darwinbundle"
 )
 
 // Start starts an XPC listener and waits for it to receive a message with VNet config.
