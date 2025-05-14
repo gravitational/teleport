@@ -73,9 +73,7 @@ func (v *WatchedValue[T]) Watch() (current T, watcher *ValueWatcher[T]) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
-	w := &ValueWatcher[T]{
-		ch: make(chan struct{}),
-	}
+	w := &ValueWatcher[T]{ch: make(chan struct{})}
 	item := v.watchers.PushBack(w)
 	w.closeFn = func() {
 		v.mu.Lock()
@@ -98,21 +96,37 @@ type ValueWatcher[T comparable] struct {
 // blocks forever.
 func (w *ValueWatcher[T]) Close() { w.closeFn() }
 
+// Ready returns a channel you can receive from to be notified when the value is
+// next updated. The returned channel will be closed on-update, so you must call
+// Ready again to wait for the next update rather than reusing the channel.
+func (w *ValueWatcher[T]) Ready() <-chan struct{} {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	ch := w.ch
+
+	// If the channel has already been closed, we return it so that it unblocks
+	// the caller immediately and replace it so that the next caller blocks until
+	// there's a new value.
+	select {
+	case <-ch:
+		w.ch = make(chan struct{})
+	default:
+	}
+
+	return ch
+}
+
 // Wait for the value to change, or for the given context to be canceled or
 // reach its deadline. It is not safe to be used by multiple concurrent callers,
 // instead create a separate watcher for each.
 //
 // Note: Wait returns the *most recent value*, not a complete stream of every value.
 func (w *ValueWatcher[T]) Wait(ctx context.Context) (value T, ok bool) {
-	w.mu.Lock()
-	ch := w.ch
-	w.mu.Unlock()
-
 	select {
-	case <-ch:
+	case <-w.Ready():
 		w.mu.Lock()
 		val := w.val
-		w.ch = make(chan struct{})
 		w.mu.Unlock()
 
 		return val, true
@@ -130,8 +144,7 @@ func (w *ValueWatcher[T]) newValue(value T) {
 
 	select {
 	case <-w.ch:
-		// Channel is already closed. No need to notify again until this
-		// notification has been consumed.
+		// Channel has already been closed.
 	default:
 		close(w.ch)
 	}
