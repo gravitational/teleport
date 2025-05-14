@@ -616,7 +616,7 @@ func deleteResources[T kubeObjectInterface](
 			}
 		}
 
-		// delete each pod individually.
+		// delete each resource individually.
 		err = client.Resource(schema.GroupVersionResource{
 			Group:    gvk.Group,
 			Version:  gvk.Version,
