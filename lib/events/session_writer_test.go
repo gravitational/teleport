@@ -74,7 +74,8 @@ func TestSessionWriter(t *testing.T) {
 		require.NoError(t, err)
 
 		for _, part := range parts {
-			reader := events.NewProtoReader(bytes.NewReader(part))
+			reader, err := events.NewProtoReader(bytes.NewReader(part), nil)
+			require.NoError(t, err)
 			out, err := reader.ReadAll(test.ctx)
 			require.NoError(t, err, "part crash %#v", part)
 			outEvents = append(outEvents, out...)
@@ -420,7 +421,8 @@ func (a *sessionWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
 	for _, part := range parts {
 		readers = append(readers, bytes.NewReader(part))
 	}
-	reader := events.NewProtoReader(io.MultiReader(readers...))
+	reader, err := events.NewProtoReader(io.MultiReader(readers...), nil)
+	require.NoError(t, err)
 	outEvents, err := reader.ReadAll(a.ctx)
 	require.NoError(t, err, "failed to read")
 	t.Logf("Reader stats :%v", reader.GetStats().ToFields())

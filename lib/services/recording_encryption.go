@@ -34,3 +34,14 @@ type RecordingEncryption interface {
 	// GetRecordingEncryption retrieves the RecordingEncryption for the cluster.
 	GetRecordingEncryption(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error)
 }
+
+// RecordingEncryptionResolver resolves RecordingEncryption state on behalf of the auth server calling it.
+type Resolver interface {
+	ResolveRecordingEncryption(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error)
+}
+
+// RecordingEncryptionWithResolver extends RecordingEncryption with the ability to resolve state.
+type RecordingEncryptionWithResolver interface {
+	RecordingEncryption
+	Resolver
+}
