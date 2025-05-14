@@ -279,6 +279,10 @@ type AccessChecker interface {
 	// EnumerateDatabaseNames specializes EnumerateEntities to enumerate db_names.
 	EnumerateDatabaseNames(database types.Database, extraNames ...string) EnumerationResult
 
+	// EnumerateMCPTools specializes EnumerateEntities to enumerate mcp.tools.
+	// mcp.tools support regexes and blobs so those expressions are returned.
+	EnumerateMCPTools(app types.Application) EnumerationResult
+
 	// GetAllowedLoginsForResource returns all of the allowed logins for the passed resource.
 	//
 	// Supports the following resource types:
@@ -766,6 +770,26 @@ func (a *accessChecker) EnumerateDatabaseNames(database types.Database, extraNam
 	return a.EnumerateEntities(database, listFn, newMatcher, extraNames...)
 }
 
+// EnumerateMCPTools specializes EnumerateEntities to enumerate mcp.tools.
+func (a *accessChecker) EnumerateMCPTools(app types.Application) EnumerationResult {
+	listFn := func(role types.Role, condition types.RoleConditionType) []string {
+		if mcpSpec := role.GetMCPPermissions(condition); mcpSpec != nil {
+			return mcpSpec.Tools
+		}
+		return nil
+	}
+	// Do not use MCPToolMatcher. We are enumerating the expressions.
+	newMatcher := func(toolRegex string) RoleMatcher {
+		return RoleMatcherFunc(func(role types.Role, condition types.RoleConditionType) (bool, error) {
+			if mcpSpec := role.GetMCPPermissions(condition); mcpSpec != nil {
+				return slices.Contains(mcpSpec.Tools, toolRegex), nil
+			}
+			return false, nil
+		})
+	}
+	return a.EnumerateEntities(app, listFn, newMatcher)
+}
+
 // roleEntitiesListFn is used for listing a role's allowed/denied entities.
 type roleEntitiesListFn func(types.Role, types.RoleConditionType) []string
 
@@ -792,10 +816,17 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 		wildcardAllowed := false
 		wildcardDenied := false
 
+		// For allow, only update entries and wildcardAllowed when the role
+		// matches the resources without any matcher.
+		var roleMatchResource bool
+		if err := NewRoleSet(role).checkAccess(resource, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
+			roleMatchResource = true
+		}
+
 		for _, e := range listFn(role, types.Allow) {
 			if e == types.Wildcard {
 				wildcardAllowed = true
-			} else {
+			} else if roleMatchResource {
 				entities = append(entities, e)
 			}
 		}
@@ -810,7 +841,7 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 
 		result.wildcardDenied = result.wildcardDenied || wildcardDenied
 
-		if err := NewRoleSet(role).checkAccess(resource, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
+		if roleMatchResource {
 			result.wildcardAllowed = result.wildcardAllowed || wildcardAllowed
 		}
 	}

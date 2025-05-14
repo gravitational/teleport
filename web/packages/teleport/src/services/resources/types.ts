@@ -115,6 +115,7 @@ export type RoleConditions = {
   windows_desktop_logins?: string[];
 
   github_permissions?: GitHubPermission[];
+  mcp?: MCPPermissions;
 
   rules?: Rule[];
 };
@@ -371,6 +372,10 @@ export type Verb =
 
 export type GitHubPermission = {
   orgs?: string[];
+};
+
+export type MCPPermissions = {
+  tools?: string[];
 };
 
 /**

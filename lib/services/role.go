@@ -687,7 +687,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
 				constants.TraitGCPServiceAccounts, constants.TraitJWT,
-				constants.TraitGitHubOrgs:
+				constants.TraitGitHubOrgs, constants.TraitMCPTools:
 			default:
 				return trace.BadParameter("unsupported variable %q", name)
 			}
@@ -3619,4 +3619,24 @@ func AccessStateFromSSHIdentity(ctx context.Context, ident *sshca.Identity, chec
 	state.EnableDeviceVerification = true
 	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(ident)
 	return state, nil
+}
+
+// MCPToolMatcher matches a role against MCP tool.
+type MCPToolMatcher struct {
+	Name string
+}
+
+// Match matches MCP tool name against provided role and condition.
+func (m *MCPToolMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	mcpSpec := role.GetMCPPermissions(condition)
+	if mcpSpec == nil {
+		return false, nil
+	}
+	match, err := utils.SliceMatchesRegex(m.Name, mcpSpec.Tools)
+	return match, trace.Wrap(err)
+}
+
+// String returns the matcher's string representation.
+func (m *MCPToolMatcher) String() string {
+	return fmt.Sprintf("MCPToolMatcher(Name=%v)", m.Name)
 }
