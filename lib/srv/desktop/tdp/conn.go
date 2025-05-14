@@ -37,6 +37,7 @@ import (
 // Teleport Desktop Protocol (TDP) messages.
 type Conn struct {
 	rwc       io.ReadWriteCloser
+	writeMu   sync.Mutex
 	bufr      *bufio.Reader
 	closeOnce sync.Once
 
@@ -107,7 +108,10 @@ func (c *Conn) WriteMessage(m Message) error {
 		return trace.Wrap(err)
 	}
 
+	c.writeMu.Lock()
 	_, err = c.rwc.Write(buf)
+	c.writeMu.Unlock()
+
 	if c.OnSend != nil {
 		c.OnSend(m, buf)
 	}
@@ -183,7 +187,8 @@ func NewConnProxy(client, server io.ReadWriteCloser, serverInterceptor ServerInt
 // ConnProxy does a bidirectional copy between the connection to the client and the mTLS connection to the server.
 type ConnProxy struct {
 	// client is a connection to the client (browser/Connect).
-	client io.ReadWriteCloser
+	client        io.ReadWriteCloser
+	clientWriteMu sync.Mutex
 	// server io.ReadWriteCloser is a connection to the server (Windows Desktop Service).
 	server io.ReadWriteCloser
 	// serverInterceptor intercepts the incoming messages.
@@ -198,13 +203,17 @@ type ConnProxy struct {
 type ServerInterceptor func(serverTdpConn *Conn, message Message) (Message, error)
 
 // SendToClient sends a message to the client and blocks until the operation completes.
-func (c *ConnProxy) SendToClient(ctx context.Context, message Message) error {
-	select {
-	case c.messagesToClient <- message:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+func (c *ConnProxy) SendToClient(message Message) error {
+	b, err := message.Encode()
+	if err != nil {
+		return trace.Wrap(err)
 	}
+
+	c.clientWriteMu.Lock()
+	defer c.clientWriteMu.Unlock()
+
+	_, err = c.client.Write(b)
+	return trace.Wrap(err)
 }
 
 // Run starts proxying the connection.
@@ -221,39 +230,8 @@ func (c *ConnProxy) Run(ctx context.Context) error {
 
 	var errs errgroup.Group
 
-	sendTDPAlert := func(err error, severity Severity) error {
-		msg := Alert{Message: err.Error(), Severity: severity}
-		b, err := msg.Encode()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		_, err = c.client.Write(b)
-		return trace.Wrap(err)
-	}
-
-	// Run a goroutine to pick TDP messages up from a channel and send
-	// them to the client.
-	errs.Go(func() error {
-		defer closeOnce.Do(closeAll)
-
-		for {
-			select {
-			case msg := <-c.messagesToClient:
-				encoded, err := msg.Encode()
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				if _, err := c.client.Write(encoded); err != nil {
-					return trace.Wrap(err)
-				}
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		}
-	})
-
-	// Run a second goroutine to read TDP messages from the Windows
-	// agent and write them to our send channel.
+	// Run a goroutine to read TDP messages from the Windows
+	// agent and write them to client.
 	errs.Go(func() error {
 		defer closeOnce.Do(closeAll)
 
@@ -279,7 +257,7 @@ func (c *ConnProxy) Run(ctx context.Context) error {
 				if !isFatal {
 					severity = SeverityWarning
 				}
-				sendErr := sendTDPAlert(err, severity)
+				sendErr := c.SendToClient(Alert{Message: err.Error(), Severity: severity})
 
 				// If the error wasn't fatal, and we successfully
 				// sent it back to the client, continue.
@@ -303,10 +281,9 @@ func (c *ConnProxy) Run(ctx context.Context) error {
 				}
 			}
 			if msg != nil {
-				select {
-				case c.messagesToClient <- msg:
-				case <-ctx.Done():
-					return ctx.Err()
+				err := c.SendToClient(msg)
+				if err != nil {
+					return trace.Wrap(err)
 				}
 			}
 		}
