@@ -354,6 +354,7 @@ func newFakeAWSKMSService(t *testing.T, clock clockwork.Clock, account string, r
 type fakeAWSKMSKey struct {
 	arn          string
 	privKeyPEM   []byte
+	keyUsage     kmstypes.KeyUsageType
 	tags         []kmstypes.Tag
 	creationDate time.Time
 	state        kmstypes.KeyState
@@ -395,6 +396,7 @@ func (f *fakeAWSKMSService) CreateKey(_ context.Context, input *kms.CreateKeyInp
 	f.keys = append(f.keys, &fakeAWSKMSKey{
 		arn:          a.String(),
 		privKeyPEM:   privKeyPEM,
+		keyUsage:     input.KeyUsage,
 		tags:         input.Tags,
 		creationDate: f.clock.Now(),
 		state:        state,
@@ -436,6 +438,9 @@ func (f *fakeAWSKMSService) Sign(_ context.Context, input *kms.SignInput, _ ...f
 	if key.state != kmstypes.KeyStateEnabled {
 		return nil, trace.NotFound("key %q is not enabled", aws.ToString(input.KeyId))
 	}
+	if key.keyUsage != kmstypes.KeyUsageTypeSignVerify {
+		return nil, trace.BadParameter("key %q is not a signing key", aws.ToString(input.KeyId))
+	}
 	signer, err := keys.ParsePrivateKey(key.privKeyPEM)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -465,6 +470,9 @@ func (f *fakeAWSKMSService) Decrypt(_ context.Context, input *kms.DecryptInput, 
 	}
 	if key.state != kmstypes.KeyStateEnabled {
 		return nil, trace.NotFound("key %q is not enabled", aws.ToString(input.KeyId))
+	}
+	if key.keyUsage != kmstypes.KeyUsageTypeEncryptDecrypt {
+		return nil, trace.BadParameter("key %q is not a decryption key", aws.ToString(input.KeyId))
 	}
 	signer, err := keys.ParsePrivateKey(key.privKeyPEM)
 	if err != nil {
