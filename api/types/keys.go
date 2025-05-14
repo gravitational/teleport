@@ -24,18 +24,9 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 )
 
-// EncryptionKey returns the public portion of an EncryptionKeyPair to be
-// used in asymmetric encryption.
-func (p EncryptionKeyPair) EncryptionKey() EncryptionKey {
-	return EncryptionKey{
-		PublicKey: p.PublicKey,
-		Hash:      p.Hash,
-	}
-}
-
 // EncryptOAEP encrypts data using OAEP with the public key and hash present
 // in the EncryptionKey receiver.
-func (k EncryptionKey) EncryptOAEP(plaintext []byte) ([]byte, error) {
+func (k EncryptionKeyPair) EncryptOAEP(plaintext []byte) ([]byte, error) {
 	pub, err := keys.ParsePublicKey(k.PublicKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
