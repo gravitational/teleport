@@ -3,9 +3,12 @@ title: Configure Automatic Reviews
 description: Describes how to configure Access Monitoring Rules for Automatic Reviews.
 ---
 
-Teleport supports automatic reviews of Access Requests for Teleport roles. This
+Teleport supports automatic reviews of role Access Requests. This
 feature enables teams to enforce a zero standing privilege policy, while
 still allowing users to receive temporary access without manual approval.
+
+Support for automatic reviews of resource Access Requests is currently in
+development.
 
 ## How it works
 
@@ -22,7 +25,7 @@ the `access` role.
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-- Teleport Identity Governance enabled on your account.
+- This feature requires Teleport Identity Governance.
 
 ## Step 1/4. Create a requester role and user
 
