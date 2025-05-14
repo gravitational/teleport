@@ -18,24 +18,27 @@
 
 import {
   DatabaseServer,
+  ResourceStatus,
   SharedResourceServer,
   UnifiedResourceDefinition,
   useResourceServersFetch,
 } from 'shared/components/UnifiedResources';
 import { UnhealthyStatusInfo } from 'shared/components/UnifiedResources/shared/StatusInfo';
 
-import { fetchDatabaseServers } from 'teleport/services/databases/databases';
+import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 export function StatusInfo({
   resource,
-  clusterId,
+  clusterUri,
 }: {
   /**
    * the resource the user selected to look into the status of
    */
   resource: UnifiedResourceDefinition;
-  clusterId: string;
+  clusterUri: string;
 }) {
+  const ctx = useAppContext();
   const {
     fetch: fetchResourceServers,
     resources: resourceServers,
@@ -43,22 +46,29 @@ export function StatusInfo({
   } = useResourceServersFetch<SharedResourceServer>({
     fetchFunc: async (params, signal) => {
       if (resource.kind === 'db') {
-        const response = await fetchDatabaseServers({
-          clusterId,
-          params: {
-            ...params,
-            query: `name == "${resource.name}"`,
-            searchAsRoles: resource.requiresRequest ? 'yes' : '',
+        const { response } = await ctx.tshd.listDatabaseServers(
+          {
+            clusterUri,
+            params: {
+              ...params,
+              useSearchAsRoles: resource.requiresRequest ? true : false,
+              predicateExpression: `name == "${resource.name}"`,
+            },
           },
-          signal,
-        });
-        const servers: DatabaseServer[] = response.agents.map(d => ({
+          { abort: cloneAbortSignal(signal) }
+        );
+        const servers: DatabaseServer[] = response.resources.map(d => ({
           kind: 'db_server',
-          ...d,
+          hostname: d.hostname,
+          hostId: d.hostId,
+          targetHealth: d.targetHealth && {
+            status: d.targetHealth.status as ResourceStatus,
+            error: d.targetHealth.error,
+          },
         }));
         return {
           agents: servers,
-          startKey: response.startKey,
+          startKey: response.nextKey,
         };
       }
     },
