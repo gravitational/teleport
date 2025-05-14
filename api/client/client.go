@@ -908,6 +908,12 @@ func (c *Client) WorkloadIdentityX509OverridesClient() workloadidentityv1pb.X509
 	return workloadidentityv1pb.NewX509OverridesServiceClient(c.conn)
 }
 
+// SigstorePolicyResourceServiceClient returns an unadorned client for the
+// Sigstore policy resource service.
+func (c *Client) SigstorePolicyResourceServiceClient() workloadidentityv1pb.SigstorePolicyResourceServiceClient {
+	return workloadidentityv1pb.NewSigstorePolicyResourceServiceClient(c.conn)
+}
+
 // PresenceServiceClient returns an unadorned client for the presence service.
 func (c *Client) PresenceServiceClient() presencepb.PresenceServiceClient {
 	return presencepb.NewPresenceServiceClient(c.conn)
