@@ -486,6 +486,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case WorkloadIdentityX509RevocationDeleteEvent:
 		e = &events.WorkloadIdentityX509RevocationDelete{}
 
+	case SigstorePolicyCreateEvent:
+		e = &events.SigstorePolicyCreate{}
+	case SigstorePolicyUpdateEvent:
+		e = &events.SigstorePolicyUpdate{}
+	case SigstorePolicyDeleteEvent:
+		e = &events.SigstorePolicyDelete{}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
 		unknown := &events.Unknown{}

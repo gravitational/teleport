@@ -864,6 +864,13 @@ const (
 	// WorkloadIdentityX509RevocationDeleteEvent is emitted when a
 	// WorkloadIdentityX509Revocation resource is deleted.
 	WorkloadIdentityX509RevocationDeleteEvent = "workload_identity_x509_revocation.delete"
+
+	// SigstorePolicyCreateEvent is emitted when a SigstorePolicy resource is created.
+	SigstorePolicyCreateEvent = "sigstore_policy.create"
+	// SigstorePolicyUpdateEvent is emitted when a SigstorePolicy resource is updated.
+	SigstorePolicyUpdateEvent = "sigstore_policy.update"
+	// SigstorePolicyDeleteEvent is emitted when a SigstorePolicy resource is deleted.
+	SigstorePolicyDeleteEvent = "sigstore_policy.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

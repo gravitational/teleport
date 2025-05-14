@@ -250,6 +250,9 @@ var eventsMap = map[string]apievents.AuditEvent{
 	WorkloadIdentityX509RevocationCreateEvent:   &apievents.WorkloadIdentityX509RevocationCreate{},
 	WorkloadIdentityX509RevocationDeleteEvent:   &apievents.WorkloadIdentityX509RevocationDelete{},
 	WorkloadIdentityX509RevocationUpdateEvent:   &apievents.WorkloadIdentityX509RevocationUpdate{},
+	SigstorePolicyCreateEvent:                   &apievents.SigstorePolicyCreate{},
+	SigstorePolicyUpdateEvent:                   &apievents.SigstorePolicyUpdate{},
+	SigstorePolicyDeleteEvent:                   &apievents.SigstorePolicyDelete{},
 }
 
 // TestJSON tests JSON marshal events

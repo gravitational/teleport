@@ -885,6 +885,12 @@ func (c *Client) WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadI
 	return workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(c.conn)
 }
 
+// SigstorePolicyResourceServiceClient returns an unadorned client for the
+// Sigstore policy resource service.
+func (c *Client) SigstorePolicyResourceServiceClient() workloadidentityv1pb.SigstorePolicyResourceServiceClient {
+	return workloadidentityv1pb.NewSigstorePolicyResourceServiceClient(c.conn)
+}
+
 // PresenceServiceClient returns an unadorned client for the presence service.
 func (c *Client) PresenceServiceClient() presencepb.PresenceServiceClient {
 	return presencepb.NewPresenceServiceClient(c.conn)

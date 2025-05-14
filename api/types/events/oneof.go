@@ -821,6 +821,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_WorkloadIdentityX509RevocationUpdate{
 			WorkloadIdentityX509RevocationUpdate: e,
 		}
+	case *SigstorePolicyCreate:
+		out.Event = &OneOf_SigstorePolicyCreate{
+			SigstorePolicyCreate: e,
+		}
+	case *SigstorePolicyUpdate:
+		out.Event = &OneOf_SigstorePolicyUpdate{
+			SigstorePolicyUpdate: e,
+		}
+	case *SigstorePolicyDelete:
+		out.Event = &OneOf_SigstorePolicyDelete{
+			SigstorePolicyDelete: e,
+		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

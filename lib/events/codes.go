@@ -711,6 +711,13 @@ const (
 	// ContactDeleteCode is the auto update version delete event code.
 	ContactDeleteCode = "TCTC002I"
 
+	// SigstorePolicyCreateCode is the Sigstore policy create event code.
+	SigstorePolicyCreateCode = "TSSP001I"
+	// SigstorePolicyUpdateCode is the Sigstore policy update event code.
+	SigstorePolicyUpdateCode = "TSSP002I"
+	// SigstorePolicyDeleteCode is the Sigstore policy delete event code.
+	SigstorePolicyDeleteCode = "TSSP003I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

@@ -577,6 +577,9 @@ const (
 	// resource.
 	KindWorkloadIdentityX509Revocation = "workload_identity_x509_revocation"
 
+	// KindSigstorePolicy is the kind of teleport.workloadidentity.v1.SigstorePolicy.
+	KindSigstorePolicy = "sigstore_policy"
+
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"

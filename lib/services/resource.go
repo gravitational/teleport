@@ -273,6 +273,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAutoUpdateAgentRollout, nil
 	case types.KindWorkloadIdentityX509Revocation, types.KindWorkloadIdentityX509Revocation + "s":
 		return types.KindWorkloadIdentityX509Revocation, nil
+	case types.KindSigstorePolicy, "sigstorepolicy", "sigstore_policies", "sigstorepolicies":
+		return types.KindSigstorePolicy, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

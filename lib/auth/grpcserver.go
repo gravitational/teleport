@@ -5312,6 +5312,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	workloadidentityv1pb.RegisterWorkloadIdentityRevocationServiceServer(server, workloadIdentityRevocationService)
 	go workloadIdentityRevocationService.RunCRLSigner(cfg.AuthServer.CloseContext())
 
+	if cfg.PluginRegistry == nil || !cfg.PluginRegistry.IsRegistered("auth.enterprise") {
+		workloadidentityv1pb.RegisterSigstorePolicyResourceServiceServer(server, workloadidentityv1.NewSigstorePolicyResourceService())
+	}
+
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,

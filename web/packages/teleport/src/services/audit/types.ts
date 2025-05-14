@@ -256,6 +256,9 @@ export const eventCodes = {
   WORKLOAD_IDENTITY_CREATE: `WID001I`,
   WORKLOAD_IDENTITY_UPDATE: `WID002I`,
   WORKLOAD_IDENTITY_DELETE: `WID003I`,
+  SIGSTORE_POLICY_CREATE: `TSSP001I`,
+  SIGSTORE_POLICY_UPDATE: `TSSP002I`,
+  SIGSTORE_POLICY_DELETE: `TSSP003I`,
   LOGIN_RULE_CREATE: 'TLR00I',
   LOGIN_RULE_DELETE: 'TLR01I',
   SAML_IDP_AUTH_ATTEMPT: 'TSI000I',
@@ -1404,6 +1407,18 @@ export type RawEvents = {
   >;
   [eventCodes.WORKLOAD_IDENTITY_DELETE]: RawEvent<
     typeof eventCodes.WORKLOAD_IDENTITY_DELETE,
+    HasName
+  >;
+  [eventCodes.SIGSTORE_POLICY_CREATE]: RawEvent<
+    typeof eventCodes.SIGSTORE_POLICY_CREATE,
+    HasName
+  >;
+  [eventCodes.SIGSTORE_POLICY_UPDATE]: RawEvent<
+    typeof eventCodes.SIGSTORE_POLICY_UPDATE,
+    HasName
+  >;
+  [eventCodes.SIGSTORE_POLICY_DELETE]: RawEvent<
+    typeof eventCodes.SIGSTORE_POLICY_DELETE,
     HasName
   >;
   [eventCodes.LOGIN_RULE_CREATE]: RawEvent<

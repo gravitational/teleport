@@ -327,6 +327,9 @@ type InitConfig struct {
 	// WorkloadIdentityX509Revocations.
 	WorkloadIdentityX509Revocations services.WorkloadIdentityX509Revocations
 
+	// SigstorePolicies handles the storage for Sigstore policy objects.
+	SigstorePolicies services.SigstorePolicies
+
 	// StaticHostUsers is a service that manages host users that should be
 	// created on SSH nodes.
 	StaticHostUsers services.StaticHostUser
