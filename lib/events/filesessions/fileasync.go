@@ -439,9 +439,14 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 		return trace.Wrap(err, "uploader could not acquire file lock for %q", sessionFilePath)
 	}
 
+	protoReader, err := events.NewProtoReader(sessionFile, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	upload := &upload{
 		sessionID:    sessionID,
-		reader:       events.NewProtoReader(sessionFile),
+		reader:       protoReader,
 		file:         sessionFile,
 		fileUnlockFn: unlock,
 	}

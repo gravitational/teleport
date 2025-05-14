@@ -19,8 +19,11 @@
 package events_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"errors"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -29,6 +32,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -213,7 +217,8 @@ func TestReadCorruptedRecording(t *testing.T) {
 	require.NoError(t, err)
 	defer f.Close()
 
-	reader := events.NewProtoReader(f)
+	reader, err := events.NewProtoReader(f, nil)
+	require.NoError(t, err)
 	defer reader.Close()
 
 	events, err := reader.ReadAll(ctx)
@@ -221,6 +226,69 @@ func TestReadCorruptedRecording(t *testing.T) {
 
 	// verify that the expected number of events are extracted
 	require.Len(t, events, 12)
+}
+
+func TestEncryptedRecordingIO(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	uploader := eventstest.NewMemoryUploader()
+	encryptedIO := &fakeEncryptedIO{}
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader: uploader,
+
+		EncryptedIO: encryptedIO,
+	})
+	require.NoError(t, err)
+
+	const eventCount = 10
+	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: eventCount})
+	sid := session.ID(evts[0].(events.SessionMetadataGetter).GetSessionID())
+	stream, err := streamer.CreateAuditStream(ctx, sid)
+	require.NoError(t, err)
+
+	preparer, err := events.NewPreparer(events.PreparerConfig{
+		SessionID:   sid,
+		Namespace:   apidefaults.Namespace,
+		ClusterName: "cluster",
+	})
+
+	for _, evt := range evts {
+		preparedEvent, err := preparer.PrepareSessionEvent(evt)
+		require.NoError(t, err)
+
+		err = stream.RecordEvent(ctx, preparedEvent)
+		require.NoError(t, err)
+	}
+
+	err = stream.Complete(ctx)
+	require.NoError(t, err)
+
+	doneC := make(chan struct{})
+	go func() {
+		defer close(doneC)
+		stream.Complete(ctx)
+		stream.Close(ctx)
+	}()
+
+	select {
+	case <-ctx.Done():
+		t.Fatal("Timeout waiting for emitter to complete")
+	case <-doneC:
+	}
+
+	out := fakeWriterAt{
+		buf: bytes.NewBuffer(nil),
+	}
+	err = uploader.Download(ctx, sid, out)
+	require.NoError(t, err)
+
+	reader, err := events.NewProtoReader(out.buf, encryptedIO)
+	require.NoError(t, err)
+
+	decryptedEvents, err := reader.ReadAll(ctx)
+	require.NoError(t, err)
+	require.Len(t, decryptedEvents, eventCount+2)
 }
 
 func makeQueryEvent(id string, query string) *apievents.DatabaseSessionQuery {
@@ -241,4 +309,46 @@ func makeAccessRequestEvent(id string, in string) *apievents.AccessRequestDelete
 		},
 		RequestID: in,
 	}
+}
+
+// encryptedIO is really just a reversible transform, so we fake encryption by encoding/decoding as hex
+type fakeEncryptedIO struct {
+	err error
+}
+
+type fakeEncrypter struct {
+	inner  io.WriteCloser
+	writer io.Writer
+}
+
+func (f *fakeEncrypter) Write(out []byte) (int, error) {
+	return f.writer.Write(out)
+}
+
+func (f *fakeEncrypter) Close() error {
+	return f.inner.Close()
+}
+
+func (f *fakeEncryptedIO) WithEncryption(writer io.WriteCloser) (io.WriteCloser, error) {
+	hexWriter := hex.NewEncoder(writer)
+	return &fakeEncrypter{
+		inner:  writer,
+		writer: hexWriter,
+	}, f.err
+}
+
+func (f *fakeEncryptedIO) WithDecryption(reader io.Reader) (io.Reader, error) {
+	return hex.NewDecoder(reader), f.err
+}
+
+type fakeWriterAt struct {
+	buf *bytes.Buffer
+}
+
+func (f fakeWriterAt) Write(p []byte) (int, error) {
+	return f.buf.Write(p)
+}
+
+func (f fakeWriterAt) WriteAt(p []byte, offset int64) (int, error) {
+	return f.Write(p)
 }
