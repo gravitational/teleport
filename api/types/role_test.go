@@ -893,6 +893,129 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 	}
 }
 
+func TestRoleV6_KubernetesResourcesCheckAndSetDefaults(t *testing.T) {
+	t.Parallel()
+	requireBadParameterContains := func(contains string) require.ErrorAssertionFunc {
+		return func(t require.TestingT, err error, _ ...any) {
+			require.True(t, trace.IsBadParameter(err))
+			require.ErrorContains(t, err, contains)
+		}
+	}
+	newRole := func(t *testing.T, version string, spec RoleSpecV6) *RoleV6 {
+		return &RoleV6{
+			Version: version,
+			Metadata: Metadata{
+				Name: "test",
+			},
+			Spec: spec,
+		}
+	}
+
+	tests := []struct {
+		name         string
+		role         *RoleV6
+		requireError require.ErrorAssertionFunc
+		expect       *RoleV6
+	}{
+		{
+			name: "valid empty v7",
+			role: newRole(t, V7, RoleSpecV6{
+				Allow: RoleConditions{
+					KubernetesLabels: Labels{
+						"env": []string{"prod"},
+					},
+				},
+			}),
+			requireError: require.NoError,
+			expect: newRole(t, V7, RoleSpecV6{
+				Allow: RoleConditions{
+					KubernetesLabels: Labels{
+						"env": []string{"prod"},
+					},
+					KubernetesResources: []KubernetesResource{
+						{
+							Kind:      Wildcard,
+							Namespace: Wildcard,
+							Name:      Wildcard,
+							Verbs:     []string{Wildcard},
+						},
+					},
+				},
+			}),
+		},
+		{
+			name: "valid empty v8",
+			role: newRole(t, V8, RoleSpecV6{
+				Allow: RoleConditions{
+					KubernetesLabels: Labels{
+						"env": []string{"prod"},
+					},
+				},
+			}),
+			requireError: require.NoError,
+			expect: newRole(t, V8, RoleSpecV6{
+				Allow: RoleConditions{
+					KubernetesLabels: Labels{
+						"env": []string{"prod"},
+					},
+					KubernetesResources: []KubernetesResource{
+						{
+							Kind:      Wildcard,
+							Namespace: Wildcard,
+							Name:      Wildcard,
+							Verbs:     []string{Wildcard},
+							APIGroup:  Wildcard,
+						},
+					},
+				},
+			}),
+		},
+		{
+			name: "invalid v7 api group set",
+			role: newRole(t, V7, RoleSpecV6{
+				Allow: RoleConditions{
+					KubernetesResources: []KubernetesResource{
+						{
+							Kind:      Wildcard,
+							Namespace: Wildcard,
+							Name:      Wildcard,
+							Verbs:     []string{Wildcard},
+							APIGroup:  Wildcard,
+						},
+					},
+				},
+			}),
+			requireError: requireBadParameterContains("Group \"*\" is not supported in role version \"v7\""),
+		},
+		{
+			name: "invalid v8 missing api group",
+			role: newRole(t, V8, RoleSpecV6{
+				Allow: RoleConditions{
+					KubernetesResources: []KubernetesResource{
+						{
+							Kind:      Wildcard,
+							Namespace: Wildcard,
+							Name:      Wildcard,
+							Verbs:     []string{Wildcard},
+						},
+					},
+				},
+			}),
+			requireError: requireBadParameterContains("KubernetesResource group is required in role version \"v8\""),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.role.CheckAndSetDefaults()
+			tt.requireError(t, err)
+			if err == nil {
+				require.Equal(t, tt.expect.Spec.Allow.KubernetesResources, tt.role.Spec.Allow.KubernetesResources)
+			}
+		})
+	}
+}
+
 func TestRoleV6CheckAndSetDefaults_SAMLIdPOptions(t *testing.T) {
 	t.Parallel()
 
