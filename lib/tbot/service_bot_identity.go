@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/join"
+	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -643,6 +644,20 @@ func botIdentityFromToken(
 		params.GitlabParams = join.GitlabParams{
 			EnvVarName: cfg.Onboarding.Gitlab.TokenEnvVarName,
 		}
+	}
+
+	if params.JoinMethod == types.JoinMethodBoundKeypair {
+		joinSecret := cfg.Onboarding.BoundKeypair.InitialJoinSecret
+
+		adapter := config.NewBoundkeypairDestinationAdapter(cfg.Storage.Destination)
+		state, err := boundkeypair.LoadClientState(ctx, adapter)
+		if trace.IsNotFound(err) && joinSecret != "" {
+			return nil, trace.NotImplemented("no existing client state was found and join secrets are not yet supported")
+		} else if err != nil {
+			return nil, trace.Wrap(err, "loading bound keypair client state")
+		}
+
+		params.BoundKeypairParams = state.ToJoinParams(joinSecret)
 	}
 
 	result, err := join.Register(ctx, params)
