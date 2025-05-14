@@ -1073,7 +1073,7 @@ func TestValidateRole(t *testing.T) {
 				Allow: types.RoleConditions{
 					KubernetesResources: []types.KubernetesResource{
 						{
-							Kind:      types.KindKubePod,
+							Kind:      "pods",
 							Namespace: "{{external.namespace",
 							Name:      "{{email.localz(external.email)}}",
 							Verbs:     []string{"{{external.verbs"},
@@ -1084,7 +1084,7 @@ func TestValidateRole(t *testing.T) {
 				Deny: types.RoleConditions{
 					KubernetesResources: []types.KubernetesResource{
 						{
-							Kind:      types.KindKubePod,
+							Kind:      "pods",
 							Namespace: "{{external.namespace",
 							Name:      "{{email.localz(external.email)}}",
 							Verbs:     []string{"{{external.verbs"},
