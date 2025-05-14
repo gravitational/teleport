@@ -684,6 +684,7 @@ func TestRollback(t *testing.T) {
 	// create proxy client just for test purposes
 	proxy, err := testSrv.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
+	defer proxy.Close()
 
 	// client works before rotation is initiated
 	_, err = proxy.GetNodes(ctx, apidefaults.Namespace)
@@ -713,9 +714,12 @@ func TestRollback(t *testing.T) {
 	// new clients work
 	newProxy, err := testSrv.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
+	defer newProxy.Close()
 
-	_, err = newProxy.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		_, err = testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
+		assert.NoError(ct, err)
+	}, 15*time.Second, 100*time.Millisecond)
 
 	// advance rotation:
 	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
@@ -759,17 +763,13 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 
 	// clients with new creds will no longer work as soon as backend modification event propagates.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		_, err := testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
-		return err != nil
-	}, time.Second*15, time.Millisecond*200)
+		assert.Error(ct, err)
+	}, time.Second*15, time.Millisecond*100)
 
-	grpcClientOld := testSrv.CloneClient(t, proxy)
-	t.Cleanup(func() {
-		require.NoError(t, grpcClientOld.Close())
-	})
 	// clients with old creds will still work
-	_, err = grpcClientOld.GetNodes(ctx, apidefaults.Namespace)
+	_, err = testSrv.CloneClient(t, proxy).GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 }
 

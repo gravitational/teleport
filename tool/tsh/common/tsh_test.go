@@ -69,6 +69,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/kube"
@@ -113,6 +114,8 @@ const (
 
 var ports utils.PortList
 
+const initTestSentinel = "init_test"
+
 func TestMain(m *testing.M) {
 	handleReexec()
 
@@ -130,7 +133,22 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func BenchmarkInit(b *testing.B) {
+	executable, err := os.Executable()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		cmd := exec.Command(executable, initTestSentinel)
+		err := cmd.Run()
+		assert.NoError(b, err)
+	}
+}
+
 func handleReexec() {
+	if slices.Contains(os.Args, initTestSentinel) {
+		os.Exit(0)
+	}
+
 	var runOpts []CliOption
 
 	// Allows mock headless auth to be implemented when the test binary
@@ -249,7 +267,7 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 
@@ -891,13 +909,12 @@ func TestMakeClient(t *testing.T) {
 	conf.HomePath = t.TempDir()
 
 	// Create a empty profile so we don't ping proxy.
-	clientStore, err := initClientStore(&conf, conf.Proxy)
-	require.NoError(t, err)
 	profile := &profile.Profile{
 		SSHProxyAddr: "proxy:3023",
 		WebProxyAddr: "proxy:3080",
 	}
-	err = clientStore.SaveProfile(profile, true)
+
+	err = conf.getClientStore().SaveProfile(profile, true)
 	require.NoError(t, err)
 
 	tc, err = makeClient(&conf)
@@ -2799,8 +2816,8 @@ func TestSSHHeadlessCLIFlags(t *testing.T) {
 			assertErr: require.NoError,
 			assertConfig: func(t require.TestingT, c *client.Config) {
 				require.Equal(t, "other-proxy:3080", c.WebProxyAddr)
-				require.Equal(t, "", c.Username)
-				require.Equal(t, "", c.SiteName)
+				require.Empty(t, c.Username)
+				require.Empty(t, c.SiteName)
 			},
 		}, {
 			name: "NOK --headless with mismatched auth connector",
@@ -5978,7 +5995,13 @@ func TestFlatten(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test execution: validate that flattening succeeds if a profile already exists.
-	conf.IdentityFileIn = identityPath
+	conf = CLIConf{
+		Proxy:              proxyAddr.String(),
+		InsecureSkipVerify: true,
+		IdentityFileIn:     identityPath,
+		HomePath:           freshHome,
+		Context:            context.Background(),
+	}
 	require.NoError(t, flattenIdentity(&conf), "unexpected error when overwriting a tsh profile")
 }
 
@@ -6390,13 +6413,11 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 		}
 
 		// Create a empty profile so we don't ping proxy.
-		clientStore, err := initClientStore(conf, conf.Proxy)
-		require.NoError(t, err)
 		profile := &profile.Profile{
 			SSHProxyAddr: "proxy:3023",
 			WebProxyAddr: "proxy:3080",
 		}
-		err = clientStore.SaveProfile(profile, true)
+		err := conf.getClientStore().SaveProfile(profile, true)
 		require.NoError(t, err)
 
 		modify(conf)
@@ -6809,8 +6830,14 @@ func TestInteractiveCompatibilityFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := exec.Command(tshBin, "ssh", tt.flag, hostname, tty).Run()
-			tt.assertError(t, err)
+
+			// Add some resiliency for cases where connections are attempted
+			// prior to the inventory being updated to contain the target node
+			// above.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				out, err := exec.Command(tshBin, "ssh", tt.flag, hostname, tty).CombinedOutput()
+				tt.assertError(t, err, string(out))
+			}, 20*time.Second, 100*time.Millisecond)
 		})
 	}
 }

@@ -22,7 +22,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -58,7 +57,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -73,7 +72,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
@@ -2483,28 +2481,9 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	err = tc.UpdateTrustedCA(ctx, a.GetSiteAPI(a.Secrets.SiteName))
 	require.NoError(t, err)
 
-	// The known_hosts file should have two certificates, the way bytes.Split
-	// works that means the output will be 3 (2 certs + 1 empty).
-	buffer, err := os.ReadFile(keypaths.KnownHostsPath(tc.KeysDir))
+	trustedCerts, err := tc.ClientStore.GetTrustedCerts(tc.WebProxyHost())
 	require.NoError(t, err)
-	parts := bytes.Split(buffer, []byte("\n"))
-	require.Len(t, parts, 3)
-
-	roots := x509.NewCertPool()
-	werr := filepath.Walk(keypaths.CAsDir(tc.KeysDir, Host), func(path string, info fs.FileInfo, err error) error {
-		require.NoError(t, err)
-		if info.IsDir() {
-			return nil
-		}
-		buffer, err = os.ReadFile(path)
-		require.NoError(t, err)
-		ok := roots.AppendCertsFromPEM(buffer)
-		require.True(t, ok)
-		return nil
-	})
-	require.NoError(t, werr)
-	ok := roots.AppendCertsFromPEM(buffer)
-	require.True(t, ok)
+	require.Len(t, trustedCerts, 2)
 
 	// wait for active tunnel connections to be established
 	helpers.WaitForActiveTunnelConnections(t, b.Tunnel, a.Secrets.SiteName, 1)
@@ -4768,7 +4747,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 						display := make(chan string, 1)
 						require.EventuallyWithT(t, func(t *assert.CollectT) {
 							// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
-							_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())))
+							_, err = fmt.Fprintf(keyboard, "printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())
 							assert.NoError(t, err)
 
 							assert.Eventually(t, func() bool {
@@ -6197,9 +6176,14 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 		{
 			desc: "Both",
 			// Print slowly so we can confirm that the output isn't interleaved.
-			command:     slowPrintCommand("abcd1234"),
-			labels:      map[string]string{"spam": "eggs"},
-			expectLines: []string{"[server-01] abcd1234", "[server-02] abcd1234"},
+			command: slowPrintCommand("abcd1234"),
+			labels:  map[string]string{"spam": "eggs"},
+			expectLines: []string{
+				"Running command on server-01:",
+				"Running command on server-02:",
+				"[server-01] abcd1234",
+				"[server-02] abcd1234",
+			},
 		},
 		{
 			desc:        "Worker only",
@@ -6223,10 +6207,10 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 				Labels:  tt.labels,
 			}
 
-			output, err := runCommand(t, teleport, tt.command, cfg, 1)
+			output, err := runCommand(t, teleport, tt.command, cfg, 3)
 			require.NoError(t, err)
 			outputLines := strings.Split(strings.TrimSpace(output), "\n")
-			require.Len(t, outputLines, len(tt.expectLines))
+			require.Len(t, outputLines, len(tt.expectLines), "raw output:\n%v", output)
 			for _, line := range tt.expectLines {
 				require.Contains(t, outputLines, line)
 			}
@@ -7736,7 +7720,7 @@ func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 			grpc.WithContextDialer(apiclient.GRPCContextDialer(dialer)),
 			grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
 			grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
-			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+			grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(tlsConfig)),
 		)
 		require.NoError(t, err)
 		joinServiceClient := apiclient.NewJoinServiceClient(proto.NewJoinServiceClient(conn))
@@ -8489,7 +8473,7 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 			conn, err := grpc.DialContext(
 				ctx,
 				tc.SSHProxyAddr,
-				grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+				grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(tlsConfig)),
 				grpc.WithBlock(),
 			)
 			require.NoError(t, err)

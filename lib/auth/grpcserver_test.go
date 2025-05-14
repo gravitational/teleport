@@ -1537,7 +1537,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-a", identity.RouteToApp.Name)
 					// session ID should be set to a random UUID, corresponding to an app session.
-					require.NotZero(t, identity.RouteToApp.SessionID)
+					require.NotEmpty(t, identity.RouteToApp.SessionID)
 				},
 			},
 		},
@@ -1654,7 +1654,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-a", identity.RouteToApp.Name)
 					// session ID should be set to a random UUID, corresponding to an app session.
-					require.NotZero(t, identity.RouteToApp.SessionID)
+					require.NotEmpty(t, identity.RouteToApp.SessionID)
 				},
 			},
 		},
@@ -1961,7 +1961,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-b", identity.RouteToApp.Name)
 					// session ID should be set to a random UUID, corresponding to an app session.
-					require.NotZero(t, identity.RouteToApp.SessionID)
+					require.NotEmpty(t, identity.RouteToApp.SessionID)
 				},
 			},
 		},

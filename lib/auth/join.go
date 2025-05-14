@@ -48,17 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 )
 
-// tokenJoinMethod returns the join method of the token with the given tokenName
-func (a *Server) tokenJoinMethod(ctx context.Context, tokenName string) types.JoinMethod {
-	provisionToken, err := a.GetToken(ctx, tokenName)
-	if err != nil {
-		// could not find dynamic token, assume static token. If it does not
-		// exist this will be caught later.
-		return types.JoinMethodToken
-	}
-	return provisionToken.GetJoinMethod()
-}
-
 // checkTokenJoinRequestCommon checks all token join rules that are common to
 // all join methods, including token existence, token TTL, and allowed roles.
 func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.RegisterUsingTokenRequest) (types.ProvisionToken, error) {
@@ -229,8 +218,18 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		return nil, trace.Wrap(err)
 	}
 
-	method := a.tokenJoinMethod(ctx, req.Token)
-	switch method {
+	// perform common token checks
+	provisionToken, err = a.checkTokenJoinRequestCommon(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// nb: token returned by checkTokenJoinRequestCommon may be a
+	// ProvisionTokenV2 derived from a static token. You cannot assume you will
+	// be able to fetch this same token directly from the backend.
+	method := provisionToken.GetJoinMethod()
+
+	// Call join method-specific validation
+	switch provisionToken.GetJoinMethod() {
 	case types.JoinMethodEC2:
 		if err := a.checkEC2JoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
@@ -241,7 +240,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			"join method but the node has connected to the wrong endpoint, make "+
 			"sure your node is configured to use the %s join method", method, method)
 	case types.JoinMethodGitHub:
-		claims, err := a.checkGitHubJoinRequest(ctx, req)
+		claims, err := a.checkGitHubJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
 			attrs.Github = claims.JoinAttrs()
@@ -250,7 +249,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodGitLab:
-		claims, err := a.checkGitLabJoinRequest(ctx, req)
+		claims, err := a.checkGitLabJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
 			attrs.Gitlab = claims.JoinAttrs()
@@ -259,7 +258,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodCircleCI:
-		claims, err := a.checkCircleCIJoinRequest(ctx, req)
+		claims, err := a.checkCircleCIJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
 			attrs.Circleci = claims.JoinAttrs()
@@ -268,7 +267,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodKubernetes:
-		claims, err := a.checkKubernetesJoinRequest(ctx, req)
+		claims, err := a.checkKubernetesJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
 			attrs.Kubernetes = claims.JoinAttrs()
@@ -277,7 +276,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodGCP:
-		claims, err := a.checkGCPJoinRequest(ctx, req)
+		claims, err := a.checkGCPJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
 			attrs.Gcp = claims.JoinAttrs()
@@ -286,7 +285,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodSpacelift:
-		claims, err := a.checkSpaceliftJoinRequest(ctx, req)
+		claims, err := a.checkSpaceliftJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
 			attrs.Spacelift = claims.JoinAttrs()
@@ -295,7 +294,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodTerraformCloud:
-		claims, err := a.checkTerraformCloudJoinRequest(ctx, req)
+		claims, err := a.checkTerraformCloudJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
 			attrs.TerraformCloud = claims.JoinAttrs()
@@ -304,7 +303,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodBitbucket:
-		claims, err := a.checkBitbucketJoinRequest(ctx, req)
+		claims, err := a.checkBitbucketJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
 			attrs.Bitbucket = claims.JoinAttrs()
@@ -313,18 +312,12 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodToken:
-		// carry on to common token checking logic
+		// no additional validation to perform - the name is enough.
 	default:
 		// this is a logic error, all valid join methods should be captured
 		// above (empty join method will be set to JoinMethodToken by
 		// CheckAndSetDefaults)
 		return nil, trace.BadParameter("unrecognized token join method")
-	}
-
-	// perform common token checks
-	provisionToken, err = a.checkTokenJoinRequestCommon(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// With all elements of the token validated, we can now generate & return

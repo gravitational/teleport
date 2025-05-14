@@ -23,8 +23,8 @@ import * as Alerts from 'design/Alert';
 import Validation from 'shared/components/Validation';
 import { debounce } from 'shared/utils/highbar';
 
+import { CliCommand } from '../components/CliCommand';
 import { ConfigFieldInput, PortFieldInput } from '../components/FieldInputs';
-import { CliCommand } from './CliCommand';
 import { DocumentGatewayProps } from './DocumentGateway';
 
 type OnlineDocumentGatewayProps = Pick<
@@ -89,30 +89,32 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
       <Text typography="h4" mb={1}>
         Connect with CLI
       </Text>
-      <Flex as="form" ref={formRef}>
-        <Validation>
-          <PortFieldInput
-            label="Port"
-            defaultValue={gateway.localPort}
-            onChange={e => handleChangePort(e.target.value)}
-            mb={2}
-          />
-          <ConfigFieldInput
-            label="Database Name"
-            defaultValue={gateway.targetSubresourceName}
-            onChange={e => handleChangeDbName(e.target.value)}
-            spellCheck={false}
-            ml={2}
-            mb={2}
-          />
-        </Validation>
+      <Flex flexDirection="column" gap={2}>
+        <Flex as="form" ref={formRef}>
+          <Validation>
+            <PortFieldInput
+              label="Port"
+              defaultValue={gateway.localPort}
+              onChange={e => handleChangePort(e.target.value)}
+              mb={0}
+            />
+            <ConfigFieldInput
+              label="Database Name"
+              defaultValue={gateway.targetSubresourceName}
+              onChange={e => handleChangeDbName(e.target.value)}
+              spellCheck={false}
+              ml={2}
+              mb={0}
+            />
+          </Validation>
+        </Flex>
+        <CliCommand
+          cliCommand={props.gateway.gatewayCliCommand.preview}
+          isLoading={isPortOrDbNameProcessing}
+          button={{ onClick: props.runCliCommand }}
+        />
+        {$errors}
       </Flex>
-      <CliCommand
-        cliCommand={props.gateway.gatewayCliCommand.preview}
-        isLoading={isPortOrDbNameProcessing}
-        onButtonClick={props.runCliCommand}
-      />
-      {$errors}
       <Text typography="h4" mt={3} mb={1}>
         Connect with GUI
       </Text>

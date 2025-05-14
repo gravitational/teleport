@@ -21,6 +21,8 @@ package web
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -46,13 +48,14 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
-// podHandler connects Kube exec session and web-based terminal via a websocket.
-type podHandler struct {
+// podExecHandler connects Kube exec session and web-based terminal via a websocket.
+type podExecHandler struct {
 	teleportCluster     string
 	configTLSServerName string
 	configServerAddr    string
@@ -120,7 +123,7 @@ func (r *PodExecRequest) Validate() error {
 
 // ServeHTTP sends session metadata to web UI to signal beginning of the session, then
 // handles Kube exec request and connects it to web based terminal input/output.
-func (p *podHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
+func (p *podExecHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 	// Allow closing websocket if the user logs out before exiting
 	// the session.
 	p.sctx.AddClosers(p)
@@ -128,7 +131,7 @@ func (p *podHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 
 	sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: p.sess})
 	if err != nil {
-		p.sendAndLogError(err)
+		p.sendErrorMessage(err)
 		return
 	}
 
@@ -140,28 +143,26 @@ func (p *podHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 
 	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
-		p.sendAndLogError(err)
+		p.sendErrorMessage(err)
 		return
 	}
 
 	err = p.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 	if err != nil {
-		p.sendAndLogError(err)
+		p.sendErrorMessage(err)
 		return
 	}
 
 	if err := p.handler(r); err != nil {
-		p.sendAndLogError(err)
+		p.sendErrorMessage(err)
 	}
 }
 
-func (p *podHandler) Close() error {
+func (p *podExecHandler) Close() error {
 	return trace.Wrap(p.ws.Close())
 }
 
-func (p *podHandler) sendAndLogError(err error) {
-	p.log.Error(err)
-
+func (p *podExecHandler) sendErrorMessage(err error) {
 	if p.closedByClient.Load() {
 		return
 	}
@@ -182,7 +183,7 @@ func (p *podHandler) sendAndLogError(err error) {
 	}
 }
 
-func (p *podHandler) handler(r *http.Request) error {
+func (p *podExecHandler) handler(r *http.Request) error {
 	p.log.Debug("Creating websocket stream for a kube exec request")
 
 	// Create a context for signaling when the terminal session is over and
@@ -329,7 +330,7 @@ func (p *podHandler) handler(r *http.Request) error {
 	return nil
 }
 
-func (p *podHandler) handleResize(termSizeQueue *termSizeQueue) func(context.Context, terminal.Envelope) {
+func (p *podExecHandler) handleResize(termSizeQueue *termSizeQueue) func(context.Context, terminal.Envelope) {
 	return func(ctx context.Context, envelope terminal.Envelope) {
 		var e map[string]any
 		if err := json.Unmarshal([]byte(envelope.Payload), &e); err != nil {
@@ -406,3 +407,188 @@ func createKubeRestConfig(serverAddr, tlsServerName string, ca types.CertAuthori
 		},
 	}, nil
 }
+
+func (h *Handler) joinKubernetesSession(
+	ctx context.Context,
+	sessionID string,
+	mode types.SessionParticipantMode,
+	sctx *SessionContext,
+	site reversetunnelclient.RemoteSite,
+	ws *websocket.Conn,
+) error {
+	h.logger.InfoContext(ctx, "Attempting to join kubernetes existing session",
+		"session_id", sessionID,
+		"mode", mode,
+		"user", sctx.GetUser(),
+	)
+
+	if _, err := session.ParseID(sessionID); err != nil {
+		return trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tracker, err := clt.GetSessionTracker(ctx, sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if tracker.GetSessionKind() != types.KubernetesSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {
+		return trace.NotFound("Kubernetes session %v not found", sessionID)
+	}
+
+	sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: session.Session{
+		Kind:                  types.KubernetesSessionKind,
+		ID:                    session.ID(tracker.GetName()),
+		Login:                 tracker.GetLogin(),
+		KubernetesClusterName: tracker.GetKubeCluster(),
+		ServerHostname:        tracker.GetHostname(),
+	}})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	stream := terminal.NewStream(ctx, terminal.StreamConfig{
+		WS:     ws,
+		Logger: h.log,
+		// Disable all out of band handling of requests
+		Handlers: map[string]terminal.WSHandlerFunc{
+			defaults.WebsocketResize:               func(ctx context.Context, envelope terminal.Envelope) {},
+			defaults.WebsocketFileTransferRequest:  func(ctx context.Context, envelope terminal.Envelope) {},
+			defaults.WebsocketFileTransferDecision: func(ctx context.Context, envelope terminal.Envelope) {},
+		},
+	})
+
+	envelopeBytes, err := proto.Marshal(&terminal.Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketSessionMetadata,
+		Payload: string(sessionMetadataResponse),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := stream.WriteMessage(websocket.BinaryMessage, envelopeBytes); err != nil {
+		return trace.Wrap(err)
+	}
+
+	authAccessPoint, err := site.CachingAccessPoint()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	kubeAddr, tlsServerName, err := h.getKubeExecClusterData(netConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetPriv())
+	if err != nil {
+		return trace.Wrap(err, "failed getting user private key from the session")
+	}
+	userKey := &client.Key{
+		PrivateKey: pk,
+		Cert:       sctx.cfg.Session.GetPub(),
+		TLSCert:    sctx.cfg.Session.GetTLSCert(),
+	}
+
+	certsReq := clientproto.UserCertsRequest{
+		PublicKey:         userKey.MarshalSSHPublicKey(),
+		Username:          sctx.GetUser(),
+		Expires:           sctx.cfg.Session.GetExpiryTime(),
+		Format:            constants.CertificateFormatStandard,
+		RouteToCluster:    tracker.GetClusterName(),
+		KubernetesCluster: tracker.GetKubeCluster(),
+		Usage:             clientproto.UserCertsRequest_Kubernetes,
+	}
+
+	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
+		CurrentAuthClient: clt,
+		RootAuthClient:    sctx.cfg.RootClient,
+		MFACeremony:       newMFACeremony(stream.WSStream, sctx.cfg.RootClient.CreateAuthenticateChallenge),
+		MFAAgainstRoot:    sctx.cfg.RootClusterName == tracker.GetClusterName(),
+		MFARequiredReq: &clientproto.IsMFARequiredRequest{
+			Target: &clientproto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: tracker.GetKubeCluster()},
+		},
+		CertsReq: &certsReq,
+	})
+	if err != nil && !errors.Is(err, services.ErrSessionMFANotRequired) {
+		return trace.Wrap(err, "failed performing mfa ceremony")
+	}
+
+	if certs == nil {
+		certs, err = sctx.cfg.RootClient.GenerateUserCerts(ctx, certsReq)
+		if err != nil {
+			return trace.Wrap(err, "failed issuing user certs")
+		}
+	}
+
+	hostCA, err := h.auth.accessPoint.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: h.auth.clusterName,
+	}, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	certPool := x509.NewCertPool()
+	for _, keyPair := range hostCA.GetTrustedTLSKeyPairs() {
+		if ok := certPool.AppendCertsFromPEM(keyPair.Cert); !ok {
+			return trace.BadParameter("invalid ca format")
+		}
+	}
+
+	session, err := client.NewKubeSession(ctx,
+		client.KubeSessionConfig{
+			KubeProxyAddr:                 strings.TrimPrefix(kubeAddr, "https://"),
+			WebProxyAddr:                  h.cfg.ProxyWebAddr.String(),
+			TLSRoutingConnUpgradeRequired: netConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex,
+			EnableEscapeSequences:         true,
+			Tracker:                       tracker,
+			TLSConfig: &tls.Config{
+				RootCAs:    certPool,
+				ServerName: tlsServerName,
+				GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+					cert, err := tls.X509KeyPair(certs.TLS, pk.PrivateKeyPEM())
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+
+					return &cert, nil
+				},
+			},
+			Mode: mode,
+			AuthClient: func(ctx context.Context) (authclient.ClientI, error) {
+				return noopAuthClientCloser{clt}, nil
+			},
+			Ceremony: newMFAPrompt(stream.WSStream),
+			Stdin:    stream,
+			Stdout:   stream,
+			Stderr:   stderrWriter{stream: stream},
+		})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	session.Wait()
+
+	if err := session.Detach(); err != nil && !terminal.IsOKWebsocketCloseError(err) {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+type noopAuthClientCloser struct {
+	authclient.ClientI
+}
+
+func (noopAuthClientCloser) Close() error { return nil }

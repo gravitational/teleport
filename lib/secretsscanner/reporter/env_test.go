@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -97,7 +97,7 @@ func setup(t *testing.T, ops ...option) env {
 
 	grpcServer := grpc.NewServer(
 		grpc.Creds(
-			credentials.NewTLS(tlsConfig.TLS),
+			expcredentials.NewTLSWithALPNDisabled(tlsConfig.TLS),
 		),
 	)
 	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(grpcServer, svc)

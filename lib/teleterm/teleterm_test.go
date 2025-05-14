@@ -226,5 +226,21 @@ func createValidClientTLSConfig(t *testing.T, certsDir string) *tls.Config {
 	tlsConfig, err := createClientTLSConfig(clientCert, serverCertPath)
 	require.NoError(t, err)
 
+	// this would be done by the grpc TransportCredential in the grpc client,
+	// but we're going to fake it with just a tls.Client, so we have to add the
+	// http2 next proto ourselves (enforced by grpc-go starting from v1.67, and
+	// required by the http2 spec when speaking http2 in TLS)
+	var found bool
+	for _, proto := range tlsConfig.NextProtos {
+		if proto == "h2" {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		tlsConfig.NextProtos = append(tlsConfig.NextProtos, "h2")
+	}
+
 	return tlsConfig
 }

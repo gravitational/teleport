@@ -53,8 +53,10 @@ func TestDockerAttestor(t *testing.T) {
 						Image  string
 						Labels map[string]string
 					}
+					Image string
 				}
 				rsp.Name = "web-server"
+				rsp.Image = "sha256:72297848456d5d37d1262630108ab308d3e9ec7ed1c3286a32fe09856619a782"
 				rsp.Config.Image = "nginx:latest"
 				rsp.Config.Labels = map[string]string{"region": "eu"}
 				_ = json.NewEncoder(w).Encode(rsp)
@@ -97,9 +99,10 @@ func TestDockerAttestor(t *testing.T) {
 	expected := &workloadidentityv1.WorkloadAttrsDocker{
 		Attested: true,
 		Container: &workloadidentityv1.WorkloadAttrsDockerContainer{
-			Name:   "web-server",
-			Image:  "nginx:latest",
-			Labels: map[string]string{"region": "eu"},
+			Name:        "web-server",
+			Image:       "nginx:latest",
+			ImageDigest: "sha256:72297848456d5d37d1262630108ab308d3e9ec7ed1c3286a32fe09856619a782",
+			Labels:      map[string]string{"region": "eu"},
 		},
 	}
 	require.Empty(t, cmp.Diff(expected, attrs, protocmp.Transform()))

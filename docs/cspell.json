@@ -769,6 +769,7 @@
     "pgpass",
     "pguser",
     "pidof",
+    "pipefail",
     "pkill",
     "pkinit",
     "plugindata",

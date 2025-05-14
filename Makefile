@@ -250,7 +250,7 @@ ifeq ("$(REPRODUCIBLE)","yes")
 TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
 endif
 
-VERSRC = version.go gitref.go api/version.go
+VERSRC = gitref.go api/version.go
 
 KUBECONFIG ?=
 TEST_KUBE ?=
@@ -496,7 +496,7 @@ endif
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
 	# Clean up wasm-pack build artifacts
-	rm -rf web/packages/teleport/src/ironrdp/pkg/
+	rm -rf web/packages/shared/libs/ironrdp/pkg/
 
 .PHONY: clean-ui
 clean-ui:
@@ -1243,10 +1243,10 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'gitref.go' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/web/build/**' \
-		-ignore 'version.go' \
 		-ignore 'webassets/**' \
 		-ignore '**/node_modules/**' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
+		-ignore 'web/packages/shared/libs/ironrdp/**' \
 		-ignore '**/.terraform.lock.hcl' \
 		-ignore 'ignoreme'
 ADDLICENSE_AGPL3_ARGS := $(ADDLICENSE_COMMON_ARGS) \
@@ -1280,7 +1280,7 @@ update-version: version test-helm-update-snapshots
 version: $(VERSRC)
 
 # This rule triggers re-generation of version files specified if Makefile changes.
-$(VERSRC): Makefile
+$(VERSRC) &: Makefile version.mk
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 
 # Pushes GITTAG and api/GITTAG to GitHub.
@@ -1707,12 +1707,52 @@ ensure-js-deps:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
 	else $(MAKE) ensure-js-package-manager && pnpm install --frozen-lockfile; fi
 
+.PHONY: ensure-wasm-deps
+ifeq ($(WEBASSETS_SKIP_BUILD),1)
+ensure-wasm-deps:
+else
+ensure-wasm-deps: ensure-wasm-pack ensure-wasm-bindgen
+
+# Get the version of wasm-bindgen from cargo, as that is what wasm-pack is
+# going to do when it checks for the right version. The buildboxes do not
+# have jq installed (yet), so have a hacky awk version on standby.
+CARGO_GET_VERSION_JQ = cargo metadata --locked --format-version=1 | jq -r 'first(.packages[] | select(.name? == "$(1)") | .version)'
+CARGO_GET_VERSION_AWK = awk -F '[ ="]+' '/^name = "$(1)"$$/ {inpkg = 1} inpkg && $$1 == "version" {print $$2; exit}' Cargo.lock
+
+BIN_JQ = $(shell which jq 2>/dev/null)
+CARGO_GET_VERSION = $(if $(BIN_JQ),$(CARGO_GET_VERSION_JQ),$(CARGO_GET_VERSION_AWK))
+
+ensure-wasm-pack: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-wasm-pack-version)
+ensure-wasm-pack: INSTALLED_VERSION = $(lastword $(shell wasm-pack --version 2>/dev/null))
+ensure-wasm-pack:
+	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
+		cargo install wasm-pack --locked --version "$(NEED_VERSION)", \
+		@echo wasm-pack up-to-date: $(INSTALLED_VERSION) \
+	)
+
+# TODO: Use CARGO_GET_VERSION_AWK instead of hardcoded version
+#       On 386 Arch, calling the variable produces a malformed command that fails the build.
+#ensure-wasm-bindgen: NEED_VERSION = $(shell $(call CARGO_GET_VERSION,wasm-bindgen))
+ensure-wasm-bindgen: NEED_VERSION = 0.2.95
+ensure-wasm-bindgen: INSTALLED_VERSION = $(lastword $(shell wasm-bindgen --version 2>/dev/null))
+ensure-wasm-bindgen:
+ifeq ($(CI),true)
+	@: $(or $(NEED_VERSION),$(error Unknown wasm-bindgen version. Is it in Cargo.lock?))
+	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
+		cargo install wasm-bindgen-cli --locked --version "$(NEED_VERSION)", \
+		@echo wasm-bindgen-cli up-to-date: $(INSTALLED_VERSION) \
+	)
+else
+	@echo Skipping ensure-wasm-bindgen, to run set CI=true
+endif
+endif
+
 .PHONY: build-ui
-build-ui: ensure-js-deps
+build-ui: ensure-js-deps ensure-wasm-deps
 	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-oss
 
 .PHONY: build-ui-e
-build-ui-e: ensure-js-deps
+build-ui-e: ensure-js-deps ensure-wasm-deps
 	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-e
 
 .PHONY: docker-ui

@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
@@ -282,7 +284,7 @@ type Modules interface {
 	// IsOSSBuild returns if the binary was built without enterprise modules
 	IsOSSBuild() bool
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
-	AttestHardwareKey(context.Context, interface{}, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
+	AttestHardwareKey(context.Context, interface{}, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
 	GenerateAccessRequestPromotions(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	// GetSuggestedAccessLists generates a list of valid promotions for given access request.
@@ -328,10 +330,10 @@ var ErrCannotDisableSecondFactor = errors.New("cannot disable multi-factor authe
 
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
-	// todo(lxea): DELETE IN 17 [remove env var, leave insecure test mode]
+	// todo(tross): DELETE WHEN ABLE TO [remove env var, leave insecure test mode]
+	allowNoSecondFactor, _ := strconv.ParseBool(os.Getenv(teleport.EnvVarAllowNoSecondFactor))
 	if GetModules().Features().Cloud ||
-		(os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "yes" && !IsInsecureTestMode()) {
-
+		(!allowNoSecondFactor && !IsInsecureTestMode()) {
 		switch r := res.(type) {
 		case types.AuthPreference:
 			switch r.GetSecondFactor() {
@@ -422,7 +424,7 @@ func (p *defaultModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	// Default modules do not support attesting hardware keys.
 	return nil, trace.NotFound("no attestation data for the given key")
 }

@@ -378,7 +378,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |pin_source_ip|boolean|PinSourceIP forces the same client IP for certificate generation and usage|
 |port_forwarding|boolean|PortForwarding defines if the certificate will have "permit-port-forwarding" in the certificate. PortForwarding is "yes" if not set, that's why this is a pointer|
 |record_session|[object](#specoptionsrecord_session)|RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false.|
-|request_access|string|RequestAccess defines the request strategy (optional|note|always) where optional is the default.|
+|request_access|string|RequestAccess defines the request strategy (optional|reason|always) where optional is the default.|
 |request_prompt|string|RequestPrompt is an optional message which tells users what they aught to request.|
 |require_session_mfa|string or integer|RequireMFAType is the type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN". Can be either the string or the integer representation of each option.|
 |ssh_file_copy|boolean|SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.|

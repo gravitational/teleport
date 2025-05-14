@@ -21,6 +21,7 @@ import (
 	"errors"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -669,6 +670,7 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 		name       string
 		config     func(p types.ClusterNetworkingConfig)
 		authorizer authz.Authorizer
+		cnc        types.ClusterNetworkingConfig
 		assertion  func(t *testing.T, updated types.ClusterNetworkingConfig, err error)
 	}{
 		{
@@ -740,11 +742,115 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 				require.Equal(t, types.OriginDynamic, updated.Origin())
 			},
 		},
+		{
+			name: "cloud tunnel strategy type",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity:             authz.RemoteUser{},
+				}, nil
+			}),
+			cnc: func() types.ClusterNetworkingConfig {
+				cnc := types.DefaultClusterNetworkingConfig()
+				cnc.SetTunnelStrategy(&types.TunnelStrategyV1{
+					Strategy: &types.TunnelStrategyV1_ProxyPeering{
+						ProxyPeering: types.DefaultProxyPeeringTunnelStrategy(),
+					},
+				})
+				return cnc
+			}(),
+			config: func(p types.ClusterNetworkingConfig) {
+				modules.SetTestModules(t, &modules.TestModules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Cloud: true,
+					},
+				})
+				p.SetTunnelStrategy(&types.TunnelStrategyV1{
+					Strategy: &types.TunnelStrategyV1_AgentMesh{
+						AgentMesh: types.DefaultAgentMeshTunnelStrategy(),
+					},
+				})
+			},
+			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
+				require.True(t, trace.IsBadParameter(err), "got (%v), expected cloud feature to prevent updating tunnel strategy", err)
+			},
+		},
+		{
+			name: "cloud web idle timeout",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity:             authz.RemoteUser{},
+				}, nil
+			}),
+			config: func(p types.ClusterNetworkingConfig) {
+				modules.SetTestModules(t, &modules.TestModules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Cloud: true,
+					},
+				})
+				p.SetWebIdleTimeout(time.Minute * 90)
+			},
+			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
+				require.NoError(t, err, "got (%v), expected cloud feature to allow updating web idle timeout", err)
+			},
+		},
+		{
+			name: "cloud agent connection count",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity:             authz.RemoteUser{},
+				}, nil
+			}),
+			cnc: func() types.ClusterNetworkingConfig {
+				cnc := types.DefaultClusterNetworkingConfig()
+				cnc.SetTunnelStrategy(&types.TunnelStrategyV1{
+					Strategy: &types.TunnelStrategyV1_ProxyPeering{
+						ProxyPeering: types.DefaultProxyPeeringTunnelStrategy(),
+					},
+				})
+				return cnc
+			}(),
+			config: func(p types.ClusterNetworkingConfig) {
+				modules.SetTestModules(t, &modules.TestModules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Cloud: true,
+					},
+				})
+				p.SetTunnelStrategy(
+					&types.TunnelStrategyV1{Strategy: &types.TunnelStrategyV1_ProxyPeering{
+						ProxyPeering: &types.ProxyPeeringTunnelStrategy{
+							AgentConnectionCount: 100,
+						},
+					}},
+				)
+			},
+			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
+				require.True(t, trace.IsBadParameter(err), "got (%v), expected cloud feature to prevent updating agent connection count", err)
+			},
+		},
 	}
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultClusterNetworkingConfig(types.DefaultClusterNetworkingConfig()))
+			cnc := test.cnc
+			if cnc == nil {
+				cnc = types.DefaultClusterNetworkingConfig()
+			}
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultClusterNetworkingConfig(cnc))
 			require.NoError(t, err, "creating test service")
 
 			// Set revisions to allow the update to succeed.

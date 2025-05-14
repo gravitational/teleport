@@ -36,4 +36,5 @@ attestors:
     enabled: false
   systemd:
     enabled: false
+  unix: {}
 jwt_svid_ttl: 5m0s

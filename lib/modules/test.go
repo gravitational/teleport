@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
 // TestModules implements the Modules interface for testing.
@@ -104,7 +105,7 @@ func (m *TestModules) IsOSSBuild() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (m *TestModules) AttestHardwareKey(ctx context.Context, obj interface{}, as *keys.AttestationStatement, pk crypto.PublicKey, d time.Duration) (*keys.AttestationData, error) {
+func (m *TestModules) AttestHardwareKey(ctx context.Context, obj interface{}, as *hardwarekey.AttestationStatement, pk crypto.PublicKey, d time.Duration) (*keys.AttestationData, error) {
 	if m.MockAttestationData != nil {
 		return m.MockAttestationData, nil
 	}

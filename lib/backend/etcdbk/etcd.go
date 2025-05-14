@@ -964,8 +964,6 @@ type leaseKey struct {
 	bucket time.Time
 }
 
-var _ map[leaseKey]struct{} // compile-time hashability check
-
 func (b *EtcdBackend) setupLease(ctx context.Context, item backend.Item, lease *backend.Lease, opts *[]clientv3.OpOption) error {
 	// in order to reduce excess redundant lease generation, we bucket expiry times
 	// to the nearest multiple of 10s and then grant one lease per bucket. Too many
@@ -1005,8 +1003,6 @@ func (b *EtcdBackend) ttl(expires time.Time) time.Duration {
 type ttlKey struct {
 	leaseID int64
 }
-
-var _ map[ttlKey]struct{} // compile-time hashability check
 
 func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend.Event, error) {
 	event := &backend.Event{

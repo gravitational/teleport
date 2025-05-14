@@ -30,8 +30,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 
 	"github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
@@ -200,7 +200,7 @@ func newProxyService(t *testing.T, lis net.Listener, authClient AuthClient) {
 
 	s := grpc.NewServer(
 		grpc.Creds(
-			credentials.NewTLS(tlsConfig),
+			expcredentials.NewTLSWithALPNDisabled(tlsConfig),
 		),
 	)
 	t.Cleanup(s.GracefulStop)

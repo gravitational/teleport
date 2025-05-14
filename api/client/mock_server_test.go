@@ -23,7 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/testhelpers/mtls"
@@ -45,7 +45,7 @@ func newMockServer(t *testing.T, addr string, service proto.AuthServiceServer) *
 	}
 
 	m.grpc = grpc.NewServer(
-		grpc.Creds(credentials.NewTLS(m.mtlsConfig.ServerTLS)),
+		grpc.Creds(expcredentials.NewTLSWithALPNDisabled(m.mtlsConfig.ServerTLS)),
 		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)

@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/utils/cert"
@@ -91,7 +91,7 @@ func createServerCredentials(serverKeyPair tls.Certificate, clientCertPaths []st
 		return configClone, nil
 	}
 
-	return grpc.Creds(credentials.NewTLS(config)), nil
+	return grpc.Creds(expcredentials.NewTLSWithALPNDisabled(config)), nil
 }
 
 // createClientCredentials creates mTLS credentials for a gRPC client. The server cert file is read
@@ -102,7 +102,7 @@ func createClientCredentials(clientKeyPair tls.Certificate, serverCertPath strin
 		return nil, trace.Wrap(err)
 	}
 
-	return grpc.WithTransportCredentials(credentials.NewTLS(config)), nil
+	return grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(config)), nil
 }
 
 func createClientTLSConfig(clientKeyPair tls.Certificate, serverCertPath string) (*tls.Config, error) {

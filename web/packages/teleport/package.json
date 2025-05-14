@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "pnpm build-wasm && vite",
-    "build-wasm": "RUST_MIN_STACK=16777216 wasm-pack build ./src/ironrdp --target web",
-    "build": "pnpm build-wasm && vite build"
+    "build": "pnpm build-wasm && vite build",
+    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm"
   },
   "author": "Gravitational, Inc.",
   "license": "Apache-2.0",

@@ -18,12 +18,14 @@ package workloadidentityv1
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/expression"
@@ -116,6 +118,18 @@ func decide(
 			return d
 		}
 		dst.OrganizationalUnit = templated
+	}
+
+	if ec := wi.GetSpec().GetSpiffe().GetJwt().GetExtraClaims(); ec != nil {
+		templated, err := templateExtraClaims(ec, attrs)
+		if err != nil {
+			d.reason = trace.Wrap(
+				err,
+				"templating spec.spiffe.jwt.extra_claims",
+			)
+			return d
+		}
+		d.templatedWorkloadIdentity.Spec.Spiffe.Jwt.ExtraClaims = templated
 	}
 
 	// Yay - made it to the end!
@@ -218,4 +232,68 @@ ruleLoop:
 	}
 	// TODO: Eventually, we'll need to work support for deny rules into here.
 	return trace.AccessDenied("no matching rule found")
+}
+
+func templateExtraClaims(templates *structpb.Struct, attrs *workloadidentityv1pb.Attrs) (*structpb.Struct, error) {
+	// render is called recursively on list elements and struct fields.
+	var render func(string, *structpb.Value, int) (*structpb.Value, error)
+
+	const maxDepth = 10
+	render = func(fieldName string, fieldValue *structpb.Value, depth int) (*structpb.Value, error) {
+		if depth >= maxDepth {
+			return nil, trace.BadParameter("extra_claims cannot contain more than %d levels of nesting", maxDepth)
+		}
+
+		switch value := fieldValue.GetKind().(type) {
+		// Numbers, booleans, and nulls can be emitted as-is.
+		case *structpb.Value_NumberValue, *structpb.Value_BoolValue, *structpb.Value_NullValue:
+			return fieldValue, nil
+
+		// We treat string values as templates.
+		case *structpb.Value_StringValue:
+			renderedString, err := expression.RenderTemplate(value.StringValue, attrs)
+			if err != nil {
+				return nil, trace.Wrap(err, "templating claim: %s", fieldName)
+			}
+			return structpb.NewStringValue(renderedString), nil
+
+		// For struct values, we call render on each of their fields.
+		case *structpb.Value_StructValue:
+			result := &structpb.Struct{Fields: make(map[string]*structpb.Value)}
+			for structKey, structValue := range value.StructValue.GetFields() {
+				keyWithPrefix := structKey
+				if fieldName != "" {
+					keyWithPrefix = fmt.Sprintf("%s.%s", fieldName, structKey)
+				}
+				v, err := render(keyWithPrefix, structValue, depth+1)
+				if err != nil {
+					return nil, err
+				}
+				result.Fields[structKey] = v
+			}
+			return structpb.NewStructValue(result), nil
+
+		// For list values, we call render on each of their elements.
+		case *structpb.Value_ListValue:
+			result := new(structpb.ListValue)
+			for idx, val := range value.ListValue.GetValues() {
+				v, err := render(fmt.Sprintf("%s[%d]", fieldName, idx), val, depth+1)
+				if err != nil {
+					return nil, err
+				}
+				result.Values = append(result.Values, v)
+			}
+			return structpb.NewListValue(result), nil
+
+		// At the time of writing, there are no other possible value types.
+		default:
+			return nil, trace.Errorf("unsupported field type: %T", value)
+		}
+	}
+
+	result, err := render("", structpb.NewStructValue(templates), 0)
+	if err != nil {
+		return nil, err
+	}
+	return result.GetStructValue(), nil
 }

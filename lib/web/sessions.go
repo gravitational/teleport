@@ -39,7 +39,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -334,7 +334,7 @@ func (c *SessionContext) NewKubernetesServiceClient(ctx context.Context, addr st
 	conn, err = grpc.DialContext(
 		ctx,
 		addr,
-		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(tlsConfig)),
 		grpc.WithChainUnaryInterceptor(
 			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
 			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.

@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
@@ -84,7 +84,7 @@ func TestRetryWithMFA(t *testing.T) {
 	require.NoError(t, err)
 
 	server := grpc.NewServer(
-		grpc.Creds(credentials.NewTLS(mtlsConfig.ServerTLS)),
+		grpc.Creds(expcredentials.NewTLSWithALPNDisabled(mtlsConfig.ServerTLS)),
 		grpc.ChainUnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 	)
 	proto.RegisterAuthServiceServer(server, &mfaService{})
@@ -96,7 +96,7 @@ func TestRetryWithMFA(t *testing.T) {
 	t.Run("without interceptor", func(t *testing.T) {
 		conn, err := grpc.Dial(
 			listener.Addr().String(),
-			grpc.WithTransportCredentials(credentials.NewTLS(mtlsConfig.ClientTLS)),
+			grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(mtlsConfig.ClientTLS)),
 			grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
 		)
 		require.NoError(t, err)
@@ -126,7 +126,7 @@ func TestRetryWithMFA(t *testing.T) {
 		t.Run("ok mfa ceremony", func(t *testing.T) {
 			conn, err := grpc.Dial(
 				listener.Addr().String(),
-				grpc.WithTransportCredentials(credentials.NewTLS(mtlsConfig.ClientTLS)),
+				grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(mtlsConfig.ClientTLS)),
 				grpc.WithChainUnaryInterceptor(
 					interceptors.WithMFAUnaryInterceptor(okMFACeremony),
 					interceptors.GRPCClientUnaryErrorInterceptor,
@@ -143,7 +143,7 @@ func TestRetryWithMFA(t *testing.T) {
 		t.Run("nok mfa ceremony", func(t *testing.T) {
 			conn, err := grpc.Dial(
 				listener.Addr().String(),
-				grpc.WithTransportCredentials(credentials.NewTLS(mtlsConfig.ClientTLS)),
+				grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(mtlsConfig.ClientTLS)),
 				grpc.WithChainUnaryInterceptor(
 					interceptors.WithMFAUnaryInterceptor(nokMFACeremony),
 					interceptors.GRPCClientUnaryErrorInterceptor,
@@ -161,7 +161,7 @@ func TestRetryWithMFA(t *testing.T) {
 		t.Run("ok mfa in context", func(t *testing.T) {
 			conn, err := grpc.Dial(
 				listener.Addr().String(),
-				grpc.WithTransportCredentials(credentials.NewTLS(mtlsConfig.ClientTLS)),
+				grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(mtlsConfig.ClientTLS)),
 				grpc.WithChainUnaryInterceptor(
 					interceptors.WithMFAUnaryInterceptor(nokMFACeremony),
 					interceptors.GRPCClientUnaryErrorInterceptor,
@@ -190,7 +190,7 @@ func TestRetryWithMFA_Reuse(t *testing.T) {
 
 	mfaService := &mfaService{}
 	server := grpc.NewServer(
-		grpc.Creds(credentials.NewTLS(mtlsConfig.ServerTLS)),
+		grpc.Creds(expcredentials.NewTLSWithALPNDisabled(mtlsConfig.ServerTLS)),
 		grpc.ChainUnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 	)
 	proto.RegisterAuthServiceServer(server, mfaService)
@@ -223,7 +223,7 @@ func TestRetryWithMFA_Reuse(t *testing.T) {
 		mfaService.allowReuse = true
 		conn, err := grpc.Dial(
 			listener.Addr().String(),
-			grpc.WithTransportCredentials(credentials.NewTLS(mtlsConfig.ClientTLS)),
+			grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(mtlsConfig.ClientTLS)),
 			grpc.WithChainUnaryInterceptor(
 				interceptors.WithMFAUnaryInterceptor(okMFACeremonyAllowReuse),
 				interceptors.GRPCClientUnaryErrorInterceptor,
@@ -241,7 +241,7 @@ func TestRetryWithMFA_Reuse(t *testing.T) {
 		mfaService.allowReuse = false
 		conn, err := grpc.Dial(
 			listener.Addr().String(),
-			grpc.WithTransportCredentials(credentials.NewTLS(mtlsConfig.ClientTLS)),
+			grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(mtlsConfig.ClientTLS)),
 			grpc.WithChainUnaryInterceptor(
 				interceptors.WithMFAUnaryInterceptor(okMFACeremonyAllowReuse),
 				interceptors.GRPCClientUnaryErrorInterceptor,
@@ -259,7 +259,7 @@ func TestRetryWithMFA_Reuse(t *testing.T) {
 		mfaService.allowReuse = false
 		conn, err := grpc.Dial(
 			listener.Addr().String(),
-			grpc.WithTransportCredentials(credentials.NewTLS(mtlsConfig.ClientTLS)),
+			grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(mtlsConfig.ClientTLS)),
 			grpc.WithChainUnaryInterceptor(
 				interceptors.WithMFAUnaryInterceptor(okMFACeremony),
 				interceptors.GRPCClientUnaryErrorInterceptor,

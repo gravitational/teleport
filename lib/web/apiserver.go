@@ -31,6 +31,7 @@ import (
 	"html/template"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/url"
@@ -134,6 +135,10 @@ const (
 	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
 	// cluster configuration changes.
 	findEndpointCacheTTL = 10 * time.Second
+	// cmcCacheTTL is the cache TTL for the clusterMaintenanceConfig resource.
+	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
+	// cluster configuration changes.
+	cmcCacheTTL = time.Minute
 	// DefaultAgentUpdateJitterSeconds is the default jitter agents should wait before updating.
 	DefaultAgentUpdateJitterSeconds = 60
 )
@@ -373,7 +378,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 	}
 	publicAddr := raddr.Host()
 
-	servers, err := app.Match(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
+	servers, err := app.MatchUnshuffled(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
 	if err != nil {
 		h.handler.log.Info("failed to match application with public addr %s", publicAddr)
 		return
@@ -384,7 +389,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	foundApp := servers[0].GetApp()
+	foundApp := servers[rand.N(len(servers))].GetApp()
 	corsPolicy := foundApp.GetCORS()
 	if corsPolicy == nil {
 		return
@@ -511,13 +516,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
 	cmcCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:         findEndpointCacheTTL,
+		TTL:         cmcCacheTTL,
 		Clock:       h.clock,
 		Context:     cfg.Context,
 		ReloadOnErr: false,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err, "creating /find cache")
+		return nil, trace.Wrap(err, "creating cluster maintenance config cache")
 	}
 	h.clusterMaintenanceConfigCache = cmcCache
 
@@ -1305,6 +1310,7 @@ func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, 
 		Local:             &webclient.LocalSettings{},
 		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
 		PIVSlot:           cap.GetPIVSlot(),
+		PIVPINCacheTTL:    cap.GetPIVPINCacheTTL(),
 		DeviceTrust:       deviceTrustSettings(cap),
 	}
 
@@ -1346,6 +1352,7 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
 		PIVSlot:           cap.GetPIVSlot(),
+		PIVPINCacheTTL:    cap.GetPIVPINCacheTTL(),
 		DeviceTrust:       deviceTrustSettings(cap),
 	}
 }
@@ -1363,6 +1370,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
 		PIVSlot:           cap.GetPIVSlot(),
+		PIVPINCacheTTL:    cap.GetPIVPINCacheTTL(),
 		DeviceTrust:       deviceTrustSettings(cap),
 	}
 }
@@ -1379,6 +1387,7 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
 		PIVSlot:           cap.GetPIVSlot(),
+		PIVPINCacheTTL:    cap.GetPIVPINCacheTTL(),
 		DeviceTrust:       deviceTrustSettings(cap),
 	}
 }
@@ -1432,14 +1441,14 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI) (webcli
 		}
 	case constants.SAML:
 		if authPreference.GetConnectorName() != "" {
-			samlConnector, err := authClient.GetSAMLConnector(ctx, authPreference.GetConnectorName(), false)
+			samlConnector, err := authClient.GetSAMLConnectorWithValidationOptions(ctx, authPreference.GetConnectorName(), false, types.SAMLConnectorValidationFollowURLs(false))
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
 			as = samlSettings(samlConnector, authPreference)
 		} else {
-			samlConnectors, err := authClient.GetSAMLConnectors(ctx, false)
+			samlConnectors, err := authClient.GetSAMLConnectorsWithValidationOptions(ctx, false, types.SAMLConnectorValidationFollowURLs(false))
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
@@ -1496,7 +1505,7 @@ func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	}
 
 	var data tracepb.TracesData
-	if err := protojson.Unmarshal(body, &data); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(body, &data); err != nil {
 		h.log.WithError(err).Error("Failed to unmarshal traces request")
 		w.WriteHeader(http.StatusBadRequest)
 		return nil, nil
@@ -1590,7 +1599,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 
 	// cache the generic answer to avoid doing work for each request
-	resp, err := utils.FnCacheGet[*webclient.PingResponse](r.Context(), h.findEndpointCache, cacheKey, func(ctx context.Context) (*webclient.PingResponse, error) {
+	resp, err := utils.FnCacheGet(r.Context(), h.findEndpointCache, cacheKey, func(ctx context.Context) (*webclient.PingResponse, error) {
 		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1666,7 +1675,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	// if no oidc connector was found, look for a saml connector
-	samlConnectors, err := authClient.GetSAMLConnectors(r.Context(), false)
+	samlConnectors, err := authClient.GetSAMLConnectorsWithValidationOptions(r.Context(), false, types.SAMLConnectorValidationFollowURLs(false))
 	if err == nil {
 		for index, value := range samlConnectors {
 			collectorNames = append(collectorNames, value.GetMetadata().Name)
@@ -1720,7 +1729,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	// get all SAML connectors
-	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectors(r.Context(), false)
+	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectorsWithValidationOptions(r.Context(), false, types.SAMLConnectorValidationFollowURLs(false))
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve SAML connectors.")
 	}
@@ -1899,7 +1908,7 @@ func setEntitlementsWithLegacyLogic(webCfg *webclient.WebConfig, clusterFeatures
 		// set default Identity fields to legacy feature value
 		webCfg.Entitlements[string(entitlements.AccessLists)] = webclient.EntitlementInfo{Enabled: true, Limit: clusterFeatures.GetAccessList().GetCreateLimit()}
 		webCfg.Entitlements[string(entitlements.AccessMonitoring)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessMonitoring().GetEnabled(), Limit: clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()}
-		webCfg.Entitlements[string(entitlements.AccessRequests)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessRequests().MonthlyRequestLimit > 0, Limit: clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()}
+		webCfg.Entitlements[string(entitlements.AccessRequests)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit() > 0, Limit: clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()}
 		webCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetDeviceTrust().GetEnabled(), Limit: clusterFeatures.GetDeviceTrust().GetDevicesUsageLimit()}
 		// override Identity Package features if Identity is enabled: set true and clear limit
 		if clusterFeatures.GetIdentityGovernance() {
@@ -1913,7 +1922,7 @@ func setEntitlementsWithLegacyLogic(webCfg *webclient.WebConfig, clusterFeatures
 		}
 
 		// webCfg.<legacy fields>: set equal to legacy feature value
-		webCfg.AccessRequests = clusterFeatures.GetAccessRequests().MonthlyRequestLimit > 0
+		webCfg.AccessRequests = clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit() > 0
 		webCfg.ExternalAuditStorage = clusterFeatures.GetExternalAuditStorage()
 		webCfg.HideInaccessibleFeatures = clusterFeatures.GetFeatureHiding()
 		webCfg.IsIGSEnabled = clusterFeatures.GetIdentityGovernance()
@@ -3654,6 +3663,10 @@ func (h *Handler) siteNodeConnect(
 type podConnectParams struct {
 	// Term is the initial PTY size.
 	Term session.TerminalParams `json:"term"`
+	// SessionID is a Teleport session ID to join as.
+	SessionID session.ID `json:"sid"`
+	// ParticipantMode is the mode that determines what you can do when you join an active session.
+	ParticipantMode types.SessionParticipantMode `json:"mode"`
 }
 
 func (h *Handler) podConnect(
@@ -3673,6 +3686,20 @@ func (h *Handler) podConnect(
 		return nil, trace.Wrap(err)
 	}
 
+	// If a session is provided, then join an existing session
+	// instead of creating a new one.
+	if !params.SessionID.IsZero() {
+		return nil, trace.Wrap(h.joinKubernetesSession(
+			r.Context(),
+			params.SessionID.String(),
+			params.ParticipantMode,
+			sctx,
+			site,
+			ws,
+		))
+	}
+
+	// Wait for the user to supply the pod information.
 	execReq, err := readPodExecRequestFromWS(ws)
 	if err != nil {
 		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || terminal.IsOKWebsocketCloseError(trace.Unwrap(err)) {
@@ -3691,26 +3718,11 @@ func (h *Handler) podConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clusterName := site.GetName()
-
-	accessChecker, err := sctx.GetUserAccessChecker()
-	if err != nil {
-		return session.Session{}, trace.Wrap(err)
-	}
-	policySets := accessChecker.SessionPolicySets()
-	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, sctx.GetUser())
-
 	sess := session.Session{
 		Kind:                  types.KubernetesSessionKind,
 		Login:                 "root",
-		ClusterName:           clusterName,
+		ClusterName:           site.GetName(),
 		KubernetesClusterName: execReq.KubeCluster,
-		Moderated:             accessEvaluator.IsModerated(),
 		ID:                    session.NewID(),
 		Created:               h.clock.Now().UTC(),
 		LastActive:            h.clock.Now().UTC(),
@@ -3732,8 +3744,6 @@ func (h *Handler) podConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	keepAliveInterval := netConfig.GetKeepAliveInterval()
-
 	serverAddr, tlsServerName, err := h.getKubeExecClusterData(netConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3747,13 +3757,18 @@ func (h *Handler) podConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	ph := podHandler{
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ph := podExecHandler{
 		req:                 execReq,
 		sess:                sess,
 		sctx:                sctx,
 		teleportCluster:     site.GetName(),
 		ws:                  ws,
-		keepAliveInterval:   keepAliveInterval,
+		keepAliveInterval:   netConfig.GetKeepAliveInterval(),
 		log:                 h.log.WithField(teleport.ComponentKey, "pod"),
 		userClient:          clt,
 		localCA:             hostCA,

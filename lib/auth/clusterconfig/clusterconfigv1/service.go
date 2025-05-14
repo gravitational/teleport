@@ -700,6 +700,12 @@ func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, newConfig, oldConf
 		return trace.BadParameter(cloudUpdateFailureMsg, "tunnel_strategy")
 	}
 
+	oldts := oldConfig.GetProxyPeeringTunnelStrategy()
+	newts := newConfig.GetProxyPeeringTunnelStrategy()
+	if oldts != nil && newts != nil && oldts.AgentConnectionCount != newts.AgentConnectionCount {
+		return trace.BadParameter(cloudUpdateFailureMsg, "agent_connection_count")
+	}
+
 	if newConfig.GetKeepAliveInterval() != oldConfig.GetKeepAliveInterval() {
 		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_interval")
 	}

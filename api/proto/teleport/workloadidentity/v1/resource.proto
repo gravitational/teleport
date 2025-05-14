@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.workloadidentity.v1;
 
+import "google/protobuf/struct.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
@@ -134,6 +135,12 @@ message WorkloadIdentitySPIFFEX509 {
   X509DistinguishedNameTemplate subject_template = 2;
 }
 
+// Configuration specific to the issuance of JWT-SVIDs.
+message WorkloadIdentitySPIFFEJWT {
+  // Additional claims that will be added to the JWT.
+  google.protobuf.Struct extra_claims = 1;
+}
+
 // Configuration pertaining to the issuance of SPIFFE-compatible workload
 // identity credentials.
 message WorkloadIdentitySPIFFE {
@@ -149,6 +156,8 @@ message WorkloadIdentitySPIFFE {
   string hint = 2;
   // Configuration specific to X509-SVIDs.
   WorkloadIdentitySPIFFEX509 x509 = 3;
+  // Configuration specific to JWT-SVIDs.
+  WorkloadIdentitySPIFFEJWT jwt = 4;
 }
 
 // The spec for the WorkloadIdentity resource.

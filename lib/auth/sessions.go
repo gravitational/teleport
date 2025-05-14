@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -372,6 +373,13 @@ type NewAppSessionRequest struct {
 	Identity tlsca.Identity
 	// ClientAddr is a client (user's) address.
 	ClientAddr string
+
+	// BotName is the name of the bot that is creating this session.
+	// Empty if not a bot.
+	BotName string
+	// BotInstanceID is the ID of the bot instance that is creating this session.
+	// Empty if not a bot.
+	BotInstanceID string
 }
 
 // CreateAppSession creates and inserts a services.WebSession into the
@@ -515,6 +523,9 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		// Pass along device extensions from the user.
 		deviceExtensions: req.DeviceExtensions,
 		mfaVerified:      req.MFAVerified,
+		// Pass along bot details to ensure audit logs are correct.
+		botName:       req.BotName,
+		botInstanceID: req.BotInstanceID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -638,7 +649,7 @@ func (a *Server) generateAppToken(ctx context.Context, username string, roles []
 	return token, nil
 }
 
-func (a *Server) CreateSessionCert(userState services.UserState, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster, loginIP string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
+func (a *Server) CreateSessionCert(userState services.UserState, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster, loginIP string, attestationReq *hardwarekey.AttestationStatement) ([]byte, []byte, error) {
 	// It's safe to extract the access info directly from services.User because
 	// this occurs during the initial login before the first certs have been
 	// generated, so there's no possibility of any active access requests.

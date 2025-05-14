@@ -163,9 +163,9 @@ func (w *Watcher) fetchAndSend() {
 				// not others. This is acceptable, so make a debug log instead
 				// of a warning.
 				if trace.IsAccessDenied(err) || trace.IsNotFound(err) {
-					w.cfg.Log.WithError(err).WithField("fetcher", lFetcher).Debugf("Skipped fetcher for %s at %s.", lFetcher.ResourceType(), lFetcher.Cloud())
+					w.cfg.Log.WithError(err).WithField("fetcher", lFetcher.String()).Debugf("Skipped fetcher for %s at %s.", lFetcher.ResourceType(), lFetcher.Cloud())
 				} else {
-					w.cfg.Log.WithError(err).WithField("fetcher", lFetcher).Warnf("Unable to fetch resources for %s at %s.", lFetcher.ResourceType(), lFetcher.Cloud())
+					w.cfg.Log.WithError(err).WithField("fetcher", lFetcher.String()).Warnf("Unable to fetch resources for %s at %s.", lFetcher.ResourceType(), lFetcher.Cloud())
 				}
 				// never return the error otherwise it will impact other watchers.
 				return nil

@@ -31,7 +31,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/gravitational/teleport"
@@ -733,7 +733,7 @@ func (c *Client) connect(params connectParams) (internal.ClientConn, error) {
 
 	conn, err := grpc.Dial(
 		params.peerAddr,
-		grpc.WithTransportCredentials(newClientCredentials(expectedPeer, params.peerAddr, c.config.Log, credentials.NewTLS(tlsConfig))),
+		grpc.WithTransportCredentials(newClientCredentials(expectedPeer, params.peerAddr, c.config.Log, expcredentials.NewTLSWithALPNDisabled(tlsConfig))),
 		grpc.WithStatsHandler(newStatsHandler(c.reporter)),
 		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, interceptors.GRPCClientStreamErrorInterceptor),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{

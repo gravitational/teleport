@@ -76,6 +76,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
@@ -391,7 +392,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+			return nil, fmt.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 	} else if cfg.KeyStoreConfig.AWSKMS != nil {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
@@ -1276,6 +1277,7 @@ func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
 	agentWindow, _ := cmc.GetAgentUpgradeWindow()
 
 	agentWindow.UTCStartHour = uint32(startHour)
+	agentWindow.Weekdays = []string{"Mon", "Tue", "Wed", "Thu"}
 
 	cmc.SetAgentUpgradeWindow(agentWindow)
 
@@ -1720,7 +1722,7 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 	// connected instances is a poor approximation and may lead to missed notifications if auth
 	// server is up to date, but instances not connected to this auth need update.
 	var instanceVisitor vc.Visitor
-	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+	a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 		v := vc.Normalize(handle.Hello().Version)
 		instanceVisitor.Visit(vc.NewTarget(v))
 	})
@@ -1766,7 +1768,7 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 func (a *Server) updateAgentMetrics() {
 	imp := newInstanceMetricsPeriodic()
 
-	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+	a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 		imp.VisitInstance(handle.Hello(), handle.AgentMetadata())
 	})
 
@@ -1822,11 +1824,6 @@ func (a *Server) refreshRemoteClusters(ctx context.Context, rnd *insecurerand.Ra
 		return
 	}
 
-	// randomize the order to optimize for multiple auth servers running in parallel
-	rnd.Shuffle(len(remoteClusters), func(i, j int) {
-		remoteClusters[i], remoteClusters[j] = remoteClusters[j], remoteClusters[i]
-	})
-
 	// we want to limit the number of backend updates performed on each refresh to avoid overwhelming the backend.
 	updateLimit := remoteClusterRefreshLimit
 	if dynamicLimit := (len(remoteClusters) / remoteClusterRefreshBuckets) + 1; dynamicLimit > updateLimit {
@@ -1836,7 +1833,8 @@ func (a *Server) refreshRemoteClusters(ctx context.Context, rnd *insecurerand.Ra
 	}
 
 	var updateCount int
-	for _, remoteCluster := range remoteClusters {
+	// randomize the order to optimize for multiple auth servers running in parallel
+	for _, remoteCluster := range utils.ShuffleVisit(remoteClusters) {
 		if updated, err := a.updateRemoteClusterStatus(ctx, netConfig, remoteCluster); err != nil {
 			log.WithError(err).Error("Failed to perform remote cluster status refresh")
 		} else if updated {
@@ -2181,7 +2179,7 @@ type certRequest struct {
 	// The Node/Agent will append connection traces to this instance.
 	connectionDiagnosticID string
 	// attestationStatement is an attestation statement associated with the given public key.
-	attestationStatement *keys.AttestationStatement
+	attestationStatement *hardwarekey.AttestationStatement
 	// deviceExtensions holds device-aware user certificate extensions.
 	deviceExtensions DeviceExtensions
 	// botName is the name of the bot requesting this cert, if any
@@ -2323,7 +2321,7 @@ type GenerateUserTestCertsRequest struct {
 	RouteToCluster       string
 	PinnedIP             string
 	MFAVerified          string
-	AttestationStatement *keys.AttestationStatement
+	AttestationStatement *hardwarekey.AttestationStatement
 	AppName              string
 	AppSessionID         string
 }
@@ -2931,7 +2929,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 
 	if len(req.checker.GetAllowedResourceIDs()) > 0 && modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, fmt.Errorf("Resource Access Requests: %w", ErrRequiresEnterprise)
+		return nil, fmt.Errorf("resource access requests: %w", ErrRequiresEnterprise)
 	}
 
 	// Reject the cert request if there is a matching lock in force.
@@ -4674,7 +4672,7 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
 	var rsp proto.InventoryStatusSummary
 	if req.Connected {
-		a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+		a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 			rsp.Connected = append(rsp.Connected, handle.Hello())
 		})
 
@@ -5958,7 +5956,7 @@ func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.Session
 	for _, policySet := range tracker.GetHostPolicySets() {
 		if len(policySet.RequireSessionJoin) != 0 {
 			if modules.GetModules().BuildType() != modules.BuildEnterprise {
-				return nil, fmt.Errorf("Moderated Sessions: %w", ErrRequiresEnterprise)
+				return nil, fmt.Errorf("moderated sessions: %w", ErrRequiresEnterprise)
 			}
 		}
 	}

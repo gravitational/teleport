@@ -92,13 +92,27 @@ export default function useKubeExecSession(doc: DocumentKubeExec) {
             const data = JSON.parse(payload);
             data.session.kind = 'k8s';
             setSession(data.session);
+
+            if (doc.mode !== undefined) {
+              ctx.updateKubeExecDocument(doc.id, {
+                title: `${data.session.server_hostname}@${data.session.kubernetes_cluster_name}`,
+                kubeNamespace: data.session,
+              });
+
+              setStatus('initialized');
+            }
+
             handleTtyConnect(ctx, data.session, doc.id);
           });
 
           // assign tty reference so it can be passed down to xterm
           ttyRef.current = tty;
           setSession(session);
-          setStatus('waiting-for-exec-data');
+          if (doc.mode === undefined) {
+            setStatus('waiting-for-exec-data');
+          } else {
+            setStatus('initialized');
+          }
           span.end();
         }
       );

@@ -29,7 +29,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 	"google.golang.org/protobuf/testing/protocmp"
 	"k8s.io/client-go/rest"
 
@@ -640,7 +640,7 @@ func initGRPCServer(t *testing.T, testCtx *kubeproxy.TestContext, listener net.L
 
 	tlsConf := copyAndConfigureTLS(tlsConfig, logrus.New(), testCtx.AuthClient, clusterName)
 	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
-		TransportCredentials: credentials.NewTLS(tlsConf),
+		TransportCredentials: expcredentials.NewTLSWithALPNDisabled(tlsConf),
 		UserGetter:           authMiddleware,
 	})
 	require.NoError(t, err)
@@ -702,7 +702,7 @@ func newGrpcClient(ctx context.Context, t *testing.T, addr string, tlsConfig *tl
 		ctx,
 		addr,
 		grpc.WithBlock(),
-		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(tlsConfig)),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, conn.Close()) })

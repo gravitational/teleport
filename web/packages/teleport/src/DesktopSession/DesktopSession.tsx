@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,341 +16,75 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useParams } from 'react-router';
 
-import { Box, ButtonPrimary, ButtonSecondary, Flex, Indicator } from 'design';
-import { Info } from 'design/Alert';
-import Dialog, {
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from 'design/Dialog';
-import { Attempt } from 'shared/hooks/useAttemptNext';
+import { DesktopSession as SharedDesktopSession } from 'shared/components/DesktopSession';
+import { useAsync } from 'shared/hooks/useAsync';
+import { TdpClient } from 'shared/libs/tdp';
 
+import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
-import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
-import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
-import { KeyboardHandler } from 'teleport/DesktopSession/KeyboardHandler';
-import { ButtonState, ScrollAxis } from 'teleport/lib/tdp';
-import { useListener } from 'teleport/lib/tdp/client';
-import type { WebAuthnState } from 'teleport/lib/useWebAuthn';
+import cfg, { UrlDesktopParams } from 'teleport/config';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
+import { adaptWebSocketToTdpTransport } from 'teleport/lib/tdp';
+import useWebAuthn, { WebAuthnState } from 'teleport/lib/useWebAuthn';
+import { getHostName } from 'teleport/services/api';
 
-import TopBar from './TopBar';
-import useDesktopSession, {
-  clipboardSharingMessage,
-  defaultClipboardSharingState,
-  defaultDirectorySharingState,
-  directorySharingPossible,
-  isSharingClipboard,
-  isSharingDirectory,
-  type State,
-} from './useDesktopSession';
-
-export function DesktopSessionContainer() {
-  const state = useDesktopSession();
-  return <DesktopSession {...state} />;
-}
-
-declare global {
-  interface Window {
-    showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
-  }
-}
-
-export function DesktopSession(props: State) {
-  const {
-    webauthn,
-    tdpClient: client,
-    username,
-    hostname,
-    directorySharingState,
-    setDirectorySharingState,
-    onClipboardData,
-    sendLocalClipboardToRemote,
-    clientScreenSpecToRequest,
-    clipboardSharingState,
-    setClipboardSharingState,
-    onShareDirectory,
-    alerts,
-    onRemoveAlert,
-    fetchAttempt,
-    showAnotherSessionActiveDialog,
-    addAlert,
-  } = props;
-  const [tdpConnectionStatus, setTdpConnectionStatus] =
-    useState<TdpConnectionStatus>({ status: '' });
-
-  const keyboardHandler = useRef(new KeyboardHandler());
+export function DesktopSession() {
+  const ctx = useTeleport();
+  const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
   useEffect(() => {
-    return () => keyboardHandler.current.dispose();
-  }, []);
+    document.title = `${username} on ${desktopName} • ${clusterId}`;
+  }, [clusterId, desktopName, username]);
 
-  const tdpClientCanvasRef = useRef<TdpClientCanvasRef>(null);
-  const initialTdpConnectionSucceeded = useRef(false);
-  const onInitialTdpConnectionSucceeded = useCallback(() => {
-    // The first image fragment we see signals a successful TDP connection.
-    if (initialTdpConnectionSucceeded.current) {
-      return;
-    }
-    initialTdpConnectionSucceeded.current = true;
-    setTdpConnectionStatus({ status: 'active' });
-
-    // Focus the canvas once the canvas is visible.
-    // It needs to happen in the next tick, otherwise id doesn't work.
-    setTimeout(() => tdpClientCanvasRef.current?.focus());
-  }, []);
-
-  useListener(client?.onClipboardData, onClipboardData);
-
-  const handleFatalError = useCallback(
-    (error: Error) => {
-      setDirectorySharingState(defaultDirectorySharingState);
-      setClipboardSharingState(defaultClipboardSharingState);
-      setTdpConnectionStatus({
-        status: 'disconnected',
-        message: error.message || error.toString(),
-      });
-      initialTdpConnectionSucceeded.current = false;
-    },
-    [setClipboardSharingState, setDirectorySharingState]
+  const [client] = useState(
+    () =>
+      //TODO(gzdunek): It doesn't really matter here, but make TdpClient reactive to addr change.
+      new TdpClient(abortSignal =>
+        adaptWebSocketToTdpTransport(
+          new AuthenticatedWebSocket(
+            cfg.api.desktopWsAddr
+              .replace(':fqdn', getHostName())
+              .replace(':clusterId', clusterId)
+              .replace(':desktopName', desktopName)
+              .replace(':username', username)
+          ),
+          abortSignal
+        )
+      )
   );
-  useListener(client?.onError, handleFatalError);
-  useListener(client?.onClientError, handleFatalError);
+  const webauthn = useWebAuthn(client);
 
-  const addWarning = useCallback(
-    (warning: string) => {
-      addAlert({
-        content: warning,
-        severity: 'warn',
-      });
-    },
-    [addAlert]
-  );
-  useListener(client?.onWarning, addWarning);
-  useListener(client?.onClientWarning, addWarning);
-
-  useListener(
-    client?.onInfo,
-    useCallback(
-      info => {
-        addAlert({
-          content: info,
-          severity: 'info',
-        });
-      },
-      [addAlert]
-    )
+  const [aclAttempt, fetchAcl] = useAsync(
+    useCallback(async () => {
+      const { acl } = await ctx.userService.fetchUserContext();
+      return acl;
+    }, [ctx.userService])
   );
 
-  useListener(
-    client?.onWsClose,
-    useCallback(
-      statusText => {
-        setTdpConnectionStatus({ status: 'disconnected', message: statusText });
-        initialTdpConnectionSucceeded.current = false;
-      },
-      [setTdpConnectionStatus]
-    )
-  );
-  useListener(
-    client?.onWsOpen,
-    useCallback(() => {
-      setTdpConnectionStatus({ status: 'connected' });
-    }, [setTdpConnectionStatus])
+  const hasAnotherSession = useCallback(
+    () => ctx.desktopService.checkDesktopIsActive(clusterId, desktopName),
+    [clusterId, ctx.desktopService, desktopName]
   );
 
-  useListener(client?.onPointer, tdpClientCanvasRef.current?.setPointer);
-  useListener(
-    client?.onPngFrame,
-    useCallback(
-      frame => {
-        onInitialTdpConnectionSucceeded();
-        tdpClientCanvasRef.current?.renderPngFrame(frame);
-      },
-      [onInitialTdpConnectionSucceeded]
-    )
-  );
-  useListener(
-    client?.onBmpFrame,
-    useCallback(
-      frame => {
-        onInitialTdpConnectionSucceeded();
-        tdpClientCanvasRef.current?.renderBitmapFrame(frame);
-      },
-      [onInitialTdpConnectionSucceeded]
-    )
-  );
-  useListener(client?.onReset, tdpClientCanvasRef.current?.clear);
-  useListener(client?.onScreenSpec, tdpClientCanvasRef.current?.setResolution);
-
-  const shouldConnect =
-    fetchAttempt.status === 'success' && !showAnotherSessionActiveDialog;
   useEffect(() => {
-    if (!(client && shouldConnect)) {
-      return;
-    }
-    void client.connect(clientScreenSpecToRequest);
-    return () => {
-      client.shutdown();
-    };
-  }, [client, shouldConnect]);
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    keyboardHandler.current.handleKeyboardEvent({
-      cli: client,
-      e: e.nativeEvent,
-      state: ButtonState.DOWN,
-    });
-
-    // The key codes in the if clause below are those that have been empirically determined not
-    // to count as transient activation events. According to the documentation, a keydown for
-    // the Esc key and any "shortcut key reserved by the user agent" don't count as activation
-    // events: https://developer.mozilla.org/en-US/docs/Web/Security/User_activation.
-    if (e.key !== 'Meta' && e.key !== 'Alt' && e.key !== 'Escape') {
-      // Opportunistically sync local clipboard to remote while
-      // transient user activation is in effect.
-      // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
-      sendLocalClipboardToRemote();
-    }
-  }
-
-  function handleKeyUp(e: React.KeyboardEvent) {
-    keyboardHandler.current.handleKeyboardEvent({
-      cli: client,
-      e: e.nativeEvent,
-      state: ButtonState.UP,
-    });
-  }
-
-  function handleBlur() {
-    keyboardHandler.current.onFocusOut();
-  }
-
-  function handleMouseMove(e: React.MouseEvent) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    client.sendMouseMove(x, y);
-  }
-
-  function handleMouseDown(e: React.MouseEvent) {
-    if (e.button === 0 || e.button === 1 || e.button === 2) {
-      client.sendMouseButton(e.button, ButtonState.DOWN);
-    }
-
-    // Opportunistically sync local clipboard to remote while
-    // transient user activation is in effect.
-    // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
-    sendLocalClipboardToRemote();
-  }
-
-  function handleMouseUp(e: React.MouseEvent) {
-    if (e.button === 0 || e.button === 1 || e.button === 2) {
-      client.sendMouseButton(e.button, ButtonState.UP);
-    }
-  }
-
-  function handleMouseWheel(e: WheelEvent) {
-    e.preventDefault();
-    // We only support pixel scroll events, not line or page events.
-    // https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent/deltaMode
-    if (e.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
-      if (e.deltaX) {
-        client.sendMouseWheelScroll(ScrollAxis.HORIZONTAL, -e.deltaX);
-      }
-      if (e.deltaY) {
-        client.sendMouseWheelScroll(ScrollAxis.VERTICAL, -e.deltaY);
-      }
-    }
-  }
-
-  // Block browser context menu so as not to obscure the context menu
-  // on the remote machine.
-  function handleContextMenu(e: React.MouseEvent) {
-    e.preventDefault();
-  }
-
-  function handleCtrlAltDel() {
-    if (!client) {
-      return;
-    }
-    client.sendKeyboardInput('ControlLeft', ButtonState.DOWN);
-    client.sendKeyboardInput('AltLeft', ButtonState.DOWN);
-    client.sendKeyboardInput('Delete', ButtonState.DOWN);
-  }
-
-  const screenState = getScreenState(
-    fetchAttempt,
-    tdpConnectionStatus,
-    showAnotherSessionActiveDialog,
-    webauthn
-  );
+    fetchAcl();
+  }, [username, clusterId, fetchAcl]);
 
   return (
-    <Flex
-      flexDirection="column"
-      css={`
-        // Fill the window.
-        position: absolute;
-        width: 100%;
-        height: 100%;
-      `}
-    >
-      <TopBar
-        onDisconnect={() => {
-          setClipboardSharingState(prevState => ({
-            ...prevState,
-            isSharing: false,
-          }));
-          setDirectorySharingState(prevState => ({
-            ...prevState,
-            isSharing: false,
-          }));
-          client.shutdown();
-        }}
-        userHost={`${username}@${hostname}`}
-        canShareDirectory={directorySharingPossible(directorySharingState)}
-        isSharingDirectory={isSharingDirectory(directorySharingState)}
-        isSharingClipboard={isSharingClipboard(clipboardSharingState)}
-        clipboardSharingMessage={clipboardSharingMessage(clipboardSharingState)}
-        onShareDirectory={onShareDirectory}
-        onCtrlAltDel={handleCtrlAltDel}
-        warnings={alerts}
-        onRemoveWarning={onRemoveAlert}
-      />
-
-      {screenState.state === 'another-session-active' && (
-        <AnotherSessionActiveDialog
-          onContinue={() => props.setShowAnotherSessionActiveDialog(false)}
-          onAbort={() => window.close()}
-        />
-      )}
-      {screenState.state === 'mfa' && <MfaDialog webauthn={webauthn} />}
-      {screenState.state === 'error' && (
-        <AlertDialog
-          message={screenState.message}
-          onRetry={() => window.location.reload()}
-        />
-      )}
-      {screenState.state === 'processing' && <Processing />}
-
-      <TdpClientCanvas
-        ref={tdpClientCanvasRef}
-        style={{
-          display: screenState.state === 'canvas-visible' ? 'flex' : 'none',
-        }}
-        onKeyDown={handleKeyDown}
-        onKeyUp={handleKeyUp}
-        onBlur={handleBlur}
-        onMouseMove={handleMouseMove}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onMouseWheel={handleMouseWheel}
-        onContextMenu={handleContextMenu}
-        onResize={client?.resize}
-      />
-    </Flex>
+    <SharedDesktopSession
+      client={client}
+      username={username}
+      desktop={desktopName}
+      customConnectionState={() => {
+        if (webauthn.requested) {
+          return <MfaDialog webauthn={webauthn} />;
+        }
+      }}
+      aclAttempt={aclAttempt}
+      hasAnotherSession={hasAnotherSession}
+    />
   );
 }
 
@@ -371,123 +105,3 @@ const MfaDialog = ({ webauthn }: { webauthn: WebAuthnState }) => {
     />
   );
 };
-
-const AlertDialog = (props: {
-  message: { title: string; details?: string };
-  onRetry(): void;
-}) => (
-  <Dialog dialogCss={() => ({ width: '484px' })} open={true}>
-    <DialogHeader style={{ flexDirection: 'column' }}>
-      <DialogTitle>Disconnected</DialogTitle>
-    </DialogHeader>
-    <DialogContent>
-      <Info details={props.message.details}>{props.message.title}</Info>
-      Refresh the page to reconnect.
-    </DialogContent>
-    <DialogFooter>
-      <ButtonSecondary size="large" width="30%" onClick={props.onRetry}>
-        Refresh
-      </ButtonSecondary>
-    </DialogFooter>
-  </Dialog>
-);
-
-const AnotherSessionActiveDialog = (props: {
-  onAbort(): void;
-  onContinue(): void;
-}) => {
-  return (
-    <Dialog
-      dialogCss={() => ({ width: '484px' })}
-      onClose={() => {}}
-      open={true}
-    >
-      <DialogHeader style={{ flexDirection: 'column' }}>
-        <DialogTitle>Another Session Is Active</DialogTitle>
-      </DialogHeader>
-      <DialogContent>
-        This desktop has an active session, connecting to it may close the other
-        session. Do you wish to continue?
-      </DialogContent>
-      <DialogFooter>
-        <ButtonPrimary mr={3} onClick={props.onAbort}>
-          Abort
-        </ButtonPrimary>
-        <ButtonSecondary onClick={props.onContinue}>Continue</ButtonSecondary>
-      </DialogFooter>
-    </Dialog>
-  );
-};
-
-const Processing = () => {
-  return (
-    <Box textAlign="center" m={10}>
-      <Indicator />
-    </Box>
-  );
-};
-
-function getScreenState(
-  fetchAttempt: Attempt,
-  tdpConnectionStatus: TdpConnectionStatus,
-  showAnotherSessionActiveDialog: boolean,
-  webauthn: WebAuthnState
-): ScreenState {
-  if (fetchAttempt.status === 'failed') {
-    return {
-      state: 'error',
-      message: {
-        title: 'Could not fetch session details',
-        details: fetchAttempt.statusText,
-      },
-    };
-  }
-  if (tdpConnectionStatus.status === 'disconnected') {
-    return {
-      state: 'error',
-      message: { title: tdpConnectionStatus.message },
-    };
-  }
-
-  if (showAnotherSessionActiveDialog) {
-    return { state: 'another-session-active' };
-  }
-
-  if (webauthn.requested) {
-    return { state: 'mfa' };
-  }
-
-  if (tdpConnectionStatus.status === 'active') {
-    return { state: 'canvas-visible' };
-  }
-
-  return { state: 'processing' };
-}
-
-/** Describes state of the TDP connection. */
-type TdpConnectionStatus =
-  /** Unknown status. It may be idle or in the process of connecting. */
-  | { status: '' }
-  /** The transport layer connection has been successfully established. */
-  | { status: 'connected' }
-  /** The remote desktop is visible, we received the first frame. */
-  | { status: 'active' }
-  /**
-   * The client has disconnected.
-   * This can happen either gracefully (on the remote side)
-   * or due to closing the connection.
-   */
-  | {
-      status: 'disconnected';
-      message: string;
-    };
-
-type ScreenState =
-  | { state: 'another-session-active' }
-  | { state: 'mfa' }
-  | { state: 'processing' }
-  | { state: 'canvas-visible' }
-  | {
-      state: 'error';
-      message: { title: string; details?: string };
-    };

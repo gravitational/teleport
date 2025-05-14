@@ -132,7 +132,8 @@ func (process *TeleportProcess) initPyroscope(address string) {
 		logger.ErrorContext(process.ExitContext(), "error starting pyroscope profiler", "address", address, "error", err)
 	} else {
 		process.OnExit("pyroscope.profiler", func(payload any) {
-			profiler.Flush(payload == nil)
+			// Observed rare and inconsistent panics, short term solution is to not wait for flush
+			profiler.Flush(false)
 			_ = profiler.Stop()
 		})
 	}

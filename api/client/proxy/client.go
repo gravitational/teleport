@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
@@ -136,7 +137,7 @@ func (c *ClientConfig) CheckAndSetDefaults(ctx context.Context) error {
 				}
 			}
 
-			return credentials.NewTLS(tlsCfg), nil
+			return expcredentials.NewTLSWithALPNDisabled(tlsCfg), nil
 		}
 	} else {
 		c.clientCreds = func(cluster string) (client.Credentials, error) {

@@ -64,7 +64,7 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater(channels automat
 		return trace.Wrap(err)
 	}
 
-	if !resp.ServerFeatures.AutomaticUpgrades {
+	if !resp.GetServerFeatures().GetAutomaticUpgrades() {
 		return nil
 	}
 

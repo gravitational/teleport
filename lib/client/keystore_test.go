@@ -19,6 +19,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,6 +29,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
@@ -48,58 +51,80 @@ func testEachKeyStore(t *testing.T, testFunc func(t *testing.T, keyStore KeyStor
 
 func TestKeyStore(t *testing.T) {
 	t.Parallel()
+
+	ctx := context.Background()
 	s := newTestAuthority(t)
+	hwks := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
 
-	testEachKeyStore(t, func(t *testing.T, keyStore KeyStore) {
-		t.Parallel()
-
-		// create a test key
-		idx := KeyIndex{"test.proxy.com", "test-user", "root"}
-		key := s.makeSignedKey(t, idx, false)
-
-		// add the test key to the memory store
-		err := keyStore.AddKey(key)
-		require.NoError(t, err)
-
-		// check that the key exists in the store and is the same,
-		// except the key's trusted certs should be empty, to be
-		// filled in by a trusted certs store.
-		retrievedKey, err := keyStore.GetKey(idx, WithAllCerts...)
-		require.NoError(t, err)
-		key.TrustedCerts = nil
-		require.Equal(t, key, retrievedKey)
-
-		// Delete just the db cert, reload & verify it's gone
-		err = keyStore.DeleteUserCerts(idx, WithDBCerts{})
-		require.NoError(t, err)
-		retrievedKey, err = keyStore.GetKey(idx, WithSSHCerts{}, WithDBCerts{})
-		require.NoError(t, err)
-		expectKey := key.Copy()
-		expectKey.DBTLSCerts = make(map[string][]byte)
-		require.Equal(t, expectKey, retrievedKey)
-
-		// check for the key, now without cluster name
-		retrievedKey, err = keyStore.GetKey(KeyIndex{idx.ProxyHost, idx.Username, ""})
-		require.NoError(t, err)
-		expectKey.ClusterName = ""
-		expectKey.Cert = nil
-		require.Equal(t, expectKey, retrievedKey)
-
-		// delete the key
-		err = keyStore.DeleteKey(idx)
-		require.NoError(t, err)
-
-		// check that the key doesn't exist in the store
-		retrievedKey, err = keyStore.GetKey(idx)
-		require.Error(t, err)
-		require.True(t, trace.IsNotFound(err))
-		require.Nil(t, retrievedKey)
-
-		// Delete non-existing
-		err = keyStore.DeleteKey(idx)
-		require.Error(t, err)
-		require.True(t, trace.IsNotFound(err))
+	// create a test software and hardware key.
+	idx := KeyIndex{"test.proxy.com", "test-user", "root"}
+	softKey := s.makeSignedKey(t, idx, false)
+	hwPriv, err := keys.NewHardwarePrivateKey(ctx, hwks, hardwarekey.PrivateKeyConfig{
+		ContextualKeyInfo: idx.contextualKeyInfo(),
 	})
+	require.NoError(t, err)
+	hardKey := NewKey(hwPriv)
+	hardKey.KeyIndex = idx
+	s.signKey(t, hardKey, false)
+
+	for name, key := range map[string]*Key{
+		"software key": softKey,
+		"hardware key": hardKey,
+	} {
+		key := key
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			testEachKeyStore(t, func(t *testing.T, keyStore KeyStore) {
+				// add the test key to the memory store
+				err := keyStore.AddKey(key)
+				require.NoError(t, err)
+
+				// check that the key exists in the store and is the same,
+				// except the key's trusted certs should be empty, to be
+				// filled in by a trusted certs store.
+				retrievedKey, err := keyStore.GetKey(idx, hwks, WithAllCerts...)
+				require.NoError(t, err)
+				key.TrustedCerts = nil
+				require.Equal(t, key, retrievedKey)
+
+				// Delete just the db cred, reload & verify it's gone
+				err = keyStore.DeleteUserCerts(idx, WithDBCerts{})
+				require.NoError(t, err)
+				retrievedKey, err = keyStore.GetKey(idx, hwks, WithSSHCerts{}, WithDBCerts{})
+				require.NoError(t, err)
+				expectKey := key.Copy()
+				expectKey.DBTLSCerts = make(map[string][]byte)
+				require.Equal(t, expectKey, retrievedKey)
+
+				// Get the key, now without cluster name. It should retrieve the key without certs
+				// and without a cluster name in the KeyIndex or ContextualKeyInfo (hardware keys).
+				retrievedKey, err = keyStore.GetKey(KeyIndex{idx.ProxyHost, idx.Username, ""}, hwks)
+				require.NoError(t, err)
+				expectKey.ClusterName = ""
+				expectKey.Cert = nil
+				if hwPriv, ok := expectKey.PrivateKey.Signer.(*hardwarekey.Signer); ok {
+					hwPriv.KeyInfo.ClusterName = ""
+				}
+				require.Equal(t, expectKey, retrievedKey)
+
+				// delete the key
+				err = keyStore.DeleteKey(idx)
+				require.NoError(t, err)
+
+				// check that the key doesn't exist in the store
+				retrievedKey, err = keyStore.GetKey(idx, hwks)
+				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
+				require.Nil(t, retrievedKey)
+
+				// Delete non-existing
+				err = keyStore.DeleteKey(idx)
+				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
+			})
+		})
+	}
 }
 
 func TestListKeys(t *testing.T) {
@@ -125,14 +150,14 @@ func TestListKeys(t *testing.T) {
 
 		// read all bob keys:
 		for i := 0; i < keyNum; i++ {
-			key, err := keyStore.GetKey(keys[i].KeyIndex, WithSSHCerts{}, WithDBCerts{})
+			key, err := keyStore.GetKey(keys[i].KeyIndex, nil /*hwks*/, WithSSHCerts{}, WithDBCerts{})
 			require.NoError(t, err)
 			key.TrustedCerts = keys[i].TrustedCerts
 			require.Equal(t, &keys[i], key)
 		}
 
 		// read sam's key and make sure it's the same:
-		skey, err := keyStore.GetKey(samIdx, WithSSHCerts{})
+		skey, err := keyStore.GetKey(samIdx, nil /*hwks*/, WithSSHCerts{})
 		require.NoError(t, err)
 		require.Equal(t, samKey.Cert, skey.Cert)
 		require.Equal(t, samKey.MarshalSSHPublicKey(), skey.MarshalSSHPublicKey())
@@ -185,9 +210,9 @@ func TestDeleteAll(t *testing.T) {
 		require.NoError(t, err)
 
 		// check keys exist
-		_, err = keyStore.GetKey(idxFoo)
+		_, err = keyStore.GetKey(idxFoo, nil /*hwks*/)
 		require.NoError(t, err)
-		_, err = keyStore.GetKey(idxBar)
+		_, err = keyStore.GetKey(idxBar, nil /*hwks*/)
 		require.NoError(t, err)
 
 		// delete all keys
@@ -195,9 +220,9 @@ func TestDeleteAll(t *testing.T) {
 		require.NoError(t, err)
 
 		// verify keys are gone
-		_, err = keyStore.GetKey(idxFoo)
+		_, err = keyStore.GetKey(idxFoo, nil /*hwks*/)
 		require.True(t, trace.IsNotFound(err))
-		_, err = keyStore.GetKey(idxBar)
+		_, err = keyStore.GetKey(idxBar, nil /*hwks*/)
 		require.Error(t, err)
 	})
 }
@@ -220,7 +245,7 @@ func TestCheckKey(t *testing.T) {
 		err = keyStore.AddKey(key)
 		require.NoError(t, err)
 
-		_, err = keyStore.GetKey(idx)
+		_, err = keyStore.GetKey(idx, nil /*hwks*/)
 		require.NoError(t, err)
 	})
 }
@@ -249,7 +274,7 @@ func TestCheckKeyFIPS(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should return trace.BadParameter error because only RSA keys are supported.
-		_, err = keyStore.GetKey(idx)
+		_, err = keyStore.GetKey(idx, nil /*hwks*/)
 		require.True(t, trace.IsBadParameter(err))
 	})
 }
@@ -271,7 +296,7 @@ func TestAddKey_withoutSSHCert(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrNotExist)
 
 	// check db certs
-	keyCopy, err := keyStore.GetKey(idx, WithDBCerts{})
+	keyCopy, err := keyStore.GetKey(idx, nil /*hwks*/, WithDBCerts{})
 	require.NoError(t, err)
 	require.Len(t, keyCopy.DBTLSCerts, 1)
 }

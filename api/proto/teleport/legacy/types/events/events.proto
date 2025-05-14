@@ -278,6 +278,9 @@ message AccessListMemberMetadata {
 
   // Members are all members affected by the access list membership change.
   repeated AccessListMember Members = 2 [(gogoproto.jsontag) = "members,omitempty"];
+
+  // AccessListTitle is the access list's title.
+  string AccessListTitle = 4 [(gogoproto.jsontag) = "access_list_title,omitempty"];
 }
 
 // AccessListMember is metadata surrounding an individual access list member.
@@ -331,6 +334,9 @@ message AccessListReviewMetadata {
 
   // RemovedMembers are the members that were removed as part of the review.
   repeated string RemovedMembers = 6 [(gogoproto.jsontag) = "removed_members,omitempty"];
+
+  // AccessListTitle is the access list's title.
+  string AccessListTitle = 7 [(gogoproto.jsontag) = "access_list_title,omitempty"];
 }
 
 // LockMetadata contains common metadata for lock resource events.
@@ -1275,6 +1281,9 @@ message UserLogin {
   // AppliedLoginRules stores the name of each login rule that was applied
   // during the login.
   repeated string AppliedLoginRules = 9 [(gogoproto.jsontag) = "applied_login_rules,omitempty"];
+
+  // ConnectorID is the ID of the connector used
+  string ConnectorID = 10 [(gogoproto.jsontag) = "connector_id,omitempty"];
 }
 
 // CreateMFAAuthChallenge records the creation of an MFA auth challenge.
@@ -6226,6 +6235,9 @@ message AccessListCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AccessListTitle is the access list's title.
+  string AccessListTitle = 4 [(gogoproto.jsontag) = "access_list_title,omitempty"];
 }
 
 // AccessListUpdate is emitted when an access list is updated.
@@ -6250,6 +6262,9 @@ message AccessListUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AccessListTitle is the access list's title.
+  string AccessListTitle = 4 [(gogoproto.jsontag) = "access_list_title,omitempty"];
 }
 
 // AccessListDelete is emitted when an access list is deleted.
@@ -6274,6 +6289,9 @@ message AccessListDelete {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AccessListTitle is the access list's title.
+  string AccessListTitle = 4 [(gogoproto.jsontag) = "access_list_title,omitempty"];
 }
 
 // AccessListMemberCreate is emitted when an access list member is created.
@@ -6700,6 +6718,12 @@ message SPIFFESVIDIssued {
   // The revision of the WorkloadIdentity resource that was used to issue the
   // SVID. This will be empty if the legacy RPCs were used.
   string WorkloadIdentityRevision = 13 [(gogoproto.jsontag) = "workload_identity_revision,omitempty"];
+  // Attributes is the collection of data that was used to make the decision on
+  // whether to issue the workload identity credential & to perform templating.
+  google.protobuf.Struct Attributes = 14 [
+    (gogoproto.jsontag) = "attributes,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
 }
 
 // AuthPreferenceUpdate is emitted when the auth preference is updated.

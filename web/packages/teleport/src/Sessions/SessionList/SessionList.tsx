@@ -104,7 +104,7 @@ const kinds: {
   [key in SessionKind]: { icon: (any) => JSX.Element; joinable: boolean };
 } = {
   ssh: { icon: Icons.Cli, joinable: true },
-  k8s: { icon: Icons.Kubernetes, joinable: false },
+  k8s: { icon: Icons.Kubernetes, joinable: true },
   desktop: { icon: Icons.Desktop, joinable: false },
   app: { icon: Icons.Application, joinable: false },
   db: { icon: Icons.Database, joinable: false },
@@ -141,6 +141,7 @@ const renderJoinCell = ({
     <Cell align="right" height="26px">
       <SessionJoinBtn
         sid={sid}
+        kind={kind}
         clusterId={clusterId}
         participantModes={participantModes}
         showCTA={showActiveSessionsCTA}

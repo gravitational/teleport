@@ -76,7 +76,7 @@ func (s *KubeMockServer) getClusterRole(w http.ResponseWriter, req *http.Request
 
 func (s *KubeMockServer) deleteClusterRole(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	name := p.ByName("name")
-	deleteOpts, err := parseDeleteCollectionBody(req.Body)
+	deleteOpts, err := parseDeleteCollectionBody(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

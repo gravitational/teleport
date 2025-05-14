@@ -2,18 +2,13 @@
   "docs": [
     {
       "type": "category",
-      "label": "Get Started",
+      "label": "Introduction",
       "collapsible": true,
       "link": {
         "type": "doc",
         "id": "index"
       },
       "items": [
-        {
-          "type": "doc",
-          "label": "Introduction to Teleport",
-          "id": "index"
-        },
         {
           "type": "doc",
           "label": "Get Started",

@@ -64,7 +64,7 @@ import (
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/testing/protocmp"
 	corev1 "k8s.io/api/core/v1"
@@ -79,7 +79,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -1408,7 +1407,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 15)
-	require.NotEqual(t, "", res.StartKey)
+	require.NotEmpty(t, res.StartKey)
 
 	// should return second page and have no third page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
@@ -1418,7 +1417,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 10)
-	require.Equal(t, "", res.StartKey)
+	require.Empty(t, res.StartKey)
 
 	// Only list valid AWS Roles for AWS Apps
 	query = url.Values{
@@ -7851,7 +7850,7 @@ func addCSRFCookieToReq(req *http.Request, token string) {
 
 func removeSpace(in string) string {
 	for _, c := range []string{"\n", "\r", "\t"} {
-		in = strings.Replace(in, c, " ", -1)
+		in = strings.ReplaceAll(in, c, " ")
 	}
 	return strings.TrimSpace(in)
 }
@@ -8191,7 +8190,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	}
 
 	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
-		TransportCredentials: credentials.NewTLS(tlscfg),
+		TransportCredentials: expcredentials.NewTLSWithALPNDisabled(tlscfg),
 		UserGetter: &auth.Middleware{
 			ClusterName: authServer.ClusterName(),
 		},
@@ -9271,7 +9270,7 @@ func TestForwardingTraces(t *testing.T) {
 				require.Len(t, spans, 1)
 
 				var data tracepb.TracesData
-				require.NoError(t, protojson.Unmarshal([]byte(rawSpan), &data))
+				require.NoError(t, protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal([]byte(rawSpan), &data))
 
 				// compare the spans, but ignore the ids since we know that the rawSpan
 				// has hex encoded ids and protojson.Unmarshal will give us an invalid value
@@ -9433,7 +9432,7 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 
 	tlsConf := copyAndConfigureTLS(tlsConfig, logrus.New(), proxyAuthClient, clusterName)
 	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
-		TransportCredentials: credentials.NewTLS(tlsConf),
+		TransportCredentials: expcredentials.NewTLSWithALPNDisabled(tlsConf),
 		UserGetter:           authMiddleware,
 	})
 	require.NoError(t, err)
@@ -10521,15 +10520,15 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 			clusterFeatures: authproto.Features{
 				AccessControls: false,
 				AccessGraph:    false,
-				AccessList: &clientproto.AccessListFeature{
+				AccessList: &authproto.AccessListFeature{
 					CreateLimit: 10,
 				},
-				AccessMonitoring: &clientproto.AccessMonitoringFeature{
+				AccessMonitoring: &authproto.AccessMonitoringFeature{
 					Enabled:             false,
 					MaxReportRangeLimit: 20,
 				},
 				AccessMonitoringConfigured: false,
-				AccessRequests: &clientproto.AccessRequestsFeature{
+				AccessRequests: &authproto.AccessRequestsFeature{
 					MonthlyRequestLimit: 30,
 				},
 				AdvancedAccessWorkflows: false,
@@ -10540,7 +10539,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				CustomTheme:             "theme",
 				DB:                      false,
 				Desktop:                 false,
-				DeviceTrust: &clientproto.DeviceTrustFeature{
+				DeviceTrust: &authproto.DeviceTrustFeature{
 					Enabled:           false,
 					DevicesUsageLimit: 40,
 				},
@@ -10686,21 +10685,21 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				MobileDeviceManagement: true,
 				OIDC:                   true,
 				SAML:                   true,
-				AccessRequests: &clientproto.AccessRequestsFeature{
+				AccessRequests: &authproto.AccessRequestsFeature{
 					MonthlyRequestLimit: 88,
 				},
-				AccessList: &clientproto.AccessListFeature{
+				AccessList: &authproto.AccessListFeature{
 					CreateLimit: 88,
 				},
-				AccessMonitoring: &clientproto.AccessMonitoringFeature{
+				AccessMonitoring: &authproto.AccessMonitoringFeature{
 					Enabled:             true,
 					MaxReportRangeLimit: 88,
 				},
-				DeviceTrust: &clientproto.DeviceTrustFeature{
+				DeviceTrust: &authproto.DeviceTrustFeature{
 					Enabled:           true,
 					DevicesUsageLimit: 88,
 				},
-				Policy: &clientproto.PolicyFeature{
+				Policy: &authproto.PolicyFeature{
 					Enabled: true,
 				},
 			},
@@ -10805,21 +10804,21 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				MobileDeviceManagement: true,
 				OIDC:                   true,
 				SAML:                   true,
-				AccessRequests: &clientproto.AccessRequestsFeature{
+				AccessRequests: &authproto.AccessRequestsFeature{
 					MonthlyRequestLimit: 88,
 				},
-				AccessList: &clientproto.AccessListFeature{
+				AccessList: &authproto.AccessListFeature{
 					CreateLimit: 88,
 				},
-				AccessMonitoring: &clientproto.AccessMonitoringFeature{
+				AccessMonitoring: &authproto.AccessMonitoringFeature{
 					Enabled:             true,
 					MaxReportRangeLimit: 88,
 				},
-				DeviceTrust: &clientproto.DeviceTrustFeature{
+				DeviceTrust: &authproto.DeviceTrustFeature{
 					Enabled:           true,
 					DevicesUsageLimit: 88,
 				},
-				Policy: &clientproto.PolicyFeature{
+				Policy: &authproto.PolicyFeature{
 					Enabled: true,
 				},
 			},
@@ -10918,11 +10917,11 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				PremiumSupport:                 true,
 			},
 			clusterFeatures: authproto.Features{
-				DeviceTrust:      &clientproto.DeviceTrustFeature{},
-				AccessRequests:   &clientproto.AccessRequestsFeature{},
-				AccessList:       &clientproto.AccessListFeature{},
-				AccessMonitoring: &clientproto.AccessMonitoringFeature{},
-				Policy:           &clientproto.PolicyFeature{},
+				DeviceTrust:      &authproto.DeviceTrustFeature{},
+				AccessRequests:   &authproto.AccessRequestsFeature{},
+				AccessList:       &authproto.AccessListFeature{},
+				AccessMonitoring: &authproto.AccessMonitoringFeature{},
+				Policy:           &authproto.PolicyFeature{},
 			},
 			expected: &webclient.WebConfig{
 				Auth: webclient.WebConfigAuthSettings{
@@ -10996,6 +10995,90 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 			setEntitlementsWithLegacyLogic(tt.config, tt.clusterFeatures)
 
 			assert.Equal(t, tt.expected, tt.config)
+		})
+	}
+}
+
+// TestPingWithSAMLURL asserts that /webapi/ping and other endpoints necessary
+// for local user login return successfully even when a SAML connector is
+// configured with an entity descriptor URL that hangs when requested.
+func TestPingWithSAMLURL(t *testing.T) {
+	t.Parallel()
+
+	const entityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata"
+                  entityID="https://test-idp.example.com/metadata">
+  <IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <KeyDescriptor use="signing">
+      <KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#">
+        <KeyName>test-signing-key</KeyName>
+        <X509Data>
+          <X509Certificate></X509Certificate>
+        </X509Data>
+      </KeyInfo>
+    </KeyDescriptor>
+    <SingleSignOnService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        Location="https://test-idp.example.com/sso"/>
+  </IDPSSODescriptor>
+</EntityDescriptor>`
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start an HTTP server to serve the SAML entity descriptor. At first it
+	// needs to not hang and return a valid response so that the test can upsert
+	// the SAML connector.
+	l, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	requestShouldHang := false
+	httpServer := &http.Server{
+		Addr: l.Addr().String(),
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if requestShouldHang {
+				<-r.Context().Done()
+			}
+			w.Write([]byte(entityDescriptor))
+		}),
+	}
+	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+		Name: "HTTP server",
+		Task: func(ctx context.Context) error {
+			if err := httpServer.Serve(l); !errors.Is(err, http.ErrServerClosed) {
+				return err
+			}
+			return nil
+		},
+		Terminate: httpServer.Close,
+	})
+
+	// Upsert the test SAML connector.
+	connector, err := types.NewSAMLConnector("test-idp", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "test-idp.example.com/acs",
+		EntityDescriptorURL:      "http://" + l.Addr().String() + "/metadata",
+		AttributesToRoles: []types.AttributeMapping{
+			{Name: "roles", Value: "^(.*)$", Roles: []string{"$1"}},
+		},
+	})
+	require.NoError(t, err)
+	pack := newWebPack(t, 1)
+	_, err = pack.server.Auth().CreateSAMLConnector(ctx, connector)
+	require.NoError(t, err)
+
+	// Set the HTTP server to start hanging requests for the entity descriptor.
+	requestShouldHang = true
+	clt := pack.proxies[0].newClient(t)
+	for _, endpoint := range []string{
+		clt.Endpoint("webapi", "ping"),
+		clt.Endpoint("webapi", "ping", connector.GetName()),
+		clt.Endpoint("web", "config.js"),
+	} {
+		t.Run(endpoint, func(t *testing.T) {
+			// Requests for the URL should succeed quickly.
+			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			defer cancel()
+			_, err := clt.Get(ctx, endpoint, nil)
+			assert.NoError(t, err)
 		})
 	}
 }

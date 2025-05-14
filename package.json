@@ -5,7 +5,7 @@
     "build-ui": "pnpm build-ui-oss && pnpm build-ui-e",
     "build-ui-oss": "pnpm --filter=@gravitational/teleport build",
     "build-ui-e": "pnpm --filter=@gravitational/teleport.e build",
-    "build-wasm": "pnpm --filter=@gravitational/teleport build-wasm",
+    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm",
     "start-teleport": "pnpm --filter=@gravitational/teleport start",
     "start-teleport-e": "pnpm --filter=@gravitational/teleport.e start",
     "build-term": "pnpm --filter=@gravitational/teleterm build",
@@ -31,7 +31,6 @@
       "minimist": "^1.2.8",
       "trim": "0.0.3",
       "webpack": "^5.88.2",
-      "electron-vite@^3.0.0>esbuild@0.24.2": "^0.25.0",
       "x-default-browser": "^0.5.2"
     }
   },
@@ -43,7 +42,7 @@
     "@testing-library/react": "^15.0.7",
     "@testing-library/user-event": "^14.5.2",
     "@types/jest": "^29.5.12",
-    "@types/node": "^20.14.9",
+    "@types/node": "^22.14.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@types/react-highlight": "^0.12.8",
@@ -56,7 +55,7 @@
     "jsdom-testing-mocks": "^1.13.0",
     "msw": "^0.47.4",
     "msw-storybook-addon": "^1.8.0",
-    "node-gyp": "11.0.0",
+    "node-gyp": "^11.2.0",
     "prettier": "^3.3.2",
     "typescript": "^5.5.2",
     "vite": "^5.3.2"
@@ -72,6 +71,7 @@
     "@protobuf-ts/runtime-rpc": "^2.9.4",
     "@stripe/react-stripe-js": "^1.16.5",
     "@stripe/stripe-js": "^1.48.0",
+    "@tanstack/react-query": "^5.69.0",
     "@uiw/codemirror-themes": "^4.22.2",
     "@uiw/react-codemirror": "^4.22.2",
     "d3-scale": "^4.0.2",
@@ -92,8 +92,8 @@
     "tslib": "^2.6.3",
     "whatwg-fetch": "^3.6.20"
   },
-  "packageManager": "pnpm@10.6.5+sha512.cdf928fca20832cd59ec53826492b7dc25dc524d4370b6b4adbf65803d32efaa6c1c88147c0ae4e8d579a6c9eec715757b50d4fa35eea179d868eada4ed043af",
+  "packageManager": "pnpm@10.7.0+sha512.6b865ad4b62a1d9842b61d674a393903b871d9244954f652b8842c2b553c72176b278f64c463e52d40fff8aba385c235c8c9ecf5cc7de4fd78b8bb6d49633ab6",
   "engines": {
-    "node": "^20"
+    "node": "^22"
   }
 }

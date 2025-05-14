@@ -467,10 +467,10 @@ const NotificationsDropdown = styled(Dropdown)`
   height: 80vh;
 
   right: -40px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
     right: -52px;
   }
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
     right: -140px;
   }
 `;

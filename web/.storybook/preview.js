@@ -17,6 +17,7 @@
  */
 
 import { addParameters } from '@storybook/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { rest, setupWorker } from 'msw';
 import React from 'react';
 
@@ -100,7 +101,24 @@ const UserDecorator = (Story, meta) => {
   return <Story />;
 };
 
-export const decorators = [UserDecorator, ThemeDecorator];
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+  },
+});
+
+const QueryClientDecorator = Story => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Story />
+    </QueryClientProvider>
+  );
+};
+
+export const decorators = [UserDecorator, ThemeDecorator, QueryClientDecorator];
 
 addParameters({
   options: {

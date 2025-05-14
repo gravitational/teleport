@@ -63,6 +63,14 @@ func (h *Handler) yamlParse(w http.ResponseWriter, r *http.Request, params httpr
 
 		return yamlParseResponse{Resource: resource}, nil
 
+	case types.KindToken:
+		resource, err := yamlToProvisionToken(req.YAML)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return yamlParseResponse{Resource: resource}, nil
+
 	default:
 		return nil, trace.NotImplemented("parsing YAML for kind %q is not supported", kind)
 	}
@@ -106,6 +114,22 @@ func ConvertYAMLToAccessMonitoringRuleResource(yaml string) (*accessmonitoringru
 		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
 	}
 	resource, err := services.UnmarshalAccessMonitoringRule(extractedRes.Raw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resource, nil
+}
+
+func yamlToProvisionToken(yaml string) (types.ProvisionToken, error) {
+	extractedRes, err := extractResource(yaml)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if extractedRes.Kind != types.KindToken {
+		return nil, trace.BadParameter("resource kind %q is invalid, only token is allowed", extractedRes.Kind)
+	}
+	resource, err := services.UnmarshalProvisionToken(extractedRes.Raw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

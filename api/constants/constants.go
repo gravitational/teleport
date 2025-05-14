@@ -512,3 +512,6 @@ const (
 	// specifically using the `terraform` join method.
 	EnvVarTerraformCloudJoinAudienceTag = "TF_TELEPORT_JOIN_AUDIENCE_TAG"
 )
+
+// MaxPIVPINCacheTTL defines the maximum allowed TTL for PIV PIN client caches.
+const MaxPIVPINCacheTTL = time.Hour

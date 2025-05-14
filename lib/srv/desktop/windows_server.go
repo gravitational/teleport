@@ -83,6 +83,12 @@ const (
 	// a restrictive service account.
 	windowsDesktopServiceCertTTL = 8 * time.Hour
 
+	// windowsUserCertTTL is the TTL for certificates issued to users connecting
+	// to Windows hosts. These certicates are generated on-demand for each session,
+	// so the TTL is deliberately set to a small value to give enough time to establish
+	// a single session.
+	windowsUserCertTTL = 5 * time.Minute
+
 	// windowsDesktopServiceCertRetryInterval indicates how often to retry
 	// issuing an LDAP certificate if the operation fails.
 	windowsDesktopServiceCertRetryInterval = 10 * time.Minute
@@ -93,18 +99,18 @@ const (
 	ldapTimeoutRetryInterval = 10 * time.Second
 )
 
-// ComputerAttributes are the attributes we fetch when discovering
+// computerAttributes are the attributes we fetch when discovering
 // Windows hosts via LDAP
 // see: https://docs.microsoft.com/en-us/windows/win32/adschema/c-computer#windows-server-2012-attributes
-var ComputerAttributes = []string{
-	windows.AttrName,
-	windows.AttrCommonName,
-	windows.AttrDistinguishedName,
-	windows.AttrDNSHostName,
-	windows.AttrObjectGUID,
-	windows.AttrOS,
-	windows.AttrOSVersion,
-	windows.AttrPrimaryGroupID,
+var computerAttributes = []string{
+	attrName,
+	attrCommonName,
+	attrDistinguishedName,
+	attrDNSHostName,
+	attrObjectGUID,
+	attrOS,
+	attrOSVersion,
+	attrPrimaryGroupID,
 }
 
 // WindowsService implements the RDP-based Windows desktop access service.
@@ -229,7 +235,7 @@ type HeartbeatConfig struct {
 func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
 	switch {
 	case cfg.DiscoveryBaseDN == types.Wildcard:
-		cfg.DiscoveryBaseDN = cfg.DomainDN()
+		cfg.DiscoveryBaseDN = windows.DomainDN(cfg.Domain)
 	case len(cfg.DiscoveryBaseDN) > 0:
 		if _, err := ldap.ParseDN(cfg.DiscoveryBaseDN); err != nil {
 			return trace.BadParameter("WindowsServiceConfig contains an invalid base_dn: %v", err)
@@ -373,21 +379,15 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		enableNLA: os.Getenv("TELEPORT_ENABLE_RDP_NLA") == "yes",
 	}
 
-	caLDAPConfig := s.cfg.LDAPConfig
-	if s.cfg.PKIDomain != "" {
-		caLDAPConfig.Domain = s.cfg.PKIDomain
-	}
-	s.cfg.Logger.InfoContext(ctx, "PKI domain configured", "domain", caLDAPConfig.Domain)
-
 	s.ca = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
 		AccessPoint: s.cfg.AccessPoint,
-		LDAPConfig:  caLDAPConfig,
 		Log:         logrus.NewEntry(logrus.StandardLogger()),
+		Domain:      cmp.Or(s.cfg.PKIDomain, s.cfg.Domain),
 		ClusterName: s.clusterName,
 		LC:          s.lc,
 	})
 
-	if caLDAPConfig.Addr != "" {
+	if s.cfg.LDAPConfig.Addr != "" {
 		s.ldapConfigured = true
 		// initialize LDAP - if this fails it will automatically schedule a retry.
 		// we don't want to return an error in this case, because failure to start
@@ -461,7 +461,7 @@ func (s *WindowsService) startLDAPConnectionCheck(ctx context.Context) {
 
 				// If we have initialized the LDAP client, then try to use it to make sure we're still connected
 				// by attempting to read CAs in the NTAuth store (we know we have permissions to do so).
-				ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.DomainDN()
+				ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + windows.DomainDN(s.cfg.LDAPConfig.Domain)
 				_, err := s.lc.Read(ntAuthDN, "certificationAuthority", []string{"cACertificate"})
 				if trace.IsConnectionProblem(err) {
 					s.cfg.Logger.DebugContext(ctx, "detected broken LDAP connection, will reconnect")
@@ -964,7 +964,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
 			return s.generateUserCert(ctx, username, ttl, desktop, createUsers, groups)
 		},
-		CertTTL:               windows.CertTTL,
+		CertTTL:               windowsUserCertTTL,
 		Addr:                  addr.String(),
 		ComputerName:          computerName,
 		KDCAddr:               kdcAddr,
@@ -1279,28 +1279,28 @@ func timer() func() int64 {
 func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop, createUsers bool, groups []string) (certDER, keyDER []byte, err error) {
 	var activeDirectorySID string
 	if !desktop.NonAD() {
-		domain := s.cfg.LDAPConfig.DomainDN()
+		domainDN := windows.DomainDN(s.cfg.LDAPConfig.Domain)
 		username := username
 		if strings.Contains(username, "@") {
 			parts := strings.SplitN(username, "@", 2)
 			username = parts[0]
-			domain = windows.ToDN(parts[1])
+			domainDN = windows.DomainDN(parts[1])
 		}
 
 		// Find the user's SID
 		filter := windows.CombineLDAPFilters([]string{
-			fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountType, windows.AccountTypeUser),
-			fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountName, username),
+			fmt.Sprintf("(%s=%s)", attrSAMAccountType, AccountTypeUser),
+			fmt.Sprintf("(%s=%s)", attrSAMAccountName, username),
 		})
 		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter)
 
-		entries, err := s.lc.ReadWithFilter(domain, filter, []string{windows.AttrObjectSid})
+		entries, err := s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
 		// if LDAP-based desktop discovery is not enabled, there may not be enough
 		// traffic to keep the connection open. Attempt to open a new LDAP connection
 		// in this case.
 		if trace.IsConnectionProblem(err) {
 			s.initializeLDAP() // ignore error, this is a best effort attempt
-			entries, err = s.lc.ReadWithFilter(domain, filter, []string{windows.AttrObjectSid})
+			entries, err = s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
 		}
 		if err != nil {
 			if os.Getenv("SKIP_LDAP_SID") != "true" {
@@ -1356,22 +1356,14 @@ type generateCredentialsRequest struct {
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
 func (s *WindowsService) generateCredentials(ctx context.Context, request generateCredentialsRequest) (certDER, keyDER []byte, err error) {
-	// If PKI domain has been overridden, make sure we pass that through
-	// to the cert request, otherwise the CRL in the cert we issue will
-	// point at the wrong domain.
-	lc := s.cfg.LDAPConfig
-	if s.cfg.PKIDomain != "" {
-		lc.Domain = s.cfg.PKIDomain
-	}
-
 	return windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
 		CAType:             types.UserCA,
 		Username:           request.username,
 		Domain:             request.domain,
+		PKIDomain:          s.cfg.PKIDomain,
 		TTL:                request.ttl,
 		ClusterName:        s.clusterName,
 		ActiveDirectorySID: request.activeDirectorySID,
-		LDAPConfig:         lc,
 		AuthClient:         s.cfg.AuthClient,
 		CreateUser:         request.createUser,
 		Groups:             request.groups,

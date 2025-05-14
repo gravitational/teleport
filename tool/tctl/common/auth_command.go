@@ -383,19 +383,14 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		return trace.Wrap(err)
 	}
 
-	domain := a.windowsDomain
-	if a.windowsPKIDomain != "" {
-		domain = a.windowsPKIDomain
-	}
-
 	certDER, _, err := windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
 		CAType:             types.UserCA,
 		Username:           a.windowsUser,
 		Domain:             a.windowsDomain,
+		PKIDomain:          a.windowsPKIDomain,
 		ActiveDirectorySID: a.windowsSID,
 		TTL:                a.genTTL,
 		ClusterName:        cn.GetClusterName(),
-		LDAPConfig:         windows.LDAPConfig{Domain: domain},
 		OmitCDP:            a.omitCDP,
 		AuthClient:         clusterAPI,
 	})

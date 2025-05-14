@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
@@ -142,7 +142,7 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 
 	if err := yaml.UnmarshalStrict(bytes, &fc); err != nil {
 		// Remove all newlines in the YAML error, to avoid escaping when printing.
-		return nil, trace.BadParameter("failed parsing the config file: %s", strings.Replace(err.Error(), "\n", "", -1))
+		return nil, trace.BadParameter("failed parsing the config file: %s", strings.ReplaceAll(err.Error(), "\n", ""))
 	}
 	if err := fc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
@@ -1040,8 +1040,7 @@ type AuthenticationConfig struct {
 	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
 
 	// Deprecated. HardwareKey.PIVSlot should be used instead.
-	// TODO(Joerger): DELETE IN 17.0.0
-	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
+	PIVSlot hardwarekey.PIVSlotKeyString `yaml:"piv_slot,omitempty"`
 
 	// HardwareKey holds settings related to hardware key support.
 	// Requires Teleport Enterprise.
@@ -1241,11 +1240,14 @@ func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 type HardwareKey struct {
 	// PIVSlot is a PIV slot that Teleport clients should use instead of the
 	// default based on private key policy. For example, "9a" or "9e".
-	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
+	PIVSlot hardwarekey.PIVSlotKeyString `yaml:"piv_slot,omitempty"`
 
 	// SerialNumberValidation contains optional settings for hardware key
 	// serial number validation, including whether it is enabled.
 	SerialNumberValidation *HardwareKeySerialNumberValidation `yaml:"serial_number_validation,omitempty"`
+
+	// PINCacheTTL specifies how long to cache the user's PIV PIN.
+	PINCacheTTL time.Duration `yaml:"pin_cache_ttl,omitempty"`
 }
 
 func (h *HardwareKey) Parse() (*types.HardwareKey, error) {
@@ -1255,7 +1257,10 @@ func (h *HardwareKey) Parse() (*types.HardwareKey, error) {
 		}
 	}
 
-	hk := &types.HardwareKey{PIVSlot: string(h.PIVSlot)}
+	hk := &types.HardwareKey{
+		PIVSlot:     string(h.PIVSlot),
+		PinCacheTTL: types.Duration(h.PINCacheTTL),
+	}
 
 	if h.SerialNumberValidation != nil {
 		var err error
@@ -2089,6 +2094,9 @@ type Proxy struct {
 	// as only admin knows whether service is in front of trusted load balancer
 	// or not.
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
+	// ProxyProtocolAllowDowngrade controls support for downgrading IPv6 source addresses in PROXY headers to pseudo IPv4
+	// addresses when connecting to an IPv4 destination
+	ProxyProtocolAllowDowngrade *types.BoolOption `yaml:"proxy_protocol_allow_downgrade,omitempty"`
 	// KubeProxy configures kubernetes protocol support of the proxy
 	Kube KubeProxy `yaml:"kubernetes,omitempty"`
 	// KubeAddr is a shorthand for enabling the Kubernetes endpoint without a

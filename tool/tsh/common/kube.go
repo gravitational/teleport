@@ -61,6 +61,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
@@ -209,13 +210,49 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	}
 
 	tlsConfig.InsecureSkipVerify = cf.InsecureSkipVerify
-	session, err := client.NewKubeSession(cf.Context, tc, meta, tc.KubeProxyAddr, kubeStatus.tlsServerName, types.SessionParticipantMode(c.mode), tlsConfig)
+	tlsConfig.ServerName = kubeStatus.tlsServerName
+	session, err := client.NewKubeSession(cf.Context,
+		client.KubeSessionConfig{
+			KubeProxyAddr:                 tc.Config.KubeProxyAddr,
+			WebProxyAddr:                  tc.Config.WebProxyAddr,
+			TLSRoutingConnUpgradeRequired: tc.Config.TLSRoutingConnUpgradeRequired,
+			EnableEscapeSequences:         !tc.Config.DisableEscapeSequences,
+			Tracker:                       meta,
+			TLSConfig:                     tlsConfig,
+			Mode:                          types.SessionParticipantMode(c.mode),
+			AuthClient: func(ctx context.Context) (authclient.ClientI, error) {
+				clt, err := tc.ConnectToCluster(ctx)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				auth, err := clt.ConnectToCluster(ctx, meta.GetClusterName())
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				return authClientCloser{ClientI: auth, clusterClient: clt}, nil
+			},
+			Ceremony: tc.NewMFAPrompt(mfa.WithQuiet()),
+			Stdin:    tc.Config.Stdin,
+			Stdout:   tc.Config.Stdout,
+			Stderr:   tc.Config.Stderr,
+		})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	session.Wait()
 	return trace.Wrap(session.Detach())
+}
+
+type authClientCloser struct {
+	authclient.ClientI
+	clusterClient *client.ClusterClient
+}
+
+func (a authClientCloser) Close() error {
+	return trace.NewAggregate(a.ClientI.Close(), a.clusterClient.Close())
 }
 
 // RemoteExecutor defines the interface accepted by the Exec command - provided for test stubbing

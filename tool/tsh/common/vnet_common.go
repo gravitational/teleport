@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
 )
@@ -44,7 +45,8 @@ type vnetAppProvider struct {
 }
 
 func newVnetAppProvider(cf *CLIConf) (*vnetAppProvider, error) {
-	clientStore := client.NewFSClientStore(cf.HomePath)
+	hwks := libhwk.NewService(cf.Context, nil /*prompt*/)
+	clientStore := client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks))
 
 	p := &vnetAppProvider{
 		cf:          cf,
@@ -157,7 +159,7 @@ func (p *vnetAppProvider) retryWithRelogin(ctx context.Context, tc *client.Telep
 			if p.loginMu.TryLock() {
 				didLock = true
 			} else {
-				return fmt.Errorf("not attempting re-login to cluster %s, another login is current in progress.", tc.SiteName)
+				return fmt.Errorf("not attempting re-login to cluster %s, another login is current in progress", tc.SiteName)
 			}
 			fmt.Printf("Login for cluster %s expired, attempting to log in again.\n", tc.SiteName)
 			return nil
@@ -219,7 +221,7 @@ func (p *vnetAppProvider) newTeleportClient(ctx context.Context, profileName, le
 	cfg := &client.Config{
 		ClientStore: p.clientStore,
 	}
-	if err := cfg.LoadProfile(p.clientStore, profileName); err != nil {
+	if err := cfg.LoadProfile(profileName); err != nil {
 		return nil, trace.Wrap(err, "loading client profile")
 	}
 	if leafClusterName != "" {

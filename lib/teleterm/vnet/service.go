@@ -228,10 +228,11 @@ func (s *Service) ListDNSZones(ctx context.Context, req *api.ListDNSZonesRequest
 	s.mu.Lock()
 
 	if s.status != statusRunning {
+		s.mu.Unlock()
 		return nil, trace.CompareFailed("VNet is not running")
 	}
 
-	defer s.mu.Unlock()
+	s.mu.Unlock()
 
 	profileNames, err := s.cfg.DaemonService.ListProfileNames()
 	if err != nil {
@@ -324,7 +325,7 @@ func (s *Service) Close() error {
 }
 
 func (s *Service) isUsageReportingEnabled(ctx context.Context) (bool, error) {
-	tshdEventsClient, err := s.cfg.DaemonService.TshdEventsClient()
+	tshdEventsClient, err := s.cfg.DaemonService.TshdEventsClient(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -338,7 +339,7 @@ func (s *Service) isUsageReportingEnabled(ctx context.Context) (bool, error) {
 }
 
 func (s *Service) reportUnexpectedShutdown(ctx context.Context, shutdownErr error) error {
-	tshdEventsClient, err := s.cfg.DaemonService.TshdEventsClient()
+	tshdEventsClient, err := s.cfg.DaemonService.TshdEventsClient(ctx)
 	if err != nil {
 		return trace.Wrap(err, "obtaining tshd events client")
 	}

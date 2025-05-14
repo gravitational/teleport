@@ -9,5 +9,6 @@ attestors:
     enabled: false
   systemd:
     enabled: false
+  unix: {}
 selector:
   name: my-workload-identity

@@ -67,7 +67,7 @@ export const ResponsiveConnector = styled(Flex)`
   justify-content: center;
   background-color: ${props => props.theme.colors.levels.surface};
   padding: ${props => props.theme.space[5]}px;
-  @media screen and (max-width: ${props => props.theme.breakpoints.tablet}px) {
+  @media screen and (max-width: ${props => props.theme.breakpoints.tablet}) {
     width: 100%;
   }
 `;
