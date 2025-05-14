@@ -144,7 +144,7 @@ export class TdpClient extends EventEmitter {
         this.transportAbortController.signal
       );
     } catch (error) {
-      this.emit(TdpClientEvent.ERROR, error.message);
+      this.emit(TdpClientEvent.ERROR, error);
       return;
     }
 
@@ -183,11 +183,11 @@ export class TdpClient extends EventEmitter {
 
     // 'Processing' errors are the most important.
     if (processingError) {
-      this.emit(TdpClientEvent.ERROR, processingError.message);
+      this.emit(TdpClientEvent.ERROR, processingError);
     } else if (connectionError) {
-      this.emit(TdpClientEvent.TRANSPORT_CLOSE, connectionError.message);
+      this.emit(TdpClientEvent.TRANSPORT_CLOSE, connectionError);
     } else {
-      this.emit(TdpClientEvent.TRANSPORT_CLOSE, 'Session disconnected');
+      this.emit(TdpClientEvent.TRANSPORT_CLOSE);
     }
 
     this.logger.info('Transport is closed');
@@ -235,7 +235,7 @@ export class TdpClient extends EventEmitter {
     return () => this.off(TdpClientEvent.TDP_WARNING, listener);
   };
 
-  onTransportClose = (listener: (message: string) => void) => {
+  onTransportClose = (listener: (error?: Error) => void) => {
     this.on(TdpClientEvent.TRANSPORT_CLOSE, listener);
     return () => this.off(TdpClientEvent.TRANSPORT_CLOSE, listener);
   };
@@ -391,7 +391,7 @@ export class TdpClient extends EventEmitter {
   handleTdpNotification(buffer: ArrayBuffer) {
     const notification = this.codec.decodeNotification(buffer);
     if (notification.severity === Severity.Error) {
-      throw new Error(notification.message);
+      throw new TdpError(notification.message);
     } else if (notification.severity === Severity.Warning) {
       this.handleWarning(notification.message, TdpClientEvent.TDP_WARNING);
     } else {
@@ -798,4 +798,12 @@ export function useListener<T extends any[]>(
       unregister();
     };
   }, [emitter, listener]);
+}
+
+/** Represents an alert emitted by the TDP service with "error" severity. */
+export class TdpError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TdpError';
+  }
 }

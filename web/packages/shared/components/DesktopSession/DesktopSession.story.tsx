@@ -30,6 +30,7 @@ import {
   TdpClient,
   TdpClientEvent,
 } from 'shared/libs/tdp';
+import { TdpError as RemoteTdpError } from 'shared/libs/tdp/client';
 
 import { DesktopSession, DesktopSessionProps } from './DesktopSession';
 
@@ -86,7 +87,15 @@ export const FetchError = () => (
 export const TdpError = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.ERROR, new Error('some tdp error'));
+    client.emit(
+      TdpClientEvent.ERROR,
+      new RemoteTdpError(
+        'RDP client exited with an error: Connection Timed Out.\n\n' +
+          'Teleport could not connect to the host within the timeout period. This may be due to a firewall blocking the connection, an overloaded system, or network congestion.\n\n' +
+          'To resolve this issue, ensure that the Teleport agent can reach the Windows host.\n\n' +
+          'You can use the command "nc -vz HOST 3389" to help diagnose connectivity problems.'
+      )
+    );
   };
 
   return <DesktopSession {...props} client={client} />;
@@ -96,10 +105,10 @@ export const Connected = () => {
   return <DesktopSession {...props} />;
 };
 
-export const Disconnected = () => {
+export const DisconnectedWithNoMessage = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.TRANSPORT_CLOSE, 'session disconnected');
+    client.emit(TdpClientEvent.TRANSPORT_CLOSE);
   };
 
   return <DesktopSession {...props} client={client} />;
