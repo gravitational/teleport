@@ -384,6 +384,16 @@
       "source": "/enroll-resources/agents/join-services-to-your-cluster/oracle/",
       "destination": "/enroll-resources/agents/oracle/",
       "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/introduction/",
+      "destination": "/enroll-resources/agents/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/",
+      "destination": "/enroll-resources/agents/",
+      "permanent": true
     }
   ]
 }
