@@ -1289,6 +1289,10 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		"common_name": req.Subject.CommonName,
 	}).Debug("Generating TLS certificate")
 
+	if len(req.Subject.Names) > 0 {
+		req.Subject.ExtraNames = req.Subject.Names
+	}
+
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject:      req.Subject,
