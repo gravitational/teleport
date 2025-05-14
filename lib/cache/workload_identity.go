@@ -21,11 +21,11 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -39,11 +39,13 @@ func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types
 	}
 
 	return &collection[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
-		store: newStore(map[workloadIdentityIndex]func(*workloadidentityv1pb.WorkloadIdentity) string{
-			workloadIdentityNameIndex: func(r *workloadidentityv1pb.WorkloadIdentity) string {
-				return r.GetMetadata().GetName()
-			},
-		}),
+		store: newStore(
+			proto.CloneOf[*workloadidentityv1pb.WorkloadIdentity],
+			map[workloadIdentityIndex]func(*workloadidentityv1pb.WorkloadIdentity) string{
+				workloadIdentityNameIndex: func(r *workloadidentityv1pb.WorkloadIdentity) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
 			var out []*workloadidentityv1pb.WorkloadIdentity
 			var nextToken string
@@ -89,7 +91,6 @@ func (c *Cache) ListWorkloadIdentities(ctx context.Context, pageSize int, nextTo
 		nextToken: func(t *workloadidentityv1pb.WorkloadIdentity) string {
 			return t.GetMetadata().GetName()
 		},
-		clone: utils.CloneProtoMsg[*workloadidentityv1pb.WorkloadIdentity],
 	}
 	out, next, err := lister.list(ctx, pageSize, nextToken)
 	return out, next, trace.Wrap(err)
@@ -105,7 +106,6 @@ func (c *Cache) GetWorkloadIdentity(ctx context.Context, name string) (*workload
 		collection:  c.collections.workloadIdentity,
 		index:       workloadIdentityNameIndex,
 		upstreamGet: c.Config.WorkloadIdentity.GetWorkloadIdentity,
-		clone:       utils.CloneProtoMsg[*workloadidentityv1pb.WorkloadIdentity],
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)

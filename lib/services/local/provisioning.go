@@ -52,6 +52,62 @@ func (s *ProvisioningService) UpsertToken(ctx context.Context, p types.Provision
 	return nil
 }
 
+// PatchToken uses the supplied function to attempt to patch a token resource.
+// Up to 3 update attempts will be made if the conditional update fails due to
+// a revision comparison failure.
+func (s *ProvisioningService) PatchToken(
+	ctx context.Context,
+	tokenName string,
+	updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
+) (types.ProvisionToken, error) {
+	const iterLimit = 3
+
+	for i := 0; i < iterLimit; i++ {
+		existing, err := s.GetToken(ctx, tokenName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Note: CloneProvisionToken only supports ProvisionTokenV2.
+		clone, err := services.CloneProvisionToken(existing)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		updated, err := updateFn(clone)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		updatedMetadata := updated.GetMetadata()
+		existingMetadata := existing.GetMetadata()
+
+		switch {
+		case updatedMetadata.GetName() != existingMetadata.GetName():
+			return nil, trace.BadParameter("metadata.name: cannot be patched")
+		case updatedMetadata.GetRevision() != existingMetadata.GetRevision():
+			return nil, trace.BadParameter("metadata.revision: cannot be patched")
+		}
+
+		item, err := s.tokenToItem(updated)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		lease, err := s.ConditionalUpdate(ctx, *item)
+		if trace.IsCompareFailed(err) {
+			continue
+		} else if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		updated.SetRevision(lease.Revision)
+		return updated, nil
+	}
+
+	return nil, trace.CompareFailed("failed to update provision token within %v iterations", iterLimit)
+}
+
 // CreateToken creates a new token for the auth server
 func (s *ProvisioningService) CreateToken(ctx context.Context, p types.ProvisionToken) error {
 	item, err := s.tokenToItem(p)

@@ -63,6 +63,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodToken),
 	string(types.JoinMethodTPM),
 	string(types.JoinMethodTerraformCloud),
+	string(types.JoinMethodBoundKeypair),
 }
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
@@ -88,6 +89,15 @@ type GitlabOnboardingConfig struct {
 	// GitLab ID token. This can be useful to override in cases where a single
 	// gitlab job needs to authenticate to multiple Teleport clusters.
 	TokenEnvVarName string `yaml:"token_env_var_name,omitempty"`
+}
+
+// BoundKeypairOnboardingConfig contains parameters for the `bound_keypair` join
+// method
+type BoundKeypairOnboardingConfig struct {
+	// InitialJoinSecret is the name of the initial joining secret, if any. If
+	// not specified, a keypair must be created using `tbot keypair create` and
+	// registered with Teleport in advance.
+	InitialJoinSecret string
 }
 
 // OnboardingConfig contains values relevant to how the bot authenticates with
@@ -119,6 +129,9 @@ type OnboardingConfig struct {
 
 	// Gitlab holds configuration relevant to the `gitlab` join method.
 	Gitlab GitlabOnboardingConfig `yaml:"gitlab,omitempty"`
+
+	// BoundKeypair holds configuration relevant to the `bound_keypair` join method
+	BoundKeypair BoundKeypairOnboardingConfig `yaml:"bound_keypair,omitempty"`
 }
 
 // HasToken gives the ability to check if there has been a token value stored
