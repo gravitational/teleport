@@ -5600,6 +5600,9 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 						},
 					},
 				},
+				Options: types.RoleOptions{
+					IDP: nil,
+				},
 			}),
 			expectDowngraded: true,
 		},
@@ -5622,6 +5625,9 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 							Verbs:     []string{types.Wildcard},
 						},
 					},
+				},
+				Options: types.RoleOptions{
+					IDP: nil,
 				},
 			}),
 			expectDowngraded: true,
@@ -5667,6 +5673,9 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 						// We don't expect to see the Deployment entry.
 					},
 				},
+				Options: types.RoleOptions{
+					IDP: nil,
+				},
 			}),
 			expectDowngraded: true,
 		},
@@ -5676,24 +5685,16 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 				"17.2.7",
 			},
 			inputRole: testRole1,
-			expectedRole: func() types.Role {
-				r := newRole(testRole1.GetName(), types.V7, types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Rules: []types.Rule{
-							types.NewRule(types.KindRole, services.RW()),
-						},
+			expectedRole: newRole(testRole1.GetName(), types.V7, types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Rules: []types.Rule{
+						types.NewRule(types.KindRole, services.RW()),
 					},
-					Options: types.RoleOptions{
-						IDP: nil,
-					},
-				})
-				// idp option is always set to true in role version v7 and below
-				// but role v8 does not allow to set them.
-				idpOption := r.GetOptions()
-				idpOption.IDP = nil
-				r.SetOptions(idpOption)
-				return r
-			}(),
+				},
+				Options: types.RoleOptions{
+					IDP: nil,
+				},
+			}),
 			expectDowngraded: true,
 		},
 	} {
@@ -5709,6 +5710,13 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 							metadata.VersionKey: clientVersion,
 						})
 					}
+
+					// idp option is always set to true in role version v7 and below
+					// but role v8 does not allow to set them.
+					idpOption := tc.expectedRole.GetOptions()
+					idpOption.IDP = nil
+					tc.expectedRole.SetOptions(idpOption)
+
 					checkRole := func(gotRole types.Role) {
 						t.Helper()
 
