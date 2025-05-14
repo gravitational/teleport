@@ -83,7 +83,11 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 	}
 	switch {
 	case format.Proto:
-		protoReader := NewProtoReader(rs)
+		protoReader, err := NewProtoReader(rs, nil)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		for {
 			event, err := protoReader.Read(ctx)
 			if err != nil {
