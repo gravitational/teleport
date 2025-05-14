@@ -19,7 +19,6 @@ package vnet
 import (
 	"crypto/rand"
 	"encoding/binary"
-	"fmt"
 	mathrand "math/rand/v2"
 	"net"
 
@@ -101,7 +100,7 @@ func randomFreeIPv4InNet(ipNet *net.IPNet, free func(ipv4) bool) (ipv4, error) {
 			break
 		}
 	}
-	return 0, trace.Wrap(fmt.Errorf("Exhausted all IPs in range %q", ipNet.String()))
+	return 0, trace.Errorf("exhausted all IPs in range %q", ipNet.String())
 }
 
 // ipv4 holds a v4 IP address as a uint32 so we can do math on it.

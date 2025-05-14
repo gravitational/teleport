@@ -159,6 +159,30 @@ func (a *DiscoveryConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// Clone returns a copy of the config.
+func (a *DiscoveryConfig) Clone() *DiscoveryConfig {
+	var copy *DiscoveryConfig
+	utils.StrictObjectToStruct(a, &copy)
+
+	if len(a.Spec.AWS) == 0 && a.Spec.AWS != nil {
+		copy.Spec.AWS = []types.AWSMatcher{}
+	}
+
+	if len(a.Spec.Azure) == 0 && a.Spec.Azure != nil {
+		copy.Spec.Azure = []types.AzureMatcher{}
+	}
+
+	if len(a.Spec.GCP) == 0 && a.Spec.GCP != nil {
+		copy.Spec.GCP = []types.GCPMatcher{}
+	}
+
+	if len(a.Spec.Kube) == 0 && a.Spec.Kube != nil {
+		copy.Spec.Kube = []types.KubernetesMatcher{}
+	}
+
+	return copy
+}
+
 // GetDiscoveryGroup returns the DiscoveryGroup from the discovery config.
 func (a *DiscoveryConfig) GetDiscoveryGroup() string {
 	return a.Spec.DiscoveryGroup

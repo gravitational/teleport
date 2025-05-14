@@ -244,7 +244,7 @@ func TestLockWatcher(t *testing.T) {
 	t.Cleanup(w.Close)
 
 	// Subscribe to lock watcher updates.
-	target := types.LockTarget{Node: "node"}
+	target := types.LockTarget{ServerID: "node"}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
 	sub, err := w.Subscribe(ctx, target)
 	require.NoError(t, err)
@@ -354,7 +354,7 @@ func TestLockWatcherSubscribeWithEmptyTarget(t *testing.T) {
 	}
 
 	// Subscribe to lock watcher updates with an empty target.
-	target := types.LockTarget{Node: "node"}
+	target := types.LockTarget{ServerID: "node"}
 	sub, err := w.Subscribe(ctx, target, types.LockTarget{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, sub.Close()) })
@@ -432,7 +432,7 @@ func TestLockWatcherStale(t *testing.T) {
 	}
 
 	// Subscribe to lock watcher updates.
-	target := types.LockTarget{Node: "node"}
+	target := types.LockTarget{ServerID: "node"}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
 	sub, err := w.Subscribe(ctx, target)

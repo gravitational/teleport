@@ -80,7 +80,11 @@ export default class MenuActionIcon extends React.Component<
             {...buttonProps}
           >
             {this.props.buttonText || 'Options'}
-            <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
+            <ChevronDown
+              ml={2}
+              size="small"
+              color={buttonProps?.color || 'text.slightlyMuted'}
+            />
           </ButtonBorder>
         )}
         <Menu
@@ -107,7 +111,7 @@ export default class MenuActionIcon extends React.Component<
 
   renderItems(children) {
     const filtered = React.Children.toArray(children);
-    const cloned = filtered.map((child: React.ReactElement) => {
+    const cloned = filtered.map((child: React.ReactElement<any>) => {
       return React.cloneElement(child, {
         onClick: this.makeOnClick(child.props.onClick),
       });

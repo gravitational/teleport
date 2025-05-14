@@ -235,9 +235,13 @@ export enum DiscoverEventStatus {
   Aborted = 'DISCOVER_STATUS_ABORTED', // user exits the wizard
 }
 
-export type UserEvent = {
-  event: CaptureEvent;
+export type UserEvent<E = CaptureEvent> = {
+  event: E;
   alert?: string;
+};
+
+type UserEventWithData<E, D> = UserEvent<E> & {
+  eventData: D;
 };
 
 export type EventMeta = {
@@ -248,10 +252,10 @@ export type EventMeta = {
 
 export type PreUserEvent = UserEvent & EventMeta;
 
-export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
-  event: DiscoverEvent;
-  eventData: DiscoverEventData;
-};
+export type DiscoverEventRequest = UserEventWithData<
+  DiscoverEvent,
+  DiscoverEventData
+>;
 
 export type DiscoverEventData = DiscoverEventStepStatus & {
   id: string;
@@ -323,6 +327,11 @@ export enum CtaEvent {
   CTA_OKTA_SCIM = 13,
 }
 
+export type CtaEventRequest = UserEventWithData<
+  CaptureEvent.UiCallToActionClickEvent,
+  CtaEvent
+>;
+
 export enum Feature {
   FEATURES_UNSPECIFIED = 0,
   FEATURES_TRUSTED_DEVICES = 1,
@@ -338,3 +347,25 @@ export type FeatureRecommendationEvent = {
   Feature: Feature;
   FeatureRecommendationStatus: FeatureRecommendationStatus;
 };
+
+export type FeatureRecommendationEventRequest = UserEventWithData<
+  CaptureEvent.FeatureRecommendationEvent,
+  FeatureRecommendationEvent
+>;
+
+export enum RoleEditorMode {
+  Standard = 'standard',
+  Yaml = 'yaml',
+}
+
+export type CreateNewRoleSaveClickEventData = {
+  standardUsed: boolean;
+  yamlUsed: boolean;
+  modeWhenSaved: RoleEditorMode;
+  fieldsWithConversionErrors: string[];
+};
+
+export type CreateNewRoleSaveClickEvent = UserEventWithData<
+  CaptureEvent.CreateNewRoleSaveClickEvent,
+  CreateNewRoleSaveClickEventData
+>;

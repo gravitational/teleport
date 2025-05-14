@@ -21,6 +21,7 @@ import React, {
   forwardRef,
   PropsWithChildren,
   ReactNode,
+  type JSX,
 } from 'react';
 import { NavLink } from 'react-router-dom';
 import styled, { css, useTheme } from 'styled-components';

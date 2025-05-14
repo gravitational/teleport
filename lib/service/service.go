@@ -146,6 +146,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	secretsscannerproxy "github.com/gravitational/teleport/lib/secretsscanner/proxy"
+	"github.com/gravitational/teleport/lib/selinux"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/expiry"
@@ -1027,6 +1028,23 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 		}
+	}
+
+	// If SELinux support is enabled ensure we have a valid configuration,
+	// and ensure SELinux itself is configured correctly
+	if cfg.SSH.EnableSELinux {
+		if runtime.GOOS != "linux" {
+			return nil, trace.Errorf("SELinux is only supported on Linux")
+		}
+
+		if !cfg.CheckServicesForSELinux() {
+			return nil, trace.Errorf("SELinux is only supported for the SSH service")
+		}
+
+		if err := selinux.CheckConfiguration(cfg.SSH.EnsureSELinuxEnforcing, cfg.Logger); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.Logger.InfoContext(context.Background(), "SELinux support is enabled for SSH service")
 	}
 
 	// create the data directory if it's missing
@@ -2151,6 +2169,9 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id))
+	// Environment variable for disabling the check major version upgrade check and overrides
+	// latest known version in backend.
+	skipVersionCheckFromEnv := os.Getenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK") != ""
 
 	// first, create the AuthServer
 	authServer, err := auth.Init(
@@ -2158,6 +2179,7 @@ func (process *TeleportProcess) initAuthService() error {
 		auth.InitConfig{
 			Backend:                 b,
 			VersionStorage:          process.storage,
+			SkipVersionCheck:        cfg.SkipVersionCheck || skipVersionCheckFromEnv,
 			Authority:               cfg.Keygen,
 			ClusterConfiguration:    cfg.ClusterConfiguration,
 			AutoUpdateService:       cfg.AutoUpdateService,
@@ -3138,6 +3160,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetSessionController(sessionController),
 			regular.SetPublicAddrs(cfg.SSH.PublicAddrs),
 			regular.SetStableUNIXUsers(conn.Client.StableUNIXUsersClient()),
+			regular.SetSELinuxEnabled(cfg.SSH.EnableSELinux),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -3299,7 +3322,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(role types.SystemRole, ev
 	serviceName := strings.ToLower(role.String())
 
 	process.RegisterCriticalFunc(fmt.Sprintf("register.%v", serviceName), func() error {
-		if role.IsLocalService() && !(process.instanceRoleExpected(role) || process.hostedPluginRoleExpected(role)) {
+		if role.IsLocalService() && !process.instanceRoleExpected(role) && !process.hostedPluginRoleExpected(role) {
 			// if you hit this error, your probably forgot to call SetExpectedInstanceRole inside of
 			// the registerExpectedServices function, or forgot to call SetExpectedHostedPluginRole during
 			// the hosted plugin init process.
@@ -4758,6 +4781,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			LocalAccessPoint: accessPoint,
 			SiteGetter:       tsrv,
 			TracerProvider:   process.TracingProvider,
+			Logger:           process.logger.With(teleport.ComponentKey, "router"),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6374,13 +6398,14 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	warnOnErr(process.ExitContext(), process.closeImportedDescriptors(""), process.logger)
 	warnOnErr(process.ExitContext(), process.stopListeners(), process.logger)
 
-	if process.forkedTeleportCount.Load() == 0 {
-		if process.inventoryHandle != nil {
-			if err := process.inventoryHandle.SendGoodbye(ctx); err != nil {
-				process.logger.WarnContext(process.ExitContext(), "Failed sending inventory goodbye during shutdown", "error", err)
-			}
+	hasChildren := process.forkedTeleportCount.Load() > 0
+	if process.inventoryHandle != nil {
+		deleteResources := !hasChildren
+		if err := process.inventoryHandle.SetAndSendGoodbye(ctx, deleteResources, hasChildren); err != nil {
+			process.logger.WarnContext(process.ExitContext(), "Failed sending inventory goodbye during shutdown", "error", err)
 		}
-	} else {
+	}
+	if hasChildren {
 		ctx = services.ProcessForkedContext(ctx)
 	}
 

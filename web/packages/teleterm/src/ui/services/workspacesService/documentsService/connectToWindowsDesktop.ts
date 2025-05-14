@@ -16,23 +16,38 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { createDesktopSessionDocument } from 'teleterm/ui/services/workspacesService';
 import { IAppContext } from 'teleterm/ui/types';
-import { WindowsDesktopUri } from 'teleterm/ui/uri';
+import { routing, WindowsDesktopUri } from 'teleterm/ui/uri';
 
 import { DocumentOrigin } from './types';
 
 export async function connectToWindowsDesktop(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   ctx: IAppContext,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   target: {
     uri: WindowsDesktopUri;
     login: string;
   },
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   telemetry: {
     origin: DocumentOrigin;
   }
 ): Promise<void> {
-  alert('To be implemented');
+  ctx.workspacesService
+    .getWorkspaceDocumentService(routing.ensureRootClusterUri(target.uri))
+    .openExistingOrAddNew(
+      doc => {
+        return (
+          doc.kind === 'doc.desktop_session' &&
+          doc.desktopUri === target.uri &&
+          doc.login === target.login
+        );
+      },
+      () => {
+        return createDesktopSessionDocument({
+          desktopUri: target.uri,
+          login: target.login,
+          origin: telemetry.origin,
+        });
+      }
+    );
 }
