@@ -26,7 +26,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -64,7 +63,8 @@ func TestHardwareKeyAgentService(t *testing.T) {
 	agentClient, err := hardwarekeyagent.NewClient(ctx, socketPath, insecure.NewCredentials())
 	require.NoError(t, err)
 
-	agentServiceNoFallback := hardwarekeyagent.NewService(agentClient, nil)
+	unusedService := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
+	agentServiceNoFallback := hardwarekeyagent.NewService(agentClient, unusedService)
 	agentServiceWithFallback := hardwarekeyagent.NewService(agentClient, mockService)
 
 	for _, tc := range []struct {
@@ -217,7 +217,7 @@ func TestHardwareKeyAgentService(t *testing.T) {
 		// Mark the hardware key as unknown by the Hardware Key Service.
 		mockService.AddUnknownAgentKey(hwSigner.Ref)
 		_, err = agentServiceNoFallback.Sign(ctx, hwSigner.Ref, hwSigner.KeyInfo, rand.Reader, []byte{}, crypto.Hash(0))
-		require.True(t, trace.IsBadParameter(err), "expected trace.BadParameter but got %v", err)
+		require.Error(t, err)
 
 		// Make the hardware key as known by the  Hardware Key Agent Server.
 		serverKnownKeySlots = append(serverKnownKeySlots, hwSigner.Ref.SlotKey)

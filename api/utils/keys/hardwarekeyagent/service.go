@@ -40,10 +40,6 @@ type Service struct {
 	agentClient hardwarekeyagentv1.HardwareKeyAgentServiceClient
 	// Used for non signature methods and as a fallback for signatures if the
 	// agent client fails to handle a sign request.
-	//
-	// When nil, the service will not fallback on failed sign requests and methods
-	// that aren't supported through the agent service, like NewPrivateKey, will
-	// return an error (used in tests).
 	fallbackService hardwarekey.Service
 }
 
@@ -52,9 +48,6 @@ type Service struct {
 //
 // The fallback service is used for methods unsupported by the agent service,
 // such as [Service.NewPrivateKey], and as a fallback for failed agent signatures.
-//
-// If the fallback service is not provided, the service will return an error
-// for unsupported services and skip the signature fallback logic (used in tests).
 func NewService(agentClient hardwarekeyagentv1.HardwareKeyAgentServiceClient, fallbackService hardwarekey.Service) *Service {
 	return &Service{
 		agentClient:     agentClient,
@@ -64,9 +57,6 @@ func NewService(agentClient hardwarekeyagentv1.HardwareKeyAgentServiceClient, fa
 
 // NewPrivateKey creates or retrieves a hardware private key for the given config.
 func (s *Service) NewPrivateKey(ctx context.Context, config hardwarekey.PrivateKeyConfig) (*hardwarekey.Signer, error) {
-	if s.fallbackService == nil {
-		return nil, trace.BadParameter("hardware key agent client cannot create a new key without a fallback service")
-	}
 	return s.fallbackService.NewPrivateKey(ctx, config)
 }
 
@@ -75,7 +65,7 @@ func (s *Service) NewPrivateKey(ctx context.Context, config hardwarekey.PrivateK
 func (s *Service) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	// First try to sign with the agent, then fallback to the direct service if needed.
 	signature, err := s.agentSign(ctx, ref, keyInfo, rand, digest, opts)
-	if err != nil && s.fallbackService != nil {
+	if err != nil {
 		slog.ErrorContext(ctx, "Failed to perform signature over hardware key agent, falling back to fallback service", "agent_err", err)
 		signature, err = s.fallbackService.Sign(ctx, ref, keyInfo, rand, digest, opts)
 	}
@@ -172,8 +162,5 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 
 // TODO(Joerger): DELETE IN v19.0.0
 func (s *Service) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
-	if s.fallbackService == nil {
-		return nil, trace.BadParameter("hardware key agent client cannot get missing key ref info without a fallback service")
-	}
 	return s.fallbackService.GetFullKeyRef(serialNumber, slotKey)
 }
