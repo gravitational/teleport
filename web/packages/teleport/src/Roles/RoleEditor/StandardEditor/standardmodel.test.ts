@@ -934,7 +934,7 @@ describe('roleToRoleEditorModel', () => {
         {
           ...newKubeClusterResourceAccess(),
           resources: [
-            expect.objectContaining({ kind: { value: 'job', label: 'job' } }),
+            expect.objectContaining({ kind: { value: 'jobs', label: 'jobs' } }),
           ],
         },
       ],

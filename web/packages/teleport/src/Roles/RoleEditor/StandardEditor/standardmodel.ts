@@ -1031,6 +1031,8 @@ function kubernetesResourceToModel(
     // If we have an exact match with a v7 entry, it is most likely a mistake.
     const v7groups = kubernetesResourceKindV7Groups[kind];
     if (v7groups && (apiGroup == '*' || v7groups.groups.includes(apiGroup))) {
+      kindOption.value = v7groups.v8name;
+      kindOption.label = v7groups.v8name;
       conversionErrors.push(
         unsupportedValueWithReplacement(`${pathPrefix}.kind`, v7groups.v8name)
       );
@@ -1062,7 +1064,7 @@ function kubernetesResourceToModel(
       kindOption !== undefined
         ? {
             id: crypto.randomUUID(),
-            kind: { value: kind, label: kind },
+            kind: kindOption,
             name,
             namespace,
             verbs: knownVerbOptions,
