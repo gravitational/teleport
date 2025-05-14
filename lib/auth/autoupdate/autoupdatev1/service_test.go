@@ -89,6 +89,7 @@ func TestServiceAccess(t *testing.T) {
 	testCases := []struct {
 		name             string
 		allowedVerbs     []string
+		kind             string
 		allowedStates    []authz.AdminActionAuthState
 		disallowedStates []authz.AdminActionAuthState
 		builtinRole      *authz.BuiltinRole
@@ -100,6 +101,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateConfig,
 			allowedVerbs: []string{types.VerbCreate},
 		},
 		{
@@ -109,6 +111,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateConfig,
 			allowedVerbs: []string{types.VerbUpdate},
 		},
 		{
@@ -118,6 +121,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateConfig,
 			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
 		},
 		{
@@ -128,6 +132,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateConfig,
 			allowedVerbs: []string{types.VerbRead},
 		},
 		{
@@ -137,6 +142,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateConfig,
 			allowedVerbs: []string{types.VerbDelete},
 		},
 		// AutoUpdate version check.
@@ -147,6 +153,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateVersion,
 			allowedVerbs: []string{types.VerbCreate},
 		},
 		{
@@ -156,6 +163,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateVersion,
 			allowedVerbs: []string{types.VerbUpdate},
 		},
 		{
@@ -165,6 +173,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateVersion,
 			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
 		},
 		{
@@ -175,6 +184,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateVersion,
 			allowedVerbs: []string{types.VerbRead},
 		},
 		{
@@ -184,6 +194,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateVersion,
 			allowedVerbs: []string{types.VerbDelete},
 		},
 		// AutoUpdate agent rollout check.
@@ -195,6 +206,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateAgentRollout,
 			allowedVerbs: []string{types.VerbRead},
 		},
 		{
@@ -204,6 +216,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateAgentRollout,
 			allowedVerbs: []string{types.VerbCreate},
 			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
 		},
@@ -214,6 +227,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateAgentRollout,
 			allowedVerbs: []string{types.VerbUpdate},
 			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
 		},
@@ -224,6 +238,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateAgentRollout,
 			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
 			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
 		},
@@ -234,6 +249,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateAgentRollout,
 			allowedVerbs: []string{types.VerbDelete},
 			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
 		},
@@ -244,6 +260,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateAgentRollout,
 			allowedVerbs: []string{types.VerbUpdate},
 		},
 		{
@@ -253,6 +270,7 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateAgentRollout,
 			allowedVerbs: []string{types.VerbUpdate},
 		},
 		{
@@ -262,7 +280,75 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
+			kind:         types.KindAutoUpdateAgentRollout,
 			allowedVerbs: []string{types.VerbUpdate},
+		},
+		// Autoupdate agent report check
+		{
+			name: "ListAutoUpdateAgentReports",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthUnauthorized,
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			kind:         types.KindAutoUpdateAgentReport,
+			allowedVerbs: []string{types.VerbRead, types.VerbList},
+		},
+		{
+			name: "GetAutoUpdateAgentReport",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthUnauthorized,
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			kind:         types.KindAutoUpdateAgentReport,
+			allowedVerbs: []string{types.VerbRead},
+		},
+		{
+			name: "CreateAutoUpdateAgentReport",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			kind:         types.KindAutoUpdateAgentReport,
+			allowedVerbs: []string{types.VerbCreate},
+			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
+		},
+		{
+			name: "UpdateAutoUpdateAgentReport",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			kind:         types.KindAutoUpdateAgentReport,
+			allowedVerbs: []string{types.VerbUpdate},
+			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
+		},
+		{
+			name: "UpsertAutoUpdateAgentReport",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			kind:         types.KindAutoUpdateAgentReport,
+			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
+			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
+		},
+		{
+			name: "DeleteAutoUpdateAgentReport",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			kind:         types.KindAutoUpdateAgentReport,
+			allowedVerbs: []string{types.VerbDelete},
+			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
 		},
 	}
 
@@ -274,7 +360,12 @@ func TestServiceAccess(t *testing.T) {
 					t.Run(stateToString(state), func(t *testing.T) {
 						for _, verbs := range utils.Combinations(tt.allowedVerbs) {
 							t.Run(fmt.Sprintf("verbs=%v", verbs), func(t *testing.T) {
-								service := newService(t, state, fakeChecker{allowedVerbs: verbs, builtinRole: tt.builtinRole}, &libevents.DiscardEmitter{})
+								checker := fakeChecker{
+									allowedKinds: []string{tt.kind},
+									allowedVerbs: verbs,
+									builtinRole:  tt.builtinRole,
+								}
+								service := newService(t, state, checker, &libevents.DiscardEmitter{})
 								err := callMethod(t, service, tt.name)
 								// expect access denied except with full set of verbs.
 								if len(verbs) == len(tt.allowedVerbs) {
@@ -298,7 +389,12 @@ func TestServiceAccess(t *testing.T) {
 					t.Run(stateToString(state), func(t *testing.T) {
 						// it is enough to test against tt.allowedVerbs,
 						// this is the only different data point compared to the test cases above.
-						service := newService(t, state, fakeChecker{allowedVerbs: tt.allowedVerbs, builtinRole: tt.builtinRole}, &libevents.DiscardEmitter{})
+						checker := fakeChecker{
+							allowedKinds: []string{tt.kind},
+							allowedVerbs: tt.allowedVerbs,
+							builtinRole:  tt.builtinRole,
+						}
+						service := newService(t, state, checker, &libevents.DiscardEmitter{})
 						err := callMethod(t, service, tt.name)
 						require.True(t, trace.IsAccessDenied(err))
 					})
@@ -337,7 +433,8 @@ func TestServiceAccess(t *testing.T) {
 func TestAutoUpdateConfigEvents(t *testing.T) {
 	rwVerbs := []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
 	mockEmitter := &eventstest.MockRecorderEmitter{}
-	service := newService(t, authz.AdminActionAuthMFAVerified, fakeChecker{allowedVerbs: rwVerbs}, mockEmitter)
+	checker := fakeChecker{allowedVerbs: rwVerbs, allowedKinds: []string{types.KindAutoUpdateConfig}}
+	service := newService(t, authz.AdminActionAuthMFAVerified, checker, mockEmitter)
 	ctx := context.Background()
 
 	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
@@ -383,7 +480,8 @@ func TestAutoUpdateConfigEvents(t *testing.T) {
 func TestAutoUpdateVersionEvents(t *testing.T) {
 	rwVerbs := []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
 	mockEmitter := &eventstest.MockRecorderEmitter{}
-	service := newService(t, authz.AdminActionAuthMFAVerified, fakeChecker{allowedVerbs: rwVerbs}, mockEmitter)
+	checker := fakeChecker{allowedVerbs: rwVerbs, allowedKinds: []string{types.KindAutoUpdateVersion}}
+	service := newService(t, authz.AdminActionAuthMFAVerified, checker, mockEmitter)
 	ctx := context.Background()
 
 	config, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
@@ -433,6 +531,7 @@ func TestAutoUpdateAgentRolloutEvents(t *testing.T) {
 		authz.AdminActionAuthMFAVerified,
 		fakeChecker{
 			allowedVerbs: rwVerbs,
+			allowedKinds: []string{types.KindAutoUpdateAgentRollout},
 			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
 		},
 		mockEmitter)
@@ -515,21 +614,22 @@ func TestAutoUpdateAgentRolloutEvents(t *testing.T) {
 }
 
 type fakeChecker struct {
+	allowedKinds []string
 	allowedVerbs []string
 	builtinRole  *authz.BuiltinRole
 	services.AccessChecker
 }
 
 func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
-	if resource == types.KindAutoUpdateConfig || resource == types.KindAutoUpdateVersion || resource == types.KindAutoUpdateAgentRollout {
-		for _, allowedVerb := range f.allowedVerbs {
-			if allowedVerb == verb {
-				return nil
-			}
-		}
+	if !slices.Contains(f.allowedKinds, resource) {
+		return trace.AccessDenied("access denied to rule=%v/verb=%v, no resource matching", resource, verb)
 	}
 
-	return trace.AccessDenied("access denied to rule=%v/verb=%v", resource, verb)
+	if !slices.Contains(f.allowedVerbs, verb) {
+		return trace.AccessDenied("access denied to rule=%v/verb=%v, no verb matching", resource, verb)
+	}
+
+	return nil
 }
 
 func (f fakeChecker) HasRole(name string) bool {
