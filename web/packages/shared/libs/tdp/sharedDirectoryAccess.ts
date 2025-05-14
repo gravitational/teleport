@@ -42,6 +42,8 @@ export interface SharedDirectoryAccess {
 /**
  * Enables directory sharing using FileSystem API.
  * Most of the methods can potentially throw errors and so should be wrapped in try/catch blocks.
+ * Should be kept in sync with lib/teleterm/services/desktop/directorysharing.go
+ * where file system events are handled for Connect.
  */
 export class BrowserFileSystem implements SharedDirectoryAccess {
   private dir: FileSystemDirectoryHandle | undefined;

@@ -63,15 +63,15 @@ import {
 } from './standardmodel';
 import { withDefaults } from './withDefaults';
 
-const minimalRole = () =>
-  withDefaults({ metadata: { name: 'foobar' }, version: defaultRoleVersion });
+const minimalRole = (roleVersion?: RoleVersion) =>
+  withDefaults({ metadata: { name: 'foobar' } }, roleVersion);
 
-const minimalRoleModel = (): RoleEditorModel => ({
+const minimalRoleModel = (roleVersion?: RoleVersion): RoleEditorModel => ({
   metadata: {
     name: 'foobar',
     nameCollision: false,
     labels: [],
-    version: roleVersionOptionsMap.get(defaultRoleVersion),
+    version: roleVersionOptionsMap.get(roleVersion || defaultRoleVersion),
   },
   resources: [],
   rules: [],
@@ -135,16 +135,15 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
   {
     name: 'metadata',
     role: {
-      ...minimalRole(),
+      ...minimalRole(RoleVersion.V6),
       metadata: {
         name: 'role-name',
         description: 'role-description',
         labels: { foo: 'bar' },
       },
-      version: RoleVersion.V6,
     },
     model: {
-      ...minimalRoleModel(),
+      ...minimalRoleModel(RoleVersion.V6),
       metadata: {
         name: 'role-name',
         nameCollision: false,
@@ -670,7 +669,6 @@ describe('roleToRoleEditorModel', () => {
         options: {
           ...minRole.spec.options,
           optionsUnknown: 123,
-          idp: { saml: { enabled: true, unknownField: 123 } },
           record_session: {
             ...minRole.spec.options.record_session,
             recordSessionUnknown: 123,
@@ -737,9 +735,6 @@ describe('roleToRoleEditorModel', () => {
               'command',
               'network',
             ]),
-            unsupportedValueWithReplacement('spec.options.idp', {
-              saml: { enabled: true },
-            }),
             unsupportedValueWithReplacement(
               'spec.options.pin_source_ip',
               false
@@ -1101,7 +1096,7 @@ describe('roleEditorModelToRole', () => {
   it('converts metadata', () => {
     expect(
       roleEditorModelToRole({
-        ...minimalRoleModel(),
+        ...minimalRoleModel(RoleVersion.V5),
         metadata: {
           name: 'dog-walker',
           nameCollision: false,
@@ -1112,7 +1107,7 @@ describe('roleEditorModelToRole', () => {
         },
       })
     ).toEqual({
-      ...minimalRole(),
+      ...minimalRole(RoleVersion.V5),
       metadata: {
         name: 'dog-walker',
         description: 'walks dogs',

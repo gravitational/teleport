@@ -20,10 +20,10 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -37,11 +37,13 @@ func newUserNotificationCollection(upstream services.NotificationGetter, w types
 	}
 
 	return &collection[*notificationsv1.Notification, userNotificationIndex]{
-		store: newStore(map[userNotificationIndex]func(*notificationsv1.Notification) string{
-			userNotificationNameIndex: func(r *notificationsv1.Notification) string {
-				return r.GetMetadata().GetName()
-			},
-		}),
+		store: newStore(
+			proto.CloneOf[*notificationsv1.Notification],
+			map[userNotificationIndex]func(*notificationsv1.Notification) string{
+				userNotificationNameIndex: func(r *notificationsv1.Notification) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*notificationsv1.Notification, error) {
 			var notifications []*notificationsv1.Notification
 			var startKey string
@@ -77,7 +79,6 @@ func (c *Cache) ListUserNotifications(ctx context.Context, pageSize int, startKe
 		nextToken: func(t *notificationsv1.Notification) string {
 			return t.GetMetadata().GetName()
 		},
-		clone: utils.CloneProtoMsg[*notificationsv1.Notification],
 	}
 	out, next, err := lister.list(ctx, pageSize, startKey)
 	return out, next, trace.Wrap(err)
@@ -93,11 +94,13 @@ func newGlobalNotificationCollection(upstream services.NotificationGetter, w typ
 	}
 
 	return &collection[*notificationsv1.GlobalNotification, globalNotificationIndex]{
-		store: newStore(map[globalNotificationIndex]func(*notificationsv1.GlobalNotification) string{
-			globalNotificationNameIndex: func(r *notificationsv1.GlobalNotification) string {
-				return r.GetMetadata().GetName()
-			},
-		}),
+		store: newStore(
+			proto.CloneOf[*notificationsv1.GlobalNotification],
+			map[globalNotificationIndex]func(*notificationsv1.GlobalNotification) string{
+				globalNotificationNameIndex: func(r *notificationsv1.GlobalNotification) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*notificationsv1.GlobalNotification, error) {
 			var notifications []*notificationsv1.GlobalNotification
 			var startKey string
@@ -133,7 +136,6 @@ func (c *Cache) ListGlobalNotifications(ctx context.Context, pageSize int, start
 		nextToken: func(t *notificationsv1.GlobalNotification) string {
 			return t.GetMetadata().GetName()
 		},
-		clone: utils.CloneProtoMsg[*notificationsv1.GlobalNotification],
 	}
 	out, next, err := lister.list(ctx, pageSize, startKey)
 	return out, next, trace.Wrap(err)

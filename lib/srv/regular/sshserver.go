@@ -241,6 +241,9 @@ type Server struct {
 	// stableUnixUsers is used to obtain fallback UIDs for host user
 	// provisioning from the control plane.
 	stableUnixUsers stableunixusersv1.StableUNIXUsersServiceClient
+
+	// enableSELinux configures whether SELinux support is enable or not.
+	enableSELinux bool
 }
 
 // TargetMetadata returns metadata about the server.
@@ -324,6 +327,12 @@ func (s *Server) GetHostSudoers() srv.HostSudoers {
 		return &srv.HostSudoersNotImplemented{}
 	}
 	return s.sudoers
+}
+
+// GetSELinuxEnabled returns whether the node should enable SELinux
+// support or not.
+func (s *Server) GetSELinuxEnabled() bool {
+	return s.enableSELinux
 }
 
 // ServerOption is a functional option passed to the server
@@ -709,6 +718,15 @@ func SetPROXYSigner(proxySigner PROXYHeaderSigner) ServerOption {
 func SetStableUNIXUsers(stableUNIXUsers stableunixusersv1.StableUNIXUsersServiceClient) ServerOption {
 	return func(s *Server) error {
 		s.stableUnixUsers = stableUNIXUsers
+		return nil
+	}
+}
+
+// GetSELinuxEnabled returns whether the node should enable SELinux
+// support or not.
+func SetSELinuxEnabled(enabled bool) ServerOption {
+	return func(s *Server) error {
+		s.enableSELinux = enabled
 		return nil
 	}
 }

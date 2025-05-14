@@ -52,7 +52,10 @@ to sign in Teleport.
 Go to "OAuth Apps" under "Developer Settings" of your organization's settings.
 Click on "New OAuth App".
 
-Fill in the details. Use the following for "Authentication callback URL":
+Fill in the details. Use the following for "Authentication callback URL".
+Replace <Var name="teleport-proxy-address"/> with the host and HTTPS port of
+your Teleport Proxy Service:
+
 ```code
 https://<Var name="teleport-proxy-address"/>/v1/webapi/github/
 ```
@@ -64,7 +67,11 @@ client ID and the secret for the next step:
 
 ## Step 2/4. Create a GitHub integration and export the CAs
 
-Now create a yaml file that represents the Github integration:
+Now create a yaml file that represents the Github integration.  Replace
+<Var name="my-github-org" /> with the organization name, and replace 
+<Var name="oauth-app-client-id" />
+and <Var name="oauth-app-client-secret" /> with values from the previous step.
+
 ```yaml
 # github_integration.yaml
 kind: integration
@@ -80,9 +87,6 @@ spec:
       id: <Var name="oauth-app-client-id"/>
       secret: <Var name="oauth-app-client-secret"/>
 ```
-Replace `my-github-org` with the organization name, and replace
-`oauth-app-client-id` and `oauth-app-client-secret` with values from the
-previous step.
 
 To create the resource with `tctl`, run:
 ```code
