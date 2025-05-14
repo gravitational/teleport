@@ -5606,7 +5606,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	clusterConfigService, err := clusterconfigv1.NewService(clusterconfigv1.ServiceConfig{
 		Cache:      cfg.AuthServer.Cache,
-		Backend:    cfg.AuthServer.Services,
+		Backend:    cfg.AuthServer,
 		Authorizer: cfg.Authorizer,
 		Emitter:    cfg.Emitter,
 		AccessGraph: clusterconfigv1.AccessGraphConfig{

@@ -231,6 +231,40 @@ func (m *Manager) ResolveRecordingEncryption(ctx context.Context) (*recordingenc
 	return encryption, nil
 }
 
+func (m *Manager) searchActiveKeys(ctx context.Context, activeKeys []*recordingencryptionv1.WrappedKey, publicKey []byte) (*types.EncryptionKeyPair, error) {
+	for _, key := range activeKeys {
+		if key.GetRecordingEncryptionPair() == nil {
+			continue
+		}
+
+		// TODO (eriktate): this is a bit of a hack to allow encryption to work while the public key isn't retrievable
+		// from the age header
+		if publicKey != nil {
+			if !slices.Equal(key.RecordingEncryptionPair.PublicKey, publicKey) {
+				continue
+			}
+		}
+
+		decrypter, err := m.keyStore.GetDecrypter(ctx, key.KeyEncryptionPair)
+		if err != nil {
+			continue
+		}
+
+		privateKey, err := decrypter.Decrypt(rand.Reader, key.RecordingEncryptionPair.PrivateKey, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &types.EncryptionKeyPair{
+			PrivateKey:     privateKey,
+			PublicKey:      key.RecordingEncryptionPair.PublicKey,
+			PrivateKeyType: key.RecordingEncryptionPair.PrivateKeyType,
+		}, nil
+	}
+
+	return nil, trace.NotFound("no accessible decryption key found")
+}
+
 // FindDecryptionKey returns the first accessible decryption key that matches one of the given public keys.
 func (m *Manager) FindDecryptionKey(ctx context.Context, publicKeys ...[]byte) (*types.EncryptionKeyPair, error) {
 	encryption, err := m.GetRecordingEncryption(ctx)
@@ -240,32 +274,21 @@ func (m *Manager) FindDecryptionKey(ctx context.Context, publicKeys ...[]byte) (
 
 	// TODO (eriktate): search rotated keys as well once rotation is implemented
 	activeKeys := encryption.GetSpec().GetActiveKeys()
+	if len(publicKeys) == 0 {
+		return m.searchActiveKeys(ctx, activeKeys, nil)
+	}
+
 	for _, publicKey := range publicKeys {
-		for _, key := range activeKeys {
-			if key.GetRecordingEncryptionPair() == nil {
+		found, err := m.searchActiveKeys(ctx, activeKeys, publicKey)
+		if err != nil {
+			if trace.IsNotFound(err) {
 				continue
 			}
 
-			if !slices.Equal(key.RecordingEncryptionPair.PublicKey, publicKey) {
-				continue
-			}
-
-			decrypter, err := m.keyStore.GetDecrypter(ctx, key.KeyEncryptionPair)
-			if err != nil {
-				continue
-			}
-
-			privateKey, err := decrypter.Decrypt(rand.Reader, key.RecordingEncryptionPair.PrivateKey, nil)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &types.EncryptionKeyPair{
-				PrivateKey:     privateKey,
-				PublicKey:      key.RecordingEncryptionPair.PublicKey,
-				PrivateKeyType: key.RecordingEncryptionPair.PrivateKeyType,
-			}, nil
+			return nil, trace.Wrap(err)
 		}
+
+		return found, nil
 	}
 
 	return nil, trace.NotFound("no accessible decryption key found")
