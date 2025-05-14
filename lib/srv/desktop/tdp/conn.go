@@ -218,11 +218,8 @@ func (c *ConnProxy) SendToClient(message Message) error {
 
 // Run starts proxying the connection.
 func (c *ConnProxy) Run(ctx context.Context) error {
-	ctx, cancel := context.WithCancel(ctx)
-
 	var closeOnce sync.Once
 	closeAll := func() {
-		cancel()
 		c.client.Close()
 		c.server.Close()
 	}
