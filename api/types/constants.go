@@ -1414,6 +1414,10 @@ var KubernetesResourcesKinds = []string{
 	KindKubeIngress,
 }
 
+// KubernetesResourcesV7KindGroups maps the legacy Teleport kube kinds
+// to their kubernetes group.
+// Used for validation in role >=v8 to check whether a older value as
+// been accidentally used.
 var KubernetesResourcesV7KindGroups = map[string]string{
 	KindKubePod:                       "core",
 	KindKubeSecret:                    "core",
@@ -1438,6 +1442,10 @@ var KubernetesResourcesV7KindGroups = map[string]string{
 	KindKubeIngress:                   "networking.k8s.io",
 }
 
+// KubernetesResourcesKindsPlurals maps the legacy Teleport kube kinds
+// to their kubernetes name.
+// Used to upgrade roles <=v7 as well as to support exiting access request
+// format.
 // TODO(@creack): Remove this, find a better way to handle the mapping.
 var KubernetesResourcesKindsPlurals = map[string]string{
 	KindKubePod:                       "pods",
@@ -1531,7 +1539,7 @@ var KubernetesClusterWideResourceKinds = []string{
 // This means that if there is a match, we know we expect a namespace, but if there is
 // not a match, we don't know that it doesn't.
 //
-// TODO(awly): Remove in favor of a dynamic lookup.
+// TODO(@creack): Remove in favor of a dynamic lookup.
 var KubernetesNamespacedResourceKinds = []string{
 	"bindings.core",
 	"configmaps.core",
