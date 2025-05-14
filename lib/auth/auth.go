@@ -90,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -506,6 +507,19 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 
+	if cfg.RecordingEncryption == nil {
+		cfg.RecordingEncryption, err = local.NewRecordingEncryptionService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	recordingEncryptionResolver, err := recordingencryption.NewResolverBackend(
+		cfg.RecordingEncryption,
+		keyStore,
+		cfg.Logger,
+	)
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
@@ -562,6 +576,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		HealthCheckConfig:               cfg.HealthCheckConfig,
 		BackendInfoService:              cfg.BackendInfo,
 		VnetConfigService:               cfg.VnetConfigService,
+		RecordingEncryptionWithResolver: recordingEncryptionResolver,
 	}
 
 	as := Server{
@@ -800,6 +815,7 @@ type Services struct {
 	services.HealthCheckConfig
 	services.BackendInfoService
 	services.VnetConfigService
+	services.RecordingEncryptionWithResolver
 }
 
 // GetWebSession returns existing web session described by req.
@@ -8029,4 +8045,49 @@ func (s *Server) GetSigstorePolicyEvaluator() workloadidentityv1.SigstorePolicyE
 		return e
 	}
 	return workloadidentityv1.OSSSigstorePolicyEvaluator{}
+}
+
+// CreateSessionRecordingConfig evaluates RecordingEncryption state before creating the SessionRecordingConfig.
+func (s *Server) CreateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	if cfg.GetEncrypted() {
+		encryption, err := s.ResolveRecordingEncryption(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		cfg.SetEncryptionKeys(recordingencryption.GetAgeEncryptionKeys(encryption.GetSpec().GetKeySet().ActiveKeys))
+	}
+
+	res, err := s.Services.CreateSessionRecordingConfig(ctx, cfg)
+	return res, trace.Wrap(err)
+}
+
+// UpdateSessionRecordingConfig evaluates RecordingEncryption state before updating the SessionRecordingConfig.
+func (s *Server) UpdateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	if cfg.GetEncrypted() {
+		encryption, err := s.ResolveRecordingEncryption(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		cfg.SetEncryptionKeys(recordingencryption.GetAgeEncryptionKeys(encryption.GetSpec().GetKeySet().ActiveKeys))
+	}
+
+	res, err := s.Services.UpdateSessionRecordingConfig(ctx, cfg)
+	return res, trace.Wrap(err)
+}
+
+// UpsertSessionRecordingConfig evaluates RecordingEncryption state before upserting the SessionRecordingConfig.
+func (s *Server) UpsertSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	if cfg.GetEncrypted() {
+		encryption, err := s.ResolveRecordingEncryption(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		cfg.SetEncryptionKeys(recordingencryption.GetAgeEncryptionKeys(encryption.GetSpec().GetKeySet().ActiveKeys))
+	}
+
+	res, err := s.Services.UpsertSessionRecordingConfig(ctx, cfg)
+	return res, trace.Wrap(err)
 }

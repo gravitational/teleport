@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -367,6 +368,9 @@ type InitConfig struct {
 	// BackendInfo is a service of backend information.
 	BackendInfo services.BackendInfoService
 
+	// RecordingEncryption manages state for encrypted session recording.
+	RecordingEncryption services.RecordingEncryption
+
 	// SkipVersionCheck skips version check during major version upgrade/downgrade.
 	SkipVersionCheck bool
 
@@ -494,6 +498,25 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 			return trace.Wrap(err)
 		}
 		asrv.logger.InfoContext(ctx, "Created reverse tunnel", "tunnel", tunnel.GetName())
+	}
+
+	recordingEncryptionWatchCfg := recordingencryption.RecordingEncryptionWatchConfig{
+		Events:              asrv.Events,
+		RecordingEncryption: asrv,
+		ClusterConfig:       asrv,
+		Logger:              asrv.logger,
+		LockConfig: backend.RunWhileLockedConfig{
+			LockConfiguration: backend.LockConfiguration{
+				Backend:            cfg.Backend,
+				LockNameComponents: []string{"resolve_recording_encryption"},
+				TTL:                30 * time.Second,
+			},
+			RefreshLockInterval: 20 * time.Second,
+		},
+	}
+
+	if err := recordingencryption.Watch(asrv.closeCtx, recordingEncryptionWatchCfg); err != nil {
+		return trace.Wrap(err)
 	}
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -1007,7 +1030,7 @@ func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNet
 
 func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
 	const iterationLimit = 3
-	for i := 0; i < iterationLimit; i++ {
+	for _ = range iterationLimit {
 		storedRecConfig, err := asrv.Services.GetSessionRecordingConfig(ctx)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)

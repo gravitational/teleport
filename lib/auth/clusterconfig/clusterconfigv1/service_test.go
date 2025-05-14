@@ -18,7 +18,13 @@ package clusterconfigv1_test
 
 import (
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
+	"io"
 	"slices"
 	"testing"
 	"time"
@@ -35,16 +41,20 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestCreateAuthPreference(t *testing.T) {
@@ -1852,6 +1862,59 @@ type env struct {
 	defaultClusterName         types.ClusterName
 }
 
+type oaepDecrypter struct {
+	crypto.Decrypter
+	hash crypto.Hash
+}
+
+func (d oaepDecrypter) Decrypt(rand io.Reader, msg []byte, opts crypto.DecrypterOpts) ([]byte, error) {
+	return d.Decrypter.Decrypt(rand, msg, &rsa.OAEPOptions{
+		Hash: d.hash,
+	})
+}
+
+type fakeEncryptionKeyStore struct {
+	keyType types.PrivateKeyType // abusing this field as a way to simulate different auth servers
+}
+
+func (f *fakeEncryptionKeyStore) NewEncryptionKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.EncryptionKeyPair, error) {
+	private, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, err
+	}
+
+	privatePEM := pem.EncodeToMemory(&pem.Block{
+		Type:  keys.PKCS1PrivateKeyType,
+		Bytes: x509.MarshalPKCS1PrivateKey(private),
+	})
+
+	publicPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  keys.PKCS1PublicKeyType,
+		Bytes: x509.MarshalPKCS1PublicKey(&private.PublicKey),
+	})
+
+	return &types.EncryptionKeyPair{
+		PrivateKey:     privatePEM,
+		PublicKey:      publicPEM,
+		PrivateKeyType: f.keyType,
+		Hash:           uint32(crypto.SHA256),
+	}, nil
+}
+
+func (f *fakeEncryptionKeyStore) GetDecrypter(ctx context.Context, keyPair *types.EncryptionKeyPair) (crypto.Decrypter, error) {
+	if keyPair.PrivateKeyType != f.keyType {
+		return nil, errors.New("could not access decrypter")
+	}
+
+	block, _ := pem.Decode(keyPair.PrivateKey)
+
+	private, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return oaepDecrypter{Decrypter: private, hash: crypto.Hash(keyPair.Hash)}, nil
+}
 func newTestEnv(opts ...serviceOpt) (*env, error) {
 	bk, err := memory.New(memory.Config{})
 	if err != nil {
@@ -1874,12 +1937,30 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 		opt(&cfg)
 	}
 
+	recordingEncryptionBackend, err := local.NewRecordingEncryptionService(bk)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating recording encryption backend")
+	}
+
+	recordingEncryption, err := recordingencryptionv1.NewService(recordingencryptionv1.ServiceConfig{
+		Logger:     utils.NewSlogLoggerForTests(),
+		Cache:      struct{ recordingencryptionv1.Cache }{},
+		Authorizer: struct{ authz.Authorizer }{},
+		Emitter:    struct{ apievents.Emitter }{},
+		KeyStore:   &fakeEncryptionKeyStore{keyType: types.PrivateKeyType_RAW},
+		Backend:    recordingEncryptionBackend,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating recording encryption service")
+	}
+
 	svc, err := clusterconfigv1.NewService(clusterconfigv1.ServiceConfig{
-		Cache:       cfg.service,
-		Backend:     cfg.service,
-		Authorizer:  cfg.authorizer,
-		Emitter:     cfg.emitter,
-		AccessGraph: cfg.accessGraphConfig,
+		Cache:               cfg.service,
+		Backend:             cfg.service,
+		Authorizer:          cfg.authorizer,
+		Emitter:             cfg.emitter,
+		AccessGraph:         cfg.accessGraphConfig,
+		RecordingEncryption: recordingEncryption,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating users service")
