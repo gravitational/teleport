@@ -2114,12 +2114,6 @@ func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
 				out = append(out, elem)
 				continue
 			}
-			// If we have a known kind, keep it.
-			if _, ok := defaultRBACResources[allowedResourcesKey{"", elem.Kind}]; ok {
-				elem.APIGroup = ""
-				out = append(out, elem)
-				continue
-			}
 
 			// If we reach this point, we are dealing with a resource we don't know about.
 			// As <=v17 granted too much access for unknown resource, we deny everything.
