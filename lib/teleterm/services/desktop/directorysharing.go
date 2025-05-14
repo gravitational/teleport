@@ -60,12 +60,12 @@ const StandardDirSize = 4096
 func NewDirectoryAccess(baseDir string) (*DirectoryAccess, error) {
 	basePath, err := filepath.EvalSymlinks(baseDir)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.ConvertSystemError(err)
 	}
 
 	stat, err := os.Stat(basePath)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.ConvertSystemError(err)
 	}
 	if !stat.IsDir() {
 		return nil, trace.BadParameter("%q is not a directory", baseDir)
@@ -90,13 +90,13 @@ func (d *DirectoryAccess) getSafePath(relativePath string) (string, error) {
 			parent := filepath.Dir(full)
 			resolvedParent, perr := filepath.EvalSymlinks(parent)
 			if perr != nil {
-				return "", trace.Wrap(perr)
+				return "", trace.ConvertSystemError(perr)
 			}
 
 			// Reconstruct the full path by joining the resolved parent with the original file name.
 			resolved = filepath.Join(resolvedParent, filepath.Base(full))
 		} else {
-			return "", trace.Wrap(err)
+			return "", trace.ConvertSystemError(err)
 		}
 	}
 	if !isSubPath(d.basePath, resolved) {
@@ -118,7 +118,7 @@ func (d *DirectoryAccess) Stat(relativePath string) (*FileOrDirInfo, error) {
 
 	stat, err := os.Stat(path)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.ConvertSystemError(err)
 	}
 
 	info, err := d.readFileOrDirInfo(relativePath, stat)
@@ -134,14 +134,14 @@ func (d *DirectoryAccess) ReadDir(relativePath string) ([]*FileOrDirInfo, error)
 
 	entries, err := os.ReadDir(path)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.ConvertSystemError(err)
 	}
 
 	var results []*FileOrDirInfo
 	for _, entry := range entries {
 		fileInfo, err := entry.Info()
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.ConvertSystemError(err)
 		}
 
 		// Skip symlinks, we can't present them properly in the remote machine.
@@ -170,26 +170,26 @@ func (d *DirectoryAccess) Read(relativePath string, offset int64, buf []byte) (n
 
 	file, err := os.Open(path)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return 0, trace.ConvertSystemError(err)
 	}
 	defer func() {
 		closeErr := file.Close()
 		if err == nil {
 			// Only update err if no previous error occurred.
-			err = trace.Wrap(closeErr)
+			err = trace.ConvertSystemError(closeErr)
 		}
 	}()
 
 	_, err = file.Seek(offset, io.SeekStart)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return 0, trace.ConvertSystemError(err)
 	}
 
 	n, err = file.Read(buf)
 	if err != nil && !errors.Is(err, io.EOF) {
-		return 0, trace.Wrap(err)
+		return 0, trace.ConvertSystemError(err)
 	}
-	return n, trace.Wrap(err)
+	return n, err
 }
 
 // Write writes data to a file at a given offset.
@@ -201,24 +201,24 @@ func (d *DirectoryAccess) Write(relativePath string, offset int64, data []byte) 
 
 	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return 0, trace.ConvertSystemError(err)
 	}
 
 	defer func() {
 		closeErr := file.Close()
 		if err == nil {
 			// Only update err if no previous error occurred.
-			err = trace.Wrap(closeErr)
+			err = trace.ConvertSystemError(closeErr)
 		}
 	}()
 
 	_, err = file.Seek(offset, io.SeekStart)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return 0, trace.ConvertSystemError(err)
 	}
 
 	n, err = file.Write(data)
-	return n, trace.Wrap(err)
+	return n, trace.ConvertSystemError(err)
 }
 
 // Truncate truncates a file to the specified size.
@@ -228,7 +228,7 @@ func (d *DirectoryAccess) Truncate(relativePath string, size int64) error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(os.Truncate(path, size))
+	return trace.ConvertSystemError(os.Truncate(path, size))
 }
 
 // Create creates a new file or directory at the given path.
@@ -242,20 +242,20 @@ func (d *DirectoryAccess) Create(relativePath string, fileType FileType) error {
 	case FileTypeFile:
 		file, err := os.Create(path)
 		if err != nil {
-			if os.IsExist(err) {
+			if errors.Is(err, fs.ErrExist) {
 				return nil // Ignore if file already exists
 			}
-			return trace.Wrap(err)
+			return trace.ConvertSystemError(err)
 		}
-		return trace.Wrap(file.Close())
+		return trace.ConvertSystemError(file.Close())
 	case FileTypeDir:
 		err := os.Mkdir(path, 0700)
-		if os.IsExist(err) {
+		if errors.Is(err, fs.ErrExist) {
 			return nil // Ignore if directory already exists
 		}
-		return err
+		return trace.ConvertSystemError(err)
 	default:
-		return errors.New("unknown file type")
+		return trace.BadParameter("unknown file type")
 	}
 }
 
@@ -267,7 +267,7 @@ func (d *DirectoryAccess) Delete(relativePath string) error {
 	}
 
 	err = os.RemoveAll(path)
-	return trace.Wrap(err)
+	return trace.ConvertSystemError(err)
 }
 
 func (d *DirectoryAccess) readFileOrDirInfo(relativePath string, f os.FileInfo) (info *FileOrDirInfo, err error) {
@@ -290,13 +290,13 @@ func (d *DirectoryAccess) readFileOrDirInfo(relativePath string, f os.FileInfo) 
 
 	opened, err := os.Open(path)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.ConvertSystemError(err)
 	}
 	defer func() {
 		closeErr := opened.Close()
 		if err == nil {
 			// Only update err if no previous error occurred.
-			err = trace.Wrap(closeErr)
+			err = trace.ConvertSystemError(closeErr)
 		}
 	}()
 
@@ -309,5 +309,5 @@ func (d *DirectoryAccess) readFileOrDirInfo(relativePath string, f os.FileInfo) 
 		err = nil
 		info.IsEmpty = true
 	}
-	return info, trace.Wrap(err)
+	return info, trace.ConvertSystemError(err)
 }
