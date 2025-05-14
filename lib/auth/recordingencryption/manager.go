@@ -52,16 +52,15 @@ type ManagerConfig struct {
 
 // NewManager returns a new Manager using the given ManagerConfig.
 func NewManager(cfg ManagerConfig) (*Manager, error) {
+	switch {
+	case cfg.Backend == nil:
+		return nil, trace.BadParameter("backend is required")
+	case cfg.KeyStore == nil:
+		return nil, trace.BadParameter("key store is required")
+	}
+
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
-	}
-
-	if cfg.Backend == nil {
-		return nil, trace.BadParameter("backend is required")
-	}
-
-	if cfg.KeyStore == nil {
-		return nil, trace.BadParameter("key store is required")
 	}
 
 	return &Manager{
@@ -242,8 +241,43 @@ func (m *Manager) ResolveRecordingEncryption(ctx context.Context) (*recordingenc
 	return encryption, nil
 }
 
+func (m *Manager) searchActiveKeys(ctx context.Context, activeKeys []*recordingencryptionv1.WrappedKey, publicKey []byte) (*types.EncryptionKeyPair, error) {
+	for _, key := range activeKeys {
+		if key.GetRecordingEncryptionPair() == nil {
+			continue
+		}
+
+		// TODO (eriktate): this is a bit of a hack to allow encryption to work while the public key isn't retrievable
+		// from the age header
+		if publicKey != nil {
+			if !slices.Equal(key.RecordingEncryptionPair.PublicKey, publicKey) {
+				continue
+			}
+		}
+
+		decrypter, err := m.keyStore.GetDecrypter(ctx, key.KeyEncryptionPair)
+		if err != nil {
+			continue
+		}
+
+		privateKey, err := decrypter.Decrypt(rand.Reader, key.RecordingEncryptionPair.PrivateKey, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &types.EncryptionKeyPair{
+			PrivateKey:     privateKey,
+			PublicKey:      key.RecordingEncryptionPair.PublicKey,
+			PrivateKeyType: key.RecordingEncryptionPair.PrivateKeyType,
+		}, nil
+	}
+
+	return nil, trace.NotFound("no accessible decryption key found")
+}
+
 // FindDecryptionKey returns the first accessible decryption key that matches one of the given public keys.
-func (m *Manager) FindDecryptionKey(ctx context.Context, publicKeys ...[]byte) (*types.EncryptionKeyPair, error) {
+func (m *Manager) FindDecryptionKey(publicKeys ...[]byte) (*types.EncryptionKeyPair, error) {
+	ctx := context.Background()
 	encryption, err := m.GetRecordingEncryption(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -251,32 +285,21 @@ func (m *Manager) FindDecryptionKey(ctx context.Context, publicKeys ...[]byte) (
 
 	// TODO (eriktate): search rotated keys as well once rotation is implemented
 	activeKeys := encryption.GetSpec().ActiveKeys
+	if len(publicKeys) == 0 {
+		return m.searchActiveKeys(ctx, activeKeys, nil)
+	}
+
 	for _, publicKey := range publicKeys {
-		for _, key := range activeKeys {
-			if key.GetRecordingEncryptionPair() == nil {
+		found, err := m.searchActiveKeys(ctx, activeKeys, publicKey)
+		if err != nil {
+			if trace.IsNotFound(err) {
 				continue
 			}
 
-			if !slices.Equal(key.RecordingEncryptionPair.PublicKey, publicKey) {
-				continue
-			}
-
-			decrypter, err := m.keyStore.GetDecrypter(ctx, key.KeyEncryptionPair)
-			if err != nil {
-				continue
-			}
-
-			privateKey, err := decrypter.Decrypt(rand.Reader, key.RecordingEncryptionPair.PrivateKey, nil)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &types.EncryptionKeyPair{
-				PrivateKey:     privateKey,
-				PublicKey:      key.RecordingEncryptionPair.PublicKey,
-				PrivateKeyType: key.RecordingEncryptionPair.PrivateKeyType,
-			}, nil
+			return nil, trace.Wrap(err)
 		}
+
+		return found, nil
 	}
 
 	return nil, trace.NotFound("no accessible decryption key found")
@@ -296,8 +319,8 @@ func GetAgeEncryptionKeys(keys []*recordingencryptionv1.WrappedKey) iter.Seq[*ty
 	}
 }
 
-// RecordingEncryptionResolver resolves RecordingEncryption state
-type RecordingEncryptionResolver interface {
+// Resolver resolves RecordingEncryption state
+type Resolver interface {
 	ResolveRecordingEncryption(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error)
 }
 
@@ -305,7 +328,7 @@ type RecordingEncryptionResolver interface {
 // automatically resolves state.
 type WatchConfig struct {
 	Events        types.Events
-	Resolver      RecordingEncryptionResolver
+	Resolver      Resolver
 	ClusterConfig services.ClusterConfiguration
 	Logger        *slog.Logger
 	LockConfig    *backend.RunWhileLockedConfig
@@ -315,7 +338,7 @@ type WatchConfig struct {
 // auth server.
 type Watcher struct {
 	events        types.Events
-	resolver      RecordingEncryptionResolver
+	resolver      Resolver
 	clusterConfig services.ClusterConfiguration
 	logger        *slog.Logger
 	lockConfig    *backend.RunWhileLockedConfig
