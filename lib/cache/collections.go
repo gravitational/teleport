@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -50,6 +51,7 @@ type collections struct {
 	byKind map[resourceKind]collectionHandler
 
 	botInstances *collection[*machineidv1.BotInstance, botInstanceIndex]
+	autoUpdateReports                  *collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -87,6 +89,14 @@ func setupCollections(c Config, legacyCollections map[resourceKind]legacyCollect
 
 			out.botInstances = collect
 			out.byKind[resourceKind] = out.botInstances
+		case types.KindAutoUpdateAgentReport:
+			collect, err := newAutoUpdateAgentReportCollection(c.AutoUpdateService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.autoUpdateReports = collect
+			out.byKind[resourceKind] = out.autoUpdateReports
 		default:
 			_, legacyOk := legacyCollections[resourceKind]
 			if _, ok := out.byKind[resourceKind]; !ok && !legacyOk {
