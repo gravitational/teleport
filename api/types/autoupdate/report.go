@@ -17,7 +17,10 @@ limitations under the License.
 package autoupdate
 
 import (
+	"time"
+
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -30,7 +33,8 @@ func NewAutoUpdateAgentReport(spec *autoupdate.AutoUpdateAgentReportSpec, authNa
 		Kind:    types.KindAutoUpdateAgentReport,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name: authName,
+			Name:    authName,
+			Expires: timestamppb.New(spec.GetTimestamp().AsTime().Add(time.Hour)),
 		},
 		Spec: spec,
 	}

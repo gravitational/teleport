@@ -1461,6 +1461,7 @@ const (
 	upgradeWindowCheckKey
 	roleCountKey
 	accessListReminderNotificationsKey
+	autoUpdateAgentReportKey
 )
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1549,6 +1550,12 @@ func (a *Server) runPeriodicOperations() {
 			Duration:      10 * time.Minute,
 			FirstDuration: retryutils.HalfJitter(10 * time.Second),
 			Jitter:        retryutils.HalfJitter,
+		})
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           autoUpdateAgentReportKey,
+			Duration:      time.Minute,
+			FirstDuration: retryutils.FullJitter(time.Minute),
+			// No jitter here, this is intentional and required for accurate tracking across auths.
 		})
 	}
 
@@ -1674,6 +1681,8 @@ func (a *Server) runPeriodicOperations() {
 				go a.tallyRoles(a.closeCtx)
 			case accessListReminderNotificationsKey:
 				go a.CreateAccessListReminderNotifications(a.closeCtx)
+			case autoUpdateAgentReportKey:
+				go a.reportAgentVersions(a.closeCtx)
 			}
 		}
 	}

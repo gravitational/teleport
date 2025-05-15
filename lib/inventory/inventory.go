@@ -483,6 +483,13 @@ type UpstreamHandle interface {
 	// Hello gets the cached upstream hello that was used to initialize the stream.
 	Hello() proto.UpstreamInventoryHello
 
+	// Goodbye gets the cached upstream goodbye. Returns nil if downstream never sent a Goodbye.
+	// This is used to identify if the instance is terminating or being soft-reloaded.
+	Goodbye() *proto.UpstreamInventoryGoodbye
+
+	// RegistrationTime gets the timestamp of the control stream initialization.
+	RegistrationTime() time.Time
+
 	// AgentMetadata is the service's metadata: OS, glibc version, install methods, ...
 	AgentMetadata() proto.UpstreamInventoryAgentMetadata
 
@@ -665,11 +672,12 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.Upstream
 
 type upstreamHandle struct {
 	client.UpstreamInventoryControlStream
-	hello   proto.UpstreamInventoryHello
-	goodbye proto.UpstreamInventoryGoodbye
+	hello            proto.UpstreamInventoryHello
+	registrationTime time.Time
 
-	agentMDLock   sync.RWMutex
+	agentInfoLock sync.RWMutex
 	agentMetadata proto.UpstreamInventoryAgentMetadata
+	goodbye       *proto.UpstreamInventoryGoodbye
 
 	pingC chan pingRequest
 
@@ -721,12 +729,13 @@ type heartBeatInfo[T any] struct {
 	keepAliveErrs int
 }
 
-func newUpstreamHandle(stream client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) *upstreamHandle {
+func newUpstreamHandle(stream client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello, now time.Time) *upstreamHandle {
 	return &upstreamHandle{
 		UpstreamInventoryControlStream: stream,
 		pingC:                          make(chan pingRequest),
 		hello:                          hello,
 		pings:                          make(map[uint64]pendingPing),
+		registrationTime:               now,
 	}
 }
 
@@ -767,21 +776,41 @@ func (h *upstreamHandle) Ping(ctx context.Context, id uint64) (d time.Duration, 
 	}
 }
 
+// Goodbye gets the cached upstream goodbye. Returns nil if downstream never sent a Goodbye.
+// This is used to identify if the instance is terminating or being soft-reloaded.
+func (h *upstreamHandle) Goodbye() *proto.UpstreamInventoryGoodbye {
+	h.agentInfoLock.RLock()
+	defer h.agentInfoLock.RUnlock()
+	return h.goodbye
+}
+
+// setGoodbye sets the goodbye for the current handler.
+func (h *upstreamHandle) setGoodbye(goodbye *proto.UpstreamInventoryGoodbye) {
+	h.agentInfoLock.Lock()
+	defer h.agentInfoLock.Unlock()
+	h.goodbye = goodbye
+}
+
 func (h *upstreamHandle) Hello() proto.UpstreamInventoryHello {
 	return h.hello
 }
 
+// RegistrationTime implements UpstreamHandle by returning the handle's creation timestamp.
+func (h *upstreamHandle) RegistrationTime() time.Time {
+	return h.registrationTime
+}
+
 // AgentMetadata returns the Agent's metadata (eg os, glibc version, install methods, teleport version).
 func (h *upstreamHandle) AgentMetadata() proto.UpstreamInventoryAgentMetadata {
-	h.agentMDLock.RLock()
-	defer h.agentMDLock.RUnlock()
+	h.agentInfoLock.RLock()
+	defer h.agentInfoLock.RUnlock()
 	return h.agentMetadata
 }
 
 // SetAgentMetadata sets the agent metadata for the current handler.
 func (h *upstreamHandle) SetAgentMetadata(agentMD proto.UpstreamInventoryAgentMetadata) {
-	h.agentMDLock.Lock()
-	defer h.agentMDLock.Unlock()
+	h.agentInfoLock.Lock()
+	defer h.agentInfoLock.Unlock()
 	h.agentMetadata = agentMD
 }
 
