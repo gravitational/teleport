@@ -829,7 +829,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to. Note - only tsh spans will be included.").Hidden().StringVar(&cf.TraceExporter)
 	// This flag only applies to tsh ssh; it's defined here to make configuring
 	// the re-exec command easier.
-	app.Flag("fork-signal-fd", "File descriptor to signal parent on when forked. Overrides --fork-after-authentication.").Hidden().Uint64Var(&cf.forkSignalFd)
+	app.Flag("fork-signal-fd", "File descriptor to signal parent on when forked. Overrides --fork-after-authentication. For internal use only.").Hidden().Uint64Var(&cf.forkSignalFd)
 
 	if !moduleCfg.IsBoringBinary() {
 		// The user is *never* allowed to do this in FIPS mode.
