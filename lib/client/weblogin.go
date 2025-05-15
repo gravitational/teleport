@@ -85,8 +85,6 @@ func (r *SSOLoginConsoleReq) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing RedirectURL")
 	case r.ConnectorID == "":
 		return trace.BadParameter("missing ConnectorID")
-	case r.ClientVersion == "":
-		return trace.BadParameter("missing ClientVersion")
 	}
 	if err := r.SSOUserPublicKeys.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)

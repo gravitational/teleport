@@ -23,8 +23,9 @@ import (
 	"html/template"
 	"net/http"
 
-	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/httplib"
 )
 
 // WriteSAMLPostRequestWithHeaders writes HTML POST form containing SAML
