@@ -215,14 +215,14 @@ func (c *ConnProxy) SendToServer(message Message) error {
 
 // Run starts proxying the connection.
 func (c *ConnProxy) Run(ctx context.Context) error {
+	errs, ctx := errgroup.WithContext(ctx)
+
 	var closeOnce sync.Once
 	closeAll := func() {
 		c.client.Close()
 		c.server.Close()
 	}
 	defer closeOnce.Do(closeAll)
-
-	var errs errgroup.Group
 
 	// Run a goroutine to read TDP messages from the Windows
 	// agent and write them to client.
@@ -238,6 +238,10 @@ func (c *ConnProxy) Run(ctx context.Context) error {
 		// need to split the stream into individual messages and
 		// write them to the client
 		for {
+			if err := ctx.Err(); err != nil {
+				return trace.Wrap(err)
+			}
+
 			msg, err := c.server.ReadMessage()
 
 			if err := c.handleError(err); err != nil {
@@ -264,6 +268,10 @@ func (c *ConnProxy) Run(ctx context.Context) error {
 	errs.Go(func() error {
 		defer closeOnce.Do(closeAll)
 		for {
+			if err := ctx.Err(); err != nil {
+				return trace.Wrap(err)
+			}
+
 			msg, err := c.client.ReadMessage()
 
 			if err := c.handleError(err); err != nil {

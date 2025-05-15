@@ -508,8 +508,6 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 	})
 
 	if latencySupported {
-		conn := tdp.NewConn(wds)
-		defer conn.Close()
 		pinger := desktopPinger{
 			proxy: tdpConnProxy,
 			ch:    pings,
