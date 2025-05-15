@@ -123,7 +123,7 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	// filterBuffer filters the response to exclude resources the user doesn't have access to.
 	// The filtered payload will be written into memBuffer again.
 	if err := filterBuffer(
-		newResourceFilterer(strings.Split(sess.apiResource.resourceKind, "/")[0], sess.apiResource.apiGroup, verb, sess.codecFactory, allowedResources, deniedResources, f.log),
+		newResourceFilterer(strings.Split(sess.apiResource.resourceKind, "/")[0], sess.apiResource.apiGroup, verb, sess.isClusterWideResource, sess.codecFactory, allowedResources, deniedResources, f.log),
 		memBuffer,
 	); err != nil {
 		return memBuffer.Status(), trace.Wrap(err)
@@ -148,14 +148,14 @@ func matchListRequestShouldBeAllowed(sess *clusterSession, resourceKind, resourc
 		APIGroup:  resourceGroup,
 	}
 
-	result, err := utils.KubeResourceCouldMatchRules(resource, deniedResources, types.Deny)
+	result, err := utils.KubeResourceCouldMatchRules(resource, sess.isClusterWideResource, deniedResources, types.Deny)
 	if err != nil {
 		return false, trace.Wrap(err)
 	} else if result {
 		return false, nil
 	}
 
-	result, err = utils.KubeResourceCouldMatchRules(resource, allowedResources, types.Allow)
+	result, err = utils.KubeResourceCouldMatchRules(resource, sess.isClusterWideResource, allowedResources, types.Allow)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -186,6 +186,7 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 			strings.Split(sess.apiResource.resourceKind, "/")[0],
 			sess.apiResource.apiGroup,
 			verb,
+			sess.isClusterWideResource,
 			sess.codecFactory,
 			allowedResources,
 			deniedResources,

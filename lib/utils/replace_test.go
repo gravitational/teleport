@@ -160,12 +160,13 @@ func TestRegexMatchesAny(t *testing.T) {
 
 func TestKubeResourceMatchesRegex(t *testing.T) {
 	tests := []struct {
-		name      string
-		input     types.KubernetesResource
-		resources []types.KubernetesResource
-		action    types.RoleConditionType
-		matches   bool
-		assert    require.ErrorAssertionFunc
+		name          string
+		input         types.KubernetesResource
+		isClusterWide bool
+		resources     []types.KubernetesResource
+		action        types.RoleConditionType
+		matches       bool
+		assert        require.ErrorAssertionFunc
 	}{
 		{
 			name: "input misses verb",
@@ -228,6 +229,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				Name:  "default",
 				Verbs: []string{types.KubeVerbGet},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
@@ -247,6 +249,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				Name:  "default",
 				Verbs: []string{types.KubeVerbGet},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      "secrets",
@@ -473,6 +476,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				Name:  "clusterrole",
 				Verbs: []string{types.KubeVerbGet},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:  "clusterroles",
@@ -491,6 +495,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				Name:  "clusterrole",
 				Verbs: []string{types.KubeVerbGet},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
@@ -510,6 +515,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				Name:  "clusterrole",
 				Verbs: []string{types.KubeVerbGet},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
@@ -529,6 +535,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				Name:  "default",
 				Verbs: []string{types.KubeVerbGet},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      "pods",
@@ -549,6 +556,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				Name:  "default",
 				Verbs: []string{types.KubeVerbUpdate},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      "pods",
@@ -713,7 +721,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := KubeResourceMatchesRegex(tt.input, tt.resources, tt.action)
+			got, err := KubeResourceMatchesRegex(tt.input, tt.isClusterWide, tt.resources, tt.action)
 			tt.assert(t, err)
 			require.Equal(t, tt.matches, got)
 		})

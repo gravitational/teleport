@@ -2516,20 +2516,22 @@ func (m *KubeResourcesMatcher) Unmatched() []string {
 // KubernetesResourceMatcher matches a role against a Kubernetes Resource.
 // Kind is must be stricly equal but namespace and name allow wildcards.
 type KubernetesResourceMatcher struct {
-	resource types.KubernetesResource
+	resource              types.KubernetesResource
+	isClusterWideResource bool
 }
 
 // NewKubernetesResourceMatcher creates a KubernetesResourceMatcher that checks
 // whether the role's KubeResources match the specified condition.
-func NewKubernetesResourceMatcher(resource types.KubernetesResource) *KubernetesResourceMatcher {
+func NewKubernetesResourceMatcher(resource types.KubernetesResource, isClusterWideResource bool) *KubernetesResourceMatcher {
 	return &KubernetesResourceMatcher{
-		resource: resource,
+		resource:              resource,
+		isClusterWideResource: isClusterWideResource,
 	}
 }
 
 // Match matches a Kubernetes Resource against provided role and condition.
 func (m *KubernetesResourceMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	result, err := utils.KubeResourceMatchesRegex(m.resource, role.GetKubeResources(condition), condition)
+	result, err := utils.KubeResourceMatchesRegex(m.resource, m.isClusterWideResource, role.GetKubeResources(condition), condition)
 	return result, trace.Wrap(err)
 }
 

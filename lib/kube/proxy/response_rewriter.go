@@ -151,7 +151,7 @@ func collectSystemMastersTeleportRoles(s *clusterSession) []string {
 	if s.kubeResource != nil {
 		matchers = append(
 			matchers,
-			services.NewKubernetesResourceMatcher(*s.kubeResource),
+			services.NewKubernetesResourceMatcher(*s.kubeResource, s.isClusterWideResource),
 		)
 	}
 	var rolesWithSystemMasters []string

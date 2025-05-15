@@ -121,16 +121,11 @@ func (f *Forwarder) validateSelfSubjectAccessReview(sess *clusterSession, w http
 	}
 
 	namespace := accessReview.Spec.ResourceAttributes.Namespace
-	resource := sess.rbacSupportedResources.getResourceWithKey(
-		allowedResourcesKey{
-			apiGroup:     accessReview.Spec.ResourceAttributes.Group,
-			resourceKind: accessReview.Spec.ResourceAttributes.Resource,
-		},
-	)
+	resource, ok := sess.rbacSupportedResources.getResource(accessReview.Spec.ResourceAttributes.Group, accessReview.Spec.ResourceAttributes.Resource)
 	// If the request is for a resource that Teleport does not support, return
 	// nil and let the Kubernetes API server handle the request.
 	// TODO(@creack): Remove this as part of the RBAC RFC. It grants excessive permissions.
-	if resource == "" {
+	if !ok {
 		return nil
 	}
 	name := accessReview.Spec.ResourceAttributes.Name
@@ -150,17 +145,18 @@ func (f *Forwarder) validateSelfSubjectAccessReview(sess *clusterSession, w http
 			// by the roles that satisfy the Kubernetes Cluster.
 			&kubernetesResourceMatcher{
 				types.KubernetesResource{
-					Kind:      resource,
+					Kind:      resource.Name,
 					Name:      name,
 					Namespace: namespace,
 					Verbs:     []string{accessReview.Spec.ResourceAttributes.Verb},
 					APIGroup:  accessReview.Spec.ResourceAttributes.Group,
 				},
+				!resource.Namespaced,
 			},
 		}...); {
 	case errors.Is(err, services.ErrTrustedDeviceRequired):
 		return trace.Wrap(err)
-	case err != nil && slices.Contains(types.KubernetesNamespacedResourceKinds, resource):
+	case err != nil && resource.Namespaced:
 		namespaceNameToString := func(namespace, name string) string {
 			switch {
 			case namespace == "" && name == "":
@@ -188,7 +184,7 @@ func (f *Forwarder) validateSelfSubjectAccessReview(sess *clusterSession, w http
 				accessReview.Spec.ResourceAttributes.Resource,
 				namespaceNameToString(namespace, name),
 				kubernetesResourcesKey,
-				resource,
+				resource.Name,
 				emptyOrWildcard(name),
 				emptyOrWildcard(namespace),
 				emptyOrWildcard(""),
@@ -218,7 +214,7 @@ func (f *Forwarder) validateSelfSubjectAccessReview(sess *clusterSession, w http
 				accessReview.Spec.ResourceAttributes.Resource,
 				name,
 				kubernetesResourcesKey,
-				resource,
+				resource.Name,
 				emptyOrWildcard(name),
 				emptyOrWildcard(""),
 				emptyOrWildcard(accessReview.Spec.ResourceAttributes.Group),
@@ -278,7 +274,8 @@ func parseSelfSubjectAccessReviewRequest(decoder runtime.Decoder, req *http.Requ
 // This matcher assumes the role's kubernetes_resources configured eventually
 // match with resources that exist in the cluster.
 type kubernetesResourceMatcher struct {
-	resource types.KubernetesResource
+	resource              types.KubernetesResource
+	isClusterWideResource bool
 }
 
 // Match matches a Kubernetes Resource against provided role and condition.
@@ -290,15 +287,21 @@ func (m *kubernetesResourceMatcher) Match(role types.Role, condition types.RoleC
 	kind := m.resource.Kind
 	name := m.resource.Name
 	namespace := m.resource.Namespace
-	apiGroup := m.resource.APIGroup
-	if apiGroup == "" {
-		apiGroup = "core"
+	// If the resource is global, clear the namespace.
+	// NOTE: kubectl will yield a warning for this case, but we still need to process the request.
+	if m.isClusterWideResource {
+		namespace = ""
+	}
+
+	// If we are dealing with a namespace resource, consider it cluster wide even though it is not.
+	if m.resource.Kind == "namespaces" {
+		m.isClusterWideResource = true
 	}
 
 	for _, resource := range resources {
 		isResourceTheSameKind := kind == resource.Kind || resource.Kind == types.Wildcard
 
-		namespaceScopeMatch := resource.Kind == "namespaces" && slices.Contains(types.KubernetesNamespacedResourceKinds, kind+"."+apiGroup)
+		namespaceScopeMatch := resource.Kind == "namespaces" && !m.isClusterWideResource
 		if !isResourceTheSameKind && !namespaceScopeMatch {
 			continue
 		}

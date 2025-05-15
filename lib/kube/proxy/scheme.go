@@ -177,7 +177,7 @@ func newClusterSchemaBuilder(log *slog.Logger, client kubernetes.Interface) (*se
 			}
 
 			// TODO(@creack): Keep track of the namespaced field.
-			supportedResources[resourceKey] = strings.Split(apiResource.Name, "/")[0]
+			supportedResources[resourceKey] = apiResource
 
 			// Create the group version kind for the resource.
 			gvk := groupVersion.WithKind(apiResource.Kind)

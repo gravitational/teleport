@@ -125,6 +125,8 @@ func crdDiscovery(crd *CRD) httplib.HandlerFunc {
 			    "singularName": "%s",
 			    "namespaced": %t,
 			    "kind": "%s",
+			    "group": "%s",
+			    "version": "%s",
 			    "verbs": [
 			      "delete",
 			      "deletecollection",
@@ -135,13 +137,15 @@ func crdDiscovery(crd *CRD) httplib.HandlerFunc {
 			      "update",
 			      "watch"
 			    ],
-			    "storageVersionHash": "eQsgEapFuzY="
+			    "storageVersionHash": ""
 			  },
 			  {
 			    "name": "%s/status",
-			    "singularName": "",
+			    "singularName": "%s",
 			    "namespaced": %t,
 			    "kind": "%s",
+			    "group": "%s",
+			    "version": "%s",
 			    "verbs": [
 			      "get",
 			      "patch",
@@ -150,7 +154,20 @@ func crdDiscovery(crd *CRD) httplib.HandlerFunc {
 			  }
 			]
 		      }`,
-			crd.group, crd.version, crd.plural, strings.ToLower(crd.kind), crd.namespaced, crd.kind, crd.plural, crd.namespaced, crd.kind,
+			crd.group,
+			crd.version,
+			crd.plural,
+			strings.ToLower(crd.kind),
+			crd.namespaced,
+			crd.kind,
+			crd.group,
+			crd.version,
+			crd.plural,
+			strings.ToLower(crd.kind),
+			crd.namespaced,
+			crd.kind,
+			crd.group,
+			crd.version,
 		)
 		return nil, err
 	}

@@ -583,6 +583,7 @@ func deleteResources[T kubeObjectInterface](
 			),
 			services.NewKubernetesResourceMatcher(
 				getKubeResource(kind, group, types.KubeVerbDeleteCollection, item),
+				params.authCtx.isClusterWideResource,
 			),
 		)
 		// no match was found, we ignore the request.
