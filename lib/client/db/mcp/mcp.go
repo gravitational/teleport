@@ -19,6 +19,7 @@ package mcp
 import (
 	"context"
 	"log/slog"
+	"net"
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
@@ -51,6 +52,14 @@ func (m Registry) IsSupported(protocol string) bool {
 	return ok
 }
 
+// LookupFunc is the function used to resolve database address. Follows the
+// net.Resolver.LookupAddr format.
+type LookupFunc func(ctx context.Context, host string) (addrs []string, err error)
+
+// DialContextFunc is a function used to dial the database. Follows the
+// net.Dialer.DialContext format.
+type DialContextFunc func(ctx context.Context, network string, addr string) (net.Conn, error)
+
 // Database the database served by an MCP server.
 type Database struct {
 	// DB contains all information from the database.
@@ -62,6 +71,10 @@ type Database struct {
 	DatabaseUser string
 	// DatabaseName is the database name used on the connections.
 	DatabaseName string
+	// LookupFunc is the lookup function to resolve database address.
+	LookupFunc LookupFunc
+	// DialContextFunc is the dial function used to connect to the database.
+	DialContextFunc DialContextFunc
 }
 
 // ResourceURI returns the database MCP resource URI.

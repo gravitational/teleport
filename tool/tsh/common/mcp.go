@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils/listener"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -118,6 +119,7 @@ func (c *mcpDBCommand) run(cf *CLIConf) error {
 		}
 
 		srv, err := newServerFunc(cf.Context, &dbmcp.NewServerConfig{
+			Logger:     logger,
 			RootServer: server,
 			Databases:  databases,
 		})
@@ -162,12 +164,7 @@ func (c *mcpDBCommand) prepareDatabases(
 			Database:    c.databaseName,
 		}
 
-		listener, err := createLocalProxyListener("localhost:0", route, profile)
-		if err != nil {
-			logger.ErrorContext(ctx, "failed to start local proxy listener for database, skipping it", "database", db.GetName(), "error", err)
-			continue
-		}
-
+		listener := listener.InNewMemoryListener()
 		cc := client.NewDBCertChecker(tc, route, nil, client.WithTTL(tc.KeyTTL))
 		lp, err := alpnproxy.NewLocalProxy(
 			makeBasicLocalProxyConfig(ctx, tc, listener, tc.InsecureSkipVerify),
@@ -192,6 +189,12 @@ func (c *mcpDBCommand) prepareDatabases(
 			DatabaseUser: c.databaseUser,
 			DatabaseName: c.databaseName,
 			Addr:         listener.Addr().String(),
+			// Since we're using in-memory listener we don't need to resolve the
+			// address.
+			LookupFunc: func(ctx context.Context, host string) (addrs []string, err error) {
+				return []string{"memory"}, nil
+			},
+			DialContextFunc: listener.DialContext,
 		}
 		dbsPerProtocol[db.GetProtocol()] = append(dbsPerProtocol[db.GetProtocol()], mcpDB)
 		server.RegisterDatabase(mcpDB)

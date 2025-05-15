@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -195,13 +196,21 @@ func (s *Server) getDatabase(uri string) (*database, error) {
 }
 
 func buildConnConfig(db *dbmcp.Database) (*pgxpool.Config, error) {
-	config, err := pgxpool.ParseConfig(fmt.Sprintf("postgres://%s", db.Addr))
+	config, err := pgxpool.ParseConfig(fmt.Sprintf("postgres://" + db.Addr))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	config.MaxConnIdleTime = connectionIdleTime
 	config.MaxConns = int32(maxConnections)
+
+	config.ConnConfig.LookupFunc = func(ctx context.Context, host string) ([]string, error) {
+		return db.LookupFunc(ctx, host)
+	}
+	config.ConnConfig.DialFunc = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return db.DialContextFunc(ctx, network, addr)
+	}
+
 	config.ConnConfig.User = db.DatabaseUser
 	config.ConnConfig.Database = db.DatabaseName
 	config.ConnConfig.ConnectTimeout = defaults.DatabaseConnectTimeout
