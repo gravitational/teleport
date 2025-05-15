@@ -63,6 +63,8 @@ func newLDAPConnector(cfg ldapConnectorConfig) *ldapConnector {
 		cfg.logger = slog.Default()
 	}
 
+	cfg.logger = cfg.logger.With("domain", cfg.ldapConfig.Domain, "service_account", cfg.ldapConfig.ServiceAccount)
+
 	conn := &ldapConnector{
 		ldapConnectorConfig: cfg,
 	}
