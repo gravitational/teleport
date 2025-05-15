@@ -54,7 +54,6 @@ type mcpDBCommand struct {
 	databaseName        string
 	labels              string
 	predicateExpression string
-	dryRun              bool
 }
 
 func newMCPDBCommand(parent *kingpin.CmdClause) *mcpDBCommand {
@@ -84,6 +83,8 @@ func (c *mcpDBCommand) run(cf *CLIConf) error {
 		registry = cf.databaseMCPRegistryOverride
 	}
 
+	// Set the labels so it gets parsed when the client is created.
+	cf.Labels = c.labels
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -98,7 +99,7 @@ func (c *mcpDBCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	dbs, err := c.getDatabases(cf.Context, sc)
+	dbs, err := c.getDatabases(cf.Context, sc, tc.Labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -205,12 +206,7 @@ func (c *mcpDBCommand) prepareDatabases(
 	}, nil
 }
 
-func (c *mcpDBCommand) getDatabases(ctx context.Context, sc *sharedDatabaseExecClient) ([]types.Database, error) {
-	labels, err := client.ParseLabelSpec(c.labels)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func (c *mcpDBCommand) getDatabases(ctx context.Context, sc *sharedDatabaseExecClient, labels map[string]string) ([]types.Database, error) {
 	dbsList, err := sc.listDatabasesWithFilter(ctx, &proto.ListResourcesRequest{
 		ResourceType:        types.KindDatabaseServer,
 		Namespace:           apidefaults.Namespace,

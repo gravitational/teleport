@@ -111,9 +111,10 @@ func TestFormatErrors(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			rootServer := dbmcp.NewRootServer()
+			logger := slog.New(slog.DiscardHandler)
+			rootServer := dbmcp.NewRootServer(logger)
 			srv, err := NewServer(t.Context(), &dbmcp.NewServerConfig{
-				Logger:     slog.New(slog.DiscardHandler),
+				Logger:     logger,
 				RootServer: rootServer,
 				Databases:  tc.databases,
 			})
@@ -123,8 +124,8 @@ func TestFormatErrors(t *testing.T) {
 			pgSrv := srv.(*Server)
 			req := mcp.CallToolRequest{}
 			req.Params.Arguments = map[string]any{
-				runQueryDatabaseParam: tc.databaseURI,
-				runQueryQueryParam:    "SELECT 1",
+				queryToolDatabaseParam: tc.databaseURI,
+				queryToolQueryParam:    "SELECT 1",
 			}
 			runResult, err := pgSrv.RunQuery(t.Context(), req)
 			require.NoError(t, err)

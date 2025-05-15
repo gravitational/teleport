@@ -17,6 +17,7 @@
 package mcp
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/ghodss/yaml"
@@ -31,7 +32,7 @@ import (
 )
 
 func TestRegisterDatabase(t *testing.T) {
-	server := NewRootServer()
+	server := NewRootServer(slog.New(slog.DiscardHandler))
 	databases := []*Database{
 		buildDatabase(t, "first"),
 		buildDatabase(t, "second"),

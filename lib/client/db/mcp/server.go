@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
@@ -38,13 +39,15 @@ var listDatabasesTool = mcp.NewTool(listDatabasesToolName,
 // RootServer database access root MCP server.
 type RootServer struct {
 	*mcpserver.MCPServer
+	logger             *slog.Logger
 	availableDatabases map[string]*Database
 }
 
 // NewRootServer initializes a new root MCP server.
-func NewRootServer() *RootServer {
+func NewRootServer(logger *slog.Logger) *RootServer {
 	server := &RootServer{
 		MCPServer:          mcpserver.NewMCPServer(serverName, teleport.Version),
+		logger:             logger,
 		availableDatabases: make(map[string]*Database),
 	}
 	server.AddTool(listDatabasesTool, server.ListDatabases)
@@ -58,6 +61,7 @@ func (s *RootServer) ListDatabases(ctx context.Context, request mcp.CallToolRequ
 	for _, db := range s.availableDatabases {
 		contents, err := encodeDatabaseResource(db)
 		if err != nil {
+			s.logger.ErrorContext(ctx, "error while list databases", "error", err)
 			return mcp.NewToolResultError(FormatErrorMessage(err).Error()), nil
 		}
 		res = append(res, mcp.EmbeddedResource{Type: "resource", Resource: contents})
@@ -86,7 +90,7 @@ func (s *RootServer) GetDatabaseResource(ctx context.Context, request mcp.ReadRe
 // RegisterDatabase register a database on the root server. This make it
 // available as a MCP resource.
 func (s *RootServer) RegisterDatabase(db *Database) {
-	uri := DatabaseResourceURI(db.DB.GetName())
+	uri := db.ResourceURI()
 	s.availableDatabases[uri] = db
 	s.AddResource(mcp.NewResource(uri, fmt.Sprintf("%s Datatabase", db.DB.GetName()), mcp.WithMIMEType(databaseResourceMIMEType)), s.GetDatabaseResource)
 }
@@ -99,7 +103,7 @@ func (s *RootServer) ServeStdio(ctx context.Context, in io.Reader, out io.Writer
 func buildDatabaseResource(db *Database) DatabaseResource {
 	return DatabaseResource{
 		Metadata: db.DB.GetMetadata(),
-		URI:      DatabaseResourceURI(db.DB.GetName()),
+		URI:      db.ResourceURI(),
 		Protocol: db.DB.GetProtocol(),
 	}
 }

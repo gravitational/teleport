@@ -19,8 +19,9 @@ package mcp
 import (
 	"strings"
 
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/client"
 )
 
 // FormatErrorMessage formats the database MCP error messages.

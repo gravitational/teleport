@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -31,14 +32,14 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
-// runQueryTool is the run query MCP tool definition.
-var runQueryTool = mcp.NewTool(dbmcp.ToolName(defaults.ProtocolPostgres, "run_query"),
+// queryTool is the run query MCP tool definition.
+var queryTool = mcp.NewTool(dbmcp.ToolName(defaults.ProtocolPostgres, "query"),
 	mcp.WithDescription("Execute SQL query against PostgreSQL database connected using Teleport"),
-	mcp.WithString(runQueryDatabaseParam,
+	mcp.WithString(queryToolDatabaseParam,
 		mcp.Required(),
 		mcp.Description("Teleport database resource URI where the query will be executed"),
 	),
-	mcp.WithString(runQueryQueryParam,
+	mcp.WithString(queryToolQueryParam,
 		mcp.Required(),
 		mcp.Description("PostgresSQL SQL query to execute"),
 	),
@@ -51,12 +52,13 @@ type database struct {
 
 // Server PostgreSQL MCP server.
 type Server struct {
+	logger    *slog.Logger
 	databases map[string]*database
 }
 
 // NewServer initializes a PostgreSQL MCP server.
 func NewServer(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, error) {
-	s := &Server{databases: make(map[string]*database)}
+	s := &Server{logger: cfg.Logger, databases: make(map[string]*database)}
 
 	for _, db := range cfg.Databases {
 		if db.DatabaseUser == "" || db.DatabaseName == "" {
@@ -73,14 +75,13 @@ func NewServer(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, e
 			return nil, trace.BadParameter("failed to parse database %q connection config: %s", db.DB.GetName(), err)
 		}
 
-		uri := dbmcp.DatabaseResourceURI(db.DB.GetName())
-		s.databases[uri] = &database{
+		s.databases[db.ResourceURI()] = &database{
 			Database: db,
 			pool:     pool,
 		}
 	}
 
-	cfg.RootServer.AddTool(runQueryTool, s.RunQuery)
+	cfg.RootServer.AddTool(queryTool, s.RunQuery)
 	return s, nil
 }
 
@@ -107,43 +108,35 @@ type RunQueryResult struct {
 
 // RunQuery tool function used to execute queries on databases.
 func (s *Server) RunQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	uri := request.Params.Arguments[runQueryDatabaseParam].(string)
-	sql := request.Params.Arguments[runQueryQueryParam].(string)
+	uri := request.Params.Arguments[queryToolDatabaseParam].(string)
+	sql := request.Params.Arguments[queryToolQueryParam].(string)
 
 	db, err := s.getDatabase(uri)
 	if err != nil {
-		return wrapErrorResult(err)
+		return s.wrapErrorResult(ctx, err)
 	}
 
 	// TODO(gabrielcorado): ensure the connection used is consistent for the
 	// session, making most of its queries to be present in a single audit
 	// session/recording.
-	tx, err := db.pool.Begin(ctx)
+	rows, err := db.pool.Query(ctx, sql)
 	if err != nil {
-		return wrapErrorResult(err)
-	}
-	defer tx.Rollback(ctx)
-
-	rows, err := tx.Query(ctx, sql)
-	if err != nil {
-		return wrapErrorResult(err)
+		return s.wrapErrorResult(ctx, err)
 	}
 
+	// Returned rows are being closed by this function.
 	result, err := buildQueryResult(rows)
 	if err != nil {
-		return wrapErrorResult(err)
-	}
-
-	if err = tx.Commit(ctx); err != nil {
-		return wrapErrorResult(err)
+		return s.wrapErrorResult(ctx, err)
 	}
 
 	return mcp.NewToolResultText(result), nil
 }
 
-func wrapErrorResult(err error) (*mcp.CallToolResult, error) {
-	out, err := json.Marshal(RunQueryResult{ErrorMessage: dbmcp.FormatErrorMessage(err).Error()})
-	return mcp.NewToolResultError(string(out)), nil
+func (s *Server) wrapErrorResult(ctx context.Context, toolErr error) (*mcp.CallToolResult, error) {
+	s.logger.ErrorContext(ctx, "error while querying database", "error", toolErr)
+	out, err := json.Marshal(RunQueryResult{ErrorMessage: dbmcp.FormatErrorMessage(toolErr).Error()})
+	return mcp.NewToolResultError(string(out)), trace.Wrap(err)
 }
 
 // buildQueryResult takes a the response from pgx and converts into a JSON
@@ -216,16 +209,20 @@ func buildConnConfig(db *dbmcp.Database) (*pgxpool.Config, error) {
 		applicationNameParamName: applicationNameParamValue,
 	}
 	config.ConnConfig.TLSConfig = nil
+	// Use simple protocol to have a closer behavior to DB REPL and psql.
+	//
+	// This also avoids each query being prepared, binded and executed, reducing
+	// the amount of audit events per query executed.
+	config.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 	return config, nil
 }
 
 const (
-	// runQueryDatabaseParam is the name of the database URI param name from
-	// runQuery tool.
-	runQueryDatabaseParam = "database"
-	// runQueryQueryParam is the name of the query param name from runQuery
-	// tool.
-	runQueryQueryParam = "query"
+	// queryToolDatabaseParam is the name of the database URI param name from
+	// query tool.
+	queryToolDatabaseParam = "database"
+	// queryToolQueryParam is the name of the query param name from query tool.
+	queryToolQueryParam = "query"
 
 	// applicationNameParamName defines the application name parameter name.
 	//
@@ -235,7 +232,7 @@ const (
 	applicationNameParamValue = "teleport-mcp"
 	// connectionIdleTime is the max connection idle time before it gets closed
 	// automatically.
-	connectionIdleTime = 5 * time.Minute
+	connectionIdleTime = 1 * time.Minute
 	// maxConnections defines the max number of concurrent connections the pool
 	// can have.
 	//

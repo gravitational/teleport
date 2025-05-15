@@ -64,6 +64,11 @@ type Database struct {
 	DatabaseName string
 }
 
+// ResourceURI returns the database MCP resource URI.
+func (d Database) ResourceURI() string {
+	return DatabaseResourceURI(d.DB.GetName())
+}
+
 // DatabaseResource MCP resource representation of a Teleport database.
 type DatabaseResource struct {
 	types.Metadata
