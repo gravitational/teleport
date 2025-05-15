@@ -1,5 +1,18 @@
 # Changelog
 
+## 16.5.9 (05/15/25)
+
+* Terraform: Fixed Access List resource import. [#54803](https://github.com/gravitational/teleport/pull/54803)
+* Fixed Proxy cache initialization errors in clusters with large amounts of open web sessions. [#54782](https://github.com/gravitational/teleport/pull/54782)
+* Resolved an issue where the Web UI failed to display an error message when desktop session initialization failed. [#54765](https://github.com/gravitational/teleport/pull/54765)
+* Prevent restrictive validation of cluster auth preferences from causing non-auth instances to become healthy. [#54763](https://github.com/gravitational/teleport/pull/54763)
+* Improved performance of joining & improved audit log entries for failed joins. [#54749](https://github.com/gravitational/teleport/pull/54749)
+* Resolved an issue that could cause Teleport Connect to crash after downgrading from a newer version. [#54741](https://github.com/gravitational/teleport/pull/54741)
+* Workload ID: Added binary_path and binary_hash to the Unix workload attestor's attributes. [#54717](https://github.com/gravitational/teleport/pull/54717)
+* Includes the attributes used in templating and rule evaluation within the audit log event for a workload identity credential issuance. [#54715](https://github.com/gravitational/teleport/pull/54715)
+* Fix an issue with PIV PIN caching where a PIN that is incorrect would be cached. [#54698](https://github.com/gravitational/teleport/pull/54698)
+* Teleport-update: full support for FIPS agent installations. [#54610](https://github.com/gravitational/teleport/pull/54610)
+
 ## 16.5.8 (05/09/25)
 
 * Fixed a bug causing a malformed user to break Teleport web UI's "Users" page. [#54682](https://github.com/gravitational/teleport/pull/54682)
