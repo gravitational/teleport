@@ -83,7 +83,7 @@ export function DesktopSession() {
   // Showing only the MFA prompt is enough for security.
   const hasAnotherSession = useCallback(async (): Promise<boolean> => {
     const [mfaRequiredResponse, desktopActive] = await Promise.all([
-      auth.checkMfaRequired({
+      auth.checkMfaRequired(clusterId, {
         windows_desktop: {
           desktop_name: desktopName,
           login: username,
