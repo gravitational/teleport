@@ -455,15 +455,15 @@ func readClientScreenSpec(ws *websocket.Conn) (*tdp.ClientScreenSpec, error) {
 // desktopPinger measures latency between proxy and the desktop by sending tdp.Ping messages
 // Windows Desktop Service and measuring the time it takes to receive message with the same UUID back.
 type desktopPinger struct {
-	wds *tdp.Conn
-	ch  <-chan tdp.Ping
+	proxy *tdp.ConnProxy
+	ch    <-chan tdp.Ping
 }
 
 func (d desktopPinger) Ping(ctx context.Context) error {
 	ping := tdp.Ping{
 		UUID: uuid.New(),
 	}
-	if err := d.wds.WriteMessage(ping); err != nil {
+	if err := d.proxy.SendToServer(ping); err != nil {
 		return trace.Wrap(err)
 	}
 	for {
@@ -511,8 +511,8 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 		conn := tdp.NewConn(wds)
 		defer conn.Close()
 		pinger := desktopPinger{
-			wds: conn,
-			ch:  pings,
+			proxy: tdpConnProxy,
+			ch:    pings,
 		}
 
 		go monitorLatency(ctx, clockwork.NewRealClock(), ws, pinger,
