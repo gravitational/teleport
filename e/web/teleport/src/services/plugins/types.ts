@@ -242,9 +242,9 @@ export type AwsIcPermissionSets = {
 };
 
 export type oktaPluginUpdate = {
-  enableBidirectionalSync?: boolean;
-  enableUserSync?: boolean;
-  enableAppGroupSync?: boolean;
+  enableBidirectionalSync: boolean;
+  enableUserSync: boolean;
+  enableAppGroupSync: boolean;
   enableAccessListSync?: boolean;
   defaultOwners?: string[];
   scimToken?: string;

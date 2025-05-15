@@ -24,6 +24,7 @@ import { AppGroupSyncForm } from 'e-teleport/Integrations/IntegrationEnroll/Plug
 import { ScimForm } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpScim';
 import { UserSyncForm } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpUserSync';
 import {
+  oktaPluginUpdate,
   pluginsService,
   PluginUpdateRequest,
 } from 'e-teleport/services/plugins';
@@ -224,10 +225,11 @@ const StatusDetails = ({
   const [confirmModal, setConfirmModal] = useState<
     ConfirmModalState | undefined
   >();
-  const [localSettings, setLocalSettings] = useState({
+  const [localSettings, setLocalSettings] = useState<oktaPluginUpdate>({
     enableAccessListSync: plugin.spec?.enableAccessListSync,
     enableAppGroupSync: plugin.spec?.enableAppGroupSync,
     enableUserSync: plugin.spec?.enableUserSync,
+    enableBidirectionalSync: plugin.spec?.enableBidirectionalSync,
     defaultOwners: plugin.spec?.defaultOwners ?? [],
     appFilters:
       plugin?.status?.details?.accessListsSyncDetails?.appFilters ?? [],

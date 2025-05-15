@@ -61,6 +61,7 @@ export const ScimForm = ({
               enableUserSync: !!plugin.spec?.enableUserSync,
               enableAccessListSync: !!plugin.spec?.enableAccessListSync,
               enableAppGroupSync: !!plugin.spec?.enableAppGroupSync,
+              enableBidirectionalSync: !!plugin.spec?.enableBidirectionalSync,
               defaultOwners: plugin.spec?.defaultOwners,
               appFilters:
                 plugin.status?.details?.accessListsSyncDetails?.appFilters,
