@@ -54,7 +54,7 @@ type IntegrationAWSRASpec struct {
 	// TrustAnchorARN is the IAM Roles Anywhere Trust Anchor ARN associated with the integration.
 	TrustAnchorARN string `json:"trustAnchorARN"`
 
-	// ProfileSync contains the Profile sync configuration.
+	// ProfileSyncConfig contains the Profile sync configuration.
 	ProfileSyncConfig AWSRAProfileSync `json:"profileSyncConfig"`
 }
 
