@@ -128,8 +128,8 @@ func (cfg *UnifiedResourceCacheConfig) CheckAndSetDefaults() error {
 func (c *UnifiedResourceCache) putLocked(resource resource) {
 	key := resourceKey(resource)
 	sortKey := makeResourceSortKey(resource)
-	old, exists := c.resources[key]
-	if exists {
+
+	if old, exists := c.resources[key]; exists {
 		// If the resource has changed in such a way that the sort keys
 		// for the nameTree or typeTree change, remove the old entries
 		// from those trees before adding a new one. This can happen
