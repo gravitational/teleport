@@ -54,7 +54,6 @@ type ReadOnlyCache interface {
 
 // Backend is used by the [Service] to mutate cluster config resources.
 type Backend interface {
-	CreateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
 	UpdateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
 	UpsertAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
 
@@ -153,45 +152,6 @@ func (s *Service) GetAuthPreference(ctx context.Context, _ *clusterconfigpb.GetA
 	authPrefV2, ok := pref.Clone().(*types.AuthPreferenceV2)
 	if !ok {
 		return nil, trace.Wrap(trace.BadParameter("unexpected auth preference type %T (expected %T)", pref, authPrefV2))
-	}
-
-	return authPrefV2, nil
-}
-
-// CreateAuthPreference creates a new auth preference if one does not exist. This
-// is an internal API and is not exposed via [clusterconfigv1.ClusterConfigServiceServer]. It
-// is only meant to be called directly from the first time an Auth instance is started.
-func (s *Service) CreateAuthPreference(ctx context.Context, p types.AuthPreference) (types.AuthPreference, error) {
-	authzCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if !authz.HasBuiltinRole(*authzCtx, string(types.RoleAuth)) {
-		return nil, trace.AccessDenied("this request can be only executed by an auth server")
-	}
-
-	if err := services.ValidateAuthPreference(p); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// check that the given RequireMFAType is supported in this build.
-	if p.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
-	}
-
-	if err := dtconfig.ValidateConfigAgainstModules(p.GetDeviceTrust()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	created, err := s.backend.CreateAuthPreference(ctx, p)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authPrefV2, ok := created.(*types.AuthPreferenceV2)
-	if !ok {
-		return nil, trace.Wrap(trace.BadParameter("unexpected auth preference type %T (expected %T)", created, authPrefV2))
 	}
 
 	return authPrefV2, nil
