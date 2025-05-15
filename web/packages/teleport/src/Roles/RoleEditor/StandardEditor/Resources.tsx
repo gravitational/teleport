@@ -417,7 +417,7 @@ function KubernetesResourceKindView({
       label="Kind (plural)"
       toolTipContent={
         <>
-          Resource plural name, e.g. pods, deployments, mycustomresources
+          Resource plural name, e.g. pods, deployments, mycustomresources.
           Special value <MarkInverse>*</MarkInverse> means any kind.
         </>
       }
