@@ -44,43 +44,41 @@ func proxySSHConnection(
 	serverConn sshConn,
 	clientConn sshConn,
 ) {
-	closeConnections := func() {
+	closeConnections := sync.OnceFunc(func() {
 		clientConn.conn.Close()
 		serverConn.conn.Close()
-	}
+	})
+	// Close both connections if the context is canceled.
+	context.AfterFunc(ctx, closeConnections)
 
 	// Avoid leaking goroutines by tracking them with a waitgroup.
+	// If any task exits make sure to close both connections so that all other
+	// tasks can terminate.
 	var wg sync.WaitGroup
-	wg.Add(5)
-
-	// Close both connections if the context is canceled.
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	go func() {
-		defer wg.Done()
-		<-ctx.Done()
-		closeConnections()
-	}()
+	runTask := func(task func()) {
+		wg.Add(1)
+		go func() {
+			task()
+			closeConnections()
+			wg.Done()
+		}()
+	}
 
 	// Proxy channels initiated by either connection.
-	go func() {
-		defer wg.Done()
+	runTask(func() {
 		proxyChannels(ctx, serverConn.conn, clientConn.chans, closeConnections)
-	}()
-	go func() {
-		defer wg.Done()
+	})
+	runTask(func() {
 		proxyChannels(ctx, clientConn.conn, serverConn.chans, closeConnections)
-	}()
+	})
 
 	// Proxy global requests in both directions.
-	go func() {
-		defer wg.Done()
+	runTask(func() {
 		proxyGlobalRequests(ctx, serverConn.conn, clientConn.reqs, closeConnections)
-	}()
-	go func() {
-		defer wg.Done()
+	})
+	runTask(func() {
 		proxyGlobalRequests(ctx, clientConn.conn, serverConn.reqs, closeConnections)
-	}()
+	})
 
 	wg.Wait()
 }
@@ -101,9 +99,6 @@ func proxyChannels(
 			proxyChannel(ctx, targetConn, newChan, closeConnections)
 		}()
 	}
-	// We get here when the source SSH connection was closed, make sure to close
-	// the opposite connection too.
-	closeConnections()
 	wg.Wait()
 }
 
@@ -162,32 +157,32 @@ func proxyChannel(
 		return
 	}
 
-	// Use 2 goroutines to proxy channel requests bidirectionally. The
-	// goroutines will terminate after the channels has been closed, and either
-	// will close the channels upon any unrecoverable error.
-	closeChannels := func() {
-		incomingChan.Close()
-		targetChan.Close()
-	}
+	// Copy channel requests in both directions concurrently. If either fails or
+	// exits it will cancel the context so that utils.ProxyConn below will close
+	// both channels so the other goroutine can also exit.
 	var wg sync.WaitGroup
 	wg.Add(2)
+	ctx, cancel := context.WithCancel(ctx)
 	go func() {
-		defer wg.Done()
-		proxyChannelRequests(ctx, log, targetChan, incomingChanRequests, closeChannels)
+		proxyChannelRequests(ctx, log, targetChan, incomingChanRequests, cancel)
+		cancel()
+		wg.Done()
 	}()
 	go func() {
-		defer wg.Done()
-		proxyChannelRequests(ctx, log, incomingChan, targetChanRequests, closeChannels)
+		proxyChannelRequests(ctx, log, incomingChan, targetChanRequests, cancel)
+		cancel()
+		wg.Done()
 	}()
 
-	// Proxy channel data bidirectionally.
+	// ProxyConn copies channel data bidirectionally. If the context is
+	// cancelled it will terminate, it always closes both channels before
+	// returning.
 	if err := utils.ProxyConn(ctx, incomingChan, targetChan); err != nil &&
 		!utils.IsOKNetworkError(err) && !errors.Is(err, context.Canceled) {
 		log.DebugContext(ctx, "Unexpected error proxying channel data", "error", err)
 	}
 
-	// utils.ProxyConn will close both channels before returning, causing the
-	// channel request goroutines to terminate.
+	// Wait for all goroutines to terminate.
 	wg.Wait()
 }
 
@@ -236,8 +231,9 @@ func proxyRequests(
 			if req.WantReply {
 				req.Reply(false, nil)
 			}
-			// Close both connections or channels to clean up but we must continue handling
-			// requests on the chan until it is closed by crypto/ssh.
+			// Close both connections or channels to clean up but we must
+			// continue handling requests on the chan until it is closed by
+			// crypto/ssh.
 			closeRequestSources()
 			continue
 		}
@@ -249,12 +245,10 @@ func proxyRequests(
 			// forward it back, the connection that initiated the request must
 			// be dead.
 			log.DebugContext(ctx, "Failed to reply to SSH request", "request_type", req.Type, "error", err)
-			// Close both connections or channels to clean up but we must continue handling
-			// requests on the chan until it is closed by crypto/ssh.
+			// Close both connections or channels to clean up but we must
+			// continue handling requests on the chan until it is closed by
+			// crypto/ssh.
 			closeRequestSources()
 		}
 	}
-	// We get here when the source SSH connection or channel was closed, make
-	// sure the opposite one is closed too.
-	closeRequestSources()
 }

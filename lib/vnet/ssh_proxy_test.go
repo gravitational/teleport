@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"testing"
@@ -45,8 +46,7 @@ import (
 // The test asserts that connecting directly to the target server or to the
 // proxy appears identical to the client.
 func TestProxySSHConnection(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	proxyListener := bufconn.Listen(100)
 	serverListener := bufconn.Listen(100)
@@ -80,49 +80,57 @@ func TestProxySSHConnection(t *testing.T) {
 		},
 	})
 
-	for name, dial := range map[string]dialer{
-		"direct":  serverListener,
-		"proxied": proxyListener,
-	} {
-		t.Run(name, func(t *testing.T) {
-			tcpConn, err := dial.Dial()
-			require.NoError(t, err)
-			defer tcpConn.Close()
-
-			clientConfig := sshClientConfig(t)
-			sshConn, chans, reqs, err := ssh.NewClientConn(tcpConn, "localhost", clientConfig)
-			require.NoError(t, err)
-			defer sshConn.Close()
-			go ssh.DiscardRequests(reqs)
-			go func() {
-				for newChan := range chans {
-					newChan.Reject(ssh.Prohibited, "test")
-				}
-			}()
-
-			// Try sending some global requests.
-			t.Run("global requests", func(t *testing.T) {
-				testGlobalRequests(t, sshConn)
-			})
-
-			// Try opening a channel that the target server will reject.
-			t.Run("unexpected channel", func(t *testing.T) {
-				_, _, err := sshConn.OpenChannel("unexpected", nil)
-				require.Error(t, err)
-				require.ErrorAs(t, err, new(*ssh.OpenChannelError))
-			})
-
-			// Try opening a channel that echoes input data back to output, run
-			// it twice to make sure multiple channels can be opened.
-			// testEchoChannel will also send channel requests.
-			t.Run("echo channel 1", func(t *testing.T) {
-				testEchoChannel(t, sshConn)
-			})
-			t.Run("echo channel 2", func(t *testing.T) {
-				testEchoChannel(t, sshConn)
-			})
+	// Test with a direct connection to the test server and a proxied connection
+	// to make sure the behavior is indistinguishable.
+	t.Run("direct", func(t *testing.T) {
+		testSSHConnection(t, serverListener)
+	})
+	for i := range 4 {
+		// Run the proxied test multiple times to make sure proxySSHConnection
+		// actually returns when the connection ends.
+		t.Run(fmt.Sprintf("proxied_%d", i), func(t *testing.T) {
+			testSSHConnection(t, proxyListener)
 		})
 	}
+}
+
+func testSSHConnection(t *testing.T, dial dialer) {
+	tcpConn, err := dial.Dial()
+	require.NoError(t, err)
+	defer tcpConn.Close()
+
+	clientConfig := sshClientConfig(t)
+	sshConn, chans, reqs, err := ssh.NewClientConn(tcpConn, "localhost", clientConfig)
+	require.NoError(t, err)
+	defer sshConn.Close()
+	go ssh.DiscardRequests(reqs)
+	go func() {
+		for newChan := range chans {
+			newChan.Reject(ssh.Prohibited, "test")
+		}
+	}()
+
+	// Try sending some global requests.
+	t.Run("global requests", func(t *testing.T) {
+		testGlobalRequests(t, sshConn)
+	})
+
+	// Try opening a channel that the target server will reject.
+	t.Run("unexpected channel", func(t *testing.T) {
+		_, _, err := sshConn.OpenChannel("unexpected", nil)
+		require.Error(t, err)
+		require.ErrorAs(t, err, new(*ssh.OpenChannelError))
+	})
+
+	// Try opening a channel that echoes input data back to output, run
+	// it twice to make sure multiple channels can be opened.
+	// testEchoChannel will also send channel requests.
+	t.Run("echo channel 1", func(t *testing.T) {
+		testEchoChannel(t, sshConn)
+	})
+	t.Run("echo channel 2", func(t *testing.T) {
+		testEchoChannel(t, sshConn)
+	})
 }
 
 func testGlobalRequests(t *testing.T, conn ssh.Conn) {
@@ -162,7 +170,7 @@ func testEchoChannel(t *testing.T, conn ssh.Conn) {
 	require.NoError(t, err)
 	require.True(t, reply)
 
-	// The test server reply false to channel requests with type other than
+	// The test server replies false to channel requests with type other than
 	// "echo".
 	reply, err = ch.SendRequest("unknown", true, nil)
 	require.NoError(t, err)
@@ -315,8 +323,7 @@ func sshServerConfig(t *testing.T) *ssh.ServerConfig {
 	require.NoError(t, err)
 	serverConfig := &ssh.ServerConfig{
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			// We're not testing SSH authentication here, just accept and user
-			// key.
+			// We're not testing SSH authentication here, just accept any user key.
 			return nil, nil
 		},
 	}
