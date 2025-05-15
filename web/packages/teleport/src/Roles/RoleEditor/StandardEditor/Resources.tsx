@@ -481,7 +481,7 @@ function KubernetesResourceView({
         onChange={k => onChange?.({ ...value, ...k })}
         roleVersion={value.roleVersion}
       />
-      {(supportsCRDs || !!apiGroup) && (
+      {(supportsCRDs || apiGroup) && (
         <FieldInput
           label="API Group"
           required
