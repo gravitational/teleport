@@ -161,15 +161,16 @@ func routeToAppFromProto(routeToApp *decisionpb.RouteToApp) tlsca.RouteToApp {
 	}
 
 	return tlsca.RouteToApp{
-		SessionID:         routeToApp.SessionId,
-		PublicAddr:        routeToApp.PublicAddr,
-		ClusterName:       routeToApp.ClusterName,
-		Name:              routeToApp.Name,
-		AWSRoleARN:        routeToApp.AwsRoleArn,
-		AzureIdentity:     routeToApp.AzureIdentity,
-		GCPServiceAccount: routeToApp.GcpServiceAccount,
-		URI:               routeToApp.Uri,
-		TargetPort:        int(routeToApp.TargetPort),
+		SessionID:                       routeToApp.SessionId,
+		PublicAddr:                      routeToApp.PublicAddr,
+		ClusterName:                     routeToApp.ClusterName,
+		Name:                            routeToApp.Name,
+		AWSRoleARN:                      routeToApp.AwsRoleArn,
+		AWSCredentialProcessCredentials: routeToApp.AwsCredentialprocessCredentials,
+		AzureIdentity:                   routeToApp.AzureIdentity,
+		GCPServiceAccount:               routeToApp.GcpServiceAccount,
+		URI:                             routeToApp.Uri,
+		TargetPort:                      int(routeToApp.TargetPort),
 	}
 }
 
@@ -179,15 +180,16 @@ func routeToAppToProto(routeToApp *tlsca.RouteToApp) *decisionpb.RouteToApp {
 	}
 
 	return &decisionpb.RouteToApp{
-		SessionId:         routeToApp.SessionID,
-		PublicAddr:        routeToApp.PublicAddr,
-		ClusterName:       routeToApp.ClusterName,
-		Name:              routeToApp.Name,
-		AwsRoleArn:        routeToApp.AWSRoleARN,
-		AzureIdentity:     routeToApp.AzureIdentity,
-		GcpServiceAccount: routeToApp.GCPServiceAccount,
-		Uri:               routeToApp.URI,
-		TargetPort:        int32(routeToApp.TargetPort),
+		SessionId:                       routeToApp.SessionID,
+		PublicAddr:                      routeToApp.PublicAddr,
+		ClusterName:                     routeToApp.ClusterName,
+		Name:                            routeToApp.Name,
+		AwsRoleArn:                      routeToApp.AWSRoleARN,
+		AwsCredentialprocessCredentials: routeToApp.AWSCredentialProcessCredentials,
+		AzureIdentity:                   routeToApp.AzureIdentity,
+		GcpServiceAccount:               routeToApp.GCPServiceAccount,
+		Uri:                             routeToApp.URI,
+		TargetPort:                      int32(routeToApp.TargetPort),
 	}
 }
 

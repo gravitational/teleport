@@ -1125,11 +1125,13 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Options.SSHFileCopy = NewBoolOption(true)
 	}
 	if r.Spec.Options.IDP == nil {
-		// By default, allow users to access the IdP.
-		r.Spec.Options.IDP = &IdPOptions{
-			SAML: &IdPSAMLOptions{
-				Enabled: NewBoolOption(true),
-			},
+		if IsLegacySAMLRBAC(r.GetVersion()) {
+			// By default, allow users to access the IdP.
+			r.Spec.Options.IDP = &IdPOptions{
+				SAML: &IdPSAMLOptions{
+					Enabled: NewBoolOption(true),
+				},
+			}
 		}
 	}
 
@@ -2400,4 +2402,10 @@ func (m CreateDatabaseUserMode) IsEnabled() bool {
 // GetAccount fetches the Account ID from a Role Condition Account Assignment
 func (a IdentityCenterAccountAssignment) GetAccount() string {
 	return a.Account
+}
+
+// IsLegacySAMLRBAC matches a role version
+// v7 and below, considered as the legacy SAML IdP RBAC.
+func IsLegacySAMLRBAC(roleVersion string) bool {
+	return slices.Contains([]string{V7, V6, V5, V4, V3, V2, V1}, roleVersion)
 }
