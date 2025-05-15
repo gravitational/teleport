@@ -455,6 +455,9 @@ const (
 	SAMLRequestHTTPPostBinding = "http-post"
 )
 
+// SAMLRequestBindingValues includes supported SAML request binding values.
+var SAMLRequestBindingValues = []string{SAMLRequestHTTPRedirectBinding, SAMLRequestHTTPPostBinding}
+
 // GetPreferredRequestBinding returns PreferredRequestBinding.
 func (o *SAMLConnectorV2) GetPreferredRequestBinding() string {
 	return o.Spec.PreferredRequestBinding
@@ -502,11 +505,6 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 		}
 	}
 
-	if o.GetPreferredRequestBinding() != "" {
-		if !slices.Contains([]string{SAMLRequestHTTPRedirectBinding, SAMLRequestHTTPPostBinding}, o.GetPreferredRequestBinding()) {
-			return trace.BadParameter("invalid preferred_request_binding value. It can be either %q or %q", SAMLRequestHTTPPostBinding, SAMLRequestHTTPRedirectBinding)
-		}
-	}
 	return nil
 }
 

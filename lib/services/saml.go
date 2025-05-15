@@ -26,6 +26,7 @@ import (
 	"encoding/xml"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -169,6 +170,13 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 		}
 	}
 
+	preferredRequestBinding := sc.GetPreferredRequestBinding()
+	if preferredRequestBinding != "" {
+		if !slices.Contains(types.SAMLRequestBindingValues, preferredRequestBinding) {
+			return trace.BadParameter("invalid preferred_request_binding value. It can be one of %q", types.SAMLRequestBindingValues)
+		}
+	}
+
 	// Validate MFA settings.
 	if mfa := sc.GetMFASettings(); mfa != nil {
 		if mfa.EntityDescriptorUrl != "" {
@@ -194,10 +202,10 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 				mfa.Sso = md.IDPSSODescriptor.SingleSignOnServices[0].Location
 			}
 		}
-		if sc.GetPreferredRequestBinding() == types.SAMLRequestHTTPPostBinding {
+		if preferredRequestBinding == types.SAMLRequestHTTPPostBinding {
 			slog.WarnContext(context.Background(), "SSO MFA does not support http-post binding request and will use the default http-redirect binding request",
 				teleport.ComponentKey, teleport.ComponentSAML,
-				"preferred_request_binding", sc.GetPreferredRequestBinding(),
+				"preferred_request_binding", preferredRequestBinding,
 			)
 		}
 		sc.SetMFASettings(mfa)
