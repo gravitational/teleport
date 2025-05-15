@@ -42,9 +42,22 @@ type MultiselectMenuProps<T> = {
   onChange: (selected: T[]) => void;
   label: string | ReactNode;
   tooltip: string;
+  /**
+   * If true, renders inner control buttons (eg: apply, cancel),
+   * and changes made to dropdown don't take affect until user
+   * explicitly clicks on these inner control buttons.
+   *
+   * If false, no inner control buttons are rendered and changes
+   * take affect immediately.
+   */
   buffered?: boolean;
   showIndicator?: boolean;
   showSelectControls?: boolean;
+  /**
+   * If true, disables clicking of the button that
+   * opens the dropdown menu.
+   */
+  disableMenu?: boolean;
 };
 
 export const MultiselectMenu = <T extends string>({
@@ -56,6 +69,7 @@ export const MultiselectMenu = <T extends string>({
   buffered = false,
   showIndicator = true,
   showSelectControls = true,
+  disableMenu = false,
 }: MultiselectMenuProps<T>) => {
   // we have a separate state in the filter so we can select a few different things and then click "apply"
   const [intSelected, setIntSelected] = useState<T[]>([]);
@@ -112,9 +126,14 @@ export const MultiselectMenu = <T extends string>({
           onClick={handleOpen}
           aria-haspopup="true"
           aria-expanded={!!anchorEl}
+          disabled={disableMenu}
         >
           {label} {selected?.length > 0 ? `(${selected?.length})` : ''}
-          <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
+          <ChevronDown
+            ml={2}
+            size="small"
+            color={disableMenu ? 'text.disabled' : 'text.slightlyMuted'}
+          />
           {selected?.length > 0 && showIndicator && <FiltersExistIndicator />}
         </ButtonSecondary>
       </HoverTooltip>
