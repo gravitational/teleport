@@ -69,7 +69,7 @@ func NewSupervisor(cfg SupervisorConfig) (*Supervisor, error) {
 	}
 	return &Supervisor{
 		services: make(map[string]InternalService),
-		logger:   cfg.Logger.With("component", "supervisor"),
+		logger:   cfg.Logger,
 		clock:    cfg.Clock,
 	}, nil
 }
