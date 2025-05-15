@@ -35,6 +35,34 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 )
 
+// metaResource wraps the various representations of a Kubernetes resource.
+type metaResource struct {
+	resourceDefinition *metav1.APIResource // Resource definition data from the schema.
+	requestedResource  apiResource         // User input, based on URL.
+	verb               string              // Verb of the user request.
+}
+
+func (mr *metaResource) isClusterWideResource() bool {
+	if mr == nil || mr.resourceDefinition == nil {
+		return false
+	}
+	return !mr.resourceDefinition.Namespaced
+}
+
+func (mr *metaResource) rbacResource() *types.KubernetesResource {
+	if mr == nil || mr.resourceDefinition == nil {
+		return nil
+	}
+	return &types.KubernetesResource{
+		Kind:      mr.resourceDefinition.Name,
+		Namespace: mr.requestedResource.namespace,
+		Name:      mr.requestedResource.resourceName,
+		Verbs:     []string{mr.verb},
+		APIGroup:  mr.requestedResource.apiGroup,
+	}
+}
+
+// apiResource represents the resource requested by the user.
 type apiResource struct {
 	apiGroup        string
 	apiGroupVersion string
@@ -223,43 +251,47 @@ var defaultRBACResources = rbacSupportedResources{
 
 // getResourceFromRequest returns a KubernetesResource if the user tried to access
 // a specific endpoint that Teleport support resource filtering. Otherwise, returns nil.
-func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (*types.KubernetesResource, apiResource, bool, error) {
+func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaResource, error) {
 	apiResource := parseResourcePath(req.URL.Path)
-	verb := apiResource.getVerb(req)
+
+	out := metaResource{
+		requestedResource: apiResource,
+		verb:              apiResource.getVerb(req),
+	}
 	if kubeDetails == nil {
-		return nil, apiResource, false, nil
+		return out, nil
 	}
 
 	codecFactory, rbacSupportedTypes, err := kubeDetails.getClusterSupportedResources()
 	if err != nil {
-		return nil, apiResource, false, trace.Wrap(err)
+		return out, trace.Wrap(err)
 	}
 
 	resource, ok := rbacSupportedTypes.getResource(apiResource.apiGroup, apiResource.resourceKind)
-	switch {
-	case !ok:
-		// if the resource is not supported, return nil.
-		return nil, apiResource, false, nil
-	case apiResource.resourceName == "" && verb != types.KubeVerbCreate:
-		// if the resource is supported but the resource name is not present and not a create request,
-		// return nil because it's a list request.
-		return nil, apiResource, !resource.Namespaced, nil
-
-	case apiResource.resourceName == "" && verb == types.KubeVerbCreate:
-		// If the request is a create request, extract the resource name from the request body.
-		var err error
-		if apiResource.resourceName, err = extractResourceNameFromPostRequest(req, codecFactory, kubeDetails.getObjectGVK(apiResource)); err != nil {
-			return nil, apiResource, !resource.Namespaced, trace.Wrap(err)
-		}
+	if !ok {
+		// TODO(@creack): Change this behavior, unsupported resource should be rejected.
+		// If the resource is not supported, return nil.
+		return out, nil
 	}
 
-	return &types.KubernetesResource{
-		Kind:      resource.Name,
-		Namespace: apiResource.namespace,
-		Name:      apiResource.resourceName,
-		Verbs:     []string{verb},
-		APIGroup:  apiResource.apiGroup,
-	}, apiResource, !resource.Namespaced, nil
+	if apiResource.resourceName == "" && out.verb != types.KubeVerbCreate {
+		// if the resource is supported but the resource name is not present and not a create request,
+		// return nil because it's a list request.
+		return out, nil
+	}
+
+	if apiResource.resourceName == "" && out.verb == types.KubeVerbCreate {
+		// If the request is a create request, extract the resource name from the request body.
+		resourceName, err := extractResourceNameFromPostRequest(req, codecFactory, kubeDetails.getObjectGVK(apiResource))
+		if err != nil {
+			return out, trace.Wrap(err)
+		}
+		apiResource.resourceName = resourceName
+		out.requestedResource = apiResource
+	}
+	out.resourceDefinition = &resource
+
+	return out, nil
 }
 
 // extractResourceNameFromPostRequest extracts the resource name from a POST body.

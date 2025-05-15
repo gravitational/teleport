@@ -224,7 +224,7 @@ func Test_getResourceFromRequest(t *testing.T) {
 			if tt.body != nil {
 				verb = http.MethodPost
 			}
-			got, _, _, err := getResourceFromRequest(&http.Request{Method: verb, URL: &url.URL{Path: tt.path}, Body: tt.body}, &kubeDetails{
+			got, err := getResourceFromRequest(&http.Request{Method: verb, URL: &url.URL{Path: tt.path}, Body: tt.body}, &kubeDetails{
 				kubeCodecs:         &globalKubeCodecs,
 				rbacSupportedTypes: defaultRBACResources,
 				gvkSupportedResources: map[gvkSupportedResourcesKey]*schema.GroupVersionKind{
@@ -276,7 +276,7 @@ func Test_getResourceFromRequest(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			require.Equal(t, tt.want, got, "parsing path %q", tt.path)
+			require.Equal(t, tt.want, got.rbacResource(), "parsing path %q", tt.path)
 		})
 	}
 }

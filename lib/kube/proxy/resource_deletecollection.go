@@ -172,8 +172,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *corev1.PodList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -185,8 +185,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *corev1.SecretList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -198,8 +198,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *corev1.ConfigMapList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -211,8 +211,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *corev1.NamespaceList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -224,8 +224,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *corev1.ServiceAccountList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -237,8 +237,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *corev1.PersistentVolumeList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -251,8 +251,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *corev1.PersistentVolumeClaimList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -265,8 +265,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *corev1.ReplicationControllerList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -279,8 +279,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *appsv1.DeploymentList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -292,8 +292,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *appsv1.ReplicaSetList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -306,8 +306,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *appsv1.StatefulSetList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -319,8 +319,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *appsv1.DaemonSetList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -333,8 +333,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *authv1.ClusterRoleList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -346,8 +346,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *authv1.RoleList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -359,8 +359,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *authv1.ClusterRoleBindingList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -372,8 +372,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *authv1.RoleBindingList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -385,8 +385,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *batchv1.CronJobList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -398,8 +398,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *batchv1.JobList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -411,8 +411,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *certificatesv1.CertificateSigningRequestList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -424,8 +424,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *networkingv1.IngressList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -437,8 +437,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *extensionsv1beta1.IngressList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -450,8 +450,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *extensionsv1beta1.DaemonSetList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -463,8 +463,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *extensionsv1beta1.DeploymentList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -476,8 +476,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	case *extensionsv1beta1.ReplicaSetList:
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.APIVersion,
 			slices.ToPointers(o.Items),
 			deleteOptions,
@@ -496,8 +496,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		}
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.GetAPIVersion(),
 			slices.ToPointers(list.Items),
 			deleteOptions,
@@ -583,7 +583,7 @@ func deleteResources[T kubeObjectInterface](
 			),
 			services.NewKubernetesResourceMatcher(
 				getKubeResource(kind, group, types.KubeVerbDeleteCollection, item),
-				params.authCtx.isClusterWideResource,
+				params.authCtx.metaResource.isClusterWideResource(),
 			),
 		)
 		// no match was found, we ignore the request.
