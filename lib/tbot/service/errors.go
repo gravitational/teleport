@@ -21,7 +21,12 @@ import "errors"
 
 // IrrecoverableError wraps the given error to mark it as irrecoverable, so the
 // supervisor will shut down all services.
-func IrrecoverableError(err error) error { return irrecoverableError{err} }
+func IrrecoverableError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return irrecoverableError{err}
+}
 
 type irrecoverableError struct{ inner error }
 
