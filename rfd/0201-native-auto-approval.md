@@ -193,7 +193,7 @@ access request should be automatically reviewed.
 responsible for monitoring the rule. The initial implementation only supports
 the `builtin` value. This indicates that Teleport is responsible for monitoring
 the rule.
-- `spec.automatic_review.decision` field specifies the propsed state of the
+- `spec.automatic_review.decision` field specifies the proposed state of the
 access request review. This can be either `APPROVED` or `DENIED`.
 
 The AMR conditions now also support a `user.traits` variable. This variable
@@ -251,7 +251,7 @@ sequenceDiagram
     automatic_review_service->>teleport: approve AR
     requester->>teleport: tsh login --request-id=<request-id>
 ```
-1. The automatic review serivce is initialized and watches for ARs from Teleport.
+1. The automatic review service is initialized and watches for ARs from Teleport.
 2. When a user creates an AR, and after the automatic review service observes
 the event, the automatic review service requests additional information about
 the user.
@@ -315,7 +315,7 @@ or too permissive and allow unintended access.
 To mitigate this risk, users should be protected against misconfigured rule
 conditions. This could be addressed through static validation of rule conditions,
 or by providing a user-friendly interface to preview and test rules before they
-are created. One potentional approach is leveraging Teleport Access Graph to
+are created. One potential approach is leveraging Teleport Access Graph to
 visualize and review automatic review rules.
 
 ## Implementation Plan
