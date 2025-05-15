@@ -171,7 +171,10 @@ type suite map[KeyPurpose]Algorithm
 var (
 	// legacy is the original algorithm suite, which exclusively uses RSA2048
 	// for features developed before ECDSA and Ed25519 support were added. New
-	// features should always use the new algorithms.
+	// features should always use the new algorithms, and new CAs should use the
+	// algorithms in `fipsV1` for compatibility with FIPS mode clusters and
+	// HSMs. See also:
+	// https://github.com/gravitational/teleport/blob/master/rfd/0136-modern-signature-algorithms.md#legacy-suite
 	legacy = suite{
 		UserCATLS:               RSA2048,
 		UserCASSH:               RSA2048,
