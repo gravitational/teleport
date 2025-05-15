@@ -730,12 +730,13 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 
 func TestKubeResourceCouldMatchRules(t *testing.T) {
 	tests := []struct {
-		name      string
-		input     types.KubernetesResource
-		resources []types.KubernetesResource
-		action    types.RoleConditionType
-		matches   bool
-		assert    require.ErrorAssertionFunc
+		name          string
+		input         types.KubernetesResource
+		resources     []types.KubernetesResource
+		isClusterWide bool
+		action        types.RoleConditionType
+		matches       bool
+		assert        require.ErrorAssertionFunc
 	}{
 		{
 			name: "input misses verb",
@@ -794,6 +795,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 				Kind:  "namespaces",
 				Verbs: []string{types.KubeVerbList},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      "secrets",
@@ -812,6 +814,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 				Kind:  "namespaces",
 				Verbs: []string{types.KubeVerbList},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      "secrets",
@@ -1101,6 +1104,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 				Kind:  "clusterroles",
 				Verbs: []string{types.KubeVerbGet},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:  "clusterroles",
@@ -1118,6 +1122,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 				Kind:  "clusterroles",
 				Verbs: []string{types.KubeVerbGet},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
@@ -1136,6 +1141,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 				Kind:  "clusterroles",
 				Verbs: []string{types.KubeVerbGet},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
@@ -1154,6 +1160,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 				Kind:  "clusterroles",
 				Verbs: []string{types.KubeVerbGet},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
@@ -1169,10 +1176,10 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 		{
 			name: "list clusterrole with wildcard deny verb",
 			input: types.KubernetesResource{
-				Kind: "clusterroles",
-
+				Kind:  "clusterroles",
 				Verbs: []string{types.KubeVerbGet},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
@@ -1190,6 +1197,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 				Kind:  "namespaces",
 				Verbs: []string{types.KubeVerbGet},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      "pods",
@@ -1208,6 +1216,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 				Kind:  "namespaces",
 				Verbs: []string{types.KubeVerbGet},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      "pods",
@@ -1226,6 +1235,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 				Kind:  "namespaces",
 				Verbs: []string{types.KubeVerbGet},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      "pods",
@@ -1245,6 +1255,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 				Kind:  "namespaces",
 				Verbs: []string{types.KubeVerbUpdate},
 			},
+			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      "pods",
@@ -1368,7 +1379,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := KubeResourceCouldMatchRules(tt.input, tt.resources, tt.action)
+			got, err := KubeResourceCouldMatchRules(tt.input, tt.isClusterWide, tt.resources, tt.action)
 			tt.assert(t, err)
 			require.Equal(t, tt.matches, got)
 		})
