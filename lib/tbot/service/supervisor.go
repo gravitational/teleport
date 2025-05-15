@@ -90,6 +90,10 @@ func (s *Supervisor) Register(service InternalService) error {
 		return trace.Errorf("service %q is already registered", service.getName())
 	}
 
+	if !service.registerToSupervisor() {
+		return trace.Errorf("cannot register a service to more than one supervisor")
+	}
+
 	s.services[service.getName()] = service
 	return nil
 }
@@ -100,6 +104,13 @@ func (s *Supervisor) Run(ctx context.Context) error {
 	group, groupCtx := errgroup.WithContext(ctx)
 
 	s.mu.Lock()
+
+	if s.started {
+		s.mu.Unlock()
+		return trace.Errorf("cannot run a supervisor more than once")
+	}
+	s.started = true
+
 	for _, svc := range s.services {
 		svc := svc
 		group.Go(func() error {
@@ -117,14 +128,19 @@ func (s *Supervisor) Run(ctx context.Context) error {
 
 // OneShot runs any registered services that implement OneShotHandler.
 func (s *Supervisor) OneShot(ctx context.Context) error {
-	ctx = withOneShot(ctx)
-
 	// Note: we don't use errgroup here because we don't want one service's
 	// error to immediately cancel other services, in case they can gracefully
 	// degrade instead.
 	var wg sync.WaitGroup
 
 	s.mu.Lock()
+
+	if s.started {
+		s.mu.Unlock()
+		return trace.Errorf("cannot run a supervisor more than once")
+	}
+	s.started = true
+
 	errCh := make(chan error, len(s.services))
 	for _, svc := range s.services {
 		wg.Add(1)
@@ -144,6 +160,8 @@ func (s *Supervisor) OneShot(ctx context.Context) error {
 }
 
 func (s *Supervisor) superviseService(ctx context.Context, svc InternalService) error {
+	defer svc.finalize()
+
 	logger := s.logger.With("service", svc.getName())
 
 	setStatus := func(status status.Status) {
@@ -184,6 +202,8 @@ func (s *Supervisor) superviseService(ctx context.Context, svc InternalService) 
 }
 
 func (s *Supervisor) oneShotService(ctx context.Context, svc InternalService) error {
+	defer svc.finalize()
+
 	logger := s.logger.With("service", svc.getName())
 
 	setStatus := func(status status.Status) {
@@ -214,16 +234,6 @@ type InternalService interface {
 	runHandler(context.Context, *Runtime) error
 	runOneShotHandler(ctx context.Context) error
 	setStatus(status.Status) bool
-}
-
-// ctxKeyOneShot is used to mark the context as running under a supervisor in
-// one-shot mode, so that we can unblock earlier in Service.WaitForStatus.
-type ctxKeyOneShot struct{}
-
-func withOneShot(ctx context.Context) context.Context {
-	return context.WithValue(ctx, ctxKeyOneShot{}, struct{}{})
-}
-
-func isOneShot(ctx context.Context) bool {
-	return ctx.Value(ctxKeyOneShot{}) != nil
+	registerToSupervisor() bool
+	finalize()
 }

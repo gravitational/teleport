@@ -186,6 +186,31 @@ func TestService_IrrecoverableError(t *testing.T) {
 	require.Equal(t, status.Failed.String(), b.Status().String())
 }
 
+func TestService_MultipleSupervisors(t *testing.T) {
+	svc := service.NewService(
+		"service",
+		handlerFunc(nil),
+	)
+
+	a, err := service.NewSupervisor(service.SupervisorConfig{})
+	require.NoError(t, err)
+
+	b, err := service.NewSupervisor(service.SupervisorConfig{})
+	require.NoError(t, err)
+
+	require.NoError(t, a.Register(svc))
+	require.ErrorContains(t, b.Register(svc), "cannot register a service to more than one supervisor")
+}
+
+func TestService_SupervisorRunMultipleTimes(t *testing.T) {
+	sup, err := service.NewSupervisor(service.SupervisorConfig{})
+	require.NoError(t, err)
+	require.NoError(t, sup.Run(context.Background()))
+
+	require.ErrorContains(t, sup.Run(context.Background()), "cannot run a supervisor more than once")
+	require.ErrorContains(t, sup.OneShot(context.Background()), "cannot run a supervisor more than once")
+}
+
 type handlerFunc func(context.Context, *service.Runtime) error
 
 func (fn handlerFunc) Run(ctx context.Context, runtime *service.Runtime) error {

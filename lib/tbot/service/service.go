@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"sync/atomic"
 
 	"github.com/gravitational/teleport/lib/tbot/service/status"
 )
@@ -55,6 +56,7 @@ func NewService[HandlerT Handler](name string, handler HandlerT) *Service[Handle
 		name:    name,
 		handler: handler,
 		status:  NewWatchedValue(status.Initializing),
+		done:    make(chan struct{}),
 	}
 }
 
@@ -66,13 +68,22 @@ func NewService[HandlerT Handler](name string, handler HandlerT) *Service[Handle
 // or wait for the service to have a given status using WaitForStatus.
 //
 // If the service's handler implements OneShotHandler, it can be used with the
-// `--one-shot` flag.
+// `--oneshot` flag.
 //
 // The service lifecycle is managed by a Supervisor.
 type Service[HandlerT Handler] struct {
 	name    string
 	handler HandlerT
 	status  *WatchedValue[status.Status]
+
+	// done is closed by the supervisor when the service has finished running
+	// this allows us to unblock from Wait and WaitForStatus once the status
+	// is "finalized" and won't change again.
+	done chan struct{}
+
+	// registered prevents a service that has already been registered to a
+	// supervisor from being registered to a different one.
+	registered atomic.Bool
 }
 
 // Status returns the service's current status.
@@ -96,10 +107,8 @@ var ErrWrongStatus = errors.New("supervisor: service has wrong status")
 // immediately and return the context's error. This is useful for implementing
 // timeout/fallback behavior.
 //
-// When called from another service running in one-shot mode, Wait will block
-// until the service's status changes *for the first time* only (because in
-// one-shot mode an unhealthy service wouldn't ever recover). If the service
-// isn't ready, ErrWrongStatus will be returned.
+// If the service finishes running without becoming Ready (i.e. in one-shot
+// mode), ErrWrongStatus will be returned.
 func (s *Service[HandlerT]) Wait(ctx context.Context) (HandlerT, error) {
 	return s.WaitForStatus(ctx, status.Ready)
 }
@@ -111,10 +120,8 @@ func (s *Service[HandlerT]) Wait(ctx context.Context) (HandlerT, error) {
 // unblock immediately and return the context's error. This is useful for
 // implementing timeout/fallback behavior.
 //
-// When called from another service running in one-shot mode, WaitForStatus will
-// block until the service's status changes *for the first time* only (because
-// in one-shot mode an unhealthy service wouldn't ever recover). If the service's
-// status doesn't match one of the expected statuses, ErrWrongStatus will be returned.
+// If the service finishes running before reaching the desired status (i.e. in
+// one-shot mode), ErrWrongStatus will be returned.
 func (s *Service[HandlerT]) WaitForStatus(ctx context.Context, statuses ...status.Status) (HandlerT, error) {
 	current, watcher := s.status.Watch()
 	defer watcher.Close()
@@ -124,20 +131,26 @@ func (s *Service[HandlerT]) WaitForStatus(ctx context.Context, statuses ...statu
 	}
 
 	var zero HandlerT
-	if isOneShot(ctx) && current != status.Initializing {
-		return zero, ErrWrongStatus
-	}
-
 	for {
-		current, ok := watcher.Wait(ctx)
-		if !ok {
-			return zero, ctx.Err()
+		var finalValue, ctxDone bool
+		select {
+		case <-watcher.Ready():
+			// New value ready.
+		case <-s.done:
+			finalValue = true
+		case <-ctx.Done():
+			ctxDone = true
 		}
-		if slices.Contains(statuses, current) {
+
+		switch {
+		case slices.Contains(statuses, s.status.Get()):
 			return s.handler, nil
-		}
-		if isOneShot(ctx) {
+		case finalValue:
 			return zero, ErrWrongStatus
+		case ctxDone:
+			return zero, ctx.Err()
+		default:
+			// Wait for the next update.
 		}
 	}
 }
@@ -154,6 +167,10 @@ func (s *Service[HandlerT]) runOneShotHandler(ctx context.Context) error {
 		return os.OneShot(ctx)
 	}
 	return errNoOneShotHandler
+}
+func (s *Service[HandlerT]) finalize() { close(s.done) }
+func (s *Service[HandlerT]) registerToSupervisor() bool {
+	return s.registered.CompareAndSwap(false, true)
 }
 
 // errNoOneShotHandler is a sentinel error used to tell the supervisor that the
