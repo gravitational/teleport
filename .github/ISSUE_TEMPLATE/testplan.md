@@ -1618,6 +1618,9 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
     - [ ] Verify the Single Sign-On (SSO) connector created by the Okta Plugin.
   - [ ] Verify Okta users/apps/groups sync.
     - [ ] Verify that users/apps/groups are synced from Okta to Teleport.
+    - [ ] Verify that when bidirectional sync is disabled:
+      - [ ] `x.manage` scopes are not required for plugin to function.
+      - [ ] Updates to synced Access Lists' members/grants are not allowed.
     - [ ] Verify the custom `okta_import_rule` rule configuration.
     - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
     - [ ] Verify that users/groups are flattened on import, and are not duplicated on sync when their membership is inherited via nested Access Lists.
