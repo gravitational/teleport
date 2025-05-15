@@ -32,6 +32,7 @@ import { ViewModeSwitch } from 'shared/components/Controls/ViewModeSwitch';
 
 import {
   IncludedResourceMode,
+  ResourceStatus,
   SharedUnifiedResource,
   UnifiedResourcesQueryParams,
 } from './types';
@@ -50,6 +51,12 @@ const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {
 const sortFieldOptions = [
   { label: 'Name', value: 'name' },
   { label: 'Type', value: 'kind' },
+];
+
+const resourceStatusOptions: { label: string; value: ResourceStatus }[] = [
+  { label: 'Healthy', value: 'healthy' },
+  { label: 'Unhealthy', value: 'unhealthy' },
+  { label: 'Unknown', value: 'unknown' },
 ];
 
 interface FilterPanelProps {
@@ -91,13 +98,17 @@ export function FilterPanel({
   ClusterDropdown = null,
   onRefresh,
 }: FilterPanelProps) {
-  const { sort, kinds } = params;
+  const { sort, kinds, statuses } = params;
 
   const activeSortFieldOption = sortFieldOptions.find(
     opt => opt.value === sort.fieldName
   );
 
   const onKindsChanged = (newKinds: string[]) => {
+    if (statuses?.length && !resourceStatusFilterSupported(newKinds)) {
+      setParams({ ...params, statuses: null, kinds: newKinds });
+      return;
+    }
     setParams({ ...params, kinds: newKinds });
   };
 
@@ -108,6 +119,12 @@ export function FilterPanel({
   const onSortOrderButtonClicked = () => {
     setParams({ ...params, sort: oppositeSort(sort) });
   };
+
+  const onHealthStatusChange = (newStatuses: ResourceStatus[]) => {
+    setParams({ ...params, statuses: newStatuses });
+  };
+
+  const isResourceStatusFilterSupported = resourceStatusFilterSupported(kinds);
 
   return (
     // minHeight is set to 32px so there isn't layout shift when a bulk action button shows up
@@ -148,6 +165,20 @@ export function FilterPanel({
             onChange={changeAvailableResourceMode}
           />
         )}
+        <MultiselectMenu
+          options={resourceStatusOptions.map(({ label, value }) => ({
+            value,
+            label,
+          }))}
+          selected={statuses || []}
+          onChange={onHealthStatusChange}
+          label="Health Status"
+          tooltip={
+            'Health status filter is only available with database resources. Support for more resources will be added in the future.'
+          }
+          disableMenu={!isResourceStatusFilterSupported}
+          buffered
+        />
       </Flex>
       <Flex gap={2} alignItems="center">
         <Flex mr={1}>{BulkActions}</Flex>
@@ -332,3 +363,7 @@ const AccessRequestsToggleItem = styled.div`
   text-decoration: none;
   white-space: nowrap;
 `;
+
+function resourceStatusFilterSupported(kinds: string[]) {
+  return !kinds || kinds.length === 0 || !!kinds.find(k => k === 'db');
+}
