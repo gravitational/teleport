@@ -158,6 +158,8 @@ func (c *mcpDBCommand) prepareDatabases(
 		route := tlsca.RouteToDatabase{
 			ServiceName: db.GetName(),
 			Protocol:    db.GetProtocol(),
+			Username:    c.databaseUser,
+			Database:    c.databaseName,
 		}
 
 		listener, err := createLocalProxyListener("localhost:0", route, profile)
