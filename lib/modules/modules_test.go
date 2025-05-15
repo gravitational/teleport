@@ -58,12 +58,36 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 		},
 	})
 
-	authPref, err := testServer.AuthServer.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+	s, err := auth.NewTestTLSServer(auth.TestTLSServerConfig{
+		APIConfig: &auth.APIConfig{
+			AuthServer: testServer.AuthServer,
+			Authorizer: testServer.Authorizer,
+			AuditLog:   testServer.AuditLog,
+			Emitter:    testServer.AuditLog,
+		},
+		AuthServer: testServer,
+	})
+	require.NoError(t, err)
+
+	clt, err := s.NewClient(auth.TestAdmin())
+	require.NoError(t, err)
+
+	ap := types.DefaultAuthPreference()
+	ap.SetSecondFactor(constants.SecondFactorOTP)
+	authPref, err := clt.UpsertAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
 	authPref.SetSecondFactor(constants.SecondFactorOff)
-	_, err = testServer.AuthServer.UpdateAuthPreference(ctx, authPref)
-	require.EqualError(t, err, modules.ErrCannotDisableSecondFactor.Error())
+	_, err = clt.UpdateAuthPreference(ctx, authPref)
+	require.ErrorContains(t, err, "rpc error: code = Unknown desc = cannot disable multi-factor authentication")
+
+	// Validate the storage layer doesn't enforce module validation.
+	authPref, err = testServer.AuthServer.UpdateAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+	require.Equal(t, constants.SecondFactorOff, authPref.GetSecondFactor())
+	authPref, err = testServer.AuthServer.UpsertAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+	require.Equal(t, constants.SecondFactorOff, authPref.GetSecondFactor())
 }
 
 func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {

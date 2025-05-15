@@ -342,29 +342,15 @@ func TestAuthPreferenceSecondFactorOnly(t *testing.T) {
 	defer modules.SetInsecureTestMode(true)
 	ctx := context.Background()
 
-	t.Run("starting with second_factor disabled fails", func(t *testing.T) {
-		conf := setupConfig(t)
-		authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-			SecondFactor: constants.SecondFactorOff,
-		})
-		require.NoError(t, err)
-
-		conf.AuthPreference = authPref
-		_, err = Init(ctx, conf)
-		require.Error(t, err)
+	conf := setupConfig(t)
+	authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+		SecondFactor: constants.SecondFactorOff,
 	})
+	require.NoError(t, err)
 
-	t.Run("starting with defaults and dynamically updating to disable second factor fails", func(t *testing.T) {
-		conf := setupConfig(t)
-		s, err := Init(ctx, conf)
-		require.NoError(t, err)
-		authpref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-			SecondFactor: constants.SecondFactorOff,
-		})
-		require.NoError(t, err)
-		_, err = s.UpsertAuthPreference(ctx, authpref)
-		require.Error(t, err)
-	})
+	conf.AuthPreference = authPref
+	_, err = Init(ctx, conf)
+	require.Error(t, err)
 }
 
 func TestClusterNetworkingConfig(t *testing.T) {
