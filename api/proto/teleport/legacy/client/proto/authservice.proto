@@ -2061,7 +2061,7 @@ message PaginatedResource {
 
 // TargetHealthStatus is the health status of a resource's target endpoint.
 enum TargetHealthStatus {
-  // TARGET_HEALTH_STATUS_UNKNOWN means the resource endpoint healthy is unknown.
+  // TARGET_HEALTH_STATUS_UNKNOWN means the resource endpoint health is unknown.
   TARGET_HEALTH_STATUS_UNKNOWN = 0;
   // TARGET_HEALTH_STATUS_HEALTHY means the resource endpoint is healthy.
   TARGET_HEALTH_STATUS_HEALTHY = 1;

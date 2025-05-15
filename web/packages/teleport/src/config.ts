@@ -279,7 +279,7 @@ const cfg = {
     databasePath: `/v1/webapi/sites/:clusterId/databases/:database`,
     databasesPath: `/v1/webapi/sites/:clusterId/databases?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
 
-    databaseServer: {
+    databaseServers: {
       list: `/v1/webapi/sites/:clusterId/databaseservers?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?`,
     },
 
@@ -948,7 +948,7 @@ const cfg = {
   },
 
   getDatabaseServersUrl(clusterId: string, params?: UrlResourcesParams) {
-    return generateResourcePath(cfg.api.databaseServer.list, {
+    return generateResourcePath(cfg.api.databaseServers.list, {
       clusterId,
       ...params,
     });

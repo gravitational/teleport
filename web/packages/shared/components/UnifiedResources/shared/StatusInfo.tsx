@@ -333,8 +333,8 @@ export function openStatusInfoPanel({
 }
 
 /**
- * Returns true if any status is unhealthy or if there are a mix of health
- * different statuses.
+ * Returns true if any status is unhealthy or if there are a mix of different
+ * health statuses.
  */
 export function shouldWarnResourceStatus(statuses: ResourceHealthStatus[]): boolean {
   return statuses && (statuses.includes('unhealthy') || statuses.some(s => s !== statuses[0]))
