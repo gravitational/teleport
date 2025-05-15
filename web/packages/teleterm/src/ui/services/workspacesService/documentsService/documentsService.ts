@@ -615,5 +615,6 @@ export function getDefaultDocumentClusterQueryParams(): DocumentClusterQueryPara
     search: '',
     sort: { fieldName: 'name', dir: 'ASC' },
     advancedSearchEnabled: false,
+    statuses: [],
   };
 }

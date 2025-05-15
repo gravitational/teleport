@@ -44,6 +44,7 @@ export function makeDocumentCluster(
       resourceKinds: [],
       search: '',
       advancedSearchEnabled: false,
+      statuses: [],
     },
     ...props,
   };
