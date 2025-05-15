@@ -152,6 +152,10 @@ spec:
                       for backwards compatibility.
                     type: string
                 type: object
+              pkce_mode:
+                description: PKCEMode represents the configuration state for PKCE
+                  (Proof Key for Code Exchange). It can be "enabled" or "disabled"
+                type: string
               prompt:
                 description: Prompt is an optional OIDC prompt. An empty string omits
                   prompt. If not specified, it defaults to select_account for backwards
