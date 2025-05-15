@@ -160,6 +160,20 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should set topologySpreadConstraints if set in values if action is Upgrade
+    template: statefulset.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    values:
+      - ../.lint/topology-spread-constraints.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.topologySpreadConstraints
+      - matchSnapshot:
+          path: spec.template.spec
+
   - it: should set tolerations when set in values
     template: statefulset.yaml
     values:

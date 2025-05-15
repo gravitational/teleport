@@ -2210,3 +2210,76 @@ should set tolerations when set in values if action is Upgrade:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
+should set topologySpreadConstraints if set in values if action is Upgrade:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
+      image: public.ecr.aws/gravitational/teleport-distroless:18.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /etc/teleport-secrets
+        name: auth-token
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    securityContext:
+      fsGroup: 9807
+    serviceAccountName: RELEASE-NAME
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: foo
+      matchLabelKeys:
+      - pod-template-hash
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+    volumes:
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: auth-token
+      secret:
+        secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
