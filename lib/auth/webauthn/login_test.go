@@ -826,6 +826,16 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				},
+			}, {
+				name: "OK reuse requested and allowed for user session",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				},
+				requiredExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				},
 			},
 		}
 		for _, test := range tests {

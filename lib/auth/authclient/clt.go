@@ -21,7 +21,6 @@ package authclient
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"net/url"
 	"time"
@@ -101,11 +100,6 @@ var (
 // password, or second factor.
 func IsInvalidLocalCredentialError(err error) bool {
 	return errors.Is(err, InvalidUserPassError) || errors.Is(err, InvalidUserPass2FError)
-}
-
-// HostFQDN consists of host UUID and cluster name joined via '.'.
-func HostFQDN(hostUUID, clusterName string) string {
-	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
 }
 
 // APIClient is aliased here so that it can be embedded in Client.
@@ -309,6 +303,15 @@ func (c *Client) GetReverseTunnel(ctx context.Context, name string) (types.Rever
 // DeleteAllTokens not implemented: can only be called locally.
 func (c *Client) DeleteAllTokens() error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// PatchToken not implemented: can only be called locally
+func (c *Client) PatchToken(
+	ctx context.Context,
+	token string,
+	updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
+) (types.ProvisionToken, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // AddUserLoginAttempt logs user login attempt
@@ -1240,6 +1243,14 @@ type ProvisioningService interface {
 
 	// CreateToken creates a new provision token for the auth server
 	CreateToken(ctx context.Context, token types.ProvisionToken) error
+
+	// PatchToken performs a conditional update on the named token using
+	// `updateFn`, retrying internally if a comparison failure occurs.
+	PatchToken(
+		ctx context.Context,
+		token string,
+		updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
+	) (types.ProvisionToken, error)
 
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken

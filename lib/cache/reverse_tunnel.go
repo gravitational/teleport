@@ -26,19 +26,21 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const reverseTunnelStoreNameIndex = "name"
+type reverseTunnelIndex string
 
-func newReverseTunnelCollection(upstream services.Presence, w types.WatchKind) (*collection[types.ReverseTunnel], error) {
+const reverseTunnelNameIndex reverseTunnelIndex = "name"
+
+func newReverseTunnelCollection(upstream services.Presence, w types.WatchKind) (*collection[types.ReverseTunnel, reverseTunnelIndex], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
-	return &collection[types.ReverseTunnel]{
-		store: newStore(map[string]func(types.ReverseTunnel) string{
-			reverseTunnelStoreNameIndex: func(r types.ReverseTunnel) string {
-				return r.GetName()
-			},
-		}),
+	return &collection[types.ReverseTunnel, reverseTunnelIndex]{
+		store: newStore(
+			types.ReverseTunnel.Clone,
+			map[reverseTunnelIndex]func(types.ReverseTunnel) string{
+				reverseTunnelNameIndex: types.ReverseTunnel.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.ReverseTunnel, error) {
 			var out []types.ReverseTunnel
 			var nextToken string
@@ -76,15 +78,14 @@ func (c *Cache) ListReverseTunnels(ctx context.Context, pageSize int, pageToken 
 	ctx, span := c.Tracer.Start(ctx, "cache/ListReverseTunnels")
 	defer span.End()
 
-	lister := genericLister[types.ReverseTunnel]{
+	lister := genericLister[types.ReverseTunnel, reverseTunnelIndex]{
 		cache:        c,
 		collection:   c.collections.reverseTunnels,
-		index:        reverseTunnelStoreNameIndex,
+		index:        reverseTunnelNameIndex,
 		upstreamList: c.Config.Presence.ListReverseTunnels,
 		nextToken: func(t types.ReverseTunnel) string {
 			return t.GetMetadata().Name
 		},
-		clone: types.ReverseTunnel.Clone,
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)

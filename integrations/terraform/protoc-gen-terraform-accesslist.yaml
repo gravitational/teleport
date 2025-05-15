@@ -41,8 +41,12 @@ exclude_fields:
 # These fields will be marked as Computed: true
 computed_fields:
     # Metadata
+    - "AccessList.header.kind"
+    - "AccessList.header.metadata.expires"
     - "AccessList.header.metadata.namespace"
+    - "AccessList.header.metadata.revision"
     - "AccessList.spec.audit.next_audit_date"
+
 
 # These fields will be marked as Required: true
 required_fields:

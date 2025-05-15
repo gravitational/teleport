@@ -247,6 +247,11 @@ type RouteToApp struct {
 	// apps. It is appended to the hostname from the URI in the app spec, since the URI from
 	// RouteToApp is not used as the source of truth for routing.
 	TargetPort int
+
+	// AWSCredentialProcessCredentials contains the credentials to access AWS APIs.
+	// This is a JSON string that conforms with
+	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
+	AWSCredentialProcessCredentials string
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -482,6 +487,11 @@ var (
 	// target port into a certificate.
 	AppTargetPortASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 21}
 
+	// AppAWSCredentialProcessCredentialsASN1ExtensionOID is an extension that encodes the credentials to access AWS APIs.
+	// This is a JSON string that conforms with
+	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
+	AppAWSCredentialProcessCredentialsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 22}
+
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
 	DatabaseServiceNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 1}
@@ -692,6 +702,13 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AWSRoleARNsASN1ExtensionOID,
 				Value: id.AWSRoleARNs[i],
+			})
+	}
+	if id.RouteToApp.AWSCredentialProcessCredentials != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AppAWSCredentialProcessCredentialsASN1ExtensionOID,
+				Value: id.RouteToApp.AWSCredentialProcessCredentials,
 			})
 	}
 	if id.RouteToApp.AzureIdentity != "" {
@@ -1030,6 +1047,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.AWSRoleARNs = append(id.AWSRoleARNs, val)
+			}
+		case attr.Type.Equal(AppAWSCredentialProcessCredentialsASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.AWSCredentialProcessCredentials = val
 			}
 		case attr.Type.Equal(AppAzureIdentityASN1ExtensionOID):
 			val, ok := attr.Value.(string)

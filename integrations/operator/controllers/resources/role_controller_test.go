@@ -232,7 +232,7 @@ allow:
 				require.Equal(t, roleName, tRole.GetName())
 				require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
 				require.Equal(t, types.OriginKubernetes, tRole.GetMetadata().Labels[types.OriginLabel])
-				expectedRole, _ := types.NewRole(roleName, *tc.expectedSpec)
+				expectedRole, _ := types.NewRoleWithVersion(roleName, types.V7, *tc.expectedSpec)
 				compareRoleSpecs(t, expectedRole, tRole)
 			}
 			// Teardown

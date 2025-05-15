@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -660,6 +661,10 @@ func (r testRemoteSite) GetClient() (authclient.ClientI, error) {
 	return nil, nil
 }
 
+func (r testRemoteSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
+	return nil, nil
+}
+
 type testSiteGetter struct {
 	site reversetunnelclient.RemoteSite
 }
@@ -930,6 +935,70 @@ func TestRouter_DialSite(t *testing.T) {
 			}
 
 			conn, err := router.DialSite(ctx, tt.cluster, nil, nil)
+			tt.assertion(t, conn, err)
+		})
+	}
+}
+
+func TestRouter_DialWindowsDesktop(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		router    Router
+		assertion func(t *testing.T, conn net.Conn, err error)
+	}{
+		{
+			name: "failure looking up cluster",
+			router: Router{
+				clusterName: "leaf",
+				siteGetter:  tunnel{err: trace.NotFound("unknown cluster")},
+				tracer:      tracing.NoopTracer("test"),
+			},
+			assertion: func(t *testing.T, conn net.Conn, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
+				require.Nil(t, conn)
+			},
+		},
+		{
+			name: "failure connecting to desktop service",
+			router: Router{
+				clusterName: "test",
+				tracer:      tracing.NoopTracer("test"),
+				localSite:   &testRemoteSite{},
+				windowsDesktopServiceConnector: func(ctx context.Context, c *desktop.ConnectionConfig) (net.Conn, string, error) {
+					return nil, "", trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")
+				},
+			},
+			assertion: func(t *testing.T, conn net.Conn, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsConnectionProblem(err))
+				require.Nil(t, conn)
+			},
+		},
+		{
+			name: "dial success",
+			router: Router{
+				clusterName: "test",
+				localSite:   &testRemoteSite{conn: fakeConn{}},
+				tracer:      tracing.NoopTracer("test"),
+				windowsDesktopServiceConnector: func(ctx context.Context, c *desktop.ConnectionConfig) (net.Conn, string, error) {
+					return fakeConn{}, "18.0.0", nil
+				},
+			},
+			assertion: func(t *testing.T, conn net.Conn, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, conn)
+			},
+		},
+	}
+
+	ctx := context.Background()
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			conn, err := tt.router.DialWindowsDesktop(ctx, &utils.NetAddr{}, &utils.NetAddr{}, "host", "test", nil)
 			tt.assertion(t, conn, err)
 		})
 	}

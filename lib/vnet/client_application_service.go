@@ -29,15 +29,15 @@ import (
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
-// clientApplicationService wraps a local app provider to implement the gRPC
-// [vnetv1.ClientApplicationServiceServer] to expose Teleport apps to a VNet
-// service running in another process.
+// clientApplicationService implements the gRPC
+// [vnetv1.ClientApplicationServiceServer] to expose functionality that requires
+// a Teleport client to the VNet admin service running in another process.
 type clientApplicationService struct {
 	// opt-in to compilation errors if this doesn't implement
 	// [vnetv1.ClientApplicationServiceServer]
 	vnetv1.UnsafeClientApplicationServiceServer
 
-	localAppProvider *localAppProvider
+	cfg *clientApplicationServiceConfig
 
 	// networkStackInfo will receive any network stack info reported via
 	// ReportNetworkStackInfo.
@@ -55,9 +55,14 @@ type clientApplicationService struct {
 	appSignerCache map[appKey]crypto.Signer
 }
 
-func newClientApplicationService(localAppProvider *localAppProvider) *clientApplicationService {
+type clientApplicationServiceConfig struct {
+	localAppProvider      *localAppProvider
+	localOSConfigProvider *LocalOSConfigProvider
+}
+
+func newClientApplicationService(cfg *clientApplicationServiceConfig) *clientApplicationService {
 	return &clientApplicationService{
-		localAppProvider: localAppProvider,
+		cfg:              cfg,
 		networkStackInfo: make(chan *vnetv1.NetworkStackInfo, 1),
 		appSignerCache:   make(map[appKey]crypto.Signer),
 	}
@@ -96,7 +101,7 @@ func (s *clientApplicationService) Ping(ctx context.Context, req *vnetv1.PingReq
 
 // ResolveAppInfo implements [vnetv1.ClientApplicationServiceServer.ResolveAppInfo].
 func (s *clientApplicationService) ResolveAppInfo(ctx context.Context, req *vnetv1.ResolveAppInfoRequest) (*vnetv1.ResolveAppInfoResponse, error) {
-	appInfo, err := s.localAppProvider.ResolveAppInfo(ctx, req.GetFqdn())
+	appInfo, err := s.cfg.localAppProvider.ResolveAppInfo(ctx, req.GetFqdn())
 	if err != nil {
 		return nil, trace.Wrap(err, "resolving app info")
 	}
@@ -117,7 +122,7 @@ func (s *clientApplicationService) ReissueAppCert(ctx context.Context, req *vnet
 	if err := checkAppKey(appKey); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := s.localAppProvider.ReissueAppCert(ctx, appInfo, uint16(req.GetTargetPort()))
+	cert, err := s.cfg.localAppProvider.ReissueAppCert(ctx, appInfo, uint16(req.GetTargetPort()))
 	if err != nil {
 		return nil, trace.Wrap(err, "reissuing app certificate")
 	}
@@ -189,7 +194,7 @@ func (s *clientApplicationService) getSignerForApp(appKey *vnetv1.AppKey, target
 // OnNewConnection gets called whenever a new connection is about to be
 // established through VNet for observability.
 func (s *clientApplicationService) OnNewConnection(ctx context.Context, req *vnetv1.OnNewConnectionRequest) (*vnetv1.OnNewConnectionResponse, error) {
-	if err := s.localAppProvider.OnNewConnection(ctx, req.GetAppKey()); err != nil {
+	if err := s.cfg.localAppProvider.OnNewConnection(ctx, req.GetAppKey()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &vnetv1.OnNewConnectionResponse{}, nil
@@ -199,7 +204,7 @@ func (s *clientApplicationService) OnNewConnection(ctx context.Context, req *vne
 // to a multi-port TCP app because the provided port does not match any of the
 // TCP ports in the app spec.
 func (s *clientApplicationService) OnInvalidLocalPort(ctx context.Context, req *vnetv1.OnInvalidLocalPortRequest) (*vnetv1.OnInvalidLocalPortResponse, error) {
-	s.localAppProvider.OnInvalidLocalPort(ctx, req.GetAppInfo(), uint16(req.GetTargetPort()))
+	s.cfg.localAppProvider.OnInvalidLocalPort(ctx, req.GetAppInfo(), uint16(req.GetTargetPort()))
 	return &vnetv1.OnInvalidLocalPortResponse{}, nil
 }
 
@@ -224,8 +229,13 @@ func newAppKey(protoAppKey *vnetv1.AppKey, port uint16) appKey {
 // DNS nameserver and the IPv4 CIDR ranges that should be routed to the VNet TUN
 // interface.
 func (s *clientApplicationService) GetTargetOSConfiguration(ctx context.Context, _ *vnetv1.GetTargetOSConfigurationRequest) (*vnetv1.GetTargetOSConfigurationResponse, error) {
-	resp, err := s.localAppProvider.getTargetOSConfiguration(ctx)
-	return resp, trace.Wrap(err, "getting target OS configuration")
+	targetConfig, err := s.cfg.localOSConfigProvider.GetTargetOSConfiguration(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting target OS configuration")
+	}
+	return &vnetv1.GetTargetOSConfigurationResponse{
+		TargetOsConfiguration: targetConfig,
+	}, nil
 }
 
 // checkAppKey checks that at least the app profile and name are set, which are

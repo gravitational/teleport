@@ -44,7 +44,7 @@ export function Rds() {
   const tab = (searchParams.get('tab') as RdsTab) || RdsTab.Rules;
 
   const borderRef = useRef<HTMLDivElement>(null);
-  const parentRef = useRef<HTMLDivElement>();
+  const parentRef = useRef<HTMLDivElement>(null);
 
   // todo (michellescripts) the following implementation mimics the implementation of tabs in
   //  e/web/teleport/src/AccessMonitoring/AccessMonitoring.tsx which is refactored/moved into a shared

@@ -1083,25 +1083,6 @@ message AppSpecV3 {
   bool UseAnyProxyPublicAddr = 14 [(gogoproto.jsontag) = "use_any_proxy_public_addr,omitempty"];
 }
 
-// AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
-// Used in application listings that request both app servers and saml apps.
-//
-// DEPRECATED: Use AppServer and SAMLIdPServiceProvider type individually.
-message AppServerOrSAMLIdPServiceProviderV1 {
-  option deprecated = true;
-  option (gogoproto.goproto_stringer) = false;
-  option (gogoproto.stringer) = false;
-  // Kind is the resource kind. Always "app_server_saml_idp_sp".
-  string Kind = 1 [(gogoproto.jsontag) = "kind"];
-  // The AppServer or SAMLIdPServiceProvider resource.
-  oneof Resource {
-    // AppServer is the AppServer resource.
-    AppServerV3 AppServer = 2 [(gogoproto.jsontag) = "app_server,omitempty"];
-    // SAMLIdPServiceProvider is the SAMLIdPServiceProvider resource.
-    SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 3 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
-  }
-}
-
 // Rewrite is a list of rewriting rules to apply to requests and responses.
 message Rewrite {
   // Redirect defines a list of hosts which will be rewritten to the public

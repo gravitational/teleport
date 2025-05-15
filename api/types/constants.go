@@ -183,13 +183,6 @@ const (
 	// KindApp is a web app resource.
 	KindApp = "app"
 
-	// KindAppOrSAMLIdPServiceProvider represent an App Server resource or a SAML IdP Service Provider (SAML Application) resource.
-	// This is not a real resource stored in the backend, it is a pseudo resource used only to provide a common interface to
-	// the ListResources RPC in order to be able to list both AppServers and SAMLIdPServiceProviders in the same request.
-	//
-	// DEPRECATED: Use KindAppServer and KindSAMLIdPServiceProvider individually.
-	KindAppOrSAMLIdPServiceProvider = "app_server_or_saml_idp_sp"
-
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
@@ -338,6 +331,9 @@ const (
 
 	// KindAutoUpdateAgentRollout is the resource that controls and tracks agent rollouts.
 	KindAutoUpdateAgentRollout = "autoupdate_agent_rollout"
+
+	// KindAutoUpdateAgentReport is the resource that tracks connected agents.
+	KindAutoUpdateAgentReport = "autoupdate_agent_report"
 
 	// MetaNameAutoUpdateConfig is the name of a configuration resource for autoupdate config.
 	MetaNameAutoUpdateConfig = "autoupdate-config"
@@ -516,6 +512,12 @@ const (
 	// KindServerInfo contains info that should be applied to joining Nodes.
 	KindServerInfo = "server_info"
 
+	// KindBackendInfo contains backend info.
+	KindBackendInfo = "backend_info"
+
+	// MetaNameBackendInfo name backend info entity.
+	MetaNameBackendInfo = "backend-info"
+
 	// SubKindCloudInfo is a ServerInfo that was created by the Discovery
 	// service to match with a single discovered instance.
 	SubKindCloudInfo = "cloud_info"
@@ -637,6 +639,9 @@ const (
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
+
+	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
+	MetaNameVnetConfig = "vnet-config"
 
 	// V8 is the eighth version of resources.
 	V8 = "v8"
@@ -1371,6 +1376,7 @@ var RequestableResourceKinds = []string{
 	KindSAMLIdPServiceProvider,
 	KindIdentityCenterAccount,
 	KindIdentityCenterAccountAssignment,
+	KindGitServer,
 }
 
 // The list below needs to be kept in sync with `kubernetesResourceKindOptions`

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -45,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/teleterm/services/desktop"
 	"github.com/gravitational/teleport/lib/teleterm/services/unifiedresources"
 	"github.com/gravitational/teleport/lib/teleterm/services/userpreferences"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
@@ -204,6 +206,26 @@ func (s *Service) AddCluster(ctx context.Context, webProxyAddress string) (*clus
 	}
 
 	return cluster, nil
+}
+
+// ConnectToDesktop establishes a desktop connection.
+func (s *Service) ConnectToDesktop(stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse], uri uri.ResourceURI, desktopName, login string) error {
+	ctx := stream.Context()
+
+	cluster, clusterClient, err := s.ResolveClusterURI(uri)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cachedClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		return trace.Wrap(desktop.Connect(ctx, stream, clusterClient, cachedClient.ProxyClient, desktopName, login))
+	})
+	return trace.Wrap(err)
 }
 
 // RemoveCluster removes cluster
@@ -834,7 +856,7 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	defer s.gatewaysMu.RUnlock()
 	for _, gw := range s.gateways {
 		targetURI := gw.TargetURI()
-		if !(targetURI.IsKube() && targetURI.GetRootClusterURI() == cluster.URI) {
+		if !targetURI.IsKube() && targetURI.GetRootClusterURI() != cluster.URI {
 			continue
 		}
 		kubeGw, err := gateway.AsKube(gw)
@@ -881,6 +903,27 @@ func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.Re
 	})
 
 	return resources, trace.Wrap(err)
+}
+
+// ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").
+func (s *Service) ListDatabaseServers(ctx context.Context, req *api.ListDatabaseServersRequest) (*clusters.GetDatabaseServersResponse, error) {
+	clusterURI, err := uri.Parse(req.GetClusterUri())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cluster, _, err := s.ResolveClusterURI(clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyClient, err := s.GetCachedClient(ctx, clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.ListDatabaseServers(ctx, req.GetParams(), proxyClient.CurrentCluster())
+	return response, trace.Wrap(err)
 }
 
 func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {

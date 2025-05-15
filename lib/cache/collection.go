@@ -26,12 +26,12 @@ import (
 )
 
 // collection is responsible for managing a cached resource.
-type collection[T any] struct {
+type collection[T any, I comparable] struct {
 	// fetcher is called by fetch to retrieve and seed the
 	// store with all known resources from upstream.
 	fetcher func(ctx context.Context, loadSecrets bool) ([]T, error)
 	// store persists all resources in memory.
-	store *store[T]
+	store *store[T, I]
 	// watch contains the kind of resource being monitored.
 	watch types.WatchKind
 	// headerTransform is used when handling delete events in [onDelete]. Since
@@ -53,7 +53,7 @@ type collection[T any] struct {
 	singleton bool
 }
 
-func (c collection[_]) watchKind() types.WatchKind {
+func (c collection[_, _]) watchKind() types.WatchKind {
 	return c.watch
 }
 
@@ -63,7 +63,7 @@ func (c collection[_]) watchKind() types.WatchKind {
 // specified.
 //
 // This is a no-op if the configured filter does not return true.
-func (c *collection[T]) onDelete(r types.Resource) error {
+func (c *collection[T, _]) onDelete(r types.Resource) error {
 	switch t := r.(type) {
 	case interface{ UnwrapT() T }:
 		tt := t.UnwrapT()
@@ -98,7 +98,7 @@ func (c *collection[T]) onDelete(r types.Resource) error {
 // An error is returned if the resource is of an unexpected type
 //
 // This is a no-op if the configured filter does not return true.
-func (c *collection[T]) onPut(r types.Resource) error {
+func (c *collection[T, _]) onPut(r types.Resource) error {
 	switch t := r.(type) {
 	case interface{ UnwrapT() T }:
 		tt := t.UnwrapT()
@@ -121,7 +121,7 @@ func (c *collection[T]) onPut(r types.Resource) error {
 }
 
 // fetch populates the store with items received by the configured fetcher.
-func (c collection[T]) fetch(ctx context.Context, cacheOK bool) (apply func(context.Context) error, err error) {
+func (c collection[T, _]) fetch(ctx context.Context, cacheOK bool) (apply func(context.Context) error, err error) {
 	// Singleton objects will only get deleted or updated, not both
 	// TODO(tross|fspmarshall|espadolini) investigate if special singleton
 	// behavior can be removed.
