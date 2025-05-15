@@ -277,6 +277,27 @@ func TestConvertAuditEvent(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "MCPSessionStart",
+			event: &apievents.MCPSessionStart{
+				UserMetadata: apievents.UserMetadata{User: "alice"},
+				AppMetadata: apievents.AppMetadata{
+					AppName: "mcp-everything",
+				},
+			},
+			expected: &SessionStartEvent{
+				SessionType: MCPAppSessionType,
+				UserName:    "alice",
+			},
+			expectedAnonymized: &prehogv1a.SubmitEventRequest{
+				Event: &prehogv1a.SubmitEventRequest_SessionStartV2{
+					SessionStartV2: &prehogv1a.SessionStartEvent{
+						SessionType: MCPAppSessionType,
+						UserName:    anonymizer.AnonymizeString("alice"),
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range cases {
