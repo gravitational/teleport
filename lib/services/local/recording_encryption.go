@@ -113,7 +113,7 @@ type recordingEncryptionParser struct {
 
 func newRecordingEncryptionParser() *recordingEncryptionParser {
 	return &recordingEncryptionParser{
-		baseParser: newBaseParser(backend.NewKey(recordingEncryptionConfigPrefix)),
+		baseParser: newBaseParser(backend.NewKey(recordingEncryptionPrefix, recordingEncryptionConfigPrefix)),
 	}
 }
 

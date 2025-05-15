@@ -78,6 +78,12 @@ const (
 	uploaderReservePartErrorMessage = "uploader failed to reserve upload part"
 )
 
+// EncryptedIO provides wrappers for encrypting an io.WriteCloser and decrypting an io.ReadSeeker.
+type EncryptedIO interface {
+	WithEncryption(io.WriteCloser) (io.WriteCloser, error)
+	WithDecryption(io.Reader) (io.Reader, error)
+}
+
 // ProtoStreamerConfig specifies configuration for the part
 type ProtoStreamerConfig struct {
 	Uploader MultipartUploader
@@ -92,6 +98,8 @@ type ProtoStreamerConfig struct {
 	ForceFlush chan struct{}
 	// RetryConfig defines how to retry on a failed upload
 	RetryConfig *retryutils.LinearConfig
+	// EncryptedIO provides wrappers for encrypting and decrypting proto streams.
+	EncryptedIO EncryptedIO
 }
 
 // CheckAndSetDefaults checks and sets streamer defaults
@@ -118,16 +126,18 @@ func NewProtoStreamer(cfg ProtoStreamerConfig) (*ProtoStreamer, error) {
 		// Min upload bytes + some overhead to prevent buffer growth (gzip writer is not precise)
 		bufferPool: utils.NewBufferSyncPool(cfg.MinUploadBytes + cfg.MinUploadBytes/3),
 		// MaxProtoMessage size + length of the message record
-		slicePool: utils.NewSliceSyncPool(MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
+		slicePool:   utils.NewSliceSyncPool(MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
+		encryptedIO: cfg.EncryptedIO,
 	}, nil
 }
 
 // ProtoStreamer creates protobuf-based streams uploaded to the storage
 // backends, for example S3 or GCS
 type ProtoStreamer struct {
-	cfg        ProtoStreamerConfig
-	bufferPool *utils.BufferSyncPool
-	slicePool  *utils.SliceSyncPool
+	cfg         ProtoStreamerConfig
+	bufferPool  *utils.BufferSyncPool
+	slicePool   *utils.SliceSyncPool
+	encryptedIO EncryptedIO
 }
 
 // CreateAuditStreamForUpload creates audit stream for existing upload,
@@ -142,6 +152,7 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 		ConcurrentUploads: s.cfg.ConcurrentUploads,
 		ForceFlush:        s.cfg.ForceFlush,
 		RetryConfig:       s.cfg.RetryConfig,
+		EncryptedIO:       s.cfg.EncryptedIO,
 	})
 }
 
@@ -171,6 +182,7 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		MinUploadBytes: s.cfg.MinUploadBytes,
 		CompletedParts: parts,
 		RetryConfig:    s.cfg.RetryConfig,
+		EncryptedIO:    s.cfg.EncryptedIO,
 	})
 }
 
@@ -203,6 +215,8 @@ type ProtoStreamConfig struct {
 	ConcurrentUploads int
 	// RetryConfig defines how to retry on a failed upload
 	RetryConfig *retryutils.LinearConfig
+	// EncryptedIO provides wrappers for encrypting and decrypting proto streams.
+	EncryptedIO EncryptedIO
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -663,10 +677,19 @@ func (w *sliceWriter) newSlice() (*slice, error) {
 		return nil, trace.ConnectionProblem(err, uploaderReservePartErrorMessage)
 	}
 
+	var writer io.WriteCloser = &bufferCloser{Buffer: buffer}
+	if w.proto.cfg.EncryptedIO != nil {
+		// we want to encrypt after compression and wrapping order is outer->inner, so gzip is the outermost layer
+		writer, err = w.proto.cfg.EncryptedIO.WithEncryption(writer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return &slice{
 		proto:  w.proto,
 		buffer: buffer,
-		writer: newGzipWriter(&bufferCloser{Buffer: buffer}),
+		writer: newGzipWriter(writer),
 	}, nil
 }
 
@@ -856,7 +879,7 @@ func (a *activeUpload) getPart() (*StreamPart, error) {
 // slice contains serialized protobuf messages
 type slice struct {
 	proto          *ProtoStream
-	writer         *gzipWriter
+	writer         io.WriteCloser
 	buffer         *bytes.Buffer
 	isLast         bool
 	lastEventIndex int64
@@ -943,11 +966,12 @@ func (s *slice) recordEvent(event protoEvent) error {
 }
 
 // NewProtoReader returns a new proto reader with slice pool
-func NewProtoReader(r io.Reader) *ProtoReader {
+func NewProtoReader(r io.Reader, encryptedIO EncryptedIO) (*ProtoReader, error) {
 	return &ProtoReader{
-		reader:    r,
-		lastIndex: -1,
-	}
+		reader:      r,
+		lastIndex:   -1,
+		encryptedIO: encryptedIO,
+	}, nil
 }
 
 // SessionReader provides method to read
@@ -981,6 +1005,7 @@ type ProtoReader struct {
 	error        error
 	lastIndex    int64
 	stats        ProtoReaderStats
+	encryptedIO  EncryptedIO
 }
 
 // ProtoReaderStats contains some reader statistics
@@ -1095,10 +1120,19 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
 			r.padding = int64(binary.BigEndian.Uint64(r.sizeBytes[:Int64Size]))
-			gzipReader, err := newGzipReader(io.NopCloser(io.LimitReader(r.reader, int64(partSize))))
+			reader := r.reader
+			if r.encryptedIO != nil {
+				reader, err = r.encryptedIO.WithDecryption(r.reader)
+				if err != nil {
+					return nil, r.setError(trace.Wrap(err))
+				}
+			}
+
+			gzipReader, err := newGzipReader(io.NopCloser(io.LimitReader(reader, int64(partSize))))
 			if err != nil {
 				return nil, r.setError(trace.Wrap(err))
 			}
+
 			r.gzipReader = gzipReader
 			r.state = protoReaderStateCurrent
 			continue

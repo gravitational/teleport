@@ -206,6 +206,36 @@ func (r *ResolverBackend) ResolveRecordingEncryption(ctx context.Context) (*reco
 	return encryption, nil
 }
 
+// GetDecryptionKey returns the first decryption accessible decryption key
+// that matches one of the given public keys.
+func (r *ResolverBackend) GetDecryptionKey(ctx context.Context, publicKeys [][]byte) (*types.EncryptionKeyPair, error) {
+	// TODO (eriktate): this needs to actually look up by public key in the future instead of just finding the first accessible active key
+	encryption, err := r.GetRecordingEncryption(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	activeKeys := encryption.GetSpec().GetKeySet().GetActiveKeys()
+	for _, key := range activeKeys {
+		decrypter, err := r.keyStore.GetDecrypter(ctx, key.KeyEncryptionPair)
+		if err != nil {
+			continue
+		}
+
+		privateKey, err := decrypter.Decrypt(rand.Reader, key.RecordingEncryptionPair.PrivateKey, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &types.EncryptionKeyPair{
+			PrivateKey: privateKey,
+			PublicKey:  key.RecordingEncryptionPair.PublicKey,
+		}, nil
+	}
+
+	return nil, trace.NotFound("no accessible decryption key found")
+}
+
 // GetAgeEncryptionKeys returns an iterator of AgeEncryptionKeys from a list of WrappedKeys. This is for use in
 // populating the EncryptionKeys field of SessionRecordingConfigStatus.
 func GetAgeEncryptionKeys(keys []*recordingencryptionv1.WrappedKey) iter.Seq[*types.AgeEncryptionKey] {
