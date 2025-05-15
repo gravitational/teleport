@@ -27,9 +27,9 @@ import (
 	"github.com/jcmturner/gokrb5/v8/keytab"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/srv/db/common/kerberos/kinit"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type clientProvider struct {
@@ -107,10 +107,9 @@ func (c *clientProvider) keytabClient(ad types.AD, username string) (*client.Cli
 
 // kinitClient returns a kerberos client using a kinit ccache
 func (c *clientProvider) kinitClient(ctx context.Context, ad types.AD, username string, auth windows.AuthInterface, dataDir string) (*client.Client, error) {
-	if _, err := tlsca.ParseCertificatePEM([]byte(ad.LDAPCert)); err != nil {
+	if _, err := tlsutils.ParseCertificatePEM([]byte(ad.LDAPCert)); err != nil {
 		return nil, trace.Wrap(err, "invalid certificate was provided via AD configuration")
 	}
-
 	certGetter := &kinit.DBCertGetter{
 		Auth:     auth,
 		Logger:   c.Logger,
