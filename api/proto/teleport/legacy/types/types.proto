@@ -5357,7 +5357,7 @@ message SAMLConnectorSpecV2 {
   // is treated as NO.
   SAMLForceAuthn ForceAuthn = 18 [(gogoproto.jsontag) = "force_authn,omitempty"];
   // PreferredRequestBinding is a preferred SAML request binding method.
-  // Value be "http-post" or "http-redirect".
+  // Value must be either "http-post" or "http-redirect".
   string PreferredRequestBinding = 19 [(gogoproto.jsontag) = "preferred_request_binding,omitempty"];
 }
 
@@ -5478,12 +5478,13 @@ message SAMLAuthRequest {
   teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
   // TlsAttestationStatement is an attestation statement for the given TLS public key.
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
-  // PreferredRequestBinding is a preferred SAML request binding method.
-  // Value be "http-post" or "http-redirect".
-  string PreferredRequestBinding = 23 [(gogoproto.jsontag) = "preferred_request_binding,omitempty"];
-  // PostFormData contains HTML POST form that contains the SAML request data.
-  // Value only set if the PreferredRequestBinding "http-redirect".
-  bytes PostFormData = 24 [(gogoproto.jsontag) = "post_form_data"];
+  // PostForm is the HTML form value that contains the SAML authentication request data.
+  // Value is only set if the PreferredRequestBinding in the SAMLConnectorSpecV2
+  // is "http-post". In any other case, RedirectURL field will be populated.
+  bytes PostForm = 23 [(gogoproto.jsontag) = "post_form,omitempty"];
+  // ClientVersion is the version of tsh or Proxy sending SAMLAuthRequest request.
+  // The value is used by the Auth service to facilitate SSO as supported by the client.
+  string ClientVersion = 24 [(gogoproto.jsontag) = "client_version,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.

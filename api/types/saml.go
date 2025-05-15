@@ -449,10 +449,13 @@ func (o *SAMLConnectorV2) GetForceAuthn() bool {
 }
 
 const (
+	// SAMLRequestHTTPRedirectBinding is the SAML http-redirect binding request name.
 	SAMLRequestHTTPRedirectBinding = "http-redirect"
-	SAMLRequestHTTPPostBinding     = "http-post"
+	// SAMLRequestHTTPPostBinding is the SAML http-post binding request name.
+	SAMLRequestHTTPPostBinding = "http-post"
 )
 
+// GetPreferredRequestBinding returns PreferredRequestBinding.
 func (o *SAMLConnectorV2) GetPreferredRequestBinding() string {
 	return o.Spec.PreferredRequestBinding
 }
@@ -539,12 +542,6 @@ func (r *SAMLAuthRequest) Check() error {
 	if len(r.PublicKey)+len(r.SshPublicKey)+len(r.TlsPublicKey) > 0 &&
 		(r.CertTTL > defaults.MaxCertDuration || r.CertTTL < defaults.MinCertDuration) {
 		return trace.BadParameter("wrong CertTTL")
-	}
-	if r.PreferredRequestBinding == SAMLRequestHTTPPostBinding && len(r.PostFormData) == 0 {
-		return trace.BadParameter("PostFormData value cannot be empty for preferred http-post binding")
-	}
-	if r.PreferredRequestBinding == SAMLRequestHTTPRedirectBinding && r.RedirectURL == "" {
-		return trace.BadParameter("RedirectURL value cannot be empty for preferred http-redirect binding")
 	}
 	return nil
 }

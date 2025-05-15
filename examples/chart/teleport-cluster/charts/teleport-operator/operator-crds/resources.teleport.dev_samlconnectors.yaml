@@ -163,7 +163,7 @@ spec:
                 type: object
               preferred_request_binding:
                 description: PreferredRequestBinding is a preferred SAML request binding
-                  method. Value be "http-post" or "http-redirect".
+                  method. Value must be either "http-post" or "http-redirect".
                 type: string
               provider:
                 description: Provider is the external identity provider.

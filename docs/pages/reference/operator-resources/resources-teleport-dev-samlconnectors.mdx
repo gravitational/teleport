@@ -39,7 +39,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |force_authn|string or integer|ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED is treated as NO. Can be either the string or the integer representation of each option.|
 |issuer|string|Issuer is the identity provider issuer.|
 |mfa|[object](#specmfa)|MFASettings contains settings to enable SSO MFA checks through this auth connector.|
-|preferred_request_binding|string|PreferredRequestBinding is a preferred SAML request binding method. Value be "http-post" or "http-redirect".|
+|preferred_request_binding|string|PreferredRequestBinding is a preferred SAML request binding method. Value must be either "http-post" or "http-redirect".|
 |provider|string|Provider is the external identity provider.|
 |service_provider_issuer|string|ServiceProviderIssuer is the issuer of the service provider (Teleport).|
 |signing_key_pair|[object](#specsigning_key_pair)|SigningKeyPair is an x509 key pair used to sign AuthnRequest.|
