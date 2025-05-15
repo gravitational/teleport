@@ -25,7 +25,8 @@ Since Teleport certificate authorities are already backed up in the new region,
 running Teleport Agents and bots outside the unavailable region do not need to
 reconnect to the cluster. In this disaster recovery scenario, the recovery time
 objective depends on the time it takes to redeploy the Auth Service and Proxy
-Service in the new region.
+Service in the new region, as well as the time to live (TTL) of the DNS records
+for the Teleport Proxy Service.
 
 ## Prerequisites
 
@@ -48,13 +49,18 @@ to prevent issues.
 
 </Admonition>
 
-## Step 1/5. Back up Auth Service backends
+## Step 1/4. Back up Auth Service backends
 
 The first step in setting up a disaster recovery procedure for your Teleport
 cluster on Amazon EKS is to back up your Teleport Auth Service backends to a
 secondary region. If the primary region becomes unavailable, the backend
 replicas in the secondary region will be ready for your new cluster to connect
 to once you redeploy it in the secondary region.
+
+The recovery point objective for a Teleport cluster during a regional outage
+depends on how frequently you back up the Auth Service backend. The more
+frequent the backups, the fewer backend changes you will lose when you restore
+the cluster during a disaster.
 
 ### Cluster state backend
 
@@ -79,7 +85,7 @@ for information about using KMS keys in multiple regions.
 
 Note that KMS support is only possible in the `teleport-cluster` Helm chart
 using the `auth.teleportConfig` values field ([chart
-reference](../../../reference/helm-reference/teleport-cluster.mdx/#authteleportconfig),
+reference](../../../reference/helm-reference/teleport-cluster.mdx#authteleportconfig),
 and is not recommended for most `teleport-cluster` users.
 
 </details>
@@ -105,48 +111,7 @@ Blueprint](../multi-region-blueprint.mdx#setting-up-multi-region-aws-s3-replicat
 guide to plan multi-region S3 bucket replication for your session recording
 backend.
 
-## Step 2/5. Impose a change freeze
-
-If a Teleport admin updates a record on the cluster state backend after the last
-backup, and restores the backend from the backup during a disaster recovery
-procedure, the update will not be reflected on the backend. You can ensure that
-your Teleport cluster returns to an expected state by imposing a change freeze.
-
-You can impose a change freeze by locking Teleport roles that include
-permissions to edit dynamic resources. Teleport roles allow access to modifying
-dynamic resources with the `spec.allow.rules` field. 
-
-You can use the following `jq` command to list all roles with one or more rule
-that grants permissions to modify backend resources. This example assumes that
-there is a role called `locksmith` that allows the user to create, list, read,
-and delete locks. It skips the `locksmith` user so you can remove the lock after
-restoring the cluster:
-
-```code
-$ tctl get roles --format json | jq -r '.[] | select(.metadata.name != "locksmith" and .spec.allow.rules) | .metadata.name'
-dashboard-admin
-dashboard-user
-device-admin
-device-enroll
-group-access
-```
-
-Teleport grants access to certificate authority rotations using the
-`spec.allow.rules` field - on the `cert_authority` resource - so using role
-locking to impose a change freeze will also unintended certificate authority
-rotations during the disaster recovery procedure.
-
-Create a lock using a `tctl lock` command. The following example locks the
-`contractor` role for 24 hours:
-
-```code
-$ tctl lock --role=contractor --message="change freeze during disaster recovery" --ttl=24h
-```
-
-Note that users with permissions to execute commands directly on the Auth
-Service pod can still make changes to the backend using `tctl`.
-
-## Step 3/5. Stop the existing cluster
+## Step 2/4. Stop the existing cluster
 
 When you detect a zonal or regional outage, it is important that you cleanly
 stop the existing Teleport cluster. While outages at the cloud provider level
@@ -155,12 +120,16 @@ cluster may continue successfully. After the outage has concluded, services that
 remained functional or come back online can cause the cluster to behave in
 unexpected ways.
 
-1. Stop any Teleport Auth Service and Proxy Service pods in your cluster:
+1. If it is possible to do so, stop any Teleport Auth Service and Proxy Service
+   pods in your cluster. This command assumes that the name of your release is
+   `teleport-cluster` and that it runs in the `teleport` namespace:
 
    ```code
-   $ kubectl -n teleport delete deployment/teleport-cluster-auth
-   $ kubectl -n teleport delete deployment/teleport-cluster-proxy
+   $ helm --namespace teleport uninstall teleport-cluster
    ```
+
+   Note that, in the case of a full regional outage, your existing cluster may
+   already be unavailable.
 
 1. Teleport Agents can remain connected to a Teleport cluster even after an
    outage has caused it to become unavailable. For any Agents running outside
@@ -170,7 +139,7 @@ unexpected ways.
    need to redeploy them to the new region after relaunching the Auth Service
    and Proxy Service.
  
-## Step 4/5. Relaunch the Auth Service and Proxy Service
+## Step 3/4. Relaunch the Auth Service and Proxy Service
 
 Now that there is a backup of the Auth Service backend, you are safe to deploy
 the Teleport cluster in a new region.  
@@ -215,7 +184,7 @@ private key before installing the chart in the new region.
 
 For guidance on configuring your EKS cluster to use ACM and `cert-manager` with
 the Teleport Proxy Service load balancer, see [Configure TLS certificates for
-Teleport](./aws/#step-47-configure-tls-certificates-for-teleport).
+Teleport](./aws.mdx#step-47-configure-tls-certificates-for-teleport).
 
 ### Reinstall the Helm chart
 
@@ -255,23 +224,7 @@ delegated join methods to prevent this scenario.
 
 </Admonition>
 
-## Step 5/6. Remove the change freeze
-
-Now that the Teleport cluster is back online in your new region, you can remove
-the change freeze so admins can modify resources on the cluster state backend.
-
-Use the `tctl rm lock/<lock_id>` command to remove each lock. If you provided
-each lock with a similar `--message` flag value when creating the locks, you can
-remove all locks you created with a single command. This command removes all
-locks with a message that includes the substring `change freeze`:
-
-```code
-$ tctl get lock --format=json \
-  | jq -r '.[] | select(.spec.message and (.spec.message | contains("change freeze"))) | .metadata.name' \
-  | xargs -I{} tctl rm lock/{}
-```
-
-## Step 6/6. Update DNS records
+## Step 4/4. Update DNS records
 
 Once you have launched your Teleport cluster in the new AWS region, you must
 ensure that Route 53 DNS records point to the new cluster.
@@ -319,6 +272,9 @@ your disaster recovery procedure](#testing-your-disaster-recovery-procedure).
 You can take measures to shorten the recovery time objective of your disaster
 recovery procedure. Possibilities include:
 
+- Reduce the TTL of the DNS records for the Teleport Proxy Service. If this is
+  longer than the time it takes to redeploy your cluster to a new region,
+  clients may continue to connect to the cluster in the previous region.
 - Restore your cluster state and audit event backend tables from backup prior to
   reinstalling the `teleport-cluster` Helm chart, so the Teleport Auth Service
   does not need to initialize any tables itself.
@@ -328,6 +284,61 @@ recovery procedure. Possibilities include:
   availability while waiting for your cluster to deploy to a new region. Read
   about the architecture of a multi-region Teleport deployment in the
   [Multi-Region Blueprint](../multi-region-blueprint.mdx) guide.
+
+### Imposing a change freeze
+
+During a regional cloud provider outage, the procedure we outline in this guide
+includes stopping the Teleport cluster in the affected region. Until the cluster
+comes back online, it is impossible for users to update dynamic resources or
+rotate the cluster CAs. In some cases, though, you may need to impose a change
+freeze to prevent users from updating cluster resources while you restore a
+cluster from a backup.
+
+You can impose a change freeze by locking Teleport roles that include
+permissions to edit dynamic resources. Teleport roles allow access to modifying
+dynamic resources with the `spec.allow.rules` field. 
+
+You can use the following `jq` command to list all roles with one or more rule
+that grants permissions to modify backend resources. This example assumes that
+there is a role called `locksmith` that allows the user to create, list, read,
+and delete locks. It skips the `locksmith` user so you can remove the lock after
+restoring the cluster:
+
+```code
+$ tctl get roles --format json | jq -r '.[] | select(.metadata.name != "locksmith" and .spec.allow.rules) | .metadata.name'
+dashboard-admin
+dashboard-user
+device-admin
+device-enroll
+group-access
+```
+
+Teleport grants access to certificate authority rotations using the
+`spec.allow.rules` field - on the `cert_authority` resource - so using role
+locking to impose a change freeze will also unintended certificate authority
+rotations during the disaster recovery procedure.
+
+Create a lock using a `tctl lock` command. The following example locks the
+`contractor` role for 24 hours:
+
+```code
+$ tctl lock --role=contractor --message="change freeze during disaster recovery" --ttl=24h
+```
+
+Note that users with permissions to execute commands directly on the Auth
+Service pod can still make changes to the backend using `tctl`.
+
+Once it is safe for users to modify cluster resources, use the `tctl rm
+lock/<lock_id>` command to remove each lock. If you provided each lock with a
+similar `--message` flag value when creating the locks, you can remove all locks
+you created with a single command. This command removes all locks with a message
+that includes the substring `change freeze`:
+
+```code
+$ tctl get lock --format=json \
+  | jq -r '.[] | select(.spec.message and (.spec.message | contains("change freeze"))) | .metadata.name' \
+  | xargs -I{} tctl rm lock/{}
+```
 
 ## Further reading
 
