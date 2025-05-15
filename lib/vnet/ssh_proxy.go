@@ -175,7 +175,7 @@ func proxyChannel(
 	}()
 
 	// ProxyConn copies channel data bidirectionally. If the context is
-	// cancelled it will terminate, it always closes both channels before
+	// canceled it will terminate, it always closes both channels before
 	// returning.
 	if err := utils.ProxyConn(ctx, incomingChan, targetChan); err != nil &&
 		!utils.IsOKNetworkError(err) && !errors.Is(err, context.Canceled) {
