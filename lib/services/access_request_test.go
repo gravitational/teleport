@@ -742,10 +742,10 @@ func TestReviewThresholds(t *testing.T) {
 
 			// perform request validation (necessary in order to initialize internal
 			// request variables like annotations and thresholds).
-			validator, err := NewRequestValidator(ctx, clock, g, tt.requestor, ExpandVars(true))
+			validator, err := newRequestValidator(ctx, clock, g, tt.requestor, WithExpandVars(true))
 			require.NoError(t, err, "scenario=%q", tt.desc)
 
-			require.NoError(t, validator.Validate(ctx, req, identity), "scenario=%q", tt.desc)
+			require.NoError(t, validator.validate(ctx, req, identity), "scenario=%q", tt.desc)
 
 		Inner:
 			for ri, rt := range tt.reviews {
@@ -1275,10 +1275,10 @@ func TestRolesForResourceRequest(t *testing.T) {
 				Expires: clock.Now().UTC().Add(8 * time.Hour),
 			}
 
-			validator, err := NewRequestValidator(context.Background(), clock, g, uls.GetName(), ExpandVars(true))
+			validator, err := newRequestValidator(context.Background(), clock, g, uls.GetName(), WithExpandVars(true))
 			require.NoError(t, err)
 
-			err = validator.Validate(context.Background(), req, identity)
+			err = validator.validate(context.Background(), req, identity)
 			require.ErrorIs(t, err, tc.expectError)
 			if err != nil {
 				return
@@ -1669,7 +1669,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			accessCaps, err := CalculateAccessCapabilities(ctx, clock, g, tlsca.Identity{}, types.AccessCapabilitiesRequest{User: user, ResourceIDs: tc.requestResourceIDs})
 			require.NoError(t, err)
 
-			err = ValidateAccessRequestForUser(ctx, clock, g, req, identity, ExpandVars(true))
+			err = ValidateAccessRequestForUser(ctx, clock, g, req, identity, WithExpandVars(true))
 			if tc.expectError {
 				require.Error(t, err)
 				return
@@ -1940,7 +1940,7 @@ func TestCalculatePendingRequestTTL(t *testing.T) {
 				roles:      map[string]types.Role{"bar": role},
 			}
 
-			validator, err := NewRequestValidator(context.Background(), clock, getter, "foo", ExpandVars(true))
+			validator, err := newRequestValidator(context.Background(), clock, getter, "foo", WithExpandVars(true))
 			require.NoError(t, err)
 
 			request, err := types.NewAccessRequest("some-id", "foo", "bar")
@@ -2015,7 +2015,7 @@ func TestSessionTTL(t *testing.T) {
 				roles: map[string]types.Role{"bar": role},
 			}
 
-			validator, err := NewRequestValidator(context.Background(), clock, getter, "foo", ExpandVars(true))
+			validator, err := newRequestValidator(context.Background(), clock, getter, "foo", WithExpandVars(true))
 			require.NoError(t, err)
 
 			request, err := types.NewAccessRequest("some-id", "foo", "bar")
@@ -2070,11 +2070,11 @@ func TestAutoRequest(t *testing.T) {
 	cases := []struct {
 		name      string
 		roles     []types.Role
-		assertion func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities)
+		assertion func(t *testing.T, validator *requestValidator, accessCaps *types.AccessCapabilities)
 	}{
 		{
 			name: "no roles",
-			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
+			assertion: func(t *testing.T, validator *requestValidator, accessCaps *types.AccessCapabilities) {
 				require.False(t, validator.requireReasonForAllRoles)
 				require.False(t, validator.autoRequest)
 				require.Empty(t, validator.prompt)
@@ -2087,7 +2087,7 @@ func TestAutoRequest(t *testing.T) {
 		{
 			name:  "with prompt",
 			roles: []types.Role{empty, optionalRole, promptRole},
-			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
+			assertion: func(t *testing.T, validator *requestValidator, accessCaps *types.AccessCapabilities) {
 				require.False(t, validator.requireReasonForAllRoles)
 				require.False(t, validator.autoRequest)
 				require.Equal(t, "test prompt", validator.prompt)
@@ -2100,7 +2100,7 @@ func TestAutoRequest(t *testing.T) {
 		{
 			name:  "with auto request",
 			roles: []types.Role{alwaysRole},
-			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
+			assertion: func(t *testing.T, validator *requestValidator, accessCaps *types.AccessCapabilities) {
 				require.False(t, validator.requireReasonForAllRoles)
 				require.True(t, validator.autoRequest)
 				require.Empty(t, validator.prompt)
@@ -2113,7 +2113,7 @@ func TestAutoRequest(t *testing.T) {
 		{
 			name:  "with prompt and auto request",
 			roles: []types.Role{promptRole, alwaysRole},
-			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
+			assertion: func(t *testing.T, validator *requestValidator, accessCaps *types.AccessCapabilities) {
 				require.False(t, validator.requireReasonForAllRoles)
 				require.True(t, validator.autoRequest)
 				require.Equal(t, "test prompt", validator.prompt)
@@ -2126,7 +2126,7 @@ func TestAutoRequest(t *testing.T) {
 		{
 			name:  "with reason and auto prompt",
 			roles: []types.Role{reasonRole},
-			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
+			assertion: func(t *testing.T, validator *requestValidator, accessCaps *types.AccessCapabilities) {
 				require.True(t, validator.requireReasonForAllRoles)
 				require.True(t, validator.autoRequest)
 				require.Empty(t, validator.prompt)
@@ -2159,7 +2159,7 @@ func TestAutoRequest(t *testing.T) {
 
 		getter.userStates[uls.GetName()] = uls
 
-		validator, err := NewRequestValidator(ctx, clock, getter, uls.GetName(), ExpandVars(true))
+		validator, err := newRequestValidator(ctx, clock, getter, uls.GetName(), WithExpandVars(true))
 		require.NoError(t, err)
 
 		accessCapabilities, err := CalculateAccessCapabilities(ctx, clock, getter, tlsca.Identity{}, types.AccessCapabilitiesRequest{
@@ -2428,7 +2428,7 @@ func TestReasonRequired(t *testing.T) {
 
 			// test RequestValidator.Validate
 			{
-				validator, err := NewRequestValidator(ctx, clock, g, uls.GetName(), ExpandVars(true))
+				validator, err := newRequestValidator(ctx, clock, g, uls.GetName(), WithExpandVars(true))
 				require.NoError(t, err)
 
 				req, err := types.NewAccessRequestWithResources(
@@ -2436,17 +2436,17 @@ func TestReasonRequired(t *testing.T) {
 				require.NoError(t, err)
 
 				// No reason in the request.
-				err = validator.Validate(ctx, req.Copy(), identity)
+				err = validator.validate(ctx, req.Copy(), identity)
 				require.ErrorIs(t, err, tc.expectError)
 
 				// White-space reason should be treated as no reason.
 				req.SetRequestReason("  \t \n  ")
-				err = validator.Validate(ctx, req.Copy(), identity)
+				err = validator.validate(ctx, req.Copy(), identity)
 				require.ErrorIs(t, err, tc.expectError)
 
 				// When non-empty reason is provided then validation should pass.
 				req.SetRequestReason("good reason")
-				err = validator.Validate(ctx, req.Copy(), identity)
+				err = validator.validate(ctx, req.Copy(), identity)
 				require.NoError(t, err)
 			}
 
@@ -2544,7 +2544,7 @@ func TestValidateResourceRequestSizeLimits(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	require.NoError(t, ValidateAccessRequestForUser(context.Background(), clock, g, req, identity, ExpandVars(true)))
+	require.NoError(t, ValidateAccessRequestForUser(context.Background(), clock, g, req, identity, WithExpandVars(true)))
 	require.Len(t, req.GetRequestedResourceIDs(), 2)
 	require.Equal(t, "/someCluster/node/resource1", types.ResourceIDToString(req.GetRequestedResourceIDs()[0]))
 	require.Equal(t, "/someCluster/node/resource2", types.ResourceIDToString(req.GetRequestedResourceIDs()[1]))
@@ -2558,7 +2558,7 @@ func TestValidateResourceRequestSizeLimits(t *testing.T) {
 		})
 	}
 	req.SetRequestedResourceIDs(requestedResourceIDs)
-	require.ErrorContains(t, ValidateAccessRequestForUser(context.Background(), clock, g, req, identity, ExpandVars(true)), "access request exceeds maximum length")
+	require.ErrorContains(t, ValidateAccessRequestForUser(context.Background(), clock, g, req, identity, WithExpandVars(true)), "access request exceeds maximum length")
 }
 
 func TestValidateAccessRequestClusterNames(t *testing.T) {
@@ -2848,7 +2848,7 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 				Expires: now.Add(defaultSessionTTL),
 			}
 
-			validator, err := NewRequestValidator(context.Background(), clock, g, tt.requestor, ExpandVars(true))
+			validator, err := newRequestValidator(context.Background(), clock, g, tt.requestor, WithExpandVars(true))
 			require.NoError(t, err)
 
 			req.SetCreationTime(now)
@@ -2857,7 +2857,7 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 			}
 			req.SetDryRun(tt.dryRun)
 
-			require.NoError(t, validator.Validate(context.Background(), req, identity))
+			require.NoError(t, validator.validate(context.Background(), req, identity))
 			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetAccessExpiry())
 			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetMaxDuration())
 			require.Equal(t, now.Add(tt.expectedSessionTTL), req.GetSessionTLL())
@@ -2897,7 +2897,7 @@ func TestValidate_RequestedPendingTTLAndMaxDuration(t *testing.T) {
 		Expires: now.Add(defaultSessionTTL),
 	}
 
-	validator, err := NewRequestValidator(context.Background(), clock, g, "alice", ExpandVars(true))
+	validator, err := newRequestValidator(context.Background(), clock, g, "alice", WithExpandVars(true))
 	require.NoError(t, err)
 
 	requestedMaxDuration := 4 * day
@@ -2907,7 +2907,7 @@ func TestValidate_RequestedPendingTTLAndMaxDuration(t *testing.T) {
 	req.SetMaxDuration(now.Add(requestedMaxDuration))
 	req.SetExpiry(now.Add(requestedPendingTTL))
 
-	require.NoError(t, validator.Validate(context.Background(), req, identity))
+	require.NoError(t, validator.validate(context.Background(), req, identity))
 	require.Equal(t, now.Add(requestedMaxDuration), req.GetAccessExpiry())
 	require.Equal(t, now.Add(requestedMaxDuration), req.GetMaxDuration())
 	require.Equal(t, now.Add(defaultSessionTTL), req.GetSessionTLL())
@@ -3479,10 +3479,10 @@ func TestValidate_WithAllowRequestKubernetesResources(t *testing.T) {
 				Expires: clock.Now().UTC().Add(8 * time.Hour),
 			}
 
-			validator, err := NewRequestValidator(context.Background(), clock, g, uls.GetName(), ExpandVars(true))
+			validator, err := newRequestValidator(context.Background(), clock, g, uls.GetName(), WithExpandVars(true))
 			require.NoError(t, err)
 
-			err = validator.Validate(context.Background(), req, identity)
+			err = validator.validate(context.Background(), req, identity)
 			if tc.wantInvalidRequestKindErr {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), InvalidKubernetesKindAccessRequest)

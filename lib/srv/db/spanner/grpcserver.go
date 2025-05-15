@@ -37,9 +37,11 @@ import (
 	"google.golang.org/grpc/stats"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 )
 
 type upstream[T any] interface {
@@ -328,7 +330,7 @@ func (e *Engine) getClientLocked(ctx context.Context) (spannerpb.SpannerClient, 
 				messagesReceived: common.GetMessagesFromServerMetric(e.sessionCtx.Database),
 			})),
 			option.WithTokenSource(ts),
-			option.WithEndpoint(e.sessionCtx.Database.GetURI()),
+			option.WithEndpoint(getEndpoint(e.sessionCtx.Database)),
 			// pool size seems to be adjusted to number of gRPC channels, which is
 			// 4 by default in Google's code and seemingly other clients as well,
 			// but with Teleport in the middle each downstream client connection
@@ -515,3 +517,18 @@ func (s *messageStatsHandler) TagConn(ctx context.Context, _ *stats.ConnTagInfo)
 
 // HandleConn is a no-op for the message stats handler.
 func (s *messageStatsHandler) HandleConn(_ context.Context, _ stats.ConnStats) {}
+
+// getEndpoint is a simple helper that returns the endpoint to dial.
+// It exists to intentionally couple the engine dialing logic with the endpoint
+// resolver logic.
+func getEndpoint(db types.Database) string {
+	return db.GetURI()
+}
+
+// NewEndpointsResolver returns an endpoint resolver.
+func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
+	uri := getEndpoint(db)
+	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
+		return []string{uri}, nil
+	}), nil
+}

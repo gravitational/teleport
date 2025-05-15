@@ -58,6 +58,8 @@ type YubiKey struct {
 	serialNumber uint32
 	// version is the YubiKey's version.
 	version piv.Version
+	// pinCache can be used to skip PIN prompts for keys that have PIN caching enabled.
+	pinCache *pinCache
 }
 
 // FindYubiKey finds a YubiKey PIV card by serial number. If the provided
@@ -111,6 +113,7 @@ func findYubiKeyCards() ([]string, error) {
 
 func newYubiKey(card string) (*YubiKey, error) {
 	y := &YubiKey{
+		pinCache: newPINCache(),
 		conn: &sharedPIVConnection{
 			card: card,
 		},
@@ -234,8 +237,8 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyI
 				defer touchPromptDelayTimer.Reset(signTouchPromptDelay)
 			}
 		}
-		pass, err := prompt.AskPIN(ctx, hardwarekey.PINRequired, keyInfo)
-		return pass, trace.Wrap(err)
+
+		return y.promptPIN(ctx, prompt, hardwarekey.PINRequired, keyInfo, ref.PINCacheTTL)
 	}
 
 	pinPolicy := piv.PINPolicyNever
@@ -334,7 +337,7 @@ func (y *YubiKey) Reset() error {
 }
 
 // generatePrivateKey generates a new private key in the given PIV slot.
-func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPolicy, algorithm hardwarekey.SignatureAlgorithm) (*hardwarekey.PrivateKeyRef, error) {
+func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPolicy, algorithm hardwarekey.SignatureAlgorithm, pinCacheTTL time.Duration) (*hardwarekey.PrivateKeyRef, error) {
 	touchPolicy := piv.TouchPolicyNever
 	if policy.TouchRequired {
 		touchPolicy = piv.TouchPolicyCached
@@ -367,7 +370,7 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPol
 		TouchPolicy: touchPolicy,
 	}
 
-	if _, err := y.conn.generateKey(piv.DefaultManagementKey, slot, opts); err != nil {
+	if err := y.GenerateKey(slot, opts); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -378,7 +381,13 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPol
 		return nil, trace.Wrap(err)
 	}
 
-	return y.getKeyRef(slot)
+	return y.getKeyRef(slot, pinCacheTTL)
+}
+
+// GenerateKey generates a new private key in the given PIV slot.
+func (y *YubiKey) GenerateKey(slot piv.Slot, opts piv.Key) error {
+	_, err := y.conn.generateKey(piv.DefaultManagementKey, slot, opts)
+	return trace.Wrap(err)
 }
 
 // SetMetadataCertificate creates a self signed certificate and stores it in the YubiKey's
@@ -422,7 +431,7 @@ func (y *YubiKey) attestKey(slot piv.Slot) (slotCert *x509.Certificate, attCert 
 	return slotCert, attCert, att, nil
 }
 
-func (y *YubiKey) getKeyRef(slot piv.Slot) (*hardwarekey.PrivateKeyRef, error) {
+func (y *YubiKey) getKeyRef(slot piv.Slot, pinCacheTTL time.Duration) (*hardwarekey.PrivateKeyRef, error) {
 	slotCert, attCert, att, err := y.attestKey(slot)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -444,6 +453,7 @@ func (y *YubiKey) getKeyRef(slot piv.Slot) (*hardwarekey.PrivateKeyRef, error) {
 				},
 			},
 		},
+		PINCacheTTL: pinCacheTTL,
 	}
 
 	if err := ref.Validate(); err != nil {
@@ -459,7 +469,64 @@ func (y *YubiKey) SetPIN(oldPin, newPin string) error {
 	return trace.Wrap(err)
 }
 
-func (y *YubiKey) setPINAndPUKFromDefault(ctx context.Context, prompt hardwarekey.Prompt, keyInfo hardwarekey.ContextualKeyInfo) (string, error) {
+// checkOrSetPIN prompts the user for PIN and verifies it with the YubiKey.
+// If the user provides the default PIN, they will be prompted to set a
+// non-default PIN and PUK before continuing.
+func (y *YubiKey) checkOrSetPIN(ctx context.Context, prompt hardwarekey.Prompt, keyInfo hardwarekey.ContextualKeyInfo, pinCacheTTL time.Duration) error {
+	pin, err := y.promptPIN(ctx, prompt, hardwarekey.PINOptional, keyInfo, pinCacheTTL)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if pin == piv.DefaultPIN {
+		pin, err = y.setPINAndPUKFromDefault(ctx, prompt, keyInfo, pinCacheTTL)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// PIN (or PUK) prompts time out after 1 minute to prevent an indefinite hold of
+// the pin cache mutex or the exclusive PC/SC transaction.
+const pinPromptTimeout = time.Minute
+
+func (y *YubiKey) promptPIN(ctx context.Context, prompt hardwarekey.Prompt, requirement hardwarekey.PINPromptRequirement, keyInfo hardwarekey.ContextualKeyInfo, pinCacheTTL time.Duration) (string, error) {
+	y.pinCache.mu.Lock()
+	defer y.pinCache.mu.Unlock()
+
+	pin := y.pinCache.getPIN(pinCacheTTL)
+	if pin != "" {
+		return pin, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, pinPromptTimeout)
+	defer cancel()
+
+	pin, err := prompt.AskPIN(ctx, requirement, keyInfo)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// Verify that the PIN is correct before we cache it. This also caches it internally in the PC/SC transaction.
+	// TODO(Joerger): In the signature pin prompt logic, we unfortunately repeat this verification
+	// due to the way the upstream piv-go library handles PIN prompts.
+	if err := y.verifyPIN(pin); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	y.pinCache.setPIN(pin, pinCacheTTL)
+	return pin, nil
+}
+
+func (y *YubiKey) setPINAndPUKFromDefault(ctx context.Context, prompt hardwarekey.Prompt, keyInfo hardwarekey.ContextualKeyInfo, pinCacheTTL time.Duration) (string, error) {
+	y.pinCache.mu.Lock()
+	defer y.pinCache.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(ctx, pinPromptTimeout)
+	defer cancel()
+
 	pinAndPUK, err := prompt.ChangePIN(ctx, keyInfo)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -475,10 +542,12 @@ func (y *YubiKey) setPINAndPUKFromDefault(ctx context.Context, prompt hardwareke
 		}
 	}
 
+	// unblock caches the new PIN the same way verify does.
 	if err := y.conn.unblock(pinAndPUK.PUK, pinAndPUK.PIN); err != nil {
 		return "", trace.Wrap(err)
 	}
 
+	y.pinCache.setPIN(pinAndPUK.PIN, pinCacheTTL)
 	return pinAndPUK.PIN, nil
 }
 

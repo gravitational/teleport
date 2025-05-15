@@ -130,6 +130,18 @@ func MatchResourceLabels(matchers []ResourceMatcher, labels map[string]string) b
 	return false
 }
 
+// resourceWithTargetHealth wraps a resource to provide target health info.
+type resourceWithTargetHealth struct {
+	types.ResourceWithLabels
+	health types.TargetHealth
+}
+
+var _ types.TargetHealthGetter = (*resourceWithTargetHealth)(nil)
+
+func (r *resourceWithTargetHealth) GetTargetHealth() types.TargetHealth {
+	return r.health
+}
+
 // ResourceSeenKey is used as a key for a map that keeps track
 // of unique resource names and address. Currently "addr"
 // only applies to resource Application.
@@ -177,9 +189,12 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		if !ok {
 			return false, trace.BadParameter("expected types.DatabaseServer, got %T", resource)
 		}
-		specResource = server.GetDatabase()
+		specResource = &resourceWithTargetHealth{
+			ResourceWithLabels: server.GetDatabase(),
+			health:             server.GetTargetHealth(),
+		}
 		key.name = specResource.GetName()
-	case types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
+	case types.KindAppServer, types.KindSAMLIdPServiceProvider:
 		switch appOrSP := resource.(type) {
 		case types.AppServer:
 			app := appOrSP.GetApp()

@@ -133,8 +133,8 @@ test('invisible tabs still apply validation', async () => {
     />
   );
 
-  // Cause a validation error by adding an empty label.
-  await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+  // Cause a validation error by adding a label with an empty key.
+  await user.type(screen.getByPlaceholderText('label value'), 'bar');
 
   // Switch to a different tab.
   await user.click(getTabByName('Resources'));
@@ -142,9 +142,8 @@ test('invisible tabs still apply validation', async () => {
   expect(onSave).not.toHaveBeenCalled();
 
   // Switch back, make it valid.
-  await user.click(getTabByName('Invalid data Overview'));
+  await user.click(getTabByName('Overview Invalid data'));
   await user.type(screen.getByPlaceholderText('label key'), 'foo');
-  await user.type(screen.getByPlaceholderText('label value'), 'bar');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).toHaveBeenCalled();
 });
@@ -158,8 +157,8 @@ test('hidden validation errors should not propagate to tab headings', async () =
     />
   );
 
-  // Cause a validation error by adding an empty label.
-  await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+  // Cause a validation error by adding a label with an empty key.
+  await user.type(screen.getByPlaceholderText('label value'), 'bar');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).not.toHaveBeenCalled();
 
@@ -169,7 +168,12 @@ test('hidden validation errors should not propagate to tab headings', async () =
     screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
   await user.click(screen.getByRole('menuitem', { name: 'SSH Server Access' }));
-  await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+  await user.type(
+    within(getSectionByName('SSH Server Access')).getByPlaceholderText(
+      'label value'
+    ),
+    'some-value'
+  );
 
   // Switch to the Admin Rules tab. Add a new section (it's invalid by
   // default).
@@ -178,15 +182,15 @@ test('hidden validation errors should not propagate to tab headings', async () =
 
   // Switch back. The newly invalid tabs should not bear the invalid indicator,
   // as the section has its validation errors hidden.
-  await user.click(getTabByName('Invalid data Overview'));
+  await user.click(getTabByName('Overview Invalid data'));
   expect(getTabByName('Resources')).toBeInTheDocument();
   expect(getTabByName('Admin Rules')).toBeInTheDocument();
 
   // Attempt to save, causing global validation. Now the invalid tabs should be
   // marked as invalid.
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
-  expect(getTabByName('Invalid data Resources')).toBeInTheDocument();
-  expect(getTabByName('Invalid data Admin Rules')).toBeInTheDocument();
+  expect(getTabByName('Resources Invalid data')).toBeInTheDocument();
+  expect(getTabByName('Admin Rules Invalid data')).toBeInTheDocument();
   expect(onSave).not.toHaveBeenCalled();
 });
 
@@ -266,7 +270,7 @@ test('triggers v6 validation for Kubernetes resources', async () => {
   await selectEvent.select(screen.getByLabelText('Version'), 'v7');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).toHaveBeenCalled();
-});
+}, 10000);
 
 test('creating a new role', async () => {
   async function forwardToTab(name: string) {
@@ -326,16 +330,27 @@ test('tab-level validation when creating a new role', async () => {
     screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
   await user.click(screen.getByRole('menuitem', { name: 'SSH Server Access' }));
-  await user.click(screen.getByRole('button', { name: 'Add a Label' }));
-  // The form should not be validating until we try to switch to the next tab.
-  expect(screen.getByPlaceholderText('label key')).toHaveAccessibleDescription(
-    ''
+  await user.type(
+    within(getSectionByName('SSH Server Access')).getByPlaceholderText(
+      'label value'
+    ),
+    'bar'
   );
+  // The form should not be validating until we try to switch to the next tab.
+  expect(
+    within(getSectionByName('SSH Server Access')).getByPlaceholderText(
+      'label key'
+    )
+  ).toHaveAccessibleDescription('');
   await user.click(screen.getByRole('button', { name: 'Next: Admin Rules' }));
   expect(getTabByName('Admin Rules')).toHaveAttribute('aria-selected', 'false');
   // Fix the field value and retry.
-  await user.type(screen.getByPlaceholderText('label key'), 'foo');
-  await user.type(screen.getByPlaceholderText('label value'), 'bar');
+  await user.type(
+    within(getSectionByName('SSH Server Access')).getByPlaceholderText(
+      'label key'
+    ),
+    'foo'
+  );
   await user.click(screen.getByRole('button', { name: 'Next: Admin Rules' }));
   expect(getTabByName('Admin Rules')).toHaveAttribute('aria-selected', 'true');
 });

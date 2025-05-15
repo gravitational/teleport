@@ -29,7 +29,6 @@ ironrdp-tokio.workspace = true
 iso7816 = "0.1.4"
 iso7816-tlv = "0.4.4"
 log = "0.4.27"
-parking_lot = "0.12.3"
 rand = { version = "0.9.0", features = ["os_rng"] }
 rsa = "0.9.8"
 sspi = { version = "0.15.0", features = ["network_client"] }
@@ -41,9 +40,10 @@ url = "2.5.4"
 picky = { version = "7.0.0-rc.11", default-features = false }
 picky-asn1-der = "0.5.2"
 picky-asn1-x509 = "0.14.3"
-picky-krb = "0.9.4"
 reqwest = { version = "0.12", default-features = false }
-rustls = { version = "0.23.25", default-features = false, features = ["aws-lc-rs"] }
+rustls = { version = "0.23.25", default-features = false, features = [
+    "aws-lc-rs",
+] }
 
 [build-dependencies]
 cbindgen = "0.28.0"

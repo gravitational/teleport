@@ -51,13 +51,14 @@ const (
 	UpsellAlert            EntitlementKind = "UpsellAlert"
 	UsageReporting         EntitlementKind = "UsageReporting"
 	LicenseAutoUpdate      EntitlementKind = "LicenseAutoUpdate"
+	AccessGraphDemoMode    EntitlementKind = "AccessGraphDemoMode"
 )
 
 // AllEntitlements returns all Entitlements; should be 1:1 with the const declared above.
 var AllEntitlements = []EntitlementKind{
 	AccessLists, AccessMonitoring, AccessRequests, App, CloudAuditLogRetention, DB, Desktop, DeviceTrust,
 	ExternalAuditStorage, FeatureHiding, HSM, Identity, JoinActiveSessions, K8s, MobileDeviceManagement, OIDC, OktaSCIM,
-	OktaUserSync, Policy, SAML, SessionLocks, UpsellAlert, UsageReporting, LicenseAutoUpdate,
+	OktaUserSync, Policy, SAML, SessionLocks, UpsellAlert, UsageReporting, LicenseAutoUpdate, AccessGraphDemoMode,
 }
 
 // BackfillFeatures ensures entitlements are backwards compatible.
@@ -85,6 +86,7 @@ func BackfillFeatures(features *proto.Features) {
 	features.Entitlements[string(DB)] = &proto.EntitlementInfo{Enabled: features.GetDB()}
 	features.Entitlements[string(Desktop)] = &proto.EntitlementInfo{Enabled: features.GetDesktop()}
 	features.Entitlements[string(HSM)] = &proto.EntitlementInfo{Enabled: features.GetHSM()}
+	features.Entitlements[string(AccessGraphDemoMode)] = &proto.EntitlementInfo{Enabled: features.GetAccessGraphDemoMode()}
 
 	// set default Identity fields to legacy feature value
 	features.Entitlements[string(AccessLists)] = &proto.EntitlementInfo{Enabled: true, Limit: features.GetAccessList().GetCreateLimit()}

@@ -274,6 +274,7 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
 		SSOHost:                 profile.SSOHost,
 		IsVirtual:               !onDisk,
+		TLSRoutingEnabled:       profile.TLSRoutingEnabled,
 	})
 }
 

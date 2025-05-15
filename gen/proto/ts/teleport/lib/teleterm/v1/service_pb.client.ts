@@ -24,6 +24,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { TerminalService } from "./service_pb";
+import type { ConnectToDesktopResponse } from "./service_pb";
+import type { ConnectToDesktopRequest } from "./service_pb";
 import type { GetAppResponse } from "./service_pb";
 import type { GetAppRequest } from "./service_pb";
 import type { AuthenticateWebDeviceResponse } from "./service_pb";
@@ -89,6 +91,8 @@ import type { GetAccessRequestsResponse } from "./service_pb";
 import type { GetAccessRequestsRequest } from "./service_pb";
 import type { GetServersResponse } from "./service_pb";
 import type { GetServersRequest } from "./service_pb";
+import type { ListDatabaseServersResponse } from "./service_pb";
+import type { ListDatabaseServersRequest } from "./service_pb";
 import type { ListDatabaseUsersResponse } from "./service_pb";
 import type { ListDatabaseUsersRequest } from "./service_pb";
 import type { StartHeadlessWatcherResponse } from "./service_pb";
@@ -149,6 +153,12 @@ export interface ITerminalServiceClient {
      * @generated from protobuf rpc: ListDatabaseUsers(teleport.lib.teleterm.v1.ListDatabaseUsersRequest) returns (teleport.lib.teleterm.v1.ListDatabaseUsersResponse);
      */
     listDatabaseUsers(input: ListDatabaseUsersRequest, options?: RpcOptions): UnaryCall<ListDatabaseUsersRequest, ListDatabaseUsersResponse>;
+    /**
+     * ListDatabaseServers lists allowed users for the given database based on the role set.
+     *
+     * @generated from protobuf rpc: ListDatabaseServers(teleport.lib.teleterm.v1.ListDatabaseServersRequest) returns (teleport.lib.teleterm.v1.ListDatabaseServersResponse);
+     */
+    listDatabaseServers(input: ListDatabaseServersRequest, options?: RpcOptions): UnaryCall<ListDatabaseServersRequest, ListDatabaseServersResponse>;
     /**
      * GetServers returns filtered, sorted, and paginated servers
      *
@@ -403,6 +413,12 @@ export interface ITerminalServiceClient {
      * @generated from protobuf rpc: GetApp(teleport.lib.teleterm.v1.GetAppRequest) returns (teleport.lib.teleterm.v1.GetAppResponse);
      */
     getApp(input: GetAppRequest, options?: RpcOptions): UnaryCall<GetAppRequest, GetAppResponse>;
+    /**
+     * ConnectToDesktop is a bidirectional stream for the desktop connection.
+     *
+     * @generated from protobuf rpc: ConnectToDesktop(stream teleport.lib.teleterm.v1.ConnectToDesktopRequest) returns (stream teleport.lib.teleterm.v1.ConnectToDesktopResponse);
+     */
+    connectToDesktop(options?: RpcOptions): DuplexStreamingCall<ConnectToDesktopRequest, ConnectToDesktopResponse>;
 }
 /**
  * TerminalService is used by the Electron app to communicate with the tsh daemon.
@@ -473,6 +489,15 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
         return stackIntercept<ListDatabaseUsersRequest, ListDatabaseUsersResponse>("unary", this._transport, method, opt, input);
     }
     /**
+     * ListDatabaseServers lists allowed users for the given database based on the role set.
+     *
+     * @generated from protobuf rpc: ListDatabaseServers(teleport.lib.teleterm.v1.ListDatabaseServersRequest) returns (teleport.lib.teleterm.v1.ListDatabaseServersResponse);
+     */
+    listDatabaseServers(input: ListDatabaseServersRequest, options?: RpcOptions): UnaryCall<ListDatabaseServersRequest, ListDatabaseServersResponse> {
+        const method = this.methods[5], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ListDatabaseServersRequest, ListDatabaseServersResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
      * GetServers returns filtered, sorted, and paginated servers
      *
      * Deprecated: Use ListUnifiedResources instead.
@@ -481,7 +506,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: GetServers(teleport.lib.teleterm.v1.GetServersRequest) returns (teleport.lib.teleterm.v1.GetServersResponse);
      */
     getServers(input: GetServersRequest, options?: RpcOptions): UnaryCall<GetServersRequest, GetServersResponse> {
-        const method = this.methods[5], opt = this._transport.mergeOptions(options);
+        const method = this.methods[6], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetServersRequest, GetServersResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -490,7 +515,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: GetAccessRequests(teleport.lib.teleterm.v1.GetAccessRequestsRequest) returns (teleport.lib.teleterm.v1.GetAccessRequestsResponse);
      */
     getAccessRequests(input: GetAccessRequestsRequest, options?: RpcOptions): UnaryCall<GetAccessRequestsRequest, GetAccessRequestsResponse> {
-        const method = this.methods[6], opt = this._transport.mergeOptions(options);
+        const method = this.methods[7], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetAccessRequestsRequest, GetAccessRequestsResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -499,7 +524,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: GetAccessRequest(teleport.lib.teleterm.v1.GetAccessRequestRequest) returns (teleport.lib.teleterm.v1.GetAccessRequestResponse);
      */
     getAccessRequest(input: GetAccessRequestRequest, options?: RpcOptions): UnaryCall<GetAccessRequestRequest, GetAccessRequestResponse> {
-        const method = this.methods[7], opt = this._transport.mergeOptions(options);
+        const method = this.methods[8], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetAccessRequestRequest, GetAccessRequestResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -508,7 +533,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: DeleteAccessRequest(teleport.lib.teleterm.v1.DeleteAccessRequestRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
      */
     deleteAccessRequest(input: DeleteAccessRequestRequest, options?: RpcOptions): UnaryCall<DeleteAccessRequestRequest, EmptyResponse> {
-        const method = this.methods[8], opt = this._transport.mergeOptions(options);
+        const method = this.methods[9], opt = this._transport.mergeOptions(options);
         return stackIntercept<DeleteAccessRequestRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -517,7 +542,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: CreateAccessRequest(teleport.lib.teleterm.v1.CreateAccessRequestRequest) returns (teleport.lib.teleterm.v1.CreateAccessRequestResponse);
      */
     createAccessRequest(input: CreateAccessRequestRequest, options?: RpcOptions): UnaryCall<CreateAccessRequestRequest, CreateAccessRequestResponse> {
-        const method = this.methods[9], opt = this._transport.mergeOptions(options);
+        const method = this.methods[10], opt = this._transport.mergeOptions(options);
         return stackIntercept<CreateAccessRequestRequest, CreateAccessRequestResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -526,7 +551,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: ReviewAccessRequest(teleport.lib.teleterm.v1.ReviewAccessRequestRequest) returns (teleport.lib.teleterm.v1.ReviewAccessRequestResponse);
      */
     reviewAccessRequest(input: ReviewAccessRequestRequest, options?: RpcOptions): UnaryCall<ReviewAccessRequestRequest, ReviewAccessRequestResponse> {
-        const method = this.methods[10], opt = this._transport.mergeOptions(options);
+        const method = this.methods[11], opt = this._transport.mergeOptions(options);
         return stackIntercept<ReviewAccessRequestRequest, ReviewAccessRequestResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -535,7 +560,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: GetRequestableRoles(teleport.lib.teleterm.v1.GetRequestableRolesRequest) returns (teleport.lib.teleterm.v1.GetRequestableRolesResponse);
      */
     getRequestableRoles(input: GetRequestableRolesRequest, options?: RpcOptions): UnaryCall<GetRequestableRolesRequest, GetRequestableRolesResponse> {
-        const method = this.methods[11], opt = this._transport.mergeOptions(options);
+        const method = this.methods[12], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetRequestableRolesRequest, GetRequestableRolesResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -544,7 +569,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: AssumeRole(teleport.lib.teleterm.v1.AssumeRoleRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
      */
     assumeRole(input: AssumeRoleRequest, options?: RpcOptions): UnaryCall<AssumeRoleRequest, EmptyResponse> {
-        const method = this.methods[12], opt = this._transport.mergeOptions(options);
+        const method = this.methods[13], opt = this._transport.mergeOptions(options);
         return stackIntercept<AssumeRoleRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -553,7 +578,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: PromoteAccessRequest(teleport.lib.teleterm.v1.PromoteAccessRequestRequest) returns (teleport.lib.teleterm.v1.PromoteAccessRequestResponse);
      */
     promoteAccessRequest(input: PromoteAccessRequestRequest, options?: RpcOptions): UnaryCall<PromoteAccessRequestRequest, PromoteAccessRequestResponse> {
-        const method = this.methods[13], opt = this._transport.mergeOptions(options);
+        const method = this.methods[14], opt = this._transport.mergeOptions(options);
         return stackIntercept<PromoteAccessRequestRequest, PromoteAccessRequestResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -562,7 +587,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: GetSuggestedAccessLists(teleport.lib.teleterm.v1.GetSuggestedAccessListsRequest) returns (teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse);
      */
     getSuggestedAccessLists(input: GetSuggestedAccessListsRequest, options?: RpcOptions): UnaryCall<GetSuggestedAccessListsRequest, GetSuggestedAccessListsResponse> {
-        const method = this.methods[14], opt = this._transport.mergeOptions(options);
+        const method = this.methods[15], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetSuggestedAccessListsRequest, GetSuggestedAccessListsResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -572,7 +597,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: ListKubernetesResources(teleport.lib.teleterm.v1.ListKubernetesResourcesRequest) returns (teleport.lib.teleterm.v1.ListKubernetesResourcesResponse);
      */
     listKubernetesResources(input: ListKubernetesResourcesRequest, options?: RpcOptions): UnaryCall<ListKubernetesResourcesRequest, ListKubernetesResourcesResponse> {
-        const method = this.methods[15], opt = this._transport.mergeOptions(options);
+        const method = this.methods[16], opt = this._transport.mergeOptions(options);
         return stackIntercept<ListKubernetesResourcesRequest, ListKubernetesResourcesResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -581,7 +606,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: AddCluster(teleport.lib.teleterm.v1.AddClusterRequest) returns (teleport.lib.teleterm.v1.Cluster);
      */
     addCluster(input: AddClusterRequest, options?: RpcOptions): UnaryCall<AddClusterRequest, Cluster> {
-        const method = this.methods[16], opt = this._transport.mergeOptions(options);
+        const method = this.methods[17], opt = this._transport.mergeOptions(options);
         return stackIntercept<AddClusterRequest, Cluster>("unary", this._transport, method, opt, input);
     }
     /**
@@ -590,7 +615,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: RemoveCluster(teleport.lib.teleterm.v1.RemoveClusterRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
      */
     removeCluster(input: RemoveClusterRequest, options?: RpcOptions): UnaryCall<RemoveClusterRequest, EmptyResponse> {
-        const method = this.methods[17], opt = this._transport.mergeOptions(options);
+        const method = this.methods[18], opt = this._transport.mergeOptions(options);
         return stackIntercept<RemoveClusterRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -599,7 +624,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: ListGateways(teleport.lib.teleterm.v1.ListGatewaysRequest) returns (teleport.lib.teleterm.v1.ListGatewaysResponse);
      */
     listGateways(input: ListGatewaysRequest, options?: RpcOptions): UnaryCall<ListGatewaysRequest, ListGatewaysResponse> {
-        const method = this.methods[18], opt = this._transport.mergeOptions(options);
+        const method = this.methods[19], opt = this._transport.mergeOptions(options);
         return stackIntercept<ListGatewaysRequest, ListGatewaysResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -608,7 +633,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: CreateGateway(teleport.lib.teleterm.v1.CreateGatewayRequest) returns (teleport.lib.teleterm.v1.Gateway);
      */
     createGateway(input: CreateGatewayRequest, options?: RpcOptions): UnaryCall<CreateGatewayRequest, Gateway> {
-        const method = this.methods[19], opt = this._transport.mergeOptions(options);
+        const method = this.methods[20], opt = this._transport.mergeOptions(options);
         return stackIntercept<CreateGatewayRequest, Gateway>("unary", this._transport, method, opt, input);
     }
     /**
@@ -617,7 +642,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: RemoveGateway(teleport.lib.teleterm.v1.RemoveGatewayRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
      */
     removeGateway(input: RemoveGatewayRequest, options?: RpcOptions): UnaryCall<RemoveGatewayRequest, EmptyResponse> {
-        const method = this.methods[20], opt = this._transport.mergeOptions(options);
+        const method = this.methods[21], opt = this._transport.mergeOptions(options);
         return stackIntercept<RemoveGatewayRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -629,7 +654,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: SetGatewayTargetSubresourceName(teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest) returns (teleport.lib.teleterm.v1.Gateway);
      */
     setGatewayTargetSubresourceName(input: SetGatewayTargetSubresourceNameRequest, options?: RpcOptions): UnaryCall<SetGatewayTargetSubresourceNameRequest, Gateway> {
-        const method = this.methods[21], opt = this._transport.mergeOptions(options);
+        const method = this.methods[22], opt = this._transport.mergeOptions(options);
         return stackIntercept<SetGatewayTargetSubresourceNameRequest, Gateway>("unary", this._transport, method, opt, input);
     }
     /**
@@ -639,7 +664,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: SetGatewayLocalPort(teleport.lib.teleterm.v1.SetGatewayLocalPortRequest) returns (teleport.lib.teleterm.v1.Gateway);
      */
     setGatewayLocalPort(input: SetGatewayLocalPortRequest, options?: RpcOptions): UnaryCall<SetGatewayLocalPortRequest, Gateway> {
-        const method = this.methods[22], opt = this._transport.mergeOptions(options);
+        const method = this.methods[23], opt = this._transport.mergeOptions(options);
         return stackIntercept<SetGatewayLocalPortRequest, Gateway>("unary", this._transport, method, opt, input);
     }
     /**
@@ -648,7 +673,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: GetAuthSettings(teleport.lib.teleterm.v1.GetAuthSettingsRequest) returns (teleport.lib.teleterm.v1.AuthSettings);
      */
     getAuthSettings(input: GetAuthSettingsRequest, options?: RpcOptions): UnaryCall<GetAuthSettingsRequest, AuthSettings> {
-        const method = this.methods[23], opt = this._transport.mergeOptions(options);
+        const method = this.methods[24], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetAuthSettingsRequest, AuthSettings>("unary", this._transport, method, opt, input);
     }
     /**
@@ -658,7 +683,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: GetCluster(teleport.lib.teleterm.v1.GetClusterRequest) returns (teleport.lib.teleterm.v1.Cluster);
      */
     getCluster(input: GetClusterRequest, options?: RpcOptions): UnaryCall<GetClusterRequest, Cluster> {
-        const method = this.methods[24], opt = this._transport.mergeOptions(options);
+        const method = this.methods[25], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetClusterRequest, Cluster>("unary", this._transport, method, opt, input);
     }
     /**
@@ -667,7 +692,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: Login(teleport.lib.teleterm.v1.LoginRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
      */
     login(input: LoginRequest, options?: RpcOptions): UnaryCall<LoginRequest, EmptyResponse> {
-        const method = this.methods[25], opt = this._transport.mergeOptions(options);
+        const method = this.methods[26], opt = this._transport.mergeOptions(options);
         return stackIntercept<LoginRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -691,7 +716,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: LoginPasswordless(stream teleport.lib.teleterm.v1.LoginPasswordlessRequest) returns (stream teleport.lib.teleterm.v1.LoginPasswordlessResponse);
      */
     loginPasswordless(options?: RpcOptions): DuplexStreamingCall<LoginPasswordlessRequest, LoginPasswordlessResponse> {
-        const method = this.methods[26], opt = this._transport.mergeOptions(options);
+        const method = this.methods[27], opt = this._transport.mergeOptions(options);
         return stackIntercept<LoginPasswordlessRequest, LoginPasswordlessResponse>("duplex", this._transport, method, opt);
     }
     /**
@@ -700,7 +725,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: Logout(teleport.lib.teleterm.v1.LogoutRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
      */
     logout(input: LogoutRequest, options?: RpcOptions): UnaryCall<LogoutRequest, EmptyResponse> {
-        const method = this.methods[27], opt = this._transport.mergeOptions(options);
+        const method = this.methods[28], opt = this._transport.mergeOptions(options);
         return stackIntercept<LogoutRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -709,7 +734,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: TransferFile(teleport.lib.teleterm.v1.FileTransferRequest) returns (stream teleport.lib.teleterm.v1.FileTransferProgress);
      */
     transferFile(input: FileTransferRequest, options?: RpcOptions): ServerStreamingCall<FileTransferRequest, FileTransferProgress> {
-        const method = this.methods[28], opt = this._transport.mergeOptions(options);
+        const method = this.methods[29], opt = this._transport.mergeOptions(options);
         return stackIntercept<FileTransferRequest, FileTransferProgress>("serverStreaming", this._transport, method, opt, input);
     }
     /**
@@ -718,7 +743,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: ReportUsageEvent(teleport.lib.teleterm.v1.ReportUsageEventRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
      */
     reportUsageEvent(input: ReportUsageEventRequest, options?: RpcOptions): UnaryCall<ReportUsageEventRequest, EmptyResponse> {
-        const method = this.methods[29], opt = this._transport.mergeOptions(options);
+        const method = this.methods[30], opt = this._transport.mergeOptions(options);
         return stackIntercept<ReportUsageEventRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -728,7 +753,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: UpdateHeadlessAuthenticationState(teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest) returns (teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse);
      */
     updateHeadlessAuthenticationState(input: UpdateHeadlessAuthenticationStateRequest, options?: RpcOptions): UnaryCall<UpdateHeadlessAuthenticationStateRequest, UpdateHeadlessAuthenticationStateResponse> {
-        const method = this.methods[30], opt = this._transport.mergeOptions(options);
+        const method = this.methods[31], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateHeadlessAuthenticationStateRequest, UpdateHeadlessAuthenticationStateResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -739,7 +764,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: CreateConnectMyComputerRole(teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest) returns (teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse);
      */
     createConnectMyComputerRole(input: CreateConnectMyComputerRoleRequest, options?: RpcOptions): UnaryCall<CreateConnectMyComputerRoleRequest, CreateConnectMyComputerRoleResponse> {
-        const method = this.methods[31], opt = this._transport.mergeOptions(options);
+        const method = this.methods[32], opt = this._transport.mergeOptions(options);
         return stackIntercept<CreateConnectMyComputerRoleRequest, CreateConnectMyComputerRoleResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -748,7 +773,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: CreateConnectMyComputerNodeToken(teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest) returns (teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse);
      */
     createConnectMyComputerNodeToken(input: CreateConnectMyComputerNodeTokenRequest, options?: RpcOptions): UnaryCall<CreateConnectMyComputerNodeTokenRequest, CreateConnectMyComputerNodeTokenResponse> {
-        const method = this.methods[32], opt = this._transport.mergeOptions(options);
+        const method = this.methods[33], opt = this._transport.mergeOptions(options);
         return stackIntercept<CreateConnectMyComputerNodeTokenRequest, CreateConnectMyComputerNodeTokenResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -762,7 +787,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: WaitForConnectMyComputerNodeJoin(teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest) returns (teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse);
      */
     waitForConnectMyComputerNodeJoin(input: WaitForConnectMyComputerNodeJoinRequest, options?: RpcOptions): UnaryCall<WaitForConnectMyComputerNodeJoinRequest, WaitForConnectMyComputerNodeJoinResponse> {
-        const method = this.methods[33], opt = this._transport.mergeOptions(options);
+        const method = this.methods[34], opt = this._transport.mergeOptions(options);
         return stackIntercept<WaitForConnectMyComputerNodeJoinRequest, WaitForConnectMyComputerNodeJoinResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -771,7 +796,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: DeleteConnectMyComputerNode(teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest) returns (teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse);
      */
     deleteConnectMyComputerNode(input: DeleteConnectMyComputerNodeRequest, options?: RpcOptions): UnaryCall<DeleteConnectMyComputerNodeRequest, DeleteConnectMyComputerNodeResponse> {
-        const method = this.methods[34], opt = this._transport.mergeOptions(options);
+        const method = this.methods[35], opt = this._transport.mergeOptions(options);
         return stackIntercept<DeleteConnectMyComputerNodeRequest, DeleteConnectMyComputerNodeResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -780,7 +805,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: GetConnectMyComputerNodeName(teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest) returns (teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse);
      */
     getConnectMyComputerNodeName(input: GetConnectMyComputerNodeNameRequest, options?: RpcOptions): UnaryCall<GetConnectMyComputerNodeNameRequest, GetConnectMyComputerNodeNameResponse> {
-        const method = this.methods[35], opt = this._transport.mergeOptions(options);
+        const method = this.methods[36], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetConnectMyComputerNodeNameRequest, GetConnectMyComputerNodeNameResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -789,7 +814,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: ListUnifiedResources(teleport.lib.teleterm.v1.ListUnifiedResourcesRequest) returns (teleport.lib.teleterm.v1.ListUnifiedResourcesResponse);
      */
     listUnifiedResources(input: ListUnifiedResourcesRequest, options?: RpcOptions): UnaryCall<ListUnifiedResourcesRequest, ListUnifiedResourcesResponse> {
-        const method = this.methods[36], opt = this._transport.mergeOptions(options);
+        const method = this.methods[37], opt = this._transport.mergeOptions(options);
         return stackIntercept<ListUnifiedResourcesRequest, ListUnifiedResourcesResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -798,7 +823,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: GetUserPreferences(teleport.lib.teleterm.v1.GetUserPreferencesRequest) returns (teleport.lib.teleterm.v1.GetUserPreferencesResponse);
      */
     getUserPreferences(input: GetUserPreferencesRequest, options?: RpcOptions): UnaryCall<GetUserPreferencesRequest, GetUserPreferencesResponse> {
-        const method = this.methods[37], opt = this._transport.mergeOptions(options);
+        const method = this.methods[38], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetUserPreferencesRequest, GetUserPreferencesResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -808,7 +833,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: UpdateUserPreferences(teleport.lib.teleterm.v1.UpdateUserPreferencesRequest) returns (teleport.lib.teleterm.v1.UpdateUserPreferencesResponse);
      */
     updateUserPreferences(input: UpdateUserPreferencesRequest, options?: RpcOptions): UnaryCall<UpdateUserPreferencesRequest, UpdateUserPreferencesResponse> {
-        const method = this.methods[38], opt = this._transport.mergeOptions(options);
+        const method = this.methods[39], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateUserPreferencesRequest, UpdateUserPreferencesResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -821,7 +846,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: AuthenticateWebDevice(teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest) returns (teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse);
      */
     authenticateWebDevice(input: AuthenticateWebDeviceRequest, options?: RpcOptions): UnaryCall<AuthenticateWebDeviceRequest, AuthenticateWebDeviceResponse> {
-        const method = this.methods[39], opt = this._transport.mergeOptions(options);
+        const method = this.methods[40], opt = this._transport.mergeOptions(options);
         return stackIntercept<AuthenticateWebDeviceRequest, AuthenticateWebDeviceResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -831,7 +856,16 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: GetApp(teleport.lib.teleterm.v1.GetAppRequest) returns (teleport.lib.teleterm.v1.GetAppResponse);
      */
     getApp(input: GetAppRequest, options?: RpcOptions): UnaryCall<GetAppRequest, GetAppResponse> {
-        const method = this.methods[40], opt = this._transport.mergeOptions(options);
+        const method = this.methods[41], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetAppRequest, GetAppResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * ConnectToDesktop is a bidirectional stream for the desktop connection.
+     *
+     * @generated from protobuf rpc: ConnectToDesktop(stream teleport.lib.teleterm.v1.ConnectToDesktopRequest) returns (stream teleport.lib.teleterm.v1.ConnectToDesktopResponse);
+     */
+    connectToDesktop(options?: RpcOptions): DuplexStreamingCall<ConnectToDesktopRequest, ConnectToDesktopResponse> {
+        const method = this.methods[42], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ConnectToDesktopRequest, ConnectToDesktopResponse>("duplex", this._transport, method, opt);
     }
 }

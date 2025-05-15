@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // ReverseTunnel is SSH reverse tunnel established between a local Proxy
@@ -39,6 +41,8 @@ type ReverseTunnel interface {
 	SetType(TunnelType)
 	// GetDialAddrs returns list of dial addresses for this cluster
 	GetDialAddrs() []string
+	// Clone creates a copy of the ReverseTunnel.
+	Clone() ReverseTunnel
 }
 
 // NewReverseTunnel returns new version of reverse tunnel
@@ -56,6 +60,11 @@ func NewReverseTunnel(clusterName string, dialAddrs []string) (ReverseTunnel, er
 		return nil, trace.Wrap(err)
 	}
 	return r, nil
+}
+
+// Clone creates a copy of the ReverseTunnel.
+func (r *ReverseTunnelV2) Clone() ReverseTunnel {
+	return utils.CloneProtoMsg(r)
 }
 
 // GetVersion returns resource version

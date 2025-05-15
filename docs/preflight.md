@@ -19,7 +19,12 @@ This checklist is to be run prior to cutting the release branch.
     first run will build the "assets" buildbox and the other builds will likely
     fail. Run again after the first has finished to build the others that use
     the "assets" buldbox:
-  
+
       today=$(LOCALE=C TZ=UTC date +%A)
       gh workflow run --repo gravitational/teleport.e --field assets-day="${today}" build-buildboxes.yaml
       gh workflow run --repo gravitational/teleport.e build-buildboxes.yaml
+
+  - [ ] Update all the CI jobs in `.github/workflows` that use `teleport-buildbox:teleportX`
+    and `teleport-buildbox-centos7:teleportX-amd64` and bump X to the new version.
+  - [ ] Update all the CI jobs in `e/.github/workflows` that use `teleport-buildbox:teleportX`
+    and bump X to the new version.

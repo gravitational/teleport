@@ -1465,6 +1465,9 @@ func TestCreateResources(t *testing.T) {
 		{
 			kind:   types.KindHealthCheckConfig,
 			create: testCreateHealthCheckConfig,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: health_check_config")
+			},
 		},
 	}
 
@@ -1818,8 +1821,8 @@ version: v1
 	var expected databaseobjectimportrule.Resource
 	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
 
-	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
-	require.Equal(t, "", cmp.Diff(databaseobjectimportrule.ResourceToProto(&expected), databaseobjectimportrule.ResourceToProto(&resources[0]), cmpOpts...))
+	require.Empty(t, cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Empty(t, cmp.Diff(databaseobjectimportrule.ResourceToProto(&expected), databaseobjectimportrule.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
 func testCreateClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
@@ -2103,8 +2106,8 @@ version: v1
 	var expected databaseobject.Resource
 	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
 
-	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
-	require.Equal(t, "", cmp.Diff(databaseobject.ResourceToProto(&expected), databaseobject.ResourceToProto(&resources[0]), cmpOpts...))
+	require.Empty(t, cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Empty(t, cmp.Diff(databaseobject.ResourceToProto(&expected), databaseobject.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
 // TestCreateEnterpriseResources asserts that tctl create
@@ -2171,6 +2174,7 @@ spec:
   client_id: "12345"
   client_secret: "678910"
   display: OIDC
+  pkce_mode: "enabled"
   scope: [roles]
   claims_to_roles:
     - {claim: "test", value: "test", roles: ["access", "editor", "auditor"]}`

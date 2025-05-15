@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/api/utils"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
@@ -55,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/okta"
+	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -588,8 +589,8 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 		return nil, trace.Wrap(err)
 	}
 	// username is hostID + cluster name, so make sure server requests new keys for itself
-	if a.context.User.GetName() != authclient.HostFQDN(req.HostID, clusterName) {
-		return nil, trace.AccessDenied("username mismatch %q and %q", a.context.User.GetName(), authclient.HostFQDN(req.HostID, clusterName))
+	if a.context.User.GetName() != utils.HostFQDN(req.HostID, clusterName) {
+		return nil, trace.AccessDenied("username mismatch %q and %q", a.context.User.GetName(), utils.HostFQDN(req.HostID, clusterName))
 	}
 
 	if req.Role == types.RoleInstance {
@@ -1325,7 +1326,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	// Validate the requested kinds and precheck that the user has read/list
 	// permissions for all requested resources before doing any listing of
 	// resources to conserve resources.
-	requested := utils.Deduplicate(req.Kinds)
+	requested := apiutils.Deduplicate(req.Kinds)
 	if len(req.Kinds) == 0 {
 		requested = defaultUnifiedResourceKinds
 	}
@@ -1833,7 +1834,8 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindUserGroup,
 		types.KindSAMLIdPServiceProvider,
 		types.KindIdentityCenterAccount,
-		types.KindIdentityCenterAccountAssignment:
+		types.KindIdentityCenterAccountAssignment,
+		types.KindGitServer:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1968,7 +1970,10 @@ func (r *resourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 			return r.CheckAccess(rr, state)
 		}
 	case types.SAMLIdPServiceProvider:
-		return r.CheckAccess(rr, state)
+		return r.CheckAccessToSAMLIdPV2(rr,
+			nil, /* cluster auth preference will be checked during connection */
+			state,
+		)
 	case types.Resource153UnwrapperT[services.IdentityCenterAccount]:
 		checkable, isCheckable := rr.(services.AccessCheckable)
 		if isCheckable {
@@ -1998,7 +2003,8 @@ func newResourceAccessChecker(authCtx authz.Context, resource string) (*resource
 		types.KindUnifiedResource,
 		types.KindSAMLIdPServiceProvider,
 		types.KindIdentityCenterAccount,
-		types.KindIdentityCenterAccountAssignment:
+		types.KindIdentityCenterAccountAssignment,
+		types.KindGitServer:
 		return &resourceChecker{AccessChecker: authCtx.Checker}, nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
@@ -2070,21 +2076,6 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 			return nil, trace.Wrap(err)
 		}
 		resources = servers.AsResources()
-
-	// TODO(sshah) DELETE IN 17.0
-	case types.KindAppOrSAMLIdPServiceProvider:
-		appsAndServiceProviders, err := a.GetAppServersAndSAMLIdPServiceProviders(ctx, req.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		appsOrSPs := types.AppServersOrSAMLIdPServiceProviders(appsAndServiceProviders)
-
-		if err := appsOrSPs.SortByCustom(req.SortBy); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resources = appsOrSPs.AsResources()
 
 	case types.KindSAMLIdPServiceProvider:
 		// Only add SAMLIdPServiceProviders to the list if the caller has an enterprise license.
@@ -2449,6 +2440,12 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
+	// bound_keypair tokens have special creation/update logic and are handled
+	// separately
+	if token.GetJoinMethod() == types.JoinMethodBoundKeypair {
+		return trace.Wrap(a.authServer.UpsertBoundKeypairToken(ctx, token))
+	}
+
 	if err := a.authServer.UpsertToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2472,6 +2469,12 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 
 	if err := validateOracleJoinToken(token); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// bound_keypair tokens have special creation/update logic and are handled
+	// separately
+	if token.GetJoinMethod() == types.JoinMethodBoundKeypair {
+		return trace.Wrap(a.authServer.CreateBoundKeypairToken(ctx, token))
 	}
 
 	if err := a.authServer.CreateToken(ctx, token); err != nil {
@@ -2983,7 +2986,7 @@ func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role
 // determine if the user is allowed to assume the returned roles. Will set
 // `req.AccessRequests` and potentially shorten `req.Expires` based on the
 // access request expirations.
-func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.UserCertsRequest, user services.UserState) (*services.AccessInfo, error) {
 	if req.Username != a.context.User.GetName() {
 		if isRoleImpersonation(*req) {
 			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for another user while adding role requests",
@@ -3013,7 +3016,7 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 
 // desiredAccessInfoForImpersonation returns the desired AccessInfo for an
 // impersonation request.
-func (a *ServerWithRoles) desiredAccessInfoForImpersonation(user types.User) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfoForImpersonation(user services.UserState) (*services.AccessInfo, error) {
 	return &services.AccessInfo{
 		Roles:  user.GetRoles(),
 		Traits: user.GetTraits(),
@@ -3044,7 +3047,7 @@ func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRe
 
 // desiredAccessInfoForUser returns the desired AccessInfo
 // cert request which may contain access requests.
-func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *proto.UserCertsRequest, user services.UserState) (*services.AccessInfo, error) {
 	currentIdentity := a.context.Identity.GetIdentity()
 
 	// Start with the base AccessInfo for current logged-in identity, before
@@ -3060,7 +3063,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 		// Reset to the base roles and traits stored in the backend user,
 		// currently active requests (not being dropped) and new access requests
 		// will be filled in below.
-		accessInfo = services.AccessInfoFromUser(user)
+		accessInfo = services.AccessInfoFromUserState(user)
 
 		// Check for ["*"] as special case to drop all requests.
 		if len(req.DropAccessRequests) == 1 && req.DropAccessRequests[0] == "*" {
@@ -3143,7 +3146,7 @@ func isRoleImpersonation(req proto.UserCertsRequest) bool {
 
 // getBotName returns the name of the bot embedded in the user metadata, if any.
 // For non-bot users, returns "".
-func getBotName(user types.User) string {
+func getBotName(user services.UserState) string {
 	name, ok := user.GetLabel(types.BotLabel)
 	if ok {
 		return name
@@ -3164,7 +3167,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	var verifiedMFADeviceID string
 	if req.MFAResponse != nil {
-		requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
+		requiredExt := &mfav1.ChallengeExtensions{
+			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+		}
+		if req.AllowsMFAReuse() {
+			requiredExt.AllowReuse = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
+		}
 		mfaData, err := a.authServer.ValidateMFAAuthResponse(ctx, req.GetMFAResponse(), req.Username, requiredExt)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3224,6 +3233,15 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			"user", req.Username,
 		)
 		return nil, trace.AccessDenied("access denied")
+	}
+
+	// Note that user and their login states can be out of sync in the backend.
+	// For example, GitHub identities obtained from GitHub proxy OAuth flow are
+	// preserved in user login state, where local users may get updated roles
+	// from ConnectMyComputer setup. So here we retrieve additional fields from
+	// user login state. Ideally we should solve this some other way.
+	if err := userloginstate.UpdatePreservedAttributes(ctx, user, a.authServer.Services); err != nil {
+		return nil, trace.Wrap(err, "updating preserved attributes")
 	}
 
 	// Do not allow SSO users to be impersonated.
@@ -3412,6 +3430,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AppName:           req.RouteToApp.Name,
 			AppURI:            req.RouteToApp.URI,
 			AppTargetPort:     int(req.RouteToApp.TargetPort),
+
+			BotName: getBotName(user),
+			// Always pass through a bot instance ID if available. Legacy bots
+			// joining without an instance ID may have one generated when
+			// `updateBotInstance()` is called below, and this (empty) value will be
+			// overridden.
+			BotInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4484,6 +4509,10 @@ func (a *ServerWithRoles) validateRole(role types.Role) error {
 		}
 	}
 
+	if role.GetOptions().IDP != nil && !types.IsLegacySAMLRBAC(role.GetVersion()) {
+		return trace.BadParameter("idp option is only supported in role version 7 and below")
+	}
+
 	return nil
 }
 
@@ -5474,50 +5503,6 @@ func (a *ServerWithRoles) GetApplicationServers(ctx context.Context, namespace s
 		}
 	}
 	return filtered, nil
-}
-
-// GetAppServersAndSAMLIdPServiceProviders returns a list containing all registered AppServers and SAMLIdPServiceProviders.
-//
-//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
-func (a *ServerWithRoles) GetAppServersAndSAMLIdPServiceProviders(ctx context.Context, namespace string) ([]types.AppServerOrSAMLIdPServiceProvider, error) {
-	appservers, err := a.GetApplicationServers(ctx, namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var appsAndSPs []types.AppServerOrSAMLIdPServiceProvider
-	// Convert the AppServers to AppServerOrSAMLIdPServiceProviders.
-	for _, appserver := range appservers {
-		appServerV3 := appserver.(*types.AppServerV3)
-		appAndSP := &types.AppServerOrSAMLIdPServiceProviderV1{
-			Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
-				AppServer: appServerV3,
-			},
-		}
-		appsAndSPs = append(appsAndSPs, appAndSP)
-	}
-
-	// Only add SAMLIdPServiceProviders to the list if the caller has an enterprise license since this is an enteprise-only feature.
-	if modules.GetModules().BuildType() == modules.BuildEnterprise {
-		// Only attempt to list SAMLIdPServiceProviders if the caller has the permission to.
-		if err := a.action(types.KindSAMLIdPServiceProvider, types.VerbList); err == nil {
-			serviceProviders, _, err := a.authServer.ListSAMLIdPServiceProviders(ctx, 0, "")
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			for _, sp := range serviceProviders {
-				spV1 := sp.(*types.SAMLIdPServiceProviderV1)
-				appAndSP := &types.AppServerOrSAMLIdPServiceProviderV1{
-					Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
-						SAMLIdPServiceProvider: spV1,
-					},
-				}
-				appsAndSPs = append(appsAndSPs, appAndSP)
-			}
-		}
-	}
-
-	return appsAndSPs, nil
 }
 
 // UpsertApplicationServer registers an application server.
@@ -7008,13 +6993,18 @@ func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, e
 	return a.authServer.releaseService.ListReleases(ctx)
 }
 
-// TODO(sshah): set MFARequired for SAML IdP admin actions?
-func (a *ServerWithRoles) checkAccessToSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) error {
-	return a.context.Checker.CheckAccess(
+func (a *ServerWithRoles) checkAccessToSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
+	authPref, err := a.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return a.context.Checker.CheckAccessToSAMLIdPV2(
 		sp,
-		// MFA is not required for operations on SAML resources but
-		// will be enforced at the connection time.
-		services.AccessState{})
+		authPref,
+		// TODO(sshah): remove MFAVerified once the Web UI supports
+		// prompting for MFA during SAML service provider create/update
+		// operations.
+		services.AccessState{MFAVerified: true})
 }
 
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
@@ -7031,7 +7021,7 @@ func (a *ServerWithRoles) ListSAMLIdPServiceProviders(ctx context.Context, pageS
 	// Filter out service providers the caller doesn't have access to.
 	var filtered []types.SAMLIdPServiceProvider
 	for _, sp := range sps {
-		err := a.checkAccessToSAMLIdPServiceProvider(sp)
+		err := a.checkAccessToSAMLIdPServiceProvider(ctx, sp)
 		if err != nil && !trace.IsAccessDenied(err) {
 			return nil, "", trace.Wrap(err)
 		} else if err == nil {
@@ -7053,7 +7043,7 @@ func (a *ServerWithRoles) GetSAMLIdPServiceProvider(ctx context.Context, name st
 		return nil, trace.Wrap(err)
 	}
 
-	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+	if err = a.checkAccessToSAMLIdPServiceProvider(ctx, sp); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -7095,7 +7085,7 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 
-	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+	if err = a.checkAccessToSAMLIdPServiceProvider(ctx, sp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7152,10 +7142,10 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = a.checkAccessToSAMLIdPServiceProvider(existingSP); err != nil {
+	if err = a.checkAccessToSAMLIdPServiceProvider(ctx, existingSP); err != nil {
 		return trace.Wrap(err)
 	}
-	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+	if err = a.checkAccessToSAMLIdPServiceProvider(ctx, sp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7219,7 +7209,7 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 		return trace.Wrap(err)
 	}
 
-	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+	if err = a.checkAccessToSAMLIdPServiceProvider(ctx, sp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7268,7 +7258,7 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) 
 			return trace.Wrap(err)
 		}
 		for _, sp := range sps {
-			if err := a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+			if err := a.checkAccessToSAMLIdPServiceProvider(ctx, sp); err != nil {
 				return trace.Wrap(err)
 			}
 		}

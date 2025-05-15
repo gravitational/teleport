@@ -58,12 +58,36 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 		},
 	})
 
-	authPref, err := testServer.AuthServer.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+	s, err := auth.NewTestTLSServer(auth.TestTLSServerConfig{
+		APIConfig: &auth.APIConfig{
+			AuthServer: testServer.AuthServer,
+			Authorizer: testServer.Authorizer,
+			AuditLog:   testServer.AuditLog,
+			Emitter:    testServer.AuditLog,
+		},
+		AuthServer: testServer,
+	})
+	require.NoError(t, err)
+
+	clt, err := s.NewClient(auth.TestAdmin())
+	require.NoError(t, err)
+
+	ap := types.DefaultAuthPreference()
+	ap.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY)
+	authPref, err := clt.UpsertAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
 	authPref.SetSecondFactor(constants.SecondFactorOff)
-	_, err = testServer.AuthServer.UpdateAuthPreference(ctx, authPref)
-	require.EqualError(t, err, modules.ErrCannotDisableSecondFactor.Error())
+	_, err = clt.UpdateAuthPreference(ctx, authPref)
+	require.ErrorContains(t, err, "rpc error: code = Unknown desc = cannot disable multi-factor authentication")
+
+	// Validate the storage layer doesn't enforce module validation.
+	authPref, err = testServer.AuthServer.UpdateAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+	require.False(t, authPref.IsSecondFactorEnabled())
+	authPref, err = testServer.AuthServer.UpsertAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+	require.False(t, authPref.IsSecondFactorEnabled())
 }
 
 func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {
@@ -131,6 +155,7 @@ func TestFeatures_ToProto(t *testing.T) {
 			string(entitlements.UpsellAlert):            {Enabled: true},
 			string(entitlements.UsageReporting):         {Enabled: true},
 			string(entitlements.LicenseAutoUpdate):      {Enabled: true},
+			string(entitlements.AccessGraphDemoMode):    {Enabled: true},
 		},
 		//	 Legacy Fields; remove in v18
 		Kubernetes:             true,
@@ -206,6 +231,7 @@ func TestFeatures_ToProto(t *testing.T) {
 			entitlements.UpsellAlert:            {Enabled: true, Limit: 0},
 			entitlements.UsageReporting:         {Enabled: true, Limit: 0},
 			entitlements.LicenseAutoUpdate:      {Enabled: true, Limit: 0},
+			entitlements.AccessGraphDemoMode:    {Enabled: true, Limit: 0},
 		},
 	}
 

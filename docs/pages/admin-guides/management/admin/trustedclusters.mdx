@@ -30,21 +30,6 @@ instance running on the root cluster.
    firewall to ensure leaf Proxy services are only allowed to connect to the appropriate resources.  
 </Admonition>
 
-## Who uses trusted clusters?
-
-Most organizations don't need to configure trusted clusters. In most cases, you can add 
-multiple Teleport Proxy Service instances to enroll and manage thousands of resources 
-without creating a new cluster.
-
-However, there are a few specific scenarios where trusted clusters can be particularly useful.
-For example, if you have a large and widely-distributed infrastructure or must provide access
-to resources for external agencies, contractors, or clients, you might benefit from setting up 
-a trusted cluster. The most common use cases for trusted clusters include:
-
-- Managed service providers (MSP) remotely managing the infrastructure of their clients.
-- Device manufacturers remotely maintaining computing appliances deployed on premises.
-- Large cloud software vendors managing multiple data centers using a common proxy.
-
 ## How it works
 
 In the following example, a managed service provider uses three independent clusters to 
@@ -94,6 +79,21 @@ on the leaf cluster and service running on the root cluster:
 
 Note that trusted clusters only work in one direction. 
 Users from the leaf cluster can't see or connect to resources in the root cluster.
+
+## Who uses trusted clusters?
+
+Most organizations don't need to configure trusted clusters. In most cases, you can add 
+multiple Teleport Proxy Service instances to enroll and manage thousands of resources 
+without creating a new cluster.
+
+However, there are a few specific scenarios where trusted clusters can be particularly useful.
+For example, if you have a large and widely-distributed infrastructure or must provide access
+to resources for external agencies, contractors, or clients, you might benefit from setting up 
+a trusted cluster. The most common use cases for trusted clusters include:
+
+- Managed service providers (MSP) remotely managing the infrastructure of their clients.
+- Device manufacturers remotely maintaining computing appliances deployed on premises.
+- Large cloud software vendors managing multiple data centers using a common proxy.
 
 ## Role relationships in a trusted cluster
 
@@ -165,7 +165,7 @@ To complete the steps in this guide, verify your environment meets the following
 
 - A Teleport SSH server that is joined to the cluster you plan to use as the **leaf cluster**.
   For information about how to enroll a resource in your cluster, see 
-  [Join Services to your Cluster](../../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx).
+  [Join Services to your Cluster](../../../enroll-resources/agents/agents.mdx).
 
 (!docs/pages/includes/permission-warning.mdx!)
 

@@ -383,6 +383,33 @@ func (c CachePolicy) String() string {
 	return "in-memory cache"
 }
 
+// CheckServicesForSELinux returns false if any services that don't
+// support SELinux enforcement are enabled.
+func (cfg *Config) CheckServicesForSELinux() bool {
+	switch {
+	case cfg.AccessGraph.Enabled:
+		fallthrough
+	case cfg.Apps.Enabled:
+		fallthrough
+	case cfg.Auth.Enabled:
+		fallthrough
+	case cfg.Databases.Enabled:
+		fallthrough
+	case cfg.Jamf.Enabled():
+		fallthrough
+	case cfg.Kube.Enabled:
+		fallthrough
+	case cfg.Okta.Enabled:
+		fallthrough
+	case cfg.Proxy.Enabled:
+		fallthrough
+	case cfg.WindowsDesktop.Enabled:
+		return false
+
+	}
+	return true
+}
+
 // AuthServerAddresses returns the value of authServers for config versions v1 and v2 and
 // will return just the first (as only one should be set) address for config versions v3
 // onwards.

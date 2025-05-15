@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { memo, useCallback, useEffect, useMemo } from 'react';
+import { memo, useCallback, useEffect, useMemo, type JSX } from 'react';
 
 import { Box, ButtonPrimary, Flex, H1, Link, ResourceIcon, Text } from 'design';
 import * as icons from 'design/Icon';
@@ -37,12 +37,18 @@ import {
 import {
   getResourceAvailabilityFilter,
   ResourceAvailabilityFilter,
+  ResourceStatus,
   SharedUnifiedResource,
   UnifiedResources as SharedUnifiedResources,
+  UnifiedResourceDefinition,
   UnifiedResourcesPinning,
   UnifiedResourcesQueryParams,
   useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
+import {
+  getResourceId,
+  openStatusInfoPanel,
+} from 'shared/components/UnifiedResources/shared/StatusInfo';
 import { Attempt } from 'shared/hooks/useAsync';
 import { NodeSubKind } from 'shared/services';
 import {
@@ -78,6 +84,7 @@ import {
 } from './ActionButtons';
 import { InfoGuideSidePanel } from './InfoGuideSidePanel';
 import { useResourcesContext } from './resourcesContext';
+import { StatusInfo } from './StatusInfo';
 import { useUserPreferences } from './useUserPreferences';
 
 export function UnifiedResources(props: {
@@ -391,8 +398,22 @@ const Resources = memo(
         }),
     };
 
-    const { infoGuideConfig, panelWidth } = useInfoGuide();
+    const { infoGuideConfig, panelWidth, setInfoGuideConfig } = useInfoGuide();
     const infoGuideSidePanelOpened = infoGuideConfig != null;
+
+    function onShowStatusInfo(resource: UnifiedResourceDefinition) {
+      openStatusInfoPanel({
+        resource,
+        setInfoGuideConfig,
+        guide: (
+          <StatusInfo
+            resource={resource}
+            clusterUri={props.clusterUri}
+            key={getResourceId(resource)}
+          />
+        ),
+      });
+    }
 
     return (
       <Box
@@ -402,6 +423,7 @@ const Resources = memo(
         })}
       >
         <SharedUnifiedResources
+          onShowStatusInfo={onShowStatusInfo}
           params={props.queryParams}
           setParams={props.onParamsChange}
           unifiedResourcePreferencesAttempt={props.userPreferencesAttempt}
@@ -516,6 +538,10 @@ const mapToSharedResource = (
           ).title,
           protocol: database.protocol as DbProtocol,
           requiresRequest: resource.requiresRequest,
+          targetHealth: database.targetHealth && {
+            status: database.targetHealth.status as ResourceStatus,
+            error: database.targetHealth.error,
+          },
         },
         ui: {
           ActionButton: <ConnectDatabaseActionButton database={database} />,

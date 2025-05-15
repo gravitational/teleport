@@ -345,6 +345,7 @@ func validateRoleExpressions(r types.Role) error {
 			{"node_labels", types.KindNode},
 			{"kubernetes_labels", types.KindKubernetesCluster},
 			{"app_labels", types.KindApp},
+			{"saml_idp_service_provider", types.KindSAMLIdPServiceProvider},
 			{"db_labels", types.KindDatabase},
 			{"db_service_labels", types.KindDatabaseService},
 			{"windows_desktop_labels", types.KindWindowsDesktop},
@@ -554,6 +555,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 			types.KindDatabaseService,
 			types.KindWindowsDesktop,
 			types.KindUserGroup,
+			types.KindSAMLIdPServiceProvider,
 		} {
 			labelMatchers, err := r.GetLabelMatchers(condition, kind)
 			if err != nil {
@@ -1557,6 +1559,8 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 
 // CheckAccessToSAMLIdP checks access to the SAML IdP.
 //
+// TODO(sshah): Delete after enterprise changes is merged to use v2.
+//
 //nolint:revive // Because we want this to be IdP.
 func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, state AccessState) error {
 	ctx := context.Background()
@@ -1594,6 +1598,82 @@ func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, state 
 
 			return trace.Wrap(ErrSessionMFARequired)
 		}
+	}
+
+	return nil
+}
+
+// checkAccessToSAMLIdP checks access to the SAML IdP based on
+// IDP enabled/disabled in role option and MFA. The IDP option is enforced
+// in Teleport role version v7 and below.
+func checkAccessToSAMLIdP(state AccessState, role types.Role) error {
+	ctx := context.Background()
+
+	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
+		rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access to SAML IdP denied, cluster requires per-session MFA")
+		return trace.Wrap(ErrSessionMFARequired)
+	}
+
+	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
+	options := role.GetOptions()
+	// This should never happen, but we should make sure that we don't get a nil pointer error here.
+	if options.IDP == nil || options.IDP.SAML == nil || options.IDP.SAML.Enabled == nil {
+		return nil
+	}
+	// If any role specifically denies access to the IdP, we'll return AccessDenied.
+	if !options.IDP.SAML.Enabled.Value {
+		return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
+	}
+
+	if !mfaAllowed && options.RequireMFAType.IsSessionMFARequired() {
+		rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access to SAML IdP denied, role requires per-session MFA",
+			slog.String("role", role.GetName()),
+		)
+		return trace.Wrap(ErrSessionMFARequired)
+	}
+
+	return nil
+}
+
+// CheckAccessToSAMLIdPV2 checks access to SAML service provider resource.
+// For Teleport role version v7 and below (legacy SAML IdP RBAC), only MFA
+// and IDP role option is checked.
+// For Teleport role version v8 and above (non-legacy SAML IdP RBAC),
+// labels, MFA and Device Trust is checked.
+// IDP option in the auth preference is checked in both the cases.
+func (set RoleSet) CheckAccessToSAMLIdPV2(r AccessCheckable, traits wrappers.Traits, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
+	if authPref != nil {
+		if !authPref.IsSAMLIdPEnabled() {
+			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
+		}
+	}
+
+	if len(set) == 0 {
+		return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+			r.GetKind(), "No roles assigned to user")
+	}
+
+	var v8RoleSet RoleSet
+	for _, role := range set {
+		if !types.IsLegacySAMLRBAC(role.GetVersion()) {
+			v8RoleSet = append(v8RoleSet, role)
+			continue
+		}
+		if err := checkAccessToSAMLIdP(state, role); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// We checked for empty roleset early on this method. Reaching this part
+	// and zero non-legacy roleset means that the user was allowed access
+	// with legacy roles. We'll honor that and return, otherwise, checkAccess
+	// will deny access on empty role set.
+	if len(v8RoleSet) == 0 {
+		return nil
+	}
+
+	if err := v8RoleSet.checkAccess(r, traits, state, matchers...); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -3470,7 +3550,7 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 	version := jsoniter.Get(bytes, "version").ToString()
 	switch version {
 	// these are all backed by the same shape of data, they just have different semantics and defaults
-	case types.V3, types.V4, types.V5, types.V6, types.V7:
+	case types.V3, types.V4, types.V5, types.V6, types.V7, types.V8:
 	default:
 		return nil, trace.BadParameter("role version %q is not supported", version)
 	}

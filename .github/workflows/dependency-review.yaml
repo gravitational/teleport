@@ -22,6 +22,15 @@ jobs:
       # Teleport version.
       allow-ghsas: 'GHSA-6xf3-5hp7-xqqg'
       # IronRDP uses MIT/Apache-2.0 but slashes are not recognized by dependency review action
+      #
+      # @swc/core@1.11.24 uses Apache-2.0, but LicenseRef-scancode-unknown-license-reference is also
+      # detected.
+      # https://www.npmjs.com/package/@swc/core/v/1.11.24?activeTab=code
+      # https://scancode-licensedb.aboutcode.org/unknown-license-reference.html
+      #
+      # cookie-signature@1.2.2 uses MIT, but LicenseRef-scancode-unknown-license-reference is also
+      # detected.
+      # https://www.npmjs.com/package/cookie-signature/v/1.2.2?activeTab=code
       allow-dependencies-licenses: >-
         pkg:cargo/ironrdp-cliprdr,
         pkg:cargo/ironrdp-core,
@@ -66,4 +75,6 @@ jobs:
         pkg:cargo/zerovec,
         pkg:cargo/zerovec-derive,
         pkg:npm/cspell/dict-en-common-misspellings,
+        pkg:npm/swc/core,
+        pkg:npm/cookie-signature,
         pkg:npm/prettier

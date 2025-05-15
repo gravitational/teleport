@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "17.4.1",
+      "version": "17.4.6",
       "major_version": "17",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -178,7 +178,7 @@
     {
       "source": "/enroll-resources/workload-identity/workload-attestation/",
       "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
-       "permanent": true
+      "permanent": true
     },
     {
       "source": "/access-controls/guides/role-templates/",
@@ -338,6 +338,61 @@
     {
       "source": "/enroll-resources/application-access/okta/",
       "destination": "/admin-guides/access-controls/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/api/getting-started/",
+      "destination": "/admin-guides/api/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/aws-ec2/",
+      "destination": "/enroll-resources/agents/aws-ec2/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/aws-iam/",
+      "destination": "/enroll-resources/agents/aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/azure/",
+      "destination": "/enroll-resources/agents/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/gcp/",
+      "destination": "/enroll-resources/agents/gcp/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/",
+      "destination": "/enroll-resources/agents/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/join-token/",
+      "destination": "/enroll-resources/agents/join-token/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/kubernetes/",
+      "destination": "/enroll-resources/agents/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/oracle/",
+      "destination": "/enroll-resources/agents/oracle/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/introduction/",
+      "destination": "/enroll-resources/agents/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/",
+      "destination": "/enroll-resources/agents/",
       "permanent": true
     }
   ]

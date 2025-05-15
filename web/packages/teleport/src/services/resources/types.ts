@@ -69,6 +69,22 @@ export enum RoleVersion {
   V5 = 'v5',
   V6 = 'v6',
   V7 = 'v7',
+  V8 = 'v8',
+}
+
+/**
+ * isLegacySamlIdpRbac checks if a role version is v7 or lower.
+ * It should be called to check if a role supports legacy
+ * SAML IDP RBAC, i.e. role.options.idp.saml.enabled = true/false.
+ */
+export function isLegacySamlIdpRbac(roleVersion: RoleVersion): boolean {
+  return [
+    RoleVersion.V7,
+    RoleVersion.V6,
+    RoleVersion.V5,
+    RoleVersion.V4,
+    RoleVersion.V3,
+  ].includes(roleVersion);
 }
 
 /**
@@ -192,7 +208,6 @@ export enum ResourceKind {
   AccessMonitoringRule = 'access_monitoring_rule',
   AccessRequest = 'access_request',
   App = 'app',
-  AppOrSAMLIdPServiceProvider = 'app_server_or_saml_idp_sp',
   AppServer = 'app_server',
   AuditQuery = 'audit_query',
   AuthServer = 'auth_server',
@@ -370,14 +385,17 @@ export type RoleOptions = {
   desktop_directory_sharing: boolean;
   enhanced_recording: string[];
   forward_agent: boolean;
-  idp: {
+  /**
+   * idp option only supported for role version 7 and below.
+   */
+  idp?: null | {
     // There's a subtle quirk in `Rolev6.CheckAndSetDefaults`: if you ask
     // Teleport to create a resource with `idp` field set to null, it's instead
     // going to create the entire idp->saml->enabled structure. However, it's
     // possible to create a role with idp set to an empty object, and the
     // server will retain this state. This makes the `saml` field optional.
     saml?: {
-      enabled: boolean;
+      enabled?: boolean;
     };
   };
   max_session_ttl: string;

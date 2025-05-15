@@ -129,7 +129,7 @@ func timestampToGoTime(t *timestamppb.Timestamp) time.Time {
 	// nil or "zero" Timestamps are mapped to Go's zero time (0-0-0 0:0.0) instead
 	// of unix epoch. The latter avoids problems with tooling (eg, Terraform) that
 	// sets structs to their defaults instead of using nil.
-	if t == nil || (t.Seconds == 0 && t.Nanos == 0) {
+	if t.GetSeconds() == 0 && t.GetNanos() == 0 {
 		return time.Time{}
 	}
 	return t.AsTime()
@@ -161,15 +161,16 @@ func routeToAppFromProto(routeToApp *decisionpb.RouteToApp) tlsca.RouteToApp {
 	}
 
 	return tlsca.RouteToApp{
-		SessionID:         routeToApp.SessionId,
-		PublicAddr:        routeToApp.PublicAddr,
-		ClusterName:       routeToApp.ClusterName,
-		Name:              routeToApp.Name,
-		AWSRoleARN:        routeToApp.AwsRoleArn,
-		AzureIdentity:     routeToApp.AzureIdentity,
-		GCPServiceAccount: routeToApp.GcpServiceAccount,
-		URI:               routeToApp.Uri,
-		TargetPort:        int(routeToApp.TargetPort),
+		SessionID:                       routeToApp.SessionId,
+		PublicAddr:                      routeToApp.PublicAddr,
+		ClusterName:                     routeToApp.ClusterName,
+		Name:                            routeToApp.Name,
+		AWSRoleARN:                      routeToApp.AwsRoleArn,
+		AWSCredentialProcessCredentials: routeToApp.AwsCredentialprocessCredentials,
+		AzureIdentity:                   routeToApp.AzureIdentity,
+		GCPServiceAccount:               routeToApp.GcpServiceAccount,
+		URI:                             routeToApp.Uri,
+		TargetPort:                      int(routeToApp.TargetPort),
 	}
 }
 
@@ -179,15 +180,16 @@ func routeToAppToProto(routeToApp *tlsca.RouteToApp) *decisionpb.RouteToApp {
 	}
 
 	return &decisionpb.RouteToApp{
-		SessionId:         routeToApp.SessionID,
-		PublicAddr:        routeToApp.PublicAddr,
-		ClusterName:       routeToApp.ClusterName,
-		Name:              routeToApp.Name,
-		AwsRoleArn:        routeToApp.AWSRoleARN,
-		AzureIdentity:     routeToApp.AzureIdentity,
-		GcpServiceAccount: routeToApp.GCPServiceAccount,
-		Uri:               routeToApp.URI,
-		TargetPort:        int32(routeToApp.TargetPort),
+		SessionId:                       routeToApp.SessionID,
+		PublicAddr:                      routeToApp.PublicAddr,
+		ClusterName:                     routeToApp.ClusterName,
+		Name:                            routeToApp.Name,
+		AwsRoleArn:                      routeToApp.AWSRoleARN,
+		AwsCredentialprocessCredentials: routeToApp.AWSCredentialProcessCredentials,
+		AzureIdentity:                   routeToApp.AzureIdentity,
+		GcpServiceAccount:               routeToApp.GCPServiceAccount,
+		Uri:                             routeToApp.URI,
+		TargetPort:                      int32(routeToApp.TargetPort),
 	}
 }
 

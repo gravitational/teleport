@@ -46,6 +46,7 @@ import { Pill } from './Pill';
 import Popover from './Popover';
 import { ResourceIcon } from './ResourceIcon';
 import { StepSlider } from './StepSlider';
+import { SyncStamp } from './SyncStamp';
 import Text, {
   H1,
   H2,
@@ -106,6 +107,7 @@ export {
   Subtitle1,
   Subtitle2,
   Subtitle3,
+  SyncStamp,
   Text,
   TextArea,
   Toggle,

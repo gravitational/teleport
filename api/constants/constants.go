@@ -34,10 +34,6 @@ const (
 	// since we register "teleport.cluster.local" as a DNS in Certificates.
 	APIDomain = "teleport.cluster.local"
 
-	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
-	// recording feature.
-	EnhancedRecordingMinKernel = "5.8.0"
-
 	// EnhancedRecordingCommand is a role option that implies command events are
 	// captured.
 	EnhancedRecordingCommand = "command"
@@ -189,6 +185,18 @@ var SystemConnectors = []string{
 	PasswordlessConnector,
 	HeadlessConnector,
 }
+
+// OIDCPKCEMode represents the mode of PKCE (Proof Key for Code Exchange).
+type OIDCPKCEMode string
+
+const (
+	// OIDCPKCEModeUnknown indicates an unknown or uninitialized state of the PKCE mode.
+	OIDCPKCEModeUnknown OIDCPKCEMode = ""
+	// OIDCPKCEModeEnabled indicates that PKCE is enabled for the OIDC flow.
+	OIDCPKCEModeEnabled OIDCPKCEMode = "enabled"
+	// OIDCPKCEModeDisabled indicates that PKCE is disabled for the OIDC flow.
+	OIDCPKCEModeDisabled OIDCPKCEMode = "disabled"
+)
 
 // SecondFactorType is the type of 2FA authentication.
 type SecondFactorType string
@@ -540,3 +548,6 @@ const (
 	// GitLab CI job.
 	EnvVarGitlabIDTokenEnvVar = "TF_TELEPORT_GITLAB_ID_TOKEN_ENV_VAR"
 )
+
+// MaxPIVPINCacheTTL defines the maximum allowed TTL for PIV PIN client caches.
+const MaxPIVPINCacheTTL = time.Hour
