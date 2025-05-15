@@ -303,7 +303,7 @@ type Handler struct {
 	logger     *slog.Logger
 	uploader   *manager.Uploader
 	downloader *manager.Downloader
-	client     *s3.Client
+	client     s3Client
 }
 
 // Close releases connection and resources associated with log if any
