@@ -233,6 +233,13 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	// Try to delete a resource that doesn't exist.
 	err = service.DeleteResource(ctx, "doesnotexist")
 	require.True(t, trace.IsNotFound(err))
+
+	// Error on create with nil metadata
+	// A resource without metadata should return an error and not panic
+	resourceNoMeta := newTestResource153("")
+	resourceNoMeta.Metadata = nil
+	_, err = service.CreateResource(ctx, resourceNoMeta)
+	require.Error(t, err)
 }
 
 // TestGenericWrapperWithPrefix tests the withPrefix method of the generic service wrapper.

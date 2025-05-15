@@ -458,6 +458,10 @@ func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, mod
 
 // MakeBackendItem will check and make the backend item.
 func (s *Service[T]) MakeBackendItem(resource T, _ ...any) (backend.Item, error) {
+	if err := ensureMetadata(resource); err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
 	// TODO(espadolini): clean up unused variadic after teleport.e is updated
 	if err := services.CheckAndSetDefaults(resource); err != nil {
 		return backend.Item{}, trace.Wrap(err)
@@ -504,4 +508,17 @@ func (s *Service[T]) RunWhileLocked(ctx context.Context, lockNameComponents []st
 		}, func(ctx context.Context) error {
 			return fn(ctx, s.backend)
 		}))
+}
+
+func ensureMetadata(resource Resource) error {
+	switch r := resource.(type) {
+	case types.Resource:
+		return nil
+	case types.ResourceMetadata:
+		if r.GetMetadata() != nil {
+			return nil
+		}
+	}
+
+	return trace.BadParameter("'%T.Metadata' must not be nil", resource)
 }
