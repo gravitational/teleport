@@ -91,6 +91,7 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/azuredevops"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/cache"
@@ -656,6 +657,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if as.azureDevopsIDTokenValidator == nil {
+		as.azureDevopsIDTokenValidator = azuredevops.NewIDTokenValidator()
+	}
 	if as.circleCITokenValidate == nil {
 		as.circleCITokenValidate = func(
 			ctx context.Context, organizationID, token string,
@@ -1089,6 +1093,11 @@ type Server struct {
 	// gitlabIDTokenValidator allows ID tokens from GitLab CI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
 	gitlabIDTokenValidator gitlabIDTokenValidator
+
+	// azureDevopsIDTokenValidator allows ID tokens from Azure DevOps to be
+	// validated by the auth server. It can be overridden for the purpose of
+	// tests.
+	azureDevopsIDTokenValidator azureDevopsIDTokenValidator
 
 	// tpmValidator allows TPMs to be validated by the auth server. It can be
 	// overridden for the purpose of tests.
