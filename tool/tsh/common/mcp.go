@@ -104,7 +104,7 @@ func (c *mcpDBCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	server := dbmcp.NewRootServer()
+	server := dbmcp.NewRootServer(logger)
 	allDatabases, closeLocalProxies, err := c.prepareDatabases(cf.Context, registry, dbs, logger, tc, sc.profile, server)
 	if err != nil {
 		return trace.Wrap(err)
