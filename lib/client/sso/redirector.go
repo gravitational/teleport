@@ -244,7 +244,7 @@ func (rd *Redirector) OpenRedirect(ctx context.Context, redirectURL string) erro
 	return trace.Wrap(rd.processLoginURL(redirectURL, ""))
 }
 
-// OpenLoginURL opens the redirect URL in a new browser window, suitable for
+// OpenLoginURL opens the redirector served redirect URL in a new browser window, suitable for
 // both SAML http-redirect and http-post binding SSO authentication request.
 func (rd *Redirector) OpenLoginURL(ctx context.Context, redirectURL, postForm string) error {
 	return trace.Wrap(rd.processLoginURL(redirectURL, postForm))

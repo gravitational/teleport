@@ -75,7 +75,7 @@ type SAMLCeremony struct {
 // SAMLCeremonyInit initializes an SAML based SSO login ceremony.
 type SAMLCeremonyInit func(ctx context.Context, clientCallbackURL string) (redirectURL, postformData string, err error)
 
-// Run the SAM SSO ceremony.
+// Run the SAML SSO ceremony.
 func (c *SAMLCeremony) Run(ctx context.Context) (*authclient.SSHLoginResponse, error) {
 	redirectURL, postformData, err := c.Init(ctx, c.clientCallbackURL)
 	if err != nil {

@@ -182,7 +182,7 @@ func TestCLISAMLCeremony(t *testing.T) {
 				// using a simplified regexp for http://127.0.0.1:<port>/<uuid>
 				const clickableURLPattern = `http://127.0.0.1:\d+/[0-9A-Fa-f-]+`
 				clickableURL := regexp.MustCompile(clickableURLPattern).FindString(stderr.String())
-				resp, err := httpclient.Get(string(clickableURL))
+				resp, err := httpclient.Get(clickableURL)
 				require.NoError(t, err)
 				defer resp.Body.Close()
 

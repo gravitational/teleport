@@ -13740,6 +13740,11 @@ type SAMLConnectorSpecV2 struct {
 	ForceAuthn SAMLForceAuthn `protobuf:"varint,18,opt,name=ForceAuthn,proto3,enum=types.SAMLForceAuthn" json:"force_authn,omitempty"`
 	// PreferredRequestBinding is a preferred SAML request binding method.
 	// Value must be either "http-post" or "http-redirect".
+	// In general, the SAML identity provider lists request binding methods it supports.
+	// And the SAML service provider uses one of the IdP supported request binding method that it prefers.
+	// But we never honored request binding value provided by the IdP and always used http-redirect
+	// binding as a default. Setting up PreferredRequestBinding value lets us preserve existing
+	// auth connector behavior and only use http-post binding if it is explicitly configured.
 	PreferredRequestBinding string   `protobuf:"bytes,19,opt,name=PreferredRequestBinding,proto3" json:"preferred_request_binding,omitempty"`
 	XXX_NoUnkeyedLiteral    struct{} `json:"-"`
 	XXX_unrecognized        []byte   `json:"-"`
@@ -13901,8 +13906,7 @@ type SAMLAuthRequest struct {
 	// Value is only set if the PreferredRequestBinding in the SAMLConnectorSpecV2
 	// is "http-post". In any other case, RedirectURL field will be populated.
 	PostForm []byte `protobuf:"bytes,23,opt,name=PostForm,proto3" json:"post_form,omitempty"`
-	// ClientVersion is the version of tsh or Proxy sending SAMLAuthRequest request.
-	// The value is used by the Auth service to facilitate SSO as supported by the client.
+	// ClientVersion is the version of tsh or Proxy that is sending the SAMLAuthRequest request.
 	ClientVersion        string   `protobuf:"bytes,24,opt,name=ClientVersion,proto3" json:"client_version,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

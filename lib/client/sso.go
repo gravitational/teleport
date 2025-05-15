@@ -63,7 +63,7 @@ func (tc *TeleportClient) ssoRedirectorConfig(ctx context.Context, connectorDisp
 
 func (tc *TeleportClient) ssoLoginInitFn(keyRing *KeyRing, connectorID, connectorType string) sso.CeremonyInit {
 	return func(ctx context.Context, clientCallbackURL string) (redirectURL string, err error) {
-		redirectURL, _ /* postform value */, err = tc.loginInitFn(ctx, keyRing, clientCallbackURL, connectorID, connectorType)
+		redirectURL, _ /* postform */, err = tc.loginInitFn(ctx, keyRing, clientCallbackURL, connectorID, connectorType)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}

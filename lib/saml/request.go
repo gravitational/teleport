@@ -32,12 +32,12 @@ import (
 func WriteSAMLPostRequestWithHeaders(w http.ResponseWriter, rawForm []byte) error {
 	setSAMLRequestSecurityHeaders(w.Header())
 
-	formBuf := bytes.NewBuffer(nil)
-	if err := samlHTTPPostRequest.Execute(formBuf, template.HTML(rawForm)); err != nil {
+	htmlBuf := bytes.NewBuffer(nil)
+	if err := samlHTTPPostRequest.Execute(htmlBuf, template.HTML(rawForm)); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if _, err := w.Write(formBuf.Bytes()); err != nil {
+	if _, err := w.Write(htmlBuf.Bytes()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -62,6 +62,8 @@ var samlHTTPPostRequest = template.Must(template.New("saml-http-post-request").P
 
 // sha256 checksum is calculated for the script tag configured in the form.
 // <script>document.getElementById('SAMLSubmitButton').style.visibility="hidden";document.getElementById('SAMLRequestForm').submit();</script>
+// The form and script is generated from github.com/russellhaering/gosaml2 library as part of
+// http-post binding request generation.
 const sha256sum = "'sha256-AjPdJSbZmeWHnEc5ykvJFay8FTWeTeRbs9dutfZ0HqE='"
 
 // TODO(sshah): consolidate security headers used for service provider and identity provider.
