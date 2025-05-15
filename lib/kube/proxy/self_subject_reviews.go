@@ -183,7 +183,17 @@ func (f *Forwarder) validateSelfSubjectAccessReview(sess *clusterSession, w http
 					"- kind: %s\n"+
 					"  name: %s\n"+
 					"  namespace: %s\n"+
-					"  verbs: [%s]\n", accessReview.Spec.ResourceAttributes.Resource, namespaceNameToString(namespace, name), kubernetesResourcesKey, resource, emptyOrWildcard(name), emptyOrWildcard(namespace), emptyOrWildcard("")),
+					"  verbs: [%s]\n"+
+					"  api_group: %s\n",
+				accessReview.Spec.ResourceAttributes.Resource,
+				namespaceNameToString(namespace, name),
+				kubernetesResourcesKey,
+				resource,
+				emptyOrWildcard(name),
+				emptyOrWildcard(namespace),
+				emptyOrWildcard(""),
+				emptyOrWildcard(accessReview.Spec.ResourceAttributes.Group),
+			),
 		}
 
 		responsewriters.SetContentTypeHeader(w, req.Header)
@@ -203,7 +213,16 @@ func (f *Forwarder) validateSelfSubjectAccessReview(sess *clusterSession, w http
 					"kubernetes_resources:\n"+
 					"- kind: %s\n"+
 					"  name: %s\n"+
-					"  verbs: [%s]\n", accessReview.Spec.ResourceAttributes.Resource, name, kubernetesResourcesKey, resource, emptyOrWildcard(name), emptyOrWildcard("")),
+					"  verbs: [%s]\n"+
+					"  api_group: %s",
+				accessReview.Spec.ResourceAttributes.Resource,
+				name,
+				kubernetesResourcesKey,
+				resource,
+				emptyOrWildcard(name),
+				emptyOrWildcard(""),
+				emptyOrWildcard(accessReview.Spec.ResourceAttributes.Group),
+			),
 		}
 		responsewriters.SetContentTypeHeader(w, req.Header)
 		if encodeErr := encoder.Encode(accessReview, w); encodeErr != nil {
