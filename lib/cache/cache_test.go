@@ -129,13 +129,14 @@ type testPack struct {
 
 // testFuncs are functions to support testing an object in a cache.
 type testFuncs[T types.Resource] struct {
-	newResource func(string) (T, error)
-	create      func(context.Context, T) error
-	list        func(context.Context) ([]T, error)
-	cacheGet    func(context.Context, string) (T, error)
-	cacheList   func(context.Context) ([]T, error)
-	update      func(context.Context, T) error
-	deleteAll   func(context.Context) error
+	newResource    func(string) (T, error)
+	create         func(context.Context, T) error
+	list           func(context.Context) ([]T, error)
+	cacheGet       func(context.Context, string) (T, error)
+	cacheList      func(context.Context) ([]T, error)
+	update         func(context.Context, T) error
+	deleteAll      func(context.Context) error
+	changeResource func(T)
 }
 
 // testFuncs153 are functions to support testing an RFD153-style resource in a cache.
@@ -146,6 +147,7 @@ type testFuncs153[T types.Resource153] struct {
 	cacheGet    func(context.Context, string) (T, error)
 	cacheList   func(context.Context) ([]T, error)
 	update      func(context.Context, T) error
+	delete      func(context.Context, string) error
 	deleteAll   func(context.Context) error
 }
 
@@ -2659,10 +2661,20 @@ func TestAutoUpdateAgentRollout(t *testing.T) {
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
 
+	if funcs.changeResource == nil {
+		funcs.changeResource = func(t T) {
+			if t.Expiry().IsZero() {
+				t.SetExpiry(time.Now().Add(30 * time.Minute))
+			} else {
+				t.SetExpiry(t.Expiry().Add(30 * time.Minute))
+			}
+		}
+	}
+
 	// Create a resource.
 	r, err := funcs.newResource("test-sp")
 	require.NoError(t, err)
-	r.SetExpiry(time.Now().Add(30 * time.Minute))
+	funcs.changeResource(r)
 
 	err = funcs.create(ctx, r)
 	require.NoError(t, err)
@@ -2678,11 +2690,11 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Wait until the information has been replicated to the cache.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Make sure the cache has a single resource in it.
 		out, err = funcs.cacheList(ctx)
 		assert.NoError(t, err)
-		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
+		assert.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 	}, time.Second*2, time.Millisecond*250)
 
 	// cacheGet is optional as not every resource implements it
@@ -2696,7 +2708,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// update is optional as not every resource implements it
 	if funcs.update != nil {
 		// Update the resource and upsert it into the backend again.
-		r.SetExpiry(r.Expiry().Add(30 * time.Minute))
+		funcs.changeResource(r)
 		err = funcs.update(ctx, r)
 		require.NoError(t, err)
 	}
@@ -2708,23 +2720,22 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Check that information has been replicated to the cache.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Make sure the cache has a single resource in it.
 		out, err = funcs.cacheList(ctx)
 		assert.NoError(t, err)
-		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
+		assert.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 	}, time.Second*2, time.Millisecond*250)
 
 	// Remove all service providers from the backend.
 	err = funcs.deleteAll(ctx)
 	require.NoError(t, err)
-
 	// Check that information has been replicated to the cache.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Check that the cache is now empty.
 		out, err = funcs.cacheList(ctx)
 		assert.NoError(t, err)
-		return len(out) == 0
+		assert.Empty(t, out)
 	}, time.Second*2, time.Millisecond*250)
 }
 
@@ -2746,6 +2757,25 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 	cmpOpts := []cmp.Option{
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision", "id"),
 		protocmp.Transform(),
+		cmpopts.EquateEmpty(),
+	}
+
+	assertCacheContents := func(expected []T) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			out, err := funcs.cacheList(ctx)
+			assert.NoError(t, err)
+
+			// If the cache is expected to be empty, then test explicitly for
+			// *that* rather than do an equality test. An equality test here
+			// would be overly-pedantic about a service returning `nil` rather
+			// than an empty slice.
+			if len(expected) == 0 {
+				assert.Empty(t, out)
+				return
+			}
+
+			assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))
+		}, 2*time.Second, 10*time.Millisecond)
 	}
 
 	// Check that the resource is now in the backend.
@@ -2754,12 +2784,7 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Wait until the information has been replicated to the cache.
-	require.Eventually(t, func() bool {
-		// Make sure the cache has a single resource in it.
-		out, err = funcs.cacheList(ctx)
-		assert.NoError(t, err)
-		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
-	}, time.Second*2, time.Millisecond*250)
+	assertCacheContents([]T{r})
 
 	// cacheGet is optional as not every resource implements it
 	if funcs.cacheGet != nil {
@@ -2784,26 +2809,26 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Check that information has been replicated to the cache.
-	require.Eventually(t, func() bool {
-		// Make sure the cache has a single resource in it.
-		out, err = funcs.cacheList(ctx)
-		assert.NoError(t, err)
-		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
-	}, time.Second*2, time.Millisecond*250)
+	assertCacheContents([]T{r})
+
+	if funcs.delete != nil {
+		// Add a second resource.
+		r2, err := funcs.newResource("test-resource-2")
+		require.NoError(t, err)
+		require.NoError(t, funcs.create(ctx, r2))
+		assertCacheContents([]T{r, r2})
+		// Check that only one resource is deleted.
+		require.NoError(t, funcs.delete(ctx, r2.GetMetadata().Name))
+		assertCacheContents([]T{r})
+	}
 
 	// Remove all resources from the backend.
 	err = funcs.deleteAll(ctx)
 	require.NoError(t, err)
 
 	// Check that information has been replicated to the cache.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// Check that the cache is now empty.
-		out, err = funcs.cacheList(ctx)
-		assert.NoError(t, err)
-		assert.Empty(t, out)
-	}, time.Second*2, time.Millisecond*250)
+	assertCacheContents([]T{})
 }
-
 func TestRelativeExpiry(t *testing.T) {
 	t.Parallel()
 
