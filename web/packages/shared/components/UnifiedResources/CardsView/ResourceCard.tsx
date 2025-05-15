@@ -309,7 +309,9 @@ export function ResourceCard({
       {/* This is to let the WarningRightEdgeBadgeIcon stay in place while the
         InnerContainer pops out and expands vertically from rendering all
         labels. */}
-      {shouldDisplayStatusWarning && showAllLabels && <WarningRightEdgeBadgeIcon />}
+      {shouldDisplayStatusWarning && showAllLabels && (
+        <WarningRightEdgeBadgeIcon />
+      )}
     </CardContainer>
   );
 }

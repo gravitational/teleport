@@ -88,7 +88,9 @@ export function UnhealthyStatusInfo(props: StoryProps) {
       name: 'testing-database-resource-long-title-name',
       protocol: 'postgres',
       labels: [],
-      statuses: [props.healthStatus === 'empty' ? 'unknown' : props.healthStatus],
+      statuses: [
+        props.healthStatus === 'empty' ? 'unknown' : props.healthStatus,
+      ],
     };
     if (props.serverLength === 'many') {
       servers = manyDbServers;

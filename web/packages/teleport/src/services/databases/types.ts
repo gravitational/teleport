@@ -16,7 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ResourceHealthStatus, ResourceTargetHealth } from 'shared/components/UnifiedResources';
+import {
+  ResourceHealthStatus,
+  ResourceTargetHealth,
+} from 'shared/components/UnifiedResources';
 import { DbProtocol } from 'shared/services/databases';
 
 import { ResourceLabel } from 'teleport/services/agents';

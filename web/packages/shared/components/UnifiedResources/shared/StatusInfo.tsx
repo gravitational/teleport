@@ -40,7 +40,7 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 import { pluralize } from 'shared/utils/text';
 
 import {
-    DatabaseServer,
+  DatabaseServer,
   ResourceHealthStatus,
   SharedResourceServer,
   UnifiedResourceDefinition,
@@ -78,8 +78,8 @@ export function UnhealthyStatusInfo({
         <InfoParagraph>
           {unhealthyOrUnknownServers.length > 0 && (
             <StatusDescription
-            servers={unhealthyOrUnknownServers}
-            resource={resource}
+              servers={unhealthyOrUnknownServers}
+              resource={resource}
             />
           )}
         </InfoParagraph>
@@ -196,41 +196,44 @@ function StatusDescription({
   if (resource.kind === 'db') {
     const unhealthyServers = servers.filter(
       s => s.targetHealth?.status === 'unhealthy'
-    )
+    );
     const unknownHealthServers = servers.filter(
       s => s.targetHealth?.status === 'unknown'
-    )
-    return <ul>
-      {unhealthyServers.length > 0 && unhealthyStatusBullet(unhealthyServers.length)}
-      {unknownHealthServers.length > 0 && unknownStatusBullet(unknownHealthServers.length)}
-    </ul>
+    );
+    return (
+      <ul>
+        {unhealthyServers.length > 0 &&
+          unhealthyStatusBullet(unhealthyServers.length)}
+        {unknownHealthServers.length > 0 &&
+          unknownStatusBullet(unknownHealthServers.length)}
+      </ul>
+    );
   }
 }
 
 function unhealthyStatusBullet(numServers: number) {
   const startingWord = numServers > 1 ? 'Some' : 'A';
-  const serviceWord = numServers
-    ? pluralize(numServers, 'service')
-    : 'service';
-  return <li>
-    {startingWord} Teleport database {serviceWord} proxying access to
-    this database cannot reach the database endpoint.
-  </li>
+  const serviceWord = numServers ? pluralize(numServers, 'service') : 'service';
+  return (
+    <li>
+      {startingWord} Teleport database {serviceWord} proxying access to this
+      database cannot reach the database endpoint.
+    </li>
+  );
 }
 
 function unknownStatusBullet(numServers: number) {
   const startingWord = numServers > 1 ? 'Some' : 'A';
-  const serviceWord = numServers
-    ? pluralize(numServers, 'service')
-    : 'service';
-  return <li>
-    {startingWord} Teleport database {serviceWord} proxying access to
-    this database {numServers > 1 ? 'are' : 'is'} not running
-    network health checks for the database endpoint. User connections
-    will not be routed through affected Teleport database services as
-    long as other database services report a healthy connection to the
-    database.
-  </li>
+  const serviceWord = numServers ? pluralize(numServers, 'service') : 'service';
+  return (
+    <li>
+      {startingWord} Teleport database {serviceWord} proxying access to this
+      database {numServers > 1 ? 'are' : 'is'} not running network health checks
+      for the database endpoint. User connections will not be routed through
+      affected Teleport database services as long as other database services
+      report a healthy connection to the database.
+    </li>
+  );
 }
 
 function getTroubleShootingLink(resource: UnifiedResourceDefinition) {
@@ -336,6 +339,11 @@ export function openStatusInfoPanel({
  * Returns true if any status is unhealthy or if there are a mix of different
  * health statuses.
  */
-export function shouldWarnResourceStatus(statuses: ResourceHealthStatus[]): boolean {
-  return statuses && (statuses.includes('unhealthy') || statuses.some(s => s !== statuses[0]))
+export function shouldWarnResourceStatus(
+  statuses: ResourceHealthStatus[]
+): boolean {
+  return (
+    statuses &&
+    (statuses.includes('unhealthy') || statuses.some(s => s !== statuses[0]))
+  );
 }
