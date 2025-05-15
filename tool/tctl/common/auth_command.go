@@ -221,6 +221,7 @@ var allowedCertificateTypes = []string{
 	"saml-idp",
 	"github",
 	"awsra",
+	"bound_keypair",
 }
 
 // allowedCRLCertificateTypes list of certificate authorities types that can
