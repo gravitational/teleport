@@ -22,6 +22,7 @@ import (
 	"context"
 	"iter"
 	"log/slog"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -244,13 +245,13 @@ func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, s
 						}
 					}
 
-					r, ok := cache.resources[item.Value]
+					collection, ok := cache.resources[item.Value]
 					if !ok {
 						return true
 					}
 
-					if len(kinds) == 0 || c.itemKindMatches(r.getKind(), kindsMap) {
-						items = append(items, iteratedItem{key: item.Key, collection: r})
+					if len(kinds) == 0 || c.itemKindMatches(collection.getKind(), kindsMap) {
+						items = append(items, iteratedItem{key: item.Key, collection: collection.copyLocked()})
 					}
 
 					if len(items) >= defaultPageSize {
@@ -1013,6 +1014,14 @@ type resourceCollection struct {
 	// kube clusters, apps, or windows desktops.
 	servers map[string]serverWithHealthStatus
 	sortKey resourceSortKey
+}
+
+func (c *resourceCollection) copyLocked() *resourceCollection {
+	return &resourceCollection{
+		latest:  c.latest,
+		servers: maps.Clone(c.servers),
+		sortKey: c.sortKey,
+	}
 }
 
 type serverWithHealthStatus struct {
