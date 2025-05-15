@@ -219,3 +219,10 @@ func IterAttr[V any](iter iter.Seq[V]) slog.LogValuer {
 func (a iterAttr[V]) LogValue() slog.Value {
 	return slog.AnyValue(slices.Collect[V](a.iter))
 }
+
+// ByteToStringAttr creates a [slog.LogValuer] that logs bytes in string.
+type ByteToStringAttr []byte
+
+func (a ByteToStringAttr) LogValue() slog.Value {
+	return slog.StringValue(string(a))
+}
