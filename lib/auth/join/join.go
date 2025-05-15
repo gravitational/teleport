@@ -301,7 +301,7 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 		params.IDToken, err = azuredevops.NewIDTokenSource(os.Getenv).GetIDToken(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
-    }
+		}
 	case types.JoinMethodBoundKeypair:
 		if params.BoundKeypairParams == nil {
 			return nil, trace.BadParameter("bound keypair parameters are required")
