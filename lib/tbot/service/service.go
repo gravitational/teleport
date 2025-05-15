@@ -80,6 +80,12 @@ func (s *Service[HandlerT]) Status() status.Status {
 	return s.status.Get()
 }
 
+// Get returns the service's handler. You should generally prefer to use Wait
+// because you usually only want to use the service if it's healthy.
+func (s *Service[HandlerT]) Get() HandlerT {
+	return s.handler
+}
+
 // ErrWrongStatus is returned from Service.Wait and Service.WaitForStatus when
 // the service is not in the required status.
 var ErrWrongStatus = errors.New("supervisor: service has wrong status")
