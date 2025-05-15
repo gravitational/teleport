@@ -256,8 +256,7 @@ const validKubernetesKind = (
       // NOTE: We need to validate in case the user switches between role versions.
       // Valid values in rolev8 could be invalid in older versions.
       const v7valid = resourceKindOptions
-        .map(elem => elem.value)
-        .includes(kind);
+        .some(elem => elem.value === kind)
 
       return {
         valid: v7valid,
