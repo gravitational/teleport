@@ -4744,7 +4744,8 @@ func checkTokenTTL(tok types.ProvisionToken) bool {
 
 type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)
 
-func isValidRedirectURL(redirectURL string) bool {
+// IsValidRedirectURL validates redirect URL.
+func IsValidRedirectURL(redirectURL string) bool {
 	u, err := url.ParseRequestURI(redirectURL)
 	return err == nil && (!u.IsAbs() || (u.Scheme == "http" || u.Scheme == "https"))
 }
@@ -4755,7 +4756,7 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 		app.SetRedirectPageHeaders(w.Header(), "")
 
 		redirectURL := fn(w, r, p)
-		if !isValidRedirectURL(redirectURL) {
+		if !IsValidRedirectURL(redirectURL) {
 			redirectURL = client.LoginFailedRedirectURL
 		}
 		http.Redirect(w, r, redirectURL, http.StatusFound)
@@ -4769,7 +4770,7 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		redirectURL := fn(w, r, p)
-		if !isValidRedirectURL(redirectURL) {
+		if !IsValidRedirectURL(redirectURL) {
 			redirectURL = client.LoginFailedRedirectURL
 		}
 		err := app.MetaRedirect(w, redirectURL)

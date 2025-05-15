@@ -902,7 +902,7 @@ func TestValidRedirectURL(t *testing.T) {
 		{"block bad protocol", "javascript:alert('xss')", false},
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
-			require.Equal(t, tt.valid, isValidRedirectURL(tt.url))
+			require.Equal(t, tt.valid, IsValidRedirectURL(tt.url))
 		})
 	}
 }

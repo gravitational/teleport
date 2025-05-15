@@ -115,6 +115,8 @@ type SAMLConnector interface {
 	WithMFASettings() error
 	// GetForceAuthn returns ForceAuthn
 	GetForceAuthn() bool
+	// GetPreferredRequestBinding returns PreferredRequestBinding.
+	GetPreferredRequestBinding() string
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -446,6 +448,18 @@ func (o *SAMLConnectorV2) GetForceAuthn() bool {
 	return o.Spec.ForceAuthn == SAMLForceAuthn_FORCE_AUTHN_YES
 }
 
+const (
+	// SAMLRequestHTTPRedirectBinding is the SAML http-redirect binding request name.
+	SAMLRequestHTTPRedirectBinding = "http-redirect"
+	// SAMLRequestHTTPPostBinding is the SAML http-post binding request name.
+	SAMLRequestHTTPPostBinding = "http-post"
+)
+
+// GetPreferredRequestBinding returns PreferredRequestBinding.
+func (o *SAMLConnectorV2) GetPreferredRequestBinding() string {
+	return o.Spec.PreferredRequestBinding
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (o *SAMLConnectorV2) setStaticFields() {
 	o.Kind = KindSAMLConnector
@@ -485,6 +499,12 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	for _, v := range o.Spec.AttributesToRoles {
 		if len(v.Roles) == 0 {
 			return trace.BadParameter("need roles field in attributes_to_roles")
+		}
+	}
+
+	if o.GetPreferredRequestBinding() != "" {
+		if !slices.Contains([]string{SAMLRequestHTTPRedirectBinding, SAMLRequestHTTPPostBinding}, o.GetPreferredRequestBinding()) {
+			return trace.BadParameter("invalid preferred_request_binding value. It can be either %q or %q", SAMLRequestHTTPPostBinding, SAMLRequestHTTPRedirectBinding)
 		}
 	}
 	return nil

@@ -93,6 +93,7 @@ Optional:
 - `force_authn` (Number) ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED is treated as NO.
 - `issuer` (String) Issuer is the identity provider issuer.
 - `mfa` (Attributes) MFASettings contains settings to enable SSO MFA checks through this auth connector. (see [below for nested schema](#nested-schema-for-specmfa))
+- `preferred_request_binding` (String) PreferredRequestBinding is a preferred SAML request binding method. Value must be either "http-post" or "http-redirect". In general, the SAML identity provider lists request binding methods it supports. And the SAML service provider uses one of the IdP supported request binding method that it prefers. But we never honored request binding value provided by the IdP and always used http-redirect binding as a default. Setting up PreferredRequestBinding value lets us preserve existing auth connector behavior and only use http-post binding if it is explicitly configured.
 - `provider` (String) Provider is the external identity provider.
 - `service_provider_issuer` (String) ServiceProviderIssuer is the issuer of the service provider (Teleport).
 - `signing_key_pair` (Attributes) SigningKeyPair is an x509 key pair used to sign AuthnRequest. (see [below for nested schema](#nested-schema-for-specsigning_key_pair))

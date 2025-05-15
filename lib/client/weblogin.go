@@ -74,6 +74,8 @@ type SSOLoginConsoleReq struct {
 	KubernetesCluster string
 	// PKCEVerifier is used to verify a generated code challenge.
 	PKCEVerifier string
+	// ClientVersion specifies version of the client that is sending SSO request.
+	ClientVersion string `json:"client_version,omitempty"`
 }
 
 // CheckAndSetDefaults makes sure that the request is valid
@@ -93,6 +95,8 @@ func (r *SSOLoginConsoleReq) CheckAndSetDefaults() error {
 // SSOLoginConsoleResponse is a response to SSO console request
 type SSOLoginConsoleResponse struct {
 	RedirectURL string `json:"redirect_url"`
+	// PostForm is an auto submittable HTML form.
+	PostForm string `json:"post_form"`
 }
 
 // MFAChallengeRequest is a request from the client for a MFA challenge from the

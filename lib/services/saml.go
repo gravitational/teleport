@@ -194,6 +194,12 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 				mfa.Sso = md.IDPSSODescriptor.SingleSignOnServices[0].Location
 			}
 		}
+		if sc.GetPreferredRequestBinding() == types.SAMLRequestHTTPPostBinding {
+			slog.WarnContext(context.Background(), "SSO MFA does not support http-post binding request and will use the default http-redirect binding request",
+				teleport.ComponentKey, teleport.ComponentSAML,
+				"preferred_request_binding", sc.GetPreferredRequestBinding(),
+			)
+		}
 		sc.SetMFASettings(mfa)
 	}
 
