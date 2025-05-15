@@ -31,7 +31,9 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -560,22 +562,9 @@ func NewDynamicWindowsDesktopWatcher(ctx context.Context, cfg DynamicWindowsDesk
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.DynamicWindowsDesktop, readonly.DynamicWindowsDesktop]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindDynamicWindowsDesktop,
-		ResourceGetter: func(ctx context.Context) ([]types.DynamicWindowsDesktop, error) {
-			var desktops []types.DynamicWindowsDesktop
-			next := ""
-			for {
-				d, token, err := cfg.DynamicWindowsDesktopGetter.ListDynamicWindowsDesktops(ctx, defaults.MaxIterationLimit, next)
-				if err != nil {
-					return nil, err
-				}
-				desktops = append(desktops, d...)
-				if token == "" {
-					break
-				}
-				next = token
-			}
-			return desktops, nil
-		},
+		ResourceGetter: pagerFn[types.DynamicWindowsDesktop](
+			cfg.DynamicWindowsDesktopGetter.ListDynamicWindowsDesktops,
+		).getAll,
 		ResourceKey: types.DynamicWindowsDesktop.GetName,
 		ResourcesC:  cfg.DynamicWindowsDesktopsC,
 		CloneFunc: func(resource types.DynamicWindowsDesktop) types.DynamicWindowsDesktop {
@@ -832,9 +821,12 @@ func (g *genericCollector[T, R]) processEventsAndUpdateCurrent(ctx context.Conte
 			// Always broadcast when a resource is deleted.
 			updated = true
 		case types.OpPut:
-			resource, ok := event.Resource.(T)
-			if !ok {
-				g.Logger.WarnContext(ctx, "Received unexpected type", "resource", event.Resource.GetKind())
+			resource, err := convertResource[T](event.Resource)
+			if err != nil {
+				g.Logger.WarnContext(ctx, "Failed to convert event resource",
+					"resource", event.Resource.GetKind(),
+					"error", err,
+				)
 				continue
 			}
 
@@ -1719,30 +1711,81 @@ type GitServerWatcherConfig struct {
 // NewGitServerWatcher returns a new instance of Git server watcher.
 func NewGitServerWatcher(ctx context.Context, cfg GitServerWatcherConfig) (*GenericWatcher[types.Server, readonly.Server], error) {
 	if cfg.GitServerGetter == nil {
-		return nil, trace.BadParameter("NodesGetter must be provided")
+		return nil, trace.BadParameter("GitServerGetter must be provided")
 	}
 
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.Server, readonly.Server]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindGitServer,
-		ResourceGetter: func(ctx context.Context) (all []types.Server, err error) {
-			var page []types.Server
-			var token string
-			for {
-				page, token, err = cfg.GitServerGetter.ListGitServers(ctx, apidefaults.DefaultChunkSize, token)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				all = append(all, page...)
-				if token == "" {
-					break
-				}
-			}
-			return all, nil
-		},
+		ResourceGetter: pagerFn[types.Server](
+			cfg.GitServerGetter.ListGitServers,
+		).getAll,
 		ResourceKey:            types.Server.GetName,
 		DisableUpdateBroadcast: !cfg.EnableUpdateBroadcast,
 		CloneFunc:              types.Server.DeepCopy,
 	})
 	return w, trace.Wrap(err)
+}
+
+// HealthCheckConfigWatcherConfig is the config for the health_check_config
+// watcher.
+type HealthCheckConfigWatcherConfig struct {
+	// Reader is used to fetch health check config resources.
+	Reader HealthCheckConfigReader
+	// ResourcesC receives up-to-date list of all health check config resources.
+	ResourcesC chan []*healthcheckconfigv1.HealthCheckConfig
+	// ResourceWatcherConfig is the resource watcher configuration.
+	ResourceWatcherConfig ResourceWatcherConfig
+}
+
+// HealthCheckConfigWatcher monitors health_check_config resources.
+type HealthCheckConfigWatcher = GenericWatcher[
+	*healthcheckconfigv1.HealthCheckConfig,
+	*healthcheckconfigv1.HealthCheckConfig,
+]
+
+// NewHealthCheckConfigWatcher returns a new instance of health check config
+// watcher.
+func NewHealthCheckConfigWatcher(
+	ctx context.Context,
+	cfg HealthCheckConfigWatcherConfig,
+) (*HealthCheckConfigWatcher, error) {
+	if cfg.Reader == nil {
+		return nil, trace.BadParameter("Reader must be provided")
+	}
+
+	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[
+		*healthcheckconfigv1.HealthCheckConfig,
+		*healthcheckconfigv1.HealthCheckConfig,
+	]{
+		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
+		ResourceKind:          types.KindHealthCheckConfig,
+		ResourceGetter: pagerFn[*healthcheckconfigv1.HealthCheckConfig](
+			cfg.Reader.ListHealthCheckConfigs,
+		).getAll,
+		ResourceKey: func(resource *healthcheckconfigv1.HealthCheckConfig) string {
+			return resource.GetMetadata().GetName()
+		},
+		ResourcesC: cfg.ResourcesC,
+		CloneFunc:  apiutils.CloneProtoMsg[*healthcheckconfigv1.HealthCheckConfig],
+	})
+	return w, trace.Wrap(err)
+}
+
+type pagerFn[T any] func(ctx context.Context, limit int, startKey string) ([]T, string, error)
+
+func (fn pagerFn[T]) getAll(ctx context.Context) ([]T, error) {
+	var out []T
+	var token string
+	for {
+		page, nextToken, err := fn(ctx, apidefaults.DefaultChunkSize, token)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, page...)
+		if nextToken == "" {
+			return out, nil
+		}
+		token = nextToken
+	}
 }

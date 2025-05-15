@@ -106,7 +106,7 @@ func TestBuildPrincipals(t *testing.T) {
 
 	hostKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
-	hostPrivateKey, err := keys.NewSoftwarePrivateKey(hostKey)
+	hostPrivateKey, err := keys.NewPrivateKey(hostKey)
 	require.NoError(t, err)
 	hostPublicKey := hostPrivateKey.MarshalSSHPublicKey()
 

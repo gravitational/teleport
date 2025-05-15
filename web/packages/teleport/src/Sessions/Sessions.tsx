@@ -20,9 +20,9 @@ import { useState } from 'react';
 
 import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
-import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDropdown';
 import {
   FeatureBox,
   FeatureHeader,

@@ -156,21 +156,28 @@ func BenchmarkBufferedChannelPipe(b *testing.B) {
 			buffer := newBufferedChannelPipe(s)
 			b.Cleanup(func() { require.NoError(b, buffer.Close()) })
 
-			errCh := make(chan error)
+			errCh := make(chan error, 1)
+			readCh := make(chan struct{})
+			defer close(readCh)
 			go func() {
-				readBuffer := make([]byte, b.N*len(data))
-				_, err := io.ReadFull(buffer, readBuffer)
-				errCh <- err
+				readBuffer := make([]byte, len(data))
+				for range readCh {
+					_, err := io.ReadFull(buffer, readBuffer)
+					errCh <- err
+					if err != nil {
+						return
+					}
+				}
 			}()
 
 			// benchmark write+read
 			for b.Loop() {
+				readCh <- struct{}{}
 				written, err := buffer.Write(data)
 				require.NoError(b, err)
 				require.Len(b, data, written)
+				require.NoError(b, <-errCh)
 			}
-			require.NoError(b, <-errCh)
-			b.StopTimer()
 		})
 	}
 }

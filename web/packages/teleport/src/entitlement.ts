@@ -21,6 +21,7 @@ type entitlement =
   | 'AccessLists'
   | 'AccessMonitoring'
   | 'AccessRequests'
+  | 'AccessGraphDemoMode'
   | 'App'
   | 'CloudAuditLogRetention'
   | 'DB'
@@ -48,6 +49,7 @@ export const defaultEntitlements: Record<
 > = {
   AccessLists: { enabled: false, limit: 0 },
   AccessMonitoring: { enabled: false, limit: 0 },
+  AccessGraphDemoMode: { enabled: false, limit: 0 },
   AccessRequests: { enabled: false, limit: 0 },
   App: { enabled: false, limit: 0 },
   CloudAuditLogRetention: { enabled: false, limit: 0 },

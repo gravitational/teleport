@@ -68,6 +68,10 @@ type Backend interface {
 	// Get returns a single item or not found error
 	Get(ctx context.Context, key Key) (*Item, error)
 
+	// Items produces an iterator of backend items in the range, and order
+	// described in the provided [ItemsParams].
+	Items(ctx context.Context, params ItemsParams) iter.Seq2[Item, error]
+
 	// GetRange returns the items between the start and end keys, including both
 	// (if present).
 	GetRange(ctx context.Context, startKey, endKey Key, limit int) (*GetResult, error)
@@ -114,9 +118,9 @@ type Backend interface {
 	CloseWatchers()
 }
 
-// IterateParams are parameters that are provided to
+// ItemsParams are parameters that are provided to
 // [BackendWithItems.Items] to alter the iteration behavior.
-type IterateParams struct {
+type ItemsParams struct {
 	// StartKey is the minimum key in the range yielded by the iteration. This key
 	// will be included in the results if it exists.
 	StartKey Key
@@ -129,17 +133,6 @@ type IterateParams struct {
 	Descending bool
 	// Limit is an optional maximum number of items to retrieve during iteration.
 	Limit int
-}
-
-// BackendWithItems is a temporary interface that will be added to [backend.Backend]
-// once all concrete backend implementations satisfy the new interface.
-// TODO(tross): REMEMBER TO DELETE THIS
-type BackendWithItems interface {
-	Backend
-
-	// Items produces an iterator of backend items in the range, and order
-	// described in the provided [IterateParams].
-	Items(ctx context.Context, params IterateParams) iter.Seq2[Item, error]
 }
 
 // New initializes a new [Backend] implementation based on the service config.

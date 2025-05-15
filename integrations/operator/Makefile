@@ -82,7 +82,9 @@ crdgen: ## Generate CRDs
 PROTOS = \
 	teleport/loginrule/v1/loginrule.proto \
 	teleport/accesslist/v1/accesslist.proto \
-	teleport/legacy/types/types.proto
+	teleport/legacy/types/types.proto \
+	teleport/machineid/v1/bot.proto \
+	teleport/workloadidentity/v1/resource.proto
 
 .PHONY: manifests
 manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.

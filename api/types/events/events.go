@@ -2388,6 +2388,18 @@ func (m *AutoUpdateVersionDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
+func (m *AutoUpdateAgentRolloutTrigger) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *AutoUpdateAgentRolloutForceDone) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *AutoUpdateAgentRolloutRollback) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
 func (m *ContactCreate) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
@@ -2501,4 +2513,38 @@ func (m *AWSICResourceSync) TrimToMaxSize(maxSize int) AuditEvent {
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
 	return out
+}
+
+func (m *HealthCheckConfigCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *HealthCheckConfigUpdate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *HealthCheckConfigDelete) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+// TrimToMaxSize implements [AuditEvent].
+func (m *WorkloadIdentityX509IssuerOverrideCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+// TrimToMaxSize implements [AuditEvent].
+func (m *WorkloadIdentityX509IssuerOverrideDelete) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *SigstorePolicyCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *SigstorePolicyUpdate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *SigstorePolicyDelete) TrimToMaxSize(int) AuditEvent {
+	return m
 }

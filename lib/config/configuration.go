@@ -23,6 +23,7 @@
 package config
 
 import (
+	"cmp"
 	"context"
 	"crypto/x509"
 	"errors"
@@ -67,7 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -261,6 +262,14 @@ type CommandLineFlags struct {
 
 	// DisableDebugService disables the debug service.
 	DisableDebugService bool
+
+	// EnableSELinux enables SELinux support for the SSH service.
+	EnableSELinux bool
+
+	// EnsureSELinuxEnforcing will cause Teleport to exit if the SELinux module
+	// is not set to enforcing mode or the global SELinux mode is not set to
+	// enforcing.
+	EnsureSELinuxEnforcing bool
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of
@@ -1084,6 +1093,9 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Proxy.PROXYProtocolMode = val
 	}
 
+	allowDowngrade := fc.Proxy.ProxyProtocolAllowDowngrade
+	cfg.Proxy.PROXYAllowDowngrade = allowDowngrade != nil && allowDowngrade.Value
+
 	if fc.Proxy.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, defaults.SSHProxyListenPort)
 		if err != nil {
@@ -1451,6 +1463,8 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 
 	cfg.SSH.AllowFileCopying = fc.SSH.SSHFileCopy()
 
+	cfg.SSH.ForceListen = fc.SSH.ForceListen
+
 	return nil
 }
 
@@ -1499,12 +1513,12 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		for _, region := range matcher.Regions {
-			if !awsutils.IsKnownRegion(region) {
+			if !awsregion.IsKnownRegion(region) {
 				const message = "AWS matcher uses unknown region" +
 					"This is either a typo or a new AWS region that is unknown to the AWS SDK used to compile this binary. "
 				slog.WarnContext(context.Background(), message,
 					"region", region,
-					"known_regions", awsutils.GetKnownRegions(),
+					"known_regions", awsregion.GetKnownRegions(),
 				)
 			}
 		}
@@ -2052,22 +2066,53 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.WindowsDesktop.ListenAddr = *listenAddr
 	}
 
-	for _, filter := range fc.WindowsDesktop.Discovery.Filters {
-		if _, err := ldap.CompileFilter(filter); err != nil {
-			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
-		}
-	}
-
 	for _, attributeName := range fc.WindowsDesktop.Discovery.LabelAttributes {
 		if !types.IsValidLabelKey(attributeName) {
 			return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
 		}
 	}
 
-	cfg.WindowsDesktop.Discovery = servicecfg.LDAPDiscoveryConfig{
-		BaseDN:          fc.WindowsDesktop.Discovery.BaseDN,
-		Filters:         fc.WindowsDesktop.Discovery.Filters,
-		LabelAttributes: fc.WindowsDesktop.Discovery.LabelAttributes,
+	for _, filter := range fc.WindowsDesktop.Discovery.Filters {
+		if _, err := ldap.CompileFilter(filter); err != nil {
+			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
+		}
+	}
+
+	if fc.WindowsDesktop.Discovery.BaseDN != "" && len(fc.WindowsDesktop.DiscoveryConfigs) > 0 {
+		return trace.BadParameter("WindowsDesktopService specifies both discovery and discovery_configs: move the discovery section to discovery_configs to continue")
+	}
+
+	for _, discoveryConfig := range fc.WindowsDesktop.DiscoveryConfigs {
+		for _, filter := range discoveryConfig.Filters {
+			if _, err := ldap.CompileFilter(filter); err != nil {
+				return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
+			}
+		}
+	}
+
+	// append the old (singular) discovery config to the new format that supports multiple configs
+	if fc.WindowsDesktop.Discovery.BaseDN != "" {
+		fc.WindowsDesktop.DiscoveryConfigs = append(fc.WindowsDesktop.DiscoveryConfigs, fc.WindowsDesktop.Discovery)
+	}
+
+	cfg.WindowsDesktop.Discovery = make([]servicecfg.LDAPDiscoveryConfig, 0, len(fc.WindowsDesktop.DiscoveryConfigs))
+	for _, dc := range fc.WindowsDesktop.DiscoveryConfigs {
+		if dc.BaseDN == "" {
+			return trace.BadParameter("WindowsDesktopService discovey_config is missing required base_dn")
+		}
+		cfg.WindowsDesktop.Discovery = append(cfg.WindowsDesktop.Discovery,
+			servicecfg.LDAPDiscoveryConfig{
+				BaseDN:          dc.BaseDN,
+				Filters:         dc.Filters,
+				LabelAttributes: dc.LabelAttributes,
+				RDPPort:         cmp.Or(dc.RDPPort, int(defaults.RDPListenPort)),
+			},
+		)
+	}
+
+	cfg.WindowsDesktop.DiscoveryInterval = fc.WindowsDesktop.DiscoveryInterval
+	if cfg.WindowsDesktop.DiscoveryInterval < 0 {
+		return trace.BadParameter("desktop discovery interval must not be negative (%v)", fc.WindowsDesktop.DiscoveryInterval.String())
 	}
 
 	var err error
@@ -2621,6 +2666,14 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 
 	if clf.DisableDebugService {
 		cfg.DebugService.Enabled = false
+	}
+
+	if clf.EnableSELinux {
+		cfg.SSH.EnableSELinux = true
+	}
+
+	if clf.EnsureSELinuxEnforcing {
+		cfg.SSH.EnsureSELinuxEnforcing = true
 	}
 
 	if os.Getenv("TELEPORT_UNSTABLE_QUIC_PROXY_PEERING") == "yes" {

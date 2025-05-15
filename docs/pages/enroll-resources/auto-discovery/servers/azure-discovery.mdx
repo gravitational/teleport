@@ -75,7 +75,7 @@ resources:
 
 <Tabs>
 <TabItem label="Using managed identity">
-  Go to the [Managed Identities](https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.ManagedIdentity%2FuserAssignedIdentities)
+  Go to the [Managed Identities](https://portal.azure.com/#browse/Microsoft.ManagedIdentity%2FuserAssignedIdentities)
   page in your Azure portal and click *Create* to create a new user-assigned
   managed identity:
 
@@ -241,13 +241,13 @@ teleport:
     method: token
   proxy_server: "teleport.example.com:443"
 auth_service:
-  enabled: off
+  enabled: false
 proxy_service:
-  enabled: off
+  enabled: false
 ssh_service:
-  enabled: off
+  enabled: false
 discovery_service:
-  enabled: "yes"
+  enabled: true
   discovery_group: "azure-prod"
   azure:
     - types: ["vm"]
@@ -301,7 +301,7 @@ logs can be found on the targeted VM at
 
 ## Next steps
 
-- Read [Joining Nodes via Azure Managed Identity](../../agents/join-services-to-your-cluster/azure.mdx)
+- Read [Joining Nodes via Azure Managed Identity](../../agents/azure.mdx)
   for more information on Azure tokens.
 - Full documentation on Azure discovery configuration can be found through the [
   config file reference documentation](../../../reference/config.mdx).

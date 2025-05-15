@@ -585,7 +585,7 @@ func (b *Backend) queryOutputPages(ctx context.Context, limit int, input *dynamo
 	}
 }
 
-func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.Seq2[backend.Item, error] {
+func (b *Backend) Items(ctx context.Context, params backend.ItemsParams) iter.Seq2[backend.Item, error] {
 	if params.StartKey.IsZero() {
 		err := trace.BadParameter("missing parameter startKey")
 		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
@@ -667,7 +667,7 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 // GetRange returns range of elements
 func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
 	var result backend.GetResult
-	for i, err := range b.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
+	for i, err := range b.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -693,7 +693,7 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 	const maxDeletionOperations = backend.DefaultRangeLimit / 100 / batchOperationItemsLimit
 	requests := make([]types.WriteRequest, 0, batchOperationItemsLimit)
 	var deletions int
-	for item, err := range b.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey}) {
+	for item, err := range b.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}) {
 		if err != nil {
 			return trace.Wrap(err)
 		}

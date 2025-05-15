@@ -97,6 +97,8 @@ func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 	_, err = clt.BotServiceClient().CreateBot(r.Context(), &machineidv1.CreateBotRequest{
 		Bot: &machineidv1.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: req.BotName,
 				Labels: map[string]string{
@@ -237,6 +239,8 @@ func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter
 	updated, err := clt.BotServiceClient().UpdateBot(r.Context(), &machineidv1.UpdateBotRequest{
 		UpdateMask: mask,
 		Bot: &machineidv1.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: botName,
 			},

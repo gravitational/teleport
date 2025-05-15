@@ -431,7 +431,7 @@ func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, erro
 	return item, nil
 }
 
-func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.Seq2[backend.Item, error] {
+func (b *Backend) Items(ctx context.Context, params backend.ItemsParams) iter.Seq2[backend.Item, error] {
 	if params.StartKey.IsZero() {
 		err := trace.BadParameter("missing parameter startKey")
 		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
@@ -530,7 +530,7 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 // GetRange implements [backend.Backend].
 func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
 	var result backend.GetResult
-	for item, err := range b.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
+	for item, err := range b.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

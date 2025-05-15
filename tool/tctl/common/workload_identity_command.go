@@ -17,13 +17,16 @@
 package common
 
 import (
+	"bytes"
 	"context"
+	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"io"
 	"log/slog"
 	"math/big"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -38,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -63,6 +67,14 @@ type WorkloadIdentityCommand struct {
 	revocationSerial string
 	revocationReason string
 	revocationExpiry string
+
+	overridesSignCmd  *kingpin.CmdClause
+	overridesSignMode workloadidentityv1pb.CSRCreationMode
+
+	overridesCreateCmd        *kingpin.CmdClause
+	overridesCreateName       string
+	overridesCreateForce      bool
+	overridesCreateFullchains []string
 
 	now func() time.Time
 
@@ -141,6 +153,41 @@ func (c *WorkloadIdentityCommand) Initialize(
 		"out", "Path to write the CRL as a file to. If unspecified, STDOUT will be used.",
 	).StringVar(&c.revocationsCRLOut)
 
+	overridesCmd := cmd.Command("x509-issuer-overrides", "Manage X.509 overrides.")
+
+	c.overridesSignCmd = overridesCmd.Command("sign-csrs", "Sign CSRs with the SPIFFE X.509 CA keys.")
+	var overridesSignMode string
+	c.overridesSignCmd.
+		Flag(
+			"creation-mode",
+			"How the attributes of the issuer are encoded in the CSR: \"same\", \"empty\".",
+		).
+		Default("same").
+		Action(parseProtobufEnum(
+			&overridesSignMode,
+			&c.overridesSignMode,
+			map[string]workloadidentityv1pb.CSRCreationMode{
+				"empty": workloadidentityv1pb.CSRCreationMode_CSR_CREATION_MODE_EMPTY,
+				"same":  workloadidentityv1pb.CSRCreationMode_CSR_CREATION_MODE_SAME,
+			},
+		)).
+		StringVar(&overridesSignMode)
+	c.overridesSignMode = workloadidentityv1pb.CSRCreationMode_CSR_CREATION_MODE_SAME
+
+	c.overridesCreateCmd = overridesCmd.Command("create", "Create an issuer override from the given certificate chains.")
+	c.overridesCreateCmd.
+		Flag("force", "Overwrite the existing override if it exists.").
+		Short('f').
+		BoolVar(&c.overridesCreateForce)
+	c.overridesCreateCmd.
+		Flag("name", "The name of the override resource to write.").
+		Default("default").
+		StringVar(&c.overridesCreateName)
+	c.overridesCreateCmd.
+		Arg("fullchain.pem", "PEM files containing an issuer and its optional chain each.").
+		Required().
+		ExistingFilesVar(&c.overridesCreateFullchains)
+
 	if c.stdout == nil {
 		c.stdout = os.Stdout
 	}
@@ -167,6 +214,10 @@ func (c *WorkloadIdentityCommand) TryRun(
 		commandFunc = c.DeleteRevocation
 	case c.revocationsCrlCmd.FullCommand():
 		commandFunc = c.StreamCRL
+	case c.overridesSignCmd.FullCommand():
+		commandFunc = c.runOverridesSignCSRs
+	case c.overridesCreateCmd.FullCommand():
+		commandFunc = c.runOverridesCreate
 	default:
 		return false, nil
 	}
@@ -415,7 +466,7 @@ func (c *WorkloadIdentityCommand) StreamCRL(
 	}
 	if c.revocationsCRLOut != "" {
 		write = func(data []byte) error {
-			err := os.WriteFile(c.revocationsCRLOut, data, 0644)
+			err := os.WriteFile(c.revocationsCRLOut, data, 0o644)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -446,4 +497,154 @@ func (c *WorkloadIdentityCommand) StreamCRL(
 			return nil
 		}
 	}
+}
+
+func (c *WorkloadIdentityCommand) runOverridesCreate(ctx context.Context, client *authclient.Client) error {
+	oclt := client.WorkloadIdentityX509OverridesClient()
+
+	overrides := make([][]*x509.Certificate, 0, len(c.overridesCreateFullchains))
+	for _, p := range c.overridesCreateFullchains {
+		f, err := os.ReadFile(p)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		certs, err := tlsca.ParseCertificatePEMs(f)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(certs) < 1 {
+			return trace.BadParameter("got no certificates from fullchain PEM file %q", p)
+		}
+		overrides = append(overrides, certs)
+	}
+
+	clusterName, err := client.GetDomainName(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	const loadSigningKeysFalse = false
+	ca, err := client.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: clusterName,
+	}, loadSigningKeysFalse)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keypairs := ca.GetTrustedTLSKeyPairs()
+	if len(overrides) != len(keypairs) {
+		return trace.BadParameter("expected %v override(s), got %v", len(keypairs), len(overrides))
+	}
+
+	caCerts := make([]*x509.Certificate, 0, len(keypairs))
+	for _, keypair := range keypairs {
+		caCert, err := tlsca.ParseCertificatePEM(keypair.Cert)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		caCerts = append(caCerts, caCert)
+	}
+
+	for i, override := range overrides {
+		if !slices.ContainsFunc(caCerts, func(caCert *x509.Certificate) bool {
+			return bytes.Equal(override[0].RawSubjectPublicKeyInfo, caCert.RawSubjectPublicKeyInfo)
+		}) {
+			return trace.BadParameter("override in fullchain PEM file %q does not match any issuer", c.overridesCreateFullchains[i])
+		}
+	}
+
+	pbOverrides := make([]*workloadidentityv1pb.X509IssuerOverrideSpec_Override, 0, len(overrides))
+	for _, override := range overrides {
+		chainDer := make([][]byte, 0, len(override))
+		for _, cert := range override {
+			chainDer = append(chainDer, cert.Raw)
+		}
+		pbOverrides = append(pbOverrides, &workloadidentityv1pb.X509IssuerOverrideSpec_Override{
+			Issuer: chainDer[0],
+			Chain:  chainDer,
+		})
+	}
+
+	override := &workloadidentityv1pb.X509IssuerOverride{
+		Kind:    types.KindWorkloadIdentityX509IssuerOverride,
+		SubKind: "",
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: c.overridesCreateName,
+		},
+		Spec: &workloadidentityv1pb.X509IssuerOverrideSpec{
+			Overrides: pbOverrides,
+		},
+	}
+
+	if c.overridesCreateForce {
+		if _, err := oclt.UpsertX509IssuerOverride(ctx, &workloadidentityv1pb.UpsertX509IssuerOverrideRequest{
+			X509IssuerOverride: override,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if _, err := oclt.CreateX509IssuerOverride(ctx, &workloadidentityv1pb.CreateX509IssuerOverrideRequest{
+			X509IssuerOverride: override,
+		}); err != nil {
+			if trace.IsAlreadyExists(err) {
+				return trace.Wrap(err, "override already exists, use the --force option to overwrite it")
+			}
+			return trace.Wrap(err)
+		}
+	}
+
+	fmt.Fprintf(c.stdout,
+		"Written "+types.KindWorkloadIdentityX509IssuerOverride+"; to check, run tctl get "+types.KindWorkloadIdentityX509IssuerOverride+"/%v\n",
+		c.overridesCreateName,
+	)
+	return nil
+}
+
+func (c *WorkloadIdentityCommand) runOverridesSignCSRs(ctx context.Context, client *authclient.Client) error {
+	oclt := client.WorkloadIdentityX509OverridesClient()
+
+	clusterName, err := client.GetDomainName(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	const loadSigningKeysFalse = false
+	ca, err := client.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: clusterName,
+	}, loadSigningKeysFalse)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keypairs := ca.GetTrustedTLSKeyPairs()
+	csrs := make([]*x509.CertificateRequest, 0, len(keypairs))
+	for _, kp := range keypairs {
+		block, _ := pem.Decode(kp.Cert)
+		if block == nil {
+			return trace.BadParameter("failed to decode PEM block in SPIFFE CA")
+		}
+		resp, err := oclt.SignX509IssuerCSR(ctx, &workloadidentityv1pb.SignX509IssuerCSRRequest{
+			Issuer:          block.Bytes,
+			CsrCreationMode: c.overridesSignMode,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		csr, err := x509.ParseCertificateRequest(resp.GetCsr())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		csrs = append(csrs, csr)
+	}
+	for _, csr := range csrs {
+		fmt.Fprintln(c.stdout, csr.Subject)
+		_ = pem.Encode(c.stdout, &pem.Block{
+			Type:  "CERTIFICATE REQUEST",
+			Bytes: csr.Raw,
+		})
+	}
+	return nil
 }

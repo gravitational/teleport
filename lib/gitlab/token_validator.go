@@ -20,10 +20,13 @@ package gitlab
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
-	"github.com/coreos/go-oidc"
+	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/go-jose/go-jose/v3"
+	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -116,5 +119,51 @@ func (id *IDTokenValidator) Validate(
 	if err := idToken.Claims(&claims); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return &claims, nil
+}
+
+// ValidateTokenWithJWKS validates a token using the provided JWKS data.
+// Used in cases where GitLab is not reachable from the Teleport cluster.
+func (id *IDTokenValidator) ValidateTokenWithJWKS(
+	ctx context.Context,
+	jwksData []byte,
+	token string,
+) (*IDTokenClaims, error) {
+	parsed, err := josejwt.ParseSigned(token)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing jwt")
+	}
+
+	jwks := jose.JSONWebKeySet{}
+	if err := json.Unmarshal(jwksData, &jwks); err != nil {
+		return nil, trace.Wrap(err, "parsing provided jwks")
+	}
+
+	stdClaims := josejwt.Claims{}
+	if err := parsed.Claims(jwks, &stdClaims); err != nil {
+		return nil, trace.Wrap(err, "validating jwt signature")
+	}
+
+	clusterNameResource, err := id.ClusterNameGetter.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting cluster name")
+	}
+
+	leeway := time.Second * 10
+	err = stdClaims.ValidateWithLeeway(josejwt.Expected{
+		Audience: []string{
+			clusterNameResource.GetClusterName(),
+		},
+		Time: id.Clock.Now(),
+	}, leeway)
+	if err != nil {
+		return nil, trace.Wrap(err, "validating standard claims")
+	}
+
+	claims := IDTokenClaims{}
+	if err := parsed.Claims(jwks, &claims); err != nil {
+		return nil, trace.Wrap(err, "validating custom claims")
+	}
+
 	return &claims, nil
 }

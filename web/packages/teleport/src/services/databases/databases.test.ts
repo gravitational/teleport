@@ -56,6 +56,7 @@ test('correct formatting of database fetch response', async () => {
           iamPolicyStatus: IamPolicyStatus.Success,
         },
         supportsInteractive: false,
+        autoUsersEnabled: false,
       },
       {
         kind: 'db',
@@ -69,6 +70,7 @@ test('correct formatting of database fetch response', async () => {
         labels: [],
         aws: undefined,
         supportsInteractive: true,
+        autoUsersEnabled: false,
       },
     ],
     startKey: mockResponse.startKey,

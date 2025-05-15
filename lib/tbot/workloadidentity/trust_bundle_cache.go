@@ -470,7 +470,7 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 			bundleSet.Local = bundle
 			m.setBundleSet(bundleSet)
 		case types.KindSPIFFEFederation:
-			r153, ok := event.Resource.(types.Resource153Unwrapper)
+			r153, ok := event.Resource.(types.Resource153UnwrapperT[*machineidv1pb.SPIFFEFederation])
 			if !ok {
 				log.WarnContext(
 					ctx,
@@ -479,15 +479,7 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 				)
 				return
 			}
-			federation, ok := r153.Unwrap().(*machineidv1pb.SPIFFEFederation)
-			if !ok {
-				log.WarnContext(
-					ctx,
-					"Event did not contain expected type",
-					"got", reflect.TypeOf(event.Resource),
-				)
-				return
-			}
+			federation := r153.UnwrapT()
 			log.DebugContext(
 				ctx,
 				"Processing update for federated trust bundle",

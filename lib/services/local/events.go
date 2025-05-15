@@ -102,6 +102,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAutoUpdateVersionParser()
 		case types.KindAutoUpdateAgentRollout:
 			parser = newAutoUpdateAgentRolloutParser()
+		case types.KindAutoUpdateAgentReport:
+			parser = newAutoUpdateAgentReportParser()
 		case types.KindNamespace:
 			parser = newNamespaceParser(kind.Name)
 		case types.KindRole:
@@ -256,6 +258,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWorkloadIdentityParser()
 		case types.KindWorkloadIdentityX509Revocation:
 			parser = newWorkloadIdentityX509RevocationParser()
+		case types.KindHealthCheckConfig:
+			parser = newHealthCheckConfigParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -863,6 +867,45 @@ func (p *autoUpdateAgentRolloutParser) parse(event backend.Event) (types.Resourc
 	}
 }
 
+func newAutoUpdateAgentReportParser() *autoUpdateAgentReportParser {
+	return &autoUpdateAgentReportParser{
+		baseParser: newBaseParser(backend.NewKey(autoUpdateAgentReportPrefix)),
+	}
+}
+
+type autoUpdateAgentReportParser struct {
+	baseParser
+}
+
+func (p *autoUpdateAgentReportParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(autoUpdateAgentReportPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindAutoUpdateAgentReport,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		autoUpdateAgentReport, err := services.UnmarshalProtoResource[*autoupdate.AutoUpdateAgentReport](event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(autoUpdateAgentReport), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func newNamespaceParser(name string) *namespaceParser {
 	prefix := backend.NewKey(namespacesPrefix)
 	if name != "" {
@@ -935,7 +978,7 @@ func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 
 		return &types.ResourceHeader{
 			Kind:    types.KindRole,
-			Version: types.V7,
+			Version: types.V8,
 			Metadata: types.Metadata{
 				Name:      strings.TrimPrefix(name, backend.SeparatorString),
 				Namespace: apidefaults.Namespace,
@@ -1840,16 +1883,11 @@ func (p *networkRestrictionsParser) match(key backend.Key) bool {
 func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(restrictionsPrefix, network)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
-		}
-
 		return &types.ResourceHeader{
 			Kind:    types.KindNetworkRestrictions,
 			Version: types.V1,
 			Metadata: types.Metadata{
-				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Name:      types.MetaNameNetworkRestrictions,
 				Namespace: apidefaults.Namespace,
 			},
 		}, nil

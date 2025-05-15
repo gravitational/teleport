@@ -145,7 +145,14 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
           setAttempt({ status: 'success' });
           setSvcDeployedAwsUrl(url);
           setDeployFinished(true);
-          updateAgentMeta({ ...agentMeta, serviceDeployedMethod: 'auto' });
+          updateAgentMeta({
+            ...agentMeta,
+            serviceDeploy: {
+              method: 'auto',
+              selectedSecurityGroups,
+              selectedSubnetIds,
+            },
+          });
         })
         .catch((err: Error) => {
           setAttempt({ status: 'failed', statusText: err.message });
@@ -188,7 +195,15 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
 
   function handleDeployFinished(db: Database) {
     setDeployFinished(true);
-    updateAgentMeta({ ...agentMeta, db, serviceDeployedMethod: 'auto' });
+    updateAgentMeta({
+      ...agentMeta,
+      db,
+      serviceDeploy: {
+        method: 'auto',
+        selectedSecurityGroups,
+        selectedSubnetIds,
+      },
+    });
   }
 
   function abortDeploying() {

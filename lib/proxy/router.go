@@ -23,6 +23,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"net"
 	"os"
@@ -41,9 +42,9 @@ import (
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -103,6 +104,7 @@ func (c *ProxiedMetricConn) Close() error {
 }
 
 type serverResolverFn = func(ctx context.Context, host, port string, site site) (types.Server, error)
+type windowsDesktopServiceConnectorFn = func(ctx context.Context, config *desktop.ConnectionConfig) (conn net.Conn, version string, err error)
 
 // SiteGetter provides access to connected local or remote sites
 type SiteGetter interface {
@@ -129,9 +131,13 @@ type RouterConfig struct {
 	SiteGetter SiteGetter
 	// TracerProvider allows tracers to be created
 	TracerProvider oteltrace.TracerProvider
+	// Log is an optional logger. A default logger will be created if not set.
+	Logger *slog.Logger
 
 	// serverResolver is used to resolve hosts, used by tests
 	serverResolver serverResolverFn
+	// serverResolver is used to connect to Windows desktop service, used by tests
+	windowsDesktopServiceConnector windowsDesktopServiceConnectorFn
 }
 
 // CheckAndSetDefaults ensures the required items were populated
@@ -156,18 +162,28 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 		c.serverResolver = getServer
 	}
 
+	if c.windowsDesktopServiceConnector == nil {
+		c.windowsDesktopServiceConnector = desktop.ConnectToWindowsService
+	}
+
+	if c.Logger == nil {
+		c.Logger = slog.Default()
+	}
+
 	return nil
 }
 
-// Router is used by the proxy to establish connections to both
-// nodes and other clusters.
+// Router is used by the proxy to establish connections to
+// nodes, desktops, and other clusters.
 type Router struct {
-	clusterName      string
-	localAccessPoint LocalAccessPoint
-	localSite        reversetunnelclient.RemoteSite
-	siteGetter       SiteGetter
-	tracer           oteltrace.Tracer
-	serverResolver   serverResolverFn
+	clusterName                    string
+	localAccessPoint               LocalAccessPoint
+	localSite                      reversetunnelclient.RemoteSite
+	siteGetter                     SiteGetter
+	tracer                         oteltrace.Tracer
+	log                            *slog.Logger
+	serverResolver                 serverResolverFn
+	windowsDesktopServiceConnector windowsDesktopServiceConnectorFn
 }
 
 // NewRouter creates and returns a Router that is populated
@@ -183,19 +199,21 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 	}
 
 	return &Router{
-		clusterName:      cfg.ClusterName,
-		localAccessPoint: cfg.LocalAccessPoint,
-		localSite:        localSite,
-		siteGetter:       cfg.SiteGetter,
-		tracer:           cfg.TracerProvider.Tracer("Router"),
-		serverResolver:   cfg.serverResolver,
+		clusterName:                    cfg.ClusterName,
+		localAccessPoint:               cfg.LocalAccessPoint,
+		localSite:                      localSite,
+		siteGetter:                     cfg.SiteGetter,
+		tracer:                         cfg.TracerProvider.Tracer("Router"),
+		log:                            cfg.Logger,
+		serverResolver:                 cfg.serverResolver,
+		windowsDesktopServiceConnector: cfg.windowsDesktopServiceConnector,
 	}, nil
 }
 
 // DialHost dials the node that matches the provided host, port and cluster. If no matching node
 // is found an error is returned. If more than one matching node is found and the cluster networking
 // configuration is not set to route to the most recent an error is returned.
-func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter, signer agentless.SignerCreator) (_ net.Conn, err error) {
+func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter teleagent.Getter, signer agentless.SignerCreator) (_ net.Conn, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialHost",
@@ -215,7 +233,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 
 	site := r.localSite
 	if clusterName != r.clusterName {
-		remoteSite, err := r.getRemoteCluster(ctx, clusterName, accessChecker)
+		remoteSite, err := r.getRemoteCluster(ctx, clusterName, clusterAccessChecker)
 		if err != nil {
 			return nil, trace.Wrap(err, "looking up remote cluster %q", clusterName)
 		}
@@ -309,6 +327,54 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	return NewProxiedMetricConn(conn), trace.Wrap(err)
 }
 
+// DialWindowsDesktop dials the desktop that matches the provided desktop name and cluster.
+// If no matching desktop is found, an error is returned.
+func (r *Router) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, clusterName string, clusterAccessChecker func(types.RemoteCluster) error) (_ net.Conn, err error) {
+	ctx, span := r.tracer.Start(
+		ctx,
+		"router/DialWindowsDesktop",
+		oteltrace.WithAttributes(
+			attribute.String("desktopName", desktopName),
+			attribute.String("cluster", clusterName),
+		),
+	)
+
+	defer tracing.EndSpan(span, err)
+
+	site := r.localSite
+	if clusterName != r.clusterName {
+		remoteSite, err := r.getRemoteCluster(ctx, clusterName, clusterAccessChecker)
+		if err != nil {
+			return nil, trace.Wrap(err, "looking up remote cluster %q", clusterName)
+		}
+		site = remoteSite
+	}
+
+	accessPoint, err := site.CachingAccessPoint()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	span.AddEvent("looking up Windows desktop service connection")
+
+	serviceConn, _, err := r.windowsDesktopServiceConnector(ctx, &desktop.ConnectionConfig{
+		Log:            r.log,
+		DesktopsGetter: accessPoint,
+		Site:           site,
+		ClientSrcAddr:  clientSrcAddr,
+		ClientDstAddr:  clientDstAddr,
+		ClusterName:    clusterName,
+		DesktopName:    desktopName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "cannot connect to Windows Desktop Service")
+	}
+
+	span.AddEvent("retrieved Windows desktop service connection")
+
+	return serviceConn, trace.Wrap(err)
+}
+
 // checkedPrefixWriter checks that first data written into it has the specified prefix.
 type checkedPrefixWriter struct {
 	net.Conn
@@ -349,7 +415,7 @@ func (c *checkedPrefixWriter) Write(p []byte) (int, error) {
 
 // getRemoteCluster looks up the provided clusterName to determine if a remote site exists with
 // that name and determines if the user has access to it.
-func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, checker services.AccessChecker) (reversetunnelclient.RemoteSite, error) {
+func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, clusterAccessChecker func(types.RemoteCluster) error) (reversetunnelclient.RemoteSite, error) {
 	_, span := r.tracer.Start(
 		ctx,
 		"router/getRemoteCluster",
@@ -369,7 +435,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 		return nil, utils.OpaqueAccessDenied(err)
 	}
 
-	if err := checker.CheckAccessToRemoteCluster(rc); err != nil {
+	if err := clusterAccessChecker(rc); err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
 

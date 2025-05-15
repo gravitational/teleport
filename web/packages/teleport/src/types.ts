@@ -74,6 +74,7 @@ export enum NavTitle {
   SessionAndIdentityLocks = 'Session & Identity Locks',
   TrustedDevices = 'Trusted Devices',
   AccessMonitoring = 'Access Monitoring',
+  WorkloadIdentity = 'Workload Identity',
 
   // Resources Requests
   NewRequest = 'New Request',

@@ -29,6 +29,7 @@ import {
   makeDocumentAuthorizeWebSession,
   makeDocumentCluster,
   makeDocumentConnectMyComputer,
+  makeDocumentDesktopSession,
   makeDocumentGatewayApp,
   makeDocumentGatewayCliClient,
   makeDocumentGatewayDatabase,
@@ -36,7 +37,10 @@ import {
   makeDocumentPtySession,
   makeDocumentTshNode,
   makeDocumentVnetDiagReport,
+  makeDocumentVnetInfo,
 } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
+import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 import { TabHostContainer } from './TabHost';
 
@@ -58,6 +62,8 @@ const allDocuments = [
   makeDocumentPtySession(),
   makeDocumentAuthorizeWebSession(),
   makeDocumentVnetDiagReport(),
+  makeDocumentVnetInfo(),
+  makeDocumentDesktopSession(),
 ];
 
 const cluster = makeRootCluster();
@@ -68,10 +74,14 @@ export function Story() {
   return (
     <MockAppContextProvider appContext={ctx}>
       <ResourcesContextProvider>
-        <TabHostContainer
-          topBarConnectMyComputerRef={createRef()}
-          topBarAccessRequestRef={createRef()}
-        />
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <TabHostContainer
+              topBarConnectMyComputerRef={createRef()}
+              topBarAccessRequestRef={createRef()}
+            />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
       </ResourcesContextProvider>
     </MockAppContextProvider>
   );

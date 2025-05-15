@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { produce } from 'immer';
-import { useCallback, useId, useState } from 'react';
+import { useCallback, useId } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex } from 'design';
@@ -37,8 +36,9 @@ import {
   OptionsModel,
   roleEditorModelToRole,
   StandardEditorModel,
+  StandardEditorTab,
 } from './standardmodel';
-import { StandardModelDispatcher } from './useStandardModel';
+import { ActionType, StandardModelDispatcher } from './useStandardModel';
 
 export type StandardEditorProps = {
   originalRole?: RoleWithYaml;
@@ -60,54 +60,56 @@ export const StandardEditor = ({
   dispatch,
 }: StandardEditorProps) => {
   const isEditing = !!originalRole;
-  const { roleModel, validationResult } = standardEditorModel;
+  const { roleModel, validationResult, currentTab, disabledTabs } =
+    standardEditorModel;
+  const modelValid = validationResult.isValid;
 
-  enum StandardEditorTab {
-    Overview,
-    Resources,
-    AdminRules,
-    Options,
-  }
-
-  const [currentTab, setCurrentTab] = useState(StandardEditorTab.Overview);
-  const [disabledTabs, setDisabledTabs] = useState(
-    isEditing ? [false, false, false, false] : [false, true, true, true]
-  );
   const idPrefix = useId();
 
   const validator = useValidation();
 
   function handleResetToStandard() {
-    dispatch({ type: 'reset-to-standard' });
+    dispatch({ type: ActionType.ResetToStandard });
   }
 
-  function handleSave() {
-    if (!validator.validate()) {
-      return;
+  const validate = useCallback(() => {
+    // Enable instant validation messages.
+    validator.validate();
+    // Show validation errors on newly added sections.
+    dispatch({ type: ActionType.EnableValidation });
+    // The model validation result is always up to date, so we don't need to
+    // wait until the above action gets dispatched.
+    return modelValid;
+  }, [validator, dispatch, modelValid]);
+
+  const handleSave = useCallback(() => {
+    if (validate()) {
+      onSave?.(roleEditorModelToRole(roleModel));
     }
-    onSave?.(roleEditorModelToRole(standardEditorModel.roleModel));
-  }
+  }, [validate, onSave, roleModel]);
 
   const setOptions = useCallback(
     (options: OptionsModel) =>
-      dispatch({ type: 'set-options', payload: options }),
+      dispatch({ type: ActionType.SetOptions, payload: options }),
+    [dispatch]
+  );
+
+  const setCurrentTab = useCallback(
+    (newTab: StandardEditorTab) => {
+      dispatch({ type: ActionType.SetCurrentTab, payload: newTab });
+    },
     [dispatch]
   );
 
   const validateAndGoToNextTab = useCallback(() => {
     const nextTabIndex = currentTab + 1;
-    const valid = validator.validate();
+    const valid = validate();
     if (!valid) {
       return;
     }
     validator.reset();
     setCurrentTab(nextTabIndex);
-    setDisabledTabs(prevEnabledTabs =>
-      produce(prevEnabledTabs, et => {
-        et[nextTabIndex] = false;
-      })
-    );
-  }, [currentTab, setCurrentTab, setDisabledTabs, validator]);
+  }, [currentTab, validate, validator, setCurrentTab]);
 
   const goToPreviousTab = useCallback(
     () => setCurrentTab(currentTab - 1),
@@ -126,7 +128,7 @@ export const StandardEditor = ({
     return {
       key: tab,
       title: tabTitles[tab],
-      disabled: disabledTabs[tab],
+      disabled: disabledTabs.has(tab),
       controls: tabElementIDs[tab],
       status: error ? validationErrorTabStatus : undefined,
     };
@@ -137,6 +139,7 @@ export const StandardEditor = ({
       <Box mb={3} mx={3}>
         <SlideTabs
           appearance="round"
+          size="medium"
           hideStatusIconOnActiveTab
           tabs={[
             tabSpec(
@@ -146,12 +149,17 @@ export const StandardEditor = ({
             tabSpec(
               StandardEditorTab.Resources,
               validator.state.validating &&
-                validationResult.resources.some(s => !s.valid)
+                validationResult.resources.some(
+                  (s, i) =>
+                    !s.valid && !roleModel.resources[i].hideValidationErrors
+                )
             ),
             tabSpec(
               StandardEditorTab.AdminRules,
               validator.state.validating &&
-                validationResult.rules.some(s => !s.valid)
+                validationResult.rules.some(
+                  (s, i) => !s.valid && !roleModel.rules[i].hideValidationErrors
+                )
             ),
             tabSpec(StandardEditorTab.Options, false),
           ]}
@@ -186,12 +194,11 @@ export const StandardEditor = ({
           }}
         >
           <MetadataSection
+            isEditing={isEditing}
             value={roleModel.metadata}
             isProcessing={isProcessing}
             validation={validationResult.metadata}
-            onChange={metadata =>
-              dispatch({ type: 'set-metadata', payload: metadata })
-            }
+            dispatch={dispatch}
           />
         </Box>
         <Box

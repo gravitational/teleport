@@ -107,6 +107,11 @@ type Config struct {
 	// with 3rd party S3-compatible services out of the box.
 	// See https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html for more details.
 	UseVirtualStyleAddressing bool
+
+	// CompleteInitiators configures the S3 uploader to only complete
+	// uplpoads initiated by the specified set of initiators. If unspecified,
+	// the upload completer will attempt to complete all uploads in the bucket.
+	CompleteInitiators []string
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -167,6 +172,8 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 		// Default to false for backwards compatibility
 		s.UseVirtualStyleAddressing = false
 	}
+
+	s.CompleteInitiators = in.Query()[teleport.S3CompleteInitiators]
 
 	s.Region = region
 	s.Bucket = in.Host

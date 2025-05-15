@@ -34,6 +34,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wireguard/tun"
+
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
 const (
@@ -99,13 +101,20 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 	}
 	log.InfoContext(ctx, "Created TUN interface", "tun", tunName)
 
-	networkStackConfig, err := newWindowsNetworkStackConfig(device, clt)
+	networkStackConfig, err := newNetworkStackConfig(device, clt)
 	if err != nil {
 		return trace.Wrap(err, "creating network stack config")
 	}
 	networkStack, err := newNetworkStack(networkStackConfig)
 	if err != nil {
 		return trace.Wrap(err, "creating network stack")
+	}
+
+	if err := clt.ReportNetworkStackInfo(ctx, &vnetv1.NetworkStackInfo{
+		InterfaceName: tunName,
+		Ipv6Prefix:    networkStackConfig.ipv6Prefix.String(),
+	}); err != nil {
+		return trace.Wrap(err, "reporting network stack info to client application")
 	}
 
 	osConfigProvider, err := newRemoteOSConfigProvider(
@@ -148,7 +157,7 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 	return trace.Wrap(g.Wait(), "running VNet admin process")
 }
 
-func newWindowsNetworkStackConfig(tun tunDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {
+func newNetworkStackConfig(tun tunDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {
 	appProvider := newRemoteAppProvider(clt)
 	appResolver := newTCPAppResolver(appProvider, clockwork.NewRealClock())
 	ipv6Prefix, err := newIPv6Prefix()

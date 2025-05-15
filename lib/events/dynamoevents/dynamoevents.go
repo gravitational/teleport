@@ -42,8 +42,6 @@ import (
 	autoscalingtypes "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	legacydynamo "github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/google/uuid"
@@ -726,7 +724,7 @@ type legacyCheckpointKey struct {
 	Date string `json:"date,omitempty"`
 
 	// A DynamoDB query iterator. Allows us to resume a partial query.
-	Iterator map[string]*legacydynamo.AttributeValue `json:"iterator,omitempty"`
+	Iterator map[string]*LegacyAttributeValue `json:"iterator,omitempty"`
 
 	// EventKey is a derived identifier for an event used for resuming
 	// sub-page breaks due to size constraints.
@@ -1011,9 +1009,14 @@ func getCheckpointFromLegacyStartKey(startKey string) (checkpointKey, error) {
 		return checkpointKey{}, trace.Wrap(err)
 	}
 
+	convertedAttrMap, err := convertLegacyAttributesMap(checkpoint.Iterator)
+	if err != nil {
+		return checkpointKey{}, trace.Wrap(err)
+	}
+
 	// decode the dynamo attrs into the go map repr common to the old and new formats.
 	m := make(map[string]any)
-	if err := dynamodbattribute.UnmarshalMap(checkpoint.Iterator, &m); err != nil {
+	if err := attributevalue.UnmarshalMap(convertedAttrMap, &m); err != nil {
 		return checkpointKey{}, trace.Wrap(err)
 	}
 

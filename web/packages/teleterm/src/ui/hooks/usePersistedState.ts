@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useState } from 'react';
+import { Dispatch, SetStateAction, useCallback, useState } from 'react';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { StatePersistenceState } from 'teleterm/ui/services/statePersistence';
@@ -83,7 +83,7 @@ export function usePersistedState<
 >(
   key: Key,
   initialState: WholeState[Key]
-): [WholeState[Key], (newState: WholeState[Key]) => void] {
+): [WholeState[Key], Dispatch<SetStateAction<WholeState[Key]>>] {
   const { statePersistenceService } = useAppContext();
   const wholeState = statePersistenceService.getState() as WholeState;
   const state = Object.hasOwn(wholeState, key) ? wholeState[key] : initialState;
@@ -94,16 +94,25 @@ export function usePersistedState<
   // listener in statePersistenceService that gets called whenever the given key gets updated.
   const [, rerender] = useState<object>();
 
-  const setState = useCallback(
-    (newState: WholeState[Key]) => {
-      statePersistenceService.putState({
-        ...statePersistenceService.getState(),
-        [key]: newState,
-      });
+  const setState: Dispatch<SetStateAction<WholeState[Key]>> = useCallback(
+    newState => {
+      if (typeof newState === 'function') {
+        statePersistenceService.putState({
+          ...(wholeState as StatePersistenceState),
+          [key]: (newState as (prevState: WholeState[Key]) => WholeState[Key])(
+            state
+          ),
+        });
+      } else {
+        statePersistenceService.putState({
+          ...(wholeState as StatePersistenceState),
+          [key]: newState,
+        });
+      }
 
       rerender({});
     },
-    [key, statePersistenceService]
+    [key, statePersistenceService, state, wholeState]
   );
 
   return [state, setState];

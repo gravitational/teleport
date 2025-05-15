@@ -295,6 +295,12 @@ spec:
                       will default to `gitlab.com` - but can be set to the domain
                       of your self-hosted GitLab e.g `gitlab.example.com`.
                     type: string
+                  static_jwks:
+                    description: StaticJWKS disables fetching of the GitLab signing
+                      keys via the JWKS/OIDC endpoints, and allows them to be directly
+                      specified. This allows joining from GitLab CI instances that
+                      are not reachable by the Teleport Auth Service.
+                    type: string
                 type: object
               join_method:
                 description: 'JoinMethod is the joining method required in order to
@@ -329,6 +335,32 @@ spec:
                       validating the Kubernetes Service Account token. Support values:
                       - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.'
                     type: string
+                type: object
+              oracle:
+                description: Oracle allows the configuration of options specific to
+                  the "oracle" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, nodes using this token
+                      must match one allow rule to use this token.
+                    items:
+                      properties:
+                        parent_compartments:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        regions:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        tenancy:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
                 type: object
               roles:
                 description: Roles is a list of roles associated with the token, that

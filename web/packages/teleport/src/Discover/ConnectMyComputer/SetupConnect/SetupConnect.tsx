@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 import { Link } from 'react-router-dom';
 
 import { Alert, Box, Flex, H3, Subtitle3, Text } from 'design';
@@ -24,13 +24,13 @@ import { ButtonSecondary } from 'design/Button';
 import * as Icons from 'design/Icon';
 import { getPlatform } from 'design/platform';
 import { P } from 'design/Text/Text';
-import {
-  DownloadConnect,
-  getConnectDownloadLinks,
-} from 'shared/components/DownloadConnect/DownloadConnect';
 import * as connectMyComputer from 'shared/connectMyComputer';
 import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 
+import {
+  DownloadConnect,
+  getConnectDownloadLinks,
+} from 'teleport/components/DownloadConnect/DownloadConnect';
 import cfg from 'teleport/config';
 import { ActionButtons, Header, StyledBox } from 'teleport/Discover/Shared';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';

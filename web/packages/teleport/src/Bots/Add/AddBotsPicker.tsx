@@ -16,15 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { JSX } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Box, Link as ExternalLink, Flex, ResourceIcon, Text } from 'design';
 import { Server } from 'design/Icon';
 import { P } from 'design/Text/Text';
+import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
-import { InfoGuideWrapper } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import cfg from 'teleport/config';
 import { IntegrationTile } from 'teleport/Integrations';
@@ -139,7 +140,7 @@ export function AddBotsPicker() {
     <>
       <FeatureHeader justifyContent="space-between">
         <FeatureHeaderTitle>Select Bot Type</FeatureHeaderTitle>
-        <InfoGuideWrapper guide={<InfoGuide />} />
+        <InfoGuideButton config={{ guide: <InfoGuide /> }} />
       </FeatureHeader>
 
       <P mb="5">

@@ -17,8 +17,9 @@
  */
 
 import React, { PropsWithChildren } from 'react';
+import styled from 'styled-components';
 
-import { ButtonBorder } from 'design';
+import { Button, ButtonBorder } from 'design';
 import { ChevronDown } from 'design/Icon';
 import Menu from 'design/Menu';
 
@@ -29,6 +30,9 @@ type Props = MenuProps & {
   buttonProps?: AnchorProps;
   buttonText?: React.ReactNode;
   menuProps?: MenuProps;
+
+  // If present, button text is not used, and a square icon button is rendered instead of a border button
+  icon?: React.ReactNode;
 };
 
 export default class MenuActionIcon extends React.Component<
@@ -56,18 +60,33 @@ export default class MenuActionIcon extends React.Component<
 
   render() {
     const { open } = this.state;
-    const { children, menuProps, buttonProps } = this.props;
+    const { children, menuProps, buttonProps, icon } = this.props;
     return (
       <>
-        <ButtonBorder
-          size="small"
-          setRef={e => (this.anchorEl = e)}
-          onClick={this.onOpen}
-          {...buttonProps}
-        >
-          {this.props.buttonText || 'Options'}
-          <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
-        </ButtonBorder>
+        {icon ? (
+          <FilledButtonIcon
+            intent="neutral"
+            setRef={e => (this.anchorEl = e)}
+            onClick={this.onOpen}
+            {...buttonProps}
+          >
+            {icon}
+          </FilledButtonIcon>
+        ) : (
+          <ButtonBorder
+            size="small"
+            setRef={e => (this.anchorEl = e)}
+            onClick={this.onOpen}
+            {...buttonProps}
+          >
+            {this.props.buttonText || 'Options'}
+            <ChevronDown
+              ml={2}
+              size="small"
+              color={buttonProps?.color || 'text.slightlyMuted'}
+            />
+          </ButtonBorder>
+        )}
         <Menu
           getContentAnchorEl={null}
           menuListCss={menuListCss}
@@ -92,7 +111,7 @@ export default class MenuActionIcon extends React.Component<
 
   renderItems(children) {
     const filtered = React.Children.toArray(children);
-    const cloned = filtered.map((child: React.ReactElement) => {
+    const cloned = filtered.map((child: React.ReactElement<any>) => {
       return React.cloneElement(child, {
         onClick: this.makeOnClick(child.props.onClick),
       });
@@ -112,4 +131,10 @@ export default class MenuActionIcon extends React.Component<
 
 const menuListCss = () => `
   min-width: 100px;
+`;
+
+const FilledButtonIcon = styled(Button)`
+  width: 32px;
+  height: 32px;
+  padding: 0;
 `;

@@ -183,7 +183,7 @@ func (s *SPIFFEFederationSyncer) Run(ctx context.Context) error {
 				RetryInterval: time.Second * 30,
 			},
 		}, s.syncTrustDomains)
-		if err != nil {
+		if err != nil && ctx.Err() == nil {
 			s.cfg.Logger.ErrorContext(
 				ctx,
 				"SPIFFEFederation syncer encountered a fatal error, it will restart after backoff",

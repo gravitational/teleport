@@ -74,29 +74,37 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
+	mfa "github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
+	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/azuredevops"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bitbucket"
+	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
+	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
@@ -325,6 +333,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.Plugins == nil {
+		cfg.Plugins = local.NewPluginsService(cfg.Backend)
+	}
 	if cfg.PluginData == nil {
 		cfg.PluginData = local.NewPluginData(cfg.Backend, cfg.DynamicAccessExt)
 	}
@@ -411,9 +422,39 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating WorkloadIdentityX509Revocation service")
 		}
 	}
+	if cfg.WorkloadIdentityX509Overrides == nil {
+		cfg.WorkloadIdentityX509Overrides, err = local.NewWorkloadIdentityX509OverridesService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadIdentityX509Overrides service")
+		}
+	}
+	if cfg.SigstorePolicies == nil {
+		cfg.SigstorePolicies, err = local.NewSigstorePolicyService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating SigstorePolicies service")
+		}
+	}
 	if cfg.StableUNIXUsers == nil {
 		cfg.StableUNIXUsers = &local.StableUNIXUsersService{
 			Backend: cfg.Backend,
+		}
+	}
+	if cfg.HealthCheckConfig == nil {
+		cfg.HealthCheckConfig, err = local.NewHealthCheckConfigService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating HealthCheckConfigs service")
+		}
+	}
+	if cfg.BackendInfo == nil {
+		cfg.BackendInfo, err = local.NewBackendInfoService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating BackendInfo service")
+		}
+	}
+	if cfg.VnetConfigService == nil {
+		cfg.VnetConfigService, err = local.NewVnetConfigService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating VnetConfigService")
 		}
 	}
 
@@ -435,7 +476,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+			return nil, fmt.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 	} else if cfg.KeyStoreConfig.AWSKMS != nil {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
@@ -513,11 +554,17 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		StaticHostUser:                  cfg.StaticHostUsers,
 		ProvisioningStates:              cfg.ProvisioningStates,
 		IdentityCenter:                  cfg.IdentityCenter,
+		Plugins:                         cfg.Plugins,
 		PluginStaticCredentials:         cfg.PluginStaticCredentials,
 		GitServers:                      cfg.GitServers,
 		WorkloadIdentities:              cfg.WorkloadIdentity,
 		StableUNIXUsersInternal:         cfg.StableUNIXUsers,
 		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
+		WorkloadIdentityX509Overrides:   cfg.WorkloadIdentityX509Overrides,
+		SigstorePolicies:                cfg.SigstorePolicies,
+		HealthCheckConfig:               cfg.HealthCheckConfig,
+		BackendInfoService:              cfg.BackendInfo,
+		VnetConfigService:               cfg.VnetConfigService,
 	}
 
 	as := Server{
@@ -625,6 +672,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if as.azureDevopsIDTokenValidator == nil {
+		as.azureDevopsIDTokenValidator = azuredevops.NewIDTokenValidator()
+	}
 	if as.circleCITokenValidate == nil {
 		as.circleCITokenValidate = func(
 			ctx context.Context, organizationID, token string,
@@ -660,6 +710,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	if as.bitbucketIDTokenValidator == nil {
 		as.bitbucketIDTokenValidator = bitbucket.NewIDTokenValidator(as.clock)
+	}
+
+	if as.createBoundKeypairValidator == nil {
+		as.createBoundKeypairValidator = func(subject, clusterName string, publicKey crypto.PublicKey) (boundKeypairValidator, error) {
+			return boundkeypair.NewChallengeValidator(subject, clusterName, publicKey)
+		}
 	}
 
 	// Add in a login hook for generating state during user login.
@@ -745,11 +801,17 @@ type Services struct {
 	services.AutoUpdateService
 	services.ProvisioningStates
 	services.IdentityCenter
+	services.Plugins
 	services.PluginStaticCredentials
 	services.GitServers
 	services.WorkloadIdentities
 	services.StableUNIXUsersInternal
 	services.WorkloadIdentityX509Revocations
+	services.WorkloadIdentityX509Overrides
+	services.SigstorePolicies
+	services.HealthCheckConfig
+	services.BackendInfoService
+	services.VnetConfigService
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1027,6 +1089,10 @@ type Server struct {
 	// GlobalNotificationCache is a cache of global notifications.
 	GlobalNotificationCache *services.GlobalNotificationCache
 
+	// workloadIdentityX509CAOverrideGetter is a getter for CA overrides for
+	// SPIFFE X.509 certificate issuance. Optional, set in enterprise code.
+	workloadIdentityX509CAOverrideGetter services.WorkloadIdentityX509CAOverrideGetter
+
 	inventory *inventory.Controller
 
 	pdp *decision.Service
@@ -1061,6 +1127,11 @@ type Server struct {
 	// the auth server. It can be overridden for the purpose of tests.
 	gitlabIDTokenValidator gitlabIDTokenValidator
 
+	// azureDevopsIDTokenValidator allows ID tokens from Azure DevOps to be
+	// validated by the auth server. It can be overridden for the purpose of
+	// tests.
+	azureDevopsIDTokenValidator azureDevopsIDTokenValidator
+
 	// tpmValidator allows TPMs to be validated by the auth server. It can be
 	// overridden for the purpose of tests.
 	tpmValidator func(
@@ -1090,6 +1161,10 @@ type Server struct {
 	terraformIDTokenValidator terraformCloudIDTokenValidator
 
 	bitbucketIDTokenValidator bitbucketIDTokenValidator
+
+	// createBoundKeypairValidator is a helper to create new bound keypair
+	// challenge validators. Used to override the implementation used in tests.
+	createBoundKeypairValidator createBoundKeypairValidator
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
@@ -1136,6 +1211,10 @@ type Server struct {
 	// GithubUserAndTeamsOverride overrides the user and teams that would
 	// normally be fetched from the GitHub API. Used for testing.
 	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
+
+	// sigstorePolicyEvaluator checks workload signatures and attestations
+	// against Sigstore policies.
+	sigstorePolicyEvaluator workloadidentityv1.SigstorePolicyEvaluator
 
 	// logger is the logger used by the auth server.
 	logger *slog.Logger
@@ -1353,6 +1432,7 @@ func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
 	agentWindow, _ := cmc.GetAgentUpgradeWindow()
 
 	agentWindow.UTCStartHour = uint32(startHour)
+	agentWindow.Weekdays = []string{"Mon", "Tue", "Wed", "Thu"}
 
 	cmc.SetAgentUpgradeWindow(agentWindow)
 
@@ -1830,7 +1910,7 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 	// connected instances is a poor approximation and may lead to missed notifications if auth
 	// server is up to date, but instances not connected to this auth need update.
 	var instanceVisitor vc.Visitor
-	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+	a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 		v := vc.Normalize(handle.Hello().Version)
 		instanceVisitor.Visit(vc.NewTarget(v))
 	})
@@ -1879,7 +1959,7 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 func (a *Server) updateAgentMetrics() {
 	imp := newInstanceMetricsPeriodic()
 
-	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+	a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 		imp.VisitInstance(handle.Hello(), handle.AgentMetadata())
 	})
 
@@ -1935,11 +2015,6 @@ func (a *Server) refreshRemoteClusters(ctx context.Context) {
 		return
 	}
 
-	// randomize the order to optimize for multiple auth servers running in parallel
-	mathrand.Shuffle(len(remoteClusters), func(i, j int) {
-		remoteClusters[i], remoteClusters[j] = remoteClusters[j], remoteClusters[i]
-	})
-
 	// we want to limit the number of backend updates performed on each refresh to avoid overwhelming the backend.
 	updateLimit := remoteClusterRefreshLimit
 	if dynamicLimit := (len(remoteClusters) / remoteClusterRefreshBuckets) + 1; dynamicLimit > updateLimit {
@@ -1949,7 +2024,8 @@ func (a *Server) refreshRemoteClusters(ctx context.Context) {
 	}
 
 	var updateCount int
-	for _, remoteCluster := range remoteClusters {
+	// randomize the order to optimize for multiple auth servers running in parallel
+	for _, remoteCluster := range utils.ShuffleVisit(remoteClusters) {
 		if updated, err := a.updateRemoteClusterStatus(ctx, netConfig, remoteCluster); err != nil {
 			a.logger.ErrorContext(ctx, "Failed to perform remote cluster status refresh", "error", err)
 		} else if updated {
@@ -2181,9 +2257,9 @@ func (a *Server) generateHostCert(
 		// and `Node` fields if the role is `Node` so that the previous behavior
 		// is preserved.
 		// This is a legacy behavior that we need to support for backwards compatibility.
-		locks = []types.LockTarget{{ServerID: req.HostID, Node: req.HostID}, {ServerID: HostFQDN(req.HostID, req.Identity.ClusterName), Node: HostFQDN(req.HostID, req.Identity.ClusterName)}}
+		locks = []types.LockTarget{{ServerID: req.HostID}, {ServerID: utils.HostFQDN(req.HostID, req.Identity.ClusterName)}}
 	default:
-		locks = []types.LockTarget{{ServerID: req.HostID}, {ServerID: HostFQDN(req.HostID, req.Identity.ClusterName)}}
+		locks = []types.LockTarget{{ServerID: req.HostID}, {ServerID: utils.HostFQDN(req.HostID, req.Identity.ClusterName)}}
 	}
 	if lockErr := a.checkLockInForce(readOnlyAuthPref.GetLockingMode(),
 		locks,
@@ -2208,9 +2284,9 @@ type certRequest struct {
 	// TLS certificate.
 	tlsPublicKey []byte
 	// sshPublicKeyAttestationStatement is an attestation statement associated with sshPublicKey.
-	sshPublicKeyAttestationStatement *keys.AttestationStatement
+	sshPublicKeyAttestationStatement *hardwarekey.AttestationStatement
 	// tlsPublicKeyAttestationStatement is an attestation statement associated with tlsPublicKey.
-	tlsPublicKeyAttestationStatement *keys.AttestationStatement
+	tlsPublicKeyAttestationStatement *hardwarekey.AttestationStatement
 
 	// user is a user to generate certificate for
 	user services.UserState
@@ -2453,8 +2529,8 @@ type GenerateUserTestCertsRequest struct {
 	RouteToCluster          string
 	PinnedIP                string
 	MFAVerified             string
-	SSHAttestationStatement *keys.AttestationStatement
-	TLSAttestationStatement *keys.AttestationStatement
+	SSHAttestationStatement *hardwarekey.AttestationStatement
+	TLSAttestationStatement *hardwarekey.AttestationStatement
 	AppName                 string
 	AppSessionID            string
 }
@@ -3086,7 +3162,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 
 	if len(req.checker.GetAllowedResourceIDs()) > 0 && modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, fmt.Errorf("Resource Access Requests: %w", ErrRequiresEnterprise)
+		return nil, fmt.Errorf("resource access requests: %w", ErrRequiresEnterprise)
 	}
 
 	// Reject the cert request if there is a matching lock in force.
@@ -3476,7 +3552,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 type attestHardwareKeyParams struct {
 	requiredKeyPolicy    keys.PrivateKeyPolicy
 	pubKey               crypto.PublicKey
-	attestationStatement *keys.AttestationStatement
+	attestationStatement *hardwarekey.AttestationStatement
 	sessionTTL           time.Duration
 	readOnlyAuthPref     readonly.AuthPreference
 	userName             string
@@ -3715,6 +3791,45 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 	return trace.WithField(retErr, ErrFieldKeyUserMaxedAttempts, true)
 }
 
+// CreateAuthPreference creates a new auth preference if one does not exist. This
+// is an internal API and is not exposed via [clusterconfigv1.ClusterConfigServiceServer] or
+// [proto.AuthServiceServer]. It is only meant to be called directly from within auth
+// initialization to seed the [types.AuthPreference] for brand new clusters.
+func (a *Server) CreateAuthPreference(ctx context.Context, p types.AuthPreference) (types.AuthPreference, error) {
+	if err := services.ValidateAuthPreference(p); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// check that the given RequireMFAType is supported in this build.
+	if p.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
+	}
+
+	if err := dtconfig.ValidateConfigAgainstModules(p.GetDeviceTrust()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := p.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+		FIPS:          a.fips,
+		UsingHSMOrKMS: a.keyStore.UsingHSMOrKMS(),
+		Cloud:         modules.GetModules().Features().Cloud,
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := a.Services.CreateAuthPreference(ctx, p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authPrefV2, ok := created.(*types.AuthPreferenceV2)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected auth preference type %T (expected %T)", created, authPrefV2))
+	}
+
+	return authPrefV2, nil
+}
+
 // CreateAuthenticateChallenge implements AuthService.CreateAuthenticateChallenge.
 func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	var username string
@@ -3794,7 +3909,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 	}
 
-	challenges, err := a.mfaAuthChallenge(ctx, username, req.SSOClientRedirectURL, challengeExtensions)
+	challenges, err := a.mfaAuthChallenge(ctx, username, req.SSOClientRedirectURL, req.ProxyAddress, challengeExtensions)
 	if err != nil {
 		// Do not obfuscate config-related errors.
 		if errors.Is(err, types.ErrPasswordlessRequiresWebauthn) || errors.Is(err, types.ErrPasswordlessDisabledBySettings) {
@@ -4627,11 +4742,6 @@ func ExtractHostID(hostName string, clusterName string) (string, error) {
 	return strings.TrimSuffix(hostName, suffix), nil
 }
 
-// HostFQDN consists of host UUID and cluster name joined via .
-func HostFQDN(hostUUID, clusterName string) string {
-	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
-}
-
 // GenerateHostCerts generates new host certificates (signed
 // by the host certificate authority) for a node.
 func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
@@ -4784,7 +4894,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 
 	// generate host TLS certificate
 	identity := tlsca.Identity{
-		Username:        authclient.HostFQDN(req.HostID, clusterName.GetClusterName()),
+		Username:        utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
 		Groups:          []string{req.Role.String()},
 		TeleportCluster: clusterName.GetClusterName(),
 		SystemRoles:     systemRoles,
@@ -4889,7 +4999,7 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
 	var rsp proto.InventoryStatusSummary
 	if req.Connected {
-		a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+		a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 			rsp.Connected = append(rsp.Connected, handle.Hello())
 		})
 
@@ -5184,7 +5294,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 
 	// Always perform variable expansion on creation only; this ensures the
 	// access request that is reviewed is the same that is approved.
-	expandOpts := services.ExpandVars(true)
+	expandOpts := services.WithExpandVars(true)
 	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5195,6 +5305,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		return nil, trace.Wrap(err, "adding additional implicitly required resources")
 	}
 	req.SetRequestedResourceIDs(requestedResourceIDs)
+
+	if err := a.checkResourcesRequestable(ctx, requestedResourceIDs); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	if req.GetDryRun() {
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
@@ -5247,6 +5361,19 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit access request create event", "error", err)
 	}
+
+	var resources = []string{}
+	if len(req.GetRoles()) != 0 {
+		resources = append(resources, types.KindRole)
+	}
+	for _, resource := range req.GetRequestedResourceIDs() {
+		resources = append(resources, resource.Kind)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.AccessRequestCreateEvent{
+		UserName:      req.GetUser(),
+		ResourceKinds: apiutils.Deduplicate(resources),
+	})
 
 	// Create a notification.
 	var notificationText string
@@ -5370,6 +5497,24 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 	}
 
 	return resources, nil
+}
+
+func (a *Server) checkResourcesRequestable(ctx context.Context, resourceIDs []types.ResourceID) error {
+	if len(resourceIDs) == 0 {
+		return nil
+	}
+
+	err := okta.CheckResourcesRequestable(ctx, resourceIDs, okta.AccessPoint{
+		Plugins:              a.Plugins,
+		UnifiedResourceCache: a.UnifiedResourceCache,
+	})
+	if errors.Is(err, okta.OktaResourceNotRequestableError) {
+		return trace.Wrap(err)
+	} else if err != nil {
+		return trace.Wrap(err, "checking if Okta-originated resources are requestable")
+	}
+
+	return nil
 }
 
 // generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log
@@ -5566,7 +5711,33 @@ func (a *Server) submitAccessReview(
 		a.logger.WarnContext(ctx, "Failed to emit access request update event", "error", err)
 	}
 
+	var resources = []string{}
+	if len(req.GetRoles()) != 0 {
+		resources = append(resources, types.KindRole)
+	}
+	for _, resource := range req.GetRequestedResourceIDs() {
+		resources = append(resources, resource.Kind)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.AccessRequestReviewEvent{
+		UserName:      params.Review.Author,
+		ResourceKinds: apiutils.Deduplicate(resources),
+		IsBotReviewed: (params.Review.Author == teleport.SystemAccessApproverUserName),
+		ProposedState: prehogProposedStateFromRequestState(params.Review.ProposedState),
+	})
+
 	return req, nil
+}
+
+func prehogProposedStateFromRequestState(state types.RequestState) prehogv1a.AccessRequestReviewEvent_ProposedState {
+	switch state {
+	case types.RequestState_APPROVED:
+		return prehogv1a.AccessRequestReviewEvent_PROPOSED_STATE_APPROVED
+	case types.RequestState_DENIED:
+		return prehogv1a.AccessRequestReviewEvent_PROPOSED_STATE_DENIED
+	default:
+		return prehogv1a.AccessRequestReviewEvent_PROPOSED_STATE_UNSPECIFIED
+	}
 }
 
 // generateAccessRequestReviewedNotification returns the notification object for a notification notifying a user of their
@@ -6206,6 +6377,10 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 
 	now := a.clock.Now()
 
+	// TODO(kiosion): Check possible Okta plugin configuration – if Bidirectional Sync is explicitly disabled,
+	// we shouldn't create notifications for any Okta-synced Access Lists, as they are managed in Okta and
+	// their grants, owners/members, and ownership/membership requirements cannot be edited in Teleport.
+
 	// Fetch all access lists
 	var accessLists []*accesslist.AccessList
 	var accessListsPageKey string
@@ -6562,7 +6737,7 @@ func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.Session
 	for _, policySet := range tracker.GetHostPolicySets() {
 		if len(policySet.RequireSessionJoin) != 0 {
 			if modules.GetModules().BuildType() != modules.BuildEnterprise {
-				return nil, fmt.Errorf("Moderated Sessions: %w", ErrRequiresEnterprise)
+				return nil, fmt.Errorf("moderated sessions: %w", ErrRequiresEnterprise)
 			}
 		}
 	}
@@ -7143,7 +7318,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user string, ssoClientRedirectURL string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
+func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectURL, proxyAddress string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
 	isPasswordless := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 
 	// Check what kind of MFA is enabled.
@@ -7249,7 +7424,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, ssoClientRed
 	// If the user has an SSO device and the client provided a redirect URL to handle
 	// the MFA SSO flow, create an SSO challenge.
 	if enableSSO && groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
-		if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, challengeExtensions); err != nil {
+		if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, proxyAddress, challengeExtensions); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -7472,6 +7647,17 @@ func (a *Server) validateMFAAuthResponseInternal(
 			loginData, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), requiredExtensions)
 		}
 		if err != nil {
+			if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES &&
+				trace.IsNotFound(err) {
+				// Do not add extra user messages to
+				// mfa.ErrExpiredReusableMFAResponse. Doing so will prevent
+				// client-side code from using errors.Is to reliably identify
+				// this specific error after it goes through gRPC. The original
+				// error isn't particularly useful to the user anyway, so just
+				// log it at debug level.
+				a.logger.DebugContext(ctx, "Reusable MFA response validation failed and possibly expired", "error", err)
+				return nil, trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
+			}
 			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
 		}
 
@@ -7559,7 +7745,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 
 	// Add TLS keys if necessary.
 	switch caID.Type {
-	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
 		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName, tlsCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -7606,6 +7792,8 @@ func tlsCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.SAMLIdPCATLS
 	case types.SPIFFECA:
 		return cryptosuites.SPIFFECATLS
+	case types.AWSRACA:
+		return cryptosuites.AWSRACATLS
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }
@@ -7782,6 +7970,26 @@ func (a *Server) GetNodeStream(ctx context.Context, namespace string) stream.Str
 	})
 }
 
+// SetWorkloadIdentityX509CAOverrideGetter sets the underlying
+// [services.WorkloadIdentityX509CAOverrideGetter] used by the auth server for
+// the implementation of [Server.GetWorkloadIdentityX509CAOverride] (provided by
+// enterprise code). Not safe for concurrent access, so it should only be called
+// during setup.
+func (a *Server) SetWorkloadIdentityX509CAOverrideGetter(getter services.WorkloadIdentityX509CAOverrideGetter) {
+	a.workloadIdentityX509CAOverrideGetter = getter
+}
+
+// GetWorkloadIdentityX509CAOverride implements
+// [services.WorkloadIdentityX509CAOverrideGetter] by optionally delegating to
+// an underlying implementation (provided by enterprise code).
+func (a *Server) GetWorkloadIdentityX509CAOverride(ctx context.Context, name string, ca *tlsca.CertAuthority) (*tlsca.CertAuthority, [][]byte, error) {
+	getter := a.workloadIdentityX509CAOverrideGetter
+	if getter == nil {
+		return ca, nil, nil
+	}
+	return getter.GetWorkloadIdentityX509CAOverride(ctx, name, ca)
+}
+
 // authKeepAliver is a keep aliver using auth server directly
 type authKeepAliver struct {
 	sync.RWMutex
@@ -7860,4 +8068,25 @@ func DefaultDNSNamesForRole(role types.SystemRole) []string {
 		}
 	}
 	return nil
+}
+
+// SetSigstorePolicyEvaluator sets the SigstorePolicyEvaluator. It's called from
+// the enterprise auth plugin.
+func (s *Server) SetSigstorePolicyEvaluator(eval workloadidentityv1.SigstorePolicyEvaluator) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.sigstorePolicyEvaluator = eval
+}
+
+// GetSigstorePolicyEvaluator returns the configured SigstorePolicyEvaluator. If
+// none is configured, the Community Edition implementation will be returned.
+func (s *Server) GetSigstorePolicyEvaluator() workloadidentityv1.SigstorePolicyEvaluator {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	if e := s.sigstorePolicyEvaluator; e != nil {
+		return e
+	}
+	return workloadidentityv1.OSSSigstorePolicyEvaluator{}
 }

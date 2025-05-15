@@ -18,6 +18,7 @@
 
 import {
   Document,
+  DocumentDesktopSession,
   DocumentGateway,
   DocumentGatewayKube,
   DocumentTshKube,
@@ -30,6 +31,7 @@ import { unique } from 'teleterm/ui/utils/uid';
 
 import {
   TrackedConnection,
+  TrackedDesktopConnection,
   TrackedGatewayConnection,
   TrackedKubeConnection,
   TrackedServerConnection,
@@ -97,6 +99,24 @@ export function getGatewayKubeConnectionByDocument(
 ) {
   return (i: TrackedKubeConnection) =>
     i.kind === 'connection.kube' && i.kubeUri === document.targetUri;
+}
+
+export function getDesktopDocumentByConnection(
+  connection: TrackedDesktopConnection
+): (d: Document) => boolean {
+  return d =>
+    d.kind === 'doc.desktop_session' &&
+    d.desktopUri === connection.desktopUri &&
+    d.login === connection.login;
+}
+
+export function getDesktopConnectionByDocument(
+  document: DocumentDesktopSession
+) {
+  return (i: TrackedDesktopConnection) =>
+    i.kind === 'connection.desktop' &&
+    i.desktopUri === document.desktopUri &&
+    i.login === document.login;
 }
 
 /*
@@ -218,5 +238,18 @@ export function createGatewayKubeConnection(
     id: unique(),
     title: document.title,
     kubeUri: document.targetUri,
+  };
+}
+
+export function createDesktopConnection(
+  document: DocumentDesktopSession
+): TrackedDesktopConnection {
+  return {
+    kind: 'connection.desktop',
+    connected: true,
+    id: unique(),
+    title: document.title,
+    desktopUri: document.desktopUri,
+    login: document.login,
   };
 }

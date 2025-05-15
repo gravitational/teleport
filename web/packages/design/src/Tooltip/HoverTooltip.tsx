@@ -49,6 +49,11 @@ type HoverTooltipProps = {
    */
   showOnlyOnOverflow?: boolean;
   /**
+   * Element's class name. Might seem unimportant, but required for using the
+   * styled-components' `css` property.
+   */
+  className?: string;
+  /**
    * Specifies the position of tooltip relative to trigger content.
    */
   placement?: Placement;
@@ -78,6 +83,7 @@ export const HoverTooltip = ({
   tipContent,
   children,
   showOnlyOnOverflow = false,
+  className,
   placement = 'top',
   position,
   offset: offsetDistance = 8,
@@ -166,6 +172,7 @@ export const HoverTooltip = ({
         onMouseEnter: handleMouseEnter,
         onMouseLeave: () => setOpen(false),
       })}
+      className={className}
     >
       {children}
       {isMounted && (

@@ -18,13 +18,21 @@
 
 import { PropsWithChildren, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { useTheme } from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
-import { Alert, ButtonBorder, Link as ExternalLink, Flex, H2 } from 'design';
+import {
+  Alert,
+  Button,
+  ButtonBorder,
+  Link as ExternalLink,
+  Flex,
+  H2,
+} from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
 import { TableColumn } from 'design/DataTable/types';
-import { H3, P2, Subtitle2 } from 'design/Text';
+import * as Icons from 'design/Icon';
+import { H3, P2, P3, Subtitle2 } from 'design/Text';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
@@ -191,6 +199,7 @@ type TableInstance = {
   instanceId?: string;
   name: string;
   resourceUrl?: string;
+  invocationUrl?: string;
 };
 
 function makeImpactsTable(instances: ImpactedInstances): {
@@ -204,28 +213,43 @@ function makeImpactsTable(instances: ImpactedInstances): {
         columns: [
           {
             key: 'instanceId',
-            headerText: 'Instance ID',
+            headerText: 'Instances',
             render: item => {
-              return item.resourceUrl ? (
+              return (
                 <Cell>
-                  <ExternalLink href={item.resourceUrl} target="_blank">
-                    {item.instanceId}
-                  </ExternalLink>
+                  <Flex flexDirection="column">
+                    <P3>{item.instanceId}</P3>
+                    <P3 color="text.slightlyMuted" m={0}>
+                      {item.name}
+                    </P3>
+                  </Flex>
                 </Cell>
-              ) : (
-                <Cell>{item.instanceId}</Cell>
               );
             },
           },
           {
-            key: 'name',
-            headerText: 'Instance Name',
+            altKey: 'link',
+            headerText: 'Invocation Link',
+            render: item => {
+              return (
+                item.invocationUrl && (
+                  <Cell align="center">
+                    <ExternalLink href={item.invocationUrl} target="_blank">
+                      <LinkIcon intent="neutral">
+                        <Icons.Link size="small" />
+                      </LinkIcon>
+                    </ExternalLink>
+                  </Cell>
+                )
+              );
+            },
           },
         ],
         data: Object.keys(impacts).map(i => ({
           instanceId: impacts[i].instance_id,
           name: impacts[i].name,
           resourceUrl: impacts[i].resourceUrl,
+          invocationUrl: impacts[i].invocation_url,
         })),
       };
     case AwsResource.eks:
@@ -321,3 +345,9 @@ const Attribute = ({
     </P2>
   </Flex>
 );
+
+const LinkIcon = styled(Button)`
+  width: 32px;
+  height: 32px;
+  padding: 0;
+`;

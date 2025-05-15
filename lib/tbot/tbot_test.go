@@ -101,6 +101,8 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 
 	b, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: name,
 			},

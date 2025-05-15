@@ -105,7 +105,7 @@ export function AccessRequestCheckout() {
   } = useAccessRequestCheckout();
 
   const isRoleRequest = pendingAccessRequests[0]?.kind === 'role';
-  const transitionRef = useRef<HTMLDivElement>();
+  const transitionRef = useRef<HTMLDivElement>(null);
 
   function closeCheckout() {
     setShowCheckout(false);
@@ -179,6 +179,9 @@ export function AccessRequestCheckout() {
                         case 'kube_cluster':
                         case 'namespace':
                           resource.Icon = Icon.Kubernetes;
+                          break;
+                        case 'windows_desktop':
+                          resource.Icon = Icon.Desktop;
                           break;
                         case 'role':
                           break;

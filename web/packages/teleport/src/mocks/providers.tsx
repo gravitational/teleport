@@ -20,10 +20,11 @@ import { LocationDescriptor } from 'history';
 import { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
+
 import { getOSSFeatures } from 'teleport/features';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { ContextProvider } from 'teleport/index';
-import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import TeleportContext from 'teleport/teleportContext';
 

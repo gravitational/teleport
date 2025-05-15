@@ -244,7 +244,7 @@ func TestWithinUpgradeWindow(t *testing.T) {
 			desc: "within upgrade window weekday",
 			upgradeWindow: AgentUpgradeWindow{
 				UTCStartHour: 8,
-				Weekdays:     []string{"Monday"},
+				Weekdays:     []string{"Mon"},
 			},
 			date:         "Mon, 02 Jan 2006 08:04:05 UTC",
 			withinWindow: true,
@@ -253,7 +253,7 @@ func TestWithinUpgradeWindow(t *testing.T) {
 			desc: "not within upgrade window weekday",
 			upgradeWindow: AgentUpgradeWindow{
 				UTCStartHour: 8,
-				Weekdays:     []string{"Tuesday"},
+				Weekdays:     []string{"Tue"},
 			},
 			date:         "Mon, 02 Jan 2006 08:04:05 UTC",
 			withinWindow: false,

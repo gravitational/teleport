@@ -23,6 +23,7 @@ import type { RuntimeSettings } from 'teleterm/mainProcess/types';
 import * as uri from 'teleterm/ui/uri';
 import {
   DocumentUri,
+  isWindowsDesktopUri,
   KubeUri,
   paths,
   RootClusterUri,
@@ -42,6 +43,7 @@ import {
   DocumentCluster,
   DocumentClusterQueryParams,
   DocumentConnectMyComputer,
+  DocumentDesktopSession,
   DocumentGateway,
   DocumentGatewayCliClient,
   DocumentGatewayKube,
@@ -51,6 +53,7 @@ import {
   DocumentTshNode,
   DocumentTshNodeWithServerId,
   DocumentVnetDiagReport,
+  DocumentVnetInfo,
   WebSessionRequest,
 } from './types';
 
@@ -269,6 +272,24 @@ export class DocumentsService {
     };
   }
 
+  createVnetInfoDocument(opts: {
+    rootClusterUri: RootClusterUri;
+    app?: {
+      targetAddress: string;
+      isMultiPort: boolean;
+    };
+  }): DocumentVnetInfo {
+    const uri = routing.getDocUri({ docId: unique() });
+
+    return {
+      uri,
+      kind: 'doc.vnet_info',
+      title: 'VNet',
+      rootClusterUri: opts.rootClusterUri,
+      app: opts.app,
+    };
+  }
+
   openConnectMyComputerDocument(opts: {
     // URI of the root cluster could be passed to the `DocumentsService`
     // constructor and then to the document, instead of being taken from the parameter.
@@ -479,6 +500,28 @@ export class DocumentsService {
     return this.getState().documents.filter(i => i.uri !== uri);
   }
 
+  /**
+   * Finds an existing doc using findExisting and opens it. If there's no existing doc, uses
+   * createNew to add a new doc and then opens it.
+   *
+   * Returns the URI of the doc that was opened.
+   */
+  openExistingOrAddNew(
+    findExisting: (doc: Document) => boolean,
+    createNew: () => Document
+  ): DocumentUri {
+    const existingDoc = this.getDocuments().find(findExisting);
+    if (existingDoc) {
+      this.open(existingDoc.uri);
+      return existingDoc.uri;
+    }
+
+    const newDoc = createNew();
+    this.add(newDoc);
+    this.open(newDoc.uri);
+    return newDoc.uri;
+  }
+
   getTshNodeDocuments() {
     function isTshNode(d: DocumentTshNode): d is DocumentTshNode {
       return d.kind === 'doc.terminal_tsh_node';
@@ -545,6 +588,24 @@ export function createClusterDocument(opts: {
     title: clusterName,
     kind: 'doc.cluster',
     queryParams: opts.queryParams || getDefaultDocumentClusterQueryParams(),
+  };
+}
+
+export function createDesktopSessionDocument(opts: {
+  desktopUri: uri.DesktopUri;
+  login: string;
+  origin: DocumentOrigin;
+}): DocumentDesktopSession {
+  return {
+    kind: 'doc.desktop_session' as const,
+    uri: routing.getDocUri({ docId: unique() }),
+    title: isWindowsDesktopUri(opts.desktopUri)
+      ? `${opts.login} on ${routing.parseWindowsDesktopUri(opts.desktopUri).params.windowsDesktopId}`
+      : 'Unknown',
+    desktopUri: opts.desktopUri,
+    login: opts.login,
+    origin: opts.origin,
+    status: '',
   };
 }
 

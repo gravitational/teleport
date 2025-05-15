@@ -16,13 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { formatDistanceStrict } from 'date-fns';
 import { Link as InternalLink } from 'react-router-dom';
-import styled from 'styled-components';
 
-import { Card, Flex, H2, Text } from 'design';
+import { CardTile, Flex, H2, P2, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
+import { SyncStamp } from 'design/SyncStamp/SyncStamp';
 
 import cfg from 'teleport/config';
 import { EnrollCard } from 'teleport/Integrations/status/AwsOidc/EnrollCard';
@@ -37,24 +36,28 @@ export enum AwsResource {
   rds = 'rds',
 }
 
+type Item = 'clusters' | 'databases' | 'instances';
+
 type StatCardProps = {
   name: string;
+  item: Item;
   resource: AwsResource;
   summary?: ResourceTypeSummary;
 };
 
-export function StatCard({ name, resource, summary }: StatCardProps) {
+export function StatCard({ name, item, resource, summary }: StatCardProps) {
   const updated = summary?.discoverLastSync
     ? new Date(summary?.discoverLastSync)
     : undefined;
   const term = getResourceTerm(resource);
 
   if (!summary || !foundResource(summary)) {
-    return <EnrollCard resource={resource} />;
+    return <EnrollCard resource={resource} item={item} />;
   }
 
   return (
-    <SelectCard
+    <CardTile
+      width="33%"
       data-testid={`${resource}-stats`}
       as={InternalLink}
       to={cfg.getIntegrationStatusResourcesRoute(
@@ -69,10 +72,14 @@ export function StatCard({ name, resource, summary }: StatCardProps) {
         minHeight="220px"
       >
         <Flex flexDirection="column" gap={2}>
-          <Flex alignItems="center" mb={2}>
+          <Flex alignItems="center">
             <ResourceIcon name={resource} mr={2} width="32px" height="32px" />
             <H2>{resource.toUpperCase()}</H2>
           </Flex>
+          <P2 mb={2}>
+            Auto enrolled {resource.toUpperCase()} {item} matching configured
+            labels
+          </P2>
           <Flex justifyContent="space-between" data-testid="rules">
             <Text>Enrollment Rules </Text>
             <Text>{summary?.rulesCount || 0}</Text>
@@ -97,20 +104,9 @@ export function StatCard({ name, resource, summary }: StatCardProps) {
             </Flex>
           </Flex>
         </Flex>
-        {updated && (
-          <Text
-            typography="body3"
-            color="text.slightlyMuted"
-            data-testid="sync"
-          >
-            Last Sync:{' '}
-            {formatDistanceStrict(new Date(updated), new Date(), {
-              addSuffix: true,
-            })}
-          </Text>
-        )}
+        <SyncStamp date={updated} />
       </Flex>
-    </SelectCard>
+    </CardTile>
   );
 }
 
@@ -137,19 +133,3 @@ function foundResource(resource: ResourceTypeSummary): boolean {
 
   return resource.rulesCount != 0 || resource.resourcesFound != 0;
 }
-
-export const SelectCard = styled(Card)`
-  width: 33%;
-  background-color: ${props => props.theme.colors.levels.surface};
-  padding: ${props => props.theme.space[3]}px;
-  border-radius: ${props => props.theme.radii[2]}px;
-  border: ${props => `1px solid ${props.theme.colors.levels.surface}`};
-  cursor: pointer;
-  text-decoration: none;
-  color: ${props => props.theme.colors.text.main};
-
-  &:hover {
-    background-color: ${props => props.theme.colors.levels.elevated};
-    box-shadow: ${({ theme }) => theme.boxShadow[2]};
-  }
-`;

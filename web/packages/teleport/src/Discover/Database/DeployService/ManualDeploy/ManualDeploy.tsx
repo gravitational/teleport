@@ -157,7 +157,9 @@ export function ManualDeploy(props: {
       ...agentMeta,
       resourceName: result.name,
       db: result,
-      serviceDeployedMethod: 'manual',
+      serviceDeploy: {
+        method: 'manual',
+      },
     });
     nextStep();
 

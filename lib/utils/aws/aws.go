@@ -20,7 +20,6 @@ package aws
 
 import (
 	"context"
-	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -39,6 +38,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/utils"
+	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 )
 
 const (
@@ -523,29 +523,7 @@ func iamResourceARN(partition, accountID, resourceType, resourceName string) str
 	}.String()
 }
 
-// MaybeHashRoleSessionName truncates the role session name and adds a hash
-// when the original role session name is greater than AWS character limit
-// (64).
-func MaybeHashRoleSessionName(roleSessionName string) (ret string) {
-	if len(roleSessionName) <= MaxRoleSessionNameLength {
-		return roleSessionName
-	}
-
-	const hashLen = 16
-	hash := sha1.New()
-	hash.Write([]byte(roleSessionName))
-	hex := hex.EncodeToString(hash.Sum(nil))[:hashLen]
-
-	// "1" for the delimiter.
-	keepPrefixIndex := MaxRoleSessionNameLength - len(hex) - 1
-
-	// Sanity check. This should never happen since hash length and
-	// MaxRoleSessionNameLength are both constant.
-	if keepPrefixIndex < 0 {
-		keepPrefixIndex = 0
-	}
-
-	ret = fmt.Sprintf("%s-%s", roleSessionName[:keepPrefixIndex], hex)
-	slog.DebugContext(context.Background(), "AWS role session name is too long. Using a hash instead.", "hashed", ret, "original", roleSessionName)
-	return ret
-}
+// IsKnownRegion returns true if provided region is one of the "well-known" AWS
+// regions.
+// TODO(greedy52): DELETE once e is updated to use the package directly.
+var IsKnownRegion = awsregion.IsKnownRegion

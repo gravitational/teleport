@@ -80,6 +80,7 @@ import (
 	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
@@ -900,6 +901,18 @@ func (c *Client) WorkloadIdentityRevocationServiceClient() workloadidentityv1pb.
 // identity service.
 func (c *Client) WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient {
 	return workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(c.conn)
+}
+
+// WorkloadIdentityX509OverridesClient returns an unadorned client for the
+// teleport.workloadidentity.v1.X509OverridesService service.
+func (c *Client) WorkloadIdentityX509OverridesClient() workloadidentityv1pb.X509OverridesServiceClient {
+	return workloadidentityv1pb.NewX509OverridesServiceClient(c.conn)
+}
+
+// SigstorePolicyResourceServiceClient returns an unadorned client for the
+// Sigstore policy resource service.
+func (c *Client) SigstorePolicyResourceServiceClient() workloadidentityv1pb.SigstorePolicyResourceServiceClient {
+	return workloadidentityv1pb.NewSigstorePolicyResourceServiceClient(c.conn)
 }
 
 // PresenceServiceClient returns an unadorned client for the presence service.
@@ -2030,10 +2043,24 @@ func (c *Client) GetOIDCAuthRequest(ctx context.Context, stateToken string) (*ty
 
 // GetSAMLConnector returns a SAML connector by name.
 func (c *Client) GetSAMLConnector(ctx context.Context, name string, withSecrets bool) (types.SAMLConnector, error) {
+	return c.GetSAMLConnectorWithValidationOptions(ctx, name, withSecrets)
+}
+
+// GetSAMLConnectorWithValidationOptions returns a SAML connector by name.
+func (c *Client) GetSAMLConnectorWithValidationOptions(ctx context.Context, name string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error) {
+	var options types.SAMLConnectorValidationOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	if name == "" {
 		return nil, trace.BadParameter("cannot get SAML Connector, missing name")
 	}
-	req := &types.ResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}
+	req := &types.ResourceWithSecretsRequest{
+		Name:                       name,
+		WithSecrets:                withSecrets,
+		SAMLValidationNoFollowURLs: options.NoFollowURLs,
+	}
 	resp, err := c.grpc.GetSAMLConnector(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2043,7 +2070,20 @@ func (c *Client) GetSAMLConnector(ctx context.Context, name string, withSecrets 
 
 // GetSAMLConnectors returns a list of SAML connectors.
 func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
-	req := &types.ResourcesWithSecretsRequest{WithSecrets: withSecrets}
+	return c.GetSAMLConnectorsWithValidationOptions(ctx, withSecrets)
+}
+
+// GetSAMLConnectorsWithoutURLValidation returns a list of SAML connectors.
+func (c *Client) GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error) {
+	var options types.SAMLConnectorValidationOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	req := &types.ResourcesWithSecretsRequest{
+		WithSecrets:                withSecrets,
+		SAMLValidationNoFollowURLs: options.NoFollowURLs,
+	}
 	resp, err := c.grpc.GetSAMLConnectors(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3155,6 +3195,29 @@ func (c *Client) RollbackAutoUpdateAgentGroup(ctx context.Context, groups []stri
 	return rollout, nil
 }
 
+// GetAutoUpdateAgentReport gets the AutoUpdateAgentReport from a specific Auth Service instance.
+func (c *Client) GetAutoUpdateAgentReport(ctx context.Context, name string) (*autoupdatev1pb.AutoUpdateAgentReport, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	report, err := client.GetAutoUpdateAgentReport(ctx, &autoupdatev1pb.GetAutoUpdateAgentReportRequest{Name: name})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return report, nil
+}
+
+// ListAutoUpdateAgentReports returns an AutoUpdateAgentReports page.
+func (c *Client) ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdatev1pb.AutoUpdateAgentReport, string, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.ListAutoUpdateAgentReports(ctx, &autoupdatev1pb.ListAutoUpdateAgentReportsRequest{
+		PageSize:  int32(pageSize),
+		NextToken: pageToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return resp.GetAutoupdateAgentReports(), resp.GetNextKey(), nil
+}
+
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
 func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
 	rsp, err := c.ClusterConfigClient().GetClusterAccessGraphConfig(ctx, &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
@@ -3895,9 +3958,6 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetKubernetesServer()
 		case types.KindUserGroup:
 			resources[i] = respResource.GetUserGroup()
-		case types.KindAppOrSAMLIdPServiceProvider:
-			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
-			resources[i] = respResource.GetAppServerOrSAMLIdPServiceProvider()
 		case types.KindSAMLIdPServiceProvider:
 			resources[i] = respResource.GetSAMLIdPServiceProvider()
 		case types.KindIdentityCenterAccount:
@@ -3906,6 +3966,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			src := respResource.GetIdentityCenterAccountAssignment()
 			dst := proto.UnpackICAccountAssignment(src)
 			resources[i] = dst
+		case types.KindGitServer:
+			resources[i] = respResource.GetGitServer()
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -3978,8 +4040,6 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 	} else if r := resource.GetDatabaseServer(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetDatabaseService(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
-	} else if r := resource.GetAppServerOrSAMLIdPServiceProvider(); r != nil { //nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetWindowsDesktop(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
@@ -4114,11 +4174,10 @@ func GetEnrichedResourcePage(ctx context.Context, clt GetResourcesClient, req *p
 				resource = respResource.GetKubernetesServer()
 			case types.KindUserGroup:
 				resource = respResource.GetUserGroup()
-			case types.KindAppOrSAMLIdPServiceProvider:
-				//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
-				resource = respResource.GetAppServerOrSAMLIdPServiceProvider()
 			case types.KindSAMLIdPServiceProvider:
 				resource = respResource.GetSAMLIdPServiceProvider()
+			case types.KindGitServer:
+				resource = respResource.GetGitServer()
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -4182,11 +4241,10 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetKubernetesServer()
 			case types.KindUserGroup:
 				resource = respResource.GetUserGroup()
-			case types.KindAppOrSAMLIdPServiceProvider:
-				//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
-				resource = respResource.GetAppServerOrSAMLIdPServiceProvider()
 			case types.KindSAMLIdPServiceProvider:
 				resource = respResource.GetSAMLIdPServiceProvider()
+			case types.KindGitServer:
+				resource = respResource.GetGitServer()
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -5390,4 +5448,77 @@ func (c *Client) GetClusterName(ctx context.Context) (types.ClusterName, error) 
 		return nil, trace.Wrap(err)
 	}
 	return cn, nil
+}
+
+// HealthCheckConfigClient returns an
+// [healthcheckconfigv1.HealthCheckConfigServiceClient].
+func (c *Client) HealthCheckConfigClient() healthcheckconfigv1.HealthCheckConfigServiceClient {
+	return healthcheckconfigv1.NewHealthCheckConfigServiceClient(c.conn)
+}
+
+// GetHealthCheckConfig fetches a health check config by name.
+func (c *Client) GetHealthCheckConfig(ctx context.Context, name string) (*healthcheckconfigv1.HealthCheckConfig, error) {
+	cc := c.HealthCheckConfigClient()
+	resp, err := cc.GetHealthCheckConfig(ctx,
+		&healthcheckconfigv1.GetHealthCheckConfigRequest{
+			Name: name,
+		},
+	)
+	return resp, trace.Wrap(err)
+}
+
+// ListHealthCheckConfigs lists health check configs with pagination.
+func (c *Client) ListHealthCheckConfigs(ctx context.Context, limit int, startKey string) ([]*healthcheckconfigv1.HealthCheckConfig, string, error) {
+	cc := c.HealthCheckConfigClient()
+	resp, err := cc.ListHealthCheckConfigs(ctx,
+		&healthcheckconfigv1.ListHealthCheckConfigsRequest{
+			PageSize:  int32(limit),
+			PageToken: startKey,
+		},
+	)
+	return resp.GetConfigs(), resp.GetNextPageToken(), trace.Wrap(err)
+}
+
+// CreateHealthCheckConfig creates a new health check config.
+func (c *Client) CreateHealthCheckConfig(ctx context.Context, in *healthcheckconfigv1.HealthCheckConfig) (*healthcheckconfigv1.HealthCheckConfig, error) {
+	cc := c.HealthCheckConfigClient()
+	resp, err := cc.CreateHealthCheckConfig(ctx,
+		&healthcheckconfigv1.CreateHealthCheckConfigRequest{
+			Config: in,
+		},
+	)
+	return resp, trace.Wrap(err)
+}
+
+// UpdateHealthCheckConfig updates an existing health check config.
+func (c *Client) UpdateHealthCheckConfig(ctx context.Context, in *healthcheckconfigv1.HealthCheckConfig) (*healthcheckconfigv1.HealthCheckConfig, error) {
+	cc := c.HealthCheckConfigClient()
+	resp, err := cc.UpdateHealthCheckConfig(ctx,
+		&healthcheckconfigv1.UpdateHealthCheckConfigRequest{
+			Config: in,
+		},
+	)
+	return resp, trace.Wrap(err)
+}
+
+// UpsertHealthCheckConfig creates or updates a health check config.
+func (c *Client) UpsertHealthCheckConfig(ctx context.Context, in *healthcheckconfigv1.HealthCheckConfig) (*healthcheckconfigv1.HealthCheckConfig, error) {
+	cc := c.HealthCheckConfigClient()
+	resp, err := cc.UpsertHealthCheckConfig(ctx,
+		&healthcheckconfigv1.UpsertHealthCheckConfigRequest{
+			Config: in,
+		},
+	)
+	return resp, trace.Wrap(err)
+}
+
+// DeleteHealthCheckConfig deletes a health check config.
+func (c *Client) DeleteHealthCheckConfig(ctx context.Context, name string) error {
+	cc := c.HealthCheckConfigClient()
+	_, err := cc.DeleteHealthCheckConfig(ctx,
+		&healthcheckconfigv1.DeleteHealthCheckConfigRequest{
+			Name: name,
+		},
+	)
+	return trace.Wrap(err)
 }

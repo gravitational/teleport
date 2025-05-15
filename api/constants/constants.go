@@ -34,10 +34,6 @@ const (
 	// since we register "teleport.cluster.local" as a DNS in Certificates.
 	APIDomain = "teleport.cluster.local"
 
-	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
-	// recording feature.
-	EnhancedRecordingMinKernel = "5.8.0"
-
 	// EnhancedRecordingCommand is a role option that implies command events are
 	// captured.
 	EnhancedRecordingCommand = "command"
@@ -189,6 +185,18 @@ var SystemConnectors = []string{
 	PasswordlessConnector,
 	HeadlessConnector,
 }
+
+// OIDCPKCEMode represents the mode of PKCE (Proof Key for Code Exchange).
+type OIDCPKCEMode string
+
+const (
+	// OIDCPKCEModeUnknown indicates an unknown or uninitialized state of the PKCE mode.
+	OIDCPKCEModeUnknown OIDCPKCEMode = ""
+	// OIDCPKCEModeEnabled indicates that PKCE is enabled for the OIDC flow.
+	OIDCPKCEModeEnabled OIDCPKCEMode = "enabled"
+	// OIDCPKCEModeDisabled indicates that PKCE is disabled for the OIDC flow.
+	OIDCPKCEModeDisabled OIDCPKCEMode = "disabled"
+)
 
 // SecondFactorType is the type of 2FA authentication.
 type SecondFactorType string
@@ -422,6 +430,26 @@ const (
 	MaxAssumeStartDuration = time.Hour * 24 * 7
 )
 
+const (
+	// MaxHealthCheckInterval is the minimum interval between resource health
+	// checks.
+	MinHealthCheckInterval = 30 * time.Second
+	// MaxHealthCheckInterval is the maximum interval between resource health
+	// checks. Since timeout must be less than interval, this is effectively the
+	// maximum health check timeout as well.
+	MaxHealthCheckInterval = 600 * time.Second
+	// MinHealthCheckTimeout is the minimum resource health check timeout.
+	// There is no corresponding MaxHealthCheckTimeout, because timeout is
+	// bounded to be no greater than the interval.
+	MinHealthCheckTimeout = time.Second
+	// MaxHealthCheckHealthyThreshold is the maximum health check healthy
+	// threshold.
+	MaxHealthCheckHealthyThreshold = 10
+	// MaxHealthCheckUnhealthyThreshold is the maximum health check unhealthy
+	// threshold.
+	MaxHealthCheckUnhealthyThreshold = MaxHealthCheckHealthyThreshold
+)
+
 // Constants for TLS routing connection upgrade. See RFD for more details:
 // https://github.com/gravitational/teleport/blob/master/rfd/0123-tls-routing-behind-layer7-lb.md
 const (
@@ -515,4 +543,11 @@ const (
 	// joining. The audience tag specifies the optional suffix for the TF_WORKLOAD_IDENTITY_AUDIENCE variable when
 	// specifically using the `terraform` join method.
 	EnvVarTerraformCloudJoinAudienceTag = "TF_TELEPORT_JOIN_AUDIENCE_TAG"
+	// EnvVarGitlabIDTokenEnvVar is the environment variable that specifies the name of the environment variable
+	// that contains the GitLab ID token. This can be used to authenticate to multiple Teleport clusters from a single
+	// GitLab CI job.
+	EnvVarGitlabIDTokenEnvVar = "TF_TELEPORT_GITLAB_ID_TOKEN_ENV_VAR"
 )
+
+// MaxPIVPINCacheTTL defines the maximum allowed TTL for PIV PIN client caches.
+const MaxPIVPINCacheTTL = time.Hour

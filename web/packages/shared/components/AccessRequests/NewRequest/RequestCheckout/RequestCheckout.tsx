@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef, useEffect, useRef, useState } from 'react';
+import React, {
+  forwardRef,
+  useEffect,
+  useRef,
+  useState,
+  type JSX,
+} from 'react';
 import type { TransitionStatus } from 'react-transition-group';
 import styled from 'styled-components';
 
@@ -77,7 +83,7 @@ export const RequestCheckoutWithSlider = forwardRef<
      */
     ref
   ) => {
-    const wrapperRef = useRef<HTMLDivElement>();
+    const wrapperRef = useRef<HTMLDivElement>(null);
 
     // Listeners are attached to enable overflow on the wrapper div after
     // transitioning ends (entered) or starts (exits). Enables vertical scrolling
@@ -810,7 +816,10 @@ const requireText = (value: string, requireReason: boolean) => () => {
 
 const SidePanel = styled(Box)`
   position: absolute;
-  z-index: 11;
+  // This z-index must be a higher value than the top bar z-index defined for
+  // Teleport web UI navigation found in teleport/src/Navigation/zIndexMap.ts.
+  // It prevents this SidePanel from rendering underneath the navigation bits.
+  z-index: 100;
   top: 0px;
   right: 0px;
   background: ${({ theme }) => theme.colors.levels.sunken};

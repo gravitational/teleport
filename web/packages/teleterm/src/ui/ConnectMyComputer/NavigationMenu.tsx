@@ -44,7 +44,7 @@ import {
 type IndicatorStatus = AttemptStatus | 'not-configured';
 
 export function NavigationMenu() {
-  const iconRef = useRef();
+  const iconRef = useRef(undefined);
   const [isMenuOpened, setIsMenuOpened] = useState(false);
   const { documentsService, rootClusterUri } = useWorkspaceContext();
   const { isAgentConfiguredAttempt, currentAction, canUse } =

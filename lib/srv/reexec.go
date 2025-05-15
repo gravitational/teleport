@@ -39,12 +39,14 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	ocselinux "github.com/opencontainers/selinux/go-selinux"
 	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/selinux"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -158,6 +160,10 @@ type ExecCommand struct {
 	// the parent process. These files start at file descriptor 3 of the
 	// child process, and are only valid for processes without a terminal.
 	ExtraFilesLen int `json:"extra_files_len"`
+
+	// SetSELinuxContext is true when the SELinux context should be set
+	// for the child.
+	SetSELinuxContext bool `json:"set_selinux_context"`
 }
 
 // PAMConfig represents all the configuration data that needs to be passed to the child.
@@ -192,7 +198,10 @@ type UaccMetadata struct {
 }
 
 // RunCommand reads in the command to run from the parent process (over a
-// pipe) then constructs and runs the command.
+// pipe) then constructs and runs the command. This function may change
+// system state related to the process and/or thread for PAM and SELinux.
+// The process should exit after this function returns so the potentially
+// modified process and/or thread isn't used with a non-standard state.
 func RunCommand() (errw io.Writer, code int, err error) {
 	ctx := context.Background()
 
@@ -326,6 +335,28 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		pamEnvironment = pamContext.Environment()
 	}
 
+	// Set SELinux context for the child process if SELinux support is
+	// enabled so the child process will be running with the correct SELinux
+	// user, role and domain.
+	if c.SetSELinuxContext {
+		seContext, err := selinux.UserContext(c.Login)
+		if err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to get SELinux context of login user")
+		}
+
+		// SetExecLabel changes the SELinux exec context for the
+		// calling thread only, so we need to ensure that is the
+		// thread that will create the child. We don't ever unlock
+		// the thread as we're exiting after the child exits, and
+		// we want to avoid another goroutine getting denied due to
+		// running on this thread with a different (likely much more
+		// restrictive)SELinux context.
+		runtime.LockOSThread()
+		if err := ocselinux.SetExecLabel(seContext); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set SELinux context")
+		}
+	}
+
 	// Alert the parent process that the child process has completed any setup operations,
 	// and that we are now waiting for the continue signal before proceeding. This is needed
 	// to ensure that PAM changing the cgroup doesn't bypass enhanced recording.
@@ -405,7 +436,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 	}
 
-	return io.Discard, exitCode(err), trace.Wrap(err)
+	return errorWriter, exitCode(err), trace.Wrap(err)
 }
 
 // waitForShell waits either for the command to return or the kill signal from the parent Teleport process.

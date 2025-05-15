@@ -114,16 +114,19 @@ based join methods can allow instances to join based on their Availability Zone,
 service account, or cloud account ID.
 
 Delegated join methods are:
-- [`iam`](#aws-iam-role-iam)
 - [`azure`](#azure-managed-identity-azure)
-- [`gcp`](#gcp-service-account-gcp)
-- [`ec2`](#aws-ec2-identity-document-ec2)
-- [`github`](#github-actions-github)
+- [`bitbucket`](#bitbucket-pipelines-bitbucket)
 - [`circleci`](#circleci-circleci)
+- [`ec2`](#aws-ec2-identity-document-ec2)
+- [`gcp`](#gcp-service-account-gcp)
+- [`github`](#github-actions-github)
 - [`gitlab`](#gitlab-gitlab)
+- [`iam`](#aws-iam-role-iam)
 - [`kubernetes`](#kubernetes-kubernetes)
-- [`tpm`](#trusted-platform-module-tpm)
+- [`oracle`](#oracle-cloud-oracle)
+- [`spacelift`](#spacelift-spacelift)
 - [`terraform_cloud`](#terraform-cloud-terraform_cloud)
+- [`tpm`](#trusted-platform-module-tpm)
 
 ### Renewable vs non-renewable
 
@@ -223,7 +226,7 @@ the Teleport cluster.
 
 ```yaml
 auth_service:
-    enabled: yes
+    enabled: true
     # Pre-defined tokens for adding new instances to a cluster. Each token specifies
     # the role a new node will be allowed to assume. The more secure way to
     # add instances is to use `tctl nodes add --ttl` command to generate auto-expiring
@@ -255,7 +258,7 @@ Or as Teleport resources:
 When a MachineID bot uses an ephemeral join token, the token is deleted.
 
 <Admonition type="note" title="See Also">
-- How to [Join Services with a Secure Token](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
+- How to [Join Services with a Secure Token](../enroll-resources/agents/join-token.mdx).
 - [Deploying Machine ID on Linux](../enroll-resources/machine-id/deployment/linux.mdx)
 </Admonition>
 
@@ -270,7 +273,7 @@ This is the recommended method to join workload running on AWS.
 (!docs/pages/includes/provision-token/iam-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via AWS IAM Role](../enroll-resources/agents/join-services-to-your-cluster/aws-iam.mdx).
+- [Joining Services via AWS IAM Role](../enroll-resources/agents/aws-iam.mdx).
 - [Deploying Machine ID on AWS](../enroll-resources/machine-id/deployment/aws.mdx)
 </Admonition>
 
@@ -295,7 +298,7 @@ method](#aws-iam-role-iam) or [ephemeral secret tokens](#ephemeral-tokens).
 (!docs/pages/includes/provision-token/ec2-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-[Joining Services via AWS EC2 Identity Document](../enroll-resources/agents/join-services-to-your-cluster/aws-ec2.mdx).
+[Joining Services via AWS EC2 Identity Document](../enroll-resources/agents/aws-ec2.mdx).
 </Admonition>
 
 ### Azure managed identity: `azure`
@@ -307,7 +310,7 @@ behind a layer 7 load balancer or reverse proxy is available in Teleport 13.0+.
 (!docs/pages/includes/provision-token/azure-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via Azure Managed Identity](../enroll-resources/agents/join-services-to-your-cluster/azure.mdx).
+- [Joining Services via Azure Managed Identity](../enroll-resources/agents/azure.mdx).
 - [Deploying Machine ID on Azure](../enroll-resources/machine-id/deployment/azure.mdx)
 </Admonition>
 
@@ -322,7 +325,7 @@ on the Teleport process joining the cluster.
 (!docs/pages/includes/provision-token/gcp-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- How to [Join Services with GCP](../enroll-resources/agents/join-services-to-your-cluster/gcp.mdx).
+- How to [Join Services with GCP](../enroll-resources/agents/gcp.mdx).
 - [Deploying Machine ID on GCP](../enroll-resources/machine-id/deployment/gcp.mdx)
 </Admonition>
 
@@ -386,7 +389,7 @@ the pod enters the `Terminated` state.
 (!docs/pages/includes/provision-token/kubernetes-in-cluster-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via Kubernetes ServiceAccount Token](../enroll-resources/agents/join-services-to-your-cluster/kubernetes.mdx)
+- [Joining Services via Kubernetes ServiceAccount Token](../enroll-resources/agents/kubernetes.mdx)
 </Admonition>
 
 #### Kubernetes JWKS
@@ -473,5 +476,5 @@ Cloud Compute instance.
 (!docs/pages/includes/provision-token/oracle-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- How to [Join Services with Oracle Cloud](../enroll-resources/agents/join-services-to-your-cluster/oracle.mdx).
+- How to [Join Services with Oracle Cloud](../enroll-resources/agents/oracle.mdx).
 </Admonition>

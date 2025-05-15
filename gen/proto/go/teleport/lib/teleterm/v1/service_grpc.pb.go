@@ -41,6 +41,7 @@ const (
 	TerminalService_ListLeafClusters_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ListLeafClusters"
 	TerminalService_StartHeadlessWatcher_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/StartHeadlessWatcher"
 	TerminalService_ListDatabaseUsers_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseUsers"
+	TerminalService_ListDatabaseServers_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseServers"
 	TerminalService_GetServers_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/GetServers"
 	TerminalService_GetAccessRequests_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequests"
 	TerminalService_GetAccessRequest_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequest"
@@ -77,6 +78,7 @@ const (
 	TerminalService_UpdateUserPreferences_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/UpdateUserPreferences"
 	TerminalService_AuthenticateWebDevice_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/AuthenticateWebDevice"
 	TerminalService_GetApp_FullMethodName                            = "/teleport.lib.teleterm.v1.TerminalService/GetApp"
+	TerminalService_ConnectToDesktop_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ConnectToDesktop"
 )
 
 // TerminalServiceClient is the client API for TerminalService service.
@@ -107,6 +109,8 @@ type TerminalServiceClient interface {
 	StartHeadlessWatcher(ctx context.Context, in *StartHeadlessWatcherRequest, opts ...grpc.CallOption) (*StartHeadlessWatcherResponse, error)
 	// ListDatabaseUsers lists allowed users for the given database based on the role set.
 	ListDatabaseUsers(ctx context.Context, in *ListDatabaseUsersRequest, opts ...grpc.CallOption) (*ListDatabaseUsersResponse, error)
+	// ListDatabaseServers lists allowed users for the given database based on the role set.
+	ListDatabaseServers(ctx context.Context, in *ListDatabaseServersRequest, opts ...grpc.CallOption) (*ListDatabaseServersResponse, error)
 	// Deprecated: Do not use.
 	// GetServers returns filtered, sorted, and paginated servers
 	//
@@ -217,6 +221,8 @@ type TerminalServiceClient interface {
 	// GetApp returns details of an app resource. It does not include information about AWS roles and
 	// FQDN.
 	GetApp(ctx context.Context, in *GetAppRequest, opts ...grpc.CallOption) (*GetAppResponse, error)
+	// ConnectToDesktop is a bidirectional stream for the desktop connection.
+	ConnectToDesktop(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnectToDesktopRequest, ConnectToDesktopResponse], error)
 }
 
 type terminalServiceClient struct {
@@ -271,6 +277,16 @@ func (c *terminalServiceClient) ListDatabaseUsers(ctx context.Context, in *ListD
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListDatabaseUsersResponse)
 	err := c.cc.Invoke(ctx, TerminalService_ListDatabaseUsers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) ListDatabaseServers(ctx context.Context, in *ListDatabaseServersRequest, opts ...grpc.CallOption) (*ListDatabaseServersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDatabaseServersResponse)
+	err := c.cc.Invoke(ctx, TerminalService_ListDatabaseServers_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -650,6 +666,19 @@ func (c *terminalServiceClient) GetApp(ctx context.Context, in *GetAppRequest, o
 	return out, nil
 }
 
+func (c *terminalServiceClient) ConnectToDesktop(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnectToDesktopRequest, ConnectToDesktopResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &TerminalService_ServiceDesc.Streams[2], TerminalService_ConnectToDesktop_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ConnectToDesktopRequest, ConnectToDesktopResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type TerminalService_ConnectToDesktopClient = grpc.BidiStreamingClient[ConnectToDesktopRequest, ConnectToDesktopResponse]
+
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility.
@@ -678,6 +707,8 @@ type TerminalServiceServer interface {
 	StartHeadlessWatcher(context.Context, *StartHeadlessWatcherRequest) (*StartHeadlessWatcherResponse, error)
 	// ListDatabaseUsers lists allowed users for the given database based on the role set.
 	ListDatabaseUsers(context.Context, *ListDatabaseUsersRequest) (*ListDatabaseUsersResponse, error)
+	// ListDatabaseServers lists allowed users for the given database based on the role set.
+	ListDatabaseServers(context.Context, *ListDatabaseServersRequest) (*ListDatabaseServersResponse, error)
 	// Deprecated: Do not use.
 	// GetServers returns filtered, sorted, and paginated servers
 	//
@@ -788,6 +819,8 @@ type TerminalServiceServer interface {
 	// GetApp returns details of an app resource. It does not include information about AWS roles and
 	// FQDN.
 	GetApp(context.Context, *GetAppRequest) (*GetAppResponse, error)
+	// ConnectToDesktop is a bidirectional stream for the desktop connection.
+	ConnectToDesktop(grpc.BidiStreamingServer[ConnectToDesktopRequest, ConnectToDesktopResponse]) error
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -812,6 +845,9 @@ func (UnimplementedTerminalServiceServer) StartHeadlessWatcher(context.Context, 
 }
 func (UnimplementedTerminalServiceServer) ListDatabaseUsers(context.Context, *ListDatabaseUsersRequest) (*ListDatabaseUsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDatabaseUsers not implemented")
+}
+func (UnimplementedTerminalServiceServer) ListDatabaseServers(context.Context, *ListDatabaseServersRequest) (*ListDatabaseServersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListDatabaseServers not implemented")
 }
 func (UnimplementedTerminalServiceServer) GetServers(context.Context, *GetServersRequest) (*GetServersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetServers not implemented")
@@ -921,6 +957,9 @@ func (UnimplementedTerminalServiceServer) AuthenticateWebDevice(context.Context,
 func (UnimplementedTerminalServiceServer) GetApp(context.Context, *GetAppRequest) (*GetAppResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetApp not implemented")
 }
+func (UnimplementedTerminalServiceServer) ConnectToDesktop(grpc.BidiStreamingServer[ConnectToDesktopRequest, ConnectToDesktopResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method ConnectToDesktop not implemented")
+}
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 func (UnimplementedTerminalServiceServer) testEmbeddedByValue()                         {}
 
@@ -1028,6 +1067,24 @@ func _TerminalService_ListDatabaseUsers_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).ListDatabaseUsers(ctx, req.(*ListDatabaseUsersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_ListDatabaseServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDatabaseServersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).ListDatabaseServers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_ListDatabaseServers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).ListDatabaseServers(ctx, req.(*ListDatabaseServersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1662,6 +1719,13 @@ func _TerminalService_GetApp_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TerminalService_ConnectToDesktop_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(TerminalServiceServer).ConnectToDesktop(&grpc.GenericServerStream[ConnectToDesktopRequest, ConnectToDesktopResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type TerminalService_ConnectToDesktopServer = grpc.BidiStreamingServer[ConnectToDesktopRequest, ConnectToDesktopResponse]
+
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1688,6 +1752,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListDatabaseUsers",
 			Handler:    _TerminalService_ListDatabaseUsers_Handler,
+		},
+		{
+			MethodName: "ListDatabaseServers",
+			Handler:    _TerminalService_ListDatabaseServers_Handler,
 		},
 		{
 			MethodName: "GetServers",
@@ -1837,6 +1905,12 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "TransferFile",
 			Handler:       _TerminalService_TransferFile_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "ConnectToDesktop",
+			Handler:       _TerminalService_ConnectToDesktop_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "teleport/lib/teleterm/v1/service.proto",

@@ -847,6 +847,16 @@ const (
 	// AutoUpdateVersionDeleteEvent is emitted when a AutoUpdateVersion resource is deleted.
 	AutoUpdateVersionDeleteEvent = "auto_update_version.delete"
 
+	// AutoUpdateAgentRolloutTriggerEvent is emitted when one or many groups
+	// from AutoUpdateAgentRollout resource are manually triggered.
+	AutoUpdateAgentRolloutTriggerEvent = "auto_update_agent_rollout.trigger"
+	// AutoUpdateAgentRolloutForceDoneEvent is emitted when one or many groups
+	// from AutoUpdateAgentRollout resource are manually forced to a done state.
+	AutoUpdateAgentRolloutForceDoneEvent = "auto_update_agent_rollout.force_done"
+	// AutoUpdateAgentRolloutRollbackEvent is emitted when one or many groups
+	// from AutoUpdateAgentRollout resource are manually rolledback.
+	AutoUpdateAgentRolloutRollbackEvent = "auto_update_agent_rollout.rollback"
+
 	// ContactCreateEvent is emitted when a Contact resource is created.
 	ContactCreateEvent = "contact.create"
 	// ContactDeleteEvent is emitted when a Contact resource is deleted.
@@ -868,6 +878,19 @@ const (
 	// WorkloadIdentityX509RevocationDeleteEvent is emitted when a
 	// WorkloadIdentityX509Revocation resource is deleted.
 	WorkloadIdentityX509RevocationDeleteEvent = "workload_identity_x509_revocation.delete"
+	// WorkloadIdentityX509IssuerOverrideCreateEvent is emitted when a
+	// workload_identity_x509_issuer_override is written.
+	WorkloadIdentityX509IssuerOverrideCreateEvent = "workload_identity_x509_issuer_override.create"
+	// WorkloadIdentityX509IssuerOverrideDeleteEvent is emitted when a
+	// workload_identity_x509_issuer_override is deleted.
+	WorkloadIdentityX509IssuerOverrideDeleteEvent = "workload_identity_x509_issuer_override.delete"
+
+	// SigstorePolicyCreateEvent is emitted when a SigstorePolicy resource is created.
+	SigstorePolicyCreateEvent = "sigstore_policy.create"
+	// SigstorePolicyUpdateEvent is emitted when a SigstorePolicy resource is updated.
+	SigstorePolicyUpdateEvent = "sigstore_policy.update"
+	// SigstorePolicyDeleteEvent is emitted when a SigstorePolicy resource is deleted.
+	SigstorePolicyDeleteEvent = "sigstore_policy.delete"
 
 	// GitCommandEvent is emitted when a Git command is executed.
 	GitCommandEvent = "git.command"
@@ -880,6 +903,16 @@ const (
 	AWSICResourceSyncSuccessEvent = "aws_identity_center.resource_sync.success"
 	// AWSICResourceSyncFailureEvent is emitted when AWS Identity Center resources sync failed.
 	AWSICResourceSyncFailureEvent = "aws_identity_center.resource_sync.failed"
+
+	// HealthCheckConfigCreateEvent is emitted when a health check config
+	// resource is created.
+	HealthCheckConfigCreateEvent = "health_check_config.create"
+	// HealthCheckConfigUpdateEvent is emitted when a health check config
+	// resource is updated.
+	HealthCheckConfigUpdateEvent = "health_check_config.update"
+	// HealthCheckConfigDeleteEvent is emitted when a health check config
+	// resource is deleted.
+	HealthCheckConfigDeleteEvent = "health_check_config.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

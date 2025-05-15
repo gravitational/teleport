@@ -216,7 +216,7 @@ func TestOktaServiceLockCRUD(t *testing.T) {
 			// When I (as the Okta service) attempt to create lock on a random resource
 			lockSpec := types.LockSpecV2{
 				Target: types.LockTarget{
-					Node: "banana",
+					ServerID: "banana",
 				},
 			}
 			lock, err := types.NewLock(strings.ReplaceAll(uuid.NewString(), "-", ""), lockSpec)

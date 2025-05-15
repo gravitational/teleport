@@ -95,6 +95,10 @@ func TestEditResources(t *testing.T) {
 			kind: types.KindDynamicWindowsDesktop,
 			edit: testEditDynamicWindowsDesktop,
 		},
+		{
+			kind: types.KindHealthCheckConfig,
+			edit: testEditHealthCheckConfig,
+		},
 	}
 
 	for _, test := range tests {
@@ -394,6 +398,7 @@ func testEditOIDCConnector(t *testing.T, clt *authclient.Client) {
 		ClientID:     "12345",
 		ClientSecret: "678910",
 		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/github/callback"},
+		PKCEMode:     "enabled",
 		Display:      "OIDC",
 		ClaimsToRoles: []types.ClaimMapping{
 			{

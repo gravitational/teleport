@@ -21,6 +21,8 @@ package inventory
 import (
 	"context"
 	"fmt"
+	"io"
+	"math/rand/v2"
 	"os"
 	"slices"
 	"sync"
@@ -492,6 +494,19 @@ func TestAppServerBasics(t *testing.T) {
 		deny(appUpsertErr, handlerClose),
 	)
 
+	// jitter can sometimes cause one app to keepalive twice before another has completed one keepalive. for that
+	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
+	// with each app have been reset. otherwise, later parts of this test become flaky.
+	var keepaliveEvents []testEvent
+	for i := 0; i < appCount; i++ {
+		keepaliveEvents = append(keepaliveEvents, []testEvent{appKeepAliveOk, appKeepAliveOk}...)
+	}
+
+	awaitEvents(t, events,
+		expect(keepaliveEvents...),
+		deny(appKeepAliveErr, handlerClose),
+	)
+
 	for i := 0; i < appCount; i++ {
 		err := downstream.Send(ctx, proto.InventoryHeartbeat{
 			AppServer: &types.AppServerV3{
@@ -517,7 +532,7 @@ func TestAppServerBasics(t *testing.T) {
 	// we should now see an upsert failure, but no additional
 	// keepalive failures, and the upsert should succeed on retry.
 	awaitEvents(t, events,
-		expect(appKeepAliveOk, appKeepAliveOk, appKeepAliveOk, appUpsertErr, appUpsertRetryOk),
+		expect(appUpsertErr, appUpsertRetryOk),
 		deny(appKeepAliveErr, handlerClose),
 	)
 
@@ -552,13 +567,6 @@ func TestAppServerBasics(t *testing.T) {
 	awaitEvents(t, events,
 		expect(expectedEvents...),
 		deny(handlerClose),
-	)
-
-	// verify that further keepalive ticks to not result in attempts to keepalive
-	// apps (successful or not).
-	awaitEvents(t, events,
-		expect(keepAliveAppTick, keepAliveAppTick, keepAliveAppTick),
-		deny(appKeepAliveOk, appKeepAliveErr, handlerClose),
 	)
 
 	// set up to induce enough consecutive errors to cause stream closure
@@ -720,6 +728,19 @@ func TestDatabaseServerBasics(t *testing.T) {
 		deny(dbUpsertErr, handlerClose),
 	)
 
+	// jitter can sometimes cause one app to keepalive twice before another has completed one keepalive. for that
+	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
+	// with each app have been reset. otherwise, later parts of this test become flaky.
+	var keepaliveEvents []testEvent
+	for i := 0; i < dbCount; i++ {
+		keepaliveEvents = append(keepaliveEvents, []testEvent{dbKeepAliveOk, dbKeepAliveOk}...)
+	}
+
+	awaitEvents(t, events,
+		expect(keepaliveEvents...),
+		deny(appKeepAliveErr, handlerClose),
+	)
+
 	for i := 0; i < dbCount; i++ {
 		err := downstream.Send(ctx, proto.InventoryHeartbeat{
 			DatabaseServer: &types.DatabaseServerV3{
@@ -745,7 +766,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 	// we should now see an upsert failure, but no additional
 	// keepalive failures, and the upsert should succeed on retry.
 	awaitEvents(t, events,
-		expect(dbKeepAliveOk, dbKeepAliveOk, dbKeepAliveOk, dbUpsertErr, dbUpsertRetryOk),
+		expect(dbUpsertErr, dbUpsertRetryOk),
 		deny(dbKeepAliveErr, handlerClose),
 	)
 
@@ -780,13 +801,6 @@ func TestDatabaseServerBasics(t *testing.T) {
 	awaitEvents(t, events,
 		expect(expectedEvents...),
 		deny(handlerClose),
-	)
-
-	// verify that further keepalive ticks to not result in attempts to keepalive
-	// dbs (successful or not).
-	awaitEvents(t, events,
-		expect(keepAliveDatabaseTick, keepAliveDatabaseTick, keepAliveDatabaseTick),
-		deny(dbKeepAliveOk, dbKeepAliveErr, handlerClose),
 	)
 
 	// set up to induce enough consecutive errors to cause stream closure
@@ -1037,9 +1051,11 @@ func TestUpdateLabels(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	downstreamHandle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+	downstreamHandle, err := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 		return downstream, nil
-	}, upstreamHello)
+	}, func(_ context.Context) (proto.UpstreamInventoryHello, error) { return upstreamHello, nil })
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, downstreamHandle.Close()) })
 
 	// Wait for upstream hello.
 	select {
@@ -1099,11 +1115,11 @@ func TestAgentMetadata(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	NewDownstreamHandle(
+	inventoryHandle, err := NewDownstreamHandle(
 		func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 			return downstream, nil
 		},
-		upstreamHello,
+		func(ctx context.Context) (proto.UpstreamInventoryHello, error) { return upstreamHello, nil },
 		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
 			return &metadata.Metadata{
 				OS:                    "llamaOS",
@@ -1117,6 +1133,8 @@ func TestAgentMetadata(t *testing.T) {
 			}, nil
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	// Wait for upstream hello.
 	select {
@@ -1145,13 +1163,21 @@ func TestGoodbye(t *testing.T) {
 	tests := []struct {
 		name            string
 		supportsGoodbye bool
+		deleteResources bool
+		softReload      bool
 	}{
 		{
 			name: "no goodbye",
 		},
 		{
-			name:            "goodbye",
+			name:            "goodbye termination",
+			deleteResources: true,
 			supportsGoodbye: true,
+		},
+		{
+			name:            "goodbye soft-reload",
+			supportsGoodbye: true,
+			softReload:      true,
 		},
 	}
 
@@ -1164,16 +1190,16 @@ func TestGoodbye(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
+			// Test Setup: crafting a controller and an upstream/downstream stream pipe
 			controller := NewController(
 				&fakeAuth{},
 				usagereporter.DiscardUsageReporter{},
 				withInstanceHBInterval(time.Millisecond*200),
 			)
 			defer controller.Close()
-
-			// Set up fake in-memory control stream.
 			upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr("127.0.0.1:8090"))
 
+			currentDownstream := downstream
 			downstreamHello := proto.DownstreamInventoryHello{
 				Version:  teleport.Version,
 				ServerID: "auth",
@@ -1184,13 +1210,22 @@ func TestGoodbye(t *testing.T) {
 				},
 			}
 
+			// Test setup: creating downstream handler
+			clock := clockwork.NewFakeClock()
+			handle, err := NewDownstreamHandle(
+				func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+					return currentDownstream, nil
+				}, func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
+					return upstreamHello, nil
+				}, WithDownstreamClock(clock))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, handle.Close())
+			})
+
+			// Test setup: wait for the downstream handler to finish its startup and respond to its hello
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			handle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
-				return downstream, nil
-			}, upstreamHello)
-
-			// Wait for upstream hello.
 			select {
 			case msg := <-upstream.Recv():
 				require.Equal(t, upstreamHello, msg)
@@ -1199,41 +1234,122 @@ func TestGoodbye(t *testing.T) {
 			}
 			require.NoError(t, upstream.Send(ctx, downstreamHello))
 
-			// Attempt to send a goodbye.
+			// Test execution part 1: Validating that calling SetAndSendGoodbye does
+			// cause the downstream handler t send a goodbye.
+
+			// Fire a routine that will call SetAndSendGoodbye
+			// Then send a Pong message to indicate the test is done.
+			nonce := rand.Int()
 			go func() {
 				ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
-				assert.NoError(t, handle.SendGoodbye(ctx))
-				// Close the handle to unblock receive below.
-				assert.NoError(t, handle.Close())
+				handle.SetAndSendGoodbye(ctx, test.deleteResources, test.softReload)
+
+				// After calling the goodbye, we do a little hack by sending a pong
+				// This will allow us to know that this routine is done on the other side of the test
+				// while making sure we are strictly after the goodbye message
+				// (SendGoodBye is synchronous, and we send messages over the same channel)
+				select {
+				case sender := <-handle.Sender():
+					sender.Send(ctx, proto.UpstreamInventoryPong{ID: uint64(nonce)})
+				case <-ctx.Done():
+					assert.Fail(t, "never got downstream sender, was not able to send 'end-of-test pong'")
+				}
 			}()
 
-			// Wait to see if a goodbye is received.
+			// Wait until we receive the pong.
+			var receivedGoodbye *proto.UpstreamInventoryGoodbye
 			timeoutC := time.After(10 * time.Second)
+		OuterLoop:
 			for {
 				select {
 				case msg := <-upstream.Recv():
-					switch msg.(type) {
+					switch msg := msg.(type) {
+					case proto.UpstreamInventoryHello, proto.InventoryHeartbeat,
+						proto.UpstreamInventoryAgentMetadata:
+						// We skip all usual messages
+					case proto.UpstreamInventoryGoodbye:
+						// We register the goodbye
+						receivedGoodbye = &msg
+					case proto.UpstreamInventoryPong:
+						// The emitter routine is done with its part, we stop waiting for events
+						require.Equal(t, nonce, int(msg.ID), "received pong message without the 'end-of-test ID'")
+						break OuterLoop
+					default:
+						require.Fail(t, "unexpected message type", msg)
+					}
+				case <-upstream.Done():
+					require.Fail(t, "upstream unexpectedly closed")
+				case <-timeoutC:
+					require.Fail(t, "timed out waiting for 'end-of-test pong'")
+				}
+			}
+
+			// Test validation pt.1: Check if we received a pong
+			if test.supportsGoodbye {
+				require.NotNil(t, receivedGoodbye)
+				require.Equal(t, test.deleteResources, receivedGoodbye.DeleteResources)
+				require.Equal(t, test.softReload, receivedGoodbye.SoftReload)
+			} else {
+				require.Nil(t, receivedGoodbye)
+			}
+
+			// Don't test further if we don't support goodbye
+			if !test.supportsGoodbye {
+				return
+			}
+
+			// Test execution pt.2: See that the downstreamHandler sends back the goodbye
+			// when the stream is re-established.
+
+			newUpstream, newDownstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr("127.0.0.1:8090"))
+			currentDownstream = newDownstream
+
+			// Simulating a failure on the old control stream, asking for a reconnection
+			require.NoError(t, downstream.CloseWithError(io.EOF))
+
+			ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			// Wait to hit the handle linear retry, then jump into the future
+			require.NoError(t, clock.BlockUntilContext(ctx, 1))
+			select {
+			case <-ctx.Done():
+				require.Fail(t, "upstream never waited")
+			default:
+				clock.Advance(time.Minute)
+			}
+
+			// Test setup: wait for the downstream handler to finish its startup and respond to its hello
+			select {
+			case msg := <-newUpstream.Recv():
+				require.Equal(t, upstreamHello, msg)
+			case <-ctx.Done():
+				require.Fail(t, "never got upstream hello")
+			}
+			require.NoError(t, newUpstream.Send(ctx, downstreamHello))
+
+			// Test execution: wait until we receive at least 1 goodbye.
+			timeoutC = time.After(10 * time.Second)
+			for {
+				select {
+				case msg := <-newUpstream.Recv():
+					switch msg := msg.(type) {
 					case proto.UpstreamInventoryHello, proto.InventoryHeartbeat,
 						proto.UpstreamInventoryPong, proto.UpstreamInventoryAgentMetadata:
 					case proto.UpstreamInventoryGoodbye:
-						if test.supportsGoodbye {
-							require.Equal(t, proto.UpstreamInventoryGoodbye{DeleteResources: true}, msg)
-						} else {
-							t.Fatalf("received an unexpected message %v", msg)
-						}
+						require.Equal(t, receivedGoodbye, &msg, "re-emitted goodbye should be identical")
 						return
+					default:
+						require.Fail(t, "unexpected message type", msg)
 					}
-				case <-upstream.Done():
-					return
+
+				case <-newUpstream.Done():
+					require.Fail(t, "upstream unexpectedly closed")
 				case <-timeoutC:
-					if test.supportsGoodbye {
-						require.FailNow(t, "timeout waiting for goodbye message")
-					} else {
-						return
-					}
+					require.Fail(t, "timeout waiting for goodbye message")
 				}
 			}
+
 		})
 	}
 }
@@ -1337,6 +1453,19 @@ func TestKubernetesServerBasics(t *testing.T) {
 		deny(kubeUpsertErr, handlerClose),
 	)
 
+	// jitter can sometimes cause one app to keepalive twice before another has completed one keepalive. for that
+	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
+	// with each app have been reset. otherwise, later parts of this test become flaky.
+	var keepaliveEvents []testEvent
+	for i := 0; i < kubeCount; i++ {
+		keepaliveEvents = append(keepaliveEvents, []testEvent{kubeKeepAliveOk, kubeKeepAliveOk}...)
+	}
+
+	awaitEvents(t, events,
+		expect(keepaliveEvents...),
+		deny(appKeepAliveErr, handlerClose),
+	)
+
 	for i := 0; i < kubeCount; i++ {
 		err := downstream.Send(ctx, proto.InventoryHeartbeat{
 			KubernetesServer: &types.KubernetesServerV3{
@@ -1363,7 +1492,7 @@ func TestKubernetesServerBasics(t *testing.T) {
 	// we should now see an upsert failure, but no additional
 	// keepalive failures, and the upsert should succeed on retry.
 	awaitEvents(t, events,
-		expect(kubeKeepAliveOk, kubeKeepAliveOk, kubeKeepAliveOk, kubeUpsertErr, kubeUpsertRetryOk),
+		expect(kubeUpsertErr, kubeUpsertRetryOk),
 		deny(kubeKeepAliveErr, handlerClose),
 	)
 
@@ -1398,13 +1527,6 @@ func TestKubernetesServerBasics(t *testing.T) {
 	awaitEvents(t, events,
 		expect(expectedEvents...),
 		deny(handlerClose),
-	)
-
-	// verify that further keepalive ticks to not result in attempts to keepalive
-	// apps (successful or not).
-	awaitEvents(t, events,
-		expect(keepAliveKubeTick, keepAliveKubeTick, keepAliveKubeTick),
-		deny(kubeKeepAliveOk, kubeKeepAliveErr, handlerClose),
 	)
 
 	// set up to induce enough consecutive errors to cause stream closure
@@ -1489,9 +1611,11 @@ func TestGetSender(t *testing.T) {
 		Services: []types.SystemRole{types.RoleNode, types.RoleApp},
 	}
 
-	handle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+	handle, err := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 		return downstream, nil
-	}, upstreamHello)
+	}, func(ctx context.Context) (proto.UpstreamInventoryHello, error) { return upstreamHello, nil })
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, handle.Close()) })
 
 	// Validate that the sender is not present prior to
 	// the stream becoming healthy.

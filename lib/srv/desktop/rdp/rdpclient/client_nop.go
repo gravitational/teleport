@@ -1,5 +1,4 @@
 //go:build !desktop_access_rdp
-// +build !desktop_access_rdp
 
 /*
  * Teleport

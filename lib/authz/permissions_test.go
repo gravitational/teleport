@@ -142,8 +142,8 @@ func TestContextLockTargets(t *testing.T) {
 		{
 			role: types.RoleNode,
 			want: []types.LockTarget{
-				{Node: "node", ServerID: "node"},
-				{Node: "node.cluster", ServerID: "node.cluster"},
+				{ServerID: "node"},
+				{ServerID: "node.cluster"},
 				{User: "node.cluster"},
 				{Role: "role1"},
 				{Role: "role2"},
@@ -934,7 +934,7 @@ func TestCheckIPPinning(t *testing.T) {
 			clientAddr: "127.0.0.1:0",
 			pinnedIP:   "127.0.0.1",
 			pinIP:      true,
-			wantErr:    ErrIPPinningMismatch.Error(),
+			wantErr:    ErrIPPinningNotAllowed.Error(),
 		},
 		{
 			desc:       "correct IP pinning",

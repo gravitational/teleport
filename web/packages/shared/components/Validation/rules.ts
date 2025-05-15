@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { IAM_ROLE_NAME_REGEX } from 'teleport/services/integrations/aws';
+/**
+ * ROLE_ARN_REGEX uses the same regex matcher used in the backend:
+ * https://github.com/gravitational/teleport/blob/2cba82cb332e769ebc8a658d32ff24ddda79daff/api/utils/aws/identifiers.go#L43
+ *
+ * The regex checks for alphanumerics and select few characters.
+ */
+const IAM_ROLE_NAME_REGEX = /^[\w+=,.@-]+$/;
 
 /**
  * The result of validating a field.
@@ -156,7 +162,7 @@ const requiredIamRoleName: Rule = name => (): ValidationResult => {
  * The regex is in string format, and must be parsed with `new RegExp()`.
  *
  * regex details:
- * arn:aws<OTHER_PARTITION>:iam::<ACOUNT_NUMBER>:role/<ROLE_NAME>
+ * arn:aws<OTHER_PARTITION>:iam::<ACCOUNT_NUMBER>:role/<ROLE_NAME>
  */
 const ROLE_ARN_REGEX_STR = '^arn:aws.*:iam::\\d{12}:role\\/';
 const requiredRoleArn: Rule = roleArn => () => {
@@ -262,7 +268,7 @@ const requiredPort: Rule = port => () => {
  * @returns a rule function that ANDs all input rules
  */
 const requiredAll =
-  <T>(...rules: Rule<T | string | string[], ValidationResult>[]): Rule<T> =>
+  <T>(...rules: Rule<T, ValidationResult>[]): Rule<T> =>
   (value: T) =>
   () => {
     let messages = [];
@@ -315,40 +321,37 @@ const precomputed =
     res;
 
 /**
- * A set of rules to be executed using `runRules` on a model object. The rule
- * set contains a subset of keys of the object.
+ * A set of rules to be executed using `runRules` on a model object of type M.
+ * The rule set contains a subset of keys of the object.
  */
-export type RuleSet<K extends string | number | symbol> = Record<
-  K,
-  Rule<any, any>
->;
+export type RuleSet<M> = { [k in keyof Partial<M>]: Rule<M[k], any> };
 
 /** A result of executing a set of rules on a model object. */
-export type RuleSetValidationResult<R extends RuleSet<any>> = {
-  valid: boolean;
-  /**
-   * Each member of the `fields` object corresponds to a rule from within the
-   * rule set and contains the result of validating a model field of the same
-   * name.
-   */
-  fields: { [k in keyof R]: RuleResult<R[k]> }; // Record<keyof R, ValidationResult>;
-};
+export type RuleSetValidationResult<R extends RuleSet<any>> =
+  ValidationResult & {
+    /**
+     * Each member of the `fields` object corresponds to a rule from within the
+     * rule set and contains the result of validating a model field of the same
+     * name.
+     */
+    fields: { [k in keyof R]: RuleResult<R[k]> };
+  };
 
 /**
  * Executes a set of rules on a model object, producing a precomputed
  * validation result that can be used with `precomputed` rule to inject to
  * field components, but also allows for consuming the validation data outside
  * these fields.
- *
- * `K` is the subset of model field names.
- * `M` is the validated model.
  */
-export const runRules = <K extends string, M extends Record<K, any>>(
-  model: M,
-  rules: RuleSet<K>
-): RuleSetValidationResult<RuleSet<K>> => {
+export const runRules = <
+  Model extends Record<string, any>,
+  Rules extends RuleSet<Model>,
+>(
+  model: Model,
+  rules: Rules
+): RuleSetValidationResult<Rules> => {
   const fields = {} as {
-    [k in keyof RuleSet<K>]: RuleResult<RuleSet<K>[k]>;
+    [k in keyof Rules]: RuleResult<Rules[k]>;
   };
   let valid = true;
   for (const key in rules) {

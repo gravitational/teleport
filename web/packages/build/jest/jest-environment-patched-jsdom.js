@@ -80,6 +80,26 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
         return result;
       };
     }
+
+    // If a test actually depends on a working ResizeObserver implementation, call
+    // mockResizeObserver provided by jsdom-testing-mocks.
+    if (!global.ResizeObserver) {
+      function NullResizeObserver() {
+        this.observe = () => {};
+        this.unobserve = () => {};
+        this.disconnect = () => {};
+      }
+
+      global.ResizeObserver = NullResizeObserver;
+    }
+
+    if (!global.navigator.permissions) {
+      global.navigator.permissions = {
+        query: async () => ({
+          onchange: () => {},
+        }),
+      };
+    }
   }
 }
 export const TestEnvironment = PatchedJSDOMEnvironment;

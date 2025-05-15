@@ -45,14 +45,14 @@ import (
 	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "vnet")
+var log = logutils.NewPackageLogger(teleport.ComponentKey, logComponent)
 
 const (
+	logComponent                     = "vnet"
 	nicID                            = 1
 	mtu                              = 1500
 	tcpReceiveBufferSize             = 0 // 0 means a default will be used.
 	maxInFlightTCPConnectionAttempts = 1024
-	defaultIPv4CIDRRange             = "100.64.0.0/10"
 )
 
 // networkStackConfig holds configuration parameters for the VNet network stack.
@@ -230,7 +230,7 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	slog := slog.With(teleport.ComponentKey, "VNet")
+	slog := slog.With(teleport.ComponentKey, logComponent)
 
 	stack, linkEndpoint, err := createStack()
 	if err != nil {
@@ -717,13 +717,4 @@ func protocolVersion(b byte) (tcpip.NetworkProtocolNumber, bool) {
 		return header.IPv6ProtocolNumber, true
 	}
 	return 0, false
-}
-
-// NetworkStackInfo is used to pass information about some aspects of the network stack outside
-// of the goroutine or the process that manages [networkStack].
-type NetworkStackInfo struct {
-	// IfaceName is the name of the interface used by VNet.
-	IfaceName string
-	// IPv6Prefix is the IPv6 prefix under which VNet assigns addresses for apps and the DNS nameserver.
-	IPv6Prefix string
 }

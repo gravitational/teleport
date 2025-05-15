@@ -37,6 +37,7 @@ func TestClient(t *testing.T) {
 				Image:  "nginx",
 				Labels: map[string]string{"team": "marketing"},
 			},
+			ImageDigest: "sha256:56fa17d2a7e7f168a043a2712e63aed1f8543aeafdcee47c58dcffe38ed51099",
 		}),
 		podman.WithPod(podman.Pod{
 			ID:     "pod-1234",

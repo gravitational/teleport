@@ -461,7 +461,7 @@ func TestHardwareKeyApp(t *testing.T) {
 
 	require.NoError(t, json.Unmarshal(confOut.Bytes(), &info))
 
-	clientCert, err = tls.LoadX509KeyPair(info.Cert, info.Key)
+	clientCert, err = keys.LoadX509KeyPair(info.Cert, info.Key)
 	require.NoError(t, err)
 
 	resp, err = testDummyAppConn(fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)

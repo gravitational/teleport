@@ -21,7 +21,6 @@ package authclient
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"net/url"
 	"time"
@@ -63,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -100,11 +100,6 @@ var (
 // password, or second factor.
 func IsInvalidLocalCredentialError(err error) bool {
 	return errors.Is(err, InvalidUserPassError) || errors.Is(err, InvalidUserPass2FError)
-}
-
-// HostFQDN consists of host UUID and cluster name joined via '.'.
-func HostFQDN(hostUUID, clusterName string) string {
-	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
 }
 
 // APIClient is aliased here so that it can be embedded in Client.
@@ -308,6 +303,15 @@ func (c *Client) GetReverseTunnel(ctx context.Context, name string) (types.Rever
 // DeleteAllTokens not implemented: can only be called locally.
 func (c *Client) DeleteAllTokens() error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// PatchToken not implemented: can only be called locally
+func (c *Client) PatchToken(
+	ctx context.Context,
+	token string,
+	updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
+) (types.ProvisionToken, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // AddUserLoginAttempt logs user login attempt
@@ -1071,8 +1075,12 @@ type IdentityService interface {
 	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
 	// GetSAMLConnector returns SAML connector information by id
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	// GetSAMLConnectorWithValidationOptions returns SAML connector information
+	GetSAMLConnectorWithValidationOptions(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error)
 	// GetSAMLConnectors gets valid SAML connectors list
 	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
+	// GetSAMLConnectorsWithValidationOptions gets valid SAML connectors list
+	GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error)
 	// DeleteSAMLConnector deletes SAML connector by ID
 	DeleteSAMLConnector(ctx context.Context, connectorID string) error
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
@@ -1235,6 +1243,14 @@ type ProvisioningService interface {
 
 	// CreateToken creates a new provision token for the auth server
 	CreateToken(ctx context.Context, token types.ProvisionToken) error
+
+	// PatchToken performs a conditional update on the named token using
+	// `updateFn`, retrying internally if a comparison failure occurs.
+	PatchToken(
+		ctx context.Context,
+		token string,
+		updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
+	) (types.ProvisionToken, error)
 
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
@@ -1426,7 +1442,7 @@ func UserPublicKeys(pubIn, sshPubIn, tlsPubIn []byte) (sshPubOut, tlsPubOut []by
 // sshAttIn and tlsAttIn will be returned.
 // [sshAttIn] and [tlsAttIn] should be the SSH and TLS attestation statements
 // set by any post-17.0.0 client.
-func UserAttestationStatements(attIn, sshAttIn, tlsAttIn *keys.AttestationStatement) (sshAttOut, tlsAttOut *keys.AttestationStatement) {
+func UserAttestationStatements(attIn, sshAttIn, tlsAttIn *hardwarekey.AttestationStatement) (sshAttOut, tlsAttOut *hardwarekey.AttestationStatement) {
 	if attIn == nil {
 		return sshAttIn, tlsAttIn
 	}
@@ -1469,14 +1485,14 @@ type AuthenticateSSHRequest struct {
 	// AttestationStatement is an attestation statement associated with the given public key.
 	//
 	// Deprecated: prefer SSHAttestationStatement and/or TLSAttestationStatement.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+	AttestationStatement *hardwarekey.AttestationStatement `json:"attestation_statement,omitempty"`
 
 	// SSHAttestationStatement is an attestation statement associated with the
 	// given SSH public key.
-	SSHAttestationStatement *keys.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
+	SSHAttestationStatement *hardwarekey.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
 	// TLSAttestationStatement is an attestation statement associated with the
 	// given TLS public key.
-	TLSAttestationStatement *keys.AttestationStatement `json:"tls_attestation_statement,omitempty"`
+	TLSAttestationStatement *hardwarekey.AttestationStatement `json:"tls_attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
@@ -1591,6 +1607,7 @@ type ClientI interface {
 	services.KubeWaitingContainer
 	services.Notifications
 	services.VnetConfigGetter
+	services.HealthCheckConfig
 	types.Events
 
 	types.WebSessionsGetter

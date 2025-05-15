@@ -177,12 +177,20 @@ func (c *issueX509Command) run(cf *CLIConf) error {
 
 		// Write SVID
 		svidPath := filepath.Join(c.outputDirectory, svidPEMPath)
+		var svidPEM bytes.Buffer
+		pem.Encode(&svidPEM, &pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: x509Credential.GetX509Svid().GetCert(),
+		})
+		for _, c := range x509Credential.GetX509Svid().GetChain() {
+			pem.Encode(&svidPEM, &pem.Block{
+				Type:  "CERTIFICATE",
+				Bytes: c,
+			})
+		}
 		err = os.WriteFile(
 			svidPath,
-			pem.EncodeToMemory(&pem.Block{
-				Type:  "CERTIFICATE",
-				Bytes: x509Credential.GetX509Svid().GetCert(),
-			}),
+			svidPEM.Bytes(),
 			teleport.FileMaskOwnerOnly,
 		)
 		if err != nil {

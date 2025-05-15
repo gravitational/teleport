@@ -17,12 +17,17 @@
  */
 
 import { MfaChallengeResponse } from '../mfa';
+import websession from '../websession';
 import api, {
   defaultRequestOptions,
   getAuthHeaders,
   isRoleNotFoundError,
   MFA_HEADER,
 } from './api';
+import { ApiError } from './parseError';
+
+jest.mock('../websession');
+const mockedWebsession = jest.mocked(websession);
 
 describe('api.fetch', () => {
   let mockedFetch: jest.SpiedFunction<typeof fetch>;
@@ -209,4 +214,33 @@ test('isRoleNotFoundError correctly identifies role not found errors', () => {
 
   const errorMessage3 = 'failed to list access lists';
   expect(isRoleNotFoundError(errorMessage3)).toBe(false);
+});
+
+describe('api.get handling of role not found errors', () => {
+  beforeEach(() => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      json: async () => ({ error: { message: 'role foo is not found' } }),
+      ok: false,
+      status: 404,
+    } as Response); // we don't care about response
+  });
+
+  afterEach(() => {
+    jest.resetAllMocks();
+  });
+
+  test('sign out on error', async () => {
+    await api.get('/foobar');
+    expect(mockedWebsession.logoutWithoutSlo).toHaveBeenCalledWith({
+      rememberLocation: false,
+      withAccessChangedMessage: true,
+    });
+  });
+
+  test("don't sign out on error", async () => {
+    await expect(
+      api.get('/foobar', null, null, { allowRoleNotFound: true })
+    ).rejects.toThrow(ApiError);
+    expect(mockedWebsession.logoutWithoutSlo).not.toHaveBeenCalled();
+  });
 });

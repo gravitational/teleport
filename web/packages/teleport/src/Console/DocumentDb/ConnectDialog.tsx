@@ -105,24 +105,12 @@ function ConnectForm(props: {
   onConnect(data: DbConnectData): void;
   onClose(): void;
 }) {
-  const dbUserOpts = props.db.users
-    ?.map(user => ({
-      value: user,
-      label: user,
-    }))
-    .filter(removeWildcardOption);
-  const dbNamesOpts = props.db.names
-    ?.map(name => ({
-      value: name,
-      label: name,
-    }))
-    .filter(removeWildcardOption);
-  const dbRolesOpts = props.db.roles
-    ?.map(role => ({
-      value: role,
-      label: role,
-    }))
-    .filter(removeWildcardOption);
+  const { options: dbNamesOpts, hasWildcard: dbNameHasWildcard } =
+    prepareOptions(props.db.names);
+  const { options: dbUserOpts, hasWildcard: dbUserHasWildcard } =
+    prepareOptions(props.db.users);
+  const { options: dbRolesOpts, hasWildcard: dbRoleHasWildcard } =
+    prepareOptions(props.db.roles);
 
   const [selectedName, setSelectedName] = useState<Option>(dbNamesOpts?.[0]);
   const [selectedUser, setSelectedUser] = useState<Option>(dbUserOpts?.[0]);
@@ -144,36 +132,57 @@ function ConnectForm(props: {
       {({ validator }) => (
         <form>
           <DialogContent flex="0 0 auto">
-            <FieldSelectCreatable
+            <ConnectionField
+              hasWildcard={dbNameHasWildcard}
               label="Database name"
               menuPosition="fixed"
               onChange={option => setSelectedName(option as Option)}
               value={selectedName}
               options={dbNamesOpts}
-              formatCreateLabel={userInput =>
-                `Use "${userInput}" database name`
-              }
+              creatableOptions={{
+                formatCreateLabel: userInput =>
+                  `Use "${userInput}" database name`,
+                toolTipContent:
+                  'You can type in the select box to use a custom database name instead of the available options.',
+              }}
               rule={requiredField('Database name is required')}
             />
-            <FieldSelectCreatable
+            <ConnectionField
+              hasWildcard={dbUserHasWildcard}
               label="Database user"
               menuPosition="fixed"
               onChange={option => setSelectedUser(option as Option)}
               value={selectedUser}
               options={dbUserOpts}
-              formatCreateLabel={userInput =>
-                `Use "${userInput}" database user`
-              }
+              creatableOptions={{
+                formatCreateLabel: userInput =>
+                  `Use "${userInput}" database user`,
+                toolTipContent:
+                  'You can type in the select box to use a custom database user instead of the available options.',
+              }}
               rule={requiredField('Database user is required')}
+              isDisabled={props.db.autoUsersEnabled}
+              helperText={
+                props.db.autoUsersEnabled
+                  ? 'Using auto provisioned user, you cannot change the database user.'
+                  : null
+              }
             />
-            {dbRolesOpts?.length > 0 && (
-              <FieldSelect
+            {(dbRolesOpts?.length > 0 || dbRoleHasWildcard) && (
+              <ConnectionField
+                hasWildcard={dbRoleHasWildcard}
                 label="Database roles"
                 menuPosition="fixed"
                 isMulti={true}
                 onChange={setSelectedRoles}
                 value={selectedRoles}
                 options={dbRolesOpts}
+                creatableOptions={{
+                  formatCreateLabel: userInput =>
+                    `Use "${userInput}" database role`,
+                  toolTipContent:
+                    'You can type in the select box to use a custom database role in addition to the available options.',
+                }}
                 rule={requiredField('At least one database role is required')}
               />
             )}
@@ -207,8 +216,38 @@ function ConnectForm(props: {
   );
 }
 
-function removeWildcardOption({ value }: Option): boolean {
-  return value !== '*';
+function ConnectionField({
+  hasWildcard,
+  creatableOptions = {},
+  ...commonOptions
+}) {
+  return hasWildcard ? (
+    <FieldSelectCreatable {...commonOptions} {...creatableOptions} />
+  ) : (
+    <FieldSelect {...commonOptions} />
+  );
+}
+
+function prepareOptions(rawOpts: string[]): {
+  options: Option[];
+  hasWildcard: boolean;
+} {
+  let hasWildcard = false;
+  const options = rawOpts
+    ?.map(role => ({
+      value: role,
+      label: role,
+    }))
+    .filter(({ value }: Option) => {
+      if (value === '*') {
+        hasWildcard = true;
+        return false;
+      }
+
+      return true;
+    });
+
+  return { options, hasWildcard };
 }
 
 const dialogCss = () => `

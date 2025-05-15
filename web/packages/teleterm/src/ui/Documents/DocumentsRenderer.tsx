@@ -36,6 +36,7 @@ import Document from 'teleterm/ui/Document';
 import { DocumentAccessRequests } from 'teleterm/ui/DocumentAccessRequests';
 import { DocumentAuthorizeWebSession } from 'teleterm/ui/DocumentAuthorizeWebSession';
 import DocumentCluster from 'teleterm/ui/DocumentCluster';
+import { DocumentDesktopSession } from 'teleterm/ui/DocumentDesktopSession';
 import { DocumentGateway } from 'teleterm/ui/DocumentGateway';
 import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp';
 import { DocumentGatewayCliClient } from 'teleterm/ui/DocumentGatewayCliClient';
@@ -48,6 +49,7 @@ import {
 } from 'teleterm/ui/services/workspacesService';
 import { isAppUri, isDatabaseUri, RootClusterUri } from 'teleterm/ui/uri';
 import { DocumentVnetDiagReport } from 'teleterm/ui/Vnet/DocumentVnetDiagReport';
+import { DocumentVnetInfo } from 'teleterm/ui/Vnet/DocumentVnetInfo';
 
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { WorkspaceContextProvider } from './workspaceContext';
@@ -174,7 +176,12 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentAuthorizeWebSession doc={doc} visible={visible} />;
       case 'doc.vnet_diag_report':
         return <DocumentVnetDiagReport doc={doc} visible={visible} />;
+      case 'doc.vnet_info':
+        return <DocumentVnetInfo doc={doc} visible={visible} />;
+      case 'doc.desktop_session':
+        return <DocumentDesktopSession doc={doc} visible={visible} />;
       default:
+        doc satisfies types.DocumentBlank;
         return (
           <Document visible={visible}>
             <Text m="auto" mt={10} textAlign="center">

@@ -16,18 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { JSX } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 
 import { Mark } from 'design';
-
 import {
   InfoExternalTextLink,
+  InfoGuideConfig,
   InfoParagraph,
   InfoTitle,
   InfoUl,
   ReferenceLink,
   ReferenceLinks,
-} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+} from 'shared/components/SlidingSidePanel/InfoGuide';
+
 import cfg from 'teleport/config';
 import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 
@@ -222,7 +224,7 @@ export function getOverview({
     case DiscoverGuideId.DatabaseAwsRdsMysqlMariaDb:
       links = {
         iamAuthn: {
-          title: 'Creating IAM users',
+          title: 'Creating database IAM users',
           href: getRdsIamAuthnHref(resourceSpec.id),
         },
         amazonEcs: {
@@ -256,9 +258,11 @@ export function getOverview({
           <li>
             Ability to create database{' '}
             <Mark>
-              <InfoExternalTextLink href={links.iamAuthn.href}>
-                IAM users
-              </InfoExternalTextLink>
+              <b>
+                <InfoExternalTextLink href={links.iamAuthn.href}>
+                  IAM users
+                </InfoExternalTextLink>
+              </b>
             </Mark>{' '}
             and connect to target databases.
           </li>
@@ -266,7 +270,10 @@ export function getOverview({
           <li>
             At least one subnet in the VPC with a route to an internet gateway.
           </li>
-          <li>Security groups that allow egress to the Teleport cluster.</li>
+          <li>
+            Security groups that permit access to your RDS databases and allow
+            unrestricted outbound internet traffic.
+          </li>
         </InfoUl>
       );
       break;
@@ -284,13 +291,13 @@ export function getOverview({
   );
 }
 
-const getRdsIamAuthnHref = (
-  id:
-    | DiscoverGuideId.DatabaseAwsRdsAuroraMysql
-    | DiscoverGuideId.DatabaseAwsRdsAuroraPostgres
-    | DiscoverGuideId.DatabaseAwsRdsPostgres
-    | DiscoverGuideId.DatabaseAwsRdsMysqlMariaDb
-) => {
+export type AwsRdsGuideIds =
+  | DiscoverGuideId.DatabaseAwsRdsAuroraMysql
+  | DiscoverGuideId.DatabaseAwsRdsAuroraPostgres
+  | DiscoverGuideId.DatabaseAwsRdsPostgres
+  | DiscoverGuideId.DatabaseAwsRdsMysqlMariaDb;
+
+export const getRdsIamAuthnHref = (id: AwsRdsGuideIds) => {
   if (id === DiscoverGuideId.DatabaseAwsRdsAuroraMysql) {
     return 'https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html#UsingWithRDS.IAMDBAuth.DBAccounts.MySQL';
   }
@@ -304,3 +311,15 @@ const getRdsIamAuthnHref = (
     return 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html#UsingWithRDS.IAMDBAuth.DBAccounts.MySQL';
   }
 };
+
+export function getDiscoverInfoGuideConfig(
+  guide: JSX.Element
+): InfoGuideConfig {
+  if (!guide) {
+    return;
+  }
+  return {
+    guide: guide,
+    title: 'Overview',
+  };
+}

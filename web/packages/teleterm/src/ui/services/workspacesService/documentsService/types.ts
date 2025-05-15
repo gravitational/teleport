@@ -221,7 +221,7 @@ export interface DocumentClusterQueryParams {
 // `DocumentClusterQueryParams` uses values of this type and documents are stored to disk.
 export type DocumentClusterResourceKind = Extract<
   SharedUnifiedResource['resource']['kind'],
-  'node' | 'app' | 'kube_cluster' | 'db'
+  'node' | 'app' | 'kube_cluster' | 'db' | 'windows_desktop'
 >;
 
 export interface DocumentAccessRequests extends DocumentBase {
@@ -262,6 +262,37 @@ export interface DocumentVnetDiagReport extends DocumentBase {
   report: Report;
 }
 
+export interface DocumentVnetInfo extends DocumentBase {
+  kind: 'doc.vnet_info';
+  // VNet itself is not bound to any workspace, but a document must belong to a workspace. Also, it
+  // must be possible to determine the relation between a document and a cluster just by looking at
+  // the document fields, hence why rootClusterUri is defined here.
+  rootClusterUri: uri.RootClusterUri;
+  /**
+   * Details of the app if the doc was opened by selecting a specific TCP app.
+   *
+   * This field is needed to facilitate a scenario where a first-time user clicks "Connect" next to
+   * a TCP app, which opens this doc. Once the user clicks "Start VNet" in the doc, Connect should
+   * continue the regular flow of connecting to a TCP app through VNet, which means it should copy
+   * the address of the app to the clipboard, hence this field.
+   *
+   * app is removed when restoring persisted state. Let's say the user opens the doc through the
+   * "Connect" button of a specific app. If they close the app and then reopen the docs, we don't
+   * want the "Start VNet" button to copy the address of the app from the prev session.
+   */
+  app:
+    | {
+        /**
+         * The address that's going to be copied to the clipboard after user starts VNet for the
+         * first time through this document.
+         *
+         */
+        targetAddress: string | undefined;
+        isMultiPort: boolean;
+      }
+    | undefined;
+}
+
 /**
  * Document to authorize a web session with device trust.
  * Unlike other documents, it is not persisted on disk.
@@ -273,6 +304,15 @@ export interface DocumentAuthorizeWebSession extends DocumentBase {
   // between a document and a cluster just by looking at the document fields.
   rootClusterUri: uri.RootClusterUri;
   webSessionRequest: WebSessionRequest;
+}
+
+export interface DocumentDesktopSession extends DocumentBase {
+  kind: 'doc.desktop_session';
+  desktopUri: uri.DesktopUri;
+  login: string;
+  origin: DocumentOrigin;
+  // status is used merely to indicate that a connection is established in the connection tracker.
+  status: '' | 'connected' | 'error';
 }
 
 export interface WebSessionRequest {
@@ -297,7 +337,9 @@ export type Document =
   | DocumentTerminal
   | DocumentConnectMyComputer
   | DocumentVnetDiagReport
-  | DocumentAuthorizeWebSession;
+  | DocumentVnetInfo
+  | DocumentAuthorizeWebSession
+  | DocumentDesktopSession;
 
 /**
  * @deprecated DocumentTshNode is supposed to be simplified to just DocumentTshNodeWithServerId.

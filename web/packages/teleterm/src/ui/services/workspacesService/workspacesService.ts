@@ -65,6 +65,7 @@ import {
   DocumentsService,
   DocumentTshKube,
   DocumentTshNode,
+  DocumentVnetInfo,
   getDefaultDocumentClusterQueryParams,
 } from './documentsService';
 
@@ -588,6 +589,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
             },
           };
           return documentCluster;
+        }
+
+        if (d.kind === 'doc.vnet_info') {
+          const documentVnetInfo: DocumentVnetInfo = {
+            ...d,
+            app: undefined,
+          };
+          return documentVnetInfo;
         }
 
         return d;

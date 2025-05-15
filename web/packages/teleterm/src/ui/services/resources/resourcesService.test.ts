@@ -148,7 +148,7 @@ describe('searchResources', () => {
       kind: 'app',
       resource: {
         ...app,
-        addrWithProtocol: 'tcp://local-app.example.com:3000',
+        addrWithProtocol: 'tcp://local-app.example.com',
       },
     });
     expect(actualDatabase).toEqual({ kind: 'database', resource: db });

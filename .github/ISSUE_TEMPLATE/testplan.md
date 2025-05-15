@@ -772,19 +772,91 @@ You will need a YubiKey 4.3+ to test this feature.
 
 This feature has additional build requirements, so it should be tested with a pre-release build (eg: `https://cdn.teleport.dev/teleport-ent-v16.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
-#### Server Access
+Run all tests on Linux, MacOS, and Windows.
 
-This test should be carried out on Linux, MacOS, and Windows.
+#### `tsh`
 
-Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in your cluster auth settings and login.
+Configuration:
+
+```yaml
+### cap
+spec:
+  require_session_mfa: hardware_key_touch_and_pin
+  hardware_key:
+    pin_cache_ttl: 15s
+```
+
+In the tests below, note how touch and PIN are cached.
+
+- touch is cached on the YubiKey for 15 seconds.
+- pin is cached for 15 seconds within the `tsh` processes This will only appear to work for `tsh proxy` commands.
+- pin is cached in the YubiKey's PIV connection. The connection with intact PIN cache can be claimed within 5 seconds, meaning you can keep the PIN cached by running `tsh` commands one after the other within 5 seconds.
+
 - [ ] `tsh login`
-  - [ ] Prompts for Yubikey touch with message "Tap your YubiKey" (separate from normal MFA prompt).
+  - [ ] Prompts for PIV PIN ("Enter your PIV PIN:")
+  - [ ] Prompts for PIV touch ("Tap your Yubikey", separate from normal MFA prompt).
+- [ ] `tsh ls`
+  - [ ] Prompts for PIV PIN ("Enter your PIV PIN:")
+  - [ ] Prompts for PIV touch ("Tap your Yubikey", separate from normal MFA prompt).
 - [ ] Server Access `tsh ssh`
-  - [ ] Requires yubikey to be connected
-  - [ ] Prompts for touch (if not cached)
+  - [ ] Prompts for PIV PIN and touch
 - [ ] Database Access: `tsh proxy db --tunnel`
-  - [ ] Requires yubikey to be connected
-  - [ ] Prompts for touch (if not cached)
+  - [ ] Prompts for PIV PIN and touch on start
+  - [ ] Prompts for PIV PIN and Touch for incoming connections or queries
+- [ ] App Access: `tsh proxy app`
+  - [ ] Prompts for PIV PIN and touch on start
+  - [ ] [Prompts for MFA](https://github.com/gravitational/teleport/blob/master/rfd/0080-hardware-key-support.md#application-access) on start
+  - [ ] Prompts for PIV PIN and Touch for incoming http requests
+- [ ] Kube Access: `tsh proxy kube`
+  - [ ] Prompts for PIV PIN and touch on start
+  - [ ] Prompts for PIV PIN and Touch for incoming `kubectl` commands
+
+#### Teleport Connect and Hardware Key Agent
+
+Install Teleport Connect and open it. The hardware key agent automatically starts if you are running a
+release/dev build. If you are building Teleport Connect in development mode, you will need to set the
+config option `hardwareKeyAgent.enabled: true` and restart Connect. You can run a non-login `tsh`
+command to check if the agent is running.
+
+Before logging in to Teleport Connect:
+
+- [ ] `tsh login` prompts for PIV PIN and touch without using the Hardware Key Agent
+- [ ] All other `tsh` commands prompt for PIN and touch via the Hardware Key Agent
+  - [ ] Test a subset of the `tsh` commands from the test above
+    - [ ] The command is displayed in the PIN and touch prompts
+- [ ] Connecting with OpenSSH `ssh` prompts for PIN and touch via the hardware key agent
+- [ ] The PIN is cached for the configured duration between basic `tsh` commands (set `pin_cache_ttl` to something longer that 15s if needed)
+
+After logging in to Teleport Connect:
+
+- [ ] Login prompts for PIN and touch
+- [ ] Server Access
+  - [ ] Prompts for PIN and Touch via the Hardware Key Agent
+  - [ ] The `tsh ssh ...` command is displayed in the prompt
+- [ ] Database Access
+  - [ ] Prompts for PIN and Touch for incoming connections or queries
+- [ ] App Access (Proxy)
+  - [ ] Prompts for MFA on start
+  - [ ] Prompts for PIN and Touch for incoming http requets
+- [ ] Kube Access
+  - [ ] Prompts for PIN and Touch for incoming `kubectl` commands
+- [ ] VNet
+  - [ ] Prompts for PIN and Touch for incoming tcp connections
+
+### Local unit tests
+
+Currently, we do not have a way of testing any PIV funcionality that requires direct access
+to a YubiKey. However, we do have a test suite of local and interactive tests for realworld
+PIV funcionality.
+
+Plug in a YubiKey and run the test suite with the options below:
+
+```bash
+TELEPORT_TEST_YUBIKEY_PIV=yes go test github.com/gravitational/teleport/api/utils/keys/piv -tags=piv -v
+```
+
+Note that these tests will wipe any existing PIV data on the card (keys, certs, custom pin/puk).
+FIDO2 data is not affected.
 
 ### HSM Support
 
@@ -987,21 +1059,22 @@ manualy testing.
   - [ ] Self-hosted Cassandra/ScyllaDB.
   - [ ] Self-hosted Oracle.
   - [ ] Self-hosted ClickHouse.
-  - [ ] AWS Aurora Postgres.
-  - [ ] AWS Aurora MySQL.
+  - [ ] Amazon Aurora Postgres.
+  - [ ] Amazon Aurora MySQL.
     - [ ] MySQL server version reported by Teleport is correct.
-  - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
-  - [ ] AWS Redshift.
-  - [ ] AWS Redshift Serverless.
+  - [ ] Amazon RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
+  - [ ] Amazon Redshift.
+  - [ ] Amazon Redshift Serverless.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
-  - [ ] AWS ElastiCache.
-  - [ ] AWS MemoryDB.
-  - [ ] AWS OpenSearch.
-  - [ ] AWS Dynamodb.
+  - [ ] Amazon ElastiCache.
+  - [ ] Amazon MemoryDB.
+  - [ ] Amazon OpenSearch.
+  - [ ] Amazon Dynamodb.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
-  - [ ] AWS DocumentDB
-  - [ ] AWS Keyspaces
+  - [ ] Amazon DocumentDB
+  - [ ] Amazon Keyspaces
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
+  - [ ] Amazon RDS Oracle (with Kerberos keytab)
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] GCP Cloud Spanner.
@@ -1026,17 +1099,18 @@ manualy testing.
   - [ ] Self-hosted Cassandra/ScyllaDB.
   - [ ] Self-hosted Oracle.
   - [ ] Self-hosted ClickHouse.
-  - [ ] AWS Aurora Postgres.
-  - [ ] AWS Aurora MySQL.
-  - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
-  - [ ] AWS Redshift.
-  - [ ] AWS Redshift Serverless.
-  - [ ] AWS ElastiCache.
-  - [ ] AWS MemoryDB.
-  - [ ] AWS OpenSearch.
-  - [ ] AWS Dynamodb.
-  - [ ] AWS DocumentDB
-  - [ ] AWS Keyspaces
+  - [ ] Amazon Aurora Postgres.
+  - [ ] Amazon Aurora MySQL.
+  - [ ] Amazon RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
+  - [ ] Amazon Redshift.
+  - [ ] Amazon Redshift Serverless.
+  - [ ] Amazon ElastiCache.
+  - [ ] Amazon MemoryDB.
+  - [ ] Amazon OpenSearch.
+  - [ ] Amazon Dynamodb.
+  - [ ] Amazon DocumentDB
+  - [ ] Amazon Keyspaces
+  - [ ] Amazon RDS Oracle (with Kerberos keytab)
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] GCP Cloud Spanner.
@@ -1053,10 +1127,10 @@ manualy testing.
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
-  - [x] AWS RDS Postgres. (covered by E2E test)
-  - [x] AWS RDS MySQL. (coverved by E2E test)
-  - [ ] AWS RDS MariaDB.
-  - [x] AWS Redshift (coverved by E2E test).
+  - [x] Amazon RDS Postgres. (covered by E2E test)
+  - [x] Amazon RDS MySQL. (coverved by E2E test)
+  - [ ] Amazon RDS MariaDB.
+  - [x] Amazon Redshift (coverved by E2E test).
 - [ ] Verify Database Access Control
   - [ ] Postgres (tables)
 - [ ] Verify audit events.
@@ -1073,6 +1147,7 @@ manualy testing.
     - [ ] `db.session.query` is emitted when command fails due to permissions.
   - [ ] Can configure per-session MFA.
     - [ ] MFA tap is required on each `tsh db connect`.
+    - [ ] A single MFA tap is required on `tsh db exec --dbs db1,db2`.
 - [ ] Verify dynamic registration.
   - [ ] Can register a new database using `tctl create`.
   - [ ] Can update registered database using `tctl create -f`.
@@ -1112,6 +1187,27 @@ manualy testing.
     - [ ] Postgres
   - [ ] `tsh play`
     - [ ] Postgres
+- [ ] Verify database access via Web UI
+  - [ ] Postgres
+- [ ] Verify database health checks
+  - [ ] Dynamic `health_check_config` resource create, read, update, delete operations are supported using `tctl`
+  - [ ] Database servers (`$ tctl get db_server`) include `db_server.status.target_health` info
+  - [ ] Updating `health_check_config` resets `db_server.status.target_health.status` for matching databases (may take several minutes)
+  - [ ] Updating a `health_check_config` (or deleting it), such that a database should no longer have health checks enabled, resets that database's `db_server.status.target_health` to "unknown/disabled" (may take several minutes)
+  - [ ] Verify health check web UI indicators
+    Configure a database agent with a database that has an unreachable URI (e.g. localhost:5432).
+    - [ ] The web UI resource page shows an warning indicator for that database with error details.
+    - [ ] Without restarting the agent, make the database endpoint reachable and observe that the indicator in the web UI resources page disappears after some time.
+
+## Git Proxy
+- [ ] [GitHub proxy](https://goteleport.com/docs/admin-guides/management/guides/github-integration/)
+  (requires GitHub Enterprise account)
+  - [ ] Enroll integration via WebUI
+  - [ ] `tsh git login` for GitHub OAuth flow
+  - [ ] `tsh git clone` for cloning new repo
+  - [ ] `tsh git config` for configuring existing repo
+  - [ ] Test Git commands like `git fetch`, `git push`, in repos configured with Teleport
+  - [ ] Verify audit events for each Git command proxied through Teleport.
 
 ## TLS Routing
 
@@ -1673,6 +1769,7 @@ The following should work with SSO MFA, automatically opening the SSO MFA redire
   - [ ] App Access
   - [ ] Database Access
   - [ ] Desktop Access
+- [ ] Headless (`tsh ls --headless`)
 
 ## Resources
 

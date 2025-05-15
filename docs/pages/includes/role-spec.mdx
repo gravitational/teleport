@@ -35,7 +35,7 @@ spec:
     # Determines if the clients will be forcefully disconnected when their
     # certificates expire in the middle of an active session.
     # It overrides the global cluster setting.
-    disconnect_expired_cert: no
+    disconnect_expired_cert: false
     # max_sessions is the total number of session channels that can be established
     # across a single connection. Setting it to 10 matches OpenSSH default behavior.
     # (enterprise-only)
@@ -303,6 +303,11 @@ spec:
     cluster_labels:
       'env': 'prod'
 
+    # workload_identity_labels: a user/bot with this role will be allowed to
+    # issue Workload Identities with labels matching below.
+    workload_identity_labels:
+      'env': 'prod'
+
     # node_labels_expression has the same purpose as node_labels but
     # supports predicate expressions to configure custom logic.
     # A user with this role will be allowed to access nodes if they are in the
@@ -321,6 +326,7 @@ spec:
     db_service_labels_expression: 'labels["env"] == "staging"'
     windows_desktop_labels_expression: 'labels["env"] == "staging"'
     group_labels_expression: 'labels["env"] == "staging"'
+    workload_identity_labels_expression: 'labels["env"] == "staging"'
 
     # aws_role_arns allows a user with this role to assume AWS roles when
     # accessing AWS console using UI or AWS API using CLI

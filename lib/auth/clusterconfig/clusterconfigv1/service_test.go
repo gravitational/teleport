@@ -21,6 +21,7 @@ import (
 	"errors"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -45,114 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
-
-func TestCreateAuthPreference(t *testing.T) {
-	authRoleContext, err := authz.ContextForBuiltinRole(authz.BuiltinRole{
-		Role:     types.RoleAuth,
-		Username: string(types.RoleAuth),
-	}, nil)
-	require.NoError(t, err, "creating auth role context")
-
-	cases := []struct {
-		name       string
-		modules    modules.Modules
-		authorizer authz.Authorizer
-		preference func(p types.AuthPreference)
-		assertion  func(t *testing.T, created types.AuthPreference, err error)
-	}{
-		{
-			name: "unauthorized built in role",
-			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-				return authz.ContextForBuiltinRole(authz.BuiltinRole{
-					Role:     types.RoleProxy,
-					Username: string(types.RoleProxy),
-				}, nil)
-			}),
-			assertion: func(t *testing.T, created types.AuthPreference, err error) {
-				assert.Nil(t, created)
-				require.True(t, trace.IsAccessDenied(err), "got (%v), expected proxy role to be prevented from creating auth preferences", err)
-			},
-		},
-		{
-			name: "authorized built in auth",
-			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-				return authRoleContext, nil
-			}),
-			assertion: func(t *testing.T, created types.AuthPreference, err error) {
-				require.NoError(t, err, "got (%v), expected auth role to create auth mutator", err)
-				require.NotNil(t, created)
-			},
-		},
-		{
-			name: "creation prevented when hardware key policy is set in open source",
-			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-				return authRoleContext, nil
-			}),
-			preference: func(p types.AuthPreference) {
-				pp := p.(*types.AuthPreferenceV2)
-				pp.Spec.RequireMFAType = types.RequireMFAType_HARDWARE_KEY_PIN
-			},
-			assertion: func(t *testing.T, created types.AuthPreference, err error) {
-				assert.Nil(t, created)
-				require.True(t, trace.IsAccessDenied(err), "got (%v), expected hardware key policy to be rejected in OSS", err)
-			},
-		},
-		{
-			name: "creation allowed when hardware key policy is set in enterprise",
-			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-				return authRoleContext, nil
-			}),
-			modules: &modules.TestModules{TestBuildType: modules.BuildEnterprise},
-			preference: func(p types.AuthPreference) {
-				pp := p.(*types.AuthPreferenceV2)
-				pp.Spec.RequireMFAType = types.RequireMFAType_HARDWARE_KEY_PIN
-			},
-			assertion: func(t *testing.T, created types.AuthPreference, err error) {
-				require.NoError(t, err, "got (%v), expected auth role to create auth mutator", err)
-				require.NotNil(t, created)
-			},
-		},
-		{
-			name: "creation prevented when hardware key policy is set in open source",
-			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-				return authRoleContext, nil
-			}),
-			preference: func(p types.AuthPreference) {
-				p.SetDeviceTrust(&types.DeviceTrust{
-					Mode: constants.DeviceTrustModeRequired,
-				})
-			},
-			assertion: func(t *testing.T, created types.AuthPreference, err error) {
-				assert.Nil(t, created)
-				require.True(t, trace.IsBadParameter(err), "got (%v), expected device trust mode conflict to prevent creation", err)
-			},
-		},
-	}
-
-	for _, test := range cases {
-		t.Run(test.name, func(t *testing.T) {
-			if test.modules != nil {
-				modules.SetTestModules(t, test.modules)
-			}
-
-			var opts []serviceOpt
-			if test.authorizer != nil {
-				opts = append(opts, withAuthorizer(test.authorizer))
-			}
-
-			env, err := newTestEnv(opts...)
-			require.NoError(t, err, "creating test service")
-
-			pref := types.DefaultAuthPreference()
-			if test.preference != nil {
-				test.preference(pref)
-			}
-
-			created, err := env.CreateAuthPreference(context.Background(), pref)
-			test.assertion(t, created, err)
-		})
-	}
-}
 
 func TestGetAuthPreference(t *testing.T) {
 	cases := []struct {
@@ -669,6 +562,7 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 		name       string
 		config     func(p types.ClusterNetworkingConfig)
 		authorizer authz.Authorizer
+		cnc        types.ClusterNetworkingConfig
 		assertion  func(t *testing.T, updated types.ClusterNetworkingConfig, err error)
 	}{
 		{
@@ -740,11 +634,115 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 				require.Equal(t, types.OriginDynamic, updated.Origin())
 			},
 		},
+		{
+			name: "cloud tunnel strategy type",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity:             authz.RemoteUser{},
+				}, nil
+			}),
+			cnc: func() types.ClusterNetworkingConfig {
+				cnc := types.DefaultClusterNetworkingConfig()
+				cnc.SetTunnelStrategy(&types.TunnelStrategyV1{
+					Strategy: &types.TunnelStrategyV1_ProxyPeering{
+						ProxyPeering: types.DefaultProxyPeeringTunnelStrategy(),
+					},
+				})
+				return cnc
+			}(),
+			config: func(p types.ClusterNetworkingConfig) {
+				modules.SetTestModules(t, &modules.TestModules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Cloud: true,
+					},
+				})
+				p.SetTunnelStrategy(&types.TunnelStrategyV1{
+					Strategy: &types.TunnelStrategyV1_AgentMesh{
+						AgentMesh: types.DefaultAgentMeshTunnelStrategy(),
+					},
+				})
+			},
+			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
+				require.True(t, trace.IsBadParameter(err), "got (%v), expected cloud feature to prevent updating tunnel strategy", err)
+			},
+		},
+		{
+			name: "cloud web idle timeout",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity:             authz.RemoteUser{},
+				}, nil
+			}),
+			config: func(p types.ClusterNetworkingConfig) {
+				modules.SetTestModules(t, &modules.TestModules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Cloud: true,
+					},
+				})
+				p.SetWebIdleTimeout(time.Minute * 90)
+			},
+			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
+				require.NoError(t, err, "got (%v), expected cloud feature to allow updating web idle timeout", err)
+			},
+		},
+		{
+			name: "cloud agent connection count",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity:             authz.RemoteUser{},
+				}, nil
+			}),
+			cnc: func() types.ClusterNetworkingConfig {
+				cnc := types.DefaultClusterNetworkingConfig()
+				cnc.SetTunnelStrategy(&types.TunnelStrategyV1{
+					Strategy: &types.TunnelStrategyV1_ProxyPeering{
+						ProxyPeering: types.DefaultProxyPeeringTunnelStrategy(),
+					},
+				})
+				return cnc
+			}(),
+			config: func(p types.ClusterNetworkingConfig) {
+				modules.SetTestModules(t, &modules.TestModules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Cloud: true,
+					},
+				})
+				p.SetTunnelStrategy(
+					&types.TunnelStrategyV1{Strategy: &types.TunnelStrategyV1_ProxyPeering{
+						ProxyPeering: &types.ProxyPeeringTunnelStrategy{
+							AgentConnectionCount: 100,
+						},
+					}},
+				)
+			},
+			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
+				require.True(t, trace.IsBadParameter(err), "got (%v), expected cloud feature to prevent updating agent connection count", err)
+			},
+		},
 	}
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultClusterNetworkingConfig(types.DefaultClusterNetworkingConfig()))
+			cnc := test.cnc
+			if cnc == nil {
+				cnc = types.DefaultClusterNetworkingConfig()
+			}
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultClusterNetworkingConfig(cnc))
 			require.NoError(t, err, "creating test service")
 
 			// Set revisions to allow the update to succeed.
@@ -1331,9 +1329,6 @@ func (failingConfigService) GetSessionRecordingConfig(ctx context.Context) (type
 	return types.DefaultSessionRecordingConfig(), nil
 }
 
-func (failingConfigService) CreateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error) {
-	return nil, errors.New("fail")
-}
 func (failingConfigService) UpdateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error) {
 	return nil, errors.New("fail")
 }
@@ -1782,7 +1777,7 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 	ctx := context.Background()
 	var defaultPreference types.AuthPreference
 	if cfg.defaultAuthPreference != nil {
-		defaultPreference, err = cfg.service.CreateAuthPreference(ctx, cfg.defaultAuthPreference)
+		defaultPreference, err = cfg.service.UpsertAuthPreference(ctx, cfg.defaultAuthPreference)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating default auth mutator")
 		}

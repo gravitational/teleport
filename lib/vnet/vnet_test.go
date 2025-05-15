@@ -55,6 +55,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
+	typesvnet "github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -580,9 +581,13 @@ func TestDialFakeApp(t *testing.T) {
 		},
 	}, dialOpts, reissueClientCert, clock)
 
+	clusterConfigCache := NewClusterConfigCache(clock)
 	p := newTestPack(t, ctx, testPackConfig{
-		clock:       clock,
-		appProvider: newLocalAppProvider(clientApp, clock),
+		clock: clock,
+		appProvider: newLocalAppProvider(&localAppProviderConfig{
+			clientApplication:  clientApp,
+			clusterConfigCache: clusterConfigCache,
+		}),
 	})
 
 	validTestCases := []struct {
@@ -629,7 +634,7 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo1.leaf1.example.com",
-			expectCIDR: defaultIPv4CIDRRange,
+			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "echo1.leaf1.example.com",
 				PublicAddr:  "echo1.leaf1.example.com",
@@ -638,7 +643,7 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo1.leaf2.example.com",
-			expectCIDR: defaultIPv4CIDRRange,
+			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "echo1.leaf2.example.com",
 				PublicAddr:  "echo1.leaf2.example.com",
@@ -647,7 +652,7 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo1.root2.example.com",
-			expectCIDR: defaultIPv4CIDRRange,
+			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "echo1.root2.example.com",
 				PublicAddr:  "echo1.root2.example.com",
@@ -656,7 +661,7 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo2.root2.example.com",
-			expectCIDR: defaultIPv4CIDRRange,
+			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "echo2.root2.example.com",
 				PublicAddr:  "echo2.root2.example.com",
@@ -665,7 +670,7 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo1.leaf3.example.com",
-			expectCIDR: defaultIPv4CIDRRange,
+			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "echo1.leaf3.example.com",
 				PublicAddr:  "echo1.leaf3.example.com",
@@ -686,7 +691,7 @@ func TestDialFakeApp(t *testing.T) {
 		{
 			app:        "multi-port.leaf1.example.com",
 			port:       1337,
-			expectCIDR: defaultIPv4CIDRRange,
+			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "multi-port.leaf1.example.com",
 				PublicAddr:  "multi-port.leaf1.example.com",
@@ -824,9 +829,13 @@ func TestOnNewConnection(t *testing.T) {
 	validAppName := "echo1.root1.example.com"
 	invalidAppName := "not.an.app.example.com."
 
+	clusterConfigCache := NewClusterConfigCache(clock)
 	p := newTestPack(t, ctx, testPackConfig{
-		clock:       clock,
-		appProvider: newLocalAppProvider(clientApp, clock),
+		clock: clock,
+		appProvider: newLocalAppProvider(&localAppProviderConfig{
+			clientApplication:  clientApp,
+			clusterConfigCache: clusterConfigCache,
+		}),
 	})
 
 	// Attempt to establish a connection to an invalid app and verify that OnNewConnection was not
@@ -875,13 +884,15 @@ func testRemoteAppProvider(t *testing.T, alg cryptosuites.Algorithm) {
 	clientApp := newFakeClientApp(map[string]testClusterSpec{
 		"root.example.com": {
 			apps: []appSpec{
-				appSpec{publicAddr: "echo"},
+				appSpec{publicAddr: "echo1"},
+				appSpec{publicAddr: "echo2"},
 			},
 			cidrRange: "192.168.2.0/24",
 			leafClusters: map[string]testClusterSpec{
 				"leaf.example.com": {
 					apps: []appSpec{
-						appSpec{publicAddr: "echo"},
+						appSpec{publicAddr: "echo1"},
+						appSpec{publicAddr: "echo2"},
 					},
 					cidrRange: "192.168.2.0/24",
 				},
@@ -899,8 +910,15 @@ func testRemoteAppProvider(t *testing.T, alg cryptosuites.Algorithm) {
 		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)
-	appProvider := newLocalAppProvider(clientApp, clock)
-	svc := newClientApplicationService(appProvider)
+	clusterConfigCache := NewClusterConfigCache(clock)
+	appProvider := newLocalAppProvider(&localAppProviderConfig{
+		clientApplication:  clientApp,
+		clusterConfigCache: clusterConfigCache,
+	})
+	svc := newClientApplicationService(&clientApplicationServiceConfig{
+		localAppProvider:      appProvider,
+		localOSConfigProvider: nil, // OS config is not needed for this test.
+	})
 	vnetv1.RegisterClientApplicationServiceServer(grpcServer, svc)
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
@@ -916,9 +934,9 @@ func testRemoteAppProvider(t *testing.T, alg cryptosuites.Algorithm) {
 	})
 
 	// Test writing the service credentials to and from disk as that's what
-	// really happens on Windows.
+	// really happens.
 	credDir := t.TempDir()
-	require.NoError(t, ipcCredentials.client.write(credDir), "writing service credentials to disk")
+	require.NoError(t, ipcCredentials.client.write(credDir, 0400), "writing service credentials to disk")
 	clientCreds, err := readCredentials(credDir)
 	require.NoError(t, err, "reading service credentials from disk")
 
@@ -933,8 +951,12 @@ func testRemoteAppProvider(t *testing.T, alg cryptosuites.Algorithm) {
 	})
 
 	for _, app := range []string{
-		"echo.root.example.com",
-		"echo.leaf.example.com",
+		"echo1.root.example.com",
+		"echo2.root.example.com",
+		"echo1.root.example.com",
+		"echo1.leaf.example.com",
+		"echo2.leaf.example.com",
+		"echo1.leaf.example.com",
 	} {
 		conn, err := p.dialHost(ctx, app, 123)
 		require.NoError(t, err)

@@ -77,7 +77,7 @@ export function ChangePin(props: {
             }}
           >
             <CommonHeader
-              rootClusterUri={props.req.rootClusterUri}
+              proxyHostname={props.req.proxyHostname}
               onCancel={props.onCancel}
             />
 

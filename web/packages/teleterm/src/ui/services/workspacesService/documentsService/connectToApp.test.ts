@@ -42,7 +42,7 @@ describe('connectToApp', () => {
         origin: 'resource_table',
       });
       expect(window.open).toHaveBeenCalledWith(
-        'https://teleport-local:3080/web/launch/local-app.example.com:3000/teleport-local/local-app.example.com:3000',
+        'https://teleport-local.com:3080/web/launch/local-app.example.com/teleport-local/local-app.example.com',
         '_blank',
         'noreferrer,noopener'
       );
@@ -59,7 +59,7 @@ describe('connectToApp', () => {
       });
 
       expect(window.open).toHaveBeenCalledWith(
-        'https://teleport-local:3080/enterprise/saml-idp/login/foo',
+        'https://teleport-local.com:3080/enterprise/saml-idp/login/foo',
         '_blank',
         'noreferrer,noopener'
       );
@@ -79,7 +79,7 @@ describe('connectToApp', () => {
         { arnForAwsApp: 'foo-arn' }
       );
       expect(window.open).toHaveBeenCalledWith(
-        'https://teleport-local:3080/web/launch/local-app.example.com:3000/teleport-local/local-app.example.com:3000/foo-arn',
+        'https://teleport-local.com:3080/web/launch/local-app.example.com/teleport-local/local-app.example.com/foo-arn',
         '_blank',
         'noreferrer,noopener'
       );
@@ -109,7 +109,7 @@ describe('connectToApp', () => {
       status: '',
       targetName: 'foo',
       targetSubresourceName: undefined,
-      targetUri: '/clusters/teleport-local/apps/foo',
+      targetUri: '/clusters/teleport-local.com/apps/foo',
       targetUser: '',
       title: 'foo',
       uri: expect.any(String),
@@ -160,7 +160,7 @@ describe('setUpAppGateway', () => {
       status: '',
       targetName: 'foo',
       targetSubresourceName: targetPort?.toString(),
-      targetUri: '/clusters/teleport-local/apps/foo',
+      targetUri: '/clusters/teleport-local.com/apps/foo',
       targetUser: '',
       title: expectedTitle || 'foo',
       uri: expect.any(String),
@@ -192,5 +192,4 @@ function setTestCluster(appContext: IAppContext): void {
   });
 }
 
-const launchVnet = () =>
-  Promise.resolve([undefined, undefined] as [void, Error]);
+const launchVnet = async () => {};

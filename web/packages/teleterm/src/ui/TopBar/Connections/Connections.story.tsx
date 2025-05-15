@@ -129,7 +129,7 @@ export function VnetWarning() {
 
   appContext.statePersistenceService.putState({
     ...appContext.statePersistenceService.getState(),
-    vnet: { autoStart: true },
+    vnet: { autoStart: true, hasEverStarted: true },
   });
   appContext.workspacesService.setState(draft => {
     draft.isInitialized = true;
@@ -156,7 +156,7 @@ export function VnetError() {
 
   appContext.statePersistenceService.putState({
     ...appContext.statePersistenceService.getState(),
-    vnet: { autoStart: true },
+    vnet: { autoStart: true, hasEverStarted: true },
   });
   appContext.workspacesService.setState(draft => {
     draft.isInitialized = true;

@@ -556,9 +556,9 @@ To export a CA certificate:
 
 {/* Adapted from https://www.ibm.com/docs/it/rds/5.2.1?topic=security-exporting-certificate-from-active-directory-server */}
 
-1. Click Start, Control Panel, and Administrative Tools to select **Certificate Authority**.
+1. Click Start, Control Panel, and Administrative Tools to select **Certification Authority**.
 1. Select your CA computer, right-click, then select **Properties**.
-1. One the General tab, click **View Certificate**.
+1. On the General tab, click **View Certificate**.
 1. Select **Details**, then click **Copy to File**.
 1. Click *Next* in the Certificate Export Wizard, and ensure that **DER encoded binary X.509 (.CER)**
    is selected.
@@ -597,7 +597,7 @@ To configure Teleport to protect access to Windows desktops:
      auth_token: "path/to/token"
      proxy_server: <Var name="teleport.example.com"/> # replace with your proxy address
    windows_desktop_service:
-     enabled: yes
+     enabled: true
      ldap:
        # Port must be included for the addr.
        # LDAPS port is 636 by default (example.com:636)
@@ -607,14 +607,14 @@ To configure Teleport to protect access to Windows desktops:
        sid: "$LDAP_USER_SID"
        # Path to the certificate you exported.
        der_ca_file: "path/to/exported/cert"
-     discovery:
-       base_dn: "*"
+     discovery_configs:
+       - base_dn: "*"
    auth_service:
-     enabled: no
+     enabled: false
    proxy_service:
-     enabled: no
+     enabled: false
    ssh_service:
-     enabled: no
+     enabled: false
    ```
 
    For a detailed description of the configuration fields, see
@@ -643,8 +643,6 @@ To create a role for accessing Windows desktops:
          "*": "*"
        windows_desktop_logins: ["jsmith"]
    ```
-
-   Note that user names shared between domain and local users create login conflicts.
 
 1. Create the role:
 
@@ -678,22 +676,27 @@ To connect to a Windows desktop:
 
    ![Disconnect from a Windows desktop ](../../../img/desktop-access/desktop-disconnect.png)
 
-   To view the recording, select **Management** in the Teleport Web UI, then click **Session Recordings**
-   in the Activity section.
+   To view the recording, select **Audit** in the Teleport Web UI, then click **Session Recordings** in the menu.
 
 ## LDAP Discovery
 
 In Active Directory environments, Teleport can be configured to discover hosts
-via LDAP. LDAP discovery is enabled by setting the `discovery.base_dn` field in
-the Teleport Windows Desktop Service configuration. You can set `base_dn` to a
-wildcard `'*` to search from the root of the domain, or you can specify an alternate
-base distinguished name to search from.
+via LDAP. LDAP discovery is enabled by adding one or more discovery configs to
+the `discovery_configs` field in the Teleport Windows Desktop Service
+configuration. You can set `base_dn` to a wildcard `'*` to search from the root
+of the domain, or you can specify an alternate base distinguished name to search
+from.
+
+By default, all hosts discovered via LDAP will be registered with a port of 3389.
+You can override the RDP port for each discovery configuration.
 
 ```yaml
 windows_desktop_service:
-  enabled: yes
-  discovery:
-    base_dn: '*'
+  enabled: true
+  discovery_configs:
+    - base_dn: 'OU=prod,DC=example,DC=com'
+    - base_dn: 'OU=staging,DC=example,DC=com'
+      rdp_port: 9989
 ```
 
 ### Filters
@@ -705,29 +708,28 @@ compute a logical AND of all filters specified.
 
 ```yaml
 windows_desktop_service:
-  enabled: yes
-  discovery:
-    base_dn: '*'
-    filters:
-    - '(location=Oakland)'
-    - '(!(primaryGroupID=516))'
+  enabled: true
+  discovery_configs:
+    - base_dn: '*'
+      filters:
+        - '(location=Oakland)'
+        - '(!(primaryGroupID=516))'
 ```
 
 ### Labeling
 
 It is often necessary to apply labels to discovered hosts to control access. You
 can configure Teleport to convert LDAP attributes to Teleport labels by setting
-the `discovery.label_attributes` field in the Teleport Windows Desktop Service
-configuration.
+the `label_attributes` field in the discovery configuration.
 
 ```yaml
 windows_desktop_service:
-  enabled: yes
-  discovery:
-    base_dn: '*'
-    label_attributes:
-      - 'location'
-      - 'department'
+  enabled: true
+  discovery_configs:
+    - base_dn: '*'
+      label_attributes:
+        - 'location'
+        - 'department'
 ```
 
 Each of the specified attributes will be placed in a Teleport label prefixed with `ldap/`.
@@ -780,7 +782,7 @@ domain, you would do the following:
 
   ```yaml
   windows_desktop_service:
-    enabled: yes
+    enabled: true
 
     # configure LDAP settings to point at the child domain
     ldap:
@@ -819,7 +821,7 @@ NLA against `example.com:88`.
 
 ```yaml
 windows_desktop_service:
-    enabled: yes
+    enabled: true
     ldap:
       addr: example.com:636
 ```
@@ -829,7 +831,7 @@ in your Teleport configuration file.
 
 ```yaml
 windows_desktop_service:
-    enabled: yes
+    enabled: true
     kdc_address: kdc.example.com   # defaults to port 88 if unspecified
 ```
 

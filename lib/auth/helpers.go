@@ -552,6 +552,7 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		IdentityCenter:          p.AuthServer.Services.IdentityCenter,
 		PluginStaticCredentials: p.AuthServer.Services.PluginStaticCredentials,
 		GitServers:              p.AuthServer.Services.GitServers,
+		HealthCheckConfig:       p.AuthServer.Services.HealthCheckConfig,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1230,12 +1231,17 @@ func NewFakeTeleportVersion() *FakeTeleportVersion {
 }
 
 // GetTeleportVersion returns current Teleport version.
-func (s FakeTeleportVersion) GetTeleportVersion(_ context.Context) (*semver.Version, error) {
-	return teleport.SemVersion, nil
+func (s FakeTeleportVersion) GetTeleportVersion(_ context.Context) (semver.Version, error) {
+	return *teleport.SemVer(), nil
 }
 
 // WriteTeleportVersion stub function for writing.
-func (s FakeTeleportVersion) WriteTeleportVersion(_ context.Context, _ *semver.Version) error {
+func (s FakeTeleportVersion) WriteTeleportVersion(_ context.Context, _ semver.Version) error {
+	return nil
+}
+
+// DeleteTeleportVersion error stub function for deleting.
+func (s FakeTeleportVersion) DeleteTeleportVersion(_ context.Context) error {
 	return nil
 }
 
