@@ -312,18 +312,14 @@ When the VNet process receives a TCP connection at an address that has been
 assigned to an FQDN but does not yet know if there is a matching app or SSH host:
 1. An app lookup will run first in case an app has been added since the DNS
    query that assigned this IP.
-   1. If the queried FQDN matches a TCP app then the IP will be permanently
-      assigned to that app and regular TCP app forwarding will take over. This
-      matches the current VNet behavior where TCP app matches are permanent.
-   1. If the dialed port matches the proxy web port and the FQDN matches
-      a web app, VNet will proxy the TCP connection to the Teleport proxy (so that
-      we don't break web app access).
+   If the queried FQDN matches a TCP app then the IP will be permanently
+   assigned to that app and regular TCP app forwarding will take over. This
+   matches the current VNet behavior where TCP app matches are permanent.
+1. If the dialed port matches the proxy web port this may be an attempt to
+   access a web app. The handler will proxy the connection directly to the
+   web proxy address so that web app access works.
 1. If the dialed port is not `22` this will not be treated as an SSH connection
-   attempt. The FQDN is a subdomain of the cluster name, in case there is
-   some non-Teleport service available at that address VNet will dial that
-   address using a custom DNS resolver that will not just query the VNet nameserver.
-   If that TCP dial succeeds, VNet will transparently proxy the TCP connection.
-   If it fails, the incoming TCP connection will be rejected.
+   attempt and the TCP connection will be rejected.
 1. The initial dial target for an FQDN matching `<hostname>.<cluster>` will be
    set to `<hostname>:0`.
 1. VNet will apply any proxy templates found in the user's `TELEPORT_HOME` to
