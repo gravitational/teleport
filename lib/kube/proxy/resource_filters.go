@@ -550,7 +550,7 @@ type kubeObjectInterface interface {
 	GetName() string
 }
 
-// d.filterResource validates if the user should access the current resource.
+// filterResource validates if the user should access the current resource.
 func (d *resourceFilterer) filterResource(resource kubeObjectInterface) (bool, error) {
 	result, err := matchKubernetesResource(
 		getKubeResource(d.kind, d.group, d.verb, resource),
