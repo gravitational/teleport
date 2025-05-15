@@ -441,8 +441,8 @@
       "permanent": true
     },
     {
-      "source": "/enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster/",
-      "destination": "docs/pages/enroll-resources/agents/",
+      "source": "/enroll-resources/agents/join-services-to-your-cluster/",
+      "destination": "/enroll-resources/agents/",
       "permanent": true
     },
     {
