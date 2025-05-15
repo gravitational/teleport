@@ -25,6 +25,7 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	ratypes "github.com/aws/aws-sdk-go-v2/service/rolesanywhere/types"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +33,8 @@ import (
 func TestDefaultTags(t *testing.T) {
 	clusterName := "mycluster"
 	integrationName := "myawsaccount"
-	d := DefaultResourceCreationTags(clusterName, integrationName)
+	origin := "integration_awsoidc"
+	d := DefaultResourceCreationTags(clusterName, integrationName, origin)
 
 	expectedTags := AWSTags{
 		"teleport.dev/cluster":     "mycluster",
@@ -75,6 +77,15 @@ func TestDefaultTags(t *testing.T) {
 			{Key: aws.String("teleport.dev/origin"), Value: aws.String("integration_awsoidc")},
 		}
 		require.ElementsMatch(t, expectedTags, d.ToSSMTags())
+	})
+
+	t.Run("roles anywhere tags", func(t *testing.T) {
+		expectedTags := []ratypes.Tag{
+			{Key: aws.String("teleport.dev/cluster"), Value: aws.String("mycluster")},
+			{Key: aws.String("teleport.dev/integration"), Value: aws.String("myawsaccount")},
+			{Key: aws.String("teleport.dev/origin"), Value: aws.String("integration_awsoidc")},
+		}
+		require.ElementsMatch(t, expectedTags, d.ToRolesAnywhereTags())
 	})
 
 	t.Run("resource is teleport managed", func(t *testing.T) {
