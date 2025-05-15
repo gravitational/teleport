@@ -304,6 +304,20 @@ allow us track automatic review usage, and with which plugin it is being used.
   - `tp.access_request.proposed_state`: Specifies the proposed state of the review.
     Either `approved` or `denied`.
 
+## Out of Scope
+
+### Predicate Expression Validation
+This feature relies on Teleport's Predicate Language to define the conditions
+for Access Monitoring Rules. This makes it easy for users to misconfigure rules.
+This can result in conditions that are either too restrictive and never match,
+or too permissive and allow unintended access.
+
+To mitigate this risk, users should be protected against misconfigured rule
+conditions. This could be addressed through static validation of rule conditions,
+or by providing a user-friendly interface to preview and test rules before they
+are created. One potentional approach is leveraging Teleport Access Graph to
+visualize and review automatic review rules.
+
 ## Implementation Plan
 1. Extend the Access Monitoring Rule to support the `automatic_review` field
 and the `user.traits` variable.
