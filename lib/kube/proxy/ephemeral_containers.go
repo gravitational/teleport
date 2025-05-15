@@ -148,8 +148,8 @@ func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *cluster
 		req.Context(),
 		mergeEphemeralPatchWithCurrentPodConfig{
 			kubeCluster:   sess.kubeClusterName,
-			kubeNamespace: authCtx.kubeResource.Namespace,
-			podName:       authCtx.kubeResource.Name,
+			kubeNamespace: authCtx.metaResource.requestedResource.namespace,
+			podName:       authCtx.metaResource.requestedResource.resourceName,
 			decoder:       decoder,
 			encoder:       encoder,
 			podPatch:      podPatch,
@@ -226,8 +226,8 @@ func (f *Forwarder) createWaitingContainer(ctx context.Context, ephemeralContNam
 		&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
 			Username:      authCtx.User.GetName(),
 			Cluster:       authCtx.kubeClusterName,
-			Namespace:     authCtx.kubeResource.Namespace,
-			PodName:       authCtx.kubeResource.Name,
+			Namespace:     authCtx.metaResource.requestedResource.namespace,
+			PodName:       authCtx.metaResource.requestedResource.resourceName,
 			ContainerName: ephemeralContName,
 			Patch:         podPatch,
 			PatchType:     string(patchType),

@@ -98,9 +98,10 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 	)
 	localCluster := "cluster"
 	type fields struct {
-		info     *AccessInfo
-		roleSet  RoleSet
-		resource types.KubernetesResource
+		info          *AccessInfo
+		roleSet       RoleSet
+		resource      types.KubernetesResource
+		isClusterWide bool
 	}
 	tests := []struct {
 		name         string
@@ -531,7 +532,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				AccessState{MFARequired: MFARequiredNever},
 				// Append a matcher that validates if the Kubernetes resource is allowed
 				// by the roles that satisfy the Kubernetes Cluster.
-				NewKubernetesResourceMatcher(tt.fields.resource),
+				NewKubernetesResourceMatcher(tt.fields.resource, tt.fields.isClusterWide),
 			)
 			tt.assertAccess(t, err)
 			sortKubeResourceSlice(gotAllowed)

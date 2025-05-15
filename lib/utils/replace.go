@@ -175,13 +175,11 @@ func KubeResourceMatchesRegexWithVerbsCollector(input types.KubernetesResource, 
 // resources is a list of resources that the user has access to - collected from
 // their roles that match the Kubernetes cluster where the resource is defined.
 // cond is the deny or allow condition of the role that we are evaluating.
-func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.KubernetesResource, cond types.RoleConditionType) (bool, error) {
+func KubeResourceMatchesRegex(input types.KubernetesResource, isClusterWideResource bool, resources []types.KubernetesResource, cond types.RoleConditionType) (bool, error) {
 	if len(input.Verbs) != 1 {
 		return false, trace.BadParameter("only one verb is supported, input: %v", input.Verbs)
 	}
-	// isClusterWideResource is true if the resource is cluster-wide, e.g. a
-	// namespace resource or a clusterrole.
-	isClusterWideResource := slices.Contains(types.KubernetesClusterWideResourceKinds, input.Kind)
+
 	verb := input.Verbs[0]
 	// If the user is list/read/watch a namespace, they should be able to see the
 	// namespace they have resources defined for.
@@ -257,7 +255,7 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.
 // has no access and present then a more user-friendly error message instead of returning
 // an empty list.
 // This function is not responsible for enforcing access rules.
-func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []types.KubernetesResource, cond types.RoleConditionType) (bool, error) {
+func KubeResourceCouldMatchRules(input types.KubernetesResource, isClusterWideResource bool, resources []types.KubernetesResource, cond types.RoleConditionType) (bool, error) {
 	if len(input.Verbs) != 1 {
 		return false, trace.BadParameter("only one verb is supported, input: %v", input.Verbs)
 	}
@@ -267,10 +265,6 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []typ
 
 	verb := input.Verbs[0]
 	isDeny := cond == types.Deny
-
-	// isClusterWideResource is true if the resource is cluster-wide, e.g. a
-	// namespace resource or a clusterrole.
-	isClusterWideResource := slices.Contains(types.KubernetesClusterWideResourceKinds, input.Kind)
 
 	// If the user is allowed to list/read/watch a resource, they should be able to see the
 	// namespace in which the resource is.

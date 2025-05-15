@@ -148,10 +148,10 @@ func collectSystemMastersTeleportRoles(s *clusterSession) []string {
 	// results in the intersection of roles that match the "kubernetes_labels" and
 	// roles that allow access to the desired "kubernetes_resource".
 	// If from the intersection results an empty set, the request is denied.
-	if s.kubeResource != nil {
+	if rbacRes := s.metaResource.rbacResource(); rbacRes != nil {
 		matchers = append(
 			matchers,
-			services.NewKubernetesResourceMatcher(*s.kubeResource),
+			services.NewKubernetesResourceMatcher(*rbacRes, s.metaResource.isClusterWideResource()),
 		)
 	}
 	var rolesWithSystemMasters []string
