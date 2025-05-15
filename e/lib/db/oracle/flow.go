@@ -235,6 +235,9 @@ func (e *Engine) openServerConnection(ctx context.Context, packetLogger logging.
 		case *protocol.ResendPacket:
 			e.Log.DebugContext(e.Context, "RESEND received, trying again.")
 			continue
+		case *protocol.RedirectPacket:
+			e.Log.WarnContext(e.Context, "Remote server requested redirect which is not supported. Update your configuration to connect to individual database nodes.")
+			return nil, nil, trace.AccessDenied("unsupported redirect request, update your configuration to directly connect to individual database nodes")
 		}
 
 		return nil, nil, trace.BadParameter("received unexpected packet type: %T", pkt)
