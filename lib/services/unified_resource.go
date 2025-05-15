@@ -1004,9 +1004,15 @@ type resource interface {
 	CloneResource() types.ResourceWithLabels
 }
 
-type resourceServer interface {
-	resource
-	GetHostID() string
+// resourceCollection is a resource and collection of servers for that resource.
+type resourceCollection struct {
+	// latest is the last resource added to the collection.
+	latest resource
+	// servers is a list of servers (heartbeats) for the resource. This is only
+	// populated for resources that can have multiple heartbeats like databases,
+	// kube clusters, apps, or windows desktops.
+	servers map[string]serverWithHealthStatus
+	sortKey resourceSortKey
 }
 
 type serverWithHealthStatus struct {
@@ -1014,10 +1020,9 @@ type serverWithHealthStatus struct {
 	status types.TargetHealthStatus
 }
 
-type resourceCollection struct {
-	latest  resource
-	servers map[string]serverWithHealthStatus
-	sortKey resourceSortKey
+type resourceServer interface {
+	resource
+	GetHostID() string
 }
 
 func newResourceCollection(sortKey resourceSortKey) *resourceCollection {
