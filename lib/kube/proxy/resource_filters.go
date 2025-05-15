@@ -528,7 +528,7 @@ func (d *resourceFilterer) encode(obj runtime.Object, w io.Writer) error {
 	return trace.Wrap(d.encoder.Encode(obj, w))
 }
 
-// d.filterResourceList excludes resources the user should not have access to.
+// filterResourceList excludes resources the user should not have access to.
 func filterResourceList[T kubeObjectInterface](d *resourceFilterer, originalList []T) []T {
 	filteredList := make([]T, 0, len(originalList))
 	for _, resource := range originalList {
