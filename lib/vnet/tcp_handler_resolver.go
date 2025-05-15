@@ -30,9 +30,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// tcpHandlerResolver resolves a fully-qualified domain names to a
-// tcpHandlerSpec that defines the CIDR range to assign an IP to that handler
-// from, and a handler for all future connections to that IP address.
+// tcpHandlerResolver resolves fully-qualified domain names to a tcpHandlerSpec
+// that defines the CIDR range to assign an IP to that handler from, and a
+// handler for future TCP connections to that IP address.
 type tcpHandlerResolver struct {
 	cfg *tcpHandlerResolverConfig
 }
@@ -55,9 +55,9 @@ func newTCPHandlerResolver(cfg *tcpHandlerResolverConfig) *tcpHandlerResolver {
 
 // resolveTCPHandler decides if fqdn should match a TCP handler.
 //
-// If fqdn matches a valid VNet target it returns a tcpHandlerSpec
-// defining the CIDR range to assign an IP from, and a handler for future
-// connections to any assigned IPs.
+// If fqdn matches a valid VNet target it returns a tcpHandlerSpec defining the
+// CIDR range to assign an IP from, and a TCP handler for future connections to
+// the assigned IP.
 //
 // If fqdn does not match anything it must return errNoTCPHandler.
 func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string) (*tcpHandlerSpec, error) {
