@@ -1352,7 +1352,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	// add HA dbs
 	for _, healthStatus := range []string{"healthy", "unhealthy", "unknown"} {
 		db, err := types.NewDatabaseV3(types.Metadata{
-			Name: fmt.Sprintf("dbdb"),
+			Name: "dbdb",
 			Labels: map[string]string{
 				"env": "prod",
 			},
@@ -1438,16 +1438,16 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	dbRes := dbResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &dbRes))
 	require.Len(t, dbRes.Items, 1)
-	require.ElementsMatch(t, []webui.Database{{
-		Kind:                 types.KindDatabase,
-		Name:                 "dbdb",
-		Type:                 types.DatabaseTypeSelfHosted,
-		Labels:               []ui.Label{{Name: "env", Value: "prod"}},
-		Protocol:             "test-protocol",
-		Hostname:             "test-uri",
-		URI:                  "test-uri",
-		TargetHealthStatuses: []types.TargetHealthStatus{"healthy", "unhealthy", "unknown"},
-	}}, dbRes.Items)
+	require.Empty(t, cmp.Diff(webui.Database{
+		Kind:     types.KindDatabase,
+		Name:     "dbdb",
+		Type:     types.DatabaseTypeSelfHosted,
+		Labels:   []ui.Label{{Name: "env", Value: "prod"}},
+		Protocol: "test-protocol",
+		Hostname: "test-uri",
+		URI:      "test-uri",
+	}, dbRes.Items[0], cmpopts.IgnoreFields(webui.Database{}, "TargetHealthStatuses")))
+	require.ElementsMatch(t, []types.TargetHealthStatus{"healthy", "unhealthy", "unknown"}, dbRes.Items[0].TargetHealthStatuses)
 
 	// should return first page and have a second page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
