@@ -180,7 +180,6 @@ func NewConnProxy(client, server io.ReadWriteCloser, serverInterceptor ServerInt
 		client:            NewConn(client),
 		server:            NewConn(server),
 		serverInterceptor: serverInterceptor,
-		messagesToClient:  make(chan Message),
 	}
 }
 
