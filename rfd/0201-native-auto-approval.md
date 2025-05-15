@@ -1,6 +1,6 @@
 ---
 authors: Bernard Kim (bernard@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0201 - Native Automatic Review
@@ -106,7 +106,7 @@ configured.
 
 A new `Create New Automatic Review Rule` form can now be used to configure rules
 for automatic reviews.
-- `Access Request Condition` configures the `access_monitoring_rule.spec.selector.condition` field.
+- `Access Request Condition` configures the `access_monitoring_rule.spec.condition` field.
   - `Requested Roles` input accepts a set of roles. These roles configure which
     requested roles will be automatically approved.
   - `User Traits` input accepts a map of traits. These are used to match a
@@ -150,19 +150,18 @@ metadata:
 spec:
   subjects:
     - access_request
-  selector:
-    condition: >
-      contains_all(set("cloud-dev", "cloud-stage"), access_request.spec.roles) &&
-      contains_any(user.traits["level"], set("L1", "L2")) &&
-      contains_any(user.traits["team"], set("Cloud")) &&
-      contains_any(user.traits["location"], set("Seattle"))
+  condition: |-
+    contains_all(set("cloud-dev", "cloud-stage"), access_request.spec.roles) &&
+    contains_any(user.traits["level"], set("L1", "L2")) &&
+    contains_any(user.traits["team"], set("Cloud")) &&
+    contains_any(user.traits["location"], set("Seattle"))
   desired_state: reviewed
   notification:
     name: slack
     recipients: ["#dev-cloud"]
   automatic_review:
     integration: builtin
-    decision: approved
+    decision: APPROVED
 ```
 
 The `Access Monitoring Rules` overview page will be modified to display both
@@ -187,9 +186,6 @@ automatically review the request.
 
 ### Access Monitoring Rule
 There are a number of changes required for the `access_monitoring_rule` resource.
-- `spec.condition` is moved to the `spec.selector.condition` field. This is to
-help remove abiguity between the resource selection conditions and the desired
-state of the resource.
 - `spec.desired_state` field is added to specify the desired state of the
 resource. The only accepted value for now will be `reviewed` indicating that the
 access request should be automatically reviewed.
@@ -198,7 +194,7 @@ responsible for monitoring the rule. The initial implementation only supports
 the `builtin` value. This indicates that Teleport is responsible for monitoring
 the rule.
 - `spec.automatic_review.decision` field specifies the propsed state of the
-access request review. This can be either `approved` or `denied`.
+access request review. This can be either `APPROVED` or `DENIED`.
 
 The AMR conditions now also support a `user.traits` variable. This variable
 maps a trait name to a set of values. This allows users to specify arbitrary
@@ -221,16 +217,15 @@ metadata:
 spec:
   subjects:
     - access_request
-  selector:
-    condition: >
-      contains_all(set("cloud-dev"), access_request.spec.roles) &&
-      contains_any(user.traits["level"], set("L1")) &&
-      contains_any(user.traits["team"], set("Cloud")) &&
-      contains_any(user.traits["location"], set("Seattle"))
+  condition: |-
+    contains_all(set("cloud-dev"), access_request.spec.roles) &&
+    contains_any(user.traits["level"], set("L1")) &&
+    contains_any(user.traits["team"], set("Cloud")) &&
+    contains_any(user.traits["location"], set("Seattle"))
   desired_state: reviewed
   automatic_review:
     integration: builtin
-    decision: approved
+    decision: APPROVED
 ```
 
 ### Internal automatic review service
@@ -296,16 +291,18 @@ same information as regular access request reviews.
 ## Observability
 Anonymized metrics will be collected for access requests. These metrics will
 allow us track automatic review usage, and with which plugin it is being used.
-- `access_request.create`: Specifies an access request create event.
-  - `cluster_name`: Specifies the anonymized cluster name.
-  - `requester_name`: Specifies the anonymized requesting user name.
-  - `kind`: Is one of `role`, `resource`.
+- `tp.access_request.create`: Specifies an access request create event.
+  - `tp.cluster_name`: Specifies the anonymized cluster name.
+  - `tp.user_name`: Specifies the anonymized requesting user name.
+  - `tp.access_request.resource_kinds`: Specifies the list of requested resource kinds.
 
-- `access_request.review`: specifies an access request review event.
-  - `cluster_name`: Specifies the anonymized cluster name.
-  - `reviewer_name`: Specifies the anonymized reviewer user name.
-  - `is_auto_approved`: Is true if request was automatically reviewed.
-  - `plugin`: Specifies the plugin/service that submitted the automatic review request.
+- `tp.access_request.review`: Specifies an access request review event.
+  - `tp.cluster_name`: Specifies the anonymized cluster name.
+  - `tp.user_name`: Specifies the anonymized reviewer user name.
+  - `tp.access_request.resource_kinds`: Specifies the list of requested resource kinds.
+  - `tp.access_request.is_bot_reviewed`: Is true if request was reviewed by a bot user.
+  - `tp.access_request.proposed_state`: Specifies the proposed state of the review.
+    Either `approved` or `denied`.
 
 ## Implementation Plan
 1. Extend the Access Monitoring Rule to support the `automatic_review` field
