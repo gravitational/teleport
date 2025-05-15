@@ -205,7 +205,7 @@ var (
 		GitClient:           Ed25519,
 		AWSRACATLS:          ECDSAP256,
 		BoundKeypairJoining: Ed25519,
-		BoundKeypairCAJWT:   Ed25519,
+		BoundKeypairCAJWT:   ECDSAP256,
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and
