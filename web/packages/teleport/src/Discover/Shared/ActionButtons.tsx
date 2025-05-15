@@ -57,6 +57,7 @@ export const ActionButtons = ({
         <ButtonPrimary
           width="165px"
           onClick={onProceed}
+          data-testid="action-next"
           mr={3}
           disabled={disableProceed}
         >
