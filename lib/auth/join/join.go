@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/azuredevops"
 	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/circleci"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
@@ -293,6 +294,11 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 		}
 	case types.JoinMethodBitbucket:
 		params.IDToken, err = bitbucket.NewIDTokenSource(os.Getenv).GetIDToken()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case types.JoinMethodAzureDevops:
+		params.IDToken, err = azuredevops.NewIDTokenSource(os.Getenv).GetIDToken(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
