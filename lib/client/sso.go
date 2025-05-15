@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/utils"
@@ -89,6 +90,7 @@ func (tc *TeleportClient) loginInitFn(ctx context.Context, keyRing *KeyRing, cli
 		Compatibility:     sshLogin.Compatibility,
 		RouteToCluster:    sshLogin.RouteToCluster,
 		KubernetesCluster: sshLogin.KubernetesCluster,
+		ClientVersion:     teleport.Version,
 	}
 
 	clt, _, err := initClient(sshLogin.ProxyAddr, sshLogin.Insecure, sshLogin.Pool, sshLogin.ExtraHeaders)

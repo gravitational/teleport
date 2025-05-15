@@ -251,9 +251,10 @@ func (rd *Redirector) OpenLoginURL(ctx context.Context, redirectURL, postForm st
 }
 
 func (rd *Redirector) processLoginURL(redirectURL, postForm string) error {
-	if redirectURL != "" && postForm != "" {
-		// This is not expected but we should return with an error to indicate a bug.
-		return trace.BadParameter("either redirectURL %q  or postForm %q value must be configured", redirectURL, postForm)
+	if redirectURL == "" && postForm == "" {
+		// This is not expected as either one of the param will always be populated
+		// but we should return with an error to indicate a bug.
+		return trace.BadParameter("either redirectURL or postForm value must be configured")
 	}
 	clickableURL := rd.clickableURL(redirectURL, postForm)
 

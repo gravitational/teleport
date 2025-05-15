@@ -124,9 +124,9 @@ func TestCLISAMLCeremony(t *testing.T) {
 			assertErr: require.NoError,
 		},
 		{
-			name:        "rejects if both redirectURL and postForm is provided",
-			redirectURL: mockProxy.URL,
-			postForm:    postform,
+			name:        "rejects if both redirectURL and postForm is empty",
+			redirectURL: "",
+			postForm:    "",
 			assertErr:   require.Error,
 			errExpected: true,
 		},

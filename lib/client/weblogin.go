@@ -72,6 +72,8 @@ type SSOLoginConsoleReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
+	// ClientVersion specifies version of the client that is sending SSO request.
+	ClientVersion string `json:"client_version,omitempty"`
 }
 
 // CheckAndSetDefaults makes sure that the request is valid
@@ -81,6 +83,8 @@ func (r *SSOLoginConsoleReq) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing RedirectURL")
 	case r.ConnectorID == "":
 		return trace.BadParameter("missing ConnectorID")
+	case r.ClientVersion == "":
+		return trace.BadParameter("missing ClientVersion")
 	}
 	if err := r.SSOUserPublicKeys.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -91,7 +95,7 @@ func (r *SSOLoginConsoleReq) CheckAndSetDefaults() error {
 // SSOLoginConsoleResponse is a response to SSO console request
 type SSOLoginConsoleResponse struct {
 	RedirectURL string `json:"redirect_url"`
-	// PostForm is an auto submittable HTML POST form.
+	// PostForm is an auto submittable HTML form.
 	PostForm string `json:"post_form"`
 }
 
