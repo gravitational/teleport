@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 
@@ -75,6 +76,9 @@ func createPyroscopeConfig(ctx context.Context, logger *slog.Logger, address str
 		ApplicationName: teleport.ComponentTeleport,
 		ServerAddress:   address,
 		Logger:          pyroscope.Logger(pyroscopeLogger{l: logger}),
+		HTTPClient: &http.Client{
+			Timeout: 60 * time.Second, // Increase timeout to 60s
+		},
 		Tags: map[string]string{
 			"host":    hostname,
 			"version": teleport.Version,
