@@ -63,10 +63,10 @@ type YubiKey struct {
 	// pinCache can be used to skip PIN prompts for keys that have PIN caching enabled.
 	pinCache *pinCache
 
-	// signPromptMu prevents prompting for PIN/touch repeatedly for concurrent signatures.
+	// promptMu prevents prompting for PIN/touch repeatedly for concurrent signatures.
 	// TODO(Joerger): Rather than preventing concurrent signatures, we can make the
 	// PIN and touch prompts durable to concurrent signatures.
-	signPromptMu sync.Mutex
+	promptMu sync.Mutex
 }
 
 // FindYubiKey finds a YubiKey PIV card by serial number. If the provided
@@ -169,96 +169,87 @@ const (
 	pcscResetCardErrMessage = "the smart card has been reset, so any shared state information is invalid"
 )
 
-func (y *YubiKey) signWithRetry(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, prompt hardwarekey.Prompt, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	pinPolicy := piv.PINPolicyNever
-	if ref.Policy.PINRequired {
-		pinPolicy = piv.PINPolicyOnce
+func (y *YubiKey) signWithPINRetry(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, prompt hardwarekey.Prompt, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	// When using [piv.PINPolicyOnce], PIN is only required when it isn't cached in the PCSC
+	// transaction internally. The piv-go prompt logic attempts to check this requirement
+	// before prompting, which is generally workable. However, the PIN prompt logic is not
+	// flexible enough for the retry and PIN caching mechanisms supported in Teleport. As a
+	// result, we must first try signature without PIN and only prompt for PIN when we get a
+	// "security status not satisfied" error ([pcscResetCardErrMessage]).
+	//
+	// TODO(Joerger): Once https://github.com/go-piv/piv-go/pull/174 is merged upstream, we can
+	// check if PIN is required and verify PIN before attempting the signature. This is a more
+	// reliable method of checking the PIN requirement than the somewhat general auth error
+	// returned by the failed signature.
+	// IMPORTANT: Maintain the signature retry flow for firmware version 5.3.1, which has a bug
+	// with checking the PIN requirement - https://github.com/gravitational/teleport/pull/36427.
+	auth := piv.KeyAuth{
+		PINPolicy: piv.PINPolicyNever,
 	}
 
-	// YubiKeys with firmware version 5.3.1 have a bug where insVerify(0x20, 0x00, 0x80, nil)
-	// clears the PIN cache instead of performing a non-mutable check. This causes the signature
-	// with pin policy "once" to fail unless PIN is provided for each call. We can avoid this bug
-	// by skipping the insVerify check and instead manually retrying with a PIN prompt only when
-	// the signature fails.
-	fw531 := piv.Version{Major: 5, Minor: 3, Patch: 1}
-	if pinPolicy == piv.PINPolicyOnce && y.version == fw531 {
-		// Set the keys PIN policy to never to skip the insVerify check. If PIN was provided in
-		// a previous recent call, the signature will succeed as expected of the "once" policy.
-		pinPolicy = piv.PINPolicyNever
-	}
-
-	signature, err := y.sign(ctx, ref, keyInfo, prompt, pinPolicy, rand, digest, opts)
+	signature, err := y.sign(ctx, ref, keyInfo, prompt, auth, rand, digest, opts)
 	switch {
 	case err == nil:
 		return signature, nil
-	case strings.Contains(err.Error(), pivGenericAuthErrCodeString):
-		// Force the signature to prompt for PIN, as something likely went wrong for the
-		// card to skip PIN verification in the first place (e.g. firmware bug).
-		pinPolicy = piv.PINPolicyAlways
-		return y.sign(ctx, ref, keyInfo, prompt, pinPolicy, rand, digest, opts)
+	case strings.Contains(err.Error(), pivGenericAuthErrCodeString) && ref.Policy.PINRequired:
+		pin, err := y.promptPIN(ctx, prompt, hardwarekey.PINRequired, keyInfo, ref.PINCacheTTL)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Setting the [piv.PINPolicyAlways] ensures that the PIN is used and skips
+		// the required check usually used with [piv.PINPolicyOnce].
+		auth.PINPolicy = piv.PINPolicyAlways
+		auth.PIN = pin
+		return y.sign(ctx, ref, keyInfo, prompt, auth, rand, digest, opts)
 	default:
 		return nil, trace.Wrap(err)
 	}
 }
 
-func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, prompt hardwarekey.Prompt, pinPolicy piv.PINPolicy, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	ctx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
+func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, prompt hardwarekey.Prompt, auth piv.KeyAuth, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	promptPIN := func() (string, error) {
-		return y.promptPIN(ctx, prompt, hardwarekey.PINRequired, keyInfo, ref.PINCacheTTL)
-	}
-
-	auth := piv.KeyAuth{
-		PINPrompt: promptPIN,
-		PINPolicy: pinPolicy,
-	}
-
-	y.signPromptMu.Lock()
-	defer y.signPromptMu.Unlock()
-
-	var touchPromptDelayTimer *time.Timer
 	if ref.Policy.TouchRequired {
-		// touch prompt delay is disrupted by pin prompts. To prevent misfired
-		// touch prompts, pause the timer for the duration of the pin prompt.
-		//
-		// TODO(Joerger): Once https://github.com/go-piv/piv-go/pull/174 is merged and we can verify PIN
-		// before even attempting to sign, this timer logic can be removed in favor of simple time.After.
-		touchPromptDelayTimer = time.NewTimer(signTouchPromptDelay)
-		defer touchPromptDelayTimer.Stop()
-
-		auth.PINPrompt = func() (pin string, err error) {
-			if touchPromptDelayTimer != nil {
-				if touchPromptDelayTimer.Stop() {
-					// TODO(Joerger): Does the pin prompt delay the touch prompt even more than this?
-					defer touchPromptDelayTimer.Reset(signTouchPromptDelay)
-				}
-			}
-
-			return promptPIN()
-		}
-
-		// There is no built in mechanism to prompt for touch on demand, so we simply prompt for touch after
-		// a short duration in hopes of lining up with the actual YubiKey touch prompt (flashing key). In the
-		// case where touch is cached, the delay prevents the prompt from firing when it isn't needed.
-		go func() {
-			select {
-			case <-touchPromptDelayTimer.C:
-				err := prompt.Touch(ctx, keyInfo)
-				if err != nil {
-					// Cancel the entire function when an error occurs.
-					// This is typically used for aborting the prompt.
-					cancel(trace.Wrap(err))
-				}
-				return
-			case <-ctx.Done():
-				// touch cached, skip prompt.
-				return
-			}
-		}()
+		ctx = y.promptTouch(ctx, prompt, keyInfo)
 	}
 
 	return y.conn.sign(ctx, ref, auth, rand, digest, opts)
+}
+
+// promptTouch starts the touch prompt. The context returned is tied to the touch
+// prompt so that if the user cancels the touch prompt it cancels the sign request.
+func (y *YubiKey) promptTouch(ctx context.Context, prompt hardwarekey.Prompt, keyInfo hardwarekey.ContextualKeyInfo) context.Context {
+	ctx, cancel := context.WithCancelCause(ctx)
+
+	// There is no built in mechanism to prompt for touch on demand, so we simply prompt for touch after
+	// a short duration in hopes of lining up with the actual YubiKey touch prompt (flashing key). In the
+	// case where touch is cached, the delay prevents the prompt from firing when it isn't needed.
+	go func() {
+		defer cancel(nil)
+
+		// Wait for any concurrent prompts to complete. If there is a concurrent touch prompt,
+		// or touch is otherwise provided in the meantime, we can skip the prompt below.
+		y.promptMu.Lock()
+		defer y.promptMu.Unlock()
+
+		select {
+		case <-time.After(signTouchPromptDelay):
+			err := prompt.Touch(ctx, keyInfo)
+			if err != nil {
+				// Cancel the entire function when an error occurs.
+				// This is typically used for aborting the prompt.
+				cancel(trace.Wrap(err))
+			}
+			return
+		case <-ctx.Done():
+			// touch cached, skip prompt.
+			return
+		}
+	}()
+
+	return ctx
 }
 
 // Reset resets the YubiKey PIV module to default settings.
@@ -454,6 +445,7 @@ func (y *YubiKey) checkOrSetPIN(ctx context.Context, prompt hardwarekey.Prompt, 
 // the pin cache mutex or the exclusive PC/SC transaction.
 const pinPromptTimeout = time.Minute
 
+// promptPIN prompts for PIN. If PIN caching is enabled, it verifies and caches the PIN for future calls.
 func (y *YubiKey) promptPIN(ctx context.Context, prompt hardwarekey.Prompt, requirement hardwarekey.PINPromptRequirement, keyInfo hardwarekey.ContextualKeyInfo, pinCacheTTL time.Duration) (string, error) {
 	y.pinCache.mu.Lock()
 	defer y.pinCache.mu.Unlock()
@@ -465,6 +457,9 @@ func (y *YubiKey) promptPIN(ctx context.Context, prompt hardwarekey.Prompt, requ
 
 	ctx, cancel := context.WithTimeout(ctx, pinPromptTimeout)
 	defer cancel()
+
+	y.promptMu.Lock()
+	defer y.promptMu.Unlock()
 
 	pin, err := prompt.AskPIN(ctx, requirement, keyInfo)
 	if err != nil {
