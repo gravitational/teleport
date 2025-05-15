@@ -412,7 +412,7 @@ func filterExtensions(ctx context.Context, logger *slog.Logger, extensions []pki
 		if matched {
 			filtered = append(filtered, e)
 		} else {
-			logger.WarnContext(ctx, "filtering out unexpected extension", "oid", e.Id.String(), "value", e.Value, "critical", e.Critical)
+			logger.WarnContext(ctx, "filtering out unexpected certificate extension; this may indicate Teleport bug", "oid", e.Id.String(), "value", e.Value, "critical", e.Critical)
 		}
 	}
 	return filtered
