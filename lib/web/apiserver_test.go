@@ -4623,19 +4623,58 @@ func TestGetAppDetails(t *testing.T) {
 	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, server2)
 	require.NoError(t, err)
 
+	// Register an application called "client.web"
+	clientWebApp, err := types.NewAppV3(types.Metadata{
+		Name: "client.web",
+	}, types.AppSpecV3{
+		URI:                   "http://127.0.0.1:8080",
+		UseAnyProxyPublicAddr: true,
+	})
+	require.NoError(t, err)
+	server3, err := types.NewAppServerV3FromApp(clientWebApp, "hostweb", uuid.New().String())
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, server3)
+	require.NoError(t, err)
+
 	clientFQDN := "client.example.com"
 
 	tests := []struct {
-		name     string
-		endpoint string
+		name             string
+		endpoint         string
+		fqdn             string
+		expectedResponse GetAppDetailsResponse
 	}{
 		{
 			name:     "request app details with clientName and publicAddr",
 			endpoint: pack.clt.Endpoint("webapi", "apps", clientFQDN, s.server.ClusterName(), clientApp.GetPublicAddr()),
+			expectedResponse: GetAppDetailsResponse{
+				FQDN:             "client.example.com",
+				RequiredAppFQDNs: []string{"api.example.com", "client.example.com"},
+			},
 		},
 		{
 			name:     "request app details with fqdn only",
 			endpoint: pack.clt.Endpoint("webapi", "apps", clientFQDN),
+			expectedResponse: GetAppDetailsResponse{
+				FQDN:             "client.example.com",
+				RequiredAppFQDNs: []string{"api.example.com", "client.example.com"},
+			},
+		},
+		{
+			name:     "request app details with fqdn only that doesnt match public addr",
+			endpoint: pack.clt.Endpoint("webapi", "apps", "client.localhost"),
+			expectedResponse: GetAppDetailsResponse{
+				FQDN:             "client.example.com", // no use_any_proxy_public_addr so we want the default proxy name back
+				RequiredAppFQDNs: []string{"api.example.com", "client.example.com"},
+			},
+		},
+		{
+			name:     "app details found by app name with subdomain",
+			endpoint: pack.clt.Endpoint("webapi", "apps", "client.web.localhost"),
+			expectedResponse: GetAppDetailsResponse{
+				FQDN:             "client.web.localhost",
+				RequiredAppFQDNs: []string{"client.web.localhost"},
+			},
 		},
 	}
 
@@ -4648,10 +4687,7 @@ func TestGetAppDetails(t *testing.T) {
 			resp := GetAppDetailsResponse{}
 
 			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-			require.Equal(t, GetAppDetailsResponse{
-				FQDN:             "client.example.com",
-				RequiredAppFQDNs: []string{"api.example.com", "client.example.com"},
-			}, resp)
+			require.Equal(t, tc.expectedResponse, resp)
 		})
 	}
 }

@@ -47,14 +47,16 @@ Oracle Cloud API so the presigned request can succeed.
 
 In the OCI console, navigate to
 [Identity/Domains](https://cloud.oracle.com/identity/domains).
-Select your domain, then select **Dynamic groups**. Click **Create dynamic group**.
-Create a group with the following matching rule, using the OCID of the
-compartment your instance is in:
+Select your domain, then select **Dynamic groups**. Click **Create dynamic
+group**. Create a group with the following matching rule, assigning 
+<Var name="compartment-id" /> to the OCID of the compartment your instance is
+in:
+
 ```code
 Any {instance.compartment.id = '<Var name="compartment-id" />'}
 ```
 
-![Create dynamic group](../../../../img/oracle/oracle-join-dynamic-group@2x.png)
+![Create dynamic group](../../../img/oracle/oracle-join-dynamic-group@2x.png)
 
 <Admonition type="tip">
 
@@ -67,13 +69,14 @@ the rules in the token created in step 1.
 
 In the OCI console, navigate to
 [Identity/Domains/Policy](https://cloud.oracle.com/identity/domains/policies).
-Click **Create Policy**. Create the following policy, using the name of the
-selected identity domain:
+Click **Create Policy**. Create the following policy, assigning 
+<Var name="identity-domain" /> to the name of the selected identity domain:
+
 ```code
 Allow dynamic-group '<Var name="identity-domain" />'/'join-teleport' to inspect authentication in tenancy
 ```
 
-![Create policy](../../../../img/oracle/oracle-join-policy@2x.png)
+![Create policy](../../../img/oracle/oracle-join-policy@2x.png)
 
 ## Step 3/5. Install Teleport
 

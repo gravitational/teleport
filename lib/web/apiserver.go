@@ -3179,9 +3179,15 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				r.GetApp().GetName(): allowedAWSRoles,
 			}
 
+			proxyDNSName := h.proxyDNSName()
+			if r.GetApp().GetUseAnyProxyPublicAddr() {
+				// let the current proxy user is connected to override the dns name
+				proxyDNSName = utils.FindMatchingProxyDNS(request.Host, h.proxyDNSNames())
+			}
+
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
 				LocalClusterName:      h.auth.clusterName,
-				LocalProxyDNSName:     h.proxyDNSName(),
+				LocalProxyDNSName:     proxyDNSName,
 				AppClusterName:        site.GetName(),
 				AllowedAWSRolesLookup: allowedAWSRolesLookup,
 				UserGroupLookup:       getUserGroupLookup(),

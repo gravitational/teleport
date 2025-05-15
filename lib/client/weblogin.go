@@ -72,6 +72,8 @@ type SSOLoginConsoleReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
+	// PKCEVerifier is used to verify a generated code challenge.
+	PKCEVerifier string
 	// ClientVersion specifies version of the client that is sending SSO request.
 	ClientVersion string `json:"client_version,omitempty"`
 }
