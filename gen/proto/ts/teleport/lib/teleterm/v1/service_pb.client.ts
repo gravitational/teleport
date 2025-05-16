@@ -892,7 +892,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: SetSharedDirectoryForDesktopSession(teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse);
      */
     setSharedDirectoryForDesktopSession(input: SetSharedDirectoryForDesktopSessionRequest, options?: RpcOptions): UnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse> {
-        const method = this.methods[42], opt = this._transport.mergeOptions(options);
+        const method = this.methods[43], opt = this._transport.mergeOptions(options);
         return stackIntercept<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>("unary", this._transport, method, opt, input);
     }
 }
