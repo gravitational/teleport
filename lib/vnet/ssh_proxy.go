@@ -48,7 +48,8 @@ func proxySSHConnection(
 		serverConn.conn.Close()
 	})
 	// Close both connections if the context is canceled.
-	context.AfterFunc(ctx, closeConnections)
+	stop := context.AfterFunc(ctx, closeConnections)
+	defer stop()
 
 	// Avoid leaking goroutines by tracking them with a waitgroup.
 	// If any task exits make sure to close both connections so that all other
