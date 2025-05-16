@@ -17,6 +17,8 @@
 package mcp
 
 import (
+	"errors"
+	"io"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -31,7 +33,9 @@ func FormatErrorMessage(err error) error {
 	// TODO(gabrielcorado): having the database connection error to be the one
 	// from the middleware will make easier and more assertive to determine if
 	// it is a login/session expired error.
-	case strings.Contains(err.Error(), "connection reset by peer") || client.IsErrorResolvableWithRelogin(err):
+	case strings.Contains(err.Error(), "connection reset by peer") ||
+		errors.Is(err, io.ErrClosedPipe) ||
+		client.IsErrorResolvableWithRelogin(err):
 		return trace.BadParameter(ReloginRequiredErrorMessage)
 	}
 

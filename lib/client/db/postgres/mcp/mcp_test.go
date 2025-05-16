@@ -17,9 +17,9 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
-	"net"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils/listener"
 )
 
 func TestFormatResult(t *testing.T) {
@@ -60,8 +61,7 @@ func TestFormatResult(t *testing.T) {
 
 func TestFormatErrors(t *testing.T) {
 	// Dummy listener that always drop connections.
-	listener, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
+	listener := listener.NewInMemoryListener()
 	t.Cleanup(func() { listener.Close() })
 
 	go func() {
@@ -103,6 +103,10 @@ func TestFormatErrors(t *testing.T) {
 					DatabaseUser: "postgres",
 					DatabaseName: "postgres",
 					Addr:         listener.Addr().String(),
+					LookupFunc: func(_ context.Context, _ string) (addrs []string, err error) {
+						return []string{"memory"}, nil
+					},
+					DialContextFunc: listener.DialContext,
 				},
 			},
 			expectErrorMessage: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {

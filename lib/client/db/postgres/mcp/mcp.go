@@ -19,7 +19,6 @@ package mcp
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net"
 	"time"
