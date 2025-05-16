@@ -185,6 +185,13 @@ service TerminalService {
 
   // ConnectToDesktop is a bidirectional stream for the desktop connection.
   rpc ConnectToDesktop(stream ConnectToDesktopRequest) returns (stream ConnectToDesktopResponse);
+  // SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
+  // If there is no active desktop session associated with the specified desktop_uri and login,
+  // the RPC returns an error.
+  //
+  // This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+  // It only registers file system handlers for processing file system-related TDP events.
+  rpc SetSharedDirectoryForDesktopSession(SetSharedDirectoryForDesktopSessionRequest) returns (SetSharedDirectoryForDesktopSessionResponse);
 }
 
 message EmptyResponse {}
@@ -700,3 +707,16 @@ message ConnectToDesktopResponse {
   // Data is a TDP (Teleport Desktop Protocol) message sent from the desktop service to the client.
   bytes data = 1;
 }
+
+// Request for SetSharedDirectoryForDesktopSession.
+message SetSharedDirectoryForDesktopSessionRequest {
+  // URI of the desktop.
+  string desktop_uri = 1;
+  // Login for the desktop session.
+  string login = 2;
+  // Path to share with a remote machine. Must be a directory.
+  string path = 3;
+}
+
+// Response for SetSharedDirectoryForDesktopSession.
+message SetSharedDirectoryForDesktopSessionResponse {}
