@@ -2290,6 +2290,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Clock:                   cfg.Clock,
 			HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
 			RecordingEncryption:     recordingEncryptionManager,
+			MultipartHandler:        uploadHandler,
 			Tracer:                  process.TracingProvider.Tracer(teleport.ComponentAuth),
 			Logger:                  logger,
 		}, func(as *auth.Server) error {
@@ -3528,11 +3529,12 @@ func (process *TeleportProcess) initUploaderService() error {
 	corruptedDir := filepath.Join(paths[1]...)
 
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
-		Streamer:         uploaderClient,
-		ScanDir:          uploadsDir,
-		CorruptedDir:     corruptedDir,
-		EventsC:          process.Config.Testing.UploadEventsC,
-		InitialScanDelay: 15 * time.Second,
+		Streamer:                   uploaderClient,
+		ScanDir:                    uploadsDir,
+		CorruptedDir:               corruptedDir,
+		EventsC:                    process.Config.Testing.UploadEventsC,
+		InitialScanDelay:           15 * time.Second,
+		EncryptedRecordingUploader: uploaderClient,
 	})
 	if err != nil {
 		return trace.Wrap(err)
