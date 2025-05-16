@@ -29,12 +29,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"math/big"
 	"os"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/go-piv/piv-go/piv"
@@ -159,15 +157,6 @@ const (
 	// For generic auth errors, such as when PIN is not provided, the smart card returns the error code 0x6982.
 	// The piv-go library wraps error codes like this with a user readable message: "security status not satisfied".
 	pivGenericAuthErrCodeString = "6982"
-
-	// If a pcsc transaction is closed by the pcsc daemon, all operations will result in the SCARD_W_RESET_CARD error code,
-	// which the piv-go library replaces with the following error message. This error can be handled by starting a new
-	// transactions or reconnecting.
-	//
-	// See https://github.com/go-piv/piv-go/pull/173 for more details.
-	//
-	// TODO(Joerger): Once ^ is merged and released upstream, remove this adhoc retry.
-	pcscResetCardErrMessage = "the smart card has been reset, so any shared state information is invalid"
 )
 
 func (y *YubiKey) signWithPINRetry(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, prompt hardwarekey.Prompt, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
@@ -176,7 +165,7 @@ func (y *YubiKey) signWithPINRetry(ctx context.Context, ref *hardwarekey.Private
 	// before prompting, which is generally workable. However, the PIN prompt logic is not
 	// flexible enough for the retry and PIN caching mechanisms supported in Teleport. As a
 	// result, we must first try signature without PIN and only prompt for PIN when we get a
-	// "security status not satisfied" error ([pcscResetCardErrMessage]).
+	// "security status not satisfied" error ([pivGenericAuthErrCodeString]).
 	//
 	// TODO(Joerger): Once https://github.com/go-piv/piv-go/pull/174 is merged upstream, we can
 	// check if PIN is required and verify PIN before attempting the signature. This is a more
@@ -521,224 +510,15 @@ type sharedPIVConnection struct {
 	// This value may change between OS's, or with other system changes.
 	card string
 
-	// conn is a shared PIV connection. This connection is only guaranteed to be non-nil
-	// and concurrency safe within a call to [doWithSharedConn].
-	conn *piv.YubiKey
-	// connMu is a RW mutex that protects conn. The conn is only opened/closed while under a full
-	// lock, meaning that multiple callers can utilize the connection concurrently while under a
-	// read lock without the risk of the connection being closed partway through a PIV command.
-	connMu sync.RWMutex
-	// connHolds is the number of active holds on the connection. It should be modified under
-	// connMu.RLock to ensure a new hold isn't added for a closing connection.
-	connHolds atomic.Int32
-	// connHealthy signals whether the connection is healthy or needs to be reconnected.
-	connHealthy atomic.Bool
+	// conn is the shared PIV connection.
+	conn              *piv.YubiKey
+	mu                sync.Mutex
+	activeConnections int
+
+	// exclusiveOperationMu is used to ensure that PIV operations that don't
+	// support concurrency are not run concurrently.
+	exclusiveOperationMu sync.RWMutex
 }
-
-// doWithExclusiveConn holds a shared connection with an exclusive lock to perform the given function.
-// This is used for operations which cannot be run concurrently with other operations.
-func doWithExclusiveConn[T any](c *sharedPIVConnection, do func(*piv.YubiKey) (T, error)) (T, error) {
-	nilT := *new(T)
-
-	// Hold the shared connection mutex so that we are not attempting to open an
-	// exclusive connection when the connection is currently being used in a shared context.
-	c.connMu.Lock()
-	defer c.connMu.Unlock()
-
-	if err := c.holdConn(); err != nil {
-		return nilT, trace.Wrap(err)
-	}
-	defer c.releaseConn()
-
-	t, err := do(c.conn)
-
-	// Usually this error occurs on Windows, which times out exclusive transactions after 5 seconds without any activity,
-	// giving users only 5 seconds to answer PIN prompts. The PIN should now be cached locally, so we simply retry.
-	//
-	// TODO(Joerger): Once https://github.com/go-piv/piv-go/pull/173 is merged, this reconnection will happen internally
-	// to the piv-go library. Since it simply reconnects instead of closing and re-opening the transaction from scratch,
-	// the internal reconnection should be concurrency safe.
-	if err != nil && strings.Contains(err.Error(), pcscResetCardErrMessage) {
-		slog.DebugContext(context.Background(), "smart card connection timed out, reconnecting", "error", err)
-		if err := c.reconnectConn(); err != nil {
-			return nilT, trace.Wrap(err)
-		}
-
-		t, err = do(c.conn)
-	}
-
-	return t, trace.Wrap(err)
-}
-
-// holdConn holds an existing shared connection, or opens and holds a new shared connection.
-// Unless holdSharedConn returns an error, it must be followed by a call to releaseConn to ensure
-// the connection is closed once there are no remaining holds.
-//
-// Must be called under [sharedPIVConnection.connMu.Lock].
-func (c *sharedPIVConnection) holdConn() error {
-	if c.conn == nil || !c.connHealthy.Load() {
-		if err := c.connect(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	c.connHolds.Add(1)
-	return nil
-}
-
-// releaseConn releases a hold on a shared connection and,
-// if there are no remaining holds, closes the connection.
-//
-// # Must be called after each call to
-//
-// Must be called under [sharedPIVConnection.connMu.Lock].
-func (c *sharedPIVConnection) releaseConn() {
-	remaining := c.connHolds.Add(-1)
-
-	// If there are no remaining holds on the connection, close it.
-	if remaining == 0 {
-		// Double check that a new hold wasn't added while waiting for the full lock.
-		if c.connHolds.Load() == 0 && c.conn != nil {
-			c.conn.Close()
-			c.conn = nil
-		}
-	}
-}
-
-// reconnectConn marks the connection as unhealthy and attempts to open a new connection.
-//
-// Must be called under [sharedPIVConnection.connMu.Lock].
-func (c *sharedPIVConnection) reconnectConn() error {
-	c.connHealthy.Store(false)
-	return c.connect()
-}
-
-// doWithSharedConn holds a shared connection to perform the given function.
-func doWithSharedConn[T any](c *sharedPIVConnection, do func(*piv.YubiKey) (T, error)) (T, error) {
-	nilT := *new(T)
-
-	c.connMu.RLock()
-	defer c.connMu.RUnlock()
-
-	if err := c.holdSharedConn(); err != nil {
-		return nilT, trace.Wrap(err)
-	}
-	defer func() {
-		c.releaseSharedConn()
-	}()
-
-	t, err := do(c.conn)
-
-	// Usually this error occurs on Windows, which times out exclusive transactions after 5 seconds without any activity,
-	// giving users only 5 seconds to answer PIN prompts. The PIN should now be cached locally, so we simply retry.
-	//
-	// TODO(Joerger): Once https://github.com/go-piv/piv-go/pull/173 is merged, this reconnection will happen internally
-	// to the piv-go library. Since it simply reconnects instead of closing and re-opening the transaction from scratch,
-	// the internal reconnection should be concurrency safe.
-	if err != nil && strings.Contains(err.Error(), pcscResetCardErrMessage) {
-		slog.DebugContext(context.Background(), "smart card connection timed out, reconnecting", "error", err)
-		if err := c.reconnectSharedConn(); err != nil {
-			return nilT, trace.Wrap(err)
-		}
-
-		t, err = do(c.conn)
-	}
-
-	return t, trace.Wrap(err)
-}
-
-// holdSharedConn holds an existing shared connection, or opens and holds a new shared connection.
-// Unless holdSharedConn returns an error, it must be followed by a call to releaseConn to ensure
-// the connection is closed once there are no remaining holds.
-//
-// Must be called under [sharedPIVConnection.connMu.RLock].
-func (c *sharedPIVConnection) holdSharedConn() error {
-	c.connHolds.Add(1)
-
-	// If there is not an open, healthy connection, open one.
-	if c.conn == nil || !c.connHealthy.Load() {
-		// Exchange RLock for Lock.
-		c.connMu.RUnlock()
-		c.connMu.Lock()
-		defer c.connMu.RLock()
-		defer c.connMu.Unlock()
-
-		if err := c.connect(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
-// releaseConn releases a hold on a shared connection and,
-// if there are no remaining holds, closes the connection.
-//
-// # Must be called after each call to
-//
-// Must be called under [sharedPIVConnection.connMu.Lock].
-func (c *sharedPIVConnection) releaseSharedConn() {
-	remaining := c.connHolds.Add(-1)
-
-	// If there are no remaining holds on the connection, close it.
-	if remaining == 0 {
-		// Exchange RLock for Lock.
-		c.connMu.RUnlock()
-		c.connMu.Lock()
-		defer c.connMu.RLock()
-		defer c.connMu.Unlock()
-
-		// Double check that a new hold wasn't added while waiting for the full lock
-		// or that another release didn't already close the connection.
-		if c.connHolds.Load() == 0 && c.conn != nil {
-			c.conn.Close()
-			c.conn = nil
-		}
-	}
-}
-
-// reconnectSharedConn marks the connection as unhealthy and waits for a new connection.
-// A new connection will not be created until all consumers of the unhealthy
-// connection complete. reconnectSharedConn supports multiple concurrent callers.
-//
-// Must be called under [sharedPIVConnection.connMu.RLock].
-func (c *sharedPIVConnection) reconnectSharedConn() error {
-	// Prevent concurrent shared conn callers from holding the unhealthy connection.
-	c.connHealthy.Store(false)
-
-	// Exchange RLock for Lock.
-	c.connMu.RUnlock()
-	c.connMu.Lock()
-	defer c.connMu.RLock()
-	defer c.connMu.Unlock()
-
-	return c.connect()
-}
-
-// connect opens a new shared connection to a YubiKey PIV module.
-//
-// A call to connect must be followed by a call to [sharedPIVConnection.releaseConnection]
-// in order to ensure the connection is freed for other PIV processes when not in use by this
-// process.
-//
-// Must be called under [sharedPIVConnection.connMu.Lock].
-func (c *sharedPIVConnection) connect() error {
-	// Check if there is an existing, healthy connection.
-	if c.conn != nil && c.connHealthy.Load() {
-		return nil
-	}
-
-	conn, err := openYubiKey(c.card)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	c.conn = conn
-	c.connHealthy.Store(true)
-	return nil
-}
-
-// openYubiKey opens an exclusive connection to the YubiKey PIV module.
 
 // connect establishes a connection to a YubiKey PIV module and returns a release function.
 // The release function should be called to properly close the shared connection.
@@ -746,8 +526,26 @@ func (c *sharedPIVConnection) connect() error {
 // use it before it's released.
 // The YubiKey PIV module itself takes some additional time to handle closed
 // connections, so we use a retry loop to give the PIV module time to close prior connections.
-func openYubiKey(card string) (*piv.YubiKey, error) {
-	ctx := context.Background()
+func (c *sharedPIVConnection) connect() (func(), error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	release := func() {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+
+		c.activeConnections--
+		if c.activeConnections == 0 {
+			c.conn.Close()
+			c.conn = nil
+		}
+	}
+
+	if c.conn != nil {
+		c.activeConnections++
+		return release, nil
+	}
+
 	linearRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		// If a PIV connection has just been closed, it take ~5 ms to become
 		// available to new connections. For this reason, we initially wait a
@@ -763,25 +561,23 @@ func openYubiKey(card string) (*piv.YubiKey, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Backoff and retry for up to 1 second.
+	retryCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
 	isRetryError := func(err error) bool {
 		const retryError = "connecting to smart card: the smart card cannot be accessed because of other connections outstanding"
 		return strings.Contains(err.Error(), retryError)
 	}
 
-	var conn *piv.YubiKey
-	tryConnect := func() error {
-		conn, err = piv.Open(card)
+	err = linearRetry.For(retryCtx, func() error {
+		c.conn, err = piv.Open(c.card)
 		if err != nil && !isRetryError(err) {
 			return retryutils.PermanentRetryError(err)
 		}
 		return trace.Wrap(err)
-	}
-
-	// Backoff and retry for up to 1 second.
-	retryCtx, cancel := context.WithTimeout(ctx, time.Second)
-	defer cancel()
-
-	if err = linearRetry.For(retryCtx, tryConnect); err != nil {
+	})
+	if trace.IsLimitExceeded(err) {
 		// Using PIV synchronously causes issues since only one connection is allowed at a time.
 		// This shouldn't be an issue for `tsh` which primarily runs consecutively, but Teleport
 		// Connect works through callbacks, etc. and may try to open multiple connections at a time.
@@ -790,17 +586,13 @@ func openYubiKey(card string) (*piv.YubiKey, error) {
 		// It's also possible that the user is running another PIV program, which may hold the PIV
 		// connection indefinitely (yubikey-agent). In this case, user action is necessary, so we
 		// alert them with this issue.
-		if trace.IsLimitExceeded(err) {
-			slog.WarnContext(ctx, "failed to connect to YubiKey as it is currently in use by another process. "+
-				"This can occur when running multiple Teleport clients simultaneously, or running long lived PIV "+
-				"applications like yubikey-agent. Try again once other PIV processes have completed.")
-			return nil, trace.LimitExceeded("failed to connect to YubiKey as it is currently in use by another process")
-		}
-
+		return nil, trace.LimitExceeded("could not connect to YubiKey as another application is using it. Please try again once the program that uses the YubiKey, such as yubikey-agent is closed")
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return conn, nil
+	c.activeConnections++
+	return release, nil
 }
 
 func (c *sharedPIVConnection) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, auth piv.KeyAuth, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
@@ -809,21 +601,28 @@ func (c *sharedPIVConnection) sign(ctx context.Context, ref *hardwarekey.Private
 		return nil, trace.Wrap(err)
 	}
 
-	return doWithSharedConn(c, func(yk *piv.YubiKey) ([]byte, error) {
-		// Prepare the key and perform the signature with the same connection.
-		// Closing the connection in between breaks the underlying PIV handle.
-		priv, err := yk.PrivateKey(pivSlot, ref.PublicKey, auth)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	release, err := c.connect()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer release()
 
-		signer, ok := priv.(crypto.Signer)
-		if !ok {
-			return nil, trace.BadParameter("private key type %T does not implement crypto.Signer", priv)
-		}
+	c.exclusiveOperationMu.RLock()
+	defer c.exclusiveOperationMu.RUnlock()
 
-		return abandonableSign(ctx, signer, rand, digest, opts)
-	})
+	// Prepare the key and perform the signature with the same connection.
+	// Closing the connection in between breaks the underlying PIV handle.
+	priv, err := c.conn.PrivateKey(pivSlot, ref.PublicKey, auth)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	signer, ok := priv.(crypto.Signer)
+	if !ok {
+		return nil, trace.BadParameter("private key type %T does not implement crypto.Signer", priv)
+	}
+
+	return abandonableSign(ctx, signer, rand, digest, opts)
 }
 
 // abandonableSign is a wrapper around signer.Sign.
@@ -859,92 +658,162 @@ func abandonableSign(ctx context.Context, signer crypto.Signer, rand io.Reader, 
 }
 
 func (c *sharedPIVConnection) getSerialNumber() (uint32, error) {
-	return doWithSharedConn(c, func(yk *piv.YubiKey) (uint32, error) {
-		serial, err := yk.Serial()
-		return serial, trace.Wrap(err)
-	})
+	release, err := c.connect()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	defer release()
+
+	c.exclusiveOperationMu.RLock()
+	defer c.exclusiveOperationMu.RUnlock()
+
+	serial, err := c.conn.Serial()
+	return serial, trace.Wrap(err)
 }
 
 func (c *sharedPIVConnection) getVersion() (piv.Version, error) {
-	return doWithSharedConn(c, func(yk *piv.YubiKey) (piv.Version, error) {
-		return yk.Version(), nil
-	})
+	release, err := c.connect()
+	if err != nil {
+		return piv.Version{}, trace.Wrap(err)
+	}
+	defer release()
+
+	// Version only requires an open connection, so we don't need to lock on [c.exclusiveOperationMu].
+	return c.conn.Version(), nil
 }
 
 func (c *sharedPIVConnection) reset() error {
-	_, err := doWithSharedConn(c, func(yk *piv.YubiKey) (any, error) {
-		err := yk.Reset()
-		return nil, trace.Wrap(err)
-	})
-	return trace.Wrap(err)
+	release, err := c.connect()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer release()
+
+	c.exclusiveOperationMu.Lock()
+	defer c.exclusiveOperationMu.Unlock()
+
+	return trace.Wrap(c.conn.Reset())
 }
 
 func (c *sharedPIVConnection) setCertificate(key [24]byte, slot piv.Slot, cert *x509.Certificate) error {
-	_, err := doWithExclusiveConn(c, func(yk *piv.YubiKey) (any, error) {
-		err := yk.SetCertificate(key, slot, cert)
-		return nil, trace.Wrap(err)
-	})
-	return trace.Wrap(err)
+	release, err := c.connect()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer release()
+
+	c.exclusiveOperationMu.Lock()
+	defer c.exclusiveOperationMu.Unlock()
+
+	return trace.Wrap(c.conn.SetCertificate(key, slot, cert))
 }
 
 func (c *sharedPIVConnection) certificate(slot piv.Slot) (*x509.Certificate, error) {
-	return doWithExclusiveConn(c, func(yk *piv.YubiKey) (*x509.Certificate, error) {
-		cert, err := yk.Certificate(slot)
-		return cert, trace.Wrap(err)
-	})
+	release, err := c.connect()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer release()
+
+	c.exclusiveOperationMu.Lock()
+	defer c.exclusiveOperationMu.Unlock()
+
+	cert, err := c.conn.Certificate(slot)
+	return cert, trace.Wrap(err)
 }
 
 func (c *sharedPIVConnection) generateKey(key [24]byte, slot piv.Slot, opts piv.Key) (crypto.PublicKey, error) {
-	return doWithExclusiveConn(c, func(yk *piv.YubiKey) (crypto.PublicKey, error) {
-		pub, err := yk.GenerateKey(key, slot, opts)
-		return pub, trace.Wrap(err)
-	})
+	release, err := c.connect()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer release()
+
+	c.exclusiveOperationMu.Lock()
+	defer c.exclusiveOperationMu.Unlock()
+
+	pubKey, err := c.conn.GenerateKey(key, slot, opts)
+	return pubKey, trace.Wrap(err)
 }
 
 func (c *sharedPIVConnection) attest(slot piv.Slot) (*x509.Certificate, error) {
-	return doWithExclusiveConn(c, func(yk *piv.YubiKey) (*x509.Certificate, error) {
-		cert, err := yk.Attest(slot)
-		return cert, trace.Wrap(err)
-	})
+	release, err := c.connect()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer release()
+
+	c.exclusiveOperationMu.Lock()
+	defer c.exclusiveOperationMu.Unlock()
+
+	cert, err := c.conn.Attest(slot)
+	return cert, trace.Wrap(err)
 }
 
 func (c *sharedPIVConnection) attestationCertificate() (*x509.Certificate, error) {
-	return doWithExclusiveConn(c, func(yk *piv.YubiKey) (*x509.Certificate, error) {
-		cert, err := yk.AttestationCertificate()
-		return cert, trace.Wrap(err)
-	})
+	release, err := c.connect()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer release()
+
+	c.exclusiveOperationMu.Lock()
+	defer c.exclusiveOperationMu.Unlock()
+
+	cert, err := c.conn.AttestationCertificate()
+	return cert, trace.Wrap(err)
 }
 
 func (c *sharedPIVConnection) setPIN(oldPIN string, newPIN string) error {
-	_, err := doWithSharedConn(c, func(yk *piv.YubiKey) (any, error) {
-		err := yk.SetPIN(oldPIN, newPIN)
-		return nil, trace.Wrap(err)
-	})
-	return trace.Wrap(err)
+	release, err := c.connect()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer release()
+
+	c.exclusiveOperationMu.RLock()
+	defer c.exclusiveOperationMu.RUnlock()
+
+	return trace.Wrap(c.conn.SetPIN(oldPIN, newPIN))
 }
 
 func (c *sharedPIVConnection) setPUK(oldPUK string, newPUK string) error {
-	_, err := doWithSharedConn(c, func(yk *piv.YubiKey) (any, error) {
-		err := yk.SetPUK(oldPUK, newPUK)
-		return nil, trace.Wrap(err)
-	})
-	return trace.Wrap(err)
+	release, err := c.connect()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer release()
+
+	c.exclusiveOperationMu.RLock()
+	defer c.exclusiveOperationMu.RUnlock()
+
+	return trace.Wrap(c.conn.SetPUK(oldPUK, newPUK))
 }
 
 func (c *sharedPIVConnection) unblock(puk string, newPIN string) error {
-	_, err := doWithSharedConn(c, func(yk *piv.YubiKey) (any, error) {
-		err := yk.Unblock(puk, newPIN)
-		return nil, trace.Wrap(err)
-	})
-	return trace.Wrap(err)
+	release, err := c.connect()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer release()
+
+	c.exclusiveOperationMu.RLock()
+	defer c.exclusiveOperationMu.RUnlock()
+
+	return trace.Wrap(c.conn.Unblock(puk, newPIN))
 }
 
 func (c *sharedPIVConnection) verifyPIN(pin string) error {
-	_, err := doWithSharedConn(c, func(yk *piv.YubiKey) (any, error) {
-		err := yk.VerifyPIN(pin)
-		return nil, trace.Wrap(err)
-	})
-	return trace.Wrap(err)
+	release, err := c.connect()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer release()
+
+	c.exclusiveOperationMu.RLock()
+	defer c.exclusiveOperationMu.RUnlock()
+
+	return trace.Wrap(c.conn.VerifyPIN(pin))
 }
 
 func parsePIVSlot(slotKey hardwarekey.PIVSlotKey) (piv.Slot, error) {
