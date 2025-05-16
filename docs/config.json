@@ -101,11 +101,6 @@
       "permanent": true
     },
     {
-      "source": "/admin-guides/management/guides/aws-iam-identity-center/",
-      "destination": "/admin-guides/management/guides/aws-iam-identity-center/guide/",
-      "permanent": true
-    },
-    {
       "source": "/reference/operator-resources/resources.teleport.dev_accesslists/",
       "destination": "/reference/operator-resources/resources-teleport-dev-accesslists/",
       "permanent": true
@@ -266,18 +261,8 @@
       "permanent": true
     },
     {
-      "source": "/enroll-resources/workload-identity/workload-attestation/",
-      "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
-      "permanent": true
-    },
-    {
       "source": "/access-controls/guides/role-templates/",
       "destination": "/admin-guides/access-controls/guides/role-templates/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/",
-      "destination": "/admin-guides/access-controls/sso/",
       "permanent": true
     },
     {
@@ -396,8 +381,8 @@
       "permanent": true
     },
     {
-      "source": "/enroll-resources/application-access/okta/okta/",
-      "destination": "/admin-guides/access-controls/okta/okta/",
+      "source": "/enroll-resources/application-access/okta/",
+      "destination": "/admin-guides/access-controls/okta/",
       "permanent": true
     },
     {
@@ -408,11 +393,6 @@
     {
       "source": "/enroll-resources/application-access/okta/user-sync/",
       "destination": "/admin-guides/access-controls/okta/user-sync/",
-      "permanent": true
-    },
-    {
-      "source": "/enroll-resources/application-access/okta/",
-      "destination": "/admin-guides/access-controls/okta/",
       "permanent": true
     },
     {
