@@ -196,7 +196,7 @@ func (s *Server) getDatabase(uri string) (*database, error) {
 }
 
 func buildConnConfig(db *dbmcp.Database) (*pgxpool.Config, error) {
-	config, err := pgxpool.ParseConfig(fmt.Sprintf("postgres://" + db.Addr))
+	config, err := pgxpool.ParseConfig("postgres://" + db.Addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

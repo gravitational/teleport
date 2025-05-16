@@ -31,7 +31,7 @@ func TestMemoryListenerClient(t *testing.T) {
 	var wg sync.WaitGroup
 	expectedMessage := "hello from server"
 
-	listener := InNewMemoryListener()
+	listener := NewInMemoryListener()
 	t.Cleanup(func() { listener.Close() })
 
 	wg.Add(1)
@@ -55,6 +55,7 @@ func TestMemoryListenerClient(t *testing.T) {
 
 		buf := make([]byte, len(expectedMessage))
 		n, err := conn.Read(buf[0:])
+		require.NoError(collect, err)
 		require.Equal(collect, len(expectedMessage), n)
 		require.Equal(collect, expectedMessage, string(buf[:n]))
 	}, 50*time.Millisecond, 10*time.Millisecond)
@@ -69,7 +70,7 @@ func TestMemoryListenerServer(t *testing.T) {
 	var wg sync.WaitGroup
 	expectedMessage := "hello from client"
 
-	listener := InNewMemoryListener()
+	listener := NewInMemoryListener()
 	t.Cleanup(func() { listener.Close() })
 
 	wg.Add(1)
@@ -92,6 +93,7 @@ func TestMemoryListenerServer(t *testing.T) {
 
 		buf := make([]byte, len(expectedMessage))
 		n, err := conn.Read(buf[0:])
+		require.NoError(collect, err)
 		require.Equal(collect, len(expectedMessage), n)
 		require.Equal(collect, expectedMessage, string(buf[:n]))
 	}, 50*time.Millisecond, 10*time.Millisecond)
@@ -111,7 +113,7 @@ func TestMemoryListenerServer(t *testing.T) {
 }
 
 func TestMemoryListenerDialTimeout(t *testing.T) {
-	listener := InNewMemoryListener()
+	listener := NewInMemoryListener()
 	t.Cleanup(func() { listener.Close() })
 
 	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)

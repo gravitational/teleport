@@ -89,8 +89,8 @@ func (m *InMemoryListener) DialContext(ctx context.Context, _ string, _ string) 
 // ErrListenerClosed is the error returned by dial when the listener is closed.
 var ErrListenerClosed = errors.New("in-memory listener closed")
 
-// InNewMemoryListener initializes a new in-memory listener.
-func InNewMemoryListener() *InMemoryListener {
+// NewInMemoryListener initializes a new in-memory listener.
+func NewInMemoryListener() *InMemoryListener {
 	return &InMemoryListener{
 		connCh:  make(chan net.Conn),
 		closeCh: make(chan struct{}),

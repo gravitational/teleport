@@ -167,7 +167,7 @@ func (c *mcpDBCommand) prepareDatabases(
 			cc.SetCert(cert)
 		}
 
-		listener := listener.InNewMemoryListener()
+		listener := listener.NewInMemoryListener()
 		lp, err := alpnproxy.NewLocalProxy(
 			makeBasicLocalProxyConfig(ctx, tc, listener, tc.InsecureSkipVerify),
 			alpnproxy.WithDatabaseProtocol(route.Protocol),
