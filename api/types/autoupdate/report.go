@@ -27,14 +27,21 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+const (
+	autoUpdateAgentReportTTL = time.Hour
+	maxGroups                = 50
+	maxVersions              = 20
+)
+
 // NewAutoUpdateAgentReport creates a new auto update version resource.
 func NewAutoUpdateAgentReport(spec *autoupdate.AutoUpdateAgentReportSpec, authName string) (*autoupdate.AutoUpdateAgentReport, error) {
 	rollout := &autoupdate.AutoUpdateAgentReport{
 		Kind:    types.KindAutoUpdateAgentReport,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name:    authName,
-			Expires: timestamppb.New(spec.GetTimestamp().AsTime().Add(time.Hour)),
+			Name: authName,
+			// Validate will fail later if timestamp is zero
+			Expires: timestamppb.New(spec.GetTimestamp().AsTime().Add(autoUpdateAgentReportTTL)),
 		},
 		Spec: spec,
 	}
@@ -55,6 +62,19 @@ func ValidateAutoUpdateAgentReport(v *autoupdate.AutoUpdateAgentReport) error {
 		return trace.BadParameter("Spec is nil")
 	}
 
-	// TODO: see if we need more validation
+	if ts := v.GetSpec().GetTimestamp(); ts == nil || (ts.Seconds == 0 && ts.Nanos == 0) {
+		return trace.BadParameter("Spec.Timestamp is empty or zero")
+	}
+
+	if numGroups := len(v.GetSpec().GetGroups()); numGroups > maxGroups {
+		return trace.BadParameter("Spec.Groups is too large (%d while the max is %d)", numGroups, maxGroups)
+	}
+
+	for groupName, group := range v.GetSpec().GetGroups() {
+		if numVersions := len(group.GetVersions()); numVersions > maxVersions {
+			return trace.BadParameter("group %q has too many versions (%d while the max is %d)", groupName, numVersions, maxVersions)
+		}
+	}
+
 	return nil
 }

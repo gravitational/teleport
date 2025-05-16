@@ -38,7 +38,7 @@ type instanceReport struct {
 
 func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
 	// If the instance is being soft-reloaded or shut down, we ignore it.
-	if goodbye := handle.Goodbye(); goodbye != nil && (goodbye.GetSoftReload() || goodbye.GetDeleteResources()) {
+	if goodbye := handle.Goodbye(); goodbye.GetSoftReload() || goodbye.GetDeleteResources() {
 		return
 	}
 
@@ -47,8 +47,8 @@ func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
 	if handle.RegistrationTime().After(ir.timestamp.Add(-time.Minute)) {
 		return
 	}
-	// We skip auth and proxy instances because we don't update them.
-	if handle.HasService(types.RoleAuth) || handle.HasService(types.RoleProxy) {
+	// We skip control planes instances because we don't update them.
+	if handle.HasControlPlaneService() {
 		return
 	}
 
@@ -114,7 +114,8 @@ func (a *Server) generateAgentVersionReport(ctx context.Context) (*autoupdatev1p
 		Groups:    make(map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroup, len(rawreport.data)),
 	}
 
-	// TODO: cap the group and version map size
+	// TODO(hugoShaka): gracefully handle too many groups or versions (sort and report only the largest ones).
+	// Currently the agent version report will just fail validation if there are too many groups.
 
 	for groupName, groupData := range rawreport.data {
 		versions := make(map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion, len(groupData))

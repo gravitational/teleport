@@ -499,6 +499,10 @@ type UpstreamHandle interface {
 	// stream.
 	HasService(types.SystemRole) bool
 
+	// HasControlPlaneService returns true if at least a control plane service
+	// is associated with this stream.
+	HasControlPlaneService() bool
+
 	// VisitInstanceState runs the provided closure against a representation of the most
 	// recently observed instance state, plus any pending control log entries. The returned
 	// value may optionally include additional control log entries to add to the pending
@@ -675,7 +679,7 @@ type upstreamHandle struct {
 	hello            proto.UpstreamInventoryHello
 	registrationTime time.Time
 
-	agentInfoLock sync.RWMutex
+	agentInfoLock sync.Mutex
 	agentMetadata proto.UpstreamInventoryAgentMetadata
 	goodbye       *proto.UpstreamInventoryGoodbye
 
@@ -779,8 +783,8 @@ func (h *upstreamHandle) Ping(ctx context.Context, id uint64) (d time.Duration, 
 // Goodbye gets the cached upstream goodbye. Returns nil if downstream never sent a Goodbye.
 // This is used to identify if the instance is terminating or being soft-reloaded.
 func (h *upstreamHandle) Goodbye() *proto.UpstreamInventoryGoodbye {
-	h.agentInfoLock.RLock()
-	defer h.agentInfoLock.RUnlock()
+	h.agentInfoLock.Lock()
+	defer h.agentInfoLock.Unlock()
 	return h.goodbye
 }
 
@@ -802,8 +806,8 @@ func (h *upstreamHandle) RegistrationTime() time.Time {
 
 // AgentMetadata returns the Agent's metadata (eg os, glibc version, install methods, teleport version).
 func (h *upstreamHandle) AgentMetadata() proto.UpstreamInventoryAgentMetadata {
-	h.agentInfoLock.RLock()
-	defer h.agentInfoLock.RUnlock()
+	h.agentInfoLock.Lock()
+	defer h.agentInfoLock.Unlock()
 	return h.agentMetadata
 }
 
@@ -814,9 +818,22 @@ func (h *upstreamHandle) SetAgentMetadata(agentMD proto.UpstreamInventoryAgentMe
 	h.agentMetadata = agentMD
 }
 
+// HasService is a helper for checking if a given service is associated with this
+// stream.
 func (h *upstreamHandle) HasService(service types.SystemRole) bool {
 	for _, s := range h.hello.Services {
 		if s == service {
+			return true
+		}
+	}
+	return false
+}
+
+// HasControlPlaneService implements UpstreamHandle and returns true if at
+// least a control plane service is associated with this stream.
+func (h *upstreamHandle) HasControlPlaneService() bool {
+	for _, s := range h.hello.Services {
+		if s.IsControlPlane() {
 			return true
 		}
 	}
