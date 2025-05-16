@@ -1103,11 +1103,6 @@ test-sh:
 	fi; \
 	bats $(BATSFLAGS) ./assets/aws/files/tests
 
-
-.PHONY: test-e2e
-test-e2e:
-	make -C e2e test
-
 .PHONY: run-etcd
 run-etcd:
 	docker build -f .github/services/Dockerfile.etcd -t etcdbox --build-arg=ETCD_VERSION=3.5.9 .
@@ -1906,3 +1901,7 @@ go-mod-tidy-all:
 dump-preset-roles:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go run ./build.assets/dump-preset-roles/main.go
 	pnpm test web/packages/teleport/src/Roles/RoleEditor/StandardEditor/standardmodel.test.ts
+
+.PHONY: test-e2e
+test-e2e: ensure-webassets
+	(cd e2e && pnpm install) && $(CGOFLAG) go test -tags=webassets_embed ./e2e/web_e2e_test.go
