@@ -164,8 +164,15 @@ func (c *mcpDBCommand) prepareDatabases(
 			Database:    c.databaseName,
 		}
 
-		listener := listener.InNewMemoryListener()
 		cc := client.NewDBCertChecker(tc, route, nil, client.WithTTL(tc.KeyTTL))
+		// This avoids having the middleware to refresh the certificate if there
+		// is a certificate available on disk.
+		cert, err := loadDBCertificate(tc, route.ServiceName)
+		if err == nil {
+			cc.SetCert(cert)
+		}
+
+		listener := listener.InNewMemoryListener()
 		lp, err := alpnproxy.NewLocalProxy(
 			makeBasicLocalProxyConfig(ctx, tc, listener, tc.InsecureSkipVerify),
 			alpnproxy.WithDatabaseProtocol(route.Protocol),
