@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "16.5.9"
+const Version = "16.5.9-dev.joerger.1"
 
 const VersionMajor = 16
 const VersionMinor = 5
 const VersionPatch = 9
-const VersionPreRelease = ""
+const VersionPreRelease = "dev.joerger.1"
 const VersionMetadata = ""

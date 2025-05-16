@@ -1,4 +1,4 @@
-.version: &version "16.5.9"
+.version: &version "16.5.9-dev.joerger.1"
 
 apiVersion: v2
 name: teleport-plugin-pagerduty
