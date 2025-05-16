@@ -5571,15 +5571,24 @@ func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
 	// 7. Run tests
 
 	t.Run("requesting okta resources but no okta plugin", func(t *testing.T) {
-		// Note: Okta-originated resources present in the cluster and no Okta plugin
-		// configured is the situation where the plugin was freshly deleted and the
-		// heartbeats for the Okta apps haven't expired yet. This is an edge-case so the
-		// error is a bit confusing.
+		// v18+ version:
+		/*
+			// Note: Okta-originated resources present in the cluster and no Okta plugin
+			// configured is the situation where the plugin was freshly deleted and the
+			// heartbeats for the Okta apps haven't expired yet. This is an edge-case so the
+			// error is a bit confusing.
+			for _, accessRequest := range testAccessRequests {
+				_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, okta.OktaResourceNotRequestableError.Error())
+			}
+		*/
+
+		// v17 only - we need to support okta_service where no plugin exists:
 		for _, accessRequest := range testAccessRequests {
 			_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
-			require.Error(t, err)
-			require.True(t, trace.IsBadParameter(err))
-			require.ErrorContains(t, err, okta.OktaResourceNotRequestableError.Error())
+			require.NoError(t, err)
 		}
 	})
 
