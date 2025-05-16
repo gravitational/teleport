@@ -93,6 +93,10 @@
       "source": "/admin-guides/access-controls/guides/moderated-sessions/",
       "destination": "/admin-guides/access-controls/guides/joining-sessions/",
       "permanent": true
+    },
+    {
+      "source": "/upgrading/automatic-agent-updates/",
+      "destination": "/upgrading/agent-managed-updates-v1/"
     }
   ]
 }
