@@ -20,7 +20,6 @@ package userpreferencesv1
 
 import (
 	"context"
-	"slices"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -97,9 +96,8 @@ func (a *Service) GetKeyboardLayout(ctx context.Context, req *userpreferences.Ge
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	identity := authCtx.Identity.GetIdentity()
 
-	if !slices.Contains(identity.SystemRoles, string(types.RoleWindowsDesktop)) && !slices.Contains(identity.Groups, string(types.RoleWindowsDesktop)) {
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleWindowsDesktop)) {
 		return nil, trace.AccessDenied("Only Windows Desktop Service can get keyboard layout")
 	}
 
