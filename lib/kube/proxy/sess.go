@@ -931,7 +931,8 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
 		// Session stream is using server context, not session context,
 		// to make sure that session is uploaded even after it is closed
-		Context: s.forwarder.ctx,
+		Context:   s.forwarder.ctx,
+		Encrypter: auth.NewEncryptionWrapper(s.ctx.recordingConfig),
 	})
 	if err != nil {
 		return onFinish, trace.Wrap(err)
