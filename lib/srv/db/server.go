@@ -24,6 +24,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1082,7 +1083,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	defer func() {
 		if r := recover(); r != nil {
-			s.log.WarnContext(ctx, "Recovered while handling DB connection.", "from", clientConn.RemoteAddr(), "to", r)
+			s.log.WarnContext(ctx, "Recovered while handling DB connection.", "from", clientConn.RemoteAddr(), "problem", r, "stack", debug.Stack())
 			err = trace.BadParameter("failed to handle client connection")
 		}
 		if err != nil {
