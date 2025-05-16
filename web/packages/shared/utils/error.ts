@@ -46,3 +46,12 @@ export function ensureError(err: unknown): Error {
 
   return new Error(String(err));
 }
+
+/** Extracts an error message or returns a default one. */
+export function getErrorMessage(err: unknown): string {
+  const errorInstance = ensureError(err);
+  if (errorInstance.message === '') {
+    return 'something went wrong';
+  }
+  return errorInstance.message;
+}
