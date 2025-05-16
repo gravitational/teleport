@@ -2593,6 +2593,10 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	})
 
+	process.RegisterFunc("update.aws-ra.profile-sync.service", func() error {
+		return trace.Wrap(process.initAWSRAProfileSync())
+	})
+
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown
@@ -4899,6 +4903,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
+		rolesAnywhereTLSCA, err := process.awsRolesAnywhereTLSCA(clusterName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		connectionsHandler, err := app.NewConnectionsHandler(process.GracefulExitContext(), &app.ConnectionsHandlerConfig{
 			Clock:             process.Clock,
 			DataDir:           cfg.DataDir,
@@ -4913,6 +4922,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ServiceComponent:  teleport.ComponentWebProxy,
 			AWSConfigOptions: []awsconfig.OptionsFn{
 				awsconfig.WithOIDCIntegrationClient(conn.Client),
+				awsconfig.WithRolesAnywhereIntegrationClient(rolesAnywhereTLSCA),
 			},
 		})
 		if err != nil {
@@ -5644,6 +5654,28 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	return nil
+}
+
+func (process *TeleportProcess) awsRolesAnywhereTLSCA(clusterName string) (*tlsca.CertAuthority, error) {
+	awsRACA, err := process.localAuth.GetCertAuthority(process.GracefulExitContext(), types.CertAuthID{
+		Type:       types.AWSRACA,
+		DomainName: clusterName,
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsCert, tlsSigner, err := process.localAuth.GetKeyStore().GetTLSCertAndSigner(process.GracefulExitContext(), awsRACA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tlsCA, nil
 }
 
 func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListeners, tlsConfigWeb *tls.Config, cfg *servicecfg.Config, webConfig web.Config) (*web.Server, error) {

@@ -62,6 +62,9 @@ type AWSSigninRequest struct {
 	// Integration is the Integration name to use to generate credentials.
 	// If empty, it will use ambient credentials
 	Integration string
+	// RolesAnywhereIntegration contains the Profile/Role information to use when
+	// sourcing the credentials from a Roles Anywhere integration.
+	RolesAnywhereIntegration awsconfig.RolesAnywhereMetadata
 }
 
 // CheckAndSetDefaults validates the request.
@@ -177,11 +180,13 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	// "SessionDuration" is not provided, the web console session duration will
 	// be bound to the duration used in the next AssumeRole call.
 
+	integrationCredentialsAWSConfigOption := awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{
+		Name:                  req.Integration,
+		RolesAnywhereMetadata: req.RolesAnywhereIntegration,
+	})
 	// Sign In requests target IAM endpoints which don't require a region.
 	region := ""
-	baseCfg, err := c.awsCachedProvider.GetConfig(ctx, region,
-		awsconfig.WithCredentialsMaybeIntegration(req.Integration),
-	)
+	baseCfg, err := c.awsCachedProvider.GetConfig(ctx, region, integrationCredentialsAWSConfigOption)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -220,11 +225,17 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 		assumeRole.Duration = duration
 	}
 
+	// When using Roles Anywhere integration, there's no need to assume another role.
+	// The role used to obtain the temporary credentials is the one that will be used for obtaining the federation token.
+	if req.RolesAnywhereIntegration.RoleARN == "" {
+		assumeRole.RoleARN = ""
+	}
+
 	// Do not use cache provider to avoid returning credentials with wrong
 	// expiry duration.
 	awsCfg, err := awsconfig.GetConfig(ctx, region,
 		append(c.cfg.AWSConfigOptions,
-			awsconfig.WithCredentialsMaybeIntegration(req.Integration),
+			integrationCredentialsAWSConfigOption,
 			awsconfig.WithBaseCredentialsProvider(baseCfg.Credentials),
 			awsconfig.WithDetailedAssumeRole(assumeRole),
 		)...,

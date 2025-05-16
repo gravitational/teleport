@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/aws/awsconfigfile"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -104,6 +105,19 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	if routeToApp.AWSCredentialProcessCredentials != "" {
+		awsConfigFileLocation, err := awsconfigfile.AWSConfigFilePath()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		credentialProcessCommand := fmt.Sprintf("tsh apps config %s --format aws-credential-process", app.GetName())
+		sectionComment := fmt.Sprintf("Do not edit. Section managed by Teleport. Generated for accessing %s", app.GetName())
+		if err := awsconfigfile.SetDefaultProfileCredentialProcess(awsConfigFileLocation, sectionComment, credentialProcessCommand); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	if err := tc.LocalAgent().AddAppKeyRing(key); err != nil {
 		return trace.Wrap(err)
 	}
@@ -140,6 +154,14 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 
 	switch {
 	case app.IsAWSConsole():
+		if routeToApp.AWSCredentialProcessCredentials != "" {
+			return awsNamedProfileLoginTemplate.Execute(output, map[string]string{
+				"awsAppName": app.GetName(),
+				"awsCmd":     "s3 ls",
+				"awsRoleARN": routeToApp.AWSRoleARN,
+			})
+		}
+
 		return awsLoginTemplate.Execute(output, map[string]string{
 			"awsAppName": app.GetName(),
 			"awsCmd":     "s3 ls",
@@ -271,6 +293,33 @@ Or start a local proxy:
   tsh proxy aws --app {{.awsAppName}}
 `))
 
+// awsNamedProfileLoginTemplate is the message that gets printed to a user upon successful login
+// into an AWS Console application which provides AWS credentials in the `credential_process` schema.
+// Used for named profiles, where the profile name is the same as the app name.
+var awsNamedProfileLoginTemplate = template.Must(template.New("").Parse(
+	`Logged into AWS app "{{.awsAppName}}".
+
+Your IAM role:
+  {{.awsRoleARN}}
+
+Example AWS CLI commands:
+  aws --profile {{.awsAppName}} {{.awsCmd}}
+  AWS_PROFILE={{.awsAppName}} aws {{.awsCmd}}
+`))
+
+// awsDefaultProfileLoginTemplate is the message that gets printed to a user upon successful login
+// into an AWS Console application which provides AWS credentials in the `credential_process` schema.
+// Used for the default profile.
+var awsDefaultProfileLoginTemplate = template.Must(template.New("").Parse(
+	`Logged into AWS app "{{.awsAppName}}".
+
+Your IAM role:
+  {{.awsRoleARN}}
+
+Example AWS CLI commands:
+  aws {{.awsCmd}}
+`))
+
 // azureLoginTemplate is the message that gets printed to a user upon successful login
 // into an Azure application.
 var azureLoginTemplate = template.Must(template.New("").Parse(
@@ -378,13 +427,14 @@ func onAppConfig(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	routeToApp := proto.RouteToApp{
-		Name:              app.Name,
-		PublicAddr:        app.PublicAddr,
-		ClusterName:       app.ClusterName,
-		AWSRoleARN:        app.AWSRoleARN,
-		AzureIdentity:     app.AzureIdentity,
-		GCPServiceAccount: app.GCPServiceAccount,
-		URI:               app.GetURI(),
+		Name:                            app.Name,
+		PublicAddr:                      app.PublicAddr,
+		ClusterName:                     app.ClusterName,
+		AWSRoleARN:                      app.AWSRoleARN,
+		AzureIdentity:                   app.AzureIdentity,
+		GCPServiceAccount:               app.GCPServiceAccount,
+		URI:                             app.GetURI(),
+		AWSCredentialProcessCredentials: app.AWSCredentialProcessCredentials,
 	}
 	conf, err := formatAppConfig(tc, profile, routeToApp, cf.Format)
 	if err != nil {
@@ -409,6 +459,8 @@ const (
 	appFormatJSON = "json"
 	// appFormatYAML prints app URI, CA cert path, cert path, key path, and curl command in YAML format.
 	appFormatYAML = "yaml"
+	// appFormatAWSCredentialProcessOutput prints the credentials for accessing AWS Console using the `credential_process` schema.
+	appFormatAWSCredentialProcessOutput = "aws-credential-process"
 )
 
 func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, routeToApp proto.RouteToApp, format string) (string, error) {
@@ -447,6 +499,8 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 		return keyPath, nil
 	case appFormatCURL:
 		return curlCmd, nil
+	case appFormatAWSCredentialProcessOutput:
+		return routeToApp.AWSCredentialProcessCredentials, nil
 	case appFormatJSON, appFormatYAML:
 		appConfig := &appConfigInfo{
 			Name:              routeToApp.Name,
@@ -704,12 +758,13 @@ func pickActiveApp(cf *CLIConf, activeRoutes []tlsca.RouteToApp) (proto.RouteToA
 
 func tlscaRouteToAppToProto(route tlsca.RouteToApp) proto.RouteToApp {
 	return proto.RouteToApp{
-		Name:              route.Name,
-		PublicAddr:        route.PublicAddr,
-		ClusterName:       route.ClusterName,
-		AWSRoleARN:        route.AWSRoleARN,
-		AzureIdentity:     route.AzureIdentity,
-		GCPServiceAccount: route.GCPServiceAccount,
-		URI:               route.URI,
+		Name:                            route.Name,
+		PublicAddr:                      route.PublicAddr,
+		ClusterName:                     route.ClusterName,
+		AWSRoleARN:                      route.AWSRoleARN,
+		AWSCredentialProcessCredentials: route.AWSCredentialProcessCredentials,
+		AzureIdentity:                   route.AzureIdentity,
+		GCPServiceAccount:               route.GCPServiceAccount,
+		URI:                             route.URI,
 	}
 }

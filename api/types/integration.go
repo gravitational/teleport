@@ -342,6 +342,10 @@ func (s *IntegrationSpecV1_AWSRA) CheckAndSetDefaults() error {
 		}
 	}
 
+	if s.AWSRA.ProfileSyncConfig == nil {
+		s.AWSRA.ProfileSyncConfig = &AWSRolesAnywhereProfileSyncConfig{}
+	}
+
 	return nil
 }
 

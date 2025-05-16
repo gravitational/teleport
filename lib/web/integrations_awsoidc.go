@@ -1201,6 +1201,40 @@ func (h *Handler) getAppServerByName(ctx context.Context, userClient authclient.
 
 // awsOIDCConfigureIdP returns a script that configures AWS OIDC Integration
 // by creating an OIDC Identity Provider that trusts Teleport instance.
+func (h *Handler) awsRAConfigure(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	script := `
+#!/usr/bin/env bash
+
+echo ".... doing the thing..."
+echo ".... doing the thing..."
+echo ".... doing the thing..."
+echo ".... doing the thing..."
+echo ".... doing the thing..."
+echo ".... doing the thing..."
+echo ".... doing the thing..."
+echo ""
+echo "Copy the following text and paste it in the browser to finish the set up:"
+echo ""
+echo "START COPY HERE"
+echo "✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄"
+echo ""
+echo "arn:aws:rolesanywhere:eu-west-2:278576220453:trust-anchor/49670940-f08c-490a-8262-131e1163e2ff"
+echo "arn:aws:rolesanywhere:eu-west-2:278576220453:profile/473beb46-6cdd-413f-a8b4-2531c6284a33"
+echo "arn:aws:iam::278576220453:role/MarcoRASyncRole"
+echo ""
+echo "✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄✄"
+echo ""
+echo ".... done doing the thing..."
+`
+
+	httplib.SetScriptHeaders(w.Header())
+	_, err := fmt.Fprint(w, script)
+
+	return nil, trace.Wrap(err)
+}
+
+// awsOIDCConfigureIdP returns a script that configures AWS OIDC Integration
+// by creating an OIDC Identity Provider that trusts Teleport instance.
 func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	ctx := r.Context()
 
