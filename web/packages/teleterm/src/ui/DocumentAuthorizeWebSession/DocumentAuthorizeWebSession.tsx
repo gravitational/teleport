@@ -206,7 +206,7 @@ function buildUnauthorizedSessionUrl(
   // Unlike in buildAuthorizedSessionUrl, here we return a full path to open
   // instead of including redirection as the `redirect_uri` query parameter.
   const processedRedirectUri = processRedirectUri(
-    decodeURI(webSessionRequest.redirectUri)
+    webSessionRequest.redirectUri
   );
   return `https://${rootCluster.proxyHost}${processedRedirectUri}`;
 }
