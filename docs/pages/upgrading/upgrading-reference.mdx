@@ -4,17 +4,23 @@ description: Provides detailed information on upgrading Teleport in various situ
 tocDepth: 3
 ---
 
+<Admonition type="warning">
+This document describes the Managed Updates v1 Teleport Agent updater, which is
+currently supported but will be deprecated after the [Managed update v2 updater
+](./agent-managed-updates.mdx) is generally available.
+</Admonition>
+
 This guide explains how to upgrade components of a Teleport cluster in
-non-standard situations. 
+non-standard situations.
 
 To ensure that your Teleport cluster remains up to date with the lowest amount
 of manual overhead, we recommend [signing up](https://goteleport.com/signup) for
 a cloud-hosted Teleport Enterprise account and following [Enroll Agents in
-Automatic Upgrades](./automatic-agent-updates.mdx). 
+Automatic Upgrades](./agent-managed-updates.mdx).
 
 If your infrastructure does not support automatic agent updates, follow this
 guide to determine the best approach for keeping your Teleport cluster up to
-date. 
+date.
 
 Before reading this guide, become familiar with the  [Upgrading Compatibility
 Overview](./overview.mdx) guide, which describes the sequence in which to
@@ -26,7 +32,7 @@ This section explains how to manage the automatic updater.
 
 On Kubernetes deployments, the updater is a controller that periodically
 reconciles expected Kubernetes resources with those in the cluster. On a Linux
-server, the updater is an executable script called `teleport-upgrade`. 
+server, the updater is an executable script called `teleport-upgrade`.
 
 ### `teleport-upgrade` commands
 
@@ -89,25 +95,25 @@ $ teleport-upgrade force
 ### Configuring the `teleport-upgrade` tool
 
 1. Create the upgrade configuration directory:
-   
+
    ```code
    $ sudo mkdir -p /etc/teleport-upgrade.d/
    ```
-   
+
 1. If you changed the agent user to run as non-root, create
    `/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user,
    assigning <Var name="your-teleport-user" /> to the name of your Teleport
    user. Otherwise, you can skip this step:
-   
-   ```code 
-   $ sudo touch /etc/teleport-upgrade.d/schedule 
-   $ sudo chown <Var name="your-teleport-user" /> /etc/teleport-upgrade.d/schedule 
+
+   ```code
+   $ sudo touch /etc/teleport-upgrade.d/schedule
+   $ sudo chown <Var name="your-teleport-user" /> /etc/teleport-upgrade.d/schedule
    ```
-   
+
    1. Configure the upgrader to connect to your version server and subscribe to
    the right release channel:
-   
-   ```code 
+
+   ```code
    $ echo "<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default" | sudo tee /etc/teleport-upgrade.d/endpoint
    ```
 
@@ -117,7 +123,7 @@ $ teleport-upgrade force
 ### Choosing a release channel
 
 When [configuring the updater](#configuring-the-teleport-upgrade-tool), you can
-select a release channel. 
+select a release channel.
 
 The following channels are available for APT, YUM, and Zypper repos:
 
@@ -258,7 +264,7 @@ self-hosted clusters, as well as all Teleport agents.
 ### Teleport agents
 
 1. Identify the latest compatible Teleport agent version by querying the
-   `webapi` endpoint of the Teleport Proxy Service, replacing 
+   `webapi` endpoint of the Teleport Proxy Service, replacing
    <Var name="teleport.example.com:443" /> with the host and port of your
    Teleport account or Teleport Proxy Service:
 
@@ -355,7 +361,7 @@ Service, then on each of your agents:
 The instructions in this section assume that you have configured the
 `teleport-cluster` Helm chart with a values file called `values.yaml`, and that
 your `teleport-cluster` release is called `teleport-cluster`. The Auth Service instances
-are restarted simultaneously during the upgrade so there is no need to shrink 
+are restarted simultaneously during the upgrade so there is no need to shrink
 the number of replicas.
 
 1. Update the Teleport Helm chart repository so you can install the latest

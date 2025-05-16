@@ -2969,6 +2969,10 @@
       "source": "/reference/introduction/",
       "destination": "/reference/",
       "permanent": true
+    },
+    {
+      "source": "/upgrading/automatic-agent-updates/",
+      "destination": "/upgrading/agent-managed-updates-v1/"
     }
   ]
 }
