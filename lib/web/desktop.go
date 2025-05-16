@@ -525,7 +525,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 
 	}
 
-	return trace.Wrap(tdpConnProxy.Run(ctx))
+	return trace.Wrap(tdpConnProxy.Run())
 }
 
 // handleProxyWebsocketConnErr handles the error returned by proxyWebsocketConn by

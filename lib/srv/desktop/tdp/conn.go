@@ -20,7 +20,6 @@ package tdp
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"io"
 	"net"
@@ -213,8 +212,8 @@ func (c *ConnProxy) SendToServer(message Message) error {
 }
 
 // Run starts proxying the connection.
-func (c *ConnProxy) Run(ctx context.Context) error {
-	errs, ctx := errgroup.WithContext(ctx)
+func (c *ConnProxy) Run() error {
+	var errs errgroup.Group
 
 	var closeOnce sync.Once
 	closeAll := func() {
