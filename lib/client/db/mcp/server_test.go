@@ -18,6 +18,8 @@ package mcp
 
 import (
 	"log/slog"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/ghodss/yaml"
@@ -38,6 +40,10 @@ func TestRegisterDatabase(t *testing.T) {
 		buildDatabase(t, "second"),
 		buildDatabase(t, "third"),
 	}
+	// sort databases by name to ensure the same order every test.
+	slices.SortFunc(databases, func(a *Database, b *Database) int {
+		return strings.Compare(a.ResourceURI(), b.ResourceURI())
+	})
 
 	for _, db := range databases {
 		server.RegisterDatabase(db)
@@ -48,6 +54,12 @@ func TestRegisterDatabase(t *testing.T) {
 		listResult, err := clt.ListResources(t.Context(), mcp.ListResourcesRequest{})
 		require.NoError(t, err)
 		require.Len(t, listResult.Resources, len(databases))
+
+		// sort the result using the same field as databases to avoid flaky
+		// test.
+		slices.SortFunc(listResult.Resources, func(a mcp.Resource, b mcp.Resource) int {
+			return strings.Compare(a.URI, b.URI)
+		})
 
 		for i, r := range listResult.Resources {
 			req := mcp.ReadResourceRequest{}
