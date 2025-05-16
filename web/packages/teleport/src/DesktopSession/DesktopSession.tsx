@@ -33,6 +33,7 @@ import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 import { adaptWebSocketToTdpTransport } from 'teleport/lib/tdp';
 import { shouldShowMfaPrompt, useMfaEmitter } from 'teleport/lib/useMfa';
 import { getHostName } from 'teleport/services/api';
+import auth from 'teleport/services/auth';
 
 export function DesktopSession() {
   const ctx = useTeleport();
@@ -72,10 +73,29 @@ export function DesktopSession() {
     }, [ctx.userService])
   );
 
-  const hasAnotherSession = useCallback(
-    () => ctx.desktopService.checkDesktopIsActive(clusterId, desktopName),
-    [clusterId, ctx.desktopService, desktopName]
-  );
+  // Returns an active session only if per-session MFA is disabled.
+  // This improves the user experience by preventing multiple confirmation prompts:
+  // - one from the active desktop alert,
+  // - another from the per-session MFA prompt.
+  // The check for another session was added to prevent a situation where a user could be tricked
+  // into clicking a link that would DOS another user's active session.
+  // https://github.com/gravitational/webapps/pull/1297
+  // Showing only the MFA prompt is enough for security.
+  const hasAnotherSession = useCallback(async (): Promise<boolean> => {
+    const [mfaRequiredResponse, desktopActive] = await Promise.all([
+      auth.checkMfaRequired(clusterId, {
+        windows_desktop: {
+          desktop_name: desktopName,
+          login: username,
+        },
+      }),
+      ctx.desktopService.checkDesktopIsActive(clusterId, desktopName),
+    ]);
+    if (mfaRequiredResponse.required) {
+      return false;
+    }
+    return desktopActive;
+  }, [clusterId, ctx.desktopService, desktopName, username]);
 
   useEffect(() => {
     fetchAcl();

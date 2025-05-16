@@ -49,8 +49,6 @@ type Access interface {
 	UpdateRole(ctx context.Context, role types.Role) (types.Role, error)
 	// UpsertRole creates or updates role.
 	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
-	// DeleteAllRoles deletes all roles.
-	DeleteAllRoles(ctx context.Context) error
 	// GetRole returns role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// DeleteRole deletes role by name.
@@ -61,8 +59,6 @@ type Access interface {
 	UpsertLock(context.Context, types.Lock) error
 	// DeleteLock deletes a lock.
 	DeleteLock(context.Context, string) error
-	// DeleteAllLocks deletes all/in-force locks.
-	DeleteAllLocks(context.Context) error
 	// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
 	ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error
 }

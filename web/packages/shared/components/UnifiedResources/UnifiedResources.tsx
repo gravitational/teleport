@@ -618,10 +618,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                   },
                 }),
                 key: generateUnifiedResourceKey(resource),
-                // TODO(kimlisa): teleterm will pass this field as "null"
-                // to add support later.
-                onShowStatusInfo: () =>
-                  onShowStatusInfo ? onShowStatusInfo(resource) : null,
+                onShowStatusInfo: () => onShowStatusInfo(resource),
                 showingStatusInfo:
                   infoGuideConfig?.id &&
                   infoGuideConfig.id === getResourceId(resource),
