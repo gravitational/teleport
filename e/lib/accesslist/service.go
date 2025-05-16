@@ -792,11 +792,6 @@ func (s *Service) emitDeleteAccessListUsageEvent(ctx context.Context, accessList
 	}
 }
 
-// DeleteAllAccessLists removes all access lists.
-func (s *Service) DeleteAllAccessLists(ctx context.Context, _ *accesslistv1.DeleteAllAccessListsRequest) (*emptypb.Empty, error) {
-	return nil, trace.NotImplemented("DeleteAllAccessLists not supported in the gRPC server")
-}
-
 // CountAccessListMembers will count all access list members.
 func (s *Service) CountAccessListMembers(ctx context.Context, req *accesslistv1.CountAccessListMembersRequest) (*accesslistv1.CountAccessListMembersResponse, error) {
 	_, err := s.authOrIsOwner(ctx, req.AccessListName, types.VerbRead)
@@ -1321,11 +1316,6 @@ func (s *Service) emitDeleteAllAccessListMembersForAccessListEvent(ctx context.C
 	if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
 		s.logger.WarnContext(ctx, "Failed to emit access list delete event", "error", emitErr)
 	}
-}
-
-// DeleteAllAccessListMembers hard deletes all access list members for all access lists (without deleting the access lists themselves).
-func (s *Service) DeleteAllAccessListMembers(_ context.Context, _ *accesslistv1.DeleteAllAccessListMembersRequest) (*emptypb.Empty, error) {
-	return nil, trace.NotImplemented("DeleteAllAccessListMembers not supported in the gRPC service")
 }
 
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.

@@ -970,7 +970,7 @@ func verifyServiceMatchesBackend(t *testing.T, ap *testAccessPoint, svc *accessL
 }
 
 func expectOktaAccessRequesterSearchAsRoles(t *testing.T, ctx context.Context, ap *testAccessPoint, expectedRoles ...string) {
-	role, err := ap.Access.GetRole(ctx, teleport.SystemOktaRequesterRoleName)
+	role, err := ap.AccessService.GetRole(ctx, teleport.SystemOktaRequesterRoleName)
 	require.NoError(t, err)
 	require.ElementsMatch(t, expectedRoles, role.GetSearchAsRoles(types.Allow))
 }

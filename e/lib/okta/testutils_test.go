@@ -46,7 +46,7 @@ type testAccessPoint struct {
 	events.Streamer
 	io.Closer
 	*local.DynamicAccessService
-	services.Access
+	*local.AccessService
 	services.AccessLists
 	services.ClusterConfiguration
 	services.ConnectionsDiagnostic
@@ -64,11 +64,16 @@ type testAccessPoint struct {
 	services.GitServerGetter
 	types.Events
 
+	clock         clockwork.Clock
 	serviceCounts map[types.SystemRole]uint64
 	mu            sync.Mutex
 }
 
 var _ authclient.OktaAccessPoint = (*testAccessPoint)(nil)
+
+func (t *testAccessPoint) Clock() clockwork.Clock {
+	return t.clock
+}
 
 func (*testAccessPoint) NewKeepAliver(context.Context) (types.KeepAliver, error) { return nil, nil }
 
@@ -141,9 +146,10 @@ func newTestAccessPoint(t testing.TB, clock clockwork.Clock) *testAccessPoint {
 	require.NoError(t, err)
 
 	client := &testAccessPoint{
+		clock:                                 clock,
 		Streamer:                              streamer,
 		Closer:                                io.NopCloser(nil),
-		Access:                                access,
+		AccessService:                         access,
 		AccessLists:                           accessLists,
 		ClusterConfiguration:                  clusterConfiguration,
 		ConnectionsDiagnostic:                 connectionsDiagnostic,

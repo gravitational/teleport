@@ -38,12 +38,6 @@ import (
 
 func TestGroupImportAndEmitStatus(t *testing.T) {
 	ctx := context.Background()
-	statusSink := &integration.FakeStatusSink{}
-	tEnv, err := newTEnv(t, statusSink)
-	require.NoError(t, err)
-
-	createRoles(t, ctx, tEnv.service.rolesSvc)
-	createUsers(t, ctx, tEnv.service.usersSvc)
 
 	var (
 		account1 = &icsdk.Account{Name: "Account1", ID: "1111111111", ARN: "arn:aws:iam::1111111111:account/Account1"}
@@ -356,11 +350,12 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Cleanup(func() {
-				// the tEnv is persisted across tests, so we need to make sure
-				// that any pollution is cleaned up
-				require.NoError(t, tEnv.service.accessListSvc.DeleteAllAccessLists(ctx))
-			})
+			statusSink := &integration.FakeStatusSink{}
+			tEnv, err := newTEnv(t, statusSink)
+			require.NoError(t, err)
+
+			createRoles(t, ctx, tEnv.service.rolesSvc)
+			createUsers(t, ctx, tEnv.service.usersSvc)
 
 			mockState := icsdk.NewMockedAWSState()
 			mockState.Accounts = tc.icData.Accounts
