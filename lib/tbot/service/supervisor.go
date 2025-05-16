@@ -32,6 +32,14 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/service/status"
 )
 
+// backoffResetPeriod is the amount of time a service's handler needs to run
+// before exiting for us to consider it "stable" and reset the retry backoff.
+//
+// Resetting the backoff avoids a potential issue where a service fails many
+// times in quick succession (e.g. during a network partition), stabilizes, but
+// later fails again and is penalized for its earlier failures.
+const backoffResetPeriod = 10 * time.Minute
+
 // Supervisor is responsible for managing the lifecycle of tbot's component
 // services.
 type Supervisor struct {
@@ -181,7 +189,10 @@ func (s *Supervisor) superviseService(ctx context.Context, svc InternalService) 
 	}
 
 	for {
+		start := time.Now()
 		err := svc.runHandler(ctx, &Runtime{setStatusFn: setStatus})
+		duration := time.Since(start)
+
 		setStatus(status.Failed)
 
 		if IsIrrecoverableError(err) {
@@ -189,6 +200,10 @@ func (s *Supervisor) superviseService(ctx context.Context, svc InternalService) 
 			return err
 		} else {
 			logger.InfoContext(ctx, "Service exited", "error", err)
+		}
+
+		if duration >= backoffResetPeriod {
+			retry.Reset()
 		}
 
 		retry.Inc()
