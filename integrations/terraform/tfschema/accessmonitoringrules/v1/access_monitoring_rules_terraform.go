@@ -101,7 +101,7 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 				"automatic_review": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"decision": {
-							Description: "decision specifies the proposed state of the access review. This can be either 'approved' or 'denied'.",
+							Description: "decision specifies the proposed state of the access review. This can be either 'APPROVED' or 'DENIED'.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
