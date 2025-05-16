@@ -77,7 +77,7 @@ func Connect(ctx context.Context, stream grpc.BidiStreamingServer[api.ConnectToD
 	}
 
 	tdpConnProxy := tdp.NewConnProxy(downstreamRW, conn, nil)
-	return trace.Wrap(tdpConnProxy.Run(ctx))
+	return trace.Wrap(tdpConnProxy.Run())
 }
 
 // clientStream implements the [streamutils.Source] interface
