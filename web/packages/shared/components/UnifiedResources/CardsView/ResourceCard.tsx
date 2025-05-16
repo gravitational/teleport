@@ -176,17 +176,11 @@ export function ResourceCard({
           requiresRequest={requiresRequest}
           selected={selected}
         >
-          <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
-            <CheckboxInput
-              css={`
-                position: absolute;
-                top: 16px;
-                left: 16px;
-              `}
-              checked={selected}
-              onChange={selectResource}
-            />
-          </HoverTooltip>
+          <CheckboxInput
+            checked={selected}
+            onChange={selectResource}
+            style={{ position: 'absolute', top: '16px', left: '16px' }}
+          />
           <Box
             css={`
               position: absolute;
