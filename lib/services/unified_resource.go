@@ -22,6 +22,7 @@ import (
 	"context"
 	"iter"
 	"log/slog"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -66,7 +67,7 @@ type UnifiedResourceCache struct {
 	typeTree *btree.BTreeG[*item]
 	// resources is a map of all resources currently tracked in the tree
 	// the key is always name/type
-	resources       map[string]resource
+	resources       map[string]*resourceCollection
 	initializationC chan struct{}
 	stale           bool
 	once            sync.Once
@@ -98,7 +99,7 @@ func NewUnifiedResourceCache(ctx context.Context, cfg UnifiedResourceCacheConfig
 		typeTree: btree.NewG(cfg.BTreeDegree, func(a, b *item) bool {
 			return a.Less(b)
 		}),
-		resources:       make(map[string]resource),
+		resources:       make(map[string]*resourceCollection),
 		initializationC: make(chan struct{}),
 		ResourceGetter:  cfg.ResourceGetter,
 		cache:           lazyCache,
@@ -128,31 +129,28 @@ func (cfg *UnifiedResourceCacheConfig) CheckAndSetDefaults() error {
 func (c *UnifiedResourceCache) putLocked(resource resource) {
 	key := resourceKey(resource)
 	sortKey := makeResourceSortKey(resource)
-	oldResource, exists := c.resources[key]
+	collection, exists := c.resources[key]
 	if exists {
 		// If the resource has changed in such a way that the sort keys
 		// for the nameTree or typeTree change, remove the old entries
 		// from those trees before adding a new one. This can happen
 		// when a node's hostname changes
-		oldSortKey := makeResourceSortKey(oldResource)
-		if oldSortKey.byName.Compare(sortKey.byName) != 0 {
-			c.deleteSortKey(oldSortKey)
+		if collection.sortKey.byName.Compare(sortKey.byName) != 0 {
+			c.deleteSortKey(collection.sortKey)
 		}
+		collection.sortKey = sortKey
+	} else {
+		collection = newResourceCollection(resource.GetKind(), sortKey)
+		c.resources[key] = collection
 	}
-	c.resources[key] = resource
+	collection.put(resource)
 	c.nameTree.ReplaceOrInsert(&item{Key: sortKey.byName, Value: key})
 	c.typeTree.ReplaceOrInsert(&item{Key: sortKey.byType, Value: key})
 }
 
 func putResources[T resource](cache *UnifiedResourceCache, resources []T) {
 	for _, resource := range resources {
-		// generate the unique resource key and add the resource to the resources map
-		key := resourceKey(resource)
-		cache.resources[key] = resource
-
-		sortKey := makeResourceSortKey(resource)
-		cache.nameTree.ReplaceOrInsert(&item{Key: sortKey.byName, Value: key})
-		cache.typeTree.ReplaceOrInsert(&item{Key: sortKey.byType, Value: key})
+		cache.putLocked(resource)
 	}
 }
 
@@ -168,14 +166,16 @@ func (c *UnifiedResourceCache) deleteSortKey(sortKey resourceSortKey) error {
 
 func (c *UnifiedResourceCache) deleteLocked(res types.Resource) error {
 	key := resourceKey(res)
-	resource, exists := c.resources[key]
+	collection, exists := c.resources[key]
 	if !exists {
 		return trace.NotFound("cannot delete resource: key %s not found in unified resource cache", key)
 	}
 
-	sortKey := makeResourceSortKey(resource)
-	c.deleteSortKey(sortKey)
-	delete(c.resources, key)
+	collection.removeLocked(res)
+	if len(collection.servers) == 0 {
+		c.deleteSortKey(collection.sortKey)
+		delete(c.resources, key)
+	}
 	return nil
 }
 
@@ -191,8 +191,8 @@ func (c *UnifiedResourceCache) getSortTree(sortField string) (*btree.BTreeG[*ite
 }
 
 type iteratedItem struct {
-	resource resource
-	key      backend.Key
+	collection *resourceCollection
+	key        backend.Key
 }
 
 // iterateItems is a helper for iterating the correct cache, in the correct order
@@ -244,13 +244,13 @@ func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, s
 						}
 					}
 
-					r, ok := cache.resources[item.Value]
+					collection, ok := cache.resources[item.Value]
 					if !ok {
 						return true
 					}
 
-					if len(kinds) == 0 || c.itemKindMatches(r, kindsMap) {
-						items = append(items, iteratedItem{key: item.Key, resource: r})
+					if len(kinds) == 0 || c.itemKindMatches(collection.getKind(), kindsMap) {
+						items = append(items, iteratedItem{key: item.Key, collection: collection.copyLocked()})
 					}
 
 					if len(items) >= defaultPageSize {
@@ -294,7 +294,7 @@ func (c *UnifiedResourceCache) Resources(ctx context.Context, start string, sort
 				return
 			}
 
-			if !yield(item.resource.CloneResource(), nil) {
+			if !yield(item.collection.cloneResource(), nil) {
 				return
 			}
 		}
@@ -395,24 +395,26 @@ func iterateUnifiedResourceCache[T any](ctx context.Context, c *UnifiedResourceC
 				return
 			}
 
-			if !yield(cloneFn(i.resource.(T)), nil) {
+			if !yield(cloneFn(i.collection.latest.(T)), nil) {
 				return
 			}
 		}
 	}
 }
 
+type resourceMatchFunc func(types.ResourceWithLabels) (bool, error)
+
 // IterateUnifiedResources allows building a custom page of resources. All items within the
 // range and limit of the request are passed to the matchFn. Only those resource which
 // have a true value returned from the matchFn are included in the returned page.
-func (c *UnifiedResourceCache) IterateUnifiedResources(ctx context.Context, matchFn func(types.ResourceWithLabels) (bool, error), req *proto.ListUnifiedResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+func (c *UnifiedResourceCache) IterateUnifiedResources(ctx context.Context, matchFn resourceMatchFunc, req *proto.ListUnifiedResourcesRequest) ([]types.ResourceWithLabels, string, error) {
 	var resources []types.ResourceWithLabels
 	for item, err := range c.iterateItems(ctx, req.StartKey, req.SortBy, req.Kinds...) {
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 
-		match, err := matchFn(item.resource)
+		resource, match, err := item.collection.match(matchFn)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -422,22 +424,22 @@ func (c *UnifiedResourceCache) IterateUnifiedResources(ctx context.Context, matc
 				return resources, item.key.String(), nil
 			}
 
-			resources = append(resources, item.resource.CloneResource())
+			resources = append(resources, item.collection.cloneWithResource(resource))
 		}
 	}
 
 	return resources, "", nil
 }
 
-func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]struct{}) bool {
-	switch r.GetKind() {
+func (c *UnifiedResourceCache) itemKindMatches(kind string, kinds map[string]struct{}) bool {
+	switch kind {
 	case types.KindNode,
 		types.KindWindowsDesktop,
 		types.KindIdentityCenterAccountAssignment,
 		types.KindGitServer,
 		types.KindDatabase,
 		types.KindKubernetesCluster:
-		_, ok := kinds[r.GetKind()]
+		_, ok := kinds[kind]
 		return ok
 	case types.KindIdentityCenterAccount:
 		if _, ok := kinds[types.KindApp]; ok {
@@ -501,7 +503,7 @@ func (c *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types
 }
 
 // GetUnifiedResourcesByIDs will take a list of ids and return any items found in the unifiedResourceCache tree by id and that return true from matchFn
-func (c *UnifiedResourceCache) GetUnifiedResourcesByIDs(ctx context.Context, ids []string, matchFn func(types.ResourceWithLabels) (bool, error)) ([]types.ResourceWithLabels, error) {
+func (c *UnifiedResourceCache) GetUnifiedResourcesByIDs(ctx context.Context, ids []string, matchFn resourceMatchFunc) ([]types.ResourceWithLabels, error) {
 	var resources []types.ResourceWithLabels
 
 	err := c.read(ctx, func(cache *UnifiedResourceCache) error {
@@ -511,13 +513,16 @@ func (c *UnifiedResourceCache) GetUnifiedResourcesByIDs(ctx context.Context, ids
 			if !found || res == nil {
 				continue
 			}
-			resource := cache.resources[res.Value]
-			match, err := matchFn(resource)
+			collection, ok := cache.resources[res.Value]
+			if !ok {
+				continue
+			}
+			resource, match, err := collection.match(matchFn)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			if match {
-				resources = append(resources, resource.CloneResource())
+				resources = append(resources, collection.cloneWithResource(resource))
 			}
 		}
 		return nil
@@ -705,20 +710,7 @@ func (c *UnifiedResourceCache) getDatabaseServers(ctx context.Context) ([]types.
 	if err != nil {
 		return nil, trace.Wrap(err, "getting database servers for unified resource watcher")
 	}
-	// because it's possible to have multiple replicas of a database server serving the same database
-	// we only want to store one based on its internal database resource
-	unique := map[string]struct{}{}
-	resources := make([]types.DatabaseServer, 0, len(newDbs))
-	for _, dbServer := range newDbs {
-		db := dbServer.GetDatabase()
-		if _, ok := unique[db.GetName()]; ok {
-			continue
-		}
-		unique[db.GetName()] = struct{}{}
-		resources = append(resources, dbServer)
-	}
-
-	return resources, nil
+	return newDbs, nil
 }
 
 // getKubeServers will get all kube servers
@@ -727,18 +719,7 @@ func (c *UnifiedResourceCache) getKubeServers(ctx context.Context) ([]types.Kube
 	if err != nil {
 		return nil, trace.Wrap(err, "getting kube servers for unified resource watcher")
 	}
-	unique := map[string]struct{}{}
-	resources := make([]types.KubeServer, 0, len(newKubes))
-	for _, kubeServer := range newKubes {
-		cluster := kubeServer.GetCluster()
-		if _, ok := unique[cluster.GetName()]; ok {
-			continue
-		}
-		unique[cluster.GetName()] = struct{}{}
-		resources = append(resources, kubeServer)
-	}
-
-	return resources, nil
+	return newKubes, nil
 }
 
 // getAppServers will get all application servers
@@ -747,18 +728,7 @@ func (c *UnifiedResourceCache) getAppServers(ctx context.Context) ([]types.AppSe
 	if err != nil {
 		return nil, trace.Wrap(err, "getting app servers for unified resource watcher")
 	}
-	unique := map[string]struct{}{}
-	resources := make([]types.AppServer, 0, len(newApps))
-	for _, appServer := range newApps {
-		app := appServer.GetApp()
-		if _, ok := unique[app.GetName()]; ok {
-			continue
-		}
-		unique[app.GetName()] = struct{}{}
-		resources = append(resources, appServer)
-	}
-
-	return resources, nil
+	return newApps, nil
 }
 
 // getDesktops will get all windows desktops
@@ -872,7 +842,7 @@ func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedR
 			typeTree: btree.NewG(c.cfg.BTreeDegree, func(a, b *item) bool {
 				return a.Less(b)
 			}),
-			resources:       make(map[string]resource),
+			resources:       make(map[string]*resourceCollection),
 			ResourceGetter:  c.ResourceGetter,
 			initializationC: make(chan struct{}),
 		}
@@ -996,6 +966,159 @@ func (i *item) Less(iother btree.Item) bool {
 type resource interface {
 	types.ResourceWithLabels
 	CloneResource() types.ResourceWithLabels
+}
+
+// resourceCollection is a resource and collection of servers for that resource.
+type resourceCollection struct {
+	// latest is the last resource added to the collection.
+	latest resource
+	// isResourceServer is set to avoid dynamic casts on every put/remove op.
+	isResourceServer bool
+	// supportsHealthStatus is true if the resource implements
+	// [types.TargetHealthGetter] to avoid dynamic casts on every put/remove op.
+	supportsHealthStatus bool
+	// servers is a list of servers (heartbeats) for the resource. This is only
+	// populated for resources that can have multiple heartbeats like databases,
+	// kube clusters, apps, or windows desktops.
+	servers   map[string]serverWithHealthStatus
+	aggregate types.TargetHealthStatus
+	sortKey   resourceSortKey
+}
+
+func (c *resourceCollection) copyLocked() *resourceCollection {
+	return &resourceCollection{
+		latest:               c.latest,
+		isResourceServer:     c.isResourceServer,
+		supportsHealthStatus: c.supportsHealthStatus,
+		servers:              maps.Clone(c.servers),
+		aggregate:            c.aggregate,
+		sortKey:              c.sortKey,
+	}
+}
+
+type serverWithHealthStatus struct {
+	server resourceServer
+	status types.TargetHealthStatus
+}
+
+type resourceServer interface {
+	resource
+	GetHostID() string
+}
+
+func newResourceCollection(kind string, sortKey resourceSortKey) *resourceCollection {
+	return &resourceCollection{
+		sortKey:              sortKey,
+		isResourceServer:     isResourceServer(kind),
+		supportsHealthStatus: isTargetHealthGetter(kind),
+		servers:              make(map[string]serverWithHealthStatus),
+	}
+}
+
+func isResourceServer(kind string) bool {
+	switch kind {
+	case types.KindAppServer,
+		types.KindDatabaseServer,
+		types.KindKubeServer,
+		types.KindWindowsDesktop:
+		return true
+	default:
+		return false
+	}
+}
+
+func isTargetHealthGetter(kind string) bool {
+	switch kind {
+	case types.KindDatabaseServer:
+		return true
+	default:
+		return false
+	}
+}
+
+func (c *resourceCollection) put(r resource) {
+	c.latest = r
+	if !c.isResourceServer {
+		return
+	}
+	if rs, ok := r.(resourceServer); ok {
+		id := rs.GetHostID()
+		server := serverWithHealthStatus{
+			server: rs,
+		}
+		if r, ok := r.(types.TargetHealthChecker); ok {
+			server.status = types.TargetHealthStatus(r.GetTargetHealth().Status).Canonical()
+			c.servers[id] = server
+			c.computeHealthStatusLocked()
+			return
+		}
+		c.servers[id] = server
+	}
+}
+
+func (c *resourceCollection) removeLocked(r types.Resource) {
+	// This looks insane, but we only get a [types.ResourceHeader] in
+	// [types.OpDelete] events.
+	// The types that actually implement [resourceServer] all store the host ID
+	// in the description of the resource header metadata on deletion.
+	// If a new type is added that implements [resourceServer] and the
+	// unified resource watchers starts watching it, then please:
+	// - add it to the isResourceServer helper func
+	// - ensure host ID is stored in the metadata description in its event parser
+	// - add test coverage for it in TestUnifiedResourceWatcher_DeleteEvent
+	if c.isResourceServer {
+		delete(c.servers, r.GetMetadata().Description)
+		c.computeHealthStatusLocked()
+		return
+	}
+}
+
+func (c *resourceCollection) computeHealthStatusLocked() {
+	statuses := make(types.TargetHealthStatuses, 0, len(c.servers))
+	for _, s := range c.servers {
+		statuses = append(statuses, s.status)
+	}
+	c.aggregate = statuses.Aggregate()
+}
+
+func (c *resourceCollection) getKind() string {
+	return c.latest.GetKind()
+}
+
+func (c *resourceCollection) match(fn resourceMatchFunc) (resource, bool, error) {
+	if !c.isResourceServer {
+		match, err := fn(c.latest)
+		return c.latest, match, trace.Wrap(err)
+	}
+
+	for _, r := range c.servers {
+		match, err := fn(r.server)
+		switch {
+		case err != nil:
+			return nil, false, trace.Wrap(err)
+		case match:
+			return r.server, true, nil
+		}
+	}
+
+	return c.latest, false, nil
+}
+
+func (c *resourceCollection) cloneResource() types.ResourceWithLabels {
+	return c.cloneWithResource(c.latest)
+}
+
+func (c *resourceCollection) cloneWithResource(r resource) types.ResourceWithLabels {
+	out := r.CloneResource()
+	if c.supportsHealthStatus {
+		// it's tautological to check the type cast, but let's not risk a panic
+		if out, ok := out.(types.TargetHealthChecker); ok {
+			health := out.GetTargetHealth()
+			health.Status = string(c.aggregate)
+			out.SetTargetHealth(health)
+		}
+	}
+	return out
 }
 
 type item struct {

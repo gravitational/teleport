@@ -1368,7 +1368,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		Database: db,
 	})
 	require.NoError(t, err)
-	dbServer.SetTargetHealth(types.TargetHealth{Status: "testing-status"})
+	dbServer.SetTargetHealth(types.TargetHealth{Status: "healthy"})
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
 	require.NoError(t, err)
 
@@ -1444,7 +1444,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		Protocol:     "test-protocol",
 		Hostname:     "test-uri",
 		URI:          "test-uri",
-		TargetHealth: types.TargetHealth{Status: "testing-status"},
+		TargetHealth: types.TargetHealth{Status: "healthy"},
 	}})
 
 	// should return first page and have a second page
@@ -4139,7 +4139,7 @@ func TestClusterDatabasesGet_NoRole(t *testing.T) {
 		Database: db,
 	})
 	require.NoError(t, err)
-	dbServer.SetTargetHealth(types.TargetHealth{Status: "testing-status"})
+	dbServer.SetTargetHealth(types.TargetHealth{Status: "healthy"})
 
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
 	require.NoError(t, err)
@@ -4159,7 +4159,7 @@ func TestClusterDatabasesGet_NoRole(t *testing.T) {
 		Protocol:     "test-protocol",
 		Hostname:     "test-uri",
 		URI:          "test-uri:1234",
-		TargetHealth: types.TargetHealth{Status: "testing-status"},
+		TargetHealth: types.TargetHealth{Status: "healthy"},
 	}})
 }
 

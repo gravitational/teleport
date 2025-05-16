@@ -38,7 +38,44 @@ const (
 	TargetHealthStatusUnhealthy TargetHealthStatus = "unhealthy"
 	// TargetHealthStatusUnknown indicates that an unknown health check target health status.
 	TargetHealthStatusUnknown TargetHealthStatus = "unknown"
+	// TargetHealthStatusMixed indicates the resource has a mix of health
+	// statuses. This can happen when multiple agents proxy the same resource.
+	TargetHealthStatusMixed TargetHealthStatus = "mixed"
 )
+
+// Canonical converts a status into its canonical form.
+// An empty or unknown status is converted to [TargetHealthStatusUnknown].
+func (s TargetHealthStatus) Canonical() TargetHealthStatus {
+	switch s {
+	case TargetHealthStatusHealthy, TargetHealthStatusUnhealthy:
+		return s
+	default:
+		return TargetHealthStatusUnknown
+	}
+}
+
+// TargetHealthStatuses is a list of [TargetHealthStatus].
+type TargetHealthStatuses []TargetHealthStatus
+
+// Aggregates health statuses into a single status. If there are a mix of
+// different statuses then the aggregate status is "mixed".
+func (ss TargetHealthStatuses) Aggregate() TargetHealthStatus {
+	switch len(ss) {
+	case 0:
+		// the canonical form of aggregating 0 statuses.
+		return TargetHealthStatusUnknown
+	case 1:
+		return ss[0].Canonical()
+	default:
+		first := ss[0].Canonical()
+		for _, s := range ss[1:] {
+			if first != s.Canonical() {
+				return TargetHealthStatusMixed
+			}
+		}
+		return first
+	}
+}
 
 // TargetHealthTransitionReason is the reason for the target health status
 // transition.
@@ -72,6 +109,12 @@ type TargetHealthGetter interface {
 	GetTargetHealth() TargetHealth
 }
 
+// TargetHealthChecker is a health checked resource.
+type TargetHealthChecker interface {
+	TargetHealthGetter
+	SetTargetHealth(TargetHealth)
+}
+
 // GroupByTargetHealth groups resources by target health and returns [TargetHealthGroups].
 func GroupByTargetHealth[T TargetHealthGetter](resources []T) TargetHealthGroups[T] {
 	var groups TargetHealthGroups[T]
@@ -96,9 +139,14 @@ type TargetHealthGroups[T TargetHealthGetter] struct {
 	// Unhealthy is the resources with [TargetHealthStatusUnhealthy].
 	Unhealthy []T
 	// Unknown is the resources with any status that isn't healthy or unhealthy.
-	// Namely [TargetHealthStatusUnknown] and the empty string are grouped
-	// together.
+	// Namely [TargetHealthStatusUnknown], [TargetHealthStatusMixed], and the
+	// empty string are grouped together.
 	// Agents running with a version prior to health checks will always report
 	// an empty health status.
+	// A mixed status should only be set if health status for multiple servers
+	// are aggregated. An aggregated mixed status is equivalent to "unknown"
+	// because the underlying statuses that compose the mix are not known,
+	// although it really doesn't make sense to aggregate the health status
+	// before grouping it (please don't do that).
 	Unknown []T
 }

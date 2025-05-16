@@ -85,3 +85,52 @@ func TestGroupByTargetHealth(t *testing.T) {
 		)
 	}
 }
+
+func TestTargetHealthStatusCanonical(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    TargetHealthStatus
+		expected TargetHealthStatus
+	}{
+		{"healthy remains healthy", TargetHealthStatusHealthy, TargetHealthStatusHealthy},
+		{"unhealthy remains unhealthy", TargetHealthStatusUnhealthy, TargetHealthStatusUnhealthy},
+		{"unknown becomes unknown", TargetHealthStatusUnknown, TargetHealthStatusUnknown},
+		{"mixed becomes unknown", TargetHealthStatusMixed, TargetHealthStatusUnknown},
+		{"empty string becomes unknown", TargetHealthStatus(""), TargetHealthStatusUnknown},
+		{"random string becomes unknown", TargetHealthStatus("invalid"), TargetHealthStatusUnknown},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := test.input.Canonical()
+			require.Equal(t, test.expected, actual)
+		})
+	}
+}
+
+func TestTargetHealthStatusesAggregate(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    TargetHealthStatuses
+		expected TargetHealthStatus
+	}{
+		{"empty list returns unknown", TargetHealthStatuses{}, TargetHealthStatusUnknown},
+		{"one healthy", TargetHealthStatuses{TargetHealthStatusHealthy}, TargetHealthStatusHealthy},
+		{"one unhealthy", TargetHealthStatuses{TargetHealthStatusUnhealthy}, TargetHealthStatusUnhealthy},
+		{"one unknown", TargetHealthStatuses{TargetHealthStatusUnknown}, TargetHealthStatusUnknown},
+		{"one mixed", TargetHealthStatuses{TargetHealthStatusMixed}, TargetHealthStatusUnknown},
+		{"all healthy", TargetHealthStatuses{TargetHealthStatusHealthy, TargetHealthStatusHealthy}, TargetHealthStatusHealthy},
+		{"all unhealthy", TargetHealthStatuses{TargetHealthStatusUnhealthy, TargetHealthStatusUnhealthy}, TargetHealthStatusUnhealthy},
+		{"all unknown", TargetHealthStatuses{TargetHealthStatusUnknown, TargetHealthStatusUnknown}, TargetHealthStatusUnknown},
+		{"all empty", TargetHealthStatuses{"", ""}, TargetHealthStatusUnknown},
+		{"empty and unknown", TargetHealthStatuses{"", TargetHealthStatusUnknown}, TargetHealthStatusUnknown},
+		{"healthy and unhealthy", TargetHealthStatuses{TargetHealthStatusHealthy, TargetHealthStatusUnhealthy}, TargetHealthStatusMixed},
+		{"unhealthy and unknown", TargetHealthStatuses{TargetHealthStatusUnhealthy, TargetHealthStatusUnknown}, TargetHealthStatusMixed},
+		{"healthy and unhealthy and unknown", TargetHealthStatuses{TargetHealthStatusHealthy, TargetHealthStatusUnhealthy, TargetHealthStatusUnknown}, TargetHealthStatusMixed},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := test.input.Aggregate()
+			require.Equal(t, test.expected, actual)
+		})
+	}
+}
