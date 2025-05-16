@@ -729,7 +729,7 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(out, v2))
 
-	// Test delete all tokens
+	// Test delete tokens
 	tok, err = types.NewProvisionToken("token1", types.SystemRoles{types.RoleAuth, types.RoleNode}, time.Time{})
 	require.NoError(t, err)
 	require.NoError(t, s.ProvisioningS.UpsertToken(ctx, tok))
@@ -742,7 +742,10 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, tokens, 2)
 
-	err = s.ProvisioningS.DeleteAllTokens()
+	err = s.ProvisioningS.DeleteToken(ctx, tokens[0].GetName())
+	require.NoError(t, err)
+
+	err = s.ProvisioningS.DeleteToken(ctx, tokens[1].GetName())
 	require.NoError(t, err)
 
 	tokens, err = s.ProvisioningS.GetTokens(ctx)

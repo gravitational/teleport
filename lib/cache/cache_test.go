@@ -104,48 +104,47 @@ type testPack struct {
 	cache        *Cache
 	cacheBackend backend.Backend
 
-	eventsS        *proxyEvents
-	trustS         services.Trust
-	provisionerS   services.Provisioner
-	clusterConfigS services.ClusterConfigurationInternal
-
-	usersS                  services.UsersService
-	accessS                 services.Access
-	dynamicAccessS          services.DynamicAccessCore
-	presenceS               services.Presence
-	appSessionS             services.AppSession
-	snowflakeSessionS       services.SnowflakeSession
-	samlIdPSessionsS        services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
-	restrictions            services.Restrictions
-	apps                    services.Apps
-	kubernetes              services.Kubernetes
-	databases               services.Databases
-	databaseServices        services.DatabaseServices
+	eventsS                 *proxyEvents
+	trustS                  *local.CA
+	provisionerS            *local.ProvisioningService
+	clusterConfigS          *local.ClusterConfigurationService
+	usersS                  *local.IdentityService
+	accessS                 *local.AccessService
+	dynamicAccessS          *local.DynamicAccessService
+	presenceS               *local.PresenceService
+	appSessionS             *local.IdentityService
+	snowflakeSessionS       *local.IdentityService
+	samlIdPSessionsS        *local.IdentityService
+	restrictions            *local.RestrictionsService
+	apps                    *local.AppService
+	kubernetes              *local.KubernetesService
+	databases               *local.DatabaseService
+	databaseServices        *local.DatabaseServicesService
 	webSessionS             types.WebSessionInterface
 	webTokenS               types.WebTokenInterface
-	windowsDesktops         services.WindowsDesktops
-	dynamicWindowsDesktops  services.DynamicWindowsDesktops
-	samlIDPServiceProviders services.SAMLIdPServiceProviders
-	userGroups              services.UserGroups
-	okta                    services.Okta
-	integrations            services.Integrations
-	userTasks               services.UserTasks
-	discoveryConfigs        services.DiscoveryConfigs
-	userLoginStates         services.UserLoginStates
-	secReports              services.SecReports
-	accessLists             services.AccessLists
-	kubeWaitingContainers   services.KubeWaitingContainer
-	notifications           services.Notifications
-	accessMonitoringRules   services.AccessMonitoringRules
-	crownJewels             services.CrownJewels
-	databaseObjects         services.DatabaseObjects
+	windowsDesktops         *local.WindowsDesktopService
+	dynamicWindowsDesktops  *local.DynamicWindowsDesktopService
+	samlIDPServiceProviders *local.SAMLIdPServiceProviderService
+	userGroups              *local.UserGroupService
+	okta                    *local.OktaService
+	integrations            *local.IntegrationsService
+	userTasks               *local.UserTasksService
+	discoveryConfigs        *local.DiscoveryConfigService
+	userLoginStates         *local.UserLoginStateService
+	secReports              *local.SecReportsService
+	accessLists             *local.AccessListService
+	kubeWaitingContainers   *local.KubeWaitingContainerService
+	notifications           *local.NotificationsService
+	accessMonitoringRules   *local.AccessMonitoringRulesService
+	crownJewels             *local.CrownJewelsService
+	databaseObjects         *local.DatabaseObjectService
 	spiffeFederations       *local.SPIFFEFederationService
 	staticHostUsers         *local.StaticHostUserService
-	autoUpdateService       services.AutoUpdateService
-	provisioningStates      services.ProvisioningStates
-	identityCenter          services.IdentityCenter
+	autoUpdateService       *local.AutoUpdateService
+	provisioningStates      *local.ProvisioningStateService
+	identityCenter          *local.IdentityCenterService
 	pluginStaticCredentials *local.PluginStaticCredentialsService
-	gitServers              services.GitServers
+	gitServers              *local.GitServerService
 	workloadIdentity        *local.WorkloadIdentityService
 	healthCheckConfig       *local.HealthCheckConfigService
 }
