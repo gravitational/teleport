@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
@@ -486,7 +487,8 @@ func (s *WindowsService) newSessionRecorder(recConfig types.SessionRecordingConf
 		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentWindowsDesktop),
 		// Session stream is using server context, not session context,
 		// to make sure that session is uploaded even after it is closed
-		Context: s.closeCtx,
+		Context:   s.closeCtx,
+		Encrypter: recordingencryption.NewEncryptionWrapper(recConfig),
 	})
 }
 

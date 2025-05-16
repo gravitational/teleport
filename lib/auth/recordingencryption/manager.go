@@ -272,8 +272,6 @@ func (m *Manager) searchActiveKeys(ctx context.Context, activeKeys []*recordinge
 			continue
 		}
 
-		// TODO (eriktate): this is a bit of a hack to allow encryption to work while the public key isn't retrievable
-		// from the age header
 		if publicKey != nil {
 			if !slices.Equal(key.RecordingEncryptionPair.PublicKey, publicKey) {
 				continue

@@ -19,6 +19,7 @@
 package events
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -620,6 +622,67 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	}()
 
 	return c, e
+}
+
+// UploadEncryptedRecording uploads recording parts provided over a channel using the
+// configured MultipartUploader.
+func UploadEncryptedRecording(ctx context.Context, uploader MultipartUploader) (chan *recordingencryptionv1.UploadEncryptedRecordingRequest, chan error) {
+	inputCh := make(chan *recordingencryptionv1.UploadEncryptedRecordingRequest)
+	errCh := make(chan error)
+
+	go func() (err error) {
+		defer func() {
+			errCh <- err
+		}()
+
+		var upload *StreamUpload
+		var parts []StreamPart
+		var req *recordingencryptionv1.UploadEncryptedRecordingRequest
+		moreParts := true
+		for moreParts {
+			if err := uploader.ReserveUploadPart(ctx, *upload, req.PartIndex+1); err != nil {
+				return trace.Wrap(err)
+			}
+
+			select {
+			case req, moreParts = <-inputCh:
+				if !moreParts {
+					break
+				}
+
+				if upload == nil {
+					sessID, err := session.ParseID(req.SessionId)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+
+					upload, err = uploader.CreateUpload(ctx, *sessID)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					continue
+				}
+
+				part, err := uploader.UploadPart(ctx, *upload, req.PartIndex, bytes.NewReader(req.Part))
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				parts = append(parts, *part)
+
+			case <-ctx.Done():
+				return trace.Wrap(ctx.Err())
+			}
+		}
+		return trace.Wrap(uploader.CompleteUpload(ctx, *upload, parts))
+	}()
+
+	return inputCh, errCh
+}
+
+// UploadEncryptedRecording uploads encrypted recordings using the AuditLog's configured
+// UploadHandler.
+func (l *AuditLog) UploadEncryptedRecording(ctx context.Context) (chan *recordingencryptionv1.UploadEncryptedRecordingRequest, chan error) {
+	return UploadEncryptedRecording(ctx, l.UploadHandler)
 }
 
 // getLocalLog returns the local (file based) AuditLogger.

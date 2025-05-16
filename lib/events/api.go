@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	recordingencryptionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1107,6 +1108,7 @@ type StreamEmitter interface {
 type AuditLogSessionStreamer interface {
 	AuditLogger
 	SessionStreamer
+	EncryptedRecordingUploader
 }
 
 // SessionStreamer supports streaming session chunks or events.
@@ -1119,6 +1121,10 @@ type SessionStreamer interface {
 	// is exhausted or the error channel reports an error, or until the context
 	// is canceled.
 	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
+}
+
+type EncryptedRecordingUploader interface {
+	UploadEncryptedRecording(ctx context.Context) (chan *recordingencryptionpb.UploadEncryptedRecordingRequest, chan error)
 }
 
 type SearchEventsRequest struct {
