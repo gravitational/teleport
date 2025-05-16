@@ -123,10 +123,10 @@ func (s *Service[HandlerT]) Wait(ctx context.Context) (HandlerT, error) {
 // If the service finishes running before reaching the desired status (i.e. in
 // one-shot mode), ErrWrongStatus will be returned.
 func (s *Service[HandlerT]) WaitForStatus(ctx context.Context, statuses ...status.Status) (HandlerT, error) {
-	current, watcher := s.status.Watch()
-	defer watcher.Close()
+	notifCh, close := s.status.ChangeNotifications()
+	defer close()
 
-	if slices.Contains(statuses, current) {
+	if slices.Contains(statuses, s.status.Get()) {
 		return s.handler, nil
 	}
 
@@ -134,7 +134,7 @@ func (s *Service[HandlerT]) WaitForStatus(ctx context.Context, statuses ...statu
 	for {
 		var finalValue, ctxDone bool
 		select {
-		case <-watcher.Ready():
+		case <-notifCh:
 			// New value ready.
 		case <-s.done:
 			finalValue = true

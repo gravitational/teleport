@@ -18,12 +18,10 @@
 package service_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/tbot/service"
 )
@@ -31,40 +29,40 @@ import (
 func TestWatchedValue(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	t.Cleanup(cancel)
-
 	value := service.NewWatchedValue(1)
 	assert.Equal(t, 1, value.Get())
 
-	current, watcher := value.Watch()
-	t.Cleanup(watcher.Close)
-	assert.Equal(t, 1, current)
-
-	nextVal := make(chan int)
-	go func() {
-		next, ok := watcher.Wait(ctx)
-		assert.True(t, ok)
-		nextVal <- next
-	}()
+	notifCh, close := value.ChangeNotifications()
+	t.Cleanup(close)
 
 	changed := value.Set(2)
 	assert.True(t, changed)
-	assert.Equal(t, 2, <-nextVal)
+
+	select {
+	case <-notifCh:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timeout waiting for notification")
+	}
+	assert.Equal(t, 2, value.Get())
 
 	_ = value.Set(3)
 	_ = value.Set(4)
 
-	next, _ := watcher.Wait(ctx)
-	assert.Equal(t, 4, next)
+	select {
+	case <-notifCh:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timeout waiting for notification")
+	}
+	assert.Equal(t, 4, value.Get())
 
-	watcher.Close()
+	close()
 
 	_ = value.Set(5)
 
-	// We shouldn't get any more values after the watcher is closed.
-	ctx, cancel = context.WithTimeout(ctx, 500*time.Millisecond)
-	t.Cleanup(cancel)
-	_, ok := watcher.Wait(ctx)
-	require.False(t, ok)
+	// We shouldn't get any more notifications after the watcher is closed.
+	select {
+	case <-notifCh:
+		t.Fatal("received unexpected notification")
+	case <-time.After(500 * time.Millisecond):
+	}
 }
