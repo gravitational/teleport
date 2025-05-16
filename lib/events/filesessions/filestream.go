@@ -72,7 +72,7 @@ func GetOpenFileFunc() utils.OpenFileWithFlagsFunc {
 const minUploadBytes = events.MaxProtoMessageSizeBytes * 2
 
 // NewStreamer creates a streamer sending uploads to disk
-func NewStreamer(dir string) (*events.ProtoStreamer, error) {
+func NewStreamer(dir string, encrypter events.EncryptionWrapper) (*events.ProtoStreamer, error) {
 	handler, err := NewHandler(Config{Directory: dir})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -80,6 +80,7 @@ func NewStreamer(dir string) (*events.ProtoStreamer, error) {
 	return events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:       handler,
 		MinUploadBytes: minUploadBytes,
+		Encrypter:      encrypter,
 	})
 }
 

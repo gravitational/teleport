@@ -390,6 +390,9 @@ type InitConfig struct {
 
 	// SkipVersionCheck skips version check during major version upgrade/downgrade.
 	SkipVersionCheck bool
+
+	// MultipartHandler handles multipart uploads.
+	MultipartHandler events.MultipartHandler
 }
 
 // Init instantiates and configures an instance of AuthServer
