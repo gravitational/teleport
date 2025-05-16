@@ -54,7 +54,7 @@ const (
 	// automatically reconnect if the connection is lost without
 	// relying on new events from the auth server to trigger a reconnect.
 	serviceConfig = `{
-		 "loadBalancingConfig": [{"round_robin": {}}],
+		 "loadBalancingPolicy": "round_robin",
 		 "healthCheckConfig": {
 			 "serviceName": ""
 		 }
@@ -504,9 +504,7 @@ func (s *Server) accessGraphAWSFetchersFromMatchers(ctx context.Context, matcher
 		fetcher, err := aws_sync.NewFetcher(
 			ctx,
 			aws_sync.Config{
-				AWSConfigProvider:   s.AWSConfigProvider,
-				GetEKSClient:        s.GetAWSSyncEKSClient,
-				GetEC2Client:        s.GetEC2Client,
+				CloudClients:        s.CloudClients,
 				AssumeRole:          assumeRole,
 				Regions:             awsFetcher.Regions,
 				Integration:         awsFetcher.Integration,

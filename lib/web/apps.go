@@ -22,20 +22,114 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"math/rand/v2"
 	"net/http"
+	"sort"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
+	"github.com/gravitational/teleport/lib/web/ui"
 )
+
+// clusterAppsGet returns a list of applications in a form the UI can present.
+// Not in use since v15+.
+// Pre v15 (v14 and below), clusterAppsGet returned both App and SAML service providers.
+//
+//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
+func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	// Get a list of application servers and their proxied apps.
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req, err := convertListResourcesRequest(r, types.KindAppOrSAMLIdPServiceProvider)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	page, err := apiclient.GetResourcePage[types.AppServerOrSAMLIdPServiceProvider](r.Context(), clt, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userGroups, err := apiclient.GetAllResources[types.UserGroup](r.Context(), clt, &proto.ListResourcesRequest{
+		ResourceType:     types.KindUserGroup,
+		Namespace:        apidefaults.Namespace,
+		UseSearchAsRoles: true,
+	})
+	if err != nil {
+		h.log.Debugf("Unable to fetch user groups while listing applications, unable to display associated user groups: %v", err)
+	}
+
+	userGroupLookup := make(map[string]types.UserGroup, len(userGroups))
+	for _, userGroup := range userGroups {
+		userGroupLookup[userGroup.GetName()] = userGroup
+	}
+
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	allowedAWSRolesLookup := map[string][]string{}
+	var appsAndSPs types.AppServersOrSAMLIdPServiceProviders
+	appsToUserGroups := map[string]types.UserGroups{}
+	for _, appOrSP := range page.Resources {
+		appsAndSPs = append(appsAndSPs, appOrSP)
+
+		if appOrSP.IsAppServer() {
+			app := appOrSP.GetAppServer().GetApp()
+
+			if app.IsAWSConsole() {
+				allowedAWSRoles, err := accessChecker.GetAllowedLoginsForResource(app)
+				if err != nil {
+					h.log.Debugf("Unable to find allowed AWS Roles for app %s, skipping", app.GetName())
+					continue
+				}
+
+				allowedAWSRolesLookup[app.GetName()] = allowedAWSRoles
+			}
+
+			ugs := types.UserGroups{}
+			for _, userGroupName := range app.GetUserGroups() {
+				userGroup := userGroupLookup[userGroupName]
+				if userGroup == nil {
+					h.log.Debugf("Unable to find user group %s when creating user groups, skipping", userGroupName)
+					continue
+				}
+
+				ugs = append(ugs, userGroup)
+			}
+			sort.Sort(ugs)
+			appsToUserGroups[app.GetName()] = ugs
+		}
+	}
+
+	return listResourcesGetResponse{
+		Items: ui.MakeApps(ui.MakeAppsConfig{
+			LocalClusterName:                     h.auth.clusterName,
+			LocalProxyDNSName:                    h.proxyDNSName(),
+			AppClusterName:                       site.GetName(),
+			AllowedAWSRolesLookup:                allowedAWSRolesLookup,
+			AppsToUserGroups:                     appsToUserGroups,
+			AppServersAndSAMLIdPServiceProviders: appsAndSPs,
+		}),
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
+	}, nil
+}
 
 type GetAppDetailsRequest ResolveAppParams
 
@@ -84,10 +178,16 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 		if clusterName == "" {
 			clusterName = result.ClusterName
 		}
-		for _, required := range requiredAppNames {
-			res, err := h.resolveApp(r.Context(), ctx, ResolveAppParams{ClusterName: clusterName, AppName: required})
+		for _, requiredAppName := range requiredAppNames {
+			if result.App.GetUseAnyProxyPublicAddr() {
+				proxyDNSName := utils.FindMatchingProxyDNS(req.FQDNHint, h.proxyDNSNames())
+				requiredAppFQDN := fmt.Sprintf("%s.%s", requiredAppName, proxyDNSName)
+				resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, requiredAppFQDN)
+				continue
+			}
+			res, err := h.resolveApp(r.Context(), ctx, ResolveAppParams{ClusterName: clusterName, AppName: requiredAppName})
 			if err != nil {
-				h.logger.ErrorContext(r.Context(), "Error getting app details for associated required app", "required_app", required, "app", result.App.GetName())
+				h.logger.ErrorContext(r.Context(), "Error getting app details for associated required app", "required_app", requiredAppName, "app", result.App.GetName(), "error", err)
 				continue
 			}
 			resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, res.FQDN)
@@ -136,12 +236,12 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err, "unable to resolve FQDN: %v", req.FQDNHint)
 	}
 
-	h.logger.DebugContext(r.Context(), "Creating application web session", "app_public_addr", result.App.GetPublicAddr(), "cluster", result.ClusterName)
+	h.log.Debugf("Creating application web session for %v in %v.", result.App.GetPublicAddr(), result.ClusterName)
 
 	// Ensuring proxy can handle the connection is only done when the request is
 	// coming from the WebUI.
 	if h.healthCheckAppServer != nil && !app.HasClientCert(r) {
-		h.logger.DebugContext(r.Context(), "Ensuring proxy can handle requests requests for application", "app", result.App.GetName())
+		h.log.Debugf("Ensuring proxy can handle requests requests for application %q.", result.App.GetName())
 		err := h.healthCheckAppServer(r.Context(), result.App.GetPublicAddr(), result.ClusterName)
 		if err != nil {
 			return nil, trace.ConnectionProblem(err, "Unable to serve application requests. Please try again. If the issue persists, verify if the Application Services are connected to Teleport.")
@@ -232,7 +332,7 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 	}
 
 	// Get a reverse tunnel proxy aware of the user's permissions.
-	proxy, err := h.ProxyWithRoles(ctx, scx)
+	proxy, err := h.ProxyWithRoles(scx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -259,7 +359,11 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 		return nil, trace.Wrap(err)
 	}
 
-	fqdn := utils.AssembleAppFQDN(h.auth.clusterName, h.proxyDNSName(), appClusterName, server.GetApp())
+	proxyDNSName := h.proxyDNSName()
+	if server.GetApp().GetUseAnyProxyPublicAddr() {
+		proxyDNSName = utils.FindMatchingProxyDNS(params.FQDNHint, h.proxyDNSNames())
+	}
+	fqdn := utils.AssembleAppFQDN(h.auth.clusterName, proxyDNSName, appClusterName, server.GetApp())
 
 	return &resolveAppResult{
 		ServerID:    server.GetName(),

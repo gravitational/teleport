@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/url"
 	"os"
 	"strings"
@@ -32,6 +31,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
@@ -220,7 +220,6 @@ var allowedCertificateTypes = []string{
 	"openssh",
 	"saml-idp",
 	"github",
-	"awsra",
 }
 
 // allowedCRLCertificateTypes list of certificate authorities types that can
@@ -232,38 +231,25 @@ var allowedCRLCertificateTypes = []string{
 	string(types.UserCA),
 }
 
-func (a *AuthCommand) exportAuthorities(ctx context.Context, clt authCommandClient) ([]*client.ExportedAuthority, error) {
-	switch {
-	case client.IsIntegrationAuthorityType(a.authType):
-		if a.exportPrivateKeys {
-			return nil, trace.BadParameter("exporting private keys is not supported for integration authorities")
-		}
-		return client.ExportIntegrationAuthorities(ctx, clt, client.ExportIntegrationAuthoritiesRequest{
-			AuthType:         a.authType,
-			MatchFingerprint: a.exportAuthorityFingerprint,
-			Integration:      a.integration,
-		})
-
-	case a.exportPrivateKeys:
-		return client.ExportAllAuthoritiesSecrets(ctx, clt, client.ExportAuthoritiesRequest{
-			AuthType:                   a.authType,
-			ExportAuthorityFingerprint: a.exportAuthorityFingerprint,
-			UseCompatVersion:           a.compatVersion == "1.0",
-		})
-	default:
-		return client.ExportAllAuthorities(ctx, clt, client.ExportAuthoritiesRequest{
-			AuthType:                   a.authType,
-			ExportAuthorityFingerprint: a.exportAuthorityFingerprint,
-			UseCompatVersion:           a.compatVersion == "1.0",
-		})
-	}
-}
-
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
 // prints all keys
 func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt authCommandClient) error {
-	authorities, err := a.exportAuthorities(ctx, clt)
+	exportFunc := client.ExportAllAuthorities
+	if a.exportPrivateKeys {
+		exportFunc = client.ExportAllAuthoritiesSecrets
+	}
+
+	authorities, err := exportFunc(
+		ctx,
+		clt,
+		client.ExportAuthoritiesRequest{
+			AuthType:                   a.authType,
+			ExportAuthorityFingerprint: a.exportAuthorityFingerprint,
+			UseCompatVersion:           a.compatVersion == "1.0",
+			Integration:                a.integration,
+		},
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -336,7 +322,7 @@ type certificateSigner interface {
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 	GetProxies() ([]types.Server, error)
@@ -400,7 +386,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 			strings.Join(missingFlags, ", "))
 	}
 
-	cn, err := clusterAPI.GetClusterName(ctx)
+	cn, err := clusterAPI.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -442,7 +428,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certi
 		return trace.Wrap(err)
 	}
 
-	cn, err := clusterAPI.GetClusterName(ctx)
+	cn, err := clusterAPI.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -536,7 +522,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 		return trace.Wrap(err)
 	}
 
-	cn, err := clusterAPI.GetClusterName(ctx)
+	cn, err := clusterAPI.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -930,7 +916,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 			return trace.Wrap(err)
 		}
 	} else {
-		cn, err := clusterAPI.GetClusterName(ctx)
+		cn, err := clusterAPI.GetClusterName()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1027,7 +1013,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 	// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
 	kubeTLSServerName := ""
 	if proxyListenerMode == types.ProxyListenerMode_Multiplex {
-		slog.DebugContext(ctx, "Using Proxy SNI for kube TLS server name")
+		log.Debug("Using Proxy SNI for kube TLS server name")
 		u, err := parseURL(a.proxyAddr)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1039,7 +1025,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 
 	expires, err := keyRing.TeleportTLSCertValidBefore()
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to check TTL validity", "error", err)
+		log.WithError(err).Warn("Failed to check TTL validity")
 		// err swallowed on purpose
 	} else if reqExpiry.Sub(expires) > time.Minute {
 		maxAllowedTTL := time.Until(expires).Round(time.Second)
@@ -1182,11 +1168,7 @@ func (a *AuthCommand) checkProxyAddr(ctx context.Context, clusterAPI certificate
 
 		_, err := utils.ParseAddr(addr)
 		if err != nil {
-			slog.WarnContext(ctx, "Invalid public address on the proxy",
-				"proxy", p.GetName(),
-				"public_address", addr,
-				"error", err,
-			)
+			log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
 			continue
 		}
 
@@ -1199,11 +1181,7 @@ func (a *AuthCommand) checkProxyAddr(ctx context.Context, clusterAPI certificate
 			},
 		)
 		if err != nil {
-			slog.WarnContext(ctx, "Unable to ping proxy public address on the proxy",
-				"proxy", p.GetName(),
-				"public_address", addr,
-				"error", err,
-			)
+			log.Warningf("Unable to ping proxy public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
 			continue
 		}
 

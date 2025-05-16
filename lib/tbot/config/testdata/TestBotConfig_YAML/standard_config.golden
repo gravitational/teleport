@@ -56,8 +56,6 @@ services:
       systemd:
         enabled: false
       unix: {}
-      sigstore:
-        enabled: false
     credential_ttl: 30s
     renewal_interval: 15s
   - type: example
@@ -97,8 +95,6 @@ services:
       systemd:
         enabled: false
       unix: {}
-      sigstore:
-        enabled: false
     selector:
       name: my-workload-identity
     credential_ttl: 30s

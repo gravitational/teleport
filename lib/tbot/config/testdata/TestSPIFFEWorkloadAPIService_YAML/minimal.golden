@@ -12,5 +12,3 @@ attestors:
   systemd:
     enabled: false
   unix: {}
-  sigstore:
-    enabled: false

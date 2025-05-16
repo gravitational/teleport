@@ -205,7 +205,8 @@ export interface UserActivityRecord {
      */
     spiffeIdsIssued: SPIFFEIDRecord[];
     /**
-     * Indicates origin of user account.
+     * Indicates origin of this user account. Only
+     * recorded for the user login event.
      *
      * @generated from protobuf field: prehog.v1.UserOrigin user_origin = 19;
      */
@@ -223,13 +224,14 @@ export interface UserActivityRecord {
      */
     accessRequestsReviewed: bigint;
     /**
-     * counter of Access List review.
+     * counter of Access Lists reviewed by this user.
      *
      * @generated from protobuf field: uint64 access_lists_reviewed = 22;
      */
     accessListsReviewed: bigint;
     /**
-     * counter of roles or traits grant event based on Access List membership.
+     * counter of roles or traits granted to this user based on
+     * the Access List membership.
      *
      * @generated from protobuf field: uint64 access_lists_grants = 23;
      */

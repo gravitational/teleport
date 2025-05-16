@@ -69,7 +69,6 @@ export enum RoleVersion {
   V5 = 'v5',
   V6 = 'v6',
   V7 = 'v7',
-  V8 = 'v8',
 }
 
 /**
@@ -193,6 +192,7 @@ export enum ResourceKind {
   AccessMonitoringRule = 'access_monitoring_rule',
   AccessRequest = 'access_request',
   App = 'app',
+  AppOrSAMLIdPServiceProvider = 'app_server_or_saml_idp_sp',
   AppServer = 'app_server',
   AuditQuery = 'audit_query',
   AuthServer = 'auth_server',
@@ -224,7 +224,6 @@ export enum ResourceKind {
   GithubConnector = 'github',
   GlobalNotification = 'global_notification',
   HeadlessAuthentication = 'headless_authentication',
-  HealthCheckConfig = 'health_check_config',
   Identity = 'identity',
   IdentityCenterAccount = 'aws_ic_account',
   IdentityCenterAccountAssignment = 'aws_ic_account_assignment',
@@ -473,10 +472,3 @@ export type CreateOrOverwriteGithubServer = CreateOrOverwriteGitServerBase & {
 };
 
 export type CreateOrOverwriteGitServer = CreateOrOverwriteGithubServer;
-
-// AccessMonitoringRuleState defines the desired states of the access monitoring
-// rule subject.
-export type AccessMonitoringRuleState = '' | 'reviewed';
-
-// AccessReviewDecision defines the access review propsed states.
-export type AccessReviewDecision = '' | 'APPROVED' | 'DENIED';

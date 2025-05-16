@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	iofs "io/fs"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -32,6 +31,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -96,7 +96,7 @@ type KeyStore interface {
 // The FS store uses the file layout outlined in `api/utils/keypaths.go`.
 type FSKeyStore struct {
 	// log holds the structured logger.
-	log *slog.Logger
+	log logrus.FieldLogger
 
 	// KeyDir is the directory where all keys are stored.
 	KeyDir string
@@ -108,7 +108,7 @@ type FSKeyStore struct {
 func NewFSKeyStore(dirPath string) *FSKeyStore {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &FSKeyStore{
-		log:    slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
+		log:    logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
 		KeyDir: dirPath,
 	}
 }
@@ -216,7 +216,7 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 	if runtime.GOOS == constants.WindowsOS {
 		ppkFile, err := keyRing.SSHPrivateKey.PPKFile()
 		if err != nil {
-			fs.log.DebugContext(context.Background(), "Cannot convert private key to PPK-formatted keypair", "error", err)
+			fs.log.Debugf("Cannot convert private key to PPK-formatted keypair: %v", err)
 		} else {
 			if err := fs.writeBytes(ppkFile, fs.ppkFilePath(keyRing.KeyRingIndex)); err != nil {
 				return trace.Wrap(err)
@@ -344,10 +344,7 @@ func tryLockFile(ctx context.Context, path string, lockFn func(string) (func() e
 		case err == nil:
 			return func() {
 				if err := unlock(); err != nil {
-					log.ErrorContext(ctx, "failed to unlock TLS credential",
-						"credential_path", path,
-						"error", err,
-					)
+					log.Errorf("failed to unlock TLS credential at %s: %s", path, err)
 				}
 			}, nil
 		case errors.Is(err, utils.ErrUnsuccessfulLockTry):
@@ -441,7 +438,7 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 	// And try to delete kube credentials lockfile in case it exists
 	err := utils.RemoveSecure(fs.kubeCredLockfilePath(idx))
 	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
-		log.DebugContext(context.Background(), "Could not remove kube credentials file", "error", err)
+		log.Debugf("Could not remove kube credentials file: %v", err)
 	}
 
 	// Clear ClusterName to delete the user certs stored for all clusters.
@@ -658,7 +655,7 @@ type CertOption interface {
 }
 
 // WithAllCerts lists all known CertOptions.
-var WithAllCerts = []CertOption{WithSSHCerts{}, WithKubeCerts{}, WithDBCerts{}, WithAppCerts{}, WithDesktopCerts{}}
+var WithAllCerts = []CertOption{WithSSHCerts{}, WithKubeCerts{}, WithDBCerts{}, WithAppCerts{}}
 
 // WithSSHCerts is a CertOption for handling SSH certificates.
 type WithSSHCerts struct{}
@@ -772,38 +769,6 @@ func (o WithAppCerts) deleteFromKeyRing(keyRing *KeyRing) {
 	keyRing.AppTLSCredentials = make(map[string]TLSCredential)
 }
 
-// WithDesktopCerts is a CertOption for handling Windows desktop access certificates.
-type WithDesktopCerts struct {
-	desktopName string
-}
-
-func (o WithDesktopCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, opts ...keys.ParsePrivateKeyOpt) error {
-	credentialDir := keypaths.WindowsDesktopCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
-	credsByName, err := getCredentialsByName(credentialDir, opts...)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	keyRing.WindowsDesktopTLSCredentials = credsByName
-	return nil
-}
-
-func (o WithDesktopCerts) pathsToDelete(keyDir string, idx KeyRingIndex) []string {
-	if idx.ClusterName == "" {
-		return []string{keypaths.WindowsDesktopDir(keyDir, idx.ProxyHost, idx.Username)}
-	}
-	if o.desktopName == "" {
-		return []string{keypaths.WindowsDesktopCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
-	}
-	return []string{
-		keypaths.WindowsDesktopCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.desktopName),
-		keypaths.WindowsDesktopKeyPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.desktopName),
-	}
-}
-
-func (o WithDesktopCerts) deleteFromKeyRing(keyRing *KeyRing) {
-	keyRing.WindowsDesktopTLSCredentials = make(map[string]TLSCredential)
-}
-
 type MemKeyStore struct {
 	// keyRings is a three-dimensional map indexed by [proxyHost][username][clusterName]
 	keyRings keyRingMap
@@ -882,8 +847,6 @@ func (ms *MemKeyStore) GetKeyRing(idx KeyRingIndex, _ hardwarekey.Service, opts 
 			retKeyRing.DBTLSCredentials = keyRing.DBTLSCredentials
 		case WithAppCerts:
 			retKeyRing.AppTLSCredentials = keyRing.AppTLSCredentials
-		case WithDesktopCerts:
-			retKeyRing.WindowsDesktopTLSCredentials = keyRing.WindowsDesktopTLSCredentials
 		}
 	}
 

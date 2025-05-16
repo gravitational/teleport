@@ -183,6 +183,13 @@ const (
 	// KindApp is a web app resource.
 	KindApp = "app"
 
+	// KindAppOrSAMLIdPServiceProvider represent an App Server resource or a SAML IdP Service Provider (SAML Application) resource.
+	// This is not a real resource stored in the backend, it is a pseudo resource used only to provide a common interface to
+	// the ListResources RPC in order to be able to list both AppServers and SAMLIdPServiceProviders in the same request.
+	//
+	// DEPRECATED: Use KindAppServer and KindSAMLIdPServiceProvider individually.
+	KindAppOrSAMLIdPServiceProvider = "app_server_or_saml_idp_sp"
+
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
@@ -491,9 +498,6 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
-	// KindHealthCheckConfig is the resource for health check configuration.
-	KindHealthCheckConfig = "health_check_config"
-
 	// KindAccessGraph is the RBAC kind for access graph.
 	KindAccessGraph = "access_graph"
 
@@ -636,12 +640,6 @@ const (
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
-
-	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
-	MetaNameVnetConfig = "vnet-config"
-
-	// V8 is the eighth version of resources.
-	V8 = "v8"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"
@@ -1373,7 +1371,6 @@ var RequestableResourceKinds = []string{
 	KindSAMLIdPServiceProvider,
 	KindIdentityCenterAccount,
 	KindIdentityCenterAccountAssignment,
-	KindGitServer,
 }
 
 // The list below needs to be kept in sync with `kubernetesResourceKindOptions`
@@ -1566,17 +1563,3 @@ const (
 	// types.Server to indicate the GitHub organization of a Git server.
 	GitHubOrgServerDomain = "teleport-github-org"
 )
-
-// AccessMonitoringRuleState specifies the desired state of an access monitoring
-// rule subject.
-type AccessMonitoringRuleState string
-
-const (
-	// AccessMonitoringRuleStateReviewed indicates that the access monitoring
-	// rule subject should be reviewed.
-	AccessMonitoringRuleStateReviewed = "reviewed"
-)
-
-// BuiltInAutomaticReview is used within access monitoring rules and indicates
-// that the automatic_review rule should be monitored by Teleport.
-const BuiltInAutomaticReview = "builtin"

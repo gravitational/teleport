@@ -24,7 +24,6 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jcmturner/gokrb5/v8/config"
 	"github.com/jcmturner/gokrb5/v8/credentials"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/windows"
@@ -126,7 +126,7 @@ func NewCommandLineInitializer(config CommandConfig) *CommandLineInitializer {
 		certGetter:         config.CertGetter,
 		ldapCertificate:    config.LDAPCA,
 		ldapCertificatePEM: config.LDAPCAPEM,
-		logger:             slog.Default(),
+		log:                logrus.StandardLogger(),
 	}
 	if cmd.command == nil {
 		cmd.command = &execCmd{}
@@ -173,7 +173,7 @@ type CommandLineInitializer struct {
 
 	ldapCertificate    *x509.Certificate
 	ldapCertificatePEM string
-	logger             *slog.Logger
+	log                logrus.FieldLogger
 }
 
 // CertGetter is an interface for getting a new cert/key pair along with a CA cert
@@ -207,7 +207,7 @@ type WindowsCAAndKeyPair struct {
 
 // GetCertificateBytes returns a new cert/key pem and the DB CA bytes
 func (d *DBCertGetter) GetCertificateBytes(ctx context.Context) (*WindowsCAAndKeyPair, error) {
-	clusterName, err := d.Auth.GetClusterName(ctx)
+	clusterName, err := d.Auth.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -238,7 +238,7 @@ func (k *CommandLineInitializer) UseOrCreateCredentials(ctx context.Context) (*c
 	defer func() {
 		err = os.RemoveAll(tmp)
 		if err != nil {
-			k.logger.ErrorContext(ctx, "failed removing temporary kinit directory", "error", err)
+			k.log.Errorf("failed removing temporary kinit directory: %s", err)
 		}
 	}()
 
@@ -300,7 +300,7 @@ func (k *CommandLineInitializer) UseOrCreateCredentials(ctx context.Context) (*c
 	cmd.Env = append(cmd.Env, []string{fmt.Sprintf("%s=%s", krb5ConfigEnv, krbConfPath)}...)
 	kinitOutput, err := cmd.CombinedOutput()
 	if err != nil {
-		k.logger.ErrorContext(ctx, "Failed to authenticate with KDC", "cmd_output", string(kinitOutput))
+		k.log.Errorf("Failed to authenticate with KDC: %s", kinitOutput)
 		return nil, nil, trace.AccessDenied("authentication failed")
 	}
 	ccache, err := credentials.LoadCCache(cachePath)

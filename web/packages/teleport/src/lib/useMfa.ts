@@ -130,7 +130,7 @@ export function useMfa(props?: MfaProps): MfaState {
     )
   );
 
-  const mfaResponseRef = useRef<mfaResponsePromiseWithResolvers>(undefined);
+  const mfaResponseRef = useRef<mfaResponsePromiseWithResolvers>();
 
   const cancelAttempt = () => {
     if (mfaResponseRef.current) {

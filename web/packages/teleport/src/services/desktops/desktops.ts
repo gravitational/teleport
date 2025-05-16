@@ -20,8 +20,8 @@ import cfg, { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 import api from 'teleport/services/api';
 
-import { makeDesktop } from './makeDesktop';
-import type { Desktop } from './types';
+import { makeDesktop, makeDesktopService } from './makeDesktop';
+import type { Desktop, WindowsDesktopService } from './types';
 
 class DesktopService {
   fetchDesktops(
@@ -38,6 +38,24 @@ class DesktopService {
         totalCount: json?.totalCount,
       };
     });
+  }
+
+  fetchDesktopServices(
+    clusterId: string,
+    params: UrlResourcesParams,
+    signal?: AbortSignal
+  ): Promise<ResourcesResponse<WindowsDesktopService>> {
+    return api
+      .get(cfg.getDesktopServicesUrl(clusterId, params), signal)
+      .then(json => {
+        const items = json?.items || [];
+
+        return {
+          agents: items.map(makeDesktopService),
+          startKey: json?.startKey,
+          totalCount: json?.totalCount,
+        };
+      });
   }
 
   fetchDesktop(clusterId: string, desktopPath: string) {

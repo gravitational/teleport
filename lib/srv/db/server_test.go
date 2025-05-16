@@ -20,7 +20,6 @@ package db
 
 import (
 	"context"
-	"encoding/pem"
 	"fmt"
 	"io"
 	"sync/atomic"
@@ -34,22 +33,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/mongo"
-	sqladmin "google.golang.org/api/sqladmin/v1beta4"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/healthcheckconfig"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 )
 
@@ -265,7 +256,7 @@ func TestDatabaseServerAutoDisconnect(t *testing.T) {
 // Most testing code should NOT need to use this function.
 //
 // In technical terms, it divides the clock advancement into 100 smaller steps, with a short sleep after each one.
-func advanceInSteps(clock *clockwork.FakeClock, total time.Duration) {
+func advanceInSteps(clock clockwork.FakeClock, total time.Duration) {
 	step := total / 100
 	if step <= 0 {
 		step = 1
@@ -322,9 +313,8 @@ func TestHeartbeatEvents(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			var heartbeatEvents int64
 			heartbeatRecorder := func(err error) {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				atomic.AddInt64(&heartbeatEvents, 1)
-				assert.LessOrEqual(t, atomic.LoadInt64(&heartbeatEvents), expectedHeartbeatCount(test.staticDatabases))
 			}
 
 			testCtx := setupTestContext(ctx, t)
@@ -470,9 +460,10 @@ func TestShutdown(t *testing.T) {
 			require.NoError(t, server.Shutdown(ctx))
 
 			// Send a Goodbye to simulate process shutdown.
-			deleteResources := !test.hasForkedChild
-			softReload := test.hasForkedChild
-			require.NoError(t, server.cfg.InventoryHandle.SetAndSendGoodbye(ctx, deleteResources, softReload))
+			if !test.hasForkedChild {
+				require.NoError(t, server.cfg.InventoryHandle.SendGoodbye(ctx))
+			}
+
 			require.NoError(t, server.cfg.InventoryHandle.Close())
 
 			// Validate db servers based on the test.
@@ -645,113 +636,4 @@ func databaseServerWithActiveConnection(t *testing.T, ctx context.Context) (*Ser
 	}()
 
 	return testCtx.server, connErrCh, cancelConn
-}
-
-func TestHealthCheck(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	user := "alice"
-	testCtx := setupTestContext(ctx, t)
-	testCtx.createUserAndRole(ctx, t, user, "admin", []string{types.Wildcard}, []string{types.Wildcard})
-
-	hcc := newHealthCheckConfig(t, "match-all")
-	_, err := testCtx.authServer.CreateHealthCheckConfig(ctx, hcc)
-	require.NoError(t, err)
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := testCtx.authServer.GetHealthCheckConfig(ctx, "match-all")
-		assert.NoError(t, err)
-	}, time.Second, time.Millisecond*100, "waiting for health check config")
-
-	// Generate ephemeral cert returned from mock GCP API.
-	ephemeralCert, err := common.MakeTestClientTLSCert(common.TestClientConfig{
-		AuthClient: testCtx.authClient,
-		AuthServer: testCtx.authServer,
-		Cluster:    testCtx.clusterName,
-		Username:   user,
-	})
-	require.NoError(t, err)
-	certPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: ephemeralCert.Certificate[0],
-	})
-
-	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
-		Databases: []types.Database{
-			withCassandra("cassandra")(t, ctx, testCtx),
-			withClickhouseHTTP("clickhouse-http")(t, ctx, testCtx),
-			withClickhouseNative("clickhouse-native")(t, ctx, testCtx),
-			withCloudSQLMySQLTLS("cloudsql-mysql", user, cloudSQLPassword)(t, ctx, testCtx),
-			withCloudSQLPostgres("cloudsql-postgres", cloudSQLAuthToken)(t, ctx, testCtx),
-			withSelfHostedMongo("self-hosted-mongo")(t, ctx, testCtx),
-			withSelfHostedMySQL("self-hosted-mysql")(t, ctx, testCtx),
-			withSelfHostedPostgres("self-hosted-postgres")(t, ctx, testCtx),
-			withSpanner("cloud-spanner", "cloud-spanner-auth-token")(t, ctx, testCtx),
-			withSQLServer("sqlserver")(t, ctx, testCtx),
-		},
-		GCPSQL: &mocks.GCPSQLAdminClientMock{
-			EphemeralCert: string(certPEM),
-			DatabaseInstance: &sqladmin.DatabaseInstance{
-				Settings: &sqladmin.Settings{
-					IpConfiguration: &sqladmin.IpConfiguration{
-						RequireSsl: true,
-					},
-				},
-			},
-		},
-	})
-	go testCtx.startHandlingConnections()
-	for _, db := range testCtx.server.cfg.Databases {
-		t.Run(db.GetName(), func(t *testing.T) {
-			t.Parallel()
-			waitForHealthStatus(t, ctx, db.GetName(), testCtx.authServer, types.TargetHealthStatusHealthy)
-		})
-	}
-}
-
-func waitForHealthStatus(t *testing.T, ctx context.Context, name string, serverGetter services.DatabaseServersGetter, want types.TargetHealthStatus) {
-	t.Helper()
-	timeout := 15 * time.Second
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		servers, err := serverGetter.GetDatabaseServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) {
-			return
-		}
-		var server types.DatabaseServer
-		for _, s := range servers {
-			if s.GetName() == name {
-				server = s
-				break
-			}
-		}
-		if server == nil {
-			assert.FailNowf(t, "failed to find db_server", "db_server=%s", name)
-			return
-		}
-		health := server.GetTargetHealth()
-		assert.Equal(t, string(want), health.Status)
-	}, timeout, time.Millisecond*250, "waiting for database %s to become healthy", name)
-}
-
-func newHealthCheckConfig(t *testing.T, name string) *healthcheckconfigv1.HealthCheckConfig {
-	t.Helper()
-	out, err := healthcheckconfig.NewHealthCheckConfig(name,
-		&healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
-				DbLabels: []*labelv1.Label{{
-					Name:   types.Wildcard,
-					Values: []string{types.Wildcard},
-				}},
-			},
-			Interval:           durationpb.New(apidefaults.HealthCheckInterval),
-			Timeout:            durationpb.New(apidefaults.HealthCheckTimeout),
-			HealthyThreshold:   1,
-			UnhealthyThreshold: 1,
-		},
-	)
-	require.NoError(t, err)
-	return out
 }

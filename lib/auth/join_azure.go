@@ -34,7 +34,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	armpolicy "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/coreos/go-oidc"
 	"github.com/digitorus/pkcs7"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
@@ -419,7 +419,6 @@ func (a *Server) checkAzureRequest(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	attrs, err := verifyVMIdentity(ctx, cfg, req.AccessToken, subID, vmID, requestStart, a.logger)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -452,7 +451,9 @@ func (a *Server) RegisterUsingAzureMethodWithOpts(
 	defer func() {
 		// Emit a log message and audit event on join failure.
 		if err != nil {
-			a.handleJoinFailure(ctx, err, provisionToken, nil, joinRequest)
+			a.handleJoinFailure(
+				err, provisionToken, nil, joinRequest,
+			)
 		}
 	}()
 

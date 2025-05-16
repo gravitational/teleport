@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/gcp"
@@ -33,15 +34,14 @@ type gcpIDTokenValidator interface {
 	Validate(ctx context.Context, token string) (*gcp.IDTokenClaims, error)
 }
 
-func (a *Server) checkGCPJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*gcp.IDTokenClaims, error) {
+func (a *Server) checkGCPJoinRequest(
+	ctx context.Context,
+	req *types.RegisterUsingTokenRequest,
+	pt types.ProvisionToken,
+) (*gcp.IDTokenClaims, error) {
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("IDToken not provided for GCP join request")
 	}
-	pt, err := a.GetToken(ctx, req.Token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
 		return nil, trace.BadParameter("gcp join method only supports ProvisionTokenV2, '%T' was provided", pt)
@@ -49,18 +49,17 @@ func (a *Server) checkGCPJoinRequest(ctx context.Context, req *types.RegisterUsi
 
 	claims, err := a.gcpIDTokenValidator.Validate(ctx, req.IDToken)
 	if err != nil {
-		a.logger.WarnContext(ctx, "Unable to validate GCP IDToken",
-			"error", err,
-			"claims", claims,
-			"token", pt.GetName(),
-		)
+		log.WithFields(logrus.Fields{
+			"claims": claims,
+			"token":  pt.GetName(),
+		}).WithError(err).Warn("Unable to validate GCP IDToken")
 		return nil, trace.Wrap(err)
 	}
 
-	a.logger.InfoContext(ctx, "GCP VM trying to join cluster",
-		"claims", claims,
-		"token", pt.GetName(),
-	)
+	log.WithFields(logrus.Fields{
+		"claims": claims,
+		"token":  pt.GetName(),
+	}).Info("GCP VM trying to join cluster")
 
 	if err := checkGCPAllowRules(token, claims); err != nil {
 		return nil, trace.Wrap(err)

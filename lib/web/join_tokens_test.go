@@ -614,6 +614,15 @@ func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.Jo
 				},
 			},
 		}
+	case types.JoinMethodAzureDevops:
+		spec.AzureDevops = &types.ProvisionTokenSpecV2AzureDevops{
+			OrganizationID: "0000-0000-0000-000",
+			Allow: []*types.ProvisionTokenSpecV2AzureDevops_Rule{
+				{
+					ProjectName: "my-project",
+				},
+			},
+		}
 	}
 }
 

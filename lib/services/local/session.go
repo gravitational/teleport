@@ -23,6 +23,7 @@ import (
 	"slices"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -314,7 +315,7 @@ func (s *IdentityService) DeleteAllSAMLIdPSessions(ctx context.Context) error {
 
 // WebSessions returns the web sessions manager.
 func (s *IdentityService) WebSessions() types.WebSessionInterface {
-	return &webSessions{backend: s.Backend}
+	return &webSessions{backend: s.Backend, log: s.log}
 }
 
 // Get returns the web session state described with req.
@@ -422,11 +423,12 @@ func (r *webSessions) listLegacySessions(ctx context.Context) ([]types.WebSessio
 
 type webSessions struct {
 	backend backend.Backend
+	log     logrus.FieldLogger
 }
 
 // WebTokens returns the web token manager.
 func (s *IdentityService) WebTokens() types.WebTokenInterface {
-	return &webTokens{backend: s.Backend}
+	return &webTokens{backend: s.Backend, log: s.log}
 }
 
 // Get returns the web token described with req.
@@ -502,6 +504,7 @@ func (r *webTokens) DeleteAll(ctx context.Context) error {
 
 type webTokens struct {
 	backend backend.Backend
+	log     logrus.FieldLogger
 }
 
 func webSessionKey(sessionID string) backend.Key {

@@ -134,9 +134,12 @@ export const Cards: Story = {
                 selectResource={() => {}}
                 selected={false}
                 pinningSupport={PinningSupport.Supported}
-                onShowStatusInfo={() => null}
-                showingStatusInfo={false}
-                viewItem={res}
+                name={res.name}
+                primaryIconName={res.primaryIconName}
+                SecondaryIcon={res.SecondaryIcon}
+                cardViewProps={res.cardViewProps}
+                labels={res.labels}
+                ActionButton={res.ActionButton}
               />
             ))}
           </Grid>

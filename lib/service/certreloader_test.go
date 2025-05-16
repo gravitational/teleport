@@ -182,7 +182,7 @@ func TestCertReloader(t *testing.T) {
 			tc.certsUpdate(t, certs)
 
 			// Perform cert reload.
-			err = certReloader.loadCertificates(ctx)
+			err = certReloader.loadCertificates()
 			tc.certsReloadErrorAssert(t, err)
 
 			// Perform certs assert, passing in the certs before & after the update.

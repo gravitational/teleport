@@ -21,9 +21,9 @@ package db
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -50,7 +50,7 @@ type azureFetcherPlugin[DBType comparable, ListClient azureListClient[DBType]] i
 	// GetServerLocation returns the server location.
 	GetServerLocation(server DBType) string
 	// NewDatabaseFromServer creates a types.Database from provided server.
-	NewDatabaseFromServer(ctx context.Context, server DBType, logger *slog.Logger) types.Database
+	NewDatabaseFromServer(server DBType, log logrus.FieldLogger) types.Database
 }
 
 // newAzureFetcher returns a Azure DB server fetcher for the provided subscription, group, regions, and tags.
@@ -61,14 +61,14 @@ func newAzureFetcher[DBType comparable, ListClient azureListClient[DBType]](conf
 
 	fetcher := &azureFetcher[DBType, ListClient]{
 		cfg: config,
-		logger: slog.With(
-			teleport.ComponentKey, "watch:azure",
-			"labels", config.Labels,
-			"regions", config.Regions,
-			"group", config.ResourceGroup,
-			"subscription", config.Subscription,
-			"type", config.Type,
-		),
+		log: logrus.WithFields(logrus.Fields{
+			teleport.ComponentKey: "watch:azure",
+			"labels":              config.Labels,
+			"regions":             config.Regions,
+			"group":               config.ResourceGroup,
+			"subscription":        config.Subscription,
+			"type":                config.Type,
+		}),
 		azureFetcherPlugin: plugin,
 	}
 	return fetcher, nil
@@ -133,8 +133,8 @@ func (c *azureFetcherConfig) CheckAndSetDefaults() error {
 type azureFetcher[DBType comparable, ListClient azureListClient[DBType]] struct {
 	azureFetcherPlugin[DBType, ListClient]
 
-	cfg    azureFetcherConfig
-	logger *slog.Logger
+	cfg azureFetcherConfig
+	log logrus.FieldLogger
 }
 
 // Cloud returns the cloud the fetcher is operating.
@@ -224,7 +224,7 @@ func (f *azureFetcher[DBType, ListClient]) getAllDBServers(ctx context.Context) 
 		servers, err := f.getDBServersInSubscription(ctx, subID)
 		if err != nil {
 			if trace.IsAccessDenied(err) || trace.IsNotFound(err) {
-				f.logger.DebugContext(ctx, "Skipping subscription %q", "subscription", subID, "error", err)
+				f.log.WithError(err).Debugf("Skipping subscription %q", subID)
 				continue
 			}
 			return nil, trace.Wrap(err)
@@ -252,11 +252,11 @@ func (f *azureFetcher[DBType, ListClient]) getDatabases(ctx context.Context) (ty
 			continue
 		}
 
-		if database := f.NewDatabaseFromServer(ctx, server, f.logger); database != nil {
+		if database := f.NewDatabaseFromServer(server, f.log); database != nil {
 			databases = append(databases, database)
 		}
 	}
-	return filterDatabasesByLabels(ctx, databases, f.cfg.Labels, f.logger), nil
+	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
 }
 
 // String returns the fetcher's string description.

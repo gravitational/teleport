@@ -51,17 +51,3 @@ func MarshalUserTask(object *usertasksv1.UserTask, opts ...MarshalOption) ([]byt
 func UnmarshalUserTask(data []byte, opts ...MarshalOption) (*usertasksv1.UserTask, error) {
 	return UnmarshalProtoResource[*usertasksv1.UserTask](data, opts...)
 }
-
-func MatchUserTask(ut *usertasksv1.UserTask, filters *usertasksv1.ListUserTasksFilters) bool {
-	integrationFilter := filters.GetIntegration()
-	if integrationFilter != "" && integrationFilter != ut.GetSpec().GetIntegration() {
-		return false
-	}
-
-	stateFilter := filters.GetTaskState()
-	if stateFilter != "" && stateFilter != ut.GetSpec().GetState() {
-		return false
-	}
-
-	return true
-}

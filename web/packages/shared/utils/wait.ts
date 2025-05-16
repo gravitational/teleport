@@ -65,7 +65,7 @@ export const usePromiseRejectedOnUnmount = () => {
     };
   }, []);
 
-  const promiseRef = useRef<Promise<never>>(undefined);
+  const promiseRef = useRef<Promise<never>>();
   if (!promiseRef.current) {
     promiseRef.current = waitForever(abortControllerRef.current.signal);
   }

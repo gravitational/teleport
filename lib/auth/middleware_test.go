@@ -240,7 +240,6 @@ func (t *testConn) RemoteAddr() net.Addr                   { return t.remoteAddr
 func TestWrapContextWithUser(t *testing.T) {
 	localClusterName := "local"
 	s := newTestServices(t)
-	ctx := context.Background()
 
 	// Set up local cluster name in the backend.
 	cn, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
@@ -291,7 +290,7 @@ func TestWrapContextWithUser(t *testing.T) {
 		},
 	}
 
-	clusterName, err := s.GetClusterName(ctx)
+	clusterName, err := s.GetClusterName()
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {

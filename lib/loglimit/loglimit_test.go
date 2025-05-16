@@ -19,13 +19,13 @@
 package loglimit
 
 import (
-	"bytes"
 	"context"
-	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+	logtest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +37,7 @@ func TestLogLimiter(t *testing.T) {
 		logSubstrings    []string
 		logsFirstBatch   []string
 		logsSecondsBatch []string
-		logsAssert       func(t *testing.T, loggedFirstBatch, loggedSecondBatch string)
+		logsAssert       func(t *testing.T, loggedFirstBatch, loggedSecondBatch []string)
 	}{
 		{
 			desc: "logs that do not match log substrings are logged right away",
@@ -50,12 +50,13 @@ func TestLogLimiter(t *testing.T) {
 				"C log 1",
 			},
 			logsSecondsBatch: []string{},
-			logsAssert: func(t *testing.T, loggedFirstBatch, loggedSecondBatch string) {
-				expectedLoggedFirstBatch := `msg="B log 1"
-msg="B log 2"
-msg="C log 1"
-`
-				expectedLoggedSecondBatch := ""
+			logsAssert: func(t *testing.T, loggedFirstBatch, loggedSecondBatch []string) {
+				expectedLoggedFirstBatch := []string{
+					"B log 1",
+					"B log 2",
+					"C log 1",
+				}
+				expectedLoggedSecondBatch := []string{}
 				assert.Equal(t, expectedLoggedFirstBatch, loggedFirstBatch, "first batch elements mismatch")
 				assert.Equal(t, expectedLoggedSecondBatch, loggedSecondBatch, "second batch elements mismatch")
 			},
@@ -74,12 +75,14 @@ msg="C log 1"
 				"C log 1",
 			},
 			logsSecondsBatch: []string{},
-			logsAssert: func(t *testing.T, loggedFirstBatch, loggedSecondBatch string) {
-				expectedLoggedFirstBatch := `msg="A log 1"
-msg="B log 1"
-msg="C log 1"
-`
-				expectedLoggedSecondBatch := ""
+			logsAssert: func(t *testing.T, loggedFirstBatch, loggedSecondBatch []string) {
+				expectedLoggedFirstBatch := []string{
+					"A log 1",
+					"B log 1",
+					"C log 1",
+					"B log 1 (logs containing \"B\" were seen 3 times in the past minute)",
+				}
+				expectedLoggedSecondBatch := []string{}
 				assert.Equal(t, expectedLoggedFirstBatch, loggedFirstBatch, "first batch elements mismatch")
 				assert.Equal(t, expectedLoggedSecondBatch, loggedSecondBatch, "second batch elements mismatch")
 			},
@@ -104,14 +107,18 @@ msg="C log 1"
 				"A log 3",
 				"A log 4",
 			},
-			logsAssert: func(t *testing.T, loggedFirstBatch, loggedSecondBatch string) {
-				expectedLoggedFirstBatch := `msg="A log 1"
-msg="B log 1"
-msg="C log 1"
-`
-				expectedLoggedSecondBatch := `msg="A log 1"
-msg="C log 1"
-`
+			logsAssert: func(t *testing.T, loggedFirstBatch, loggedSecondBatch []string) {
+				expectedLoggedFirstBatch := []string{
+					"A log 1",
+					"B log 1",
+					"C log 1",
+					"B log 1 (logs containing \"B\" were seen 3 times in the past minute)",
+				}
+				expectedLoggedSecondBatch := []string{
+					"A log 1",
+					"C log 1",
+					"A log 1 (logs containing \"A\" were seen 4 times in the past minute)",
+				}
 				assert.Equal(t, expectedLoggedFirstBatch, loggedFirstBatch, "first batch elements mismatch")
 				assert.Equal(t, expectedLoggedSecondBatch, loggedSecondBatch, "second batch elements mismatch")
 			},
@@ -120,58 +127,65 @@ msg="C log 1"
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
+			// Create log limiter.
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 			clock := clockwork.NewFakeClock()
-			ctx := context.Background()
-
-			var sink bytes.Buffer
 			logLimiter, err := New(Config{
+				Context:           ctx,
 				MessageSubstrings: tc.logSubstrings,
 				Clock:             clock,
-				Handler: slog.NewTextHandler(&sink, &slog.HandlerOptions{
-					AddSource: false,
-					Level:     nil,
-					ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-						if a.Key == slog.TimeKey || a.Key == slog.LevelKey {
-							return slog.Attr{}
-						}
-
-						return a
-					},
-				}),
 			})
 			require.NoError(t, err)
 
-			logger := slog.New(logLimiter)
+			// Create a log entry with a hook to capture logs.
+			logger, hook := logtest.NewNullLogger()
+			entry := logger.WithField("from", "loglimit")
 
 			// Send first batch of logs to log limiter.
 			for _, message := range tc.logsFirstBatch {
-				//nolint:sloglint // the messages are statically defined in the tests but the linter doesn't know that
-				logger.InfoContext(ctx, message)
+				logLimiter.Log(entry, log.InfoLevel, message)
 			}
 
-			// Move the clock forward to mark entries as stale
+			notifyCh := make(chan struct{})
+			// Move the clock forward and trigger a cleanup by sending a message
+			// to the cleanup channel
+			// (ensuring that a new window starts and prior windows are logged).
 			clock.Advance(2 * time.Minute)
+			logLimiter.cleanupCh <- notifyCh
+			<-notifyCh
 
 			// Retrieve what was logged after the first batch.
-			loggedFirstBatch := sink.String()
-
-			// Reset the sink
-			sink.Reset()
+			loggedFirstBatch := toLogMessages(hook.AllEntries())
+			hook.Reset()
 
 			// Send second batch of logs to log limiter.
 			for _, message := range tc.logsSecondsBatch {
-				//nolint:sloglint // the messages are statically defined in the tests but the linter doesn't know that
-				logger.InfoContext(ctx, message)
+				logLimiter.Log(entry, log.InfoLevel, message)
 			}
 
-			// Move the clock forward to mark entries as stale
+			// Move the clock forward and trigger a cleanup by sending a message
+			// to the cleanup channel
+			// (ensuring that a new window starts and prior windows are logged).
 			clock.Advance(2 * time.Minute)
+			logLimiter.cleanupCh <- notifyCh
+			<-notifyCh
 
 			// Retrieve what was logged after the second batch.
-			loggedSecondBatch := sink.String()
+			loggedSecondBatch := toLogMessages(hook.AllEntries())
+			hook.Reset()
 
 			// Run assert on what was logged.
 			tc.logsAssert(t, loggedFirstBatch, loggedSecondBatch)
 		})
 	}
+}
+
+// toLogMessages retrieves the log messages from log entries.
+func toLogMessages(entries []*log.Entry) []string {
+	result := make([]string, len(entries))
+	for i, entry := range entries {
+		result[i] = entry.Message
+	}
+	return result
 }

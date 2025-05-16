@@ -20,15 +20,14 @@ package apiserver
 
 import (
 	"context"
-	"log/slog"
 
+	"github.com/gravitational/trace/trail"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-
-	"github.com/gravitational/teleport/api/trail"
 )
 
 // withErrorHandling is gRPC middleware that maps internal errors to proper gRPC error codes
-func withErrorHandling(log *slog.Logger) grpc.UnaryServerInterceptor {
+func withErrorHandling(log logrus.FieldLogger) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
 		req interface{},
@@ -37,7 +36,7 @@ func withErrorHandling(log *slog.Logger) grpc.UnaryServerInterceptor {
 	) (interface{}, error) {
 		resp, err := handler(ctx, req)
 		if err != nil {
-			log.ErrorContext(ctx, "Request failed", "error", err)
+			log.WithError(err).Error("Request failed.")
 			return resp, trail.ToGRPC(err)
 		}
 

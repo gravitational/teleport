@@ -1419,15 +1419,15 @@ export const formatters: Formatters = {
   [eventCodes.BOT_JOIN]: {
     type: 'bot.join',
     desc: 'Bot Joined',
-    format: ({ bot_name, method }) => {
-      return `Bot [${bot_name}] joined the cluster using the [${method}] join method`;
+    format: ({ bot_name, method, token_name }) => {
+      return `Bot [${bot_name}] joined the cluster using the [${method}] join method and the [${token_name || 'unknown'}] token`;
     },
   },
   [eventCodes.BOT_JOIN_FAILURE]: {
     type: 'bot.join',
     desc: 'Bot Join Failed',
-    format: ({ bot_name }) => {
-      return `Bot [${bot_name || 'unknown'}] failed to join the cluster`;
+    format: ({ bot_name, method, token_name }) => {
+      return `Bot [${bot_name || 'unknown'}] failed to join the cluster using the [${method || 'unknown'}] join method and the [${token_name || 'unknown'}] token`;
     },
   },
   [eventCodes.INSTANCE_JOIN]: {
@@ -2083,29 +2083,6 @@ export const formatters: Formatters = {
       return `Stable UNIX user for username [${username}] was created`;
     },
   },
-  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: {
-    type: 'aws_identity_center.resource_sync.success',
-    desc: 'AWS IAM Identity Center Resource Sync Completed',
-    format: ({
-      total_user_groups,
-      total_accounts,
-      total_account_assignments,
-      total_permission_sets,
-    }) => {
-      // user groups only imported once.
-      if (total_user_groups > 0) {
-        return `User group synchronization successfully completed [groups: ${total_user_groups}]`;
-      }
-      return `Periodic synchronization successfully completed [accounts: ${total_accounts}, account assignments: ${total_account_assignments}, permission sets: ${total_permission_sets}]`;
-    },
-  },
-  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: {
-    type: 'aws_identity_center.resource_sync.failed',
-    desc: 'AWS IAM Identity Center Resource Sync Failed',
-    format: ({ message }) => {
-      return message;
-    },
-  },
   [eventCodes.AUTOUPDATE_CONFIG_CREATE]: {
     type: 'auto_update_config.create',
     desc: 'Automatic Update Config Created',
@@ -2146,48 +2123,6 @@ export const formatters: Formatters = {
     desc: 'Automatic Update Version Deleted',
     format: ({ user }) => {
       return `User ${user} deleted the Automatic Update Version`;
-    },
-  },
-  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: {
-    type: 'health_check_config.create',
-    desc: 'Health Check Config Created',
-    format: ({ user, name }) => {
-      return `User [${user}] created a health check config [${name}]`;
-    },
-  },
-  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: {
-    type: 'health_check_config.update',
-    desc: 'Health Check Config Updated',
-    format: ({ user, name }) => {
-      return `User [${user}] updated a health check config [${name}]`;
-    },
-  },
-  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: {
-    type: 'health_check_config.delete',
-    desc: 'Health Check Config Deleted',
-    format: ({ user, name }) => {
-      return `User [${user}] deleted a health check config [${name}]`;
-    },
-  },
-  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: {
-    type: 'auto_update_agent_rollout.trigger',
-    desc: 'Automatic Update Agent Rollout Triggered',
-    format: ({ user, groups }) => {
-      return `User ${user} triggered the rollout of the autoupdate rollout groups ${groups}`;
-    },
-  },
-  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: {
-    type: 'auto_update_agent_rollout.force_done',
-    desc: 'Automatic Update Agent Rollout Forced Done.',
-    format: ({ user, groups }) => {
-      return `User ${user} forced to the done state the autoupdate rollout groups ${groups}`;
-    },
-  },
-  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: {
-    type: 'auto_update_agent_rollout.rollback',
-    desc: 'Automatic Update Agent Rollout Rollback',
-    format: ({ user, groups }) => {
-      return `User ${user} rolled back the autoupdate rollout groups ${groups}`;
     },
   },
 };

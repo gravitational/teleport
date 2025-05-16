@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -206,10 +205,6 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 		MinUploadBytes:    params.MinUploadBytes,
 		ConcurrentUploads: params.ConcurrentUploads,
 		ForceFlush:        forceFlush,
-		RetryConfig: &retryutils.LinearConfig{
-			Step: time.Millisecond * 10,
-			Max:  time.Millisecond * 500,
-		},
 	})
 	require.NoError(t, err)
 
@@ -280,10 +275,6 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 		Uploader:          handler,
 		MinUploadBytes:    params.MinUploadBytes,
 		ConcurrentUploads: params.ConcurrentUploads,
-		RetryConfig: &retryutils.LinearConfig{
-			Step: time.Millisecond * 10,
-			Max:  time.Millisecond * 500,
-		},
 	})
 	require.NoError(t, err)
 

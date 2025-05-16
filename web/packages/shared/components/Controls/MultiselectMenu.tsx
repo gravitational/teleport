@@ -29,7 +29,7 @@ import {
 } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
 import { ChevronDown } from 'design/Icon';
-import { HoverTooltip } from 'design/Tooltip';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 type MultiselectMenuProps<T> = {
   options: {

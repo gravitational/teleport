@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
@@ -194,8 +195,6 @@ type UaccMetadata struct {
 // RunCommand reads in the command to run from the parent process (over a
 // pipe) then constructs and runs the command.
 func RunCommand() (errw io.Writer, code int, err error) {
-	ctx := context.Background()
-
 	// SIGQUIT is used by teleport to initiate graceful shutdown, waiting for
 	// existing exec sessions to close before ending the process. For this to
 	// work when closing the entire teleport process group, exec sessions must
@@ -251,21 +250,21 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	if err := auditd.SendEvent(auditd.AuditUserLogin, auditd.Success, auditdMsg); err != nil {
 		// Currently, this logs nothing. Related issue https://github.com/gravitational/teleport/issues/17318
-		slog.DebugContext(ctx, "failed to send user start event to auditd", "error", err)
+		log.WithError(err).Debugf("failed to send user start event to auditd: %v", err)
 	}
 
 	defer func() {
 		if err != nil {
 			if errors.Is(err, user.UnknownUserError(c.Login)) {
 				if err := auditd.SendEvent(auditd.AuditUserErr, auditd.Failed, auditdMsg); err != nil {
-					slog.DebugContext(ctx, "failed to send UserErr event to auditd", "error", err)
+					log.WithError(err).Debugf("failed to send UserErr event to auditd: %v", err)
 				}
 				return
 			}
 		}
 
 		if err := auditd.SendEvent(auditd.AuditUserEnd, auditd.Success, auditdMsg); err != nil {
-			slog.DebugContext(ctx, "failed to send UserEnd event to auditd", "error", err)
+			log.WithError(err).Debugf("failed to send UserEnd event to auditd: %v", err)
 		}
 	}()
 
@@ -337,7 +336,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
 		if uaccErr := uacc.LogFailedLogin(c.UaccMetadata.BtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr); uaccErr != nil {
-			slog.DebugContext(ctx, "uacc unsupported", "error", uaccErr)
+			log.WithError(uaccErr).Debug("uacc unsupported.")
 		}
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -350,7 +349,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		if err == nil {
 			uaccEnabled = true
 		} else {
-			slog.DebugContext(ctx, "uacc unsupported", "error", err)
+			log.WithError(err).Debug("uacc unsupported.")
 		}
 	}
 
@@ -386,7 +385,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}
 
 	if err := setNeutralOOMScore(); err != nil {
-		slog.WarnContext(ctx, "failed to adjust OOM score", "error", err)
+		log.WithError(err).Warnf("failed to adjust OOM score")
 	}
 
 	// Start the command.
@@ -596,7 +595,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	// done with the user's permissions.
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound("%s", err)
+		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound(err.Error())
 	}
 
 	cred, err := getCmdCredential(localUser)
@@ -1009,7 +1008,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	// Get the login shell for the user (or fallback to the default).
 	shellPath, err := shell.GetLoginShell(c.Login)
 	if err != nil {
-		slog.DebugContext(context.Background(), "Failed to get login shell", "login", c.Login, "error", err)
+		log.Debugf("Failed to get login shell for %v: %v.", c.Login, err)
 	}
 	if c.IsTestStub {
 		shellPath = "/bin/sh"
@@ -1156,17 +1155,11 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 
 	if os.Getuid() != int(credential.Uid) || os.Getgid() != int(credential.Gid) {
 		cmd.SysProcAttr.Credential = credential
-		slog.DebugContext(context.Background(), "Creating process",
-			"uid", credential.Uid,
-			"gid", credential.Gid,
-			"groups", credential.Groups,
-		)
+		log.Debugf("Creating process with UID %v, GID: %v, and Groups: %v.",
+			credential.Uid, credential.Gid, credential.Groups)
 	} else {
-		slog.DebugContext(context.Background(), "Creating process with ambient credentials",
-			"uid", credential.Uid,
-			"gid", credential.Gid,
-			"groups", credential.Groups,
-		)
+		log.Debugf("Creating process with ambient credentials UID %v, GID: %v, Groups: %v.",
+			credential.Uid, credential.Gid, credential.Groups)
 	}
 
 	// Perform OS-specific tweaks to the command.
@@ -1260,7 +1253,7 @@ func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
 	defer func() {
 		err := ctx.cmdw.Close()
 		if err != nil {
-			slog.ErrorContext(ctx.CancelContext(), "Failed to close command pipe", "error", err)
+			log.Errorf("Failed to close command pipe: %v.", err)
 		}
 
 		// Set to nil so the close in the context doesn't attempt to re-close.
@@ -1270,7 +1263,7 @@ func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
 	// Write command bytes to pipe. The child process will read the command
 	// to execute from this pipe.
 	if err := json.NewEncoder(ctx.cmdw).Encode(cmdmsg); err != nil {
-		slog.ErrorContext(ctx.CancelContext(), "Failed to copy command over pipe", "error", err)
+		log.Errorf("Failed to copy command over pipe: %v.", err)
 		return
 	}
 }
@@ -1436,7 +1429,7 @@ func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
 	for _, sgid := range userGroups {
 		igid, err := strconv.ParseUint(sgid, 10, 32)
 		if err != nil {
-			slog.WarnContext(context.Background(), "Cannot interpret user group", "user_group", sgid)
+			log.Warnf("Cannot interpret user group: '%v'", sgid)
 		} else {
 			groups = append(groups, uint32(igid))
 		}

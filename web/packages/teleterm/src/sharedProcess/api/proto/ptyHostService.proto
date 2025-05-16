@@ -90,3 +90,4 @@ message PtyEventStartError {
 message PtyCwd {
   string cwd = 1;
 }
+

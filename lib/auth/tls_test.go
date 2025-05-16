@@ -1478,6 +1478,20 @@ func TestAppServerCRUD(t *testing.T) {
 	suite.AppServerCRUD(t)
 }
 
+func TestReverseTunnelsCRUD(t *testing.T) {
+	t.Parallel()
+
+	testSrv := newTestTLSServer(t)
+
+	clt, err := testSrv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	suite := &suite.ServicesTestSuite{
+		PresenceS: clt,
+	}
+	suite.ReverseTunnelsCRUD(t)
+}
+
 func TestUsersCRUD(t *testing.T) {
 	t.Parallel()
 
@@ -3364,7 +3378,6 @@ func TestLoginNoLocalAuth(t *testing.T) {
 // not connect.
 func TestCipherSuites(t *testing.T) {
 	testSrv := newTestTLSServer(t)
-	ctx := context.Background()
 
 	otherServer, err := testSrv.AuthServer.NewTestTLSServer()
 	require.NoError(t, err)
@@ -3392,7 +3405,7 @@ func TestCipherSuites(t *testing.T) {
 	require.NoError(t, err)
 
 	// Requests should fail.
-	_, err = client.GetClusterName(ctx)
+	_, err = client.GetClusterName()
 	require.Error(t, err)
 }
 
@@ -4262,7 +4275,7 @@ func TestEventsClusterConfig(t *testing.T) {
 	suite.ExpectResource(t, w, 3*time.Second, auditConfigResource)
 
 	// update cluster name resource metadata
-	clusterNameResource, err := testSrv.Auth().GetClusterName(ctx)
+	clusterNameResource, err := testSrv.Auth().GetClusterName()
 	require.NoError(t, err)
 
 	// update the resource with different labels to test the change
@@ -4284,7 +4297,7 @@ func TestEventsClusterConfig(t *testing.T) {
 	err = testSrv.Auth().SetClusterName(clusterName)
 	require.NoError(t, err)
 
-	clusterNameResource, err = testSrv.Auth().GetClusterName(ctx)
+	clusterNameResource, err = testSrv.Auth().GetClusterName()
 	require.NoError(t, err)
 	suite.ExpectResource(t, w, 3*time.Second, clusterNameResource)
 }

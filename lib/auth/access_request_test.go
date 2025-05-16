@@ -22,7 +22,6 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
-	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -33,6 +32,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -76,7 +76,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
-	clusterName, err := tlsServer.Auth().GetClusterName(ctx)
+	clusterName, err := tlsServer.Auth().GetClusterName()
 	require.NoError(t, err)
 
 	roles := map[string]types.RoleSpecV6{
@@ -761,7 +761,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 			}
 			user, err := types.NewUser(userName)
 			require.NoError(t, err)
-			user.SetRoles(slices.Collect(maps.Keys(tc.roles)))
+			user.SetRoles(maps.Keys(tc.roles))
 			_, err = testPack.tlsServer.Auth().UpsertUser(ctx, user)
 			require.NoError(t, err)
 

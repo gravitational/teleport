@@ -24,7 +24,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -46,35 +45,28 @@ func Test_basicHTTPVersionClient_Get(t *testing.T) {
 		name       string
 		statusCode int
 		response   string
-		expected   *semver.Version
+		expected   string
 		assertErr  require.ErrorAssertionFunc
 	}{
 		{
 			name:       "all good",
 			statusCode: http.StatusOK,
 			response:   "12.0.3",
-			expected:   semver.Must(EnsureSemver("12.0.3")),
+			expected:   "v12.0.3",
 			assertErr:  require.NoError,
 		},
 		{
 			name:       "all good with newline",
 			statusCode: http.StatusOK,
 			response:   "12.0.3\n",
-			expected:   semver.Must(EnsureSemver("12.0.3")),
-			assertErr:  require.NoError,
-		},
-		{
-			name:       "all good with leading v",
-			statusCode: http.StatusOK,
-			response:   "v12.0.3",
-			expected:   semver.Must(EnsureSemver("12.0.3")),
+			expected:   "v12.0.3",
 			assertErr:  require.NoError,
 		},
 		{
 			name:       "non-semver",
 			statusCode: http.StatusOK,
 			response:   "hello",
-			expected:   nil,
+			expected:   "",
 			assertErr: func(t2 require.TestingT, err2 error, _ ...interface{}) {
 				require.IsType(t2, &trace.BadParameterError{}, trace.Unwrap(err2))
 			},
@@ -83,7 +75,7 @@ func Test_basicHTTPVersionClient_Get(t *testing.T) {
 			name:       "empty",
 			statusCode: http.StatusOK,
 			response:   "",
-			expected:   nil,
+			expected:   "",
 			assertErr: func(t2 require.TestingT, err2 error, _ ...interface{}) {
 				require.IsType(t2, &trace.BadParameterError{}, trace.Unwrap(err2))
 			},
@@ -92,7 +84,7 @@ func Test_basicHTTPVersionClient_Get(t *testing.T) {
 			name:       "non-200 response",
 			statusCode: http.StatusInternalServerError,
 			response:   "ERROR - SOMETHING WENT WRONG",
-			expected:   nil,
+			expected:   "",
 			assertErr:  require.Error,
 		},
 	}

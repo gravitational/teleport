@@ -20,10 +20,10 @@ package clusters
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -49,8 +49,8 @@ type Cluster struct {
 	Name string
 	// ProfileName is the name of the tsh profile
 	ProfileName string
-	// Logger is a component logger
-	Logger *slog.Logger
+	// Log is a component logger
+	Log *logrus.Entry
 	// Status is the cluster status
 	status client.ProfileStatus
 	// If not empty, it means that there was a problem with reading the cluster status.
@@ -151,7 +151,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 	var authClusterID string
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {
-			clusterName, err := authClient.GetClusterName(groupCtx)
+			clusterName, err := authClient.GetClusterName()
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -190,28 +190,28 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		return roles, nil
 	})
 	if err != nil {
-		c.Logger.WarnContext(ctx, "Failed to calculate trusted device requirement", "error", err)
+		c.Log.
+			WithError(err).
+			Warn("Failed to calculate trusted device requirement")
 	}
 
 	roleSet := services.NewRoleSet(roles...)
 	userACL := services.NewUserACL(user, roleSet, *authPingResponse.ServerFeatures, false, false)
 	acl := &api.ACL{
-		RecordedSessions:        convertToAPIResourceAccess(userACL.RecordedSessions),
-		ActiveSessions:          convertToAPIResourceAccess(userACL.ActiveSessions),
-		AuthConnectors:          convertToAPIResourceAccess(userACL.AuthConnectors),
-		Roles:                   convertToAPIResourceAccess(userACL.Roles),
-		Users:                   convertToAPIResourceAccess(userACL.Users),
-		TrustedClusters:         convertToAPIResourceAccess(userACL.TrustedClusters),
-		Events:                  convertToAPIResourceAccess(userACL.Events),
-		Tokens:                  convertToAPIResourceAccess(userACL.Tokens),
-		Servers:                 convertToAPIResourceAccess(userACL.Nodes),
-		Apps:                    convertToAPIResourceAccess(userACL.AppServers),
-		Dbs:                     convertToAPIResourceAccess(userACL.DBServers),
-		Kubeservers:             convertToAPIResourceAccess(userACL.KubeServers),
-		AccessRequests:          convertToAPIResourceAccess(userACL.AccessRequests),
-		ReviewRequests:          userACL.ReviewRequests,
-		DirectorySharingEnabled: userACL.DirectorySharing,
-		ClipboardSharingEnabled: userACL.Clipboard,
+		RecordedSessions: convertToAPIResourceAccess(userACL.RecordedSessions),
+		ActiveSessions:   convertToAPIResourceAccess(userACL.ActiveSessions),
+		AuthConnectors:   convertToAPIResourceAccess(userACL.AuthConnectors),
+		Roles:            convertToAPIResourceAccess(userACL.Roles),
+		Users:            convertToAPIResourceAccess(userACL.Users),
+		TrustedClusters:  convertToAPIResourceAccess(userACL.TrustedClusters),
+		Events:           convertToAPIResourceAccess(userACL.Events),
+		Tokens:           convertToAPIResourceAccess(userACL.Tokens),
+		Servers:          convertToAPIResourceAccess(userACL.Nodes),
+		Apps:             convertToAPIResourceAccess(userACL.AppServers),
+		Dbs:              convertToAPIResourceAccess(userACL.DBServers),
+		Kubeservers:      convertToAPIResourceAccess(userACL.KubeServers),
+		AccessRequests:   convertToAPIResourceAccess(userACL.AccessRequests),
+		ReviewRequests:   userACL.ReviewRequests,
 	}
 
 	withDetails := &ClusterWithDetails{

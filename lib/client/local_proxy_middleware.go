@@ -161,10 +161,7 @@ func (c *CertChecker) GetOrIssueCert(ctx context.Context) (tls.Certificate, erro
 	}
 
 	certTTL := cert.Leaf.NotAfter.Sub(c.clock.Now()).Round(time.Minute)
-	log.DebugContext(ctx, "Certificate renewed",
-		"valid_until", cert.Leaf.NotAfter.Format(time.RFC3339),
-		"cert_ttl", certTTL,
-	)
+	log.Debugf("Certificate renewed: valid until %s [valid for %v]", cert.Leaf.NotAfter.Format(time.RFC3339), certTTL)
 
 	c.cert = cert
 	return c.cert, nil
@@ -212,7 +209,7 @@ func (c *DBCertIssuer) CheckCert(cert *x509.Certificate) error {
 func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 	var accessRequests []string
 	if profile, err := c.Client.ProfileStatus(); err != nil {
-		log.WarnContext(ctx, "unable to load profile, requesting database certs without access requests", "error", err)
+		log.WithError(err).Warn("unable to load profile, requesting database certs without access requests")
 	} else {
 		accessRequests = profile.ActiveRequests
 	}
@@ -232,20 +229,20 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 			return trace.Wrap(err)
 		}
 
-		result, err := clusterClient.IssueUserCertsWithMFA(ctx, dbCertParams)
+		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, dbCertParams)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// If MFA was not required, we do not require certs be stored solely in memory.
 		// Save it to disk to avoid additional roundtrips for future requests.
-		if result.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
-			if err := c.Client.LocalAgent().AddDatabaseKeyRing(result.KeyRing); err != nil {
+		if mfaRequired == proto.MFARequired_MFA_REQUIRED_NO {
+			if err := c.Client.LocalAgent().AddDatabaseKeyRing(newKey); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		keyRing = result.KeyRing
+		keyRing = newKey
 		return trace.Wrap(err)
 	}); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
@@ -279,7 +276,7 @@ func (c *AppCertIssuer) CheckCert(cert *x509.Certificate) error {
 func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 	var accessRequests []string
 	if profile, err := c.Client.ProfileStatus(); err != nil {
-		log.WarnContext(ctx, "unable to load profile, requesting app certs without access requests", "error", err)
+		log.WithError(err).Warn("unable to load profile, requesting app certs without access requests")
 	} else {
 		accessRequests = profile.ActiveRequests
 	}
@@ -299,20 +296,20 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 			return trace.Wrap(err)
 		}
 
-		result, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
+		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// If MFA was not required, we do not require certs be stored solely in memory.
 		// Save it to disk to avoid additional roundtrips for future requests.
-		if result.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
-			if err := c.Client.LocalAgent().AddAppKeyRing(result.KeyRing); err != nil {
+		if mfaRequired == proto.MFARequired_MFA_REQUIRED_NO {
+			if err := c.Client.LocalAgent().AddAppKeyRing(newKey); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		keyRing = result.KeyRing
+		keyRing = newKey
 		return trace.Wrap(err)
 	}); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
@@ -444,10 +441,7 @@ func (r *LocalCertGenerator) ensureValidCA(ctx context.Context) error {
 	}
 
 	certTTL := time.Until(caTLSCert.Leaf.NotAfter).Round(time.Minute)
-	log.DebugContext(ctx, "Local CA renewed",
-		"valid_until", caTLSCert.Leaf.NotAfter.Format(time.RFC3339),
-		"cert_ttl", certTTL,
-	)
+	log.Debugf("Local CA renewed: valid until %s [valid for %v]", caTLSCert.Leaf.NotAfter.Format(time.RFC3339), certTTL)
 
 	// Clear cert cache and use CA for hostnames in the CA.
 	r.certsByHost = make(map[string]*tls.Certificate)

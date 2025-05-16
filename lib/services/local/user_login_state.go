@@ -22,7 +22,9 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/backend"
@@ -36,6 +38,7 @@ const (
 
 // UserLoginStateService manages user login state resources in the Backend.
 type UserLoginStateService struct {
+	log logrus.FieldLogger
 	svc *generic.Service[*userloginstate.UserLoginState]
 }
 
@@ -53,6 +56,7 @@ func NewUserLoginStateService(b backend.Backend) (*UserLoginStateService, error)
 	}
 
 	return &UserLoginStateService{
+		log: logrus.WithFields(logrus.Fields{teleport.ComponentKey: "user-login-state:local-service"}),
 		svc: svc,
 	}, nil
 }

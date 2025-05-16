@@ -1,0 +1,89 @@
+---
+target_package_name: "token"
+default_package_name: "github.com/gravitational/teleport/api/types"
+duration_custom_type: Duration
+use_state_for_unknown_by_default: true
+
+# Top-level type names to export
+types:
+  - "ProvisionTokenV2"
+
+# These import paths were not being automatically picked up by
+# protoc-gen-terraform without these overrides
+import_path_overrides:
+  github_com_gravitational_teleport_integrations_terraform_tfschema: "github.com/gravitational/teleport/integrations/terraform/tfschema"
+
+# id field is required for integration tests. It is not used by provider.
+# We have to add it manually (might be removed in the future versions).
+injected_fields:
+  ProvisionTokenV2:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+
+# These fields will be excluded
+exclude_fields:
+  # Metadata (we id resources by name on our side)
+  - "Metadata.ID"
+
+name_overrides:
+
+# These fields will be marked as Computed: true
+computed_fields:
+  # Metadata
+  - "Metadata.Namespace"
+
+  # Provision token
+  - "ProvisionTokenV2.Spec.AWSIIDTTL"
+  - "ProvisionTokenV2.Kind"
+  - "ProvisionTokenV2.Metadata.Name"
+
+# These fields will be marked as Required: true
+required_fields:
+  # Provision token
+  - "ProvisionTokenV2.Spec"
+  - "ProvisionTokenV2.Spec.Options"
+  - "ProvisionTokenV2.Spec.Roles"
+  - "ProvisionTokenV2.Version"
+
+# These fields must be marked as sensitive
+sensitive_fields:
+  - "ProvisionTokenV2.Metadata.Name"
+
+# These suffixes for custom methods called when field has custom_type flag. By default they might be weird.
+suffixes:
+  "BoolOption": "BoolOptionNullable"
+  "Labels": "Labels"
+  "github.com/gravitational/teleport/api/types/wrappers.Traits": "Traits"
+  "github.com/gravitational/teleport/api/types/wrappers.Strings": "Strings"
+
+plan_modifiers:
+  # Force to recreate resource if it's name changes
+  Metadata.Name:
+    - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+  ProvisionTokenV2.Metadata.Name:
+    - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+    - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+
+validators:
+  # Expires must be in the future
+  Metadata.Expires:
+    - github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()
+  ProvisionTokenV2.Version:
+    - github_com_gravitational_teleport_integrations_terraform_tfschema.UseVersionBetween(2,2)
+
+time_type:
+  type: "github.com/gravitational/teleport/integrations/terraform/tfschema.TimeType"
+  value_type: "github.com/gravitational/teleport/integrations/terraform/tfschema.TimeValue"
+  cast_to_type: "time.Time"
+  cast_from_type: "time.Time"
+  type_constructor: "github.com/gravitational/teleport/integrations/terraform/tfschema.UseRFC3339Time()"
+
+duration_type:
+  type: "github.com/gravitational/teleport/integrations/terraform/tfschema.DurationType"
+  value_type: "github.com/gravitational/teleport/integrations/terraform/tfschema.DurationValue"
+  cast_to_type: "time.Duration"
+  cast_from_type: "time.Duration"

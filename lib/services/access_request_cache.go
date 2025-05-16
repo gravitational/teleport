@@ -35,19 +35,17 @@ import (
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
 
-type accessRequestCacheIndex string
-
 const (
 	// accessRequestID is the name of the sort index used for sorting request by ID (equivalent to proto.AccessRequestSort_DEFAULT since
 	// access requests currently default to being sorted by ID in the backend).
-	accessRequestID accessRequestCacheIndex = "ID"
+	accessRequestID = "ID"
 	// accessRequestCreated is the name of the sort index used for sorting requests by creation time (this is typically the sort order
 	// used in user interfaces, since most users that want to view requests want to see the most recent requests specifically).
-	accessRequestCreated accessRequestCacheIndex = "Created"
+	accessRequestCreated = "Created"
 	// accessRequestState is the name of the sort index used for sorting requests by their current state (pending, approved, etc).
-	accessRequestState accessRequestCacheIndex = "State"
+	accessRequestState = "State"
 	// accessRequestUser is the name of the sort index used for sorting requests by the person who created the request.
-	accessRequestUser accessRequestCacheIndex = "User"
+	accessRequestUser = "User"
 )
 
 // AccessRequestCacheConfig holds the configuration parameters for an [AccessRequestCache].
@@ -88,7 +86,7 @@ func (c *AccessRequestCacheConfig) CheckAndSetDefaults() error {
 type AccessRequestCache struct {
 	rw           sync.RWMutex
 	cfg          AccessRequestCacheConfig
-	primaryCache *sortcache.SortCache[*types.AccessRequestV3, accessRequestCacheIndex]
+	primaryCache *sortcache.SortCache[*types.AccessRequestV3]
 	ttlCache     *utils.FnCache
 	initC        chan struct{}
 	initOnce     sync.Once
@@ -190,7 +188,7 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 		return nil, trace.Wrap(err)
 	}
 
-	var index accessRequestCacheIndex
+	var index string
 	switch req.Sort {
 	case proto.AccessRequestSort_DEFAULT:
 		index = accessRequestID
@@ -210,9 +208,9 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 		return nil, trace.Errorf("access request cache was not configured with sort index %q (this is a bug)", index)
 	}
 
-	accessRequests := cache.Ascend
+	traverse := cache.Ascend
 	if req.Descending {
-		accessRequests = cache.Descend
+		traverse = cache.Descend
 	}
 
 	limit := int(req.Limit)
@@ -221,30 +219,34 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 	var rsp proto.ListAccessRequestsResponse
 	now := time.Now()
 	var expired int
-	for r := range accessRequests(index, req.StartKey, "") {
-		if len(rsp.AccessRequests) == limit {
-			rsp.NextKey = cache.KeyOf(index, r)
-			break
-		}
-
+	traverse(index, req.StartKey, "", func(r *types.AccessRequestV3) (continueTraversal bool) {
 		if !r.Expiry().IsZero() && now.After(r.Expiry()) {
 			expired++
 			// skip requests that appear expired. some backends can take up to 48 hours to expired items
 			// and access requests showing up past their expiry time is particularly confusing.
-			continue
+			return true
 		}
 		if !req.Filter.Match(r) || !match(r) {
-			continue
+			return true
 		}
 
 		c := r.Copy()
 		cr, ok := c.(*types.AccessRequestV3)
 		if !ok {
 			slog.WarnContext(ctx, "clone returned unexpected type (this is a bug)", "expected", logutils.TypeAttr(r), "got", logutils.TypeAttr(c))
-			continue
+			return true
 		}
 
 		rsp.AccessRequests = append(rsp.AccessRequests, cr)
+
+		// halt when we have Limit+1 items so that we can create a
+		// correct 'NextKey'.
+		return len(rsp.AccessRequests) <= limit
+	})
+
+	if len(rsp.AccessRequests) > limit {
+		rsp.NextKey = cache.KeyOf(index, rsp.AccessRequests[limit])
+		rsp.AccessRequests = rsp.AccessRequests[:limit]
 	}
 
 	if expired > 0 {
@@ -259,9 +261,9 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 // fetch configures a sortcache and inserts all currently extant access requests into it. this method is used both
 // as the means of setting up the initial primary cache state, and for creating temporary cache states to read from
 // when the primary is unhealthy.
-func (c *AccessRequestCache) fetch(ctx context.Context) (*sortcache.SortCache[*types.AccessRequestV3, accessRequestCacheIndex], error) {
-	cache := sortcache.New(sortcache.Config[*types.AccessRequestV3, accessRequestCacheIndex]{
-		Indexes: map[accessRequestCacheIndex]func(*types.AccessRequestV3) string{
+func (c *AccessRequestCache) fetch(ctx context.Context) (*sortcache.SortCache[*types.AccessRequestV3], error) {
+	cache := sortcache.New(sortcache.Config[*types.AccessRequestV3]{
+		Indexes: map[string]func(*types.AccessRequestV3) string{
 			accessRequestID: func(req *types.AccessRequestV3) string {
 				// since accessRequestID is equivalent to the DEFAULT sort index (i.e. the sort index of the backend),
 				// it is preferable to keep its format equivalent to the format of the NextKey/StartKey values
@@ -306,7 +308,7 @@ func (c *AccessRequestCache) fetch(ctx context.Context) (*sortcache.SortCache[*t
 
 // read gets a read-only view into a valid cache state. it prefers reading from the primary cache, but will fallback
 // to a periodically reloaded temporary state when the primary state is unhealthy.
-func (c *AccessRequestCache) read(ctx context.Context) (*sortcache.SortCache[*types.AccessRequestV3, accessRequestCacheIndex], error) {
+func (c *AccessRequestCache) read(ctx context.Context) (*sortcache.SortCache[*types.AccessRequestV3], error) {
 	c.rw.RLock()
 	primary := c.primaryCache
 	c.rw.RUnlock()
@@ -318,7 +320,7 @@ func (c *AccessRequestCache) read(ctx context.Context) (*sortcache.SortCache[*ty
 		return primary, nil
 	}
 
-	temp, err := utils.FnCacheGet(ctx, c.ttlCache, "access-request-cache", func(ctx context.Context) (*sortcache.SortCache[*types.AccessRequestV3, accessRequestCacheIndex], error) {
+	temp, err := utils.FnCacheGet(ctx, c.ttlCache, "access-request-cache", func(ctx context.Context) (*sortcache.SortCache[*types.AccessRequestV3], error) {
 		return c.fetch(ctx)
 	})
 

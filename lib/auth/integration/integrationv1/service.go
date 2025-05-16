@@ -45,7 +45,7 @@ import (
 // Cache is the subset of the cached resources that the Service queries.
 type Cache interface {
 	// GetClusterName returns local cluster name of the current auth server
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(...services.MarshalOption) (types.ClusterName, error)
 
 	// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 	// controls if signing keys are loaded
@@ -214,7 +214,7 @@ func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetInte
 	return igV1, nil
 }
 
-// CreateIntegration creates a new Integration resource.
+// CreateIntegration creates a new Okta import rule resource.
 func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.CreateIntegrationRequest) (*types.IntegrationV1, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -413,10 +413,6 @@ func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata
 	case types.IntegrationSubKindGitHub:
 		igMeta.GitHub = &apievents.GitHubIntegrationMetadata{
 			Organization: ig.GetGitHubIntegrationSpec().Organization,
-		}
-	case types.IntegrationSubKindAWSRA:
-		igMeta.AWSRA = &apievents.AWSRAIntegrationMetadata{
-			TrustAnchorARN: ig.GetAWSRAIntegrationSpec().TrustAnchorARN,
 		}
 	default:
 		return apievents.IntegrationMetadata{}, fmt.Errorf("unknown integration subkind: %s", igMeta.SubKind)

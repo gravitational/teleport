@@ -256,7 +256,7 @@ func generateClientDBCert(t *testing.T, authSrv *auth.Server, user string, route
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
-	clusterName, err := authSrv.GetClusterName(context.TODO())
+	clusterName, err := authSrv.GetClusterName()
 	require.NoError(t, err)
 
 	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())

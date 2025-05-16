@@ -34,9 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -392,18 +390,13 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		}
 
 		if c.stsClient == nil {
-			c.stsClient = stsutils.NewFromConfig(*c.awsCfg, func(o *sts.Options) {
-				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-			})
-
+			c.stsClient = stsutils.NewFromConfig(*c.awsCfg)
 		}
 		if c.iamClient == nil {
-			c.iamClient = iamutils.NewFromConfig(*c.awsCfg, func(o *iam.Options) {
-				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-			})
+			c.iamClient = iamutils.NewFromConfig(*c.awsCfg)
 		}
 		if c.Identity == nil {
-			c.Identity, err = awslib.GetIdentityWithClient(context.Background(), c.stsClient)
+			c.Identity, err = awslib.GetIdentityWithClientV2(context.Background(), c.stsClient)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -422,9 +415,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 					withRegion := func(o *ssm.Options) {
 						o.Region = region
 					}
-					c.ssmClients[region] = ssm.NewFromConfig(*c.awsCfg, withRegion, func(o *ssm.Options) {
-						o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-					})
+					c.ssmClients[region] = ssm.NewFromConfig(*c.awsCfg, withRegion)
 				}
 			}
 
@@ -433,9 +424,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		if c.Policies == nil {
 			partition := c.Identity.GetPartition()
 			accountID := c.Identity.GetAccountID()
-			iamClient := iamutils.NewFromConfig(*c.awsCfg, func(o *iam.Options) {
-				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-			})
+			iamClient := iamutils.NewFromConfig(*c.awsCfg)
 			c.Policies = awslib.NewPolicies(partition, accountID, iamClient)
 		}
 	}
@@ -702,12 +691,12 @@ func getRoleARNForAssumedRole(iamClient iamClient, identity awslib.Identity) (aw
 		RoleName: aws.String(identity.GetName()),
 	})
 	if err != nil || out == nil || out.Role == nil || out.Role.Arn == nil {
-		return nil, trace.BadParameter("%s", failedToResolveAssumeRoleARN)
+		return nil, trace.BadParameter(failedToResolveAssumeRoleARN)
 	}
 
 	roleIdentity, err := awslib.IdentityFromArn(*out.Role.Arn)
 	if err != nil {
-		return nil, trace.BadParameter("%s", failedToResolveAssumeRoleARN)
+		return nil, trace.BadParameter(failedToResolveAssumeRoleARN)
 	}
 	return roleIdentity, nil
 }

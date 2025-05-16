@@ -38,7 +38,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -77,10 +77,10 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 		},
 	})
 	auditorRoleSet := services.NewRoleSet(auditorRole)
-	auditScx := newTestServerContext(t, reg.Srv, auditorRoleSet, &decisionpb.SSHAccessPermit{})
+	auditScx := newTestServerContext(t, reg.Srv, auditorRoleSet)
 	// change the teleport user so we don't match the user in the test cases
 	auditScx.Identity.TeleportUser = "mod"
-	auditSess, _ := testOpenSession(t, reg, auditorRoleSet, &decisionpb.SSHAccessPermit{})
+	auditSess, _ := testOpenSession(t, reg, auditorRoleSet)
 	approvers := make(map[string]*party)
 	auditChan := newMockSSHChannel()
 	approvers["mod"] = newParty(auditSess, types.SessionModeratorMode, auditChan, auditScx)
@@ -156,13 +156,13 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			// create and add a session to the registry
-			sess, _ := testOpenSession(t, reg, accessRoleSet, &decisionpb.SSHAccessPermit{})
+			sess, _ := testOpenSession(t, reg, accessRoleSet)
 
 			// create a FileTransferRequest. can be nil
 			sess.fileTransferReq = tt.req
 
 			// new exec request context
-			scx := newTestServerContext(t, reg.Srv, accessRoleSet, &decisionpb.SSHAccessPermit{})
+			scx := newTestServerContext(t, reg.Srv, accessRoleSet)
 			scx.SetEnv(string(sftp.ModeratedSessionID), sess.ID())
 			result, err := reg.isApprovedFileTransfer(scx)
 			if err != nil {
@@ -270,9 +270,20 @@ func TestSession_newRecorder(t *testing.T) {
 				},
 				term: &terminal{},
 				Identity: IdentityContext{
-					AccessPermit: &decisionpb.SSHAccessPermit{
-						SessionRecordingMode: string(constants.SessionRecordingModeStrict),
-					},
+					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+						Roles: []string{"dev"},
+					}, "test", services.RoleSet{
+						&types.RoleV6{
+							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+							Spec: types.RoleSpecV6{
+								Options: types.RoleOptions{
+									RecordSession: &types.RecordSession{
+										SSH: constants.SessionRecordingModeStrict,
+									},
+								},
+							},
+						},
+					}),
 				},
 			},
 			errAssertion: require.Error,
@@ -300,9 +311,20 @@ func TestSession_newRecorder(t *testing.T) {
 					datadir:   t.TempDir(),
 				},
 				Identity: IdentityContext{
-					AccessPermit: &decisionpb.SSHAccessPermit{
-						SessionRecordingMode: string(constants.SessionRecordingModeBestEffort),
-					},
+					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+						Roles: []string{"dev"},
+					}, "test", services.RoleSet{
+						&types.RoleV6{
+							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+							Spec: types.RoleSpecV6{
+								Options: types.RoleOptions{
+									RecordSession: &types.RecordSession{
+										SSH: constants.SessionRecordingModeBestEffort,
+									},
+								},
+							},
+						},
+					}),
 				},
 				term: &terminal{},
 			},
@@ -379,7 +401,7 @@ func TestSession_emitAuditEvent(t *testing.T) {
 			},
 			emitter:  srv,
 			registry: reg,
-			scx:      newTestServerContext(t, srv, nil, nil),
+			scx:      newTestServerContext(t, srv, nil),
 		}
 
 		controlCh := make(chan struct{})
@@ -407,9 +429,6 @@ func TestSession_emitAuditEvent(t *testing.T) {
 func TestInteractiveSession(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 	t.Cleanup(func() { require.NoError(t, srv.auth.Close()) })
@@ -423,7 +442,7 @@ func TestInteractiveSession(t *testing.T) {
 
 	// Create a server context with an overridden recording mode
 	// so that sessions are recorded with the test emitter.
-	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
+	scx := newTestServerContext(t, reg.Srv, nil)
 	rcfg := types.DefaultSessionRecordingConfig()
 	rcfg.SetMode(types.RecordAtNodeSync)
 	scx.SessionRecordingConfig = rcfg
@@ -440,11 +459,11 @@ func TestInteractiveSession(t *testing.T) {
 		// Consume stdout sent to the channel
 		io.ReadAll(sshChanOpen)
 	}()
-	require.NoError(t, reg.OpenSession(ctx, sshChanOpen, scx))
+	require.NoError(t, reg.OpenSession(context.Background(), sshChanOpen, scx))
 	require.NotNil(t, scx.session)
 
 	// Simulate changing window size to capture an additional event.
-	require.NoError(t, reg.NotifyWinChange(ctx, rsession.TerminalParams{W: 100, H: 100}, scx))
+	require.NoError(t, reg.NotifyWinChange(context.Background(), rsession.TerminalParams{W: 100, H: 100}, scx))
 
 	// Stopping the session should trigger the session
 	// to end and cleanup in the background
@@ -498,9 +517,6 @@ func TestNonInteractiveSession(t *testing.T) {
 	t.Run("without BPF", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		srv := newMockServer(t)
 		srv.component = teleport.ComponentNode
 		t.Cleanup(func() { require.NoError(t, srv.auth.Close()) })
@@ -514,7 +530,7 @@ func TestNonInteractiveSession(t *testing.T) {
 
 		// Create a server context with an overridden recording mode
 		// so that sessions are recorded with the test emitter.
-		scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
+		scx := newTestServerContext(t, reg.Srv, nil)
 		rcfg := types.DefaultSessionRecordingConfig()
 		rcfg.SetMode(types.RecordAtNodeSync)
 		scx.SessionRecordingConfig = rcfg
@@ -528,7 +544,7 @@ func TestNonInteractiveSession(t *testing.T) {
 			// Consume stdout sent to the channel
 			io.ReadAll(sshChanOpen)
 		}()
-		require.NoError(t, reg.OpenExecSession(ctx, sshChanOpen, scx))
+		require.NoError(t, reg.OpenExecSession(context.Background(), sshChanOpen, scx))
 		require.NotNil(t, scx.session)
 
 		// Wait for the command execution to complete and the session to be terminated.
@@ -561,9 +577,6 @@ func TestNonInteractiveSession(t *testing.T) {
 	t.Run("with BPF", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		srv := newMockServer(t)
 		srv.component = teleport.ComponentNode
 		// Modify bpf to "enable" enhanced recording. This should
@@ -580,7 +593,7 @@ func TestNonInteractiveSession(t *testing.T) {
 
 		// Create a server context with an overridden recording mode
 		// so that sessions are recorded with the test emitter.
-		scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
+		scx := newTestServerContext(t, reg.Srv, nil)
 		rcfg := types.DefaultSessionRecordingConfig()
 		rcfg.SetMode(types.RecordAtNodeSync)
 		scx.SessionRecordingConfig = rcfg
@@ -594,7 +607,7 @@ func TestNonInteractiveSession(t *testing.T) {
 			// Consume stdout sent to the channel
 			io.ReadAll(sshChanOpen)
 		}()
-		require.NoError(t, reg.OpenExecSession(ctx, sshChanOpen, scx))
+		require.NoError(t, reg.OpenExecSession(context.Background(), sshChanOpen, scx))
 		require.NotNil(t, scx.session)
 
 		// Wait for the command execution to complete and the session to be terminated.
@@ -668,7 +681,7 @@ func TestStopUnstarted(t *testing.T) {
 	require.NoError(t, err)
 
 	roles := services.NewRoleSet(role)
-	sess, _ := testOpenSession(t, reg, roles, &decisionpb.SSHAccessPermit{})
+	sess, _ := testOpenSession(t, reg, roles)
 
 	// Stopping the session should trigger the session
 	// to end and cleanup in the background
@@ -700,7 +713,7 @@ func TestParties(t *testing.T) {
 	t.Cleanup(func() { reg.Close() })
 
 	// Create a session with 3 parties
-	sess, _ := testOpenSession(t, reg, nil, &decisionpb.SSHAccessPermit{})
+	sess, _ := testOpenSession(t, reg, nil)
 	require.Len(t, sess.getParties(), 1)
 	testJoinSession(t, reg, sess)
 	require.Len(t, sess.getParties(), 2)
@@ -767,9 +780,9 @@ func TestParties(t *testing.T) {
 }
 
 func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
-	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
+	scx := newTestServerContext(t, reg.Srv, nil)
 	sshChanOpen := newMockSSHChannel()
-	scx.setSession(t.Context(), sess, sshChanOpen)
+	scx.setSession(sess, sshChanOpen)
 
 	// Open a new session
 	go func() {
@@ -777,7 +790,7 @@ func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.OpenSession(t.Context(), sshChanOpen, scx)
+	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
 }
 
@@ -811,8 +824,17 @@ func TestSessionRecordingModes(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { reg.Close() })
 
-			sess, sessCh := testOpenSession(t, reg, nil, &decisionpb.SSHAccessPermit{
-				SessionRecordingMode: string(tt.sessionRecordingMode),
+			sess, sessCh := testOpenSession(t, reg, services.RoleSet{
+				&types.RoleV6{
+					Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							RecordSession: &types.RecordSession{
+								SSH: tt.sessionRecordingMode,
+							},
+						},
+					},
+				},
 			})
 
 			// Write stuff in the session
@@ -860,8 +882,8 @@ func TestSessionRecordingModes(t *testing.T) {
 	}
 }
 
-func testOpenSession(t *testing.T, reg *SessionRegistry, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) (*session, ssh.Channel) {
-	scx := newTestServerContext(t, reg.Srv, sessionJoiningRoleSet, accessPermit)
+func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSet) (*session, ssh.Channel) {
+	scx := newTestServerContext(t, reg.Srv, roleSet)
 
 	// Open a new session
 	sshChanOpen := newMockSSHChannel()
@@ -870,7 +892,7 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, sessionJoiningRoleSet s
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.OpenSession(t.Context(), sshChanOpen, scx)
+	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
 
 	require.NotNil(t, scx.session)
@@ -927,8 +949,7 @@ func (s sessionEvaluator) IsModerated() bool {
 
 func TestTrackingSession(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	me, err := user.Current()
 	require.NoError(t, err)
@@ -1041,7 +1062,7 @@ func TestTrackingSession(t *testing.T) {
 				createError: tt.createError,
 			}
 
-			scx := newTestServerContext(t, srv, nil, &decisionpb.SSHAccessPermit{})
+			scx := newTestServerContext(t, srv, nil)
 			scx.SessionRecordingConfig = &types.SessionRecordingConfigV2{
 				Kind:    types.KindSessionRecordingConfig,
 				Version: types.V2,
@@ -1185,9 +1206,6 @@ func TestSessionRecordingMode(t *testing.T) {
 }
 
 func TestCloseProxySession(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentProxy
 
@@ -1198,7 +1216,7 @@ func TestCloseProxySession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { reg.Close() })
 
-	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
+	scx := newTestServerContext(t, reg.Srv, nil)
 
 	// Open a new session
 	sshChanOpen := newMockSSHChannel()
@@ -1210,7 +1228,7 @@ func TestCloseProxySession(t *testing.T) {
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err = reg.OpenSession(ctx, sshChanOpen, scx)
+	err = reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
 	require.NotNil(t, scx.session)
 
@@ -1233,9 +1251,6 @@ func TestCloseProxySession(t *testing.T) {
 // closing the session releases all the resources, and return properly to the
 // user.
 func TestCloseRemoteSession(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentProxy
 
@@ -1246,7 +1261,7 @@ func TestCloseRemoteSession(t *testing.T) {
 	})
 	t.Cleanup(func() { reg.Close() })
 
-	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
+	scx := newTestServerContext(t, reg.Srv, nil)
 	scx.SessionRecordingConfig.SetMode(types.RecordAtProxy)
 	scx.RemoteSession = mockSSHSession(t)
 
@@ -1260,7 +1275,7 @@ func TestCloseRemoteSession(t *testing.T) {
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.OpenSession(ctx, sshChanOpen, scx)
+	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
 	require.NotNil(t, scx.session)
 
@@ -1282,7 +1297,7 @@ func TestCloseRemoteSession(t *testing.T) {
 func mockSSHSession(t *testing.T) *tracessh.Session {
 	t.Helper()
 
-	ctx := t.Context()
+	ctx := context.Background()
 
 	_, key, err := ed25519.GenerateKey(nil)
 	require.NoError(t, err)
@@ -1395,8 +1410,8 @@ func TestUpsertHostUser(t *testing.T) {
 			createHostUser: true,
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
+				AccessChecker: &fakeAccessChecker{
+					hostInfo: services.HostUsersInfo{
 						Groups: []string{"foo", "bar"},
 					},
 				},
@@ -1416,8 +1431,8 @@ func TestUpsertHostUser(t *testing.T) {
 			createHostUser: true,
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
+				AccessChecker: &fakeAccessChecker{
+					hostInfo: services.HostUsersInfo{
 						Groups: []string{"foo", "bar"},
 					},
 				},
@@ -1430,14 +1445,9 @@ func TestUpsertHostUser(t *testing.T) {
 			},
 		},
 		{
-			name:           "should not upsert existing user without permission",
-			createHostUser: true,
-			identityContext: IdentityContext{
-				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: nil,
-				},
-			},
+			name:            "should not upsert existing user without permission",
+			createHostUser:  true,
+			identityContext: IdentityContext{Login: username, AccessChecker: &fakeAccessChecker{err: trace.AccessDenied("test")}},
 			hostUsers: &fakeHostUsersBackend{
 				users: map[string]fakeUser{
 					username: {},
@@ -1445,25 +1455,21 @@ func TestUpsertHostUser(t *testing.T) {
 			},
 
 			expectCreated: false,
-			expectErrIs:   errHostUserCreationNotAuthorized,
+			expectErrIs:   trace.AccessDenied("test"),
 			expectUsers: map[string]fakeUser{
 				username: {},
 			},
 		},
 		{
-			name:           "should not upsert new user without permission",
-			createHostUser: true,
-			identityContext: IdentityContext{
-				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: nil,
-				},
-			},
-			hostUsers: &fakeHostUsersBackend{},
+			name:            "should not upsert new user without permission",
+			createHostUser:  true,
+			identityContext: IdentityContext{Login: username, AccessChecker: &fakeAccessChecker{err: trace.AccessDenied("test")}},
+			hostUsers:       &fakeHostUsersBackend{},
 
-			expectCreated: false,
-			expectUsers:   nil,
-			expectErrIs:   errHostUserCreationNotAuthorized,
+			expectCreated:     false,
+			expectUsers:       nil,
+			expectErrIs:       trace.AccessDenied("test"),
+			expectErrContains: "insufficient permissions for host user creation",
 		},
 		{
 			name:            "should do nothing if login is session join principal",
@@ -1479,9 +1485,9 @@ func TestUpsertHostUser(t *testing.T) {
 			createHostUser: true,
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
-						Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
+				AccessChecker: &fakeAccessChecker{
+					hostInfo: services.HostUsersInfo{
+						Mode: services.HostUserModeKeep,
 					},
 				},
 			},
@@ -1500,9 +1506,9 @@ func TestUpsertHostUser(t *testing.T) {
 			createHostUser: true,
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
-						Mode: decisionpb.HostUserMode_HOST_USER_MODE_DROP,
+				AccessChecker: &fakeAccessChecker{
+					hostInfo: services.HostUsersInfo{
+						Mode: services.HostUserModeDrop,
 					},
 				},
 			},
@@ -1521,9 +1527,9 @@ func TestUpsertHostUser(t *testing.T) {
 			createHostUser: true,
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
-						Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
+				AccessChecker: &fakeAccessChecker{
+					hostInfo: services.HostUsersInfo{
+						Mode: services.HostUserModeKeep,
 					},
 				},
 			},
@@ -1546,10 +1552,10 @@ func TestUpsertHostUser(t *testing.T) {
 			createHostUser: true,
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
-						Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
-						Gid:  "set",
+				AccessChecker: &fakeAccessChecker{
+					hostInfo: services.HostUsersInfo{
+						Mode: services.HostUserModeKeep,
+						GID:  "set",
 					},
 				},
 			},
@@ -1616,40 +1622,26 @@ func TestWriteSudoersFile(t *testing.T) {
 		expectErrContains string
 	}{
 		{
-			name: "should write sudoers with permission",
-			identityContext: IdentityContext{
-				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostSudoers: []string{"foo", "bar"},
-				},
-			},
-			hostSudoers: &fakeSudoersBackend{},
+			name:            "should write sudoers with permission",
+			identityContext: IdentityContext{Login: username, AccessChecker: &fakeAccessChecker{}},
+			hostSudoers:     &fakeSudoersBackend{},
 
 			expectSudoers: map[string][]string{
 				username: {"foo", "bar"},
 			},
 		},
 		{
-			name: "should do nothing if no sudoers defined",
-			identityContext: IdentityContext{
-				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostSudoers: nil,
-				},
-			},
-			hostSudoers: &fakeSudoersBackend{},
+			name:            "should not write sudoers without permission",
+			identityContext: IdentityContext{Login: username, AccessChecker: &fakeAccessChecker{err: trace.AccessDenied("test")}},
+			hostSudoers:     &fakeSudoersBackend{},
 
 			expectSudoers: map[string][]string{},
+			expectErrIs:   trace.AccessDenied("test"),
 		},
 		{
-			name: "should do nothing for session join principal",
-			identityContext: IdentityContext{
-				Login: teleport.SSHSessionJoinPrincipal,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostSudoers: []string{"foo", "bar"}, // should not be written
-				},
-			},
-			hostSudoers: &fakeSudoersBackend{},
+			name:            "should do nothing for session join principal",
+			identityContext: IdentityContext{Login: teleport.SSHSessionJoinPrincipal, AccessChecker: &fakeAccessChecker{}},
+			hostSudoers:     &fakeSudoersBackend{},
 
 			expectSudoers: map[string][]string{},
 		},
@@ -1713,6 +1705,20 @@ func (f *fakeServer) Context() context.Context {
 	return context.Background()
 }
 
+type fakeAccessChecker struct {
+	services.AccessChecker
+	err      error
+	hostInfo services.HostUsersInfo
+}
+
+func (f *fakeAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
+	return []string{"foo", "bar"}, f.err
+}
+
+func (f *fakeAccessChecker) HostUsers(srv types.Server) (*services.HostUsersInfo, error) {
+	return &f.hostInfo, f.err
+}
+
 type fakeUser struct {
 	groups []string
 	uid    string
@@ -1725,15 +1731,15 @@ type fakeHostUsersBackend struct {
 	users map[string]fakeUser
 }
 
-func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo *decisionpb.HostUsersInfo, opts ...UpsertHostUserOption) (io.Closer, error) {
+func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo services.HostUsersInfo) (io.Closer, error) {
 	if f.users == nil {
 		f.users = make(map[string]fakeUser)
 	}
 
 	f.users[name] = fakeUser{
 		groups: hostRoleInfo.Groups,
-		uid:    hostRoleInfo.Uid,
-		gid:    hostRoleInfo.Gid,
+		uid:    hostRoleInfo.UID,
+		gid:    hostRoleInfo.GID,
 	}
 	return nil, nil
 }

@@ -183,7 +183,9 @@ func BenchmarkQueue(b *testing.B) {
 	q := New(workfn, Workers(workers))
 	defer q.Close()
 
-	for b.Loop() {
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
 		collected := make(chan struct{})
 		go func() {
 			for i := 0; i < iters; i++ {

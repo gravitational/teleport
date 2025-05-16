@@ -463,7 +463,6 @@ type ResourceKind =
       | 'saml_idp_service_provider'
       | 'namespace'
       | 'aws_ic_account_assignment'
-      | 'windows_desktop'
     >
   | 'role';
 

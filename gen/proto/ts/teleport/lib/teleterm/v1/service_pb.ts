@@ -37,7 +37,6 @@ import { DeviceConfirmationToken } from "../../../devicetrust/v1/device_confirma
 import { DeviceWebToken } from "../../../devicetrust/v1/device_web_token_pb";
 import { UnifiedResourcePreferences } from "../../../userpreferences/v1/unified_resource_preferences_pb";
 import { ClusterUserPreferences } from "../../../userpreferences/v1/cluster_preferences_pb";
-import { WindowsDesktop } from "./windows_desktop_pb";
 import { App } from "./app_pb";
 import { Kube } from "./kube_pb";
 import { Database } from "./database_pb";
@@ -1085,12 +1084,6 @@ export interface PaginatedResource {
          */
         app: App;
     } | {
-        oneofKind: "windowsDesktop";
-        /**
-         * @generated from protobuf field: teleport.lib.teleterm.v1.WindowsDesktop windows_desktop = 6;
-         */
-        windowsDesktop: WindowsDesktop;
-    } | {
         oneofKind: undefined;
     };
     /**
@@ -1203,58 +1196,6 @@ export interface GetAppResponse {
      * @generated from protobuf field: teleport.lib.teleterm.v1.App app = 1;
      */
     app?: App;
-}
-/**
- * TargetDesktop contains information about the destination desktop.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.TargetDesktop
- */
-export interface TargetDesktop {
-    /**
-     * URI of the desktop to connect to.
-     *
-     * @generated from protobuf field: string desktop_uri = 1;
-     */
-    desktopUri: string;
-    /**
-     * Login for the desktop session.
-     *
-     * @generated from protobuf field: string login = 2;
-     */
-    login: string;
-}
-/**
- * Request for ConnectToDesktop.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.ConnectToDesktopRequest
- */
-export interface ConnectToDesktopRequest {
-    /**
-     * Data is a TDP (Teleport Desktop Protocol) message sent from the client to the desktop service.
-     * Must be empty in the first message and nonempty in subsequent messages.
-     *
-     * @generated from protobuf field: bytes data = 1;
-     */
-    data: Uint8Array;
-    /**
-     * Target desktop and login. Must be set in the first message and unset in subsequent messages.
-     *
-     * @generated from protobuf field: teleport.lib.teleterm.v1.TargetDesktop target_desktop = 2;
-     */
-    targetDesktop?: TargetDesktop;
-}
-/**
- * Response for ConnectToDesktop.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.ConnectToDesktopResponse
- */
-export interface ConnectToDesktopResponse {
-    /**
-     * Data is a TDP (Teleport Desktop Protocol) message sent from the desktop service to the client.
-     *
-     * @generated from protobuf field: bytes data = 1;
-     */
-    data: Uint8Array;
 }
 /**
  * PasswordlessPrompt describes different prompts we need from users
@@ -4886,7 +4827,6 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
             { no: 2, name: "server", kind: "message", oneof: "resource", T: () => Server },
             { no: 3, name: "kube", kind: "message", oneof: "resource", T: () => Kube },
             { no: 4, name: "app", kind: "message", oneof: "resource", T: () => App },
-            { no: 6, name: "windows_desktop", kind: "message", oneof: "resource", T: () => WindowsDesktop },
             { no: 5, name: "requires_request", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
@@ -4927,12 +4867,6 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
                         app: App.internalBinaryRead(reader, reader.uint32(), options, (message.resource as any).app)
                     };
                     break;
-                case /* teleport.lib.teleterm.v1.WindowsDesktop windows_desktop */ 6:
-                    message.resource = {
-                        oneofKind: "windowsDesktop",
-                        windowsDesktop: WindowsDesktop.internalBinaryRead(reader, reader.uint32(), options, (message.resource as any).windowsDesktop)
-                    };
-                    break;
                 case /* bool requires_request */ 5:
                     message.requiresRequest = reader.bool();
                     break;
@@ -4960,9 +4894,6 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
         /* teleport.lib.teleterm.v1.App app = 4; */
         if (message.resource.oneofKind === "app")
             App.internalBinaryWrite(message.resource.app, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
-        /* teleport.lib.teleterm.v1.WindowsDesktop windows_desktop = 6; */
-        if (message.resource.oneofKind === "windowsDesktop")
-            WindowsDesktop.internalBinaryWrite(message.resource.windowsDesktop, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
         /* bool requires_request = 5; */
         if (message.requiresRequest !== false)
             writer.tag(5, WireType.Varint).bool(message.requiresRequest);
@@ -5415,162 +5346,6 @@ class GetAppResponse$Type extends MessageType<GetAppResponse> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetAppResponse
  */
 export const GetAppResponse = new GetAppResponse$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class TargetDesktop$Type extends MessageType<TargetDesktop> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.TargetDesktop", [
-            { no: 1, name: "desktop_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "login", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<TargetDesktop>): TargetDesktop {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.desktopUri = "";
-        message.login = "";
-        if (value !== undefined)
-            reflectionMergePartial<TargetDesktop>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: TargetDesktop): TargetDesktop {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string desktop_uri */ 1:
-                    message.desktopUri = reader.string();
-                    break;
-                case /* string login */ 2:
-                    message.login = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: TargetDesktop, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string desktop_uri = 1; */
-        if (message.desktopUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.desktopUri);
-        /* string login = 2; */
-        if (message.login !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.login);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.TargetDesktop
- */
-export const TargetDesktop = new TargetDesktop$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class ConnectToDesktopRequest$Type extends MessageType<ConnectToDesktopRequest> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.ConnectToDesktopRequest", [
-            { no: 1, name: "data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
-            { no: 2, name: "target_desktop", kind: "message", T: () => TargetDesktop }
-        ]);
-    }
-    create(value?: PartialMessage<ConnectToDesktopRequest>): ConnectToDesktopRequest {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.data = new Uint8Array(0);
-        if (value !== undefined)
-            reflectionMergePartial<ConnectToDesktopRequest>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConnectToDesktopRequest): ConnectToDesktopRequest {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* bytes data */ 1:
-                    message.data = reader.bytes();
-                    break;
-                case /* teleport.lib.teleterm.v1.TargetDesktop target_desktop */ 2:
-                    message.targetDesktop = TargetDesktop.internalBinaryRead(reader, reader.uint32(), options, message.targetDesktop);
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: ConnectToDesktopRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* bytes data = 1; */
-        if (message.data.length)
-            writer.tag(1, WireType.LengthDelimited).bytes(message.data);
-        /* teleport.lib.teleterm.v1.TargetDesktop target_desktop = 2; */
-        if (message.targetDesktop)
-            TargetDesktop.internalBinaryWrite(message.targetDesktop, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ConnectToDesktopRequest
- */
-export const ConnectToDesktopRequest = new ConnectToDesktopRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class ConnectToDesktopResponse$Type extends MessageType<ConnectToDesktopResponse> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.ConnectToDesktopResponse", [
-            { no: 1, name: "data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
-        ]);
-    }
-    create(value?: PartialMessage<ConnectToDesktopResponse>): ConnectToDesktopResponse {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.data = new Uint8Array(0);
-        if (value !== undefined)
-            reflectionMergePartial<ConnectToDesktopResponse>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConnectToDesktopResponse): ConnectToDesktopResponse {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* bytes data */ 1:
-                    message.data = reader.bytes();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: ConnectToDesktopResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* bytes data = 1; */
-        if (message.data.length)
-            writer.tag(1, WireType.LengthDelimited).bytes(message.data);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ConnectToDesktopResponse
- */
-export const ConnectToDesktopResponse = new ConnectToDesktopResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.v1.TerminalService
  */
@@ -5615,6 +5390,5 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "GetUserPreferences", options: {}, I: GetUserPreferencesRequest, O: GetUserPreferencesResponse },
     { name: "UpdateUserPreferences", options: {}, I: UpdateUserPreferencesRequest, O: UpdateUserPreferencesResponse },
     { name: "AuthenticateWebDevice", options: {}, I: AuthenticateWebDeviceRequest, O: AuthenticateWebDeviceResponse },
-    { name: "GetApp", options: {}, I: GetAppRequest, O: GetAppResponse },
-    { name: "ConnectToDesktop", serverStreaming: true, clientStreaming: true, options: {}, I: ConnectToDesktopRequest, O: ConnectToDesktopResponse }
+    { name: "GetApp", options: {}, I: GetAppRequest, O: GetAppResponse }
 ]);

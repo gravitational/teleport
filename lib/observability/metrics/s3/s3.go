@@ -25,8 +25,6 @@ import (
 	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
 	"github.com/aws/smithy-go/middleware"
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 var (
@@ -54,10 +52,24 @@ var (
 		},
 		[]string{"operation"},
 	)
+
+	s3Collectors = []prometheus.Collector{
+		apiRequestsTotal,
+		apiRequests,
+		apiRequestLatencies,
+	}
 )
 
-func init() {
-	_ = metrics.RegisterPrometheusCollectors(apiRequests, apiRequestsTotal, apiRequestLatencies)
+// recordMetrics updates the set of s3 api metrics
+func recordMetrics(operation string, err error, latency float64) {
+	apiRequestLatencies.WithLabelValues(operation).Observe(latency)
+	apiRequestsTotal.WithLabelValues(operation).Inc()
+
+	result := "success"
+	if err != nil {
+		result = "error"
+	}
+	apiRequests.WithLabelValues(operation, result).Inc()
 }
 
 // MetricsMiddleware returns middleware that can be used to capture
@@ -85,12 +97,13 @@ func MetricsMiddleware() []func(stack *middleware.Stack) error {
 					}
 
 					then := ctx.Value(timestampKey{}).(time.Time)
+					service := awsmiddleware.GetServiceID(ctx)
 					operation := awsmiddleware.GetOperationName(ctx)
 					latency := time.Since(then).Seconds()
 
-					apiRequestsTotal.WithLabelValues(operation).Inc()
-					apiRequestLatencies.WithLabelValues(operation).Observe(latency)
-					apiRequests.WithLabelValues(operation, result).Inc()
+					apiRequestsTotal.WithLabelValues(service, operation).Inc()
+					apiRequestLatencies.WithLabelValues(service, operation).Observe(latency)
+					apiRequests.WithLabelValues(service, operation, result).Inc()
 
 					return out, md, err
 				}), middleware.After)

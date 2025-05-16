@@ -23,8 +23,10 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -34,7 +36,7 @@ import (
 
 type authServer interface {
 	// GetClusterName returns cluster name
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GenerateHostCert uses the private key of the CA to sign the public key of
 	// the host (along with metadata like host ID, node name, roles, and ttl)
@@ -58,6 +60,7 @@ type ServiceConfig struct {
 	Authorizer authz.Authorizer
 	Cache      services.AuthorityGetter
 	Backend    services.TrustInternal
+	Logger     *logrus.Entry
 	AuthServer authServer
 }
 
@@ -68,6 +71,7 @@ type Service struct {
 	cache      services.AuthorityGetter
 	backend    services.TrustInternal
 	authServer authServer
+	logger     *logrus.Entry
 }
 
 // NewService returns a new trust gRPC service.
@@ -81,9 +85,12 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("authorizer is required")
 	case cfg.AuthServer == nil:
 		return nil, trace.BadParameter("authServer is required")
+	case cfg.Logger == nil:
+		cfg.Logger = logrus.WithField(teleport.ComponentKey, "trust.service")
 	}
 
 	return &Service{
+		logger:     cfg.Logger,
 		authorizer: cfg.Authorizer,
 		cache:      cfg.Cache,
 		backend:    cfg.Backend,
@@ -326,7 +333,7 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 		}
 	}
 
-	clusterName, err := s.authServer.GetClusterName(ctx)
+	clusterName, err := s.authServer.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

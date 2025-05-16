@@ -55,7 +55,7 @@ type githubContext struct {
 	a           *Server
 	mockEmitter *eventstest.MockRecorderEmitter
 	b           backend.Backend
-	c           *clockwork.FakeClock
+	c           clockwork.FakeClock
 }
 
 func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
@@ -188,7 +188,6 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
 	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
 	tt := setupGithubContext(ctx, t)
-	logger := utils.NewSlogLoggerForTests()
 
 	auth := &authclient.GithubAuthResponse{
 		Username: "test-name",
@@ -221,7 +220,7 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 		diagCtx.Info.AppliedLoginRules = []string{"login-rule"}
 		return auth, nil
 	}
-	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter, logger)
+	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter)
 	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
 	require.Equal(t, events.UserSSOLoginCode, tt.mockEmitter.LastEvent().GetCode())
 	loginEvt := tt.mockEmitter.LastEvent().(*apievents.UserLogin)
@@ -236,7 +235,7 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 		diagCtx.Info.GithubClaims = claims
 		return auth, trace.BadParameter("")
 	}
-	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter, logger)
+	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter)
 	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
 	require.Equal(t, events.UserSSOLoginFailureCode, tt.mockEmitter.LastEvent().GetCode())
 	loginEvt = tt.mockEmitter.LastEvent().(*apievents.UserLogin)
@@ -249,7 +248,7 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 		diagCtx.Info.GithubClaims = claims
 		return auth, nil
 	}
-	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter, logger)
+	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter)
 	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
 	require.Equal(t, events.UserSSOTestFlowLoginCode, tt.mockEmitter.LastEvent().GetCode())
 	loginEvt = tt.mockEmitter.LastEvent().(*apievents.UserLogin)
@@ -263,7 +262,7 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 		diagCtx.Info.GithubClaims = claims
 		return auth, trace.BadParameter("")
 	}
-	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter, logger)
+	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter)
 	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
 	require.Equal(t, events.UserSSOTestFlowLoginFailureCode, tt.mockEmitter.LastEvent().GetCode())
 	loginEvt = tt.mockEmitter.LastEvent().(*apievents.UserLogin)

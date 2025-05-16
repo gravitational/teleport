@@ -67,7 +67,7 @@ type tcpAppResolver struct {
 func newTCPAppResolver(appProvider appProvider, clock clockwork.Clock) *tcpAppResolver {
 	return &tcpAppResolver{
 		appProvider: appProvider,
-		log:         log.With(teleport.ComponentKey, teleport.Component("vnet", "app-resolver")),
+		log:         log.With(teleport.ComponentKey, "VNet.AppResolver"),
 		clock:       clock,
 	}
 }
@@ -110,7 +110,7 @@ func (r *tcpAppResolver) newTCPAppHandler(ctx context.Context, appInfo *vnetv1.A
 	return &tcpAppHandler{
 		appInfo:     appInfo,
 		appProvider: r.appProvider,
-		log: r.log.With(teleport.ComponentKey, teleport.Component("vnet", "tcp-app-resolver"),
+		log: r.log.With(teleport.ComponentKey, "VNet.tcpAppResolver",
 			"profile", appInfo.GetAppKey().GetProfile(), "leaf_cluster", appInfo.GetAppKey().GetLeafCluster(), "fqdn", appInfo.GetApp().GetPublicAddr()),
 		clock:            r.clock,
 		portToLocalProxy: make(map[uint16]*alpnproxy.LocalProxy),

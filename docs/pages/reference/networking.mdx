@@ -45,7 +45,7 @@ following use cases:
 <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 
 On Teleport Enterprise (Cloud) the Teleport Agent services always
-connect using reverse tunnels so there is no need to set a public address for an Agent.
+connect using reverse tunnels so there is no need to set a public address for an agent.
 
 </TabItem>
 </Tabs>
@@ -259,5 +259,6 @@ use reverse tunnel connections through the Teleport Proxy Service and cannot
 expose ports directly.
 
 <Admonition type="important">
-Direct auth joining is only supported for ssh and kube agents. Application, database, and other discovery-based features are not supported when joining auth directly.
+Direct auth joining is only supported for SSH and Kubernetes agents. Application, database, and other discovery-based features are not supported when joining auth directly.
 </Admonition>
+

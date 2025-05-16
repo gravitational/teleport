@@ -58,6 +58,9 @@ const (
 	uiDiscoverDesktopActiveDirectoryToolsInstallEvent = "tp.ui.discover.desktop.activeDirectory.tools.install"
 	uiDiscoverDesktopActiveDirectoryConfigureEvent    = "tp.ui.discover.desktop.activeDirectory.configure"
 	uiDiscoverAutoDiscoveredResourcesEvent            = "tp.ui.discover.autoDiscoveredResources"
+	uiDiscoverEC2InstanceSelectionEvent               = "tp.ui.discover.selectedEC2Instance"
+	uiDiscoverDeployEICEEvent                         = "tp.ui.discover.deployEICE"
+	uiDiscoverCreateNodeEvent                         = "tp.ui.discover.createNode"
 	uiDiscoverCreateAppServerEvent                    = "tp.ui.discover.createAppServer"
 	uiDiscoverCreateDiscoveryConfigEvent              = "tp.ui.discover.createDiscoveryConfig"
 	uiDiscoverPrincipalsConfigureEvent                = "tp.ui.discover.principals.configure"
@@ -332,6 +335,9 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 		uiDiscoverAutoDiscoveredResourcesEvent,
 		uiDiscoverPrincipalsConfigureEvent,
 		uiDiscoverTestConnectionEvent,
+		uiDiscoverEC2InstanceSelectionEvent,
+		uiDiscoverDeployEICEEvent,
+		uiDiscoverCreateNodeEvent,
 		uiDiscoverCreateAppServerEvent,
 		uiDiscoverCreateDiscoveryConfigEvent,
 		uiDiscoverCompletedEvent:
@@ -354,8 +360,22 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 			nil
 
 	case createNewRoleSaveClickEvent:
+		roleEvent := struct {
+			StandardUsed               bool     `json:"standardUsed"`
+			YAMLUsed                   bool     `json:"yamlUsed"`
+			ModeWhenSaved              string   `json:"modeWhenSaved"`
+			FieldsWithConversionErrors []string `json:"fieldsWithConversionErrors"`
+		}{}
+		if err := json.Unmarshal([]byte(*req.EventData), &roleEvent); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
 		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiCreateNewRoleSaveClick{
-				UiCreateNewRoleSaveClick: &usageeventsv1.UICreateNewRoleSaveClickEvent{},
+				UiCreateNewRoleSaveClick: &usageeventsv1.UICreateNewRoleSaveClickEvent{
+					StandardUsed:               roleEvent.StandardUsed,
+					YamlUsed:                   roleEvent.YAMLUsed,
+					ModeWhenSaved:              roleEvent.ModeWhenSaved,
+					FieldsWithConversionErrors: roleEvent.FieldsWithConversionErrors,
+				},
 			}},
 			nil
 

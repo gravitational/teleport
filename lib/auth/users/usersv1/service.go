@@ -20,10 +20,10 @@ package usersv1
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Cache is the subset of the cached resources that the Service queries.
@@ -70,7 +69,7 @@ type ServiceConfig struct {
 	Authorizer authz.Authorizer
 	Cache      Cache
 	Backend    Backend
-	Logger     *slog.Logger
+	Logger     logrus.FieldLogger
 	Emitter    apievents.Emitter
 	Reporter   usagereporter.UsageReporter
 	Clock      clockwork.Clock
@@ -83,7 +82,7 @@ type Service struct {
 	authorizer authz.Authorizer
 	cache      Cache
 	backend    Backend
-	logger     *slog.Logger
+	logger     logrus.FieldLogger
 	emitter    apievents.Emitter
 	reporter   usagereporter.UsageReporter
 	clock      clockwork.Clock
@@ -105,7 +104,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, "users.service")
+		cfg.Logger = logrus.WithField(teleport.ComponentKey, "users.service")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -172,7 +171,7 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*us
 		// migrated to that model.
 		if !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
 			err := trace.AccessDenied("user %q requested access to user %q with secrets", authCtx.User.GetName(), req.Name)
-			s.logger.WarnContext(ctx, "user does not have permission to read user with secrets", "error", err)
+			s.logger.Warn(err)
 			if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
@@ -185,7 +184,7 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*us
 					UserMessage: err.Error(),
 				},
 			}); err != nil {
-				s.logger.WarnContext(ctx, "Failed to emit local login failure event", "error", err)
+				s.logger.WithError(err).Warn("Failed to emit local login failure event.")
 			}
 			return nil, trace.AccessDenied("this request can be only executed by an admin")
 		}
@@ -207,11 +206,7 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*us
 
 	v2, ok := user.(*types.UserV2)
 	if !ok {
-		s.logger.WarnContext(ctx, "unexpected user type",
-			"got_type", logutils.TypeAttr(user),
-			"expected_type", "UserV2",
-			"user", user.GetName(),
-		)
+		s.logger.Warnf("expected type UserV2, got %T for user %q", user, user.GetName())
 		return nil, trace.BadParameter("encountered unexpected user type")
 	}
 
@@ -276,18 +271,14 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		Roles:              created.GetRoles(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.logger.WarnContext(ctx, "Failed to emit user create event", "error", err)
+		s.logger.WithError(err).Warn("Failed to emit user create event.")
 	}
 
 	usagereporter.EmitEditorChangeEvent(created.GetName(), nil, created.GetRoles(), s.reporter.AnonymizeAndSubmit)
 
 	v2, ok := created.(*types.UserV2)
 	if !ok {
-		s.logger.WarnContext(ctx, "unexpected user type",
-			"got_type", logutils.TypeAttr(created),
-			"expected_type", "UserV2",
-			"user", created.GetName(),
-		)
+		s.logger.Warnf("expected type UserV2, got %T for user %q", created, created.GetName())
 		return nil, trace.BadParameter("encountered unexpected user type")
 	}
 
@@ -328,7 +319,7 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 	var omitEditorEvent bool
 	if err != nil {
 		// don't return error here since this call is for event emitting purposes only
-		s.logger.WarnContext(ctx, "Failed getting previous user during update", "error", err)
+		s.logger.WithError(err).Warn("Failed getting previous user during update")
 		omitEditorEvent = true
 	}
 
@@ -365,7 +356,7 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		Roles:              updated.GetRoles(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.logger.WarnContext(ctx, "Failed to emit user update event", "error", err)
+		s.logger.WithError(err).Warn("Failed to emit user update event.")
 	}
 
 	if !omitEditorEvent {
@@ -374,11 +365,7 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 
 	v2, ok := updated.(*types.UserV2)
 	if !ok {
-		s.logger.WarnContext(ctx, "unexpected user type",
-			"got_type", logutils.TypeAttr(updated),
-			"expected_type", "UserV2",
-			"user", updated.GetName(),
-		)
+		s.logger.Warnf("expected type UserV2, got %T for user %q", updated, updated.GetName())
 		return nil, trace.BadParameter("encountered unexpected user type")
 	}
 
@@ -418,7 +405,7 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 	var omitEditorEvent bool
 	if err != nil {
 		// don't return error here since this call is for event emitting purposes only
-		s.logger.WarnContext(ctx, "Failed getting previous user during update", "error", err)
+		s.logger.WithError(err).Warn("Failed getting previous user during update")
 		omitEditorEvent = true
 	}
 
@@ -459,7 +446,7 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		Roles:              upserted.GetRoles(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.logger.WarnContext(ctx, "Failed to emit user upsert event", "error", err)
+		s.logger.WithError(err).Warn("Failed to emit user upsert event.")
 	}
 
 	if !omitEditorEvent {
@@ -468,11 +455,7 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 
 	v2, ok := upserted.(*types.UserV2)
 	if !ok {
-		s.logger.WarnContext(ctx, "unexpected user type",
-			"got_type", logutils.TypeAttr(upserted),
-			"expected_type", "UserV2",
-			"user", upserted.GetName(),
-		)
+		s.logger.Warnf("expected type UserV2, got %T for user %q", upserted, upserted.GetName())
 		return nil, trace.BadParameter("encountered unexpected user type")
 	}
 
@@ -497,7 +480,7 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 	var omitEditorEvent bool
 	if err != nil && !trace.IsNotFound(err) {
 		// don't return error here, delete may still succeed
-		s.logger.WarnContext(ctx, "Failed getting previous user during delete operation", "error", err)
+		s.logger.WithError(err).Warn("Failed getting previous user during delete operation")
 		prevUser = nil
 		omitEditorEvent = true
 	}
@@ -535,7 +518,7 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.logger.WarnContext(ctx, "Failed to emit user delete event", "error", err)
+		s.logger.WithError(err).Warn("Failed to emit user delete event.")
 	}
 
 	if !omitEditorEvent {
@@ -556,7 +539,7 @@ func (s *Service) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) 
 		// migrated to that model.
 		if !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
 			err := trace.AccessDenied("user %q requested access to all users with secrets", authCtx.User.GetName())
-			s.logger.WarnContext(ctx, "user does not have permission to read all users with secrets", "error", err)
+			s.logger.Warn(err)
 			if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
@@ -569,7 +552,7 @@ func (s *Service) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) 
 					UserMessage: err.Error(),
 				},
 			}); err != nil {
-				s.logger.WarnContext(ctx, "Failed to emit local login failure event", "error", err)
+				s.logger.WithError(err).Warn("Failed to emit local login failure event.")
 			}
 			return nil, trace.AccessDenied("this request can be only executed by an admin")
 		}

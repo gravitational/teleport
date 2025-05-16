@@ -19,6 +19,7 @@ package local
 import (
 	"context"
 	"log/slog"
+	"net"
 
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -26,10 +27,14 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
-	typesvnet "github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+)
+
+const (
+	vnetConfigPrefix        = "vnet_config"
+	vnetConfigSingletonName = "vnet-config"
 )
 
 // VnetConfigService implements the storage layer for the VnetConfig resource.
@@ -44,7 +49,7 @@ func NewVnetConfigService(b backend.Backend) (*VnetConfigService, error) {
 		generic.ServiceConfig[*vnet.VnetConfig]{
 			Backend:       b,
 			ResourceKind:  types.KindVnetConfig,
-			BackendPrefix: backend.NewKey(types.KindVnetConfig),
+			BackendPrefix: backend.NewKey(vnetConfigPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*vnet.VnetConfig],
 			UnmarshalFunc: services.UnmarshalProtoResource[*vnet.VnetConfig],
 			ValidateFunc:  validateVnetConfig,
@@ -61,7 +66,7 @@ func NewVnetConfigService(b backend.Backend) (*VnetConfigService, error) {
 
 // GetVnetConfig returns the singleton VnetConfig resource.
 func (s *VnetConfigService) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
-	vnetConfig, err := s.svc.GetResource(ctx, types.MetaNameVnetConfig)
+	vnetConfig, err := s.svc.GetResource(ctx, vnetConfigSingletonName)
 	return vnetConfig, trace.Wrap(err)
 }
 
@@ -85,23 +90,37 @@ func (s *VnetConfigService) UpsertVnetConfig(ctx context.Context, vnetConfig *vn
 
 // DeleteVnetConfig deletes the singleton VnetConfig resource.
 func (s *VnetConfigService) DeleteVnetConfig(ctx context.Context) error {
-	return trace.Wrap(s.svc.DeleteResource(ctx, types.MetaNameVnetConfig))
+	return trace.Wrap(s.svc.DeleteResource(ctx, vnetConfigSingletonName))
 }
 
 func validateVnetConfig(vnetConfig *vnet.VnetConfig) error {
-	if err := typesvnet.ValidateVnetConfig(vnetConfig); err != nil {
-		return trace.Wrap(err)
+	if vnetConfig.GetKind() != types.KindVnetConfig {
+		return trace.BadParameter("kind must be %q", types.KindVnetConfig)
 	}
-
-	// This validation is not present in typesvnet.ValidateVnetConfig because the api package does not
-	// have k8s.io/apimachinery in its deps.
+	if vnetConfig.GetVersion() != types.V1 {
+		return trace.BadParameter("version must be %q", types.V1)
+	}
+	if vnetConfig.GetMetadata().GetName() != vnetConfigSingletonName {
+		return trace.BadParameter("name must be %q", vnetConfigSingletonName)
+	}
+	if cidrRange := vnetConfig.GetSpec().GetIpv4CidrRange(); cidrRange != "" {
+		ip, _, err := net.ParseCIDR(cidrRange)
+		if err != nil {
+			return trace.Wrap(err, "parsing ipv4_cidr_range")
+		}
+		if ip4 := ip.To4(); ip4 == nil {
+			return trace.BadParameter("ipv4_cidr_range must be valid IPv4")
+		}
+	}
 	for _, zone := range vnetConfig.GetSpec().GetCustomDnsZones() {
 		suffix := zone.GetSuffix()
+		if len(suffix) == 0 {
+			return trace.BadParameter("custom_dns_zone must have a non-empty suffix")
+		}
 		errs := validation.IsDNS1123Subdomain(suffix)
 		if len(errs) > 0 {
 			return trace.BadParameter("validating custom_dns_zone.suffix %q: %s", suffix, errs)
 		}
 	}
-
 	return nil
 }

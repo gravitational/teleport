@@ -121,13 +121,32 @@ export default function useDesktopSession(
     }
   }
 
-  const onShareDirectory = async () => {
+  const onShareDirectory = () => {
     try {
-      await tdpClient.shareDirectory();
-      setDirectorySharingState(prevState => ({
-        ...prevState,
-        directorySelected: true,
-      }));
+      window
+        .showDirectoryPicker()
+        .then(sharedDirHandle => {
+          // Permissions granted and/or directory selected
+          setDirectorySharingState(prevState => ({
+            ...prevState,
+            directorySelected: true,
+          }));
+          tdpClient.addSharedDirectory(sharedDirHandle);
+          tdpClient.sendSharedDirectoryAnnounce();
+        })
+        .catch(e => {
+          setDirectorySharingState(prevState => ({
+            ...prevState,
+            directorySelected: false,
+          }));
+          addAlert({
+            severity: 'warn',
+            content: {
+              title: 'Failed to open the directory picker',
+              description: e.message,
+            },
+          });
+        });
     } catch (e) {
       setDirectorySharingState(prevState => ({
         ...prevState,
@@ -135,9 +154,19 @@ export default function useDesktopSession(
       }));
       addAlert({
         severity: 'warn',
+        // This is a gross error message, but should be infrequent enough that its worth just telling
+        // the user the likely problem, while also displaying the error message just in case that's not it.
+        // In a perfect world, we could check for which error message this is and display
+        // context appropriate directions.
         content: {
-          title: 'Could not share a directory',
-          description: e.message,
+          title: 'Encountered an error while attempting to share a directory',
+          description:
+            e.message +
+            '. \n\nYour user role supports directory sharing over desktop access, \
+  however this feature is only available by default on some Chromium \
+  based browsers like Google Chrome or Microsoft Edge. Brave users can \
+  use the feature by navigating to brave://flags/#file-system-access-api \
+  and selecting "Enable". If you\'re not already, please switch to a supported browser.',
         },
       });
     }

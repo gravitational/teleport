@@ -30,7 +30,6 @@ export const databases: Database[] = [
       { name: 'env', value: 'aws' },
     ],
     hostname: 'aurora-hostname',
-    targetHealth: { status: 'unhealthy' },
   },
   {
     kind: 'db',
@@ -43,7 +42,6 @@ export const databases: Database[] = [
       { name: 'env', value: 'aws' },
     ],
     hostname: 'mongo-bongo',
-    targetHealth: { status: 'unknown' },
   },
   {
     kind: 'db',
@@ -104,7 +102,6 @@ export const databases: Database[] = [
       { name: 'env', value: 'gcp' },
     ],
     hostname: 'postgres-hostname',
-    targetHealth: { status: 'unhealthy' },
   },
   {
     kind: 'db',

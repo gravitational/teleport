@@ -37,9 +37,6 @@ const (
 
 	// IntegrationSubKindGitHub is an integration with GitHub.
 	IntegrationSubKindGitHub = "github"
-
-	// IntegrationSubKindAWSRA is an integration with AWS that uses AWS IAM Roles Anywhere as trust and source of credentials.
-	IntegrationSubKindAWSRA = "aws-ra"
 )
 
 const (
@@ -75,19 +72,12 @@ type Integration interface {
 	// SetGitHubIntegrationSpec returns the GitHub spec.
 	SetGitHubIntegrationSpec(*GitHubIntegrationSpecV1)
 
-	// GetAWSRAIntegrationSpec returns the `aws-ra` spec fields.
-	GetAWSRAIntegrationSpec() *AWSRAIntegrationSpecV1
-	// SetAWSRAIntegrationSpec sets the `aws-ra` spec fields.
-	SetAWSRAIntegrationSpec(*AWSRAIntegrationSpecV1)
-
 	// SetCredentials updates credentials.
 	SetCredentials(creds PluginCredentials) error
 	// GetCredentials retrieves credentials.
 	GetCredentials() PluginCredentials
 	// WithoutCredentials returns a copy without credentials.
 	WithoutCredentials() Integration
-	// Clone returns a copy of the integration.
-	Clone() Integration
 }
 
 var _ ResourceWithLabels = (*IntegrationV1)(nil)
@@ -146,27 +136,6 @@ func NewIntegrationGitHub(md Metadata, spec *GitHubIntegrationSpecV1) (*Integrat
 		Spec: IntegrationSpecV1{
 			SubKindSpec: &IntegrationSpecV1_GitHub{
 				GitHub: spec,
-			},
-		},
-	}
-	if err := ig.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ig, nil
-}
-
-// NewIntegrationAWSRA returns a new `aws-ra` subkind Integration
-func NewIntegrationAWSRA(md Metadata, spec *AWSRAIntegrationSpecV1) (*IntegrationV1, error) {
-	ig := &IntegrationV1{
-		ResourceHeader: ResourceHeader{
-			Metadata: md,
-			Kind:     KindIntegration,
-			Version:  V1,
-			SubKind:  IntegrationSubKindAWSRA,
-		},
-		Spec: IntegrationSpecV1{
-			SubKindSpec: &IntegrationSpecV1_AWSRA{
-				AWSRA: spec,
 			},
 		},
 	}
@@ -242,10 +211,6 @@ func (s *IntegrationSpecV1) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 		return nil
-	case *IntegrationSpecV1_AWSRA:
-		if err := integrationSubKind.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
 	default:
 		return trace.BadParameter("unknown integration subkind: %T", integrationSubKind)
 	}
@@ -319,19 +284,6 @@ func (s *IntegrationSpecV1_GitHub) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CheckAndSetDefaults validates the configuration for AWS IAM Roles Anywhere integration subkind.
-func (s *IntegrationSpecV1_AWSRA) CheckAndSetDefaults() error {
-	if s == nil || s.AWSRA == nil {
-		return trace.BadParameter("aws_ra is required for %q subkind", IntegrationSubKindAWSRA)
-	}
-
-	if s.AWSRA.TrustAnchorARN == "" {
-		return trace.BadParameter("trust_anchor_arn is required for %q subkind", IntegrationSubKindAWSRA)
-	}
-
-	return nil
-}
-
 // GetAWSOIDCIntegrationSpec returns the specific spec fields for `aws-oidc` subkind integrations.
 func (ig *IntegrationV1) GetAWSOIDCIntegrationSpec() *AWSOIDCIntegrationSpecV1 {
 	return ig.Spec.GetAWSOIDC()
@@ -387,18 +339,6 @@ func (ig *IntegrationV1) SetGitHubIntegrationSpec(spec *GitHubIntegrationSpecV1)
 	}
 }
 
-// GetAWSRAIntegrationSpec returns the specific spec fields for `aws-ra` subkind integrations.
-func (ig *IntegrationV1) GetAWSRAIntegrationSpec() *AWSRAIntegrationSpecV1 {
-	return ig.Spec.GetAWSRA()
-}
-
-// SetAWSRAIntegrationSpec sets the specific fields for the `aws-ra` subkind integration.
-func (ig *IntegrationV1) SetAWSRAIntegrationSpec(awsRASpec *AWSRAIntegrationSpecV1) {
-	ig.Spec.SubKindSpec = &IntegrationSpecV1_AWSRA{
-		AWSRA: awsRASpec,
-	}
-}
-
 // Integrations is a list of Integration resources.
 type Integrations []Integration
 
@@ -451,7 +391,6 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 			AWSOIDC     json.RawMessage `json:"aws_oidc"`
 			AzureOIDC   json.RawMessage `json:"azure_oidc"`
 			GitHub      json.RawMessage `json:"github"`
-			AWSRA       json.RawMessage `json:"aws_ra"`
 			Credentials json.RawMessage `json:"credentials"`
 		} `json:"spec"`
 	}{}
@@ -504,17 +443,6 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 
 		integration.Spec.SubKindSpec = subkindSpec
 
-	case IntegrationSubKindAWSRA:
-		subkindSpec := &IntegrationSpecV1_AWSRA{
-			AWSRA: &AWSRAIntegrationSpecV1{},
-		}
-
-		if err := json.Unmarshal(d.Spec.AWSRA, subkindSpec.AWSRA); err != nil {
-			return trace.Wrap(err)
-		}
-
-		integration.Spec.SubKindSpec = subkindSpec
-
 	default:
 		return trace.BadParameter("invalid subkind %q", integration.ResourceHeader.SubKind)
 	}
@@ -538,7 +466,6 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 			AWSOIDC     AWSOIDCIntegrationSpecV1   `json:"aws_oidc,omitempty"`
 			AzureOIDC   AzureOIDCIntegrationSpecV1 `json:"azure_oidc,omitempty"`
 			GitHub      GitHubIntegrationSpecV1    `json:"github,omitempty"`
-			AWSRA       AWSRAIntegrationSpecV1     `json:"aws_ra,omitempty"`
 			Credentials json.RawMessage            `json:"credentials,omitempty"`
 		} `json:"spec"`
 	}{}
@@ -570,11 +497,6 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 			return nil, trace.BadParameter("missing spec for %q subkind", ig.SubKind)
 		}
 		d.Spec.GitHub = *ig.GetGitHubIntegrationSpec()
-	case IntegrationSubKindAWSRA:
-		if ig.GetAWSRAIntegrationSpec() == nil {
-			return nil, trace.BadParameter("missing spec for %q subkind", ig.SubKind)
-		}
-		d.Spec.AWSRA = *ig.GetAWSRAIntegrationSpec()
 	default:
 		return nil, trace.BadParameter("invalid subkind %q", ig.SubKind)
 	}
@@ -605,11 +527,6 @@ func (ig *IntegrationV1) GetCredentials() PluginCredentials {
 		return nil
 	}
 	return ig.Spec.Credentials
-}
-
-// Clone returns a copy of the integration.
-func (ig *IntegrationV1) Clone() Integration {
-	return utils.CloneProtoMsg(ig)
 }
 
 // WithoutCredentials returns a copy without credentials.

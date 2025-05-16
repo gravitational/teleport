@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
@@ -35,15 +36,14 @@ type terraformCloudIDTokenValidator interface {
 	) (*terraformcloud.IDTokenClaims, error)
 }
 
-func (a *Server) checkTerraformCloudJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*terraformcloud.IDTokenClaims, error) {
+func (a *Server) checkTerraformCloudJoinRequest(
+	ctx context.Context,
+	req *types.RegisterUsingTokenRequest,
+	pt types.ProvisionToken,
+) (*terraformcloud.IDTokenClaims, error) {
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("id_token not provided for terraform_cloud join request")
 	}
-	pt, err := a.GetToken(ctx, req.Token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
 		return nil, trace.BadParameter("terraform_cloud join method only supports ProvisionTokenV2, '%T' was provided", pt)
@@ -59,7 +59,7 @@ func (a *Server) checkTerraformCloudJoinRequest(ctx context.Context, req *types.
 
 	aud := token.Spec.TerraformCloud.Audience
 	if aud == "" {
-		clusterName, err := a.GetClusterName(ctx)
+		clusterName, err := a.GetClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -74,10 +74,10 @@ func (a *Server) checkTerraformCloudJoinRequest(ctx context.Context, req *types.
 		return nil, trace.Wrap(err)
 	}
 
-	a.logger.InfoContext(ctx, "Terraform Cloud run trying to join cluster",
-		"claims", claims,
-		"token", pt.GetName(),
-	)
+	log.WithFields(logrus.Fields{
+		"claims": claims,
+		"token":  pt.GetName(),
+	}).Info("Terraform Cloud run trying to join cluster")
 
 	return claims, trace.Wrap(checkTerraformCloudAllowRules(token, claims))
 }

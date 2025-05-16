@@ -210,6 +210,10 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
+	if err := p.a.UpsertNamespace(types.DefaultNamespace()); err != nil {
+		return p, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -1193,9 +1197,8 @@ func TestLocalControlStream(t *testing.T) {
 func TestUpdateConfig(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
-	ctx := context.Background()
 
-	cn, err := s.a.GetClusterName(ctx)
+	cn, err := s.a.GetClusterName()
 	require.NoError(t, err)
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
 	st, err := s.a.GetStaticTokens()
@@ -1235,7 +1238,7 @@ func TestUpdateConfig(t *testing.T) {
 
 	// check first auth server and make sure it returns the correct values
 	// (original cluster name, new static tokens)
-	cn, err = s.a.GetClusterName(ctx)
+	cn, err = s.a.GetClusterName()
 	require.NoError(t, err)
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
 	st, err = s.a.GetStaticTokens()
@@ -1566,7 +1569,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	const devCred = "devicecred1"
 
 	advanceClock := func(d time.Duration) {
-		if fc, ok := testServer.Clock().(*clockwork.FakeClock); ok {
+		if fc, ok := testServer.Clock().(clockwork.FakeClock); ok {
 			fc.Advance(d)
 		}
 	}
@@ -4843,6 +4846,91 @@ func TestValidServerHostname(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := validServerHostname(tt.hostname)
 			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestCreateAuthPreference(t *testing.T) {
+	cases := []struct {
+		name       string
+		modules    modules.Modules
+		preference func(p types.AuthPreference)
+		assertion  func(t *testing.T, created types.AuthPreference, err error)
+	}{
+		{
+			name: "creation prevented when hardware key policy is set in open source",
+			preference: func(p types.AuthPreference) {
+				pp := p.(*types.AuthPreferenceV2)
+				pp.Spec.RequireMFAType = types.RequireMFAType_HARDWARE_KEY_PIN
+			},
+			assertion: func(t *testing.T, created types.AuthPreference, err error) {
+				assert.Nil(t, created)
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected hardware key policy to be rejected in OSS", err)
+			},
+		},
+		{
+			name:    "creation allowed when hardware key policy is set in enterprise",
+			modules: &modules.TestModules{TestBuildType: modules.BuildEnterprise},
+			preference: func(p types.AuthPreference) {
+				pp := p.(*types.AuthPreferenceV2)
+				pp.Spec.RequireMFAType = types.RequireMFAType_HARDWARE_KEY_PIN
+			},
+			assertion: func(t *testing.T, created types.AuthPreference, err error) {
+				require.NoError(t, err, "got (%v), expected auth role to create auth mutator", err)
+				require.NotNil(t, created)
+			},
+		},
+		{
+			name: "creation prevented when hardware key policy is set in open source",
+			preference: func(p types.AuthPreference) {
+				p.SetDeviceTrust(&types.DeviceTrust{
+					Mode: constants.DeviceTrustModeRequired,
+				})
+			},
+			assertion: func(t *testing.T, created types.AuthPreference, err error) {
+				assert.Nil(t, created)
+				require.True(t, trace.IsBadParameter(err), "got (%v), expected device trust mode conflict to prevent creation", err)
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			if test.modules != nil {
+				modules.SetTestModules(t, test.modules)
+			}
+
+			bk, err := memory.New(memory.Config{})
+			require.NoError(t, err)
+
+			clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+				ClusterName: "test.localhost",
+			})
+
+			require.NoError(t, err)
+
+			clusterConfigService, err := local.NewClusterConfigurationService(bk)
+			require.NoError(t, err)
+
+			server, err := NewServer(&InitConfig{
+				DataDir:                t.TempDir(),
+				Backend:                bk,
+				ClusterName:            clusterName,
+				VersionStorage:         NewFakeTeleportVersion(),
+				Authority:              testauthority.New(),
+				Emitter:                &eventstest.MockRecorderEmitter{},
+				ClusterConfiguration:   clusterConfigService,
+				SkipPeriodicOperations: true,
+			})
+			require.NoError(t, err)
+
+			pref := types.DefaultAuthPreference()
+			if test.preference != nil {
+				test.preference(pref)
+			}
+
+			created, err := server.CreateAuthPreference(context.Background(), pref)
+			test.assertion(t, created, err)
 		})
 	}
 }

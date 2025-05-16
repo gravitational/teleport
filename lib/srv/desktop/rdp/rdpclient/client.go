@@ -1,4 +1,5 @@
 //go:build desktop_access_rdp
+// +build desktop_access_rdp
 
 /*
  * Teleport
@@ -73,11 +74,8 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"log/slog"
-	"net"
 	"os"
 	"runtime/cgo"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -85,6 +83,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
@@ -96,20 +95,19 @@ func init() {
 	var rustLogLevel string
 
 	// initialize the Rust logger by setting $RUST_LOG based
-	// on the slog log level
+	// on the logrus log level
 	// (unless RUST_LOG is already explicitly set, then we
 	// assume the user knows what they want)
 	rl := os.Getenv("RUST_LOG")
 	if rl == "" {
-		ctx := context.Background()
-		switch {
-		case slog.Default().Enabled(ctx, logutils.TraceLevel):
+		switch l := logrus.GetLevel(); l {
+		case logrus.TraceLevel:
 			rustLogLevel = "trace"
-		case slog.Default().Enabled(ctx, slog.LevelDebug):
+		case logrus.DebugLevel:
 			rustLogLevel = "debug"
-		case slog.Default().Enabled(ctx, slog.LevelInfo):
+		case logrus.InfoLevel:
 			rustLogLevel = "info"
-		case slog.Default().Enabled(ctx, slog.LevelWarn):
+		case logrus.WarnLevel:
 			rustLogLevel = "warn"
 		default:
 			rustLogLevel = "error"
@@ -416,9 +414,6 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 	c.cfg.Logger.InfoContext(context.Background(), "TDP input streaming starting")
 	defer c.cfg.Logger.InfoContext(context.Background(), "TDP input streaming finished")
 
-	// we will disable ping only if the env var is truthy
-	disableDesktopPing, _ := strconv.ParseBool(os.Getenv("TELEPORT_DISABLE_DESKTOP_LATENCY_DETECTOR_PING"))
-
 	var withheldResize *tdp.ClientScreenSpec
 	for {
 		select {
@@ -436,22 +431,6 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		} else if err != nil {
 			c.cfg.Logger.WarnContext(context.Background(), "Failed reading TDP input message", "error", err)
 			return err
-		}
-		if m, ok := msg.(tdp.Ping); ok {
-			// Upon receiving a ping message, we make a connection
-			// to the host and send the same message back to the proxy.
-			// The proxy will then compute the round trip time.
-			if !disableDesktopPing {
-				conn, err := net.Dial("tcp", c.cfg.Addr)
-				if err == nil {
-					conn.Close()
-				}
-			}
-			if err := c.cfg.Conn.WriteMessage(m); err != nil {
-				c.cfg.Logger.WarnContext(context.Background(), "Failed writing TDP ping message", "error", err)
-				return err
-			}
-			continue
 		}
 
 		if atomic.LoadUint32(&c.readyForInput) == 0 {

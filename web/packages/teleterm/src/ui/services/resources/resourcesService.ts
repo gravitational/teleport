@@ -17,14 +17,12 @@
  */
 
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
-import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
 
 import {
   resourceOneOfIsApp,
   resourceOneOfIsDatabase,
   resourceOneOfIsKube,
   resourceOneOfIsServer,
-  resourceOneOfIsWindowsDesktop,
 } from 'teleterm/helpers';
 import Logger from 'teleterm/logger';
 import type { TshdClient } from 'teleterm/services/tshd';
@@ -34,7 +32,6 @@ import {
   TshdRpcError,
 } from 'teleterm/services/tshd/cloneableClient';
 import type * as types from 'teleterm/services/tshd/types';
-import { getWindowsDesktopAddrWithoutDefaultPort } from 'teleterm/services/tshd/windowsDesktop';
 import type { ResourceTypeFilter } from 'teleterm/ui/Search/searchResult';
 import type * as uri from 'teleterm/ui/uri';
 
@@ -119,17 +116,6 @@ export class ResourcesService {
             },
           };
         }
-        if (r.kind === 'windows_desktop') {
-          return {
-            ...r,
-            resource: {
-              ...r.resource,
-              addrWithoutDefaultPort: getWindowsDesktopAddrWithoutDefaultPort(
-                r.resource
-              ),
-            },
-          };
-        }
         return r;
       });
     } catch (err) {
@@ -176,14 +162,6 @@ export class ResourcesService {
             return {
               kind: 'kube' as const,
               resource: p.resource.kube,
-              requiresRequest: p.requiresRequest,
-            };
-          }
-
-          if (resourceOneOfIsWindowsDesktop(p.resource)) {
-            return {
-              kind: 'windows_desktop' as const,
-              resource: p.resource.windowsDesktop,
               requiresRequest: p.requiresRequest,
             };
           }
@@ -256,18 +234,12 @@ export type SearchResultApp = {
   resource: App & { addrWithProtocol: string };
   requiresRequest: boolean;
 };
-export type SearchResultWindowsDesktop = {
-  kind: 'windows_desktop';
-  resource: WindowsDesktop & { addrWithoutDefaultPort: string };
-  requiresRequest: boolean;
-};
 
 export type SearchResult =
   | SearchResultServer
   | SearchResultDatabase
   | SearchResultKube
-  | SearchResultApp
-  | SearchResultWindowsDesktop;
+  | SearchResultApp;
 
 export type SearchResultResource<Kind extends SearchResult['kind']> =
   Kind extends 'server'
@@ -278,9 +250,7 @@ export type SearchResultResource<Kind extends SearchResult['kind']> =
         ? SearchResultDatabase['resource']
         : Kind extends 'kube'
           ? SearchResultKube['resource']
-          : Kind extends 'windows_desktop'
-            ? SearchResultWindowsDesktop['resource']
-            : never;
+          : never;
 
 function makeGetResourcesParamsRequest(params: types.GetResourcesParams) {
   return {
@@ -303,9 +273,4 @@ export type UnifiedResourceResponse =
       requiresRequest: boolean;
     }
   | { kind: 'kube'; resource: types.Kube; requiresRequest: boolean }
-  | { kind: 'app'; resource: App; requiresRequest: boolean }
-  | {
-      kind: 'windows_desktop';
-      resource: WindowsDesktop;
-      requiresRequest: boolean;
-    };
+  | { kind: 'app'; resource: App; requiresRequest: boolean };

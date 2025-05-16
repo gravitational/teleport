@@ -1,6 +1,4 @@
-import { TransformStream } from 'node:stream/web';
 import { TextDecoder, TextEncoder } from 'node:util';
-import { BroadcastChannel } from 'node:worker_threads';
 
 import { TestEnvironment as JSDOMEnvironment } from 'jest-environment-jsdom';
 
@@ -51,14 +49,6 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
       });
     }
 
-    // TODO(ravicious): JSDOM doesn't have BroadcastChannel and TransformStream which are used by msw.
-    // https://github.com/mswjs/msw/issues/2340
-    if (!global.BroadcastChannel) {
-      global.BroadcastChannel = BroadcastChannel;
-    }
-    if (!global.TransformStream) {
-      global.TransformStream = TransformStream;
-    }
     // TODO(gzdunek): JSDOM doesn't support AbortSignal.any().
     // Overwriting only this function doesn't help much, something between
     // AbortSignal and AbortController is missing.
@@ -81,15 +71,15 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
       };
     }
 
+    function NullResizeObserver() {
+      this.observe = () => {};
+      this.unobserve = () => {};
+      this.disconnect = () => {};
+    }
+
     // If a test actually depends on a working ResizeObserver implementation, call
     // mockResizeObserver provided by jsdom-testing-mocks.
     if (!global.ResizeObserver) {
-      function NullResizeObserver() {
-        this.observe = () => {};
-        this.unobserve = () => {};
-        this.disconnect = () => {};
-      }
-
       global.ResizeObserver = NullResizeObserver;
     }
 

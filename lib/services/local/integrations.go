@@ -212,6 +212,7 @@ func integrationReferencedByAWSICPlugin(ctx context.Context, bk backend.Backend,
 		if !ok {
 			continue
 		}
+
 		if pluginV1.GetType() != types.PluginType(types.PluginTypeAWSIdentityCenter) {
 			continue
 		}

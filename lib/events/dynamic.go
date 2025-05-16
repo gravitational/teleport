@@ -475,17 +475,17 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case AutoUpdateVersionDeleteEvent:
 		e = &events.AutoUpdateVersionDelete{}
 
-	case ContactCreateEvent:
-		e = &events.ContactCreate{}
-	case ContactDeleteEvent:
-		e = &events.ContactDelete{}
-
 	case WorkloadIdentityCreateEvent:
 		e = &events.WorkloadIdentityCreate{}
 	case WorkloadIdentityUpdateEvent:
 		e = &events.WorkloadIdentityUpdate{}
 	case WorkloadIdentityDeleteEvent:
 		e = &events.WorkloadIdentityDelete{}
+
+	case ContactCreateEvent:
+		e = &events.ContactCreate{}
+	case ContactDeleteEvent:
+		e = &events.ContactDelete{}
 
 	case WorkloadIdentityX509RevocationCreateEvent:
 		e = &events.WorkloadIdentityX509RevocationCreate{}
@@ -496,17 +496,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 
 	case StableUNIXUserCreateEvent:
 		e = &events.StableUNIXUserCreate{}
-
-	case AWSICResourceSyncSuccessEvent,
-		AWSICResourceSyncFailureEvent:
-		e = &events.AWSICResourceSync{}
-
-	case HealthCheckConfigCreateEvent:
-		e = &events.HealthCheckConfigCreate{}
-	case HealthCheckConfigUpdateEvent:
-		e = &events.HealthCheckConfigUpdate{}
-	case HealthCheckConfigDeleteEvent:
-		e = &events.HealthCheckConfigDelete{}
 
 	case WorkloadIdentityX509IssuerOverrideCreateEvent:
 		e = &events.WorkloadIdentityX509IssuerOverrideCreate{}

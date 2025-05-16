@@ -94,7 +94,7 @@ type Config struct {
 	SAMLIdPSession          services.SAMLIdPSession
 	SecReports              services.SecReports
 	SnowflakeSession        services.SnowflakeSession
-	SPIFFEFederations       services.SPIFFEFederations
+	SPIFFEFederations       cache.SPIFFEFederationReader
 	StaticHostUsers         services.StaticHostUser
 	Trust                   services.Trust
 	UserGroups              services.UserGroups
@@ -103,7 +103,7 @@ type Config struct {
 	Users                   services.UsersService
 	WebSession              types.WebSessionInterface
 	WebToken                types.WebTokenInterface
-	WorkloadIdentity        services.WorkloadIdentities
+	WorkloadIdentity        cache.WorkloadIdentityReader
 	DynamicWindowsDesktops  services.DynamicWindowsDesktops
 	WindowsDesktops         services.WindowsDesktops
 	AutoUpdateService       services.AutoUpdateServiceGetter
@@ -111,7 +111,6 @@ type Config struct {
 	IdentityCenter          services.IdentityCenter
 	PluginStaticCredentials services.PluginStaticCredentials
 	GitServers              services.GitServers
-	HealthCheckConfig       services.HealthCheckConfigReader
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -212,7 +211,6 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		IdentityCenter:          cfg.IdentityCenter,
 		PluginStaticCredentials: cfg.PluginStaticCredentials,
 		GitServers:              cfg.GitServers,
-		HealthCheckConfig:       cfg.HealthCheckConfig,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))

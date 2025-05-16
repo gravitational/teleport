@@ -163,7 +163,10 @@ export enum DiscoverEvent {
   DatabaseRegister = 'tp.ui.discover.database.register',
   DatabaseConfigureMTLS = 'tp.ui.discover.database.configure.mtls',
   DatabaseConfigureIAMPolicy = 'tp.ui.discover.database.configure.iampolicy',
+  EC2InstanceSelection = 'tp.ui.discover.selectedEC2Instance',
+  EC2DeployEICE = 'tp.ui.discover.deployEICE',
   CreateApplicationServer = 'tp.ui.discover.createAppServer',
+  CreateNode = 'tp.ui.discover.createNode',
   CreateDiscoveryConfig = 'tp.ui.discover.createDiscoveryConfig',
   KubeEKSEnrollEvent = 'tp.ui.discover.kube.enroll.eks',
   PrincipalsConfigure = 'tp.ui.discover.principals.configure',
@@ -235,9 +238,13 @@ export enum DiscoverEventStatus {
   Aborted = 'DISCOVER_STATUS_ABORTED', // user exits the wizard
 }
 
-export type UserEvent = {
-  event: CaptureEvent;
+export type UserEvent<E = CaptureEvent> = {
+  event: E;
   alert?: string;
+};
+
+type UserEventWithData<E, D> = UserEvent<E> & {
+  eventData: D;
 };
 
 export type EventMeta = {
@@ -248,10 +255,10 @@ export type EventMeta = {
 
 export type PreUserEvent = UserEvent & EventMeta;
 
-export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
-  event: DiscoverEvent;
-  eventData: DiscoverEventData;
-};
+export type DiscoverEventRequest = UserEventWithData<
+  DiscoverEvent,
+  DiscoverEventData
+>;
 
 export type DiscoverEventData = DiscoverEventStepStatus & {
   id: string;
@@ -302,6 +309,7 @@ export enum DiscoverServiceDeployType {
 export enum DiscoverDiscoveryConfigMethod {
   Unspecified = 'CONFIG_METHOD_UNSPECIFIED',
   AwsEc2Ssm = 'CONFIG_METHOD_AWS_EC2_SSM',
+  AwsEc2Eice = 'CONFIG_METHOD_AWS_EC2_EICE',
   AwsRdsEcs = 'CONFIG_METHOD_AWS_RDS_ECS',
   AwsEks = 'CONFIG_METHOD_AWS_EKS',
 }
@@ -323,6 +331,11 @@ export enum CtaEvent {
   CTA_OKTA_SCIM = 13,
 }
 
+export type CtaEventRequest = UserEventWithData<
+  CaptureEvent.UiCallToActionClickEvent,
+  CtaEvent
+>;
+
 export enum Feature {
   FEATURES_UNSPECIFIED = 0,
   FEATURES_TRUSTED_DEVICES = 1,
@@ -338,3 +351,25 @@ export type FeatureRecommendationEvent = {
   Feature: Feature;
   FeatureRecommendationStatus: FeatureRecommendationStatus;
 };
+
+export type FeatureRecommendationEventRequest = UserEventWithData<
+  CaptureEvent.FeatureRecommendationEvent,
+  FeatureRecommendationEvent
+>;
+
+export enum RoleEditorMode {
+  Standard = 'standard',
+  Yaml = 'yaml',
+}
+
+export type CreateNewRoleSaveClickEventData = {
+  standardUsed: boolean;
+  yamlUsed: boolean;
+  modeWhenSaved: RoleEditorMode;
+  fieldsWithConversionErrors: string[];
+};
+
+export type CreateNewRoleSaveClickEvent = UserEventWithData<
+  CaptureEvent.CreateNewRoleSaveClickEvent,
+  CreateNewRoleSaveClickEventData
+>;

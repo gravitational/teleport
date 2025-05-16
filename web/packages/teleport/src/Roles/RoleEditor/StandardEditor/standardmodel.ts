@@ -72,6 +72,12 @@ export type StandardEditorModel = {
    */
   isDirty: boolean;
   /**
+   * Indicates if the user interacted with the editor. It's different from
+   * {@link StandardEditorModel.isDirty} by not taking into consideration if
+   * anything changed from the original.
+   */
+  isTouched: boolean;
+  /**
    * Result of validating {@link StandardEditorModel.roleModel}. Can be
    * undefined if there was an unhandled error when converting an existing
    * role.
@@ -458,7 +464,7 @@ export const roleVersionOptions = Object.values(RoleVersion)
   .map(o => ({ value: o, label: o }));
 export const roleVersionOptionsMap = optionsToMap(roleVersionOptions);
 
-export const defaultRoleVersion = RoleVersion.V8;
+export const defaultRoleVersion = RoleVersion.V7;
 
 /**
  * Returns the role object with required fields defined with empty values.
@@ -629,7 +635,7 @@ export function roleToRoleEditorModel(
   const versionOption = getOptionOrPushError(
     version,
     roleVersionOptionsMap,
-    RoleVersion.V8,
+    RoleVersion.V7,
     'version',
     conversionErrors
   );

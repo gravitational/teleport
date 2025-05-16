@@ -19,7 +19,6 @@
 package common
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"reflect"
@@ -79,20 +78,9 @@ type printDatabaseTableConfig struct {
 	rows                []databaseTableRow
 	showProxyAndCluster bool
 	verbose             bool
-	// includeColumns specifies a whitelist of columns to include. verbose and
-	// showProxyAndCluster are ignored when includeColumns is provided.
-	includeColumns []string
 }
 
-func (cfg printDatabaseTableConfig) excludeColumns(allColumns []string) (out []string) {
-	if len(cfg.includeColumns) > 0 {
-		for _, column := range allColumns {
-			if !slices.Contains(cfg.includeColumns, column) {
-				out = append(out, column)
-			}
-		}
-		return
-	}
+func (cfg printDatabaseTableConfig) excludeColumns() (out []string) {
 	if !cfg.showProxyAndCluster {
 		out = append(out, "Proxy", "Cluster")
 	}
@@ -105,7 +93,7 @@ func (cfg printDatabaseTableConfig) excludeColumns(allColumns []string) (out []s
 func printDatabaseTable(cfg printDatabaseTableConfig) {
 	allColumns := makeTableColumnTitles(databaseTableRow{})
 	rowsWithAllColumns := makeTableRows(cfg.rows)
-	excludeColumns := cfg.excludeColumns(allColumns)
+	excludeColumns := cfg.excludeColumns()
 
 	var printColumns []string
 	printRows := make([][]string, len(cfg.rows))
@@ -138,10 +126,7 @@ func formatDatabaseRolesForDB(database types.Database, accessChecker services.Ac
 
 		autoUser, err := accessChecker.DatabaseAutoUserMode(database)
 		if err != nil {
-			logger.WarnContext(context.Background(), "Failed to get DatabaseAutoUserMode for database",
-				"database", database.GetName(),
-				"error", err,
-			)
+			log.Warnf("Failed to get DatabaseAutoUserMode for database %v: %v.", database.GetName(), err)
 			return ""
 		} else if !autoUser.IsEnabled() {
 			return ""
@@ -149,10 +134,7 @@ func formatDatabaseRolesForDB(database types.Database, accessChecker services.Ac
 
 		roles, err := accessChecker.CheckDatabaseRoles(database, nil)
 		if err != nil {
-			logger.WarnContext(context.Background(), "Failed to CheckDatabaseRoles for database",
-				"database", database.GetName(),
-				"error", err,
-			)
+			log.Warnf("Failed to CheckDatabaseRoles for database %v: %v.", database.GetName(), err)
 			return ""
 		}
 		return fmt.Sprintf("%v", roles)

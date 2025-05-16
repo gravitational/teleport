@@ -26,7 +26,6 @@ import {
 } from 'shared/hooks/useAsync';
 import {
   BitmapFrame,
-  BrowserFileSystem,
   ClientScreenSpec,
   TdpClient,
   TdpClientEvent,
@@ -55,7 +54,7 @@ const meta: Meta = {
 export default meta;
 
 const fakeClient = () => {
-  const client = new TdpClient(() => null, new BrowserFileSystem());
+  const client = new TdpClient(() => null);
   // Don't try to connect to a websocket.
   client.connect = async spec => {
     emitFrame(client, spec);

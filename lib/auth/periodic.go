@@ -23,7 +23,7 @@ import (
 	"slices"
 	"strings"
 
-	"golang.org/x/mod/semver" //nolint:depguard // Usage precedes the x/mod/semver rule.
+	"golang.org/x/mod/semver"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"

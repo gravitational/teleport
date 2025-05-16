@@ -32,6 +32,7 @@ export interface App {
   clusterId: string;
   launchUrl: string;
   fqdn: string;
+  useAnyProxyPublicAddr?: boolean;
   awsRoles: AwsRole[];
   awsConsole: boolean;
   requiresRequest?: boolean;

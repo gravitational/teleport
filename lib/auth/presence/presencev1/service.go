@@ -20,10 +20,10 @@ package presencev1
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Backend is the subset of the backend resources that the Service modifies.
@@ -44,7 +43,7 @@ type Backend interface {
 	UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error)
 	PatchRemoteCluster(ctx context.Context, name string, updateFn func(rc types.RemoteCluster) (types.RemoteCluster, error)) (types.RemoteCluster, error)
 
-	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
+	UpsertReverseTunnelV2(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
 	DeleteReverseTunnel(ctx context.Context, tunnelName string) error
 }
 
@@ -66,7 +65,7 @@ type ServiceConfig struct {
 	AuthServer AuthServer
 	Backend    Backend
 	Cache      Cache
-	Logger     *slog.Logger
+	Logger     logrus.FieldLogger
 	Emitter    apievents.Emitter
 	Reporter   usagereporter.UsageReporter
 	Clock      clockwork.Clock
@@ -80,7 +79,7 @@ type Service struct {
 	authServer AuthServer
 	backend    Backend
 	cache      Cache
-	logger     *slog.Logger
+	logger     logrus.FieldLogger
 	emitter    apievents.Emitter
 	reporter   usagereporter.UsageReporter
 	clock      clockwork.Clock
@@ -104,7 +103,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, "presence.service")
+		cfg.Logger = logrus.WithField(teleport.ComponentKey, "presence.service")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -150,11 +149,7 @@ func (s *Service) GetRemoteCluster(
 
 	v3, ok := rc.(*types.RemoteClusterV3)
 	if !ok {
-		s.logger.WarnContext(ctx, "unexpected remote cluster type",
-			"got_type", logutils.TypeAttr(rc),
-			"expected_type", "RemoteClusterV3",
-			"remote_cluster", rc.GetName(),
-		)
+		s.logger.Warnf("expected type RemoteClusterV3, got %T for %q", rc, rc.GetName())
 		return nil, trace.BadParameter("encountered unexpected remote cluster type")
 	}
 
@@ -185,11 +180,7 @@ func (s *Service) ListRemoteClusters(
 	for _, rc := range page {
 		v3, ok := rc.(*types.RemoteClusterV3)
 		if !ok {
-			s.logger.WarnContext(ctx, "unexpected remote cluster type",
-				"got_type", logutils.TypeAttr(rc),
-				"expected_type", "RemoteClusterV3",
-				"remote_cluster", rc.GetName(),
-			)
+			s.logger.Warnf("expected type RemoteClusterV3, got %T for %q", rc, rc.GetName())
 			continue
 		}
 		concretePage = append(concretePage, v3)
@@ -243,11 +234,7 @@ func (s *Service) UpdateRemoteCluster(
 		}
 		v3, ok := rc.(*types.RemoteClusterV3)
 		if !ok {
-			s.logger.WarnContext(ctx, "unexpected remote cluster type",
-				"got_type", logutils.TypeAttr(rc),
-				"expected_type", "RemoteClusterV3",
-				"remote_cluster", rc.GetName(),
-			)
+			s.logger.Warnf("expected type RemoteClusterV3, got %T for user %q", rc, rc.GetName())
 			return nil, trace.BadParameter("encountered unexpected remote cluster type")
 		}
 		return v3, nil
@@ -284,11 +271,7 @@ func (s *Service) UpdateRemoteCluster(
 	}
 	v3, ok := rc.(*types.RemoteClusterV3)
 	if !ok {
-		s.logger.WarnContext(ctx, "unexpected remote cluster type",
-			"got_type", logutils.TypeAttr(rc),
-			"expected_type", "RemoteClusterV3",
-			"remote_cluster", rc.GetName(),
-		)
+		s.logger.Warnf("expected type RemoteClusterV3, got %T for user %q", rc, rc.GetName())
 		return nil, trace.BadParameter("encountered unexpected remote cluster type")
 	}
 
@@ -347,11 +330,7 @@ func (s *Service) ListReverseTunnels(
 	for _, rc := range page {
 		v3, ok := rc.(*types.ReverseTunnelV2)
 		if !ok {
-			s.logger.WarnContext(ctx, "unexpected reverse tunnel type",
-				"got_type", logutils.TypeAttr(rc),
-				"expected_type", "ReverseTunnelV2",
-				"reverse_tunnel", rc.GetName(),
-			)
+			s.logger.Warnf("expected type ReverseTunnelV2, got %T for %q", rc, rc.GetName())
 			continue
 		}
 		concretePage = append(concretePage, v3)
@@ -383,7 +362,7 @@ func (s *Service) UpsertReverseTunnel(
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := s.backend.UpsertReverseTunnel(ctx, req.ReverseTunnel)
+	res, err := s.backend.UpsertReverseTunnelV2(ctx, req.ReverseTunnel)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

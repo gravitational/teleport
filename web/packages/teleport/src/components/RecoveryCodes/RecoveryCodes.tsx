@@ -33,7 +33,7 @@ export default function RecoveryCodesDialog({
   continueText = 'Continue',
   username = '',
 }: RecoveryCodesProps) {
-  const codesRef = useRef(undefined);
+  const codesRef = useRef();
 
   const captureRecoveryCodeEvent = (event: CaptureEvent) => {
     if (username) {

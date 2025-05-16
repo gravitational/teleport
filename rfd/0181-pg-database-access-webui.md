@@ -1,6 +1,6 @@
 ---
 authors: Gabriel Corado (gabriel.oliveira@goteleport.com)
-state: implemented
+state: draft
 ---
 
 # RFD 0181 - PostgreSQL database access through Web UI

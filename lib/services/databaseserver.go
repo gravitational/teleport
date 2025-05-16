@@ -61,7 +61,7 @@ func UnmarshalDatabaseServer(data []byte, opts ...MarshalOption) (types.Database
 	case types.V3:
 		var s types.DatabaseServerV3
 		if err := utils.FastUnmarshal(data, &s); err != nil {
-			return nil, trace.BadParameter("%s", err)
+			return nil, trace.BadParameter(err.Error())
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

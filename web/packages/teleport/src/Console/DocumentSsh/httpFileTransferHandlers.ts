@@ -184,7 +184,7 @@ function getErrorText(response: string | undefined): string {
   try {
     const json = JSON.parse(response);
     return json.error?.message || json.message || badRequest;
-  } catch {
+  } catch (err) {
     return 'Bad request, failed to parse error message.';
   }
 }

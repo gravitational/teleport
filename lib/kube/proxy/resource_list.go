@@ -81,7 +81,7 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 				sess.requestVerb,
 				sess.apiResource,
 			)
-			return nil, trace.AccessDenied("%s", notFoundMessage)
+			return nil, trace.AccessDenied(notFoundMessage)
 		}
 		// isWatch identifies if the request is long-lived watch stream based on
 		// HTTP connection.
@@ -237,7 +237,7 @@ func (f *Forwarder) sendEphemeralContainerEvents(done <-chan struct{}, req *http
 			podName,
 		)
 		if err != nil {
-			f.log.WarnContext(req.Context(), "error getting user ephemeral containers", "error", err)
+			f.log.WithError(err).Warn("error getting user ephemeral containers")
 			return
 		}
 
@@ -247,7 +247,7 @@ func (f *Forwarder) sendEphemeralContainerEvents(done <-chan struct{}, req *http
 			}
 			evt, err := f.getPatchedPodEvent(req.Context(), sess, wc)
 			if err != nil {
-				f.log.WarnContext(req.Context(), "error pushing pod event", "error", err)
+				f.log.WithError(err).Warn("error pushing pod event")
 				continue
 			}
 			sentDebugContainers[wc.Spec.ContainerName] = struct{}{}

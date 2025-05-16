@@ -121,7 +121,7 @@ function SearchContent({
   currentView: NavigationSubsection;
 }) {
   const [searchInput, setSearchInput] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>();
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchInput(e.target.value);

@@ -20,20 +20,19 @@ package latency
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var logger = logutils.NewPackageLogger(teleport.ComponentKey, "latency")
+var log = logrus.WithField(teleport.ComponentKey, "latency")
 
 // Statistics contain latency measurements for both
 // legs of a proxied connection.
@@ -189,8 +188,8 @@ func (m *Monitor) Run(ctx context.Context) {
 	for {
 		select {
 		case <-m.reportTimer.Chan():
-			if err := m.reporter.Report(ctx, m.GetStats()); err != nil && !errors.Is(err, context.Canceled) {
-				logger.WarnContext(ctx, "failed to report latency stats", "error", err)
+			if err := m.reporter.Report(ctx, m.GetStats()); err != nil {
+				log.WithError(err).Warn("failed to report latency stats")
 			}
 			m.reportTimer.Reset(retryutils.SeventhJitter(m.reportInterval))
 		case <-ctx.Done():
@@ -206,8 +205,8 @@ func (m *Monitor) pingLoop(ctx context.Context, pinger Pinger, timer clockwork.T
 			return
 		case <-timer.Chan():
 			then := m.clock.Now()
-			if err := pinger.Ping(ctx); err != nil && !errors.Is(err, context.Canceled) {
-				logger.WarnContext(ctx, "unexpected failure sending ping", "error", err)
+			if err := pinger.Ping(ctx); err != nil {
+				log.WithError(err).Warn("unexpected failure sending ping")
 			} else {
 				latency.Store(m.clock.Now().Sub(then).Milliseconds())
 			}

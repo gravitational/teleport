@@ -478,7 +478,7 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 	require.NoError(b, err)
 
 	b.Run("LoadKeysToKubeFromStore", func(b *testing.B) {
-		for b.Loop() {
+		for i := 0; i < b.N; i++ {
 			var wg sync.WaitGroup
 			wg.Add(len(kubeClusterNames))
 			for _, kubeClusterName := range kubeClusterNames {
@@ -500,13 +500,19 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 	// Compare against a naive GetKeyRing call which loads the key and cert for
 	// all active kube clusters, not just the one requested.
 	b.Run("GetKeyRing", func(b *testing.B) {
-		for b.Loop() {
+		for i := 0; i < b.N; i++ {
+			var wg sync.WaitGroup
+			wg.Add(len(kubeClusterNames))
 			for _, kubeClusterName := range kubeClusterNames {
-				keyRing, err := fsKeyStore.GetKeyRing(keyRing.KeyRingIndex, nil /*hwks*/, WithKubeCerts{})
-				require.NoError(b, err)
-				require.NotNil(b, keyRing.KubeTLSCredentials[kubeClusterName].PrivateKey)
-				require.NotEmpty(b, keyRing.KubeTLSCredentials[kubeClusterName].Cert)
+				go func() {
+					defer wg.Done()
+					keyRing, err := fsKeyStore.GetKeyRing(keyRing.KeyRingIndex, nil /*hwks*/, WithKubeCerts{})
+					require.NoError(b, err)
+					require.NotNil(b, keyRing.KubeTLSCredentials[kubeClusterName].PrivateKey)
+					require.NotEmpty(b, keyRing.KubeTLSCredentials[kubeClusterName].Cert)
+				}()
 			}
+			wg.Wait()
 		}
 	})
 }

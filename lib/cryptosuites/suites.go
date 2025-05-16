@@ -118,9 +118,6 @@ const (
 	// like GitHub.
 	GitClient
 
-	// AWSRACATLS represents the TLS key for the AWS IAM Roles Anywhere CA.
-	AWSRACATLS
-
 	// keyPurposeMax is 1 greater than the last valid key purpose, used to test that all values less than this
 	// are valid for each suite.
 	keyPurposeMax
@@ -196,7 +193,6 @@ var (
 		// EC2InstanceConnect has always used Ed25519 by default.
 		EC2InstanceConnect: Ed25519,
 		GitClient:          Ed25519,
-		AWSRACATLS:         ECDSAP256,
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and
@@ -228,7 +224,6 @@ var (
 		ProxyKubeClient:         ECDSAP256,
 		EC2InstanceConnect:      Ed25519,
 		GitClient:               Ed25519,
-		AWSRACATLS:              ECDSAP256,
 	}
 
 	// fipsv1 is an algorithm suite tailored for FIPS compliance. It is based on
@@ -261,7 +256,6 @@ var (
 		ProxyKubeClient:         ECDSAP256,
 		EC2InstanceConnect:      ECDSAP256,
 		GitClient:               ECDSAP256,
-		AWSRACATLS:              ECDSAP256,
 	}
 
 	// hsmv1 in an algorithm suite tailored for clusters using an HSM or KMS
@@ -296,7 +290,6 @@ var (
 		ProxyKubeClient:         ECDSAP256,
 		EC2InstanceConnect:      Ed25519,
 		GitClient:               Ed25519,
-		AWSRACATLS:              ECDSAP256,
 	}
 
 	allSuites = map[types.SignatureAlgorithmSuite]suite{

@@ -21,24 +21,25 @@ package services
 import (
 	"context"
 	"iter"
-	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/btree"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
@@ -57,9 +58,9 @@ type UnifiedResourceCacheConfig struct {
 
 // UnifiedResourceCache contains a representation of all resources that are displayable in the UI
 type UnifiedResourceCache struct {
-	rw     sync.RWMutex
-	logger *slog.Logger
-	cfg    UnifiedResourceCacheConfig
+	rw  sync.RWMutex
+	log *log.Entry
+	cfg UnifiedResourceCacheConfig
 	// nameTree is a BTree with items sorted by (hostname)/name/type
 	nameTree *btree.BTreeG[*item]
 	// typeTree is a BTree with items sorted by type/(hostname)/name
@@ -90,8 +91,10 @@ func NewUnifiedResourceCache(ctx context.Context, cfg UnifiedResourceCacheConfig
 	}
 
 	m := &UnifiedResourceCache{
-		logger: slog.With(teleport.ComponentKey, cfg.Component),
-		cfg:    cfg,
+		log: log.WithFields(log.Fields{
+			teleport.ComponentKey: cfg.Component,
+		}),
+		cfg: cfg,
 		nameTree: btree.NewG(cfg.BTreeDegree, func(a, b *item) bool {
 			return a.Less(b)
 		}),
@@ -347,7 +350,7 @@ func (c *UnifiedResourceCache) SAMLIdPServiceProviders(ctx context.Context, para
 func (c *UnifiedResourceCache) IdentityCenterAccounts(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[*identitycenterv1.Account, error] {
 	// cloning is performed on the concrete resource below instead of
 	// on the wrapper type.
-	cloneFn := func(account types.Resource153UnwrapperT[IdentityCenterAccount]) types.Resource153UnwrapperT[IdentityCenterAccount] {
+	cloneFn := func(account IdentityCenterAccount) IdentityCenterAccount {
 		return account
 	}
 	return func(yield func(*identitycenterv1.Account, error) bool) {
@@ -357,7 +360,7 @@ func (c *UnifiedResourceCache) IdentityCenterAccounts(ctx context.Context, param
 				return
 			}
 
-			if !yield(apiutils.CloneProtoMsg(account.UnwrapT().Account), nil) {
+			if !yield(apiutils.CloneProtoMsg(account.Account), nil) {
 				return
 			}
 		}
@@ -368,7 +371,7 @@ func (c *UnifiedResourceCache) IdentityCenterAccounts(ctx context.Context, param
 func (c *UnifiedResourceCache) IdentityCenterAccountAssignments(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[*identitycenterv1.AccountAssignment, error] {
 	// cloning is performed on the concrete resource below instead of
 	// on the wrapper type.
-	cloneFn := func(account types.Resource153UnwrapperT[IdentityCenterAccountAssignment]) types.Resource153UnwrapperT[IdentityCenterAccountAssignment] {
+	cloneFn := func(account IdentityCenterAccountAssignment) IdentityCenterAccountAssignment {
 		return account
 	}
 	return func(yield func(*identitycenterv1.AccountAssignment, error) bool) {
@@ -378,7 +381,7 @@ func (c *UnifiedResourceCache) IdentityCenterAccountAssignments(ctx context.Cont
 				return
 			}
 
-			if !yield(apiutils.CloneProtoMsg(assignment.UnwrapT().AccountAssignment), nil) {
+			if !yield(apiutils.CloneProtoMsg(assignment.AccountAssignment), nil) {
 				return
 			}
 		}
@@ -395,8 +398,20 @@ func iterateUnifiedResourceCache[T any](ctx context.Context, c *UnifiedResourceC
 				return
 			}
 
-			if !yield(cloneFn(i.resource.(T)), nil) {
-				return
+			switch r := i.resource.(type) {
+			case T:
+				if !yield(cloneFn(r), nil) {
+					return
+				}
+			case types.Resource153Unwrapper:
+				res, ok := r.Unwrap().(T)
+				if !ok {
+					continue
+				}
+
+				if !yield(cloneFn(res), nil) {
+					return
+				}
 			}
 		}
 	}
@@ -474,6 +489,21 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 	case types.KindSAMLIdPServiceProvider:
 		_, ok := kinds[types.KindSAMLIdPServiceProvider]
 		return ok
+	case types.KindAppOrSAMLIdPServiceProvider:
+		switch r.(type) {
+		case types.AppServer:
+			if _, ok := kinds[types.KindApp]; ok {
+				return ok
+			}
+
+			_, ok := kinds[types.KindAppServer]
+			return ok
+		case types.SAMLIdPServiceProvider:
+			_, ok := kinds[types.KindSAMLIdPServiceProvider]
+			return ok
+		default:
+			return false
+		}
 	case types.KindAppServer:
 		if _, ok := kinds[types.KindApp]; ok {
 			return ok
@@ -539,8 +569,8 @@ type ResourceGetter interface {
 	KubernetesServerGetter
 	SAMLIdpServiceProviderGetter
 	IdentityCenterAccountGetter
-	IdentityCenterAccountAssignmentGetter
 	GitServerGetter
+	IdentityCenterAccountAssignmentGetter
 }
 
 // newWatcher starts and returns a new resource watcher for unified resources.
@@ -656,12 +686,12 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
-	newICAccountAssignments, err := c.getIdentityCenterAccountAssignments(ctx)
+	newGitServers, err := c.getGitServers(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	newGitServers, err := c.getGitServers(ctx)
+	newICAccountAssignments, err := c.getIdentityCenterAccountAssignments(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -682,8 +712,8 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	putResources[types.SAMLIdPServiceProvider](c, newSAMLApps)
 	putResources[types.WindowsDesktop](c, newDesktops)
 	putResources[resource](c, newICAccounts)
-	putResources[resource](c, newICAccountAssignments)
 	putResources[types.Server](c, newGitServers)
+	putResources[resource](c, newICAccountAssignments)
 	c.stale = false
 	c.defineCollectorAsInitialized()
 	return nil
@@ -931,11 +961,7 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 
 	for _, event := range events {
 		if event.Resource == nil {
-			c.logger.WarnContext(ctx, "Unexpected event",
-				"event_type", event.Type,
-				"resource_kind", event.Resource.GetKind(),
-				"resource_name", event.Resource.GetName(),
-			)
+			c.log.Warnf("Unexpected event: %v.", event)
 			continue
 		}
 
@@ -946,15 +972,32 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 			switch r := event.Resource.(type) {
 			case resource:
 				c.putLocked(r)
-			case types.Resource153UnwrapperT[*identitycenterv1.Account]:
-				c.putLocked(types.Resource153ToUnifiedResource(IdentityCenterAccount{Account: r.UnwrapT()}))
-			case types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]:
-				c.putLocked(types.Resource153ToUnifiedResource(IdentityCenterAccountAssignment{AccountAssignment: r.UnwrapT()}))
+
+			case types.Resource153Unwrapper:
+				// Raw RFD-153 style resources generally have very few methods
+				// defined on them by design. One way to add complex behavior to
+				// these resources is to wrap them inside another type that implements
+				// any methods or interfaces they need. Resources arriving here
+				// via the cache protocol will have those wrappers stripped away,
+				// so we unfortunately need to unwrap and re-wrap these values
+				// to restore them to a useful state.
+				switch unwrapped := r.Unwrap().(type) {
+				case IdentityCenterAccount:
+					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
+
+				case IdentityCenterAccountAssignment:
+					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
+
+				default:
+					c.log.Warnf("unsupported Resource153 type %T.", unwrapped)
+				}
+
 			default:
-				c.logger.WarnContext(ctx, "unsupported Resource type", "resource_type", logutils.TypeAttr(r))
+				c.log.Warnf("unsupported Resource type %T.", r)
 			}
+
 		default:
-			c.logger.WarnContext(ctx, "unsupported event type", "event_type", event.Type)
+			c.log.Warnf("unsupported event type %s.", event.Type)
 			continue
 		}
 	}
@@ -1091,35 +1134,74 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 		}
 
 		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_UserGroup{UserGroup: userGroup}, RequiresRequest: requiresRequest}
+	case types.KindAppOrSAMLIdPServiceProvider:
+		//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
+		switch appOrSP := resource.(type) {
+		case *types.AppServerV3:
+			protoResource = &proto.PaginatedResource{
+				Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+					AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+						Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+							AppServer: appOrSP,
+						},
+					},
+				}, RequiresRequest: requiresRequest,
+			}
+		case *types.SAMLIdPServiceProviderV1:
+			protoResource = &proto.PaginatedResource{
+				Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+					AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+						Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+							SAMLIdPServiceProvider: appOrSP,
+						},
+					},
+				}, RequiresRequest: requiresRequest,
+			}
+		default:
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
 	case types.KindSAMLIdPServiceProvider:
 		serviceProvider, ok := resource.(*types.SAMLIdPServiceProviderV1)
 		if !ok {
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
 
-		protoResource = &proto.PaginatedResource{
-			Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{
-				SAMLIdPServiceProvider: serviceProvider,
-			},
-			RequiresRequest: requiresRequest,
+		// TODO(gzdunek): DELETE IN 17.0
+		// This is needed to maintain backward compatibility between v16 server and v15 client.
+		clientVersion, versionExists := metadata.ClientVersionFromContext(ctx)
+		isClientNotSupportingSAMLIdPServiceProviderResource := false
+		if versionExists {
+			version, err := semver.NewVersion(clientVersion)
+			if err == nil && version.Major < 16 {
+				isClientNotSupportingSAMLIdPServiceProviderResource = true
+			}
 		}
 
+		if isClientNotSupportingSAMLIdPServiceProviderResource {
+			protoResource = &proto.PaginatedResource{
+				Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+					//nolint:staticcheck // SA1019. TODO(gzdunek): DELETE IN 17.0
+					AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+						Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+							SAMLIdPServiceProvider: serviceProvider,
+						},
+					},
+				},
+				RequiresRequest: requiresRequest,
+			}
+		} else {
+			protoResource = &proto.PaginatedResource{
+				Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{
+					SAMLIdPServiceProvider: serviceProvider,
+				},
+				RequiresRequest: requiresRequest,
+			}
+		}
 	case types.KindIdentityCenterAccount:
 		var err error
 		protoResource, err = makePaginatedIdentityCenterAccount(resourceKind, resource, requiresRequest)
 		if err != nil {
 			return nil, trace.Wrap(err)
-		}
-
-	case types.KindIdentityCenterAccountAssignment:
-		unwrapper, ok := resource.(types.Resource153UnwrapperT[IdentityCenterAccountAssignment])
-		if !ok {
-			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-		}
-		assignment := unwrapper.UnwrapT()
-		protoResource = &proto.PaginatedResource{
-			Resource:        proto.PackICAccountAssignment(assignment.AccountAssignment),
-			RequiresRequest: requiresRequest,
 		}
 
 	case types.KindGitServer:
@@ -1135,6 +1217,23 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 			RequiresRequest: requiresRequest,
 		}
 
+	case types.KindIdentityCenterAccountAssignment:
+		unwrapper, ok := resource.(types.Resource153Unwrapper)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+		assignment, ok := unwrapper.Unwrap().(IdentityCenterAccountAssignment)
+		if !ok {
+			return nil, trace.BadParameter(
+				"Unexpected type for Identity Center Account Assignment: %T",
+				unwrapper)
+		}
+
+		protoResource = &proto.PaginatedResource{
+			Resource:        proto.PackICAccountAssignment(assignment.AccountAssignment),
+			RequiresRequest: requiresRequest,
+		}
+
 	default:
 		return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
 	}
@@ -1145,11 +1244,14 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 // makePaginatedIdentityCenterAccount returns a representation of the supplied
 // Identity Center account as an App.
 func makePaginatedIdentityCenterAccount(resourceKind string, resource types.ResourceWithLabels, requiresRequest bool) (*proto.PaginatedResource, error) {
-	unwrapper, ok := resource.(types.Resource153UnwrapperT[IdentityCenterAccount])
+	unwrapper, ok := resource.(types.Resource153Unwrapper)
 	if !ok {
 		return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 	}
-	acct := unwrapper.UnwrapT()
+	acct, ok := unwrapper.Unwrap().(IdentityCenterAccount)
+	if !ok {
+		return nil, trace.BadParameter("%s has invalid inner type %T", resourceKind, resource)
+	}
 	srcPSs := acct.GetSpec().GetPermissionSetInfo()
 	pss := make([]*types.IdentityCenterPermissionSet, len(srcPSs))
 	for i, ps := range acct.GetSpec().GetPermissionSetInfo() {

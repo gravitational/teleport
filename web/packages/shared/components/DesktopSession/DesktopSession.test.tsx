@@ -22,7 +22,7 @@ import { screen } from '@testing-library/react';
 
 import { render } from 'design/utils/testing';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
-import { BrowserFileSystem, TdpClient } from 'shared/libs/tdp';
+import { TdpClient } from 'shared/libs/tdp';
 import { wait } from 'shared/utils/wait';
 
 import { DesktopSession } from './DesktopSession';
@@ -72,10 +72,7 @@ const getMockTransport = () => {
 
 test('reconnect button reinitializes the connection', async () => {
   const transport = getMockTransport();
-  const tpdClient = new TdpClient(
-    transport.getTransport,
-    new BrowserFileSystem()
-  );
+  const tpdClient = new TdpClient(transport.getTransport);
   jest.spyOn(tpdClient, 'connect');
   jest.spyOn(tpdClient, 'shutdown');
   const { unmount } = render(

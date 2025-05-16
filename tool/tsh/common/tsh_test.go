@@ -39,7 +39,6 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -138,7 +137,7 @@ func BenchmarkInit(b *testing.B) {
 	executable, err := os.Executable()
 	require.NoError(b, err)
 
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		cmd := exec.Command(executable, initTestSentinel)
 		err := cmd.Run()
 		assert.NoError(b, err)
@@ -1734,7 +1733,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpHomePath := t.TempDir()
 
-			clusterName, err := tt.auth.GetClusterName(ctx)
+			clusterName, err := tt.auth.GetClusterName()
 			require.NoError(t, err)
 
 			user := alice
@@ -2560,15 +2559,18 @@ func TestSSHCommands(t *testing.T) {
 func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
+		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
 		_, err := authServer.UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err == nil {
 			return
 		}
 		if trace.IsConnectionProblem(err) {
+			log.Debugf("Retrying on connection problem: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 		if trace.IsAccessDenied(err) {
+			log.Debugf("Retrying on access denied: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
@@ -2580,7 +2582,7 @@ func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 func TestKubeCredentialsLock(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	defer cancel()
 	const kubeClusterName = "kube-cluster"
 
 	t.Run("failed client creation doesn't create lockfile", func(t *testing.T) {
@@ -2627,7 +2629,7 @@ func TestKubeCredentialsLock(t *testing.T) {
 		proxyAddr, err := proxyProcess.ProxyWebAddr()
 		require.NoError(t, err)
 
-		teleportClusterName, err := authServer.GetClusterName(ctx)
+		teleportClusterName, err := authServer.GetClusterName()
 		require.NoError(t, err)
 
 		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
@@ -3888,7 +3890,7 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	cfg.SSH.Addr = *utils.MustParseAddr("127.0.0.1:0")
 	cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
 	cfg.SSH.DisableCreateHostUser = true
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Log = utils.NewLoggerForTests()
 	// Disabling debug service for tests so that it doesn't break if the data
 	// directory path is too long.
 	cfg.DebugService.Enabled = false
@@ -3937,7 +3939,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.DisableWebInterface = true
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Log = utils.NewLoggerForTests()
 	// Disabling debug service for tests so that it doesn't break if the data
 	// directory path is too long.
 	cfg.DebugService.Enabled = false
@@ -3980,7 +3982,7 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc {
 	return func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
-		clusterName, err := authServer.GetClusterName(ctx)
+		clusterName, err := authServer.GetClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4025,7 +4027,7 @@ func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc 
 func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSHLoginFunc {
 	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
-		clusterName, err := authServer.GetClusterName(ctx)
+		clusterName, err := authServer.GetClusterName()
 		require.NoError(t, err)
 		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
 		require.NoError(t, err)
@@ -7235,224 +7237,4 @@ func TestSetEnvVariables(t *testing.T) {
 			require.Equal(t, tc.expectedExtraEnvs, c.ExtraEnvs)
 		})
 	}
-}
-
-func TestLoggingOpts(t *testing.T) {
-	tmpHomePath := t.TempDir()
-
-	tests := []struct {
-		name      string
-		envDebug  *bool
-		envOSLog  *bool
-		flagDebug *bool
-		flagOSLog *bool
-		wantDebug require.BoolAssertionFunc
-		wantOSLog require.BoolAssertionFunc
-	}{
-		{
-			name:      "no flags or env vars",
-			wantDebug: require.False,
-			wantOSLog: require.False,
-		},
-		{
-			name:      "just debug flag",
-			flagDebug: boolPtr(true),
-			wantDebug: require.True,
-			wantOSLog: require.False,
-		},
-		{
-			name:      "just os-log flag",
-			flagOSLog: boolPtr(true),
-			wantDebug: require.True,
-			wantOSLog: require.True,
-		},
-		{
-			name:      "debug and os-log flags",
-			flagDebug: boolPtr(true),
-			flagOSLog: boolPtr(true),
-			wantDebug: require.True,
-			wantOSLog: require.True,
-		},
-		{
-			name:      "just debug env var",
-			envDebug:  boolPtr(true),
-			wantDebug: require.True,
-			wantOSLog: require.False,
-		},
-		{
-			name:      "just os-log env var",
-			envOSLog:  boolPtr(true),
-			wantDebug: require.True,
-			wantOSLog: require.True,
-		},
-		{
-			name:      "debug and os-log flags",
-			envDebug:  boolPtr(true),
-			envOSLog:  boolPtr(true),
-			wantDebug: require.True,
-			wantOSLog: require.True,
-		},
-		{
-			name:      "everything on",
-			envDebug:  boolPtr(true),
-			envOSLog:  boolPtr(true),
-			flagDebug: boolPtr(true),
-			flagOSLog: boolPtr(true),
-			wantDebug: require.True,
-			wantOSLog: require.True,
-		},
-		{
-			name:      "everything explicitly off",
-			envDebug:  boolPtr(false),
-			envOSLog:  boolPtr(false),
-			flagDebug: boolPtr(false),
-			flagOSLog: boolPtr(false),
-			wantDebug: require.False,
-			wantOSLog: require.False,
-		},
-		{
-			name:      "debug enabled by env, disabled by flag",
-			envDebug:  boolPtr(true),
-			flagDebug: boolPtr(false),
-			wantDebug: require.False,
-			wantOSLog: require.False,
-		},
-		{
-			name:      "debug disabled by env, enabled by flag",
-			envDebug:  boolPtr(false),
-			flagDebug: boolPtr(true),
-			wantDebug: require.True,
-			wantOSLog: require.False,
-		},
-		{
-			name:      "os-log enabled by env, disabled by flag",
-			envOSLog:  boolPtr(true),
-			flagOSLog: boolPtr(false),
-			wantDebug: require.False,
-			wantOSLog: require.False,
-		},
-		{
-			name:      "os-log disabled by env, enabled by flag",
-			envOSLog:  boolPtr(false),
-			flagOSLog: boolPtr(true),
-			wantDebug: require.True,
-			wantOSLog: require.True,
-		},
-
-		// Verify that final values are set after consulting both env and argv, e.g., disabling os-log
-		// by flag doesn't disable debug set by env.
-		{
-			name:      "os-log enabled by env, disabled by flag; debug enabled by env",
-			envOSLog:  boolPtr(true),
-			flagOSLog: boolPtr(false),
-			envDebug:  boolPtr(true),
-			wantDebug: require.True,
-			wantOSLog: require.False,
-		},
-		{
-			name:      "os-log disabled by env, enabled by flag; debug disabled by flag",
-			envOSLog:  boolPtr(false),
-			flagOSLog: boolPtr(true),
-			flagDebug: boolPtr(false),
-			wantDebug: require.True,
-			wantOSLog: require.True,
-		},
-
-		// Debug is always enabled together with os-log.
-		{
-			name:      "os-log enabled by flag, debug disabled by env",
-			flagOSLog: boolPtr(true),
-			envDebug:  boolPtr(false),
-			wantDebug: require.True,
-			wantOSLog: require.True,
-		},
-		{
-			name:      "os-log enabled by flag, debug disabled by flag",
-			flagOSLog: boolPtr(true),
-			flagDebug: boolPtr(false),
-			wantDebug: require.True,
-			wantOSLog: require.True,
-		},
-		{
-			name:      "os-log enabled by env, debug disabled by env",
-			envOSLog:  boolPtr(true),
-			envDebug:  boolPtr(false),
-			wantDebug: require.True,
-			wantOSLog: require.True,
-		},
-		{
-			name:      "os-log enabled by env, debug disabled by flag",
-			envOSLog:  boolPtr(true),
-			flagDebug: boolPtr(false),
-			wantDebug: require.True,
-			wantOSLog: require.True,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.envDebug != nil {
-				t.Setenv(debugEnvVar, strconv.FormatBool(*tt.envDebug))
-			}
-
-			if tt.envOSLog != nil {
-				t.Setenv(osLogEnvVar, strconv.FormatBool(*tt.envOSLog))
-			}
-
-			var flags []string
-
-			if tt.flagDebug != nil {
-				if *tt.flagDebug {
-					flags = append(flags, "--debug")
-				} else {
-					flags = append(flags, "--no-debug")
-				}
-			}
-
-			if tt.flagOSLog != nil {
-				if *tt.flagOSLog {
-					flags = append(flags, "--os-log")
-				} else {
-					flags = append(flags, "--no-os-log")
-				}
-			}
-
-			mustReadLoggingOpts, setLoggingOptsFromCLIConf := prepareCLIOptionForReadingLoggingOpts()
-			err := Run(t.Context(), append([]string{"version"}, flags...),
-				setHomePath(tmpHomePath), setLoggingOptsFromCLIConf)
-			require.NoError(t, err)
-
-			opts := mustReadLoggingOpts(t)
-			tt.wantDebug(t, opts.debug, "unexpected cf.Debug value")
-			tt.wantOSLog(t, opts.osLog, "unexpected cf.OSLog value")
-		})
-	}
-}
-
-func boolPtr(b bool) *bool {
-	return &b
-}
-
-func prepareCLIOptionForReadingLoggingOpts() (func(t *testing.T) loggingOpts, CliOption) {
-	var cf *CLIConf
-
-	setLoggingOptsFromCLIConf := func(cliConfFromRun *CLIConf) error {
-		cf = cliConfFromRun
-		return nil
-	}
-
-	mustReadLoggingOpts := func(t *testing.T) loggingOpts {
-		t.Helper()
-
-		if cf == nil {
-			t.Fatalf("mustReadLoggingOpts was called before setLoggingOptsFromCLIConf was executed")
-		}
-
-		return loggingOpts{
-			debug: cf.Debug,
-			osLog: cf.OSLog,
-		}
-	}
-
-	return mustReadLoggingOpts, setLoggingOptsFromCLIConf
 }

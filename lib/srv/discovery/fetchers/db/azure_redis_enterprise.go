@@ -19,11 +19,9 @@
 package db
 
 import (
-	"context"
-	"log/slog"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -46,32 +44,32 @@ func (p *azureRedisEnterprisePlugin) GetServerLocation(server *azure.RedisEnterp
 	return azure.StringVal(server.Cluster.Location)
 }
 
-func (p *azureRedisEnterprisePlugin) NewDatabaseFromServer(ctx context.Context, server *azure.RedisEnterpriseDatabase, logger *slog.Logger) types.Database {
+func (p *azureRedisEnterprisePlugin) NewDatabaseFromServer(server *azure.RedisEnterpriseDatabase, log logrus.FieldLogger) types.Database {
 	if server.Properties == nil || server.Cluster.Properties == nil {
 		return nil
 	}
 
 	if azure.StringVal(server.Properties.ClientProtocol) != string(armredisenterprise.ProtocolEncrypted) {
-		logger.DebugContext(ctx, "Skipping Azure Redis Enterprise with unsupported protocol",
-			"server", server,
-			"protocol", azure.StringVal(server.Properties.ClientProtocol),
+		log.Debugf("Azure Redis Enterprise %v is running unsupported protocol %v. Skipping.",
+			server,
+			azure.StringVal(server.Properties.ClientProtocol),
 		)
 		return nil
 	}
 
 	if !p.isAvailable(server) {
-		logger.DebugContext(ctx, "Skipping unavailable Azure Redis Enterprise server",
-			"server", server,
-			"status", azure.StringVal(server.Properties.ProvisioningState),
+		log.Debugf("The current status of Azure Redis Enterprise %v is %q. Skipping.",
+			server,
+			azure.StringVal(server.Properties.ProvisioningState),
 		)
 		return nil
 	}
 
 	database, err := common.NewDatabaseFromAzureRedisEnterprise(server.Cluster, server.Database)
 	if err != nil {
-		logger.WarnContext(ctx, "Could not convert Azure Redis Enterprise to database resource",
-			"server", server,
-			"error", err,
+		log.Warnf("Could not convert Azure Redis Enterprise %v to database resource: %v.",
+			server,
+			err,
 		)
 		return nil
 	}
@@ -92,9 +90,9 @@ func (p *azureRedisEnterprisePlugin) isAvailable(server *azure.RedisEnterpriseDa
 		armredisenterprise.ProvisioningStateFailed:
 		return false
 	default:
-		slog.WarnContext(context.Background(), "Assuming Azure Enterprise Redis with unknown status type is available",
-			"status", azure.StringVal(server.Properties.ProvisioningState),
-			"server", server,
+		logrus.Warnf("Unknown status type: %q. Assuming Azure Enterprise Redis %v is available.",
+			azure.StringVal(server.Properties.ProvisioningState),
+			server,
 		)
 		return true
 	}

@@ -41,7 +41,6 @@ type Cache interface {
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // ReadOnlyCache abstracts over the required methods of [readonly.Cache].
@@ -54,7 +53,6 @@ type ReadOnlyCache interface {
 
 // Backend is used by the [Service] to mutate cluster config resources.
 type Backend interface {
-	CreateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
 	UpdateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
 	UpsertAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
 
@@ -163,49 +161,6 @@ func (s *Service) GetAuthPreference(ctx context.Context, _ *clusterconfigpb.GetA
 	authPrefV2, ok := pref.Clone().(*types.AuthPreferenceV2)
 	if !ok {
 		return nil, trace.Wrap(trace.BadParameter("unexpected auth preference type %T (expected %T)", pref, authPrefV2))
-	}
-
-	return authPrefV2, nil
-}
-
-// CreateAuthPreference creates a new auth preference if one does not exist. This
-// is an internal API and is not exposed via [clusterconfigv1.ClusterConfigServiceServer]. It
-// is only meant to be called directly from the first time an Auth instance is started.
-func (s *Service) CreateAuthPreference(ctx context.Context, p types.AuthPreference) (types.AuthPreference, error) {
-	authzCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if !authz.HasBuiltinRole(*authzCtx, string(types.RoleAuth)) {
-		return nil, trace.AccessDenied("this request can be only executed by an auth server")
-	}
-
-	if err := services.ValidateAuthPreference(p); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// check that the given RequireMFAType is supported in this build.
-	if p.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
-	}
-
-	if err := dtconfig.ValidateConfigAgainstModules(p.GetDeviceTrust()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := p.CheckSignatureAlgorithmSuite(s.signatureAlgorithmSuiteParams); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	created, err := s.backend.CreateAuthPreference(ctx, p)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authPrefV2, ok := created.(*types.AuthPreferenceV2)
-	if !ok {
-		return nil, trace.Wrap(trace.BadParameter("unexpected auth preference type %T (expected %T)", created, authPrefV2))
 	}
 
 	return authPrefV2, nil
@@ -727,12 +682,6 @@ func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, newConfig, oldConf
 		return trace.BadParameter(cloudUpdateFailureMsg, "tunnel_strategy")
 	}
 
-	oldts := oldConfig.GetProxyPeeringTunnelStrategy()
-	newts := newConfig.GetProxyPeeringTunnelStrategy()
-	if oldts != nil && newts != nil && oldts.AgentConnectionCount != newts.AgentConnectionCount {
-		return trace.BadParameter(cloudUpdateFailureMsg, "agent_connection_count")
-	}
-
 	if newConfig.GetKeepAliveInterval() != oldConfig.GetKeepAliveInterval() {
 		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_interval")
 	}
@@ -1181,25 +1130,4 @@ func (s *Service) ResetAccessGraphSettings(ctx context.Context, _ *clusterconfig
 	}
 
 	return rsp, nil
-}
-
-func (s *Service) GetClusterName(ctx context.Context, _ *clusterconfigpb.GetClusterNameRequest) (*types.ClusterNameV2, error) {
-	authzCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := authzCtx.CheckAccessToKind(types.KindClusterName, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cn, err := s.cache.GetClusterName(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cast, ok := cn.(*types.ClusterNameV2)
-	if !ok {
-		return nil, trace.BadParameter("unexpected cluster name type %T (expected %T)", cn, cast)
-	}
-	return cast, nil
 }

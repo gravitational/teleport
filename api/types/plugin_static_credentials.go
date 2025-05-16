@@ -16,11 +16,7 @@ limitations under the License.
 
 package types
 
-import (
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/utils"
-)
+import "github.com/gravitational/trace"
 
 // PluginStaticCredentials are static credentials for plugins.
 type PluginStaticCredentials interface {
@@ -44,8 +40,6 @@ type PluginStaticCredentials interface {
 
 	// GetSSHCertAuthorities will return the attached SSH CA keys.
 	GetSSHCertAuthorities() []*SSHKeyPair
-	// Clone returns a copy of the credentials.
-	Clone() PluginStaticCredentials
 }
 
 // NewPluginStaticCredentials creates a new PluginStaticCredentialsV1 resource.
@@ -62,11 +56,6 @@ func NewPluginStaticCredentials(metadata Metadata, spec PluginStaticCredentialsS
 	}
 
 	return p, nil
-}
-
-// Clone returns a copy of the credentials.
-func (p *PluginStaticCredentialsV1) Clone() PluginStaticCredentials {
-	return utils.CloneProtoMsg(p)
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.

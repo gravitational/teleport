@@ -20,8 +20,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/utils"
 )
 
 // Installer is an installer script resource
@@ -34,9 +32,6 @@ type Installer interface {
 	SetScript(string)
 
 	String() string
-
-	// Clone returns a copy of the installer.
-	Clone() Installer
 }
 
 // NewInstallerV1 returns a new installer resource
@@ -64,11 +59,6 @@ func MustNewInstallerV1(name, script string) *InstallerV1 {
 		panic(err)
 	}
 	return inst
-}
-
-// Clone returns a copy of the installer.
-func (c *InstallerV1) Clone() Installer {
-	return utils.CloneProtoMsg(c)
 }
 
 // CheckAndSetDefaults implements Installer

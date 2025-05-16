@@ -20,14 +20,13 @@ package cloud
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -41,35 +40,30 @@ type DiscoveryResourceChecker interface {
 
 // DiscoveryResourceCheckerConfig is the config for DiscoveryResourceChecker.
 type DiscoveryResourceCheckerConfig struct {
-	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
-	AWSConfigProvider awsconfig.Provider
 	// ResourceMatchers is a list of database resource matchers.
 	ResourceMatchers []services.ResourceMatcher
-	// AzureClients is an interface for retrieving Azure cloud clients.
-	AzureClients cloud.AzureClients
+	// Clients is an interface for retrieving cloud clients.
+	Clients cloud.Clients
 	// Context is the database server close context.
 	Context context.Context
-	// Logger is used for logging.
-	Logger *slog.Logger
+	// Log is used for logging.
+	Log logrus.FieldLogger
 }
 
 // CheckAndSetDefaults validates the config and sets default values.
 func (c *DiscoveryResourceCheckerConfig) CheckAndSetDefaults() error {
-	if c.AzureClients == nil {
+	if c.Clients == nil {
 		cloudClients, err := cloud.NewClients()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		c.AzureClients = cloudClients
-	}
-	if c.AWSConfigProvider == nil {
-		return trace.BadParameter("missing AWSConfigProvider")
+		c.Clients = cloudClients
 	}
 	if c.Context == nil {
 		c.Context = context.Background()
 	}
-	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, teleport.ComponentDatabase)
+	if c.Log == nil {
+		c.Log = logrus.WithField(teleport.ComponentKey, teleport.ComponentDatabase)
 	}
 	return nil
 }
@@ -80,7 +74,7 @@ func NewDiscoveryResourceChecker(cfg DiscoveryResourceCheckerConfig) (DiscoveryR
 		return nil, trace.Wrap(err)
 	}
 
-	credentialsChecker, err := newCredentialsChecker(cfg)
+	credentialsChecker, err := newCrednentialsChecker(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

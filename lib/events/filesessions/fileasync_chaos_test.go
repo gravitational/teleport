@@ -1,4 +1,5 @@
 //go:build !race
+// +build !race
 
 /*
  * Teleport

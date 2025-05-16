@@ -187,7 +187,7 @@ func (e *SessionAccessEvaluator) matchesKind(allow []string) bool {
 func RoleSupportsModeratedSessions(roles []types.Role) bool {
 	for _, role := range roles {
 		switch role.GetVersion() {
-		case types.V5, types.V6, types.V7, types.V8:
+		case types.V5, types.V6, types.V7:
 			return true
 		}
 	}
@@ -209,7 +209,7 @@ func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) []types.Sess
 
 	var modes []types.SessionParticipantMode
 
-	// Loop over every allow policy attached the participant and check its applicability.
+	// Loop over every allow policy attached the participant and check it's applicability.
 	// This code serves to merge the permissions of all applicable join policies.
 	for _, allowPolicy := range getAllowPolicies(user) {
 		// If the policy is applicable and allows joining the session, add the allowed modes to the list of modes.

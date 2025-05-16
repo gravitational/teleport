@@ -18,11 +18,11 @@ package clientcache
 
 import (
 	"context"
-	"log/slog"
 	"slices"
 	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/gravitational/teleport"
@@ -53,7 +53,7 @@ type RetryWithReloginFunc func(ctx context.Context, tc *client.TeleportClient, f
 type Config struct {
 	NewClientFunc        NewClientFunc
 	RetryWithReloginFunc RetryWithReloginFunc
-	Logger               *slog.Logger
+	Log                  logrus.FieldLogger
 }
 
 func (c *Config) checkAndSetDefaults() error {
@@ -63,8 +63,8 @@ func (c *Config) checkAndSetDefaults() error {
 	if c.RetryWithReloginFunc == nil {
 		return trace.BadParameter("RetryWithReloginFunc is required")
 	}
-	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "clientcache")
+	if c.Log == nil {
+		c.Log = logrus.WithField(teleport.ComponentKey, "clientcache")
 	}
 	return nil
 }
@@ -99,7 +99,7 @@ func (c *Cache) Get(ctx context.Context, profileName, leafClusterName string) (*
 	k := key{profile: profileName, leafCluster: leafClusterName}
 	groupClt, err, _ := c.group.Do(k.String(), func() (any, error) {
 		if fromCache := c.getFromCache(k); fromCache != nil {
-			c.cfg.Logger.DebugContext(ctx, "Retrieved client from cache", "cluster", k)
+			c.cfg.Log.WithField("cluster", k).Debug("Retrieved client from cache.")
 			return fromCache, nil
 		}
 
@@ -123,7 +123,7 @@ func (c *Cache) Get(ctx context.Context, profileName, leafClusterName string) (*
 		// Save the client in the cache, so we don't have to build a new connection next time.
 		c.addToCache(k, newClient)
 
-		c.cfg.Logger.InfoContext(ctx, "Added client to cache", "cluster", k)
+		c.cfg.Log.WithField("cluster", k).Info("Added client to cache.")
 
 		return newClient, nil
 	})
@@ -159,10 +159,9 @@ func (c *Cache) ClearForRoot(profileName string) error {
 		}
 	}
 
-	c.cfg.Logger.InfoContext(context.Background(), "Invalidated cached clients for root cluster",
-		"cluster", profileName,
-		"clients", deleted,
-	)
+	c.cfg.Log.WithFields(
+		logrus.Fields{"cluster": profileName, "clients": deleted},
+	).Info("Invalidated cached clients for root cluster.")
 
 	return trace.NewAggregate(errors...)
 

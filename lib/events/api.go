@@ -847,27 +847,17 @@ const (
 	// AutoUpdateVersionDeleteEvent is emitted when a AutoUpdateVersion resource is deleted.
 	AutoUpdateVersionDeleteEvent = "auto_update_version.delete"
 
-	// AutoUpdateAgentRolloutTriggerEvent is emitted when one or many groups
-	// from AutoUpdateAgentRollout resource are manually triggered.
-	AutoUpdateAgentRolloutTriggerEvent = "auto_update_agent_rollout.trigger"
-	// AutoUpdateAgentRolloutForceDoneEvent is emitted when one or many groups
-	// from AutoUpdateAgentRollout resource are manually forced to a done state.
-	AutoUpdateAgentRolloutForceDoneEvent = "auto_update_agent_rollout.force_done"
-	// AutoUpdateAgentRolloutRollbackEvent is emitted when one or many groups
-	// from AutoUpdateAgentRollout resource are manually rolledback.
-	AutoUpdateAgentRolloutRollbackEvent = "auto_update_agent_rollout.rollback"
-
-	// ContactCreateEvent is emitted when a Contact resource is created.
-	ContactCreateEvent = "contact.create"
-	// ContactDeleteEvent is emitted when a Contact resource is deleted.
-	ContactDeleteEvent = "contact.delete"
-
 	// WorkloadIdentityCreateEvent is emitted when a WorkloadIdentity resource is created.
 	WorkloadIdentityCreateEvent = "workload_identity.create"
 	// WorkloadIdentityUpdateEvent is emitted when a WorkloadIdentity resource is updated.
 	WorkloadIdentityUpdateEvent = "workload_identity.update"
 	// WorkloadIdentityDeleteEvent is emitted when a WorkloadIdentity resource is deleted.
 	WorkloadIdentityDeleteEvent = "workload_identity.delete"
+
+	// ContactCreateEvent is emitted when a Contact resource is created.
+	ContactCreateEvent = "contact.create"
+	// ContactDeleteEvent is emitted when a Contact resource is deleted.
+	ContactDeleteEvent = "contact.delete"
 
 	// WorkloadIdentityX509RevocationCreateEvent is emitted when a
 	// WorkloadIdentityX509Revocation resource is created.
@@ -897,22 +887,6 @@ const (
 
 	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
 	StableUNIXUserCreateEvent = "stable_unix_user.create"
-
-	// AWSICResourceSyncSuccessEvent is emitted when AWS Identity Center resources are imported
-	// and reconciled to Teleport.
-	AWSICResourceSyncSuccessEvent = "aws_identity_center.resource_sync.success"
-	// AWSICResourceSyncFailureEvent is emitted when AWS Identity Center resources sync failed.
-	AWSICResourceSyncFailureEvent = "aws_identity_center.resource_sync.failed"
-
-	// HealthCheckConfigCreateEvent is emitted when a health check config
-	// resource is created.
-	HealthCheckConfigCreateEvent = "health_check_config.create"
-	// HealthCheckConfigUpdateEvent is emitted when a health check config
-	// resource is updated.
-	HealthCheckConfigUpdateEvent = "health_check_config.update"
-	// HealthCheckConfigDeleteEvent is emitted when a health check config
-	// resource is deleted.
-	HealthCheckConfigDeleteEvent = "health_check_config.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

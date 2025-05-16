@@ -1,4 +1,5 @@
 //go:build touchid
+// +build touchid
 
 /*
  * Teleport
@@ -32,7 +33,6 @@ package touchid
 import "C"
 
 import (
-	"context"
 	"encoding/base64"
 	"fmt"
 	"runtime/cgo"
@@ -42,8 +42,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -111,7 +110,7 @@ func (touchIDImpl) Diag() (*DiagResult, error) {
 	laErrorDomain := C.GoString(resC.la_error_domain)
 	laErrorDescription := C.GoString(resC.la_error_description)
 	if !passedLA && laErrorDescription != "" {
-		logger.DebugContext(context.Background(), "Received non-empty LAError description", "description", laErrorDescription)
+		log.Debugf("Touch ID: LAError description: %v", laErrorDescription)
 	}
 
 	isAvailable := signed && entitled && passedLA && passedEnclave
@@ -142,7 +141,7 @@ func runGoFuncHandle(handle C.uintptr_t) {
 	val := cgo.Handle(handle).Value()
 	fn, ok := val.(func())
 	if !ok {
-		logger.WarnContext(context.Background(), "received unexpected function handle", "handle", logutils.TypeAttr(val))
+		log.Warnf("Touch ID: received unexpected function handle: %T", val)
 		return
 	}
 	fn()
@@ -305,8 +304,6 @@ func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo,
 	var infosC *C.CredentialInfo
 	defer func() { C.free(unsafe.Pointer(infosC)) }()
 
-	ctx := context.Background()
-
 	res := find(&infosC)
 	if res < 0 {
 		return nil, int(res)
@@ -341,30 +338,21 @@ func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo,
 		// user@rpid
 		parsedLabel, err := parseLabel(label)
 		if err != nil {
-			logger.DebugContext(ctx, "Skipping credential",
-				"credential_id", credentialID,
-				"error", err,
-			)
+			log.Debugf("Skipping credential %q: %v", credentialID, err)
 			continue
 		}
 
 		// user handle
 		userHandle, err := base64.RawURLEncoding.DecodeString(appTag)
 		if err != nil {
-			logger.DebugContext(ctx, "Skipping credential, unexpected application tag",
-				"credential_id", credentialID,
-				"app_tag", appTag,
-			)
+			log.Debugf("Skipping credential %q: unexpected application tag: %q", credentialID, appTag)
 			continue
 		}
 
 		// ECDSA public key
 		pubKeyRaw, err := base64.StdEncoding.DecodeString(pubKeyB64)
 		if err != nil {
-			logger.WarnContext(ctx, "Failed to decode public key for credential",
-				"credential_id", credentialID,
-				"error", err,
-			)
+			log.WithError(err).Warnf("Failed to decode public key for credential %q", credentialID)
 			// Do not return or break out of the loop, it needs to run in order to
 			// deallocate the structs within.
 		}
@@ -373,11 +361,7 @@ func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo,
 		const iso8601Format = "2006-01-02T15:04:05Z0700"
 		createTime, err := time.Parse(iso8601Format, creationDate)
 		if err != nil {
-			logger.WarnContext(ctx, "Failed to parse creation time for credential",
-				"creation_time", creationDate,
-				"credential_id", credentialID,
-				"error", err,
-			)
+			log.WithError(err).Warnf("Failed to parse creation time %q for credential %q", creationDate, credentialID)
 		}
 
 		infos = append(infos, CredentialInfo{

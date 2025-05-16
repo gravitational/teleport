@@ -72,7 +72,7 @@ type WorkloadIdentityServiceConfig struct {
 // function.
 type WorkloadIdentityCacher interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 	GetProxies() ([]types.Server, error)
 }
 
@@ -339,7 +339,7 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 	}
 
 	// Fetch info that will be needed for all SPIFFE SVIDs requested
-	clusterName, err := wis.cache.GetClusterName(ctx)
+	clusterName, err := wis.cache.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err, "getting cluster name")
 	}
@@ -369,11 +369,6 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 		}
 		res.Svids = append(res.Svids, svidRes)
 	}
-
-	wis.logger.WarnContext(
-		ctx,
-		"The 'SignX509SVIDs' RPC has been invoked. This RPC is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
-	)
 
 	return res, nil
 }
@@ -494,7 +489,7 @@ func (wis *WorkloadIdentityService) SignJWTSVIDs(
 	}
 
 	// Fetch info that will be needed to create the SVIDs
-	clusterName, err := wis.cache.GetClusterName(ctx)
+	clusterName, err := wis.cache.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err, "getting cluster name")
 	}
@@ -533,11 +528,6 @@ func (wis *WorkloadIdentityService) SignJWTSVIDs(
 		}
 		res.Svids = append(res.Svids, svidRes)
 	}
-
-	wis.logger.WarnContext(
-		ctx,
-		"The 'SignJWTSVIDs' RPC has been invoked. This RPC is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
-	)
 
 	return res, nil
 }

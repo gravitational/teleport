@@ -35,9 +35,9 @@ import { pipe } from 'shared/utils/pipe';
 
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import {
-  CloneableAbortSignal,
   cloneAbortSignal,
-  TshdClient,
+  type CloneableAbortSignal,
+  type TshdClient,
 } from 'teleterm/services/tshd';
 import { getGatewayTargetUriKind } from 'teleterm/services/tshd/gateway';
 import { NotificationsService } from 'teleterm/ui/services/notifications';

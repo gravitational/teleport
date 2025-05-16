@@ -20,7 +20,6 @@ package touchid
 
 import (
 	"bytes"
-	"context"
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/base64"
@@ -39,11 +38,10 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/darwin"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 var (
@@ -54,8 +52,6 @@ var (
 	PromptPlatformMessage = "Using platform authenticator, follow the OS prompt"
 	// PromptWriter is the writer used for prompt messages.
 	PromptWriter io.Writer = os.Stderr
-
-	logger = logutils.NewPackageLogger(teleport.ComponentKey, "TouchID")
 )
 
 func promptPlatform() {
@@ -171,7 +167,7 @@ func IsAvailable() bool {
 		var err error
 		cachedDiag, err = Diag()
 		if err != nil {
-			logger.WarnContext(context.Background(), "self-diagnostics failed", "error", err)
+			log.WithError(err).Warn("Touch ID self-diagnostics failed")
 			return false
 		}
 	}
@@ -360,7 +356,7 @@ func HasCredentials(rpid, user string) bool {
 	}
 	creds, err := native.FindCredentials(rpid, user)
 	if err != nil {
-		logger.DebugContext(context.Background(), "Could not find credentials", "error", err)
+		log.WithError(err).Debug("Touch ID: Could not find credentials")
 		return false
 	}
 	return len(creds) > 0
@@ -498,7 +494,7 @@ func Login(origin, user string, assertion *wantypes.CredentialAssertion, picker 
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	logger.DebugContext(context.Background(), "using credential", "credential_id", cred.CredentialID)
+	log.Debugf("Touch ID: using credential %q", cred.CredentialID)
 
 	attData, err := makeAttestationData(protocol.AssertCeremony, origin, rpID, assertion.Response.Challenge, nil /* cred */)
 	if err != nil {
@@ -613,7 +609,7 @@ func ListCredentials() ([]CredentialInfo, error) {
 		info := &infos[i]
 		key, err := darwin.ECDSAPublicKeyFromRaw(info.publicKeyRaw)
 		if err != nil {
-			logger.WarnContext(context.Background(), "Failed to convert public key", "error", err)
+			log.Warnf("Failed to convert public key: %v", err)
 		}
 		info.PublicKey = key // this is OK, even if it's nil
 		info.publicKeyRaw = nil

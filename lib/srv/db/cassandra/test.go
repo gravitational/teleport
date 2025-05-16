@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"log/slog"
 	"net"
 	"strings"
 	"time"
@@ -34,11 +33,11 @@ import (
 	"github.com/datastax/go-cassandra-native-protocol/primitive"
 	"github.com/gocql/gocql"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Session alias for easier use.
@@ -98,7 +97,7 @@ type TestServer struct {
 	cfg       common.TestServerConfig
 	port      string
 	tlsConfig *tls.Config
-	logger    *slog.Logger
+	log       logrus.FieldLogger
 	server    *client.CqlServer
 }
 
@@ -143,10 +142,10 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 		port:      port,
 		tlsConfig: tlsConfig,
 		server:    server,
-		logger: utils.NewSlogLoggerForTests().With(
-			teleport.ComponentKey, defaults.ProtocolCassandra,
-			"name", config.Name,
-		),
+		log: logrus.WithFields(logrus.Fields{
+			teleport.ComponentKey: defaults.ProtocolCassandra,
+			"name":                config.Name,
+		}),
 	}
 	for _, opt := range opts {
 		opt(testServer)
@@ -337,7 +336,7 @@ func handleMessageBatch(request *frame.Frame, conn *client.CqlServerConnection, 
 		}
 		responseFrame, err := codec.ConvertFromRawFrame(resp)
 		if err != nil {
-			slog.ErrorContext(context.Background(), "Error converting raw frame to frame", "error", err)
+			logrus.Errorf("Error converting raw frame to frame: %v", err)
 			return nil
 		}
 		return responseFrame

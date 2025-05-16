@@ -42,7 +42,6 @@ import {
   DocumentCluster,
   DocumentClusterQueryParams,
   DocumentConnectMyComputer,
-  DocumentDesktopSession,
   DocumentGateway,
   DocumentGatewayCliClient,
   DocumentGatewayKube,
@@ -587,21 +586,6 @@ export function createClusterDocument(opts: {
     title: clusterName,
     kind: 'doc.cluster',
     queryParams: opts.queryParams || getDefaultDocumentClusterQueryParams(),
-  };
-}
-
-export function createDesktopSessionDocument(opts: {
-  desktopUri: uri.WindowsDesktopUri;
-  login: string;
-  origin: DocumentOrigin;
-}): DocumentDesktopSession {
-  return {
-    kind: 'doc.desktop_session' as const,
-    uri: routing.getDocUri({ docId: unique() }),
-    title: `${opts.login} on ${routing.parseWindowsDesktopUri(opts.desktopUri).params?.windowsDesktopId}`,
-    desktopUri: opts.desktopUri,
-    login: opts.login,
-    origin: opts.origin,
   };
 }
 

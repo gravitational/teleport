@@ -17,11 +17,11 @@
  */
 
 import { useEffect, useState } from 'react';
-import styled, { css } from 'styled-components';
+import styled from 'styled-components';
 
 import { Box, ButtonIcon, Flex, Label, Text } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
-import { Tags, Warning } from 'design/Icon';
+import { Tags } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
 
@@ -31,34 +31,27 @@ import { CopyButton } from '../shared/CopyButton';
 import {
   BackgroundColorProps,
   getBackgroundColor,
-  getStatusBackgroundColor,
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
 import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
 import { ResourceItemProps } from '../types';
 
 export function ResourceListItem({
+  name,
+  primaryIconName,
+  SecondaryIcon,
   onLabelClick,
+  listViewProps,
+  ActionButton,
+  labels,
   pinningSupport,
   pinned,
   pinResource,
   selectResource,
   selected,
   expandAllLabels,
-  onShowStatusInfo,
-  showingStatusInfo,
-  viewItem,
-}: ResourceItemProps) {
-  const {
-    name,
-    primaryIconName,
-    SecondaryIcon,
-    listViewProps,
-    ActionButton,
-    labels,
-    requiresRequest = false,
-    status,
-  } = viewItem;
+  requiresRequest = false,
+}: Omit<ResourceItemProps, 'cardViewProps'>) {
   const { description, resourceType, addr } = listViewProps;
 
   const [showLabels, setShowLabels] = useState(expandAllLabels);
@@ -70,7 +63,6 @@ export function ResourceListItem({
   }, [expandAllLabels]);
 
   const showLabelsButton = labels.length > 0 && (hovered || showLabels);
-  const hasUnhealthyStatus = status && status !== 'healthy';
 
   // Determines which column the resource type text should end at.
   // We do this because if there is no address, or the labels button
@@ -90,16 +82,12 @@ export function ResourceListItem({
     <RowContainer
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      hasUnhealthyStatus={hasUnhealthyStatus}
-      showingStatusInfo={showingStatusInfo}
     >
       <RowInnerContainer
         requiresRequest={requiresRequest}
         alignItems="start"
         pinned={pinned}
         selected={selected}
-        hasUnhealthyStatus={hasUnhealthyStatus}
-        showingStatusInfo={showingStatusInfo}
       >
         {/* checkbox */}
         <HoverTooltip
@@ -223,28 +211,13 @@ export function ResourceListItem({
               grid-area: labels-btn;
             `}
           >
-            <HoverIconButton
+            <ShowLabelsButton
               size={1}
               onClick={() => setShowLabels(prevState => !prevState)}
               className={showLabels ? 'active' : ''}
             >
               <Tags size={18} color={showLabels ? 'text.main' : 'text.muted'} />
-            </HoverIconButton>
-          </HoverTooltip>
-        )}
-
-        {/* warning icon if status is unhealthy */}
-        {hasUnhealthyStatus && (
-          <HoverTooltip
-            tipContent={'Show Connection Issue'}
-            css={`
-              grid-area: warning-icon;
-              cursor: pointer;
-            `}
-          >
-            <HoverIconButton size={1} onClick={onShowStatusInfo}>
-              <Warning size={18} />
-            </HoverIconButton>
+            </ShowLabelsButton>
           </HoverTooltip>
         )}
 
@@ -303,37 +276,12 @@ const ResTypeIconBox = styled(Box)`
   line-height: 0;
 `;
 
-const RowContainer = styled(Box)<{
-  hasUnhealthyStatus: boolean;
-  showingStatusInfo: boolean;
-}>`
+const RowContainer = styled(Box)`
   transition: all 150ms;
   position: relative;
 
-  ${p =>
-    p.hasUnhealthyStatus &&
-    css`
-      background-color: ${getStatusBackgroundColor({
-        showingStatusInfo: p.showingStatusInfo,
-        theme: p.theme,
-        action: '',
-        viewType: 'list',
-      })};
-    `}
-
   &:hover {
     background-color: ${props => props.theme.colors.levels.surface};
-
-    ${p =>
-      p.hasUnhealthyStatus &&
-      css`
-        background-color: ${getStatusBackgroundColor({
-          showingStatusInfo: p.showingStatusInfo,
-          theme: p.theme,
-          action: 'hover',
-          viewType: 'list',
-        })};
-      `}
 
     // We use a pseudo element for the shadow with position: absolute in order to prevent
     // the shadow from increasing the size of the layout and causing scrollbar flicker.
@@ -356,8 +304,8 @@ const RowInnerContainer = styled(Flex)<BackgroundColorProps>`
   column-gap: ${props => props.theme.space[3]}px;
   grid-template-rows: 56px min-content;
   grid-template-areas:
-    'checkbox pin icon name type address labels-btn warning-icon button'
-    '. . labels labels labels labels labels labels labels';
+    'checkbox pin icon name type address labels-btn button'
+    '. . labels labels labels labels labels labels';
   align-items: center;
   height: 100%;
   min-width: 100%;
@@ -387,7 +335,7 @@ const Description = styled(Text)`
   color: ${props => props.theme.colors.text.muted};
 `;
 
-const HoverIconButton = styled(ButtonIcon)`
+const ShowLabelsButton = styled(ButtonIcon)`
   .active {
     background: ${props => props.theme.colors.buttons.secondary.default};
 

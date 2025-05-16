@@ -45,8 +45,6 @@ type WindowsDesktopService interface {
 	GetHostname() string
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
-	// Clone creates a copy of the service.
-	Clone() WindowsDesktopService
 }
 
 type WindowsDesktopServices []WindowsDesktopService
@@ -120,11 +118,6 @@ func (s *WindowsDesktopServiceV3) SetProxyIDs(proxyIDs []string) {
 // GetHostname returns the windows hostname of this service.
 func (s *WindowsDesktopServiceV3) GetHostname() string {
 	return s.Spec.Hostname
-}
-
-// Clone creates a copy of the service.
-func (s *WindowsDesktopServiceV3) Clone() WindowsDesktopService {
-	return utils.CloneProtoMsg(s)
 }
 
 // MatchSearch goes through select field values and tries to

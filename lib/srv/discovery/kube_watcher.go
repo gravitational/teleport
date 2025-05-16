@@ -20,6 +20,7 @@ package discovery
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -60,7 +61,8 @@ func (s *Server) startKubeWatchers() error {
 				defer mu.Unlock()
 				return utils.FromSlice(kubeResources, types.KubeCluster.GetName)
 			},
-			Logger:   s.Log.With("kind", types.KindKubernetesCluster),
+			// TODO(tross): update to user the server logger once it is converted to use slog
+			Logger:   slog.With("kind", types.KindKubernetesCluster),
 			OnCreate: s.onKubeCreate,
 			OnUpdate: s.onKubeUpdate,
 			OnDelete: s.onKubeDelete,
@@ -76,7 +78,7 @@ func (s *Server) startKubeWatchers() error {
 			s.submitFetchersEvent(kubeNonIntegrationFetchers)
 			return kubeNonIntegrationFetchers
 		},
-		Logger:         s.Log.With("kind", types.KindKubernetesCluster),
+		Log:            s.LegacyLogger.WithField("kind", types.KindKubernetesCluster),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
 		Origin:         types.OriginCloud,

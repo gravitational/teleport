@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"log/slog"
 	"strings"
 	"text/template"
 	"time"
@@ -531,8 +530,7 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 			RenewalInterval: 20 * time.Minute,
 		},
 	}
-	// slog default logger has been configured during the provider init.
-	bot, err := embeddedtbot.New(botConfig, slog.Default())
+	bot, err := embeddedtbot.New(botConfig)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to create bot configuration, this is a provider bug, please open a GitHub issue.")
 	}

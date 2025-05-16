@@ -26,14 +26,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
 func TestGetInstallScript(t *testing.T) {
 	ctx := context.Background()
-	testVersion, err := version.EnsureSemver("1.2.3")
-	require.NoError(t, err)
+	testVersion := "1.2.3"
 	testProxyAddr := "proxy.example.com:443"
 
 	tests := []struct {

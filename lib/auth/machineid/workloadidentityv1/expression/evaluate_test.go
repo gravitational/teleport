@@ -19,8 +19,6 @@
 package expression_test
 
 import (
-	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -33,17 +31,11 @@ import (
 func TestEvaluate(t *testing.T) {
 	// True result.
 	result, err := expression.Evaluate(
-		`workload.podman.attested && workload.podman.container.image == "ubuntu"`,
-		&expression.Environment{
-			Attrs: &workloadidentityv1.Attrs{
-				Workload: &workloadidentityv1.WorkloadAttrs{
-					Podman: &workloadidentityv1.WorkloadAttrsPodman{
-						Attested: true,
-						Container: &workloadidentityv1.WorkloadAttrsPodmanContainer{
-							Image: "ubuntu",
-						},
-					},
-				},
+		`user.is_bot && user.name == "Larry"`,
+		&workloadidentityv1.Attrs{
+			User: &workloadidentityv1.UserAttrs{
+				Name:  "Larry",
+				IsBot: true,
 			},
 		},
 	)
@@ -53,11 +45,9 @@ func TestEvaluate(t *testing.T) {
 	// False result.
 	result, err = expression.Evaluate(
 		`user.name != user.name`,
-		&expression.Environment{
-			Attrs: &workloadidentityv1.Attrs{
-				User: &workloadidentityv1.UserAttrs{
-					Name: "Bobby",
-				},
+		&workloadidentityv1.Attrs{
+			User: &workloadidentityv1.UserAttrs{
+				Name: "Bobby",
 			},
 		},
 	)
@@ -67,11 +57,9 @@ func TestEvaluate(t *testing.T) {
 	// Unset field (allowed in boolean expressions).
 	result, err = expression.Evaluate(
 		`user.name == ""`,
-		&expression.Environment{
-			Attrs: &workloadidentityv1.Attrs{
-				User: &workloadidentityv1.UserAttrs{
-					Name: "",
-				},
+		&workloadidentityv1.Attrs{
+			User: &workloadidentityv1.UserAttrs{
+				Name: "",
 			},
 		},
 	)
@@ -86,24 +74,16 @@ func TestEvaluate_Errors(t *testing.T) {
 		err   string
 	}{
 		"unset sub-message": {
-			expr: `workload.podman.pod.labels["foo"] == "bar"`,
-			attrs: &workloadidentityv1.Attrs{
-				Workload: &workloadidentityv1.WorkloadAttrs{
-					Podman: &workloadidentityv1.WorkloadAttrsPodman{
-						Pod: nil,
-					},
-				},
-			},
-			err: "workload.podman.pod is unset",
+			expr:  `user.name == "Bobby"`,
+			attrs: &workloadidentityv1.Attrs{},
+			err:   "user is unset",
 		},
 		"unset map key": {
-			expr: `workload.podman.pod.labels["foo"] == "bar"`,
+			expr: `workload.kubernetes.labels["foo"] == "bar"`,
 			attrs: &workloadidentityv1.Attrs{
 				Workload: &workloadidentityv1.WorkloadAttrs{
-					Podman: &workloadidentityv1.WorkloadAttrsPodman{
-						Pod: &workloadidentityv1.WorkloadAttrsPodmanPod{
-							Labels: map[string]string{"bar": "baz"},
-						},
+					Kubernetes: &workloadidentityv1.WorkloadAttrsKubernetes{
+						Labels: map[string]string{"bar": "baz"},
 					},
 				},
 			},
@@ -117,7 +97,7 @@ func TestEvaluate_Errors(t *testing.T) {
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			_, err := expression.Evaluate(tc.expr, &expression.Environment{Attrs: tc.attrs})
+			_, err := expression.Evaluate(tc.expr, tc.attrs)
 			require.ErrorContains(t, err, tc.err)
 		})
 	}
@@ -126,14 +106,12 @@ func TestEvaluate_Errors(t *testing.T) {
 func TestEvaluate_Traits(t *testing.T) {
 	result, err := expression.Evaluate(
 		`user.traits.logins.contains("root")`,
-		&expression.Environment{
-			Attrs: &workloadidentityv1.Attrs{
-				User: &workloadidentityv1.UserAttrs{
-					Traits: []*traitv1.Trait{
-						{
-							Key:    "logins",
-							Values: []string{"root", "alice", "bob"},
-						},
+		&workloadidentityv1.Attrs{
+			User: &workloadidentityv1.UserAttrs{
+				Traits: []*traitv1.Trait{
+					{
+						Key:    "logins",
+						Values: []string{"root", "alice", "bob"},
 					},
 				},
 			},
@@ -145,55 +123,12 @@ func TestEvaluate_Traits(t *testing.T) {
 	// Unset trait.
 	result, err = expression.Evaluate(
 		`is_empty(user.traits.logins)`,
-		&expression.Environment{
-			Attrs: &workloadidentityv1.Attrs{
-				User: &workloadidentityv1.UserAttrs{
-					Traits: []*traitv1.Trait{},
-				},
+		&workloadidentityv1.Attrs{
+			User: &workloadidentityv1.UserAttrs{
+				Traits: []*traitv1.Trait{},
 			},
 		},
 	)
 	require.NoError(t, err)
 	require.True(t, result)
-}
-
-func TestEvaluate_SigstorePolicies(t *testing.T) {
-	results := map[string]error{
-		"github-provenance":      nil,
-		"security-team-approval": errors.New("missing artifact signature"),
-	}
-	env := &expression.Environment{
-		SigstorePolicyEvaluator: expression.SigstorePolicyEvaluatorFunc(func(names []string) (bool, error) {
-			for _, name := range names {
-				err, ok := results[name]
-				if !ok {
-					return false, fmt.Errorf("unknown policy: %q", name)
-				}
-				if err != nil {
-					return false, nil
-				}
-			}
-			return true, nil
-		}),
-	}
-
-	result, err := expression.Evaluate(
-		`sigstore.policy_satisfied("github-provenance")`,
-		env,
-	)
-	require.NoError(t, err)
-	require.True(t, result)
-
-	result, err = expression.Evaluate(
-		`sigstore.policy_satisfied("security-team-approval")`,
-		env,
-	)
-	require.NoError(t, err)
-	require.False(t, result)
-
-	_, err = expression.Evaluate(
-		`sigstore.policy_satisfied("does-not-exist")`,
-		env,
-	)
-	require.ErrorContains(t, err, `unknown policy: "does-not-exist"`)
 }

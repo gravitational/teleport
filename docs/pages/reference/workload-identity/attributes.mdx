@@ -217,14 +217,12 @@ See the
 [Workload API and Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx#Unix)
 for more information.
 
-| Attribute                   | Description                                   |
-|-----------------------------|-----------------------------------------------|
-| `workload.unix.attested`    | Whether the workload passed Unix attestation. |
-| `workload.unix.pid`         | The PID of the workload process.              |
-| `workload.unix.gid`         | The primary user ID of the workload process.  |
-| `workload.unix.uid`         | The primary group ID of the workload process. |
-| `workload.unix.binary_path` | Path to the workload executable.              |
-| `workload.unix.binary_hash` | SHA-256 checksum of the workload executable.  |
+| Attribute                | Description                                   |
+|--------------------------|-----------------------------------------------|
+| `workload.unix.attested` | Whether the workload passed Unix attestation. |
+| `workload.unix.pid`      | The PID of the workload process.              |
+| `workload.unix.gid`      | The primary user ID of the workload process.  |
+| `workload.unix.uid`      | The primary group ID of the workload process. |
 
 ### `workload.kubernetes`
 
@@ -279,19 +277,6 @@ for more information.
 | `workload.podman.container.labels`       | Labels of the container.                              |
 | `workload.podman.pod.name`               | Name of the pod.                                      |
 | `workload.podman.pod.labels`             | Labels of the pod.                                    |
-
-### `workload.systemd`
-
-Attributes sourced from the Systemd workload attestor.
-
-See the
-[Workload API and Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx#Systemd)
-for more information.
-
-| Attribute                   | Description                                      |
-|-----------------------------|--------------------------------------------------|
-| `workload.systemd.attested` | Whether the workload passed Systemd attestation. |
-| `workload.systemd.service`  | Name of the service unit.                        |
 
 ## User attributes
 

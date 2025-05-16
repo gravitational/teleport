@@ -122,27 +122,26 @@ func onAfterPagerDutyResponse(sink common.StatusSink) resty.ResponseMiddleware {
 		defer cancel()
 
 		if err := sink.Emit(ctx, status); err != nil {
-			log.ErrorContext(ctx, "Error while emitting PagerDuty plugin status", "error", err)
-		}
-
-		errorFn := trace.Errorf
-		if status.GetCode() == types.PluginStatusCode_UNAUTHORIZED {
-			errorFn = func(msg string, args ...any) error {
-				return trace.AccessDenied(msg, args...)
-			}
+			log.WithError(err).Errorf("Error while emitting PagerDuty plugin status: %v", err)
 		}
 
 		if resp.IsError() {
+			var details string
 			switch result := resp.Error().(type) {
 			case *ErrorResult:
 				// Do we have a formatted PagerDuty API error response? We set
 				// an empty `ErrorResult` in the pre-request hook, and if the
 				// HTTP server returns an error, the `resty` middleware will
 				// attempt to unmarshal the error response into it.
-				return errorFn("http error code=%v, err_code=%v, message=%v, errors=[%v]", resp.StatusCode(), result.Code, result.Message, strings.Join(result.Errors, ", "))
+				details = fmt.Sprintf("http error code=%v, err_code=%v, message=%v, errors=[%v]", resp.StatusCode(), result.Code, result.Message, strings.Join(result.Errors, ", "))
 			default:
-				return errorFn("unknown error result %#v", result)
+				details = fmt.Sprintf("unknown error result %#v", result)
 			}
+
+			if status.GetCode() == types.PluginStatusCode_UNAUTHORIZED {
+				return trace.AccessDenied(details)
+			}
+			return trace.Errorf(details)
 		}
 		return nil
 	}
@@ -289,7 +288,7 @@ func (p *Pagerduty) FindUserByEmail(ctx context.Context, userEmail string) (User
 	}
 
 	if len(result.Users) > 0 && result.More {
-		logger.Get(ctx).WarnContext(ctx, "PagerDuty returned too many results when querying user email", "email", userEmail)
+		logger.Get(ctx).Warningf("PagerDuty returned too many results when querying by email %q", userEmail)
 	}
 
 	return User{}, trace.NotFound("failed to find pagerduty user by email %s", userEmail)
@@ -388,10 +387,10 @@ func (p *Pagerduty) FilterOnCallPolicies(ctx context.Context, userID string, esc
 
 	if len(filteredIDSet) == 0 {
 		if anyData {
-			logger.Get(ctx).WarnContext(ctx, "PagerDuty returned some oncalls array but none of them matched the query",
-				"pd_user_id", userID,
-				"pd_escalation_policy_ids", escalationPolicyIDs,
-			)
+			logger.Get(ctx).WithFields(logger.Fields{
+				"pd_user_id":               userID,
+				"pd_escalation_policy_ids": escalationPolicyIDs,
+			}).Warningf("PagerDuty returned some oncalls array but none of them matched the query")
 		}
 
 		return nil, nil

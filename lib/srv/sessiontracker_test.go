@@ -146,9 +146,7 @@ func TestSessionTracker_UpdateRetry(t *testing.T) {
 func TestSessionTracker(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
 	mockService := &mockSessiontrackerService{

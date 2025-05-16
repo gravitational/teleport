@@ -1,4 +1,5 @@
 //go:build windows && cgo
+// +build windows,cgo
 
 /*
  * Teleport

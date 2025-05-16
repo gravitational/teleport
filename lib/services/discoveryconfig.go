@@ -91,7 +91,7 @@ func UnmarshalDiscoveryConfig(data []byte, opts ...MarshalOption) (*discoverycon
 	}
 	var discoveryConfig *discoveryconfig.DiscoveryConfig
 	if err := utils.FastUnmarshal(data, &discoveryConfig); err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	if err := discoveryConfig.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

@@ -39,13 +39,11 @@ export type RootClusterKubeUri = string;
 export type RootClusterKubeResourceNamespaceUri = string;
 export type RootClusterDatabaseUri = string;
 export type RootClusterAppUri = string;
-export type RootClusterWindowsDesktopUri = string;
 export type RootClusterResourceUri =
   | RootClusterServerUri
   | RootClusterKubeUri
   | RootClusterDatabaseUri
-  | RootClusterAppUri
-  | RootClusterWindowsDesktopUri;
+  | RootClusterAppUri;
 export type RootClusterOrResourceUri = RootClusterUri | RootClusterResourceUri;
 export type LeafClusterUri = string;
 export type LeafClusterServerUri = string;
@@ -53,13 +51,11 @@ export type LeafClusterKubeUri = string;
 export type LeafClusterKubeResourceNamespaceUri = string;
 export type LeafClusterDatabaseUri = string;
 export type LeafClusterAppUri = string;
-export type LeafClusterWindowsDesktopUri = string;
 export type LeafClusterResourceUri =
   | LeafClusterServerUri
   | LeafClusterKubeUri
   | LeafClusterDatabaseUri
-  | LeafClusterAppUri
-  | LeafClusterWindowsDesktopUri;
+  | LeafClusterAppUri;
 export type LeafClusterOrResourceUri = LeafClusterUri | LeafClusterResourceUri;
 
 export type ResourceUri = RootClusterResourceUri | LeafClusterResourceUri;
@@ -71,9 +67,6 @@ export type KubeResourceNamespaceUri =
   | LeafClusterKubeResourceNamespaceUri;
 export type AppUri = RootClusterAppUri | LeafClusterAppUri;
 export type DatabaseUri = RootClusterDatabaseUri | LeafClusterDatabaseUri;
-export type WindowsDesktopUri =
-  | RootClusterWindowsDesktopUri
-  | LeafClusterWindowsDesktopUri;
 export type ClusterOrResourceUri = ResourceUri | ClusterUri;
 export type GatewayTargetUri = DatabaseUri | KubeUri | AppUri;
 
@@ -110,10 +103,6 @@ export const paths = {
   dbLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/dbs/:dbId',
   app: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/apps/:appId',
   appLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId?/apps/:appId',
-  windowsDesktop:
-    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/windows_desktops/:windowsDesktopId',
-  windowsDesktopLeaf:
-    '/clusters/:rootClusterId/leaves/:leafClusterId?/windows_desktops/:windowsDesktopId',
   // Documents.
   docHome: '/docs/home',
   doc: '/docs/:docId',
@@ -148,10 +137,6 @@ export const routing = {
 
   parseKubeUri(uri: string) {
     return routing.parseUri(uri, paths.kube);
-  },
-
-  parseWindowsDesktopUri(uri: string) {
-    return routing.parseUri(uri, paths.windowsDesktop);
   },
 
   parseKubeResourceNamespaceUri(uri: string) {
@@ -264,20 +249,6 @@ export const routing = {
     }
   },
 
-  getWindowsDesktopUri(params: Params) {
-    if (params.leafClusterId) {
-      return generatePath(
-        paths.windowsDesktopLeaf,
-        params as any
-      ) as LeafClusterWindowsDesktopUri;
-    } else {
-      return generatePath(
-        paths.windowsDesktop,
-        params as any
-      ) as RootClusterWindowsDesktopUri;
-    }
-  },
-
   getKubeResourceNamespaceUri(params: Params) {
     if (params.leafClusterId) {
       // paths.kubeResourceLeaf is needed as path-to-regexp used by react-router doesn't support
@@ -368,5 +339,4 @@ export type Params = {
   sid?: string;
   docId?: string;
   appId?: string;
-  windowsDesktopId?: string;
 };

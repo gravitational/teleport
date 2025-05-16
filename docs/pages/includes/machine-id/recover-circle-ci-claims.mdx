@@ -1,0 +1,45 @@
+In order to configure the rules for which CircleCI workflows will be allowed to
+connect to your Teleport cluster, you must determine the ID of your CircleCI
+organization and create a CircleCI context.
+
+### Find your organization ID
+
+Open CircleCI and navigate to "Organization settings" from the navbar.
+You should be presented with an interface titled "Overview" with a section
+called "Organization ID". Note this value down and substitute <Var name="organization-id" />
+in configuration examples with this.
+
+### Create a context
+
+CircleCI has an organization-level concept called
+**contexts**, which allow you to configure a series of secrets that should be
+exposed to a workflow job. You can configure CircleCI to control which actors
+are allowed to trigger jobs associated with a context.
+
+The contexts that a workflow job has been assigned are also encoded in the
+identity token that CircleCI creates for the job. This makes them an ideal way
+for Teleport to determine which CircleCI jobs should be granted access to the
+Teleport cluster.
+
+In this example, you will create a CircleCI context named `teleport-access`.
+You will then grant this context access to your Teleport cluster.
+
+To create the CircleCI context, open up "Organization settings" in CircleCI
+and navigate to "Contexts". Click "Create Context" and provide <Var name="teleport-access"/>
+as the name of the context you wish to create. You may substitute this value
+for a string that makes more sense to your organization, but ensure in future
+steps of this guide that you replace <Var name="teleport-access"/> with your value.
+
+Select the context you have just created. You will now be on a page that allows
+you to configure the context. To determine the ID of the context
+to use when configuring Teleport, locate the URL of the
+context settings page, which should have a format similar to the following:
+
+```text
+https://app.circleci.com/settings/organization/github/gravitational/contexts/00000000-0000-0000-0000-000000000000
+```
+
+In this case, the context ID is: `00000000-0000-0000-0000-000000000000`.
+
+Note this value down and substitute <Var name="context-id" /> in configuration examples
+with this

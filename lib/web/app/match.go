@@ -20,8 +20,8 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"math/rand/v2"
-	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Getter returns a list of registered apps and the local cluster name.
@@ -37,7 +39,7 @@ type Getter interface {
 	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
 
 	// GetClusterName returns cluster name
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
 // MatchUnshuffled will match a list of applications with the passed in matcher
@@ -144,24 +146,18 @@ func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnelclient.Tun
 	// Try and match FQDN to public address of application within cluster.
 	servers, err := MatchUnshuffled(ctx, clt, MatchPublicAddr(fqdn))
 	if err == nil && len(servers) > 0 {
-		clusterName, err := clt.GetClusterName(ctx)
+		clusterName, err := clt.GetClusterName()
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		return servers[rand.N(len(servers))], clusterName.GetClusterName(), nil
 	}
 
-	// Extract the first subdomain from the FQDN and attempt to use this as the
-	// application name. The rest of the FQDN must match one of the local
-	// cluster's proxy DNS names.
-	fqdnParts := strings.SplitN(fqdn, ".", 2)
-	if len(fqdnParts) != 2 {
-		return nil, "", trace.BadParameter("invalid FQDN: %v", fqdn)
-	}
-	if !slices.Contains(proxyDNSNames, fqdnParts[1]) {
+	proxyPublicAddr := utils.FindMatchingProxyDNS(fqdn, proxyDNSNames)
+	if !strings.HasSuffix(fqdn, proxyPublicAddr) {
 		return nil, "", trace.BadParameter("FQDN %q is not a subdomain of the proxy", fqdn)
 	}
-	appName := fqdnParts[0]
+	appName := strings.TrimSuffix(fqdn, fmt.Sprintf(".%s", proxyPublicAddr))
 
 	// Loop over all clusters and try and match application name to an
 	// application within the cluster. This also includes the local cluster.

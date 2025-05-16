@@ -48,8 +48,8 @@ export interface TerminalProps {
 }
 
 export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
-  const termCtrlRef = useRef<XTermCtrl>(undefined);
-  const elementRef = useRef<HTMLDivElement>(null);
+  const termCtrlRef = useRef<XTermCtrl>();
+  const elementRef = useRef<HTMLDivElement>();
 
   useImperativeHandle(
     ref,

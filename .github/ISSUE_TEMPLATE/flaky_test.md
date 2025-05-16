@@ -3,7 +3,6 @@ name: Flaky Test ❄
 about: Report a flaky unit or integration test
 title: "`TestName` flakiness"
 labels: flaky tests
-type: Task
 ---
 
 ## Before submitting a new issue

@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
@@ -42,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestMigrateProcessDataObjects(t *testing.T) {
@@ -62,7 +60,7 @@ func TestMigrateProcessDataObjects(t *testing.T) {
 		},
 		eventsEmitter: emitter,
 		Config: Config{
-			Logger:          utils.NewSlogLoggerForTests(),
+			Logger:          utils.NewLoggerForTests(),
 			NoOfEmitWorkers: 5,
 			bufferSize:      10,
 			CheckpointPath:  filepath.Join(t.TempDir(), "migration-tests.json"),
@@ -133,7 +131,7 @@ func TestLargeEventsParse(t *testing.T) {
 		},
 		eventsEmitter: emitter,
 		Config: Config{
-			Logger:          utils.NewSlogLoggerForTests(),
+			Logger:          utils.NewLoggerForTests(),
 			NoOfEmitWorkers: 5,
 			bufferSize:      10,
 			CheckpointPath:  filepath.Join(t.TempDir(), "migration-tests.json"),
@@ -223,7 +221,7 @@ func TestMigrationCheckpoint(t *testing.T) {
 
 	noOfWorkers := 3
 	defaultConfig := Config{
-		Logger:          utils.NewSlogLoggerForTests(),
+		Logger:          utils.NewLoggerForTests(),
 		NoOfEmitWorkers: noOfWorkers,
 		bufferSize:      noOfWorkers * 5,
 		CheckpointPath:  filepath.Join(t.TempDir(), "migration-tests.json"),
@@ -551,7 +549,7 @@ func TestMigrationDryRunValidation(t *testing.T) {
 					validEvent(), eventWithoutTime,
 				}
 			},
-			wantLog: "empty event time",
+			wantLog: "is invalid: empty event time",
 			wantErr: "1 invalid",
 		},
 		{
@@ -563,7 +561,7 @@ func TestMigrationDryRunValidation(t *testing.T) {
 					validEvent(), eventWithInvalidUUID,
 				}
 			},
-			wantLog: "invalid uid format: invalid UUID length",
+			wantLog: "is invalid: invalid uid format: invalid UUID length",
 			wantErr: "1 invalid",
 		},
 	}
@@ -571,9 +569,8 @@ func TestMigrationDryRunValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Migration cli logs output from validation to logger.
 			var logBuffer bytes.Buffer
-			log := slog.New(logutils.NewSlogJSONHandler(&logBuffer, logutils.SlogJSONHandlerConfig{
-				Level: slog.LevelDebug,
-			}))
+			log := utils.NewLoggerForTests()
+			log.SetOutput(&logBuffer)
 
 			tr := &task{
 				Config: Config{

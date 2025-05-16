@@ -25,12 +25,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
-	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
-	"github.com/aws/aws-sdk-go-v2/service/memorydb"
-	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
@@ -41,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/srv/db/redis"
 )
 
 // TestAuthTokens verifies that proper IAM auth tokens are used when connecting
@@ -77,37 +75,22 @@ func TestAuthTokens(t *testing.T) {
 	for _, withDB := range withDBs {
 		databases = append(databases, withDB(t, ctx, testCtx))
 	}
-	ecMock := &mocks.ElastiCacheClient{}
-	elastiCacheIAMUser := ectypes.User{
+	ecMock := &mocks.ElastiCacheMock{}
+	elastiCacheIAMUser := &elasticache.User{
 		UserId:         aws.String("default"),
-		Authentication: &ectypes.Authentication{Type: ectypes.AuthenticationTypeIam},
+		Authentication: &elasticache.Authentication{Type: aws.String("iam")},
 	}
 	ecMock.AddMockUser(elastiCacheIAMUser, nil)
-
-	memorydbMock := &mocks.MemoryDBClient{}
-	memorydbIAMUser := memorydbtypes.User{
+	memorydbMock := &mocks.MemoryDBMock{}
+	memorydbIAMUser := &memorydb.User{
 		Name:           aws.String("default"),
-		Authentication: &memorydbtypes.Authentication{Type: memorydbtypes.AuthenticationTypeIam},
+		Authentication: &memorydb.Authentication{Type: aws.String("iam")},
 	}
 	memorydbMock.AddMockUser(memorydbIAMUser, nil)
 	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
-		Databases: databases,
-		GetEngineFn: func(db types.Database, conf common.EngineConfig) (common.Engine, error) {
-			if db.GetProtocol() != defaults.ProtocolRedis {
-				return common.GetEngine(db, conf)
-			}
-			if err := conf.CheckAndSetDefaults(); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			conf.AWSConfigProvider = &mocks.AWSConfigProvider{}
-			return &redis.Engine{
-				EngineConfig: conf,
-				AWSClients: fakeRedisAWSClients{
-					ecClient:  ecMock,
-					mdbClient: memorydbMock,
-				},
-			}, nil
-		},
+		Databases:   databases,
+		ElastiCache: ecMock,
+		MemoryDB:    memorydbMock,
 	})
 	go testCtx.startHandlingConnections()
 
@@ -428,7 +411,8 @@ func (a *testAuth) GenerateDatabaseClientKey(ctx context.Context) (*keys.Private
 	return key, trace.Wrap(err)
 }
 
-func (a *testAuth) WithLogger(getUpdatedLogger func(*slog.Logger) *slog.Logger) common.Auth {
+func (a *testAuth) WithLogger(getUpdatedLogger func(logrus.FieldLogger) logrus.FieldLogger) common.Auth {
+	// TODO(greedy52) update WithLogger to use slog.
 	return &testAuth{
 		realAuth: a.realAuth,
 		Logger:   a.Logger,
@@ -485,17 +469,4 @@ func TestMongoDBAtlas(t *testing.T) {
 			}
 		})
 	}
-}
-
-type fakeRedisAWSClients struct {
-	mdbClient redis.MemoryDBClient
-	ecClient  redis.ElastiCacheClient
-}
-
-func (f fakeRedisAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) redis.ElastiCacheClient {
-	return f.ecClient
-}
-
-func (f fakeRedisAWSClients) GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) redis.MemoryDBClient {
-	return f.mdbClient
 }

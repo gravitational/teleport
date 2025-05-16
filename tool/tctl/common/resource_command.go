@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"math"
 	"os"
 	"reflect"
@@ -35,6 +34,8 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/encoding/protojson"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
@@ -50,7 +51,6 @@ import (
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -60,7 +60,6 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/mfa"
-	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -74,7 +73,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -186,7 +184,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindGitServer:                          rc.createGitServer,
 		types.KindAutoUpdateAgentRollout:             rc.createAutoUpdateAgentRollout,
 		types.KindWorkloadIdentityX509IssuerOverride: rc.createWorkloadIdentityX509IssuerOverride,
-		types.KindHealthCheckConfig:                  rc.createHealthCheckConfig,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                               rc.updateUser,
@@ -210,7 +207,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindGitServer:                          rc.updateGitServer,
 		types.KindAutoUpdateAgentRollout:             rc.updateAutoUpdateAgentRollout,
 		types.KindWorkloadIdentityX509IssuerOverride: rc.updateWorkloadIdentityX509IssuerOverride,
-		types.KindHealthCheckConfig:                  rc.updateHealthCheckConfig,
 	}
 	rc.config = config
 
@@ -295,27 +291,6 @@ func (rc *ResourceCommand) GetRef() services.Ref {
 
 // Get prints one or many resources of a certain type
 func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) error {
-	// Some resources require MFA to list with secrets. Check if we are trying to
-	// get any such resources so we can prompt for MFA preemptively.
-	mfaKinds := []string{types.KindToken, types.KindCertAuthority}
-	mfaRequired := rc.withSecrets && slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
-		return slices.Contains(mfaKinds, r.Kind)
-	})
-
-	// Check if MFA has already been provided.
-	if _, err := mfa.MFAResponseFromContext(ctx); err == nil {
-		mfaRequired = false
-	}
-
-	if mfaRequired {
-		mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
-		if err == nil {
-			ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
-		} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
-			return trace.Wrap(err)
-		}
-	}
-
 	if rc.refs.IsAll() {
 		return rc.GetAll(ctx, client)
 	}
@@ -345,7 +320,6 @@ func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Clien
 	if rc.format != teleport.YAML {
 		return trace.BadParameter("mixed resource types only support YAML formatting")
 	}
-
 	var resources []types.Resource
 	for _, ref := range rc.refs {
 		rc.ref = ref
@@ -377,14 +351,6 @@ func (rc *ResourceCommand) GetAll(ctx context.Context, client *authclient.Client
 
 // Create updates or inserts one or many resources
 func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client) (err error) {
-	// Prompt for admin action MFA if required, allowing reuse for multiple resource creations.
-	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
-	if err == nil {
-		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
-	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
-		return trace.Wrap(err)
-	}
-
 	var reader io.Reader
 	if rc.filename == "" {
 		reader = os.Stdin
@@ -547,12 +513,12 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client *authclient.Cl
 	}
 	err = services.CheckDynamicLabelsInDenyRules(role)
 	if trace.IsBadParameter(err) {
-		return trace.BadParameter("%s", dynamicLabelWarningMessage(role))
+		return trace.BadParameter(dynamicLabelWarningMessage(role))
 	} else if err != nil {
 		return trace.Wrap(err)
 	}
 
-	warnAboutKubernetesResources(ctx, rc.config.Logger, role)
+	warnAboutKubernetesResources(rc.config.Log, role)
 
 	roleName := role.GetName()
 	_, err = client.GetRole(ctx, roleName)
@@ -581,8 +547,8 @@ func (rc *ResourceCommand) updateRole(ctx context.Context, client *authclient.Cl
 		return trace.Wrap(err)
 	}
 
-	warnAboutKubernetesResources(ctx, rc.config.Logger, role)
-	warnAboutDynamicLabelsInDenyRule(ctx, rc.config.Logger, role)
+	warnAboutKubernetesResources(rc.config.Log, role)
+	warnAboutDynamicLabelsInDenyRule(rc.config.Log, role)
 
 	if _, err := client.UpdateRole(ctx, role); err != nil {
 		return trace.Wrap(err)
@@ -593,21 +559,21 @@ func (rc *ResourceCommand) updateRole(ctx context.Context, client *authclient.Cl
 
 // warnAboutKubernetesResources warns about kubernetes resources
 // if kubernetes_labels are set but kubernetes_resources are not.
-func warnAboutKubernetesResources(ctx context.Context, logger *slog.Logger, r types.Role) {
+func warnAboutKubernetesResources(logger utils.Logger, r types.Role) {
 	role, ok := r.(*types.RoleV6)
 	// only warn about kubernetes resources for v6 roles
 	if !ok || role.Version != types.V6 {
 		return
 	}
 	if len(role.Spec.Allow.KubernetesLabels) > 0 && len(role.Spec.Allow.KubernetesResources) == 0 {
-		logger.WarnContext(ctx, "role has allow.kubernetes_labels set but no allow.kubernetes_resources, this is probably a mistake - Teleport will restrict access to pods", "role", role.Metadata.Name)
+		logger.Warningf("role %q has allow.kubernetes_labels set but no allow.kubernetes_resources, this is probably a mistake. Teleport will restrict access to pods.", role.Metadata.Name)
 	}
 	if len(role.Spec.Allow.KubernetesLabels) == 0 && len(role.Spec.Allow.KubernetesResources) > 0 {
-		logger.WarnContext(ctx, "role has allow.kubernetes_resources set but no allow.kubernetes_labels, this is probably a mistake - kubernetes_resources won't be effective", "role", role.Metadata.Name)
+		logger.Warningf("role %q has allow.kubernetes_resources set but no allow.kubernetes_labels, this is probably a mistake. kubernetes_resources won't be effective.", role.Metadata.Name)
 	}
 
 	if len(role.Spec.Deny.KubernetesLabels) > 0 && len(role.Spec.Deny.KubernetesResources) > 0 {
-		logger.WarnContext(ctx, "role has deny.kubernetes_labels set but also has deny.kubernetes_resources set, this is probably a mistake - deny.kubernetes_resources won't be effective", "role", role.Metadata.Name)
+		logger.Warningf("role %q has deny.kubernetes_labels set but also has deny.kubernetes_resources set, this is probably a mistake. deny.kubernetes_resources won't be effective.", role.Metadata.Name)
 	}
 }
 
@@ -619,13 +585,13 @@ func dynamicLabelWarningMessage(r types.Role) string {
 // warnAboutDynamicLabelsInDenyRule warns about using dynamic/ labels in deny
 // rules. Only applies to existing roles as adding dynamic/ labels to deny
 // rules in a new role is not allowed.
-func warnAboutDynamicLabelsInDenyRule(ctx context.Context, logger *slog.Logger, r types.Role) {
+func warnAboutDynamicLabelsInDenyRule(logger utils.Logger, r types.Role) {
 	if err := services.CheckDynamicLabelsInDenyRules(r); err == nil {
 		return
 	} else if trace.IsBadParameter(err) {
-		logger.WarnContext(ctx, "existing role has labels with the a dynamic prefix in its deny rules, this is not recommended due to the volatility of dynamic labels and is not allowed for new roles", "role", r.GetName())
+		logger.Warningf(dynamicLabelWarningMessage(r))
 	} else {
-		logger.WarnContext(ctx, "error checking deny rules labels", "error", err)
+		logger.WithError(err).Warningf("error checking deny rules labels")
 	}
 }
 
@@ -1473,10 +1439,7 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 
 		// issue warning about unsupported ACS bindings.
 		if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
-			slog.WarnContext(ctx, "Entity descriptor for SAML IdP service provider contains unsupported ACS bindings",
-				"entity_id", sp.GetEntityID(),
-				"error", err,
-			)
+			log.Warnf("Entity descriptor for SAML IdP service provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
 		}
 	}
 
@@ -1584,8 +1547,6 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 			existingIntegration.SetAWSOIDCIntegrationSpec(integration.GetAWSOIDCIntegrationSpec())
 		case types.IntegrationSubKindGitHub:
 			existingIntegration.SetGitHubIntegrationSpec(integration.GetGitHubIntegrationSpec())
-		case types.IntegrationSubKindAWSRA:
-			existingIntegration.SetAWSRAIntegrationSpec(integration.GetAWSRAIntegrationSpec())
 		default:
 			return trace.BadParameter("subkind %q is not supported", integration.GetSubKind())
 		}
@@ -2183,8 +2144,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("AutoUpdateAgentRollout has been deleted\n")
-	case types.KindHealthCheckConfig:
-		return trace.Wrap(rc.deleteHealthCheckConfig(ctx, client))
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2199,7 +2158,7 @@ func resetAuthPreference(ctx context.Context, client *authclient.Client) error {
 
 	managedByStaticConfig := storedAuthPref.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter("%s", managedByStaticDeleteMsg)
+		return trace.BadParameter(managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetAuthPreference(ctx))
@@ -2213,7 +2172,7 @@ func resetClusterNetworkingConfig(ctx context.Context, client *authclient.Client
 
 	managedByStaticConfig := storedNetConfig.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter("%s", managedByStaticDeleteMsg)
+		return trace.BadParameter(managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetClusterNetworkingConfig(ctx))
@@ -2227,7 +2186,7 @@ func resetSessionRecordingConfig(ctx context.Context, client *authclient.Client)
 
 	managedByStaticConfig := storedRecConfig.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter("%s", managedByStaticDeleteMsg)
+		return trace.BadParameter(managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetSessionRecordingConfig(ctx))
@@ -2358,32 +2317,33 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		if rc.ref.Name != "" {
 			return nil, trace.BadParameter("reverse tunnel cannot be searched by name")
 		}
-		var tunnels []types.ReverseTunnel
-		var nextToken string
-		for {
-			var page []types.ReverseTunnel
-			var err error
-
-			const defaultPageSize = 0
-			page, nextToken, err = client.ListReverseTunnels(ctx, defaultPageSize, nextToken)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			tunnels = append(tunnels, page...)
-			if nextToken == "" {
-				break
-			}
+		tunnels, err := client.GetReverseTunnels(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 		return &reverseTunnelCollection{tunnels: tunnels}, nil
 	case types.KindCertAuthority:
 		getAll := rc.ref.SubKind == "" && rc.ref.Name == ""
+
+		// Prompt for admin action MFA if secrets were requested.
+		if rc.withSecrets {
+			// allow reuse for multiple calls to GetCertAuthorities with different ca types.
+			allowReuse := getAll
+			mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, allowReuse)
+			if err == nil {
+				ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+			} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+				return nil, trace.Wrap(err)
+			}
+		}
+
 		if getAll {
 			var allAuthorities []types.CertAuthority
 			for _, caType := range types.CertAuthTypes {
 				authorities, err := client.GetCertAuthorities(ctx, caType, rc.withSecrets)
 				if err != nil {
 					if trace.IsBadParameter(err) {
-						slog.WarnContext(ctx, "failed to get certificate authority; skipping", "error", err)
+						log.Warnf("failed to get certificate authority: %v; skipping", err)
 						continue
 					}
 					return nil, trace.Wrap(err)
@@ -2421,7 +2381,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			for _, r := range page {
 				srv, ok := r.ResourceWithLabels.(types.Server)
 				if !ok {
-					slog.WarnContext(ctx, "expected types.Server but received unexpected type", "resource_type", logutils.TypeAttr(r))
+					log.Warnf("expected types.Server but received unexpected type %T", r)
 					continue
 				}
 
@@ -2487,10 +2447,21 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		warnAboutDynamicLabelsInDenyRule(ctx, rc.config.Logger, role)
+		warnAboutDynamicLabelsInDenyRule(rc.config.Log, role)
 		return &roleCollection{roles: []types.Role{role}}, nil
 	case types.KindNamespace:
-		return &namespaceCollection{namespaces: []types.Namespace{types.DefaultNamespace()}}, nil
+		if rc.ref.Name == "" {
+			namespaces, err := client.GetNamespaces()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &namespaceCollection{namespaces: namespaces}, nil
+		}
+		ns, err := client.GetNamespace(rc.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &namespaceCollection{namespaces: []types.Namespace{*ns}}, nil
 	case types.KindTrustedCluster:
 		if rc.ref.Name == "" {
 			trustedClusters, err := client.GetTrustedClusters(ctx)
@@ -3542,32 +3513,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			}
 		}
 		return collection, nil
-	case types.KindHealthCheckConfig:
-		if rc.ref.Name != "" {
-			cfg, err := client.GetHealthCheckConfig(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &healthCheckConfigCollection{
-				items: []*healthcheckconfigv1.HealthCheckConfig{cfg},
-			}, nil
-		}
-		var items []*healthcheckconfigv1.HealthCheckConfig
-		var token string
-		for {
-			page, nextToken, err := client.ListHealthCheckConfigs(ctx, 0, token)
-			token = nextToken
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			items = append(items, page...)
-			if token == "" {
-				break
-			}
-		}
-		return &healthCheckConfigCollection{
-			items: items,
-		}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -3746,7 +3691,7 @@ func getOneResourceNameToDelete[T types.ResourceWithLabels](rs []T, ref services
 			names = append(names, r.GetName())
 		}
 		msg := formatAmbiguousDeleteMessage(ref, resDesc, names)
-		return "", trace.BadParameter("%s", msg)
+		return "", trace.BadParameter(msg)
 	}
 }
 

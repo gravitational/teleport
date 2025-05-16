@@ -77,7 +77,7 @@ func (h *Handler) deleteMFADeviceWithTokenHandle(w http.ResponseWriter, r *http.
 	return OK(), nil
 }
 
-type deleteMFADeviceRequest struct {
+type deleteMfaDeviceRequest struct {
 	// DeviceName is the name of the device to delete.
 	DeviceName string `json:"deviceName"`
 	// ExistingMFAResponse is an MFA challenge response from an existing device.
@@ -87,7 +87,7 @@ type deleteMFADeviceRequest struct {
 
 // deleteMFADeviceHandle deletes an mfa device for the user defined in the `token`, given as a query parameter.
 func (h *Handler) deleteMFADeviceHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
-	var req deleteMFADeviceRequest
+	var req deleteMfaDeviceRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -208,7 +208,7 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		// we'll need to include their clusterID in the request like we do for apps.
 		appReq := mfaRequiredCheckProto.GetApp()
 		if appReq != nil && appReq.ClusterName != c.cfg.RootClusterName {
-			site, err := h.getSiteByClusterName(ctx, c, appReq.ClusterName)
+			site, err := h.getSiteByClusterName(c, appReq.ClusterName)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

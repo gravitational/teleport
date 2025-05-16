@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 //go:embed kinit/testdata/kinit.cache
@@ -109,7 +110,7 @@ func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, lo
 	return nil, nil
 }
 
-func (m *mockAuth) GetClusterName(_ context.Context) (types.ClusterName, error) {
+func (m *mockAuth) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
 	return types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "TestCluster",
 		ClusterID:   "TestClusterID",

@@ -292,7 +292,7 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 				FilterLabels:     tt.matcherLabels,
 				Namespaces:       tt.matcherNamespaces,
 				ProtocolChecker:  tt.protoChecker,
-				Logger:           utils.NewSlogLoggerForTests(),
+				Log:              utils.NewLogger(),
 			})
 			require.NoError(t, err)
 

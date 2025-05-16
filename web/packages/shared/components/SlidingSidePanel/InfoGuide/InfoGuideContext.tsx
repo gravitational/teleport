@@ -22,7 +22,6 @@ import {
   useContext,
   useEffect,
   useState,
-  type JSX,
 } from 'react';
 
 import { generalInfoPanelWidth } from './const';
@@ -38,27 +37,6 @@ export type InfoGuideConfig = {
    * The component that contains the guide to render.
    */
   guide: JSX.Element;
-  /**
-   * If true, means the view where this guide will get
-   * rendered already has it's own side panel. Normally
-   * the parent container that renders this guide will need
-   * to set a margin-right equal to the guide's panelWidth
-   * to make space to render the guide (so it doesn't render
-   * over existing contents), but with this flag set to true,
-   * the parent container will not set any margin-right since
-   * it's assumed the space will already be accounted for.
-   *
-   * Eg: In unified resources view (UnifiedResourcesE.tsx) in
-   * enterprise version, there exists a side panel for access request
-   * checkout. If a resource is checked out, the view will render a side
-   * panel that already pushes contents out of the way. If the guide
-   * renders, we will use the same side panel to push contents
-   * out of the way. This avoids extra widths added and width flickering
-   * if we try to conditionally push contents out of the way with the
-   * guides parent container when both the guide and the checkout
-   * is activated.
-   */
-  viewHasOwnSidePanel?: boolean;
   /**
    * Optional custom title for the guide panel.
    */

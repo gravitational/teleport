@@ -175,7 +175,7 @@ it('includes offline cluster names in the empty results copy', () => {
   );
 });
 
-it('notifies about resource search errors and allows to display details', async () => {
+it('notifies about resource search errors and allows to display details', () => {
   const appContext = setUpContext('/clusters/foo');
 
   const resourceSearchError = new ResourceSearchError(
@@ -223,7 +223,7 @@ it('notifies about resource search errors and allows to display details', async 
   expect(results).toHaveTextContent('Could not fetch resources from foo');
   expect(results).not.toHaveTextContent(resourceSearchError.cause['message']);
 
-  await userEvent.click(screen.getByRole('button', { name: 'Show details' }));
+  act(() => screen.getByText('Show details').click());
 
   expect(appContext.modalsService.openRegularDialog).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -330,7 +330,7 @@ it('shows a login modal when a request to a cluster from the current workspace f
     </MockAppContextProvider>
   );
 
-  await user.type(screen.getByRole('searchbox'), 'foo');
+  await act(() => user.type(screen.getByRole('searchbox'), 'foo'));
 
   // Verify that the login modal was shown after typing in the search box.
   await waitFor(() => {
@@ -339,7 +339,7 @@ it('shows a login modal when a request to a cluster from the current workspace f
   expect(screen.getByTestId('Modal')).toHaveTextContent('Log in to');
 
   // Verify that the search bar stays open after closing the modal.
-  await user.click(screen.getByLabelText('Close'));
+  act(() => screen.getByLabelText('Close').click());
   await waitFor(() => {
     expect(screen.queryByTestId('Modal')).not.toBeInTheDocument();
   });
@@ -375,11 +375,12 @@ it('closes on a click on an unfocusable element outside of the search bar', asyn
     </MockAppContextProvider>
   );
 
-  await user.type(screen.getByRole('searchbox'), 'foo');
+  await act(() => user.type(screen.getByRole('searchbox'), 'foo'));
   expect(screen.getByRole('menu')).toBeInTheDocument();
 
-  await user.click(screen.getByTestId('unfocusable-element'));
-
+  act(() => {
+    screen.getByTestId('unfocusable-element').click();
+  });
   expect(screen.queryByRole('menu')).not.toBeInTheDocument();
 });
 

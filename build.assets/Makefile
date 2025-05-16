@@ -356,6 +356,8 @@ clean:
 	docker image rm --force $(BUILDBOX)
 	docker image rm --force $(DOCSBOX)
 	GOMODCACHE=$(GOMODCACHE) go clean -modcache
+	# Generated in the project root dir during webassets builds.
+	rm -rf ../.pnpm-store
 
 #
 # Runs tests inside a build container

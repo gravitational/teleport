@@ -27,7 +27,6 @@ import {
   makeKube,
   makeRootCluster,
   makeServer,
-  makeWindowsDesktop,
 } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -40,7 +39,6 @@ import {
   ConnectDatabaseActionButton,
   ConnectKubeActionButton,
   ConnectServerActionButton,
-  ConnectWindowsDesktopActionButton,
 } from './ActionButtons';
 
 type StoryProps = {
@@ -126,10 +124,6 @@ function Buttons(props: StoryProps) {
       <Box>
         <Text>Kube</Text>
         <Kube />
-      </Box>{' '}
-      <Box>
-        <Text>Windows desktop</Text>
-        <WindowsDesktop />
       </Box>
       <Flex gap={3} flexDirection="column">
         <Box>
@@ -279,16 +273,6 @@ function Kube() {
     <ConnectKubeActionButton
       kube={makeKube({
         uri: `${testCluster.uri}/kubes/bar`,
-      })}
-    />
-  );
-}
-
-function WindowsDesktop() {
-  return (
-    <ConnectWindowsDesktopActionButton
-      windowsDesktop={makeWindowsDesktop({
-        uri: `${testCluster.uri}/windowsDesktops/bar`,
       })}
     />
   );

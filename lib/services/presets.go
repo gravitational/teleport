@@ -19,18 +19,14 @@
 package services
 
 import (
-	"context"
-	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
@@ -47,7 +43,7 @@ func NewSystemAutomaticAccessApproverRole() types.Role {
 	}
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.SystemAutomaticAccessApprovalRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -113,7 +109,7 @@ func NewPresetEditorRole() types.Role {
 	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetEditorRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -211,10 +207,9 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindWorkloadIdentity, RW()),
 					types.NewRule(types.KindAutoUpdateVersion, RW()),
 					types.NewRule(types.KindAutoUpdateConfig, RW()),
-					types.NewRule(types.KindAutoUpdateAgentRollout, RO()),
 					types.NewRule(types.KindGitServer, RW()),
 					types.NewRule(types.KindWorkloadIdentityX509Revocation, RW()),
-					types.NewRule(types.KindHealthCheckConfig, RW()),
+					types.NewRule(types.KindAutoUpdateAgentRollout, RO()),
 				},
 			},
 		},
@@ -231,7 +226,7 @@ func NewPresetAccessRole() types.Role {
 	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -323,7 +318,7 @@ func NewPresetAuditorRole() types.Role {
 	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAuditorRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -368,7 +363,7 @@ func NewPresetReviewerRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetReviewerRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -395,7 +390,7 @@ func NewPresetRequesterRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetRequesterRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -422,7 +417,7 @@ func NewPresetGroupAccessRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetGroupAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -456,7 +451,7 @@ func NewPresetDeviceAdminRole() types.Role {
 
 	return &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetDeviceAdminRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -485,7 +480,7 @@ func NewPresetDeviceEnrollRole() types.Role {
 
 	return &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetDeviceEnrollRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -515,7 +510,7 @@ func NewPresetRequireTrustedDeviceRole() types.Role {
 
 	return &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetRequireTrustedDeviceRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -563,7 +558,7 @@ func NewPresetRequireTrustedDeviceRole() types.Role {
 func NewPresetWildcardWorkloadIdentityIssuerRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -596,7 +591,7 @@ func NewSystemOktaAccessRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.SystemOktaAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -632,7 +627,7 @@ func NewSystemOktaRequesterRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.SystemOktaRequesterRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -659,7 +654,7 @@ func NewSystemIdentityCenterAccessRole() types.Role {
 	}
 	return &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.SystemIdentityCenterAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -686,7 +681,7 @@ func NewSystemIdentityCenterAccessRole() types.Role {
 func NewPresetTerraformProviderRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V8,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetTerraformProviderRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -737,38 +732,11 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindGitServer, RW()),
 					types.NewRule(types.KindAutoUpdateConfig, RW()),
 					types.NewRule(types.KindAutoUpdateVersion, RW()),
-					types.NewRule(types.KindHealthCheckConfig, RW()),
 				},
 			},
 		},
 	}
 	return role
-}
-
-// NewPresetHealthCheckConfig returns a preset default health_check_config that
-// enables health checks for all resources.
-func NewPresetHealthCheckConfig() *healthcheckconfigv1.HealthCheckConfig {
-	return &healthcheckconfigv1.HealthCheckConfig{
-		Kind:    types.KindHealthCheckConfig,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name:        teleport.PresetDefaultHealthCheckConfigName,
-			Description: "Enables all health checks by default",
-			Namespace:   apidefaults.Namespace,
-			Labels: map[string]string{
-				types.TeleportInternalResourceType: types.PresetResource,
-			},
-		},
-		Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
-				// match all databases
-				DbLabels: []*labelv1.Label{{
-					Name:   types.Wildcard,
-					Values: []string{types.Wildcard},
-				}},
-			},
-		},
-	}
 }
 
 // bootstrapRoleMetadataLabels are metadata labels that will be applied to each role.
@@ -909,7 +877,7 @@ func defaultAllowAccountAssignments(enterprise bool) map[string][]types.Identity
 
 // AddRoleDefaults adds default role attributes to a preset role.
 // Only attributes whose resources are not already defined (either allowing or denying) are added.
-func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
+func AddRoleDefaults(role types.Role) (types.Role, error) {
 	changed := false
 
 	oldLabels := role.GetAllLabels()
@@ -963,10 +931,7 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 				continue
 			}
 
-			slog.DebugContext(ctx, "Adding default allow rule to role",
-				"rule", defaultRule,
-				"role", role.GetName(),
-			)
+			log.Debugf("Adding default allow rule %v for role %q", defaultRule, role.GetName())
 			rules := role.GetRules(types.Allow)
 			rules = append(rules, defaultRule)
 			role.SetRules(types.Allow, rules)

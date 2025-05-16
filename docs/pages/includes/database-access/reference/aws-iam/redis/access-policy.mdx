@@ -1,0 +1,33 @@
+{{ dbType="ElastiCache" permissionType="elasticache" }}
+
+{{ dbType }} supports IAM authentication for Redis engine version
+7.0 or above. 
+This is the recommended way to configure Teleport access to {{ dbType }}.
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "{{ dbType }}DescribeUsers",
+            "Effect": "Allow",
+            "Action": "{{ permissionType }}:DescribeUsers",
+            "Resource": "*"
+        },
+        {
+            "Sid": "{{ dbType }}Connect",
+            "Effect": "Allow",
+            "Action": "{{ permissionType }}:Connect",
+            "Resource": [
+                "arn:aws:{{ permissionType }}:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:replicationgroup:<Var name="replication-group"/>",
+                "arn:aws:{{ permissionType }}:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:user:*"
+            ]
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| ---------- | ------- |
+|`{{ dbType }}DescribeUsers` | Determine whether a user is compatible with IAM authentication. |
+|`{{ dbType }}Connect` | Connect using IAM authentication. |

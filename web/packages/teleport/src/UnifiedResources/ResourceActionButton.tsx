@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, type JSX } from 'react';
+import React, { useState } from 'react';
 import { GitServer } from 'web/packages/teleport/src/services/gitServers';
 
 import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
@@ -179,6 +179,18 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
   const { actions, userSamlIdPPerm } = useSamlAppAction();
 
   const isAwsIdentityCenterApp = subKind === AppSubKind.AwsIcAccount;
+  function getAwsLaunchUrl(arnOrPermSetName: string) {
+    if (isAwsIdentityCenterApp) {
+      return `${publicAddr}&role_name=${arnOrPermSetName}`;
+    } else {
+      return cfg.getAppLauncherRoute({
+        fqdn,
+        clusterId,
+        publicAddr,
+        arn: arnOrPermSetName,
+      });
+    }
+  }
   if (awsConsole || isAwsIdentityCenterApp) {
     let awsConsoleOrIdentityCenterRoles: AwsRole[] = awsRoles;
     if (isAwsIdentityCenterApp) {
@@ -190,18 +202,6 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
           accountId: name,
         })
       );
-    }
-    function getAwsLaunchUrl(arnOrPermSetName: string) {
-      if (isAwsIdentityCenterApp) {
-        return `${publicAddr}&role_name=${arnOrPermSetName}`;
-      } else {
-        return cfg.getAppLauncherRoute({
-          fqdn,
-          clusterId,
-          publicAddr,
-          arn: arnOrPermSetName,
-        });
-      }
     }
 
     return (

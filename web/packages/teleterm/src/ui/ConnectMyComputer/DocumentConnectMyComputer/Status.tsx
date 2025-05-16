@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useRef, type JSX } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { Transition } from 'react-transition-group';
 import styled, { css } from 'styled-components';
 
@@ -79,7 +79,7 @@ export function Status(props: { closeDocument?: () => void }) {
   const downloadAndStartAgentAndIgnoreErrors = useCallback(async () => {
     try {
       await downloadAndStartAgent();
-    } catch {
+    } catch (error) {
       // Ignore the error, it'll be shown in the UI by inspecting the attempts.
     }
   }, [downloadAndStartAgent]);
@@ -145,7 +145,7 @@ export function Status(props: { closeDocument?: () => void }) {
     isRemoved ||
     isAgentIncompatibleOrUnknown;
 
-  const transitionRef = useRef<HTMLDivElement>(null);
+  const transitionRef = useRef<HTMLDivElement>();
 
   return (
     <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">

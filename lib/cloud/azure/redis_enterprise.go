@@ -21,13 +21,13 @@ package azure
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // armRedisEnterpriseDatabaseClient is an interface defines a subset of
@@ -53,6 +53,7 @@ type redisEnterpriseClient struct {
 // NewRedisEnterpriseClient creates a new Azure Redis Enterprise client by
 // subscription and credentials.
 func NewRedisEnterpriseClient(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (RedisEnterpriseClient, error) {
+	logrus.Debug("Initializing Azure Redis Enterprise client.")
 	clusterAPI, err := armredisenterprise.NewClient(subscription, cred, options)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -159,14 +160,9 @@ func (c *redisEnterpriseClient) listDatabasesByClusters(ctx context.Context, clu
 		databases, err := c.listDatabasesByCluster(ctx, cluster)
 		if err != nil {
 			if trace.IsAccessDenied(err) || trace.IsNotFound(err) {
-				slog.DebugContext(ctx, "Failed to listDatabasesByCluster on Redis Enterprise cluster",
-					"cluster", StringVal(cluster.Name),
-					"error", err)
+				logrus.Debugf("Failed to listDatabasesByCluster on Redis Enterprise cluster %v: %v.", StringVal(cluster.Name), err.Error())
 			} else {
-				slog.WarnContext(ctx, "Failed to listDatabasesByCluster on Redis Enterprise cluster",
-					"cluster", StringVal(cluster.Name),
-					"error", err,
-				)
+				logrus.Warnf("Failed to listDatabasesByCluster on Redis Enterprise cluster %v: %v.", StringVal(cluster.Name), err.Error())
 			}
 			continue
 		}
@@ -180,7 +176,7 @@ func (c *redisEnterpriseClient) listDatabasesByClusters(ctx context.Context, clu
 func (c *redisEnterpriseClient) listDatabasesByCluster(ctx context.Context, cluster *armredisenterprise.Cluster) ([]*RedisEnterpriseDatabase, error) {
 	resourceID, err := arm.ParseResourceID(StringVal(cluster.ID))
 	if err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 
 	var databases []*RedisEnterpriseDatabase

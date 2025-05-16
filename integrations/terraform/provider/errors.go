@@ -17,11 +17,9 @@ limitations under the License.
 package provider
 
 import (
-	"context"
-	"log/slog"
-
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	log "github.com/sirupsen/logrus"
 )
 
 // diagFromWrappedErr wraps error with additional information
@@ -45,7 +43,7 @@ func diagFromWrappedErr(summary string, err error, kind string) diag.Diagnostic 
 
 // diagFromErr converts error to diag.Diagnostics. If logging level is debug, provides trace.DebugReport instead of short text.
 func diagFromErr(summary string, err error) diag.Diagnostic {
-	if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
+	if log.GetLevel() >= log.DebugLevel {
 		return diag.NewErrorDiagnostic(err.Error(), trace.DebugReport(err))
 	}
 

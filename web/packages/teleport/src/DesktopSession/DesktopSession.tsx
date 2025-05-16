@@ -24,7 +24,7 @@ import {
   DesktopSession as SharedDesktopSession,
 } from 'shared/components/DesktopSession';
 import { useAsync } from 'shared/hooks/useAsync';
-import { BrowserFileSystem, TdpClient } from 'shared/libs/tdp';
+import { TdpClient } from 'shared/libs/tdp';
 
 import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
@@ -44,19 +44,17 @@ export function DesktopSession() {
   const [client] = useState(
     () =>
       //TODO(gzdunek): It doesn't really matter here, but make TdpClient reactive to addr change.
-      new TdpClient(
-        abortSignal =>
-          adaptWebSocketToTdpTransport(
-            new AuthenticatedWebSocket(
-              cfg.api.desktopWsAddr
-                .replace(':fqdn', getHostName())
-                .replace(':clusterId', clusterId)
-                .replace(':desktopName', desktopName)
-                .replace(':username', username)
-            ),
-            abortSignal
+      new TdpClient(abortSignal =>
+        adaptWebSocketToTdpTransport(
+          new AuthenticatedWebSocket(
+            cfg.api.desktopWsAddr
+              .replace(':fqdn', getHostName())
+              .replace(':clusterId', clusterId)
+              .replace(':desktopName', desktopName)
+              .replace(':username', username)
           ),
-        new BrowserFileSystem()
+          abortSignal
+        )
       )
   );
   const mfa = useMfaEmitter(client, undefined, {

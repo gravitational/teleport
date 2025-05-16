@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -46,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/teleterm/services/desktop"
 	"github.com/gravitational/teleport/lib/teleterm/services/unifiedresources"
 	"github.com/gravitational/teleport/lib/teleterm/services/userpreferences"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
@@ -208,26 +206,6 @@ func (s *Service) AddCluster(ctx context.Context, webProxyAddress string) (*clus
 	return cluster, nil
 }
 
-// ConnectToDesktop establishes a desktop connection.
-func (s *Service) ConnectToDesktop(stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse], uri uri.ResourceURI, desktopName, login string) error {
-	ctx := stream.Context()
-
-	cluster, clusterClient, err := s.ResolveClusterURI(uri)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	cachedClient, err := s.GetCachedClient(ctx, cluster.URI)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		return trace.Wrap(desktop.Connect(ctx, stream, clusterClient, cachedClient.ProxyClient, desktopName, login))
-	})
-	return trace.Wrap(err)
-}
-
 // RemoveCluster removes cluster
 func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 	cluster, _, err := s.ResolveCluster(uri)
@@ -383,7 +361,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 
 	go func() {
 		if err := gateway.Serve(); err != nil {
-			gateway.Log().WarnContext(ctx, "Failed to handle a gateway connection", "error", err)
+			gateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
 		}
 	}()
 
@@ -442,7 +420,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 			},
 		})
 		if notifyErr != nil {
-			s.cfg.Logger.ErrorContext(ctx, "Failed to send a notification for an error encountered during gateway cert reissue", "error", notifyErr)
+			s.cfg.Log.WithError(notifyErr).Error("Failed to send a notification for an error encountered during gateway cert reissue")
 		}
 
 		// Return the error to the alpn.LocalProxy's middleware.
@@ -614,9 +592,9 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 		// Rather than continuing in presence of the race condition, let's attempt to close the new
 		// gateway (since it shouldn't be used anyway) and return the error.
 		if newGatewayCloseErr := newGateway.Close(); newGatewayCloseErr != nil {
-			newGateway.Log().WarnContext(s.closeContext,
-				"Failed to close the new gateway after failing to close the old gateway",
-				"error", newGatewayCloseErr,
+			newGateway.Log().Warnf(
+				"Failed to close the new gateway after failing to close the old gateway: %v",
+				newGatewayCloseErr,
 			)
 		}
 		return nil, trace.Wrap(err)
@@ -626,7 +604,7 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 
 	go func() {
 		if err := newGateway.Serve(); err != nil {
-			newGateway.Log().WarnContext(s.closeContext, "Failed to handle a gateway connection", "error", err)
+			newGateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
 		}
 	}()
 
@@ -861,7 +839,7 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 		}
 		kubeGw, err := gateway.AsKube(gw)
 		if err != nil {
-			s.cfg.Logger.ErrorContext(ctx, "Could not clear certs for kube when assuming request", "error", err, "target_uri", targetURI)
+			s.cfg.Log.Error("Could not clear certs for kube when assuming request", "error", err, "target_uri", targetURI)
 		}
 		kubeGw.ClearCerts()
 	}
@@ -919,7 +897,7 @@ func (s *Service) Stop() {
 	s.gatewaysMu.RLock()
 	defer s.gatewaysMu.RUnlock()
 
-	s.cfg.Logger.InfoContext(s.closeContext, "Stopping")
+	s.cfg.Log.Info("Stopping")
 
 	for _, gateway := range s.gateways {
 		gateway.Close()
@@ -928,14 +906,14 @@ func (s *Service) Stop() {
 	s.StopHeadlessWatchers()
 
 	if err := s.clientCache.Clear(); err != nil {
-		s.cfg.Logger.ErrorContext(s.closeContext, "Failed to close remote clients", "error", err)
+		s.cfg.Log.WithError(err).Error("Failed to close remote clients")
 	}
 
 	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
 	defer cancel()
 
 	if err := s.usageReporter.GracefulStop(timeoutCtx); err != nil {
-		s.cfg.Logger.ErrorContext(timeoutCtx, "Gracefully stopping usage reporter failed", "error", err)
+		s.cfg.Log.WithError(err).Error("Gracefully stopping usage reporter failed")
 	}
 
 	// s.closeContext is used for the tshd events client which might make requests as long as any of

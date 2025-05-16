@@ -24,7 +24,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -681,89 +680,89 @@ func TestSSHPortForwarding(t *testing.T) {
 	testCases := []struct {
 		name         string
 		roleSet      RoleSet
-		expectedMode decisionpb.SSHPortForwardMode
+		expectedMode SSHPortForwardMode
 	}{
 		{
 			name:         "allow all",
 			roleSet:      NewRoleSet(allAllow),
-			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+			expectedMode: SSHPortForwardModeOn,
 		},
 		{
 			name:         "deny all",
 			roleSet:      NewRoleSet(allDeny),
-			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF,
+			expectedMode: SSHPortForwardModeOff,
 		},
 		{
 			name:         "allow remote and local",
 			roleSet:      NewRoleSet(allow),
-			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+			expectedMode: SSHPortForwardModeOn,
 		},
 		{
 			name:         "deny remote and local",
 			roleSet:      NewRoleSet(deny),
-			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF,
+			expectedMode: SSHPortForwardModeOff,
 		},
 		{
 			name:         "legacy allow",
 			roleSet:      NewRoleSet(legacyAllow),
-			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+			expectedMode: SSHPortForwardModeOn,
 		},
 		{
 			name:         "legacy deny",
 			roleSet:      NewRoleSet(legacyDeny),
-			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF,
+			expectedMode: SSHPortForwardModeOff,
 		},
 		{
 			name:         "remote allow",
 			roleSet:      NewRoleSet(remoteAllow),
-			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+			expectedMode: SSHPortForwardModeOn,
 		},
 		{
 			name:         "remote deny",
 			roleSet:      NewRoleSet(remoteDeny),
-			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL,
+			expectedMode: SSHPortForwardModeLocal,
 		},
 		{
 			name:         "local allow",
 			roleSet:      NewRoleSet(localAllow),
-			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+			expectedMode: SSHPortForwardModeOn,
 		},
 		{
 			name:         "local deny",
 			roleSet:      NewRoleSet(localDeny),
-			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_REMOTE,
+			expectedMode: SSHPortForwardModeRemote,
 		},
 		{
 			name:         "implicit allow",
 			roleSet:      NewRoleSet(implicitAllow),
-			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+			expectedMode: SSHPortForwardModeOn,
 		},
 		{
 			name:         "conflicting roles: allow all with remote deny",
 			roleSet:      NewRoleSet(allow, remoteDeny),
-			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL,
+			expectedMode: SSHPortForwardModeLocal,
 		},
 		{
 			name:         "conflicting roles: allow all with local deny",
 			roleSet:      NewRoleSet(allow, localDeny),
-			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_REMOTE,
+			expectedMode: SSHPortForwardModeRemote,
 		},
 		{
 			// legacy behavior prefers explicit allow, so make sure we respect that if one is given
 			name:         "conflicting roles: deny all with legacy allow",
 			roleSet:      NewRoleSet(deny, legacyAllow),
-			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+			expectedMode: SSHPortForwardModeOn,
 		},
 		{
 			// legacy behavior prioritizes explicit allow, so make sure we respect that if another role would allow access
 			name:         "conflicting roles: allow all with legacy deny",
 			roleSet:      NewRoleSet(allow, legacyDeny),
-			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+			expectedMode: SSHPortForwardModeOn,
 		},
 		{
 			name:         "conflicting roles implicit allow explicit deny",
 			roleSet:      NewRoleSet(implicitAllow, deny),
-			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF,
+			expectedMode: SSHPortForwardModeOff,
 		},
 	}
 

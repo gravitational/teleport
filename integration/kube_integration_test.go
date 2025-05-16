@@ -27,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -42,6 +41,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
@@ -106,7 +106,7 @@ type KubeSuite struct {
 	kubeConfig *rest.Config
 
 	// log defines the test-specific logger
-	log *slog.Logger
+	log utils.Logger
 }
 
 func newKubeSuite(t *testing.T) *KubeSuite {
@@ -169,7 +169,7 @@ type kubeIntegrationTest func(t *testing.T, suite *KubeSuite)
 
 func (s *KubeSuite) bind(test kubeIntegrationTest) func(t *testing.T) {
 	return func(t *testing.T) {
-		s.log = utils.NewSlogLoggerForTests()
+		s.log = utils.NewLoggerForTests()
 		os.RemoveAll(profile.FullProfilePath(""))
 		t.Cleanup(func() { s.log = nil })
 		test(t, s)
@@ -206,7 +206,7 @@ func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError strin
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -420,7 +420,7 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -477,7 +477,7 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -606,7 +606,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -637,7 +637,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	lib.SetInsecureDevMode(true)
@@ -658,7 +658,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	auxRole, err := types.NewRole("aux-kube", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
-			// Note that main cluster can pass its kubernetes groups
+			// Note that main cluster can pass it's kubernetes groups
 			// to the remote cluster, and remote cluster
 			// can choose to use them by using special variable
 			KubeGroups: auxKubeGroups,
@@ -696,9 +696,11 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	// try and upsert a trusted cluster
 	var upsertSuccess bool
 	for i := 0; i < 10; i++ {
+		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
 		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
+				log.Debugf("retrying on connection problem: %v", err)
 				continue
 			}
 			t.Fatalf("got non connection problem %v", err)
@@ -876,7 +878,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -907,7 +909,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	lib.SetInsecureDevMode(true)
@@ -935,7 +937,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 			KubernetesLabels: types.Labels{
 				types.Wildcard: []string{types.Wildcard},
 			},
-			// Note that main cluster can pass its kubernetes groups
+			// Note that main cluster can pass it's kubernetes groups
 			// to the remote cluster, and remote cluster
 			// can choose to use them by using special variable
 			KubeGroups: auxKubeGroups,
@@ -970,9 +972,11 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	// try and upsert a trusted cluster
 	var upsertSuccess bool
 	for i := 0; i < 10; i++ {
+		log.Debugf("Will create trusted cluster %v, attempt %v", trustedCluster, i)
 		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
+				log.Debugf("retrying on connection problem: %v", err)
 				continue
 			}
 			t.Fatalf("got non connection problem %v", err)
@@ -1176,7 +1180,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -1276,7 +1280,7 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -1383,7 +1387,7 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -1665,7 +1669,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	// Setup user and role.
@@ -1780,7 +1784,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := terminal.NewWStream(context.Background(), ws, utils.NewSlogLoggerForTests(), nil)
+		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
 
 		// Check for the expected string in the output.
 		findTextInReader(t, wsStream, testNamespace, time.Second*2)
@@ -1801,7 +1805,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := terminal.NewWStream(context.Background(), ws, utils.NewSlogLoggerForTests(), nil)
+		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
 
 		// Read first prompt from the server.
 		readData := make([]byte, 255)
@@ -1849,7 +1853,8 @@ type sessionMetadataResponse struct {
 // teleKubeConfig sets up teleport with kubernetes turned on
 func (s *KubeSuite) teleKubeConfig(hostname string) *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Logger = s.log
+	tconf.Console = nil
+	tconf.Log = s.log
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.PollingPeriod = 500 * time.Millisecond
@@ -1869,7 +1874,8 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *servicecfg.Config {
 // teleKubeConfig sets up teleport with kubernetes turned on
 func (s *KubeSuite) teleAuthConfig(hostname string) *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Logger = s.log
+	tconf.Console = nil
+	tconf.Log = s.log
 	tconf.PollingPeriod = 500 * time.Millisecond
 	tconf.Testing.ClientTimeout = time.Second
 	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
@@ -2159,7 +2165,7 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	// fooey
@@ -2382,7 +2388,7 @@ func testKubeJoinWeb(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	hostUsername := suite.me.Username
@@ -2680,7 +2686,7 @@ func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	adminUsername := "admin"

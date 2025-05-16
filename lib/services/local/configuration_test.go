@@ -89,8 +89,7 @@ func TestClusterName(t *testing.T) {
 	require.NoError(t, err)
 
 	suite := &suite.ServicesTestSuite{
-		ConfigS:      clusterConfig,
-		LocalConfigS: clusterConfig,
+		ConfigS: clusterConfig,
 	}
 	suite.ClusterName(t)
 }

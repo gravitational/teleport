@@ -19,7 +19,7 @@
 import { action } from '@storybook/addon-actions';
 import { useArgs } from '@storybook/preview-api';
 import type { Meta, StoryFn, StoryObj } from '@storybook/react';
-import type { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 
 import { Flex } from 'design';
 

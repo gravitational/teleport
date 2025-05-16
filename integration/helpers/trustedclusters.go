@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -59,15 +60,18 @@ func TryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 	t.Helper()
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
+		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
 		_, err := authServer.CreateTrustedCluster(ctx, trustedCluster)
 		if err == nil {
 			return
 		}
 		if trace.IsConnectionProblem(err) {
+			log.Debugf("Retrying on connection problem: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 		if trace.IsAccessDenied(err) {
+			log.Debugf("Retrying on access denied: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
@@ -83,15 +87,18 @@ func TryUpdateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 	t.Helper()
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
+		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
 		_, err := authServer.UpdateTrustedCluster(ctx, trustedCluster)
 		if err == nil {
 			return
 		}
 		if trace.IsConnectionProblem(err) {
+			log.Debugf("Retrying on connection problem: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 		if trace.IsAccessDenied(err) {
+			log.Debugf("Retrying on access denied: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
@@ -107,6 +114,7 @@ func TryUpsertTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 	t.Helper()
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
+		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
 		var err error
 		if skipNameValidation {
 			_, err = authServer.UpsertTrustedCluster(ctx, trustedCluster)
@@ -117,10 +125,12 @@ func TryUpsertTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 			return
 		}
 		if trace.IsConnectionProblem(err) {
+			log.Debugf("Retrying on connection problem: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 		if trace.IsAccessDenied(err) {
+			log.Debugf("Retrying on access denied: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}

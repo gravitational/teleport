@@ -75,10 +75,10 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 	if h.c.WebPublicAddr == "" {
 		// The error below tends to be swallowed by the Web UI, so log a warning for
 		// admins as well.
-		const msg = "Application Service requires public_addr to be set in the Teleport Proxy Service configuration. " +
+		h.log.Error("" +
+			"Application Service requires public_addr to be set in the Teleport Proxy Service configuration. " +
 			"Please contact your Teleport cluster administrator or refer to " +
-			"https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/."
-		h.logger.ErrorContext(r.Context(), msg)
+			"https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.")
 		return trace.BadParameter("public address of the proxy is not set")
 	}
 
@@ -87,7 +87,13 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 		return trace.Wrap(err)
 	}
 
-	urlString := makeAppRedirectURL(r, h.c.WebPublicAddr, addr.Host(), p)
+	var proxyPublicAddrs []string
+	for _, proxyAddr := range h.c.ProxyPublicAddrs {
+		// preserving full `host:port` to support proxy hosted on non-standard HTTPS port.
+		proxyPublicAddrs = append(proxyPublicAddrs, proxyAddr.String())
+	}
+	proxyDNSName := utils.FindMatchingProxyDNS(r.Host, proxyPublicAddrs)
+	urlString := makeAppRedirectURL(r, proxyDNSName, addr.Host(), p)
 	http.Redirect(w, r, urlString, http.StatusFound)
 	return nil
 }
@@ -120,9 +126,11 @@ func writeError(w http.ResponseWriter, err error) {
 }
 
 type routerFunc func(http.ResponseWriter, *http.Request, httprouter.Params) error
+
 type routerAuthFunc func(http.ResponseWriter, *http.Request, httprouter.Params, *session) error
 
 type handlerAuthFunc func(http.ResponseWriter, *http.Request, *session) error
+
 type handlerFunc func(http.ResponseWriter, *http.Request) error
 
 type launcherURLParams struct {

@@ -30,6 +30,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/integrations/access/msteams/msapi"
 )
@@ -325,6 +326,6 @@ func (s *FakeTeams) CheckMessageUpdate(ctx context.Context) (Msg, error) {
 
 func panicIf(err error) {
 	if err != nil {
-		panic(fmt.Sprintf("%v at %v", err, string(debug.Stack())))
+		log.Panicf("%v at %v", err, string(debug.Stack()))
 	}
 }

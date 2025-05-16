@@ -35,6 +35,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/kubernetes"
@@ -65,7 +66,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type TestContext struct {
@@ -226,18 +226,15 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 	testCtx.kubeProxyListener, err = net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
+	log := logrus.New()
+	log.SetLevel(logrus.DebugLevel)
 
-	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
-		func(_ context.Context) (proto.UpstreamInventoryHello, error) {
-			return proto.UpstreamInventoryHello{
-				ServerID: testCtx.HostID,
-				Version:  teleport.Version,
-				Services: []types.SystemRole{types.RoleKube},
-				Hostname: "test",
-			}, nil
-		})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
+	inventoryHandle := inventory.NewDownstreamHandle(client.InventoryControlStream, proto.UpstreamInventoryHello{
+		ServerID: testCtx.HostID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleKube},
+		Hostname: "test",
+	})
 
 	// Create kubernetes service server.
 	testCtx.KubeServer, err = NewTLSServer(TLSServerConfig{
@@ -284,7 +281,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		GetRotation:      func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		ResourceMatchers: cfg.ResourceMatchers,
 		OnReconcile:      cfg.OnReconcile,
-		Log:              utils.NewSlogLoggerForTests(),
+		Log:              log,
 		InventoryHandle:  inventoryHandle,
 	})
 	require.NoError(t, err)
@@ -361,7 +358,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		LimiterConfig: limiter.Config{
 			MaxConnections: 1000,
 		},
-		Log:             utils.NewSlogLoggerForTests(),
+		Log:             log,
 		InventoryHandle: inventoryHandle,
 		GetRotation: func(role types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
@@ -532,7 +529,7 @@ func WithMFAVerified() GenTestKubeClientTLSCertOptions {
 // GenTestKubeClientTLSCert generates a kube client to access kube service
 func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *rest.Config) {
 	authServer := c.AuthServer
-	clusterName, err := authServer.GetClusterName(context.TODO())
+	clusterName, err := authServer.GetClusterName()
 	require.NoError(t, err)
 
 	// Fetch user info to get roles and max session TTL.

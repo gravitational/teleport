@@ -15,6 +15,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //go:build vnetdaemon
+// +build vnetdaemon
 
 package daemon
 
@@ -28,7 +29,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/gravitational/teleport/lib/utils/darwinbundle"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -37,7 +37,7 @@ import (
 // Start starts an XPC listener and waits for it to receive a message with VNet config.
 // Once the message is received, it executes [workFn] with that config.
 func Start(ctx context.Context, workFn func(context.Context, Config) error) error {
-	bundlePath, err := darwinbundle.Path()
+	bundlePath, err := bundlePath()
 	if err != nil {
 		return trace.Wrap(err)
 	}

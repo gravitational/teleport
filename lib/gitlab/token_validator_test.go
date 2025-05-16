@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type fakeIDP struct {
@@ -165,7 +166,7 @@ func (f *fakeIDP) issueToken(
 
 type mockClusterNameGetter string
 
-func (m mockClusterNameGetter) GetClusterName(_ context.Context) (types.ClusterName, error) {
+func (m mockClusterNameGetter) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
 	return types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterID:   uuid.NewString(),
 		ClusterName: string(m),

@@ -319,20 +319,12 @@ export const eventCodes = {
   GIT_COMMAND: 'TGIT001I',
   GIT_COMMAND_FAILURE: 'TGIT001E',
   STABLE_UNIX_USER_CREATE: 'TSUU001I',
-  AWS_IC_RESOURCE_SYNC_SUCCESS: 'TAIC001I',
-  AWS_IC_RESOURCE_SYNC_FAILURE: 'TAIC001E',
   AUTOUPDATE_CONFIG_CREATE: 'AUC001I',
   AUTOUPDATE_CONFIG_UPDATE: 'AUC002I',
   AUTOUPDATE_CONFIG_DELETE: 'AUC003I',
   AUTOUPDATE_VERSION_CREATE: 'AUV001I',
   AUTOUPDATE_VERSION_UPDATE: 'AUV002I',
   AUTOUPDATE_VERSION_DELETE: 'AUV003I',
-  HEALTH_CHECK_CONFIG_CREATE: 'THCC001I',
-  HEALTH_CHECK_CONFIG_UPDATE: 'THCC002I',
-  HEALTH_CHECK_CONFIG_DELETE: 'THCC003I',
-  AUTOUPDATE_AGENT_ROLLOUT_TRIGGER: 'AUAR001I',
-  AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE: 'AUAR002I',
-  AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK: 'AUAR003I',
 } as const;
 
 /**
@@ -1327,6 +1319,7 @@ export type RawEvents = {
     {
       bot_name: string;
       method: string;
+      token_name: string;
     }
   >;
   [eventCodes.BOT_JOIN_FAILURE]: RawEvent<
@@ -1334,6 +1327,7 @@ export type RawEvents = {
     {
       bot_name: string;
       method: string;
+      token_name: string;
     }
   >;
   [eventCodes.INSTANCE_JOIN]: RawEvent<
@@ -1849,12 +1843,6 @@ export type RawEvents = {
       };
     }
   >;
-  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: RawEventAwsIcResourceSync<
-    typeof eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS
-  >;
-  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: RawEventAwsIcResourceSync<
-    typeof eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE
-  >;
   [eventCodes.AUTOUPDATE_CONFIG_CREATE]: RawEvent<
     typeof eventCodes.AUTOUPDATE_CONFIG_CREATE,
     {
@@ -1889,39 +1877,6 @@ export type RawEvents = {
     typeof eventCodes.AUTOUPDATE_VERSION_DELETE,
     {
       user: string;
-    }
-  >;
-  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: RawEvent<
-    typeof eventCodes.HEALTH_CHECK_CONFIG_CREATE,
-    HasName
-  >;
-  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: RawEvent<
-    typeof eventCodes.HEALTH_CHECK_CONFIG_UPDATE,
-    HasName
-  >;
-  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: RawEvent<
-    typeof eventCodes.HEALTH_CHECK_CONFIG_DELETE,
-    HasName
-  >;
-  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: RawEvent<
-    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER,
-    {
-      user: string;
-      groups: string[];
-    }
-  >;
-  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: RawEvent<
-    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE,
-    {
-      user: string;
-      groups: string[];
-    }
-  >;
-  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: RawEvent<
-    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK,
-    {
-      user: string;
-      groups: string[];
     }
   >;
 };
@@ -2122,23 +2077,6 @@ type RawSpannerRPCEvent<T extends EventCode> = RawEvent<
     db_service: string;
     db_name: string;
     args: { sql?: string };
-  }
->;
-
-/**
- * RawEventAwsIcResourceSync extends RawEvent with custom fields
- * present in the AWS Identity Center resource sync event.
- */
-type RawEventAwsIcResourceSync<T extends EventCode> = RawEvent<
-  T,
-  {
-    total_accounts: number;
-    total_account_assignments: number;
-    total_user_groups: number;
-    total_permission_sets: number;
-    status: boolean;
-    /* message contains user message for both success and failed status */
-    message: string;
   }
 >;
 

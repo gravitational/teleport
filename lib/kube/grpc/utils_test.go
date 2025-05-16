@@ -228,17 +228,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	testCtx.kubeProxyListener, err = net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
-		func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
-			return proto.UpstreamInventoryHello{
-				ServerID: testCtx.HostID,
-				Version:  teleport.Version,
-				Services: []types.SystemRole{types.RoleKube},
-				Hostname: "test",
-			}, nil
-		})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
+	inventoryHandle := inventory.NewDownstreamHandle(client.InventoryControlStream, proto.UpstreamInventoryHello{
+		ServerID: testCtx.HostID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleKube},
+		Hostname: "test",
+	})
 
 	// Create kubernetes service server.
 	testCtx.KubeServer, err = proxy.NewTLSServer(proxy.TLSServerConfig{
@@ -285,7 +280,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		GetRotation:      func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		ResourceMatchers: cfg.ResourceMatchers,
 		OnReconcile:      cfg.OnReconcile,
-		Log:              utils.NewSlogLoggerForTests(),
+		Log:              utils.NewLoggerForTests(),
 		InventoryHandle:  inventoryHandle,
 	})
 	require.NoError(t, err)
@@ -362,7 +357,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		LimiterConfig: limiter.Config{
 			MaxConnections: 1000,
 		},
-		Log:             utils.NewSlogLoggerForTests(),
+		Log:             utils.NewLoggerForTests(),
 		InventoryHandle: inventoryHandle,
 		GetRotation: func(role types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
@@ -533,7 +528,7 @@ func WithMFAVerified() GenTestKubeClientTLSCertOptions {
 // GenTestKubeClientTLSCert generates a kube client to access kube service
 func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *rest.Config) {
 	authServer := c.AuthServer
-	clusterName, err := authServer.GetClusterName(context.TODO())
+	clusterName, err := authServer.GetClusterName()
 	require.NoError(t, err)
 
 	// Fetch user info to get roles and max session TTL.

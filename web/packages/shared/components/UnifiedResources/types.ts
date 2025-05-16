@@ -26,17 +26,6 @@ import { DbProtocol } from 'shared/services/databases';
 import { ResourceLabel } from 'teleport/services/agents';
 import { AppSubKind, PermissionSet } from 'teleport/services/apps';
 
-/**
- * status == '' is a result of an older agent that does not
- * support the health check feature.
- */
-export type ResourceStatus = 'healthy' | 'unhealthy' | 'unknown' | '';
-
-export type ResourceTargetHealth = {
-  status: ResourceStatus;
-  error?: string;
-};
-
 export type UnifiedResourceApp = {
   kind: 'app';
   id: string;
@@ -60,7 +49,6 @@ export interface UnifiedResourceDatabase {
   protocol: DbProtocol;
   labels: ResourceLabel[];
   requiresRequest?: boolean;
-  targetHealth?: ResourceTargetHealth;
 }
 
 export interface UnifiedResourceNode {
@@ -116,17 +104,15 @@ export type UnifiedResourceUi = {
   ActionButton: React.ReactElement;
 };
 
-export type UnifiedResourceDefinition =
-  | UnifiedResourceApp
-  | UnifiedResourceDatabase
-  | UnifiedResourceNode
-  | UnifiedResourceKube
-  | UnifiedResourceDesktop
-  | UnifiedResourceUserGroup
-  | UnifiedResourceGitServer;
-
 export type SharedUnifiedResource = {
-  resource: UnifiedResourceDefinition;
+  resource:
+    | UnifiedResourceApp
+    | UnifiedResourceDatabase
+    | UnifiedResourceNode
+    | UnifiedResourceKube
+    | UnifiedResourceDesktop
+    | UnifiedResourceUserGroup
+    | UnifiedResourceGitServer;
   ui: UnifiedResourceUi;
 };
 
@@ -156,7 +142,6 @@ export interface UnifiedResourceViewItem {
   cardViewProps: CardViewSpecificProps;
   listViewProps: ListViewSpecificProps;
   requiresRequest?: boolean;
-  status?: ResourceStatus;
 }
 
 export enum PinningSupport {
@@ -179,20 +164,21 @@ export type IncludedResourceMode =
   | 'accessible';
 
 export type ResourceItemProps = {
+  name: string;
+  primaryIconName: ResourceIconName;
+  SecondaryIcon: typeof Icon;
+  cardViewProps: CardViewSpecificProps;
+  listViewProps: ListViewSpecificProps;
+  labels: ResourceLabel[];
+  ActionButton: React.ReactElement;
   onLabelClick?: (label: ResourceLabel) => void;
   pinResource: () => void;
   selectResource: () => void;
   selected: boolean;
   pinned: boolean;
+  requiresRequest?: boolean;
   pinningSupport: PinningSupport;
   expandAllLabels: boolean;
-  viewItem: UnifiedResourceViewItem;
-  onShowStatusInfo(): void;
-  /**
-   * True, when the InfoGuideSidePanel is opened.
-   * Used as a flag to render different styling.
-   */
-  showingStatusInfo: boolean;
 };
 
 // Props that are needed for the Card view.
@@ -229,25 +215,6 @@ export type ResourceViewProps = {
   onPinResource: (resourceId: string) => void;
   pinningSupport: PinningSupport;
   isProcessing: boolean;
-  mappedResources: {
-    item: UnifiedResourceViewItem;
-    key: string;
-    onShowStatusInfo(): void;
-    showingStatusInfo: boolean;
-  }[];
+  mappedResources: { item: UnifiedResourceViewItem; key: string }[];
   expandAllLabels: boolean;
 };
-
-/**
- * DatabaseServer (db_server) describes a database heartbeat signal
- * reported from an agent (db_service) that is proxying
- * the database.
- */
-export type DatabaseServer = {
-  kind: 'db_server';
-  hostname: string;
-  hostId: string;
-  targetHealth?: ResourceTargetHealth;
-};
-
-export type SharedResourceServer = DatabaseServer;

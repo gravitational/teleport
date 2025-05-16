@@ -19,7 +19,6 @@
 package services
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -653,7 +652,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			name: "terraform provider (bugfix of the missing resources)",
 			role: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetTerraformProviderRoleName,
 					Namespace:   apidefaults.Namespace,
@@ -699,7 +698,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			expectedErr: require.NoError,
 			expected: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetTerraformProviderRoleName,
 					Namespace:   apidefaults.Namespace,
@@ -749,7 +748,6 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(types.KindGitServer, RW()),
 							types.NewRule(types.KindAutoUpdateConfig, RW()),
 							types.NewRule(types.KindAutoUpdateVersion, RW()),
-							types.NewRule(types.KindHealthCheckConfig, RW()),
 						},
 					},
 				},
@@ -765,7 +763,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				})
 			}
 
-			role, err := AddRoleDefaults(context.Background(), test.role)
+			role, err := AddRoleDefaults(test.role)
 			test.expectedErr(t, err)
 
 			require.Empty(t, cmp.Diff(role, test.expected))

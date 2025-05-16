@@ -19,20 +19,28 @@
 package app
 
 import (
-	"context"
-
-	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/service/sts"
 )
 
-// mockCredentialsProvider mocks AWS aws.CredentialsProvider interface.
+// mockCredentialsProvider mocks AWS credentials.Provider interface.
 type mockCredentialsProvider struct {
-	retrieveValue aws.Credentials
+	retrieveValue credentials.Value
 	retrieveError error
 }
 
-func (m mockCredentialsProvider) Retrieve(_ context.Context) (aws.Credentials, error) {
+func (m mockCredentialsProvider) Retrieve() (credentials.Value, error) {
 	return m.retrieveValue, m.retrieveError
 }
 func (m mockCredentialsProvider) IsExpired() bool {
 	return false
+}
+
+// mockAssumeRoler mocks AWS stscreds.AssumeRoler interface.
+type mockAssumeRoler struct {
+	output *sts.AssumeRoleOutput
+}
+
+func (m mockAssumeRoler) AssumeRole(input *sts.AssumeRoleInput) (*sts.AssumeRoleOutput, error) {
+	return m.output, nil
 }

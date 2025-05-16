@@ -29,11 +29,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -49,10 +49,9 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
-func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) *ServerContext {
+func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
 	usr, err := user.Current()
 	require.NoError(t, err)
 
@@ -72,7 +71,7 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	clusterName := "localhost"
 	_, connCtx := sshutils.NewConnectionContext(ctx, nil, &ssh.ServerConn{Conn: sshConn})
 	scx := &ServerContext{
-		Logger:                 utils.NewSlogLoggerForTests(),
+		Entry:                  logrus.NewEntry(logrus.StandardLogger()),
 		ConnectionContext:      connCtx,
 		env:                    make(map[string]string),
 		SessionRecordingConfig: recConfig,
@@ -84,11 +83,10 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 			UnmappedIdentity: ident,
 			Login:            usr.Username,
 			TeleportUser:     "teleportUser",
-			AccessPermit:     accessPermit,
 			// roles do not actually exist in mock backend, just need a non-nil
-			// session joining access checker to avoid panic
-			UnstableSessionJoiningAccessChecker: services.NewAccessCheckerWithRoleSet(
-				&services.AccessInfo{Roles: sessionJoiningRoleSet.RoleNames()}, clusterName, sessionJoiningRoleSet),
+			// access checker to avoid panic
+			AccessChecker: services.NewAccessCheckerWithRoleSet(
+				&services.AccessInfo{Roles: roleSet.RoleNames()}, clusterName, roleSet),
 		},
 		cancelContext: ctx,
 		cancel:        cancel,
@@ -166,7 +164,7 @@ type mockServer struct {
 	datadir   string
 	auth      *auth.Server
 	component string
-	clock     clocki.FakeClock
+	clock     clockwork.FakeClock
 	bpf       bpf.BPF
 }
 

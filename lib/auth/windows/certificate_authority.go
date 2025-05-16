@@ -20,9 +20,9 @@ package windows
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -52,8 +52,8 @@ type CertificateStoreConfig struct {
 	// Domain is the Active Directory domain where Teleport publishes its
 	// Certificate Revocation List (CRL).
 	Domain string
-	// Logger is the logging sink for the service
-	Logger *slog.Logger
+	// Log is the logging sink for the service
+	Log logrus.FieldLogger
 	// ClusterName is the name of this Teleport cluster
 	ClusterName string
 	// LC is the LDAPClient
@@ -122,9 +122,9 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte, c
 		); err != nil {
 			return trace.Wrap(err)
 		}
-		c.cfg.Logger.InfoContext(ctx, "Updated CRL for Windows logins via LDAP")
+		c.cfg.Log.Info("Updated CRL for Windows logins via LDAP")
 	} else {
-		c.cfg.Logger.InfoContext(ctx, "Added CRL for Windows logins via LDAP")
+		c.cfg.Log.Info("Added CRL for Windows logins via LDAP")
 	}
 	return nil
 }

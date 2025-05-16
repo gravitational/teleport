@@ -19,9 +19,7 @@
 package socks
 
 import (
-	"context"
 	"io"
-	"log/slog"
 	"net"
 	"os"
 	"testing"
@@ -101,7 +99,7 @@ func (d *debugServer) Serve() {
 	for {
 		conn, err := d.ln.Accept()
 		if err != nil {
-			slog.DebugContext(context.Background(), "Failed to accept connection", "error", err)
+			log.Debugf("Failed to accept connection: %v.", err)
 			break
 		}
 
@@ -116,17 +114,17 @@ func (d *debugServer) handle(conn net.Conn) {
 
 	remoteAddr, err := Handshake(conn)
 	if err != nil {
-		slog.DebugContext(context.Background(), "Handshake failed", "error", err)
+		log.Debugf("Handshake failed: %v.", err)
 		return
 	}
 
 	n, err := conn.Write([]byte(remoteAddr))
 	if err != nil {
-		slog.DebugContext(context.Background(), "Failed to write to connection", "error", err)
+		log.Debugf("Failed to write to connection: %v.", err)
 		return
 	}
 	if n != len(remoteAddr) {
-		slog.DebugContext(context.Background(), "Short write", "wrote", n, "wanted", len(remoteAddr))
+		log.Debugf("Short write, wrote %v wanted %v.", n, len(remoteAddr))
 		return
 	}
 }

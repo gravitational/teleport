@@ -287,28 +287,26 @@ type Role interface {
 	// SetSPIFFEConditions sets the allow or deny SPIFFERoleCondition.
 	SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCondition)
 
-	// GetGitHubPermissions returns the allow or deny GitHub-related permissions.
-	GetGitHubPermissions(RoleConditionType) []GitHubPermission
-	// SetGitHubPermissions sets the allow or deny GitHub-related permissions.
-	SetGitHubPermissions(RoleConditionType, []GitHubPermission)
-
 	// GetIdentityCenterAccountAssignments fetches the allow or deny Account
 	// Assignments for the role
 	GetIdentityCenterAccountAssignments(RoleConditionType) []IdentityCenterAccountAssignment
 	// GetIdentityCenterAccountAssignments sets the allow or deny Account
 	// Assignments for the role
 	SetIdentityCenterAccountAssignments(RoleConditionType, []IdentityCenterAccountAssignment)
-	// Clone creats a copy of the role.
-	Clone() Role
+
+	// GetGitHubPermissions returns the allow or deny GitHub-related permissions.
+	GetGitHubPermissions(RoleConditionType) []GitHubPermission
+	// SetGitHubPermissions sets the allow or deny GitHub-related permissions.
+	SetGitHubPermissions(RoleConditionType, []GitHubPermission)
 }
 
-// NewRole constructs new standard V8 role.
-// This creates a V8 role with V4+ RBAC semantics.
+// NewRole constructs new standard V7 role.
+// This creates a V7 role with V4+ RBAC semantics.
 func NewRole(name string, spec RoleSpecV6) (Role, error) {
 	// When incrementing the role version, make sure to update the
 	// role version in the asset file used by the UI.
 	// See: web/packages/teleport/src/Roles/templates/role.yaml
-	role, err := NewRoleWithVersion(name, V8, spec)
+	role, err := NewRoleWithVersion(name, V7, spec)
 	return role, trace.Wrap(err)
 }
 
@@ -477,7 +475,7 @@ func (r *RoleV6) GetKubeResources(rct RoleConditionType) []KubernetesResource {
 // and append the other supported resources - KubernetesResourcesKinds - for Role v7.
 func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []KubernetesResource) []KubernetesResource {
 	switch r.Version {
-	case V7, V8:
+	case V7:
 		return resources
 	// Teleport does not support role versions < v3.
 	case V6, V5, V4, V3:
@@ -1034,11 +1032,11 @@ func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 // setStaticFields sets static resource header and metadata fields.
 func (r *RoleV6) setStaticFields() {
 	r.Kind = KindRole
-	if r.Version != V3 && r.Version != V4 && r.Version != V5 && r.Version != V6 && r.Version != V7 {
+	if r.Version != V3 && r.Version != V4 && r.Version != V5 && r.Version != V6 {
 		// When incrementing the role version, make sure to update the
 		// role version in the asset file used by the UI.
 		// See: web/packages/teleport/src/Roles/templates/role.yaml
-		r.Version = V8
+		r.Version = V7
 	}
 }
 
@@ -1099,9 +1097,8 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	if len(r.Spec.Options.BPF) == 0 {
 		r.Spec.Options.BPF = defaults.EnhancedEvents()
 	}
-	if err := checkAndSetRoleConditionNamespaces(&r.Spec.Allow.Namespaces); err != nil {
-		// Using trace.BadParameter instead of trace.Wrap for a better error message.
-		return trace.BadParameter("allow: %s", err)
+	if r.Spec.Allow.Namespaces == nil {
+		r.Spec.Allow.Namespaces = []string{defaults.Namespace}
 	}
 	if r.Spec.Options.RecordSession == nil {
 		r.Spec.Options.RecordSession = &RecordSession{
@@ -1184,8 +1181,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		if err := validateRoleSpecKubeResources(r.Version, r.Spec); err != nil {
 			return trace.Wrap(err)
 		}
-	// TODO(@creack,@flyinghermit): Create a dedicate validation path for V8 once we have logic changes.
-	case V7, V8:
+	case V7:
 		// Kubernetes resources default to {kind:*, name:*, namespace:*} for v7 roles.
 		if len(r.Spec.Allow.KubernetesResources) == 0 && r.HasLabelMatchers(Allow, KindKubernetesCluster) {
 			r.Spec.Allow.KubernetesResources = []KubernetesResource{
@@ -1205,9 +1201,8 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		return trace.BadParameter("unrecognized role version: %v", r.Version)
 	}
 
-	if err := checkAndSetRoleConditionNamespaces(&r.Spec.Deny.Namespaces); err != nil {
-		// Using trace.BadParameter instead of trace.Wrap for a better error message.
-		return trace.BadParameter("deny: %s", err)
+	if r.Spec.Deny.Namespaces == nil {
+		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
 	}
 
 	// Validate request.kubernetes_resources fields are all valid.
@@ -1348,27 +1343,6 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		}
 		if err := r.Spec.Deny.Impersonate.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
-func checkAndSetRoleConditionNamespaces(namespaces *[]string) error {
-	// If nil use the default.
-	// This distinguishes between nil and empty (in accordance to legacy code).
-	if *namespaces == nil {
-		*namespaces = []string{defaults.Namespace}
-		return nil
-	}
-
-	for i, ns := range *namespaces {
-		if ns == Wildcard {
-			continue // OK, wildcard is accepted.
-		}
-		if err := ValidateNamespaceDefault(ns); err != nil {
-			// Using trace.BadParameter instead of trace.Wrap for a better error message.
-			return trace.BadParameter("namespaces[%d]: %s", i, err)
 		}
 	}
 
@@ -1889,10 +1863,10 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 		// Teleport does not support role versions < v3.
 		case V6, V5, V4, V3:
 			if kubeResource.Kind != KindKubePod {
-				return trace.BadParameter("KubernetesResource %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.Kind, roleVersion, V8)
+				return trace.BadParameter("KubernetesResource %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.Kind, roleVersion, V7)
 			}
 			if len(kubeResource.Verbs) != 1 || kubeResource.Verbs[0] != Wildcard {
-				return trace.BadParameter("Role version %q only supports %q verb. Upgrade the role version to %q", roleVersion, Wildcard, V8)
+				return trace.BadParameter("Role version %q only supports %q verb. Upgrade the role version to %q", roleVersion, Wildcard, V7)
 			}
 		}
 
@@ -1924,7 +1898,7 @@ func validateRequestKubeResources(roleVersion string, kubeResources []RequestKub
 		// Teleport does not support role versions < v3.
 		case V6, V5, V4, V3:
 			if kubeResource.Kind != KindKubePod {
-				return trace.BadParameter("request.kubernetes_resources kind %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.Kind, roleVersion, V8)
+				return trace.BadParameter("request.kubernetes_resources kind %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.Kind, roleVersion, V7)
 			}
 		}
 	}
@@ -2001,10 +1975,10 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
 	case KindUserGroup:
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
-	case KindGitServer:
-		return r.makeGitServerLabelMatchers(cond), nil
 	case KindWorkloadIdentity:
 		return LabelMatchers{cond.WorkloadIdentityLabels, cond.WorkloadIdentityLabelsExpression}, nil
+	case KindGitServer:
+		return r.makeGitServerLabelMatchers(cond), nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
 }
@@ -2112,18 +2086,6 @@ func (r *RoleV6) MatchSearch(values []string) bool {
 	return MatchSearch(fieldVals, values, nil)
 }
 
-func (r *RoleV6) makeGitServerLabelMatchers(cond *RoleConditions) LabelMatchers {
-	var all []string
-	for _, perm := range cond.GitHubPermissions {
-		all = append(all, perm.Organizations...)
-	}
-	return LabelMatchers{
-		Labels: Labels{
-			GitHubOrgLabel: all,
-		},
-	}
-}
-
 // GetIdentityCenterAccountAssignments fetches the allow or deny Identity Center
 // Account Assignments for the role
 func (r *RoleV6) GetIdentityCenterAccountAssignments(rct RoleConditionType) []IdentityCenterAccountAssignment {
@@ -2143,8 +2105,16 @@ func (r *RoleV6) SetIdentityCenterAccountAssignments(rct RoleConditionType, assi
 	cond.AccountAssignments = assignments
 }
 
-func (r *RoleV6) Clone() Role {
-	return utils.CloneProtoMsg(r)
+func (r *RoleV6) makeGitServerLabelMatchers(cond *RoleConditions) LabelMatchers {
+	var all []string
+	for _, perm := range cond.GitHubPermissions {
+		all = append(all, perm.Organizations...)
+	}
+	return LabelMatchers{
+		Labels: Labels{
+			GitHubOrgLabel: all,
+		},
+	}
 }
 
 // LabelMatcherKinds is the complete list of resource kinds that support label

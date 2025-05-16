@@ -29,6 +29,7 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -36,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
@@ -73,7 +73,7 @@ func onAfterResponseSlack(sink common.StatusSink) func(_ *resty.Client, resp *re
 			ctx, cancel := context.WithTimeout(context.Background(), statusEmitTimeout)
 			defer cancel()
 			if err := sink.Emit(ctx, status); err != nil {
-				logger.Get(ctx).ErrorContext(ctx, "Error while emitting plugin status", "error", err)
+				log.Errorf("Error while emitting plugin status: %v", err)
 			}
 		}()
 
@@ -144,7 +144,7 @@ func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []com
 	// the case with most SSO setups.
 	userRecipient, err := b.FetchRecipient(ctx, reqData.User)
 	if err != nil {
-		logger.Get(ctx).WarnContext(ctx, "Unable to find user in Slack, will not be able to notify", "user", reqData.User)
+		log.Warningf("Unable to find user %s in Slack, will not be able to notify.", reqData.User)
 	}
 
 	// Include the user in the list of recipients if it exists.

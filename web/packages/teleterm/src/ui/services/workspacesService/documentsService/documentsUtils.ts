@@ -22,7 +22,6 @@ import {
   Application,
   Broadcast,
   Database,
-  Desktop,
   Kubernetes,
   Laptop,
   ListAddCheck,
@@ -86,8 +85,6 @@ export function getResourceUri(
       return document.rootClusterUri;
     case 'doc.vnet_info':
       return document.rootClusterUri;
-    case 'doc.desktop_session':
-      return document.desktopUri;
     case 'doc.blank':
       return undefined;
     default:
@@ -213,11 +210,6 @@ export function getStaticNameAndIcon(
       return {
         name: document.title,
         Icon: Broadcast,
-      };
-    case 'doc.desktop_session':
-      return {
-        name: document.title,
-        Icon: Desktop,
       };
     case 'doc.blank':
     case 'doc.terminal_tsh_kube':

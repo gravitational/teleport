@@ -37,7 +37,6 @@ import { kubes, moreKubes } from 'teleport/Kubes/fixtures';
 import { moreNodes, nodes } from 'teleport/Nodes/fixtures';
 import { ResourcesResponse } from 'teleport/services/agents';
 
-import { InfoGuidePanelProvider } from '../SlidingSidePanel/InfoGuide';
 import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
 import {
   UnifiedResources,
@@ -107,48 +106,45 @@ const story = ({
       fetchFunc,
     });
     return (
-      <InfoGuidePanelProvider>
-        <UnifiedResources
-          availableKinds={[
-            {
-              kind: 'app',
-              disabled: false,
-            },
-            {
-              kind: 'db',
-              disabled: false,
-            },
-            {
-              kind: 'node',
-              disabled: false,
-            },
-            {
-              kind: 'kube_cluster',
-              disabled: false,
-            },
-            {
-              kind: 'windows_desktop',
-              disabled: false,
-            },
-          ]}
-          onShowStatusInfo={() => null}
-          params={mergedParams}
-          setParams={() => undefined}
-          pinning={pinning}
-          unifiedResourcePreferences={userPrefs}
-          updateUnifiedResourcesPreferences={setUserPrefs}
-          NoResources={undefined}
-          fetchResources={fetch}
-          resourcesFetchAttempt={attempt}
-          resources={resources.map(resource => ({
-            resource,
-            ui: {
-              ActionButton: <ButtonBorder size="small">Connect</ButtonBorder>,
-            },
-          }))}
-          {...props}
-        />
-      </InfoGuidePanelProvider>
+      <UnifiedResources
+        availableKinds={[
+          {
+            kind: 'app',
+            disabled: false,
+          },
+          {
+            kind: 'db',
+            disabled: false,
+          },
+          {
+            kind: 'node',
+            disabled: false,
+          },
+          {
+            kind: 'kube_cluster',
+            disabled: false,
+          },
+          {
+            kind: 'windows_desktop',
+            disabled: false,
+          },
+        ]}
+        params={mergedParams}
+        setParams={() => undefined}
+        pinning={pinning}
+        unifiedResourcePreferences={userPrefs}
+        updateUnifiedResourcesPreferences={setUserPrefs}
+        NoResources={undefined}
+        fetchResources={fetch}
+        resourcesFetchAttempt={attempt}
+        resources={resources.map(resource => ({
+          resource,
+          ui: {
+            ActionButton: <ButtonBorder size="small">Connect</ButtonBorder>,
+          },
+        }))}
+        {...props}
+      />
     );
   };
 };
@@ -160,18 +156,6 @@ export const Empty = story({
 export const List = story({
   fetchFunc: async () => ({
     agents: allResources,
-  }),
-});
-
-export const Single = story({
-  fetchFunc: async () => ({
-    agents: [{ ...aLotOfLabels, targetHealth: null }],
-  }),
-});
-
-export const SingleWithStatusWarning = story({
-  fetchFunc: async () => ({
-    agents: [aLotOfLabels],
   }),
 });
 

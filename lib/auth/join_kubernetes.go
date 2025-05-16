@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
@@ -35,13 +36,13 @@ type k8sTokenReviewValidator interface {
 
 type k8sJWKSValidator func(now time.Time, jwksData []byte, clusterName string, token string) (*kubetoken.ValidationResult, error)
 
-func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*kubetoken.ValidationResult, error) {
+func (a *Server) checkKubernetesJoinRequest(
+	ctx context.Context,
+	req *types.RegisterUsingTokenRequest,
+	unversionedToken types.ProvisionToken,
+) (*kubetoken.ValidationResult, error) {
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("IDToken not provided for Kubernetes join request")
-	}
-	unversionedToken, err := a.GetToken(ctx, req.Token)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 	token, ok := unversionedToken.(*types.ProvisionTokenV2)
 	if !ok {
@@ -81,10 +82,10 @@ func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.Regi
 		)
 	}
 
-	a.logger.InfoContext(ctx, "Kubernetes workload trying to join cluster",
-		"validated_identity", result,
-		"token", token.GetName(),
-	)
+	log.WithFields(logrus.Fields{
+		"validated_identity": result,
+		"token":              token.GetName(),
+	}).Info("Kubernetes workload trying to join cluster")
 
 	return result, trace.Wrap(checkKubernetesAllowRules(token, result))
 }

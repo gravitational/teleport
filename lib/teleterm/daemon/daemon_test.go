@@ -22,7 +22,6 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -32,6 +31,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -766,7 +766,7 @@ func (m fakeGateway) TargetName() string            { return m.targetURI.GetDbNa
 func (m fakeGateway) TargetUser() string            { return "alice" }
 func (m fakeGateway) TargetSubresourceName() string { return m.subresourceName }
 func (m fakeGateway) Protocol() string              { return defaults.ProtocolSQLServer }
-func (m fakeGateway) Log() *slog.Logger             { return nil }
+func (m fakeGateway) Log() *logrus.Entry            { return nil }
 func (m fakeGateway) LocalAddress() string          { return "localhost" }
 func (m fakeGateway) LocalPortInt() int             { return 8888 }
 func (m fakeGateway) LocalPort() string             { return "8888" }
@@ -782,7 +782,7 @@ func (m fakeKubeGateway) TargetName() string            { return m.targetURI.Get
 func (m fakeKubeGateway) TargetUser() string            { return "alice" }
 func (m fakeKubeGateway) TargetSubresourceName() string { return m.subresourceName }
 func (m fakeKubeGateway) Protocol() string              { return "" }
-func (m fakeKubeGateway) Log() *slog.Logger             { return nil }
+func (m fakeKubeGateway) Log() *logrus.Entry            { return nil }
 func (m fakeKubeGateway) LocalAddress() string          { return "localhost" }
 func (m fakeKubeGateway) LocalPortInt() int             { return 8888 }
 func (m fakeKubeGateway) LocalPort() string             { return "8888" }

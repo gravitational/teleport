@@ -20,16 +20,17 @@ package web
 
 import (
 	"context"
-	"log/slog"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ServerConfig provides dependencies required to create a [Server].
@@ -39,7 +40,7 @@ type ServerConfig struct {
 	// Handler web handler
 	Handler *APIHandler
 	// Log to write log messages
-	Log *slog.Logger
+	Log logrus.FieldLogger
 	// ShutdownPollPeriod sets polling period for shutdown
 	ShutdownPollPeriod time.Duration
 }
@@ -59,7 +60,7 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = slog.With(teleport.ComponentKey, teleport.ComponentProxy)
+		c.Log = utils.NewLogger().WithField(teleport.ComponentKey, teleport.ComponentProxy)
 	}
 
 	return nil
@@ -137,7 +138,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		return trace.NewAggregate(err, s.cfg.Handler.Close())
 	}
 
-	s.cfg.Log.InfoContext(ctx, "Shutdown: waiting for active connections to finish", "active_connection_count", activeConnections)
+	s.cfg.Log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
 	lastReport := time.Time{}
 	ticker := time.NewTicker(s.cfg.ShutdownPollPeriod)
 	defer ticker.Stop()
@@ -150,11 +151,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 				return trace.NewAggregate(err, s.cfg.Handler.Close())
 			}
 			if time.Since(lastReport) > 10*s.cfg.ShutdownPollPeriod {
-				s.cfg.Log.InfoContext(ctx, "Shutdown: waiting for active connections to finish", "active_connection_count", activeConnections)
+				s.cfg.Log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
 				lastReport = time.Now()
 			}
 		case <-ctx.Done():
-			s.cfg.Log.InfoContext(ctx, "Context canceled wait, returning")
+			s.cfg.Log.Infof("Context canceled wait, returning.")
 			return trace.ConnectionProblem(trace.NewAggregate(err, s.cfg.Handler.Close()), "context canceled")
 		}
 	}

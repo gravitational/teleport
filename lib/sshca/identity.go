@@ -132,7 +132,7 @@ type Identity struct {
 	// GitHubUserID indicates the GitHub user ID identified by the GitHub
 	// connector.
 	GitHubUserID string
-	// GitHubUsername indicates the GitHub username identified by the GitHub
+	// GitHubUserID indicates the GitHub username identified by the GitHub
 	// connector.
 	GitHubUsername string
 }
@@ -321,15 +321,6 @@ func (i *Identity) GetDeviceMetadata() *apievents.DeviceMetadata {
 		AssetTag:     i.DeviceAssetTag,
 		CredentialId: i.DeviceCredentialID,
 	}
-}
-
-// GetValidBefore gets the ValidBefore time as a time.Time, preserving "zeroness" across the conversion.
-func (i *Identity) GetValidBefore() time.Time {
-	var validBefore time.Time
-	if i.ValidBefore != 0 {
-		validBefore = time.Unix(int64(i.ValidBefore), 0)
-	}
-	return validBefore
 }
 
 // DecodeIdentity decodes an ssh certificate into an identity.

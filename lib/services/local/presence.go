@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -44,7 +45,7 @@ import (
 // PresenceService records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type PresenceService struct {
-	logger *slog.Logger
+	log    *logrus.Entry
 	jitter retryutils.Jitter
 	backend.Backend
 }
@@ -56,10 +57,95 @@ type backendItemToResourceFunc func(item backend.Item) (types.ResourceWithLabels
 // NewPresenceService returns new presence service instance
 func NewPresenceService(b backend.Backend) *PresenceService {
 	return &PresenceService{
-		logger:  slog.With(teleport.ComponentKey, "Presence"),
+		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "Presence"}),
 		jitter:  retryutils.FullJitter,
 		Backend: b,
 	}
+}
+
+// DeleteAllNamespaces deletes all namespaces
+func (s *PresenceService) DeleteAllNamespaces() error {
+	startKey := backend.ExactKey(namespacesPrefix)
+	endKey := backend.RangeEnd(startKey)
+	return s.DeleteRange(context.TODO(), startKey, endKey)
+}
+
+// GetNamespaces returns a list of namespaces
+func (s *PresenceService) GetNamespaces() ([]types.Namespace, error) {
+	startKey := backend.ExactKey(namespacesPrefix)
+	endKey := backend.RangeEnd(startKey)
+	result, err := s.GetRange(context.TODO(), startKey, endKey, backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out := make([]types.Namespace, 0, len(result.Items))
+	for _, item := range result.Items {
+		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
+			continue
+		}
+		ns, err := services.UnmarshalNamespace(
+			item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, *ns)
+	}
+	sort.Sort(types.SortedNamespaces(out))
+	return out, nil
+}
+
+// UpsertNamespace upserts namespace
+func (s *PresenceService) UpsertNamespace(n types.Namespace) error {
+	if err := n.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	rev := n.GetRevision()
+	value, err := services.MarshalNamespace(n)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.NewKey(namespacesPrefix, n.Metadata.Name, paramsPrefix),
+		Value:    value,
+		Expires:  n.Metadata.Expiry(),
+		Revision: rev,
+	}
+
+	_, err = s.Put(context.TODO(), item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetNamespace returns a namespace by name
+func (s *PresenceService) GetNamespace(name string) (*types.Namespace, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing namespace name")
+	}
+	item, err := s.Get(context.TODO(), backend.NewKey(namespacesPrefix, name, paramsPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("namespace %q is not found", name)
+		}
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalNamespace(
+		item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+}
+
+// DeleteNamespace deletes a namespace with all the keys from the backend
+func (s *PresenceService) DeleteNamespace(namespace string) error {
+	if namespace == "" {
+		return trace.BadParameter("missing namespace name")
+	}
+	err := s.Delete(context.TODO(), backend.NewKey(namespacesPrefix, namespace, paramsPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("namespace %q is not found", namespace)
+		}
+	}
+	return trace.Wrap(err)
 }
 
 // GetServerInfos returns a stream of ServerInfos.
@@ -74,10 +160,7 @@ func (s *PresenceService) GetServerInfos(ctx context.Context) stream.Stream[type
 			services.WithRevision(item.Revision),
 		)
 		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal server info",
-				"key", item.Key,
-				"error", err,
-			)
+			s.log.Warnf("Skipping server info at %s, failed to unmarshal: %v", item.Key, err)
 			return nil, false
 		}
 		return si, true
@@ -262,16 +345,21 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 	if server.GetNamespace() == "" {
 		server.SetNamespace(apidefaults.Namespace)
 	}
-	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	item, err := itemFromNode(server)
+	if n := server.GetNamespace(); n != apidefaults.Namespace {
+		return nil, trace.BadParameter("cannot place node in namespace %q, custom namespaces are deprecated", n)
+	}
+	rev := server.GetRevision()
+	value, err := services.MarshalServer(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	_, err = s.Put(ctx, *item)
+	_, err = s.Put(ctx, backend.Item{
+		Key:      backend.NewKey(nodesPrefix, server.GetNamespace(), server.GetName()),
+		Value:    value,
+		Expires:  server.Expiry(),
+		Revision: rev,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -284,34 +372,26 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 	}, nil
 }
 
-func itemFromNode(server types.Server) (*backend.Item, error) {
-	value, err := services.MarshalServer(server)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &backend.Item{
-		Key:      backend.NewKey(nodesPrefix, server.GetNamespace(), server.GetName()),
-		Value:    value,
-		Expires:  server.Expiry(),
-		Revision: server.GetRevision(),
-	}, nil
-}
-
 // UpdateNode conditionally updates the provided server.
 func (s *PresenceService) UpdateNode(ctx context.Context, server types.Server) (types.Server, error) {
 	if server.GetNamespace() == "" {
 		server.SetNamespace(apidefaults.Namespace)
 	}
-	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	item, err := itemFromNode(server)
+	if n := server.GetNamespace(); n != apidefaults.Namespace {
+		return nil, trace.BadParameter("cannot place node in namespace %q, custom namespaces are deprecated", n)
+	}
+	rev := server.GetRevision()
+	value, err := services.MarshalServer(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	lease, err := s.ConditionalUpdate(ctx, *item)
+	lease, err := s.ConditionalUpdate(ctx, backend.Item{
+		Key:      backend.NewKey(nodesPrefix, server.GetNamespace(), server.GetName()),
+		Value:    value,
+		Expires:  server.Expiry(),
+		Revision: rev,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -373,7 +453,16 @@ func (s *PresenceService) DeleteAllReverseTunnels(ctx context.Context) error {
 }
 
 // UpsertReverseTunnel upserts reverse tunnel entry
-func (s *PresenceService) UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error) {
+func (s *PresenceService) UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) error {
+	_, err := s.UpsertReverseTunnelV2(ctx, tunnel)
+	return trace.Wrap(err)
+}
+
+// UpsertReverseTunnelV2 upserts reverse tunnel entry and returns the upserted
+// value.
+// TODO(noah): In v18, we can rename this to UpsertReverseTunnel and remove the
+// version which does not return the upserted value.
+func (s *PresenceService) UpsertReverseTunnelV2(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error) {
 	if err := services.ValidateReverseTunnel(tunnel); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -409,7 +498,36 @@ func (s *PresenceService) GetReverseTunnel(ctx context.Context, name string) (ty
 	)
 }
 
-// DeleteReverseTunnel deletes reverse tunnel by its cluster name
+// GetReverseTunnels returns a list of registered servers
+// Deprecated: use ListReverseTunnels
+// TODO(noah): REMOVE IN 18.0.0 - replace with calls to ListReverseTunnels
+func (s *PresenceService) GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error) {
+	startKey := backend.ExactKey(reverseTunnelsPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tunnels := make([]types.ReverseTunnel, len(result.Items))
+	if len(result.Items) == 0 {
+		return tunnels, nil
+	}
+	for i, item := range result.Items {
+		tunnel, err := services.UnmarshalReverseTunnel(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tunnels[i] = tunnel
+	}
+	// sorting helps with tests and makes it all deterministic
+	sort.Sort(services.SortedReverseTunnels(tunnels))
+	return tunnels, nil
+}
+
+// DeleteReverseTunnel deletes reverse tunnel by it's cluster name
 func (s *PresenceService) DeleteReverseTunnel(ctx context.Context, clusterName string) error {
 	err := s.Delete(ctx, backend.NewKey(reverseTunnelsPrefix, clusterName))
 	return trace.Wrap(err)
@@ -885,10 +1003,6 @@ func (s *PresenceService) UpsertDatabaseServer(ctx context.Context, server types
 	if err := services.CheckAndSetDefaults(server); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	rev := server.GetRevision()
 	value, err := services.MarshalDatabaseServer(server)
 	if err != nil {
@@ -982,10 +1096,6 @@ func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server ty
 	if err := services.CheckAndSetDefaults(server); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	rev := server.GetRevision()
 	value, err := services.MarshalAppServer(server)
 	if err != nil {
@@ -1270,9 +1380,6 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindIdentityCenterAccountAssignment:
 		keyPrefix = []string{awsResourcePrefix, awsAccountAssignmentPrefix}
 		unmarshalItemFunc = backendItemToIdentityCenterAccountAssignment
-	case types.KindGitServer:
-		keyPrefix = []string{gitServerPrefix}
-		unmarshalItemFunc = backendItemToServer(types.KindGitServer)
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}

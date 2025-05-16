@@ -25,15 +25,14 @@ package main
 // inspect what is happening inside the plugin.
 
 import (
-	"context"
 	"io"
-	"log/slog"
 	"os"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/protoc-gen-gogo/generator"
 	plugin "github.com/gogo/protobuf/protoc-gen-gogo/plugin"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 const pluginInputPathEnvironment = "TELEPORT_PROTOC_READ_FILE"
@@ -41,10 +40,10 @@ const pluginInputPathEnvironment = "TELEPORT_PROTOC_READ_FILE"
 func readRequest() (*plugin.CodeGeneratorRequest, error) {
 	inputPath := os.Getenv(pluginInputPathEnvironment)
 	if inputPath == "" {
-		slog.ErrorContext(context.Background(), "When built with the 'debug' tag, the input path must be set through the TELEPORT_PROTOC_READ_FILE environment variable")
+		log.Error(trace.BadParameter("When built with the 'debug' tag, the input path must be set through the environment variable: %s", pluginInputPathEnvironment))
 		os.Exit(-1)
 	}
-	slog.InfoContext(context.Background(), "This is a debug build, the protoc request is read from provided file", "file", inputPath)
+	log.Infof("This is a debug build, the protoc request is read from the file: '%s'", inputPath)
 
 	req, err := readRequestFromFile(inputPath)
 	if err != nil {

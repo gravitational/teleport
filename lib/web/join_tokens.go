@@ -378,14 +378,14 @@ func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request
 
 	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the node install script", "error", err)
+		log.WithError(err).Info("Failed to return the node install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the node install script", "error", err)
+		log.WithError(err).Info("Failed to return the node install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 
@@ -398,20 +398,14 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 
 	name, err := url.QueryUnescape(queryValues.Get("name"))
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the app install script",
-			"query_param", "name",
-			"error", err,
-		)
+		log.WithField("query-param", "name").WithError(err).Debug("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	uri, err := url.QueryUnescape(queryValues.Get("uri"))
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the app install script",
-			"query_param", "uri",
-			"error", err,
-		)
+		log.WithField("query-param", "uri").WithError(err).Debug("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
@@ -425,14 +419,14 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 
 	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the app install script", "error", err)
+		log.WithError(err).Info("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the app install script", "error", err)
+		log.WithError(err).Debug("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 
@@ -449,14 +443,14 @@ func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Req
 
 	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the database install script", "error", err)
+		log.WithError(err).Info("Failed to return the database install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the database install script", "error", err)
+		log.WithError(err).Debug("Failed to return the database install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 
@@ -470,17 +464,12 @@ func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Re
 
 	discoveryGroup, err := url.QueryUnescape(queryValues.Get(discoveryGroupQueryParam))
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the discovery install script",
-			"error", err,
-			"query_param", discoveryGroupQueryParam,
-		)
+		log.WithField("query-param", discoveryGroupQueryParam).WithError(err).Debug("Failed to return the discovery install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 	if discoveryGroup == "" {
-		h.logger.DebugContext(r.Context(), "Failed to return the discovery install script. Missing required fields",
-			"query_param", discoveryGroupQueryParam,
-		)
+		log.WithField("query-param", discoveryGroupQueryParam).Debug("Failed to return the discovery install script. Missing required fields.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
@@ -493,14 +482,14 @@ func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Re
 
 	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the discovery install script", "error", err)
+		log.WithError(err).Info("Failed to return the discovery install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the discovery install script", "error", err)
+		log.WithError(err).Debug("Failed to return the discovery install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 

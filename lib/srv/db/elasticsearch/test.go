@@ -28,7 +28,10 @@ import (
 
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
@@ -40,6 +43,7 @@ type TestServer struct {
 	listener  net.Listener
 	port      string
 	tlsConfig *tls.Config
+	log       logrus.FieldLogger
 }
 
 // NewTestServer returns a new instance of a test Elasticsearch server.
@@ -67,6 +71,10 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 		listener:  config.Listener,
 		port:      port,
 		tlsConfig: tlsConfig,
+		log: logrus.WithFields(logrus.Fields{
+			teleport.ComponentKey: defaults.ProtocolElasticsearch,
+			"name":                config.Name,
+		}),
 	}
 
 	for _, opt := range opts {

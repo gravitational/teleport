@@ -19,7 +19,6 @@
 package authz_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -128,7 +127,7 @@ func testIsDeviceVerified(t *testing.T, name string, fn func(ext *tlsca.DeviceEx
 
 func TestVerifyTLSUser(t *testing.T) {
 	runVerifyUserTest(t, "VerifyTLSUser", func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions) error {
-		return authz.VerifyTLSUser(context.Background(), dt, tlsca.Identity{
+		return authz.VerifyTLSUser(dt, tlsca.Identity{
 			Username:         "llama",
 			DeviceExtensions: *ext,
 		})
@@ -137,7 +136,7 @@ func TestVerifyTLSUser(t *testing.T) {
 
 func TestVerifySSHUser(t *testing.T) {
 	runVerifyUserTest(t, "VerifySSHUser", func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions) error {
-		return authz.VerifySSHUser(context.Background(), dt, &sshca.Identity{
+		return authz.VerifySSHUser(dt, &sshca.Identity{
 			DeviceID:           ext.DeviceID,
 			DeviceAssetTag:     ext.AssetTag,
 			DeviceCredentialID: ext.CredentialID,

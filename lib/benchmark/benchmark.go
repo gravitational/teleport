@@ -24,7 +24,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -34,6 +33,7 @@ import (
 
 	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -102,7 +102,7 @@ func Run(ctx context.Context, lg *Linear, host, login, proxy string, suite Suite
 		signal.Notify(exitSignals, syscall.SIGTERM, syscall.SIGINT)
 		defer signal.Stop(exitSignals)
 		sig := <-exitSignals
-		slog.DebugContext(ctx, "terminating benchmark due to signal", "signal", sig)
+		logrus.Debugf("signal: %v", sig)
 		cancel()
 	}()
 	var results []Result
@@ -131,7 +131,7 @@ func Run(ctx context.Context, lg *Linear, host, login, proxy string, suite Suite
 }
 
 // ExportLatencyProfile exports the latency profile and returns the path as a string if no errors
-func ExportLatencyProfile(ctx context.Context, path string, h *hdrhistogram.Histogram, ticks int32, valueScale float64) (string, error) {
+func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, valueScale float64) (string, error) {
 	timeStamp := time.Now().Format("2006-01-02_15:04:05")
 	suffix := fmt.Sprintf("latency_profile_%s.txt", timeStamp)
 	if path != "." {
@@ -147,7 +147,7 @@ func ExportLatencyProfile(ctx context.Context, path string, h *hdrhistogram.Hist
 
 	if _, err := h.PercentilesPrint(fo, ticks, valueScale); err != nil {
 		if err := fo.Close(); err != nil {
-			slog.WarnContext(ctx, "failed to close latency profile file", "error", err)
+			logrus.WithError(err).Warningf("failed to close file")
 		}
 		return "", trace.Wrap(err)
 	}
@@ -259,7 +259,7 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, suite
 			result.Duration = time.Since(start)
 			return result, nil
 		case <-statusTicker.C:
-			slog.InfoContext(ctx, "working...", "current_observation_count", result.RequestsOriginated)
+			logrus.Infof("working... current observation count: %d", result.RequestsOriginated)
 		}
 	}
 }

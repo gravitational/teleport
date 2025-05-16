@@ -23,11 +23,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // ExitCodeError wraps an exit code as an error.
@@ -86,7 +85,7 @@ func (e *SessionsCollection) WriteText(w io.Writer) error {
 			target = session.DatabaseName
 			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
 		default:
-			slog.WarnContext(context.Background(), "unsupported event type: expected SessionEnd, WindowsDesktopSessionEnd or DatabaseSessionEnd", "event_type", logutils.TypeAttr(event))
+			log.Warn(trace.BadParameter("unsupported event type: expected SessionEnd, WindowsDesktopSessionEnd or DatabaseSessionEnd: got: %T", event))
 			continue
 		}
 
@@ -187,17 +186,6 @@ func FormatLabels(labels map[string]string, verbose bool) string {
 	return strings.Join(append(result, namespaced...), ",")
 }
 
-// FormatMultiValueLabels formats labels that have multiple values as a map
-// where each key has only one formatted value, then that map is formatted with
-// FormatLabels as above.
-func FormatMultiValueLabels(labels map[string][]string, verbose bool) string {
-	ll := make(map[string]string, len(labels))
-	for key, values := range labels {
-		ll[key] = fmt.Sprintf("%v", values)
-	}
-	return FormatLabels(ll, verbose)
-}
-
 // FormatResourceName returns the resource's name or its name as originally
 // discovered in the cloud by the Teleport Discovery Service.
 // In verbose mode, it always returns the resource name.
@@ -206,35 +194,10 @@ func FormatMultiValueLabels(labels map[string][]string, verbose bool) string {
 func FormatResourceName(r types.ResourceWithLabels, verbose bool) string {
 	if !verbose {
 		// return the (shorter) discovered name in non-verbose mode.
-		discoveredName, ok := GetDiscoveredResourceName(r)
+		discoveredName, ok := r.GetAllLabels()[types.DiscoveredNameLabel]
 		if ok && discoveredName != "" {
 			return discoveredName
 		}
 	}
 	return r.GetName()
-}
-
-// GetDiscoveredResourceName returns the resource original name discovered in
-// the cloud by the Teleport Discovery Service.
-func GetDiscoveredResourceName(r types.ResourceWithLabels) (discoveredName string, ok bool) {
-	discoveredName, ok = r.GetAllLabels()[types.DiscoveredNameLabel]
-	return
-}
-
-// SetDiscoveredResourceName sets the original name discovered in the cloud by
-// the Teleport Discovery Service.
-func SetDiscoveredResourceName(r types.ResourceWithLabels, discoveredName string) {
-	labels := r.GetStaticLabels()
-	labels[types.DiscoveredNameLabel] = discoveredName
-	r.SetStaticLabels(labels)
-}
-
-// FormatDefault formats a zero value with its default, or if the value is not
-// zero it just returns the value.
-func FormatDefault[T comparable](val, defaultVal T) string {
-	var zero T
-	if val == zero {
-		return fmt.Sprintf("%v (default)", defaultVal)
-	}
-	return fmt.Sprintf("%v", val)
 }

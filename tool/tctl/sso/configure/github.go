@@ -21,11 +21,11 @@ package configure
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -83,7 +83,7 @@ Examples:
   The values for --secret and --id are provided by GitHub.
 
   > tctl sso configure gh ... | tctl sso test
-
+  
   Generate the configuration and immediately test it using "tctl sso test" command.`)
 
 	preset := &AuthKindCommand{
@@ -104,7 +104,7 @@ func ghRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.Github
 	}
 
 	if spec.RedirectURL == "" {
-		spec.RedirectURL = ResolveCallbackURL(ctx, cmd.Logger, clt, "RedirectURL", "https://%v/v1/webapi/github/callback")
+		spec.RedirectURL = ResolveCallbackURL(cmd.Logger, clt, "RedirectURL", "https://%v/v1/webapi/github/callback")
 	}
 
 	connector, err := types.NewGithubConnector(flags.connectorName, *spec)
@@ -115,13 +115,13 @@ func ghRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.Github
 }
 
 // ResolveCallbackURL deals with common pattern of resolving callback URL for IdP to use.
-func ResolveCallbackURL(ctx context.Context, logger *slog.Logger, clt *authclient.Client, fieldName string, callbackPattern string) string {
+func ResolveCallbackURL(logger *logrus.Entry, clt *authclient.Client, fieldName string, callbackPattern string) string {
 	var callbackURL string
 
-	logger.InfoContext(ctx, "resolving callback url automatically", "field_name", fieldName)
+	logger.Infof("%v empty, resolving automatically.", fieldName)
 	proxies, err := clt.GetProxies()
 	if err != nil {
-		logger.ErrorContext(ctx, "unable to get proxy list", "error", err)
+		logger.WithError(err).Error("unable to get proxy list.")
 	}
 
 	// find first proxy with public addr
@@ -135,17 +135,17 @@ func ResolveCallbackURL(ctx context.Context, logger *slog.Logger, clt *authclien
 
 	// check if successfully set.
 	if callbackURL == "" {
-		logger.WarnContext(ctx, "Unable to resolve callback url automatically, cluster's public address unknown", "field_name", fieldName)
+		logger.Warnf("Unable to fill %v automatically, cluster's public address unknown.", fieldName)
 	} else {
-		logger.InfoContext(ctx, "resolved callback url", "field_name", fieldName, "callback_url", callbackURL)
+		logger.Infof("%v set to %q", fieldName, callbackURL)
 	}
 	return callbackURL
 }
 
-func specCheckRoles(ctx context.Context, logger *slog.Logger, spec *types.GithubConnectorSpecV3, ignoreMissingRoles bool, clt *authclient.Client) error {
+func specCheckRoles(ctx context.Context, logger *logrus.Entry, spec *types.GithubConnectorSpecV3, ignoreMissingRoles bool, clt *authclient.Client) error {
 	allRoles, err := clt.GetRoles(ctx)
 	if err != nil {
-		logger.WarnContext(ctx, "Unable to get roles list, skipping teams-to-roles sanity checks", "error", err)
+		logger.WithError(err).Warn("Unable to get roles list. Skipping teams-to-roles sanity checks.")
 		return nil
 	}
 
@@ -161,10 +161,7 @@ func specCheckRoles(ctx context.Context, logger *slog.Logger, spec *types.Github
 			_, found := roleMap[role]
 			if !found {
 				if ignoreMissingRoles {
-					logger.WarnContext(ctx, "teams-to-roles references non-existing role",
-						"non_existent_role", role,
-						"available_roles", roleNames,
-					)
+					logger.Warnf("teams-to-roles references non-existing role: %q. Available roles: %v.", role, roleNames)
 				} else {
 					return trace.BadParameter("teams-to-roles references non-existing role: %v. Correct the mapping, or add --ignore-missing-roles to ignore this error. Available roles: %v.", role, roleNames)
 				}

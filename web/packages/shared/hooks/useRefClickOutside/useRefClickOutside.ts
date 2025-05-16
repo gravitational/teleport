@@ -33,7 +33,7 @@ export const IGNORE_CLICK_CLASSNAME = 'ignore-click';
 export function useRefClickOutside<
   T extends { contains(eventTarget: HTMLElement): boolean },
 >(options: { open: boolean; setOpen(b: boolean): void }): MutableRefObject<T> {
-  const ref = useRef<T>(undefined);
+  const ref = useRef<T>();
   const { setOpen, open } = options;
 
   const handleClickOutside = useCallback(

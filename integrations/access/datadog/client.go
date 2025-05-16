@@ -126,17 +126,19 @@ func onAfterDatadogResponse(sink common.StatusSink) resty.ResponseMiddleware {
 			defer cancel()
 
 			if err := sink.Emit(ctx, status); err != nil {
-				log.ErrorContext(ctx, "Error while emitting Datadog Incident Management plugin status", "error", err)
+				log.WithError(err).Errorf("Error while emitting Datadog Incident Management plugin status: %v", err)
 			}
 		}
 
 		if resp.IsError() {
+			var details string
 			switch result := resp.Error().(type) {
 			case *ErrorResult:
-				return trace.Errorf("http error code=%v, errors=[%v]", resp.StatusCode(), strings.Join(result.Errors, ", "))
+				details = fmt.Sprintf("http error code=%v, errors=[%v]", resp.StatusCode(), strings.Join(result.Errors, ", "))
 			default:
-				return trace.Errorf("unknown error result %#v", result)
+				details = fmt.Sprintf("unknown error result %#v", result)
 			}
+			return trace.Errorf(details)
 		}
 		return nil
 	}

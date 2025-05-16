@@ -21,8 +21,6 @@ package inventory
 import (
 	"context"
 	"fmt"
-	"io"
-	"math/rand/v2"
 	"os"
 	"slices"
 	"sync"
@@ -30,7 +28,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -205,27 +202,6 @@ func TestSSHServerBasics(t *testing.T) {
 
 	// set up fake in-memory control stream
 	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
-	t.Cleanup(func() {
-		controller.Close()
-		downstream.Close()
-		upstream.Close()
-	})
-
-	// launch goroutine to respond to ping requests
-	go func() {
-		for {
-			select {
-			case msg := <-downstream.Recv():
-				downstream.Send(ctx, proto.UpstreamInventoryPong{
-					ID: msg.(proto.DownstreamInventoryPing).ID,
-				})
-			case <-downstream.Done():
-				return
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
 
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
@@ -324,6 +300,18 @@ func TestSSHServerBasics(t *testing.T) {
 		deny(sshKeepAliveErr, handlerClose),
 	)
 
+	// launch goroutine to respond to a single ping
+	go func() {
+		select {
+		case msg := <-downstream.Recv():
+			downstream.Send(ctx, proto.UpstreamInventoryPong{
+				ID: msg.(proto.DownstreamInventoryPing).ID,
+			})
+		case <-downstream.Done():
+		case <-ctx.Done():
+		}
+	}()
+
 	oldExpiry, expiry = expiry, auth.getLastServerExpiry()
 	require.Greater(t, expiry, oldExpiry)
 
@@ -416,27 +404,6 @@ func TestAppServerBasics(t *testing.T) {
 
 	// set up fake in-memory control stream
 	upstream, downstream := client.InventoryControlStreamPipe()
-	t.Cleanup(func() {
-		controller.Close()
-		upstream.Close()
-		downstream.Close()
-	})
-
-	// launch goroutine to respond to ping requests
-	go func() {
-		for {
-			select {
-			case msg := <-downstream.Recv():
-				downstream.Send(ctx, proto.UpstreamInventoryPong{
-					ID: msg.(proto.DownstreamInventoryPing).ID,
-				})
-			case <-downstream.Done():
-				return
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
 
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
@@ -535,6 +502,18 @@ func TestAppServerBasics(t *testing.T) {
 		expect(appUpsertErr, appUpsertRetryOk),
 		deny(appKeepAliveErr, handlerClose),
 	)
+
+	// launch goroutine to respond to a single ping
+	go func() {
+		select {
+		case msg := <-downstream.Recv():
+			downstream.Send(ctx, proto.UpstreamInventoryPong{
+				ID: msg.(proto.DownstreamInventoryPing).ID,
+			})
+		case <-downstream.Done():
+		case <-ctx.Done():
+		}
+	}()
 
 	// limit time of ping call
 	pingCtx, cancel := context.WithTimeout(ctx, time.Second*10)
@@ -649,27 +628,6 @@ func TestDatabaseServerBasics(t *testing.T) {
 
 	// set up fake in-memory control stream
 	upstream, downstream := client.InventoryControlStreamPipe()
-	t.Cleanup(func() {
-		controller.Close()
-		upstream.Close()
-		downstream.Close()
-	})
-
-	// launch goroutine to respond to ping requests
-	go func() {
-		for {
-			select {
-			case msg := <-downstream.Recv():
-				downstream.Send(ctx, proto.UpstreamInventoryPong{
-					ID: msg.(proto.DownstreamInventoryPing).ID,
-				})
-			case <-downstream.Done():
-				return
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
 
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
@@ -769,6 +727,18 @@ func TestDatabaseServerBasics(t *testing.T) {
 		expect(dbUpsertErr, dbUpsertRetryOk),
 		deny(dbKeepAliveErr, handlerClose),
 	)
+
+	// launch goroutine to respond to a single ping
+	go func() {
+		select {
+		case msg := <-downstream.Recv():
+			downstream.Send(ctx, proto.UpstreamInventoryPong{
+				ID: msg.(proto.DownstreamInventoryPing).ID,
+			})
+		case <-downstream.Done():
+		case <-ctx.Done():
+		}
+	}()
 
 	// limit time of ping call
 	pingCtx, cancel := context.WithTimeout(ctx, time.Second*10)
@@ -918,25 +888,10 @@ func TestInstanceHeartbeat(t *testing.T) {
 		withInstanceHBInterval(time.Millisecond*200),
 		withTestEventsChannel(events),
 	)
+	defer controller.Close()
 
 	// set up fake in-memory control stream
 	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
-	t.Cleanup(func() {
-		controller.Close()
-		downstream.Close()
-		upstream.Close()
-	})
-
-	// Launch goroutine to consume downstream request and don't block control steam handler.
-	go func() {
-		for {
-			select {
-			case <-downstream.Recv():
-			case <-downstream.Done():
-				return
-			}
-		}
-	}()
 
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
@@ -1051,11 +1006,9 @@ func TestUpdateLabels(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	downstreamHandle, err := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+	downstreamHandle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 		return downstream, nil
-	}, func(_ context.Context) (proto.UpstreamInventoryHello, error) { return upstreamHello, nil })
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, downstreamHandle.Close()) })
+	}, upstreamHello)
 
 	// Wait for upstream hello.
 	select {
@@ -1115,11 +1068,11 @@ func TestAgentMetadata(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	inventoryHandle, err := NewDownstreamHandle(
+	NewDownstreamHandle(
 		func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 			return downstream, nil
 		},
-		func(ctx context.Context) (proto.UpstreamInventoryHello, error) { return upstreamHello, nil },
+		upstreamHello,
 		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
 			return &metadata.Metadata{
 				OS:                    "llamaOS",
@@ -1133,8 +1086,6 @@ func TestAgentMetadata(t *testing.T) {
 			}, nil
 		}),
 	)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	// Wait for upstream hello.
 	select {
@@ -1163,21 +1114,13 @@ func TestGoodbye(t *testing.T) {
 	tests := []struct {
 		name            string
 		supportsGoodbye bool
-		deleteResources bool
-		softReload      bool
 	}{
 		{
 			name: "no goodbye",
 		},
 		{
-			name:            "goodbye termination",
-			deleteResources: true,
+			name:            "goodbye",
 			supportsGoodbye: true,
-		},
-		{
-			name:            "goodbye soft-reload",
-			supportsGoodbye: true,
-			softReload:      true,
 		},
 	}
 
@@ -1190,16 +1133,16 @@ func TestGoodbye(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			// Test Setup: crafting a controller and an upstream/downstream stream pipe
 			controller := NewController(
 				&fakeAuth{},
 				usagereporter.DiscardUsageReporter{},
 				withInstanceHBInterval(time.Millisecond*200),
 			)
 			defer controller.Close()
+
+			// Set up fake in-memory control stream.
 			upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr("127.0.0.1:8090"))
 
-			currentDownstream := downstream
 			downstreamHello := proto.DownstreamInventoryHello{
 				Version:  teleport.Version,
 				ServerID: "auth",
@@ -1210,22 +1153,13 @@ func TestGoodbye(t *testing.T) {
 				},
 			}
 
-			// Test setup: creating downstream handler
-			clock := clockwork.NewFakeClock()
-			handle, err := NewDownstreamHandle(
-				func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
-					return currentDownstream, nil
-				}, func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
-					return upstreamHello, nil
-				}, WithDownstreamClock(clock))
-			require.NoError(t, err)
-			t.Cleanup(func() {
-				require.NoError(t, handle.Close())
-			})
-
-			// Test setup: wait for the downstream handler to finish its startup and respond to its hello
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
+			handle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+				return downstream, nil
+			}, upstreamHello)
+
+			// Wait for upstream hello.
 			select {
 			case msg := <-upstream.Recv():
 				require.Equal(t, upstreamHello, msg)
@@ -1234,122 +1168,41 @@ func TestGoodbye(t *testing.T) {
 			}
 			require.NoError(t, upstream.Send(ctx, downstreamHello))
 
-			// Test execution part 1: Validating that calling SetAndSendGoodbye does
-			// cause the downstream handler t send a goodbye.
-
-			// Fire a routine that will call SetAndSendGoodbye
-			// Then send a Pong message to indicate the test is done.
-			nonce := rand.Int()
+			// Attempt to send a goodbye.
 			go func() {
 				ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
-				handle.SetAndSendGoodbye(ctx, test.deleteResources, test.softReload)
-
-				// After calling the goodbye, we do a little hack by sending a pong
-				// This will allow us to know that this routine is done on the other side of the test
-				// while making sure we are strictly after the goodbye message
-				// (SendGoodBye is synchronous, and we send messages over the same channel)
-				select {
-				case sender := <-handle.Sender():
-					sender.Send(ctx, proto.UpstreamInventoryPong{ID: uint64(nonce)})
-				case <-ctx.Done():
-					assert.Fail(t, "never got downstream sender, was not able to send 'end-of-test pong'")
-				}
+				assert.NoError(t, handle.SendGoodbye(ctx))
+				// Close the handle to unblock receive below.
+				assert.NoError(t, handle.Close())
 			}()
 
-			// Wait until we receive the pong.
-			var receivedGoodbye *proto.UpstreamInventoryGoodbye
+			// Wait to see if a goodbye is received.
 			timeoutC := time.After(10 * time.Second)
-		OuterLoop:
 			for {
 				select {
 				case msg := <-upstream.Recv():
-					switch msg := msg.(type) {
-					case proto.UpstreamInventoryHello, proto.InventoryHeartbeat,
-						proto.UpstreamInventoryAgentMetadata:
-						// We skip all usual messages
-					case proto.UpstreamInventoryGoodbye:
-						// We register the goodbye
-						receivedGoodbye = &msg
-					case proto.UpstreamInventoryPong:
-						// The emitter routine is done with its part, we stop waiting for events
-						require.Equal(t, nonce, int(msg.ID), "received pong message without the 'end-of-test ID'")
-						break OuterLoop
-					default:
-						require.Fail(t, "unexpected message type", msg)
-					}
-				case <-upstream.Done():
-					require.Fail(t, "upstream unexpectedly closed")
-				case <-timeoutC:
-					require.Fail(t, "timed out waiting for 'end-of-test pong'")
-				}
-			}
-
-			// Test validation pt.1: Check if we received a pong
-			if test.supportsGoodbye {
-				require.NotNil(t, receivedGoodbye)
-				require.Equal(t, test.deleteResources, receivedGoodbye.DeleteResources)
-				require.Equal(t, test.softReload, receivedGoodbye.SoftReload)
-			} else {
-				require.Nil(t, receivedGoodbye)
-			}
-
-			// Don't test further if we don't support goodbye
-			if !test.supportsGoodbye {
-				return
-			}
-
-			// Test execution pt.2: See that the downstreamHandler sends back the goodbye
-			// when the stream is re-established.
-
-			newUpstream, newDownstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr("127.0.0.1:8090"))
-			currentDownstream = newDownstream
-
-			// Simulating a failure on the old control stream, asking for a reconnection
-			require.NoError(t, downstream.CloseWithError(io.EOF))
-
-			ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			// Wait to hit the handle linear retry, then jump into the future
-			require.NoError(t, clock.BlockUntilContext(ctx, 1))
-			select {
-			case <-ctx.Done():
-				require.Fail(t, "upstream never waited")
-			default:
-				clock.Advance(time.Minute)
-			}
-
-			// Test setup: wait for the downstream handler to finish its startup and respond to its hello
-			select {
-			case msg := <-newUpstream.Recv():
-				require.Equal(t, upstreamHello, msg)
-			case <-ctx.Done():
-				require.Fail(t, "never got upstream hello")
-			}
-			require.NoError(t, newUpstream.Send(ctx, downstreamHello))
-
-			// Test execution: wait until we receive at least 1 goodbye.
-			timeoutC = time.After(10 * time.Second)
-			for {
-				select {
-				case msg := <-newUpstream.Recv():
-					switch msg := msg.(type) {
+					switch msg.(type) {
 					case proto.UpstreamInventoryHello, proto.InventoryHeartbeat,
 						proto.UpstreamInventoryPong, proto.UpstreamInventoryAgentMetadata:
 					case proto.UpstreamInventoryGoodbye:
-						require.Equal(t, receivedGoodbye, &msg, "re-emitted goodbye should be identical")
+						if test.supportsGoodbye {
+							require.Equal(t, proto.UpstreamInventoryGoodbye{DeleteResources: true}, msg)
+						} else {
+							t.Fatalf("received an unexpected message %v", msg)
+						}
 						return
-					default:
-						require.Fail(t, "unexpected message type", msg)
 					}
-
-				case <-newUpstream.Done():
-					require.Fail(t, "upstream unexpectedly closed")
+				case <-upstream.Done():
+					return
 				case <-timeoutC:
-					require.Fail(t, "timeout waiting for goodbye message")
+					if test.supportsGoodbye {
+						require.FailNow(t, "timeout waiting for goodbye message")
+					} else {
+						return
+					}
 				}
 			}
-
 		})
 	}
 }
@@ -1380,21 +1233,6 @@ func TestKubernetesServerBasics(t *testing.T) {
 
 	// set up fake in-memory control stream
 	upstream, downstream := client.InventoryControlStreamPipe()
-	// launch goroutine to respond to ping requests
-	go func() {
-		for {
-			select {
-			case msg := <-downstream.Recv():
-				downstream.Send(ctx, proto.UpstreamInventoryPong{
-					ID: msg.(proto.DownstreamInventoryPing).ID,
-				})
-			case <-downstream.Done():
-				return
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
 
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
@@ -1495,6 +1333,18 @@ func TestKubernetesServerBasics(t *testing.T) {
 		expect(kubeUpsertErr, kubeUpsertRetryOk),
 		deny(kubeKeepAliveErr, handlerClose),
 	)
+
+	// launch goroutine to respond to a single ping
+	go func() {
+		select {
+		case msg := <-downstream.Recv():
+			downstream.Send(ctx, proto.UpstreamInventoryPong{
+				ID: msg.(proto.DownstreamInventoryPing).ID,
+			})
+		case <-downstream.Done():
+		case <-ctx.Done():
+		}
+	}()
 
 	// limit time of ping call
 	pingCtx, cancel := context.WithTimeout(ctx, time.Second*10)
@@ -1611,11 +1461,9 @@ func TestGetSender(t *testing.T) {
 		Services: []types.SystemRole{types.RoleNode, types.RoleApp},
 	}
 
-	handle, err := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+	handle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 		return downstream, nil
-	}, func(ctx context.Context) (proto.UpstreamInventoryHello, error) { return upstreamHello, nil })
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, handle.Close()) })
+	}, upstreamHello)
 
 	// Validate that the sender is not present prior to
 	// the stream becoming healthy.
@@ -1642,76 +1490,6 @@ func TestGetSender(t *testing.T) {
 		assert.True(t, ok)
 		assert.NotNil(t, s)
 	}, 10*time.Second, 100*time.Millisecond)
-}
-
-// TestTimeReconciliation verifies basic behavior of the time reconciliation check.
-func TestTimeReconciliation(t *testing.T) {
-	const serverID = "test-server"
-	const peerAddr = "1.2.3.4:456"
-	const wantAddr = "1.2.3.4:123"
-
-	ctx, cancel := context.WithCancel(context.Background())
-	events := make(chan testEvent, 1024)
-	auth := &fakeAuth{
-		expectAddr: wantAddr,
-	}
-
-	clock := clockwork.NewRealClock()
-	controller := NewController(
-		auth,
-		usagereporter.DiscardUsageReporter{},
-		withInstanceHBInterval(time.Millisecond*200),
-		withTestEventsChannel(events),
-		WithClock(clock),
-	)
-
-	// Set up fake in-memory control stream.
-	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
-
-	t.Cleanup(func() {
-		require.NoError(t, downstream.Close())
-		require.NoError(t, upstream.Close())
-		require.NoError(t, controller.Close())
-		cancel()
-	})
-
-	// Launch goroutine to respond to clock request.
-	go func() {
-		for {
-			select {
-			case msg := <-downstream.Recv():
-				downstream.Send(ctx, proto.UpstreamInventoryPong{
-					ID:          msg.(proto.DownstreamInventoryPing).ID,
-					SystemClock: clock.Now().Add(-time.Minute).UTC(),
-				})
-			case <-downstream.Done():
-				return
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
-	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
-		ServerID: serverID,
-		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode},
-	})
-
-	_, ok := controller.GetControlStream(serverID)
-	require.True(t, ok)
-
-	awaitEvents(t, events, expect(pongOk))
-	awaitEvents(t, events,
-		expect(instanceHeartbeatOk),
-		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
-	)
-	auth.mu.Lock()
-	m := auth.lastInstance.GetLastMeasurement()
-	auth.mu.Unlock()
-
-	require.NotNil(t, m)
-	require.InDelta(t, time.Minute, m.ControllerSystemClock.Sub(m.SystemClock)-m.RequestDuration/2, float64(time.Second))
 }
 
 type eventOpts struct {

@@ -1,4 +1,5 @@
 //go:build dynamodb
+// +build dynamodb
 
 /*
  * Teleport

@@ -21,8 +21,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-import { ConnectToDesktopResponse } from "./service_pb";
-import { ConnectToDesktopRequest } from "./service_pb";
 import { GetAppResponse } from "./service_pb";
 import { GetAppRequest } from "./service_pb";
 import { AuthenticateWebDeviceResponse } from "./service_pb";
@@ -398,12 +396,6 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: GetApp(teleport.lib.teleterm.v1.GetAppRequest) returns (teleport.lib.teleterm.v1.GetAppResponse);
      */
     getApp: grpc.handleUnaryCall<GetAppRequest, GetAppResponse>;
-    /**
-     * ConnectToDesktop is a bidirectional stream for the desktop connection.
-     *
-     * @generated from protobuf rpc: ConnectToDesktop(stream teleport.lib.teleterm.v1.ConnectToDesktopRequest) returns (stream teleport.lib.teleterm.v1.ConnectToDesktopResponse);
-     */
-    connectToDesktop: grpc.handleBidiStreamingCall<ConnectToDesktopRequest, ConnectToDesktopResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.v1.TerminalService.
@@ -826,15 +818,5 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => GetAppRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(GetAppResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetAppRequest.toBinary(value))
-    },
-    connectToDesktop: {
-        path: "/teleport.lib.teleterm.v1.TerminalService/ConnectToDesktop",
-        originalName: "ConnectToDesktop",
-        requestStream: true,
-        responseStream: true,
-        responseDeserialize: bytes => ConnectToDesktopResponse.fromBinary(bytes),
-        requestDeserialize: bytes => ConnectToDesktopRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(ConnectToDesktopResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(ConnectToDesktopRequest.toBinary(value))
     }
 };

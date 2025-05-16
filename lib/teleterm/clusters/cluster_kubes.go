@@ -54,7 +54,7 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, clusterClient *client.Clu
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	result, err := clusterClient.IssueUserCertsWithMFA(
+	key, _, err := clusterClient.IssueUserCertsWithMFA(
 		ctx, client.ReissueParams{
 			RouteToCluster:    c.clusterClient.SiteName,
 			KubernetesCluster: kubeCluster,
@@ -72,14 +72,14 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, clusterClient *client.Clu
 	// access to the cluster with at least one kubernetes_user or kubernetes_group
 	// defined.
 	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(
-		result.KeyRing,
+		key,
 		clusterClient.RootClusterName(),
 		c.Name,
 		kubeCluster); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	cert, err := result.KeyRing.KubeTLSCert(kubeCluster)
+	cert, err := key.KubeTLSCert(kubeCluster)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

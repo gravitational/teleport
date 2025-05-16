@@ -185,14 +185,14 @@ describe('KubernetesAccessSection', () => {
             expect.objectContaining({ value: 'create' }),
             expect.objectContaining({ value: 'delete' }),
           ],
-          roleVersion: 'v8',
+          roleVersion: 'v7',
         },
       ],
       users: [
         expect.objectContaining({ value: 'joe' }),
         expect.objectContaining({ value: 'mary' }),
       ],
-      roleVersion: 'v8',
+      roleVersion: 'v7',
       hideValidationErrors: true,
     } as KubernetesAccess);
   });

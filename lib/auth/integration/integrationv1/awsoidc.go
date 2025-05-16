@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -135,7 +136,7 @@ type CacheAWSOIDC interface {
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 
 	// GetClusterName returns the current cluster name.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(...services.MarshalOption) (types.ClusterName, error)
 }
 
 // NewAWSOIDCService returns a new AWSOIDCService.
@@ -199,8 +200,6 @@ func (s *AWSOIDCService) awsClientReq(ctx context.Context, integrationName, regi
 }
 
 // ListEICE returns a paginated list of EC2 Instance Connect Endpoints.
-//
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 func (s *AWSOIDCService) ListEICE(ctx context.Context, req *integrationpb.ListEICERequest) (*integrationpb.ListEICEResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -250,8 +249,6 @@ func (s *AWSOIDCService) ListEICE(ctx context.Context, req *integrationpb.ListEI
 }
 
 // CreateEICE creates multiple EC2 Instance Connect Endpoint using the provided Subnets and Security Group IDs.
-//
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 func (s *AWSOIDCService) CreateEICE(ctx context.Context, req *integrationpb.CreateEICERequest) (*integrationpb.CreateEICEResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -272,7 +269,7 @@ func (s *AWSOIDCService) CreateEICE(ctx context.Context, req *integrationpb.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetClusterName(ctx)
+	clusterName, err := s.cache.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -454,7 +451,7 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetClusterName(ctx)
+	clusterName, err := s.cache.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -509,7 +506,7 @@ func (s *AWSOIDCService) ListDeployedDatabaseServices(ctx context.Context, req *
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetClusterName(ctx)
+	clusterName, err := s.cache.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -578,7 +575,7 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 
 	features := modules.GetModules().Features()
 
-	clusterName, err := s.cache.GetClusterName(ctx)
+	clusterName, err := s.cache.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -624,7 +621,7 @@ func (s *AWSOIDCService) DeployService(ctx context.Context, req *integrationpb.D
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetClusterName(ctx)
+	clusterName, err := s.cache.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -664,8 +661,6 @@ func (s *AWSOIDCService) DeployService(ctx context.Context, req *integrationpb.D
 }
 
 // ListEC2 returns a paginated list of AWS EC2 instances.
-//
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 func (s *AWSOIDCService) ListEC2(ctx context.Context, req *integrationpb.ListEC2Request) (*integrationpb.ListEC2Response, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {

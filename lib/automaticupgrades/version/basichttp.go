@@ -22,8 +22,8 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strings"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/automaticupgrades/basichttp"
@@ -43,17 +43,18 @@ type basicHTTPVersionClient struct {
 // Get sends an HTTP GET request and returns the version prefixed by "v".
 // It expects the endpoint to be unauthenticated, return 200 and the response
 // body to contain a valid semver tag without the "v".
-func (b *basicHTTPVersionClient) Get(ctx context.Context) (*semver.Version, error) {
+func (b *basicHTTPVersionClient) Get(ctx context.Context) (string, error) {
 	versionURL := b.baseURL.JoinPath(constants.VersionPath)
 	body, err := b.client.GetContent(ctx, *versionURL)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to get version from %s", versionURL)
+		return "", trace.Wrap(err, "failed to get version from %s", versionURL)
 	}
 	response := string(body)
 	if response == constants.NoVersion {
-		return nil, &NoNewVersionError{Message: "version server did not advertise a version"}
+		return "", &NoNewVersionError{Message: "version server did not advertise a version"}
 	}
-	version, err := EnsureSemver(response)
+	// We trim spaces because the value might end with one or many newlines
+	version, err := EnsureSemver(strings.TrimSpace(response))
 	return version, trace.Wrap(err)
 }
 
@@ -64,10 +65,10 @@ func (b *basicHTTPVersionClient) Get(ctx context.Context) (*semver.Version, erro
 // in order to mitigate the impact of too frequent reconciliations.
 // The structure implements the version.Getter interface.
 type BasicHTTPVersionGetter struct {
-	versionGetter func(context.Context) (*semver.Version, error)
+	versionGetter func(context.Context) (string, error)
 }
 
-func (g BasicHTTPVersionGetter) GetVersion(ctx context.Context) (*semver.Version, error) {
+func (g BasicHTTPVersionGetter) GetVersion(ctx context.Context) (string, error) {
 	return g.versionGetter(ctx)
 }
 
@@ -80,5 +81,5 @@ func NewBasicHTTPVersionGetter(baseURL *url.URL) Getter {
 		client:  &basichttp.Client{Client: client},
 	}
 
-	return BasicHTTPVersionGetter{cache.NewTimedMemoize[*semver.Version](httpVersionClient.Get, constants.CacheDuration).Get}
+	return BasicHTTPVersionGetter{cache.NewTimedMemoize[string](httpVersionClient.Get, constants.CacheDuration).Get}
 }

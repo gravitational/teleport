@@ -23,6 +23,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func FuzzGetQueryFromRequestBody(f *testing.F) {
@@ -40,7 +42,7 @@ func FuzzGetQueryFromRequestBody(f *testing.F) {
 
 	mkEngine := func() *Engine {
 		e := &Engine{}
-		e.Log = slog.New(slog.DiscardHandler)
+		e.Log = slog.New(logutils.DiscardHandler{})
 		return e
 	}
 

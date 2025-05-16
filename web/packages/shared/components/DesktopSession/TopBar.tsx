@@ -21,7 +21,6 @@ import { useTheme } from 'styled-components';
 import { Flex, Text, TopNav } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
-import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
 import type { NotificationItem } from 'shared/components/Notification';
 
 import ActionMenu from './ActionMenu';
@@ -40,7 +39,6 @@ export default function TopBar(props: Props) {
     alerts,
     onRemoveAlert,
     isConnected,
-    latency,
   } = props;
   const theme = useTheme();
 
@@ -64,8 +62,7 @@ export default function TopBar(props: Props) {
 
       {isConnected && (
         <Flex px={3}>
-          <Flex alignItems="center" gap={3}>
-            {latency && <LatencyDiagnostic latency={latency} />}
+          <Flex alignItems="center">
             <HoverTooltip
               tipContent={directorySharingToolTip(
                 canShareDirectory,
@@ -73,13 +70,13 @@ export default function TopBar(props: Props) {
               )}
               placement="bottom"
             >
-              <FolderShared style={primaryOnTrue(isSharingDirectory)} />
+              <FolderShared style={primaryOnTrue(isSharingDirectory)} pr={3} />
             </HoverTooltip>
             <HoverTooltip
               tipContent={clipboardSharingMessage}
               placement="bottom"
             >
-              <Clipboard style={primaryOnTrue(isSharingClipboard)} />
+              <Clipboard style={primaryOnTrue(isSharingClipboard)} pr={3} />
             </HoverTooltip>
             <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
           </Flex>
@@ -120,8 +117,4 @@ type Props = {
   alerts: NotificationItem[];
   isConnected: boolean;
   onRemoveAlert(id: string): void;
-  latency: {
-    client: number;
-    server: number;
-  };
 };

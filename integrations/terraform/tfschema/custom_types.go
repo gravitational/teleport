@@ -33,15 +33,13 @@ import (
 // GenSchemaBoolOptions returns Terraform schema for BoolOption type
 func GenSchemaBoolOption(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	return tfsdk.Attribute{
-		Optional:      true,
-		Type:          types.BoolType,
-		Description:   attr.Description,
-		Computed:      attr.Computed,
-		PlanModifiers: attr.PlanModifiers,
+		Optional:    true,
+		Type:        types.BoolType,
+		Description: attr.Description,
 	}
 }
 
-// GenSchemaTraits returns Terraform schema for Traits type
+// GenSchemaBoolOptions returns Terraform schema for Traits type
 func GenSchemaTraits(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	return tfsdk.Attribute{
 		Optional: true,
@@ -65,11 +63,8 @@ func CopyFromBoolOption(diags diag.Diagnostics, tf attr.Value, o **apitypes.Bool
 		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.Bool", tf))
 		return
 	}
-
-	if !v.Null && !v.Unknown {
-		value := apitypes.BoolOption{Value: v.Value}
-		*o = &value
-	}
+	value := apitypes.BoolOption{Value: v.Value}
+	*o = &value
 }
 
 func CopyToBoolOption(diags diag.Diagnostics, o *apitypes.BoolOption, t attr.Type, v attr.Value) attr.Value {
@@ -83,8 +78,6 @@ func CopyToBoolOption(diags diag.Diagnostics, o *apitypes.BoolOption, t attr.Typ
 		return value
 	}
 
-	value.Null = false
-	value.Unknown = false
 	value.Value = o.Value
 
 	return value

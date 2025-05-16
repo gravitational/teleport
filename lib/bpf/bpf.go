@@ -1,4 +1,5 @@
 //go:build bpf && !386
+// +build bpf,!386
 
 /*
  * Teleport
@@ -122,14 +123,14 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 		return nil, trace.Wrap(err)
 	}
 
-	closeContext, closeFunc := context.WithCancel(context.Background())
-
 	// If BPF-based auditing is not enabled, don't configure anything return
 	// right away.
 	if !config.Enabled {
-		logger.DebugContext(closeContext, "Enhanced session recording is not enabled, skipping")
+		log.Debugf("Enhanced session recording is not enabled, skipping.")
 		return &NOP{}, nil
 	}
+
+	closeContext, closeFunc := context.WithCancel(context.Background())
 
 	s := &Service{
 		BPFConfig:    config,
@@ -149,7 +150,7 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 	defer func() {
 		if err != nil {
 			if err := s.cgroup.Close(true); err != nil {
-				logger.WarnContext(closeContext, "Failed to close cgroup", "error", err)
+				log.WithError(err).Warn("Failed to close cgroup")
 			}
 		}
 	}()
@@ -162,7 +163,7 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 	}
 
 	start := time.Now()
-	logger.DebugContext(closeContext, "Starting enhanced session recording")
+	log.Debugf("Starting enhanced session recording.")
 
 	// Compile and start BPF programs if they are enabled (buffer size given).
 	s.exec, err = startExec(*config.CommandBufferSize)
@@ -180,13 +181,10 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 		return nil, trace.Wrap(err)
 	}
 
-	logger.DebugContext(closeContext, "Started enhanced session recording",
-		"command_buffer_size", *s.CommandBufferSize,
-		"disk_buffer_size", *s.DiskBufferSize,
-		"network_buffer_size", *s.NetworkBufferSize,
-		"cgroup_mount_path", s.CgroupPath,
-		"elapsed", time.Since(start),
-	)
+	log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
+		"disk=%v, network=%v) and cgroup mount path: %v. Took %v.",
+		*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize,
+		s.CgroupPath, time.Since(start))
 
 	go s.processNetworkEvents()
 
@@ -215,7 +213,7 @@ func (s *Service) Close(restarting bool) error {
 	// we're restarting.
 	skipCgroupUnmount := restarting
 	if err := s.cgroup.Close(skipCgroupUnmount); err != nil {
-		logger.WarnContext(s.closeContext, "Failed to close cgroup", "error", err)
+		log.WithError(err).Warn("Failed to close cgroup")
 	}
 
 	// Signal to the processAccessEvents pulling events off the perf buffer to shutdown.
@@ -249,7 +247,7 @@ func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
 			// Clean up all already opened modules.
 			for _, closer := range initializedModClosures {
 				if closeErr := closer.endSession(cgroupID); closeErr != nil {
-					logger.DebugContext(s.closeContext, "failed to close session", "error", closeErr)
+					log.Debugf("failed to close session: %v", closeErr)
 				}
 			}
 			return 0, trace.Wrap(err)
@@ -345,7 +343,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 	var event rawExecEvent
 	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
-		logger.DebugContext(s.closeContext, "Failed to read binary data", "error", err)
+		log.Debugf("Failed to read binary data: %v.", err)
 		return
 	}
 
@@ -371,7 +369,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			return make([]string, 0), nil
 		})
 		if err != nil {
-			logger.WarnContext(s.closeContext, "Unable to retrieve args from FnCache - this is a bug!", "error", err)
+			log.WithError(err).Warn("Unable to retrieve args from FnCache - this is a bug!")
 			args = []string{}
 		}
 
@@ -389,7 +387,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		})
 
 		if err != nil {
-			logger.DebugContext(s.closeContext, "Got event with missing args, skipping")
+			log.Debugf("Got event with missing args: skipping.")
 			lostCommandEvents.Add(float64(1))
 			return
 		}
@@ -424,7 +422,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			Argv:       args[1:],
 		}
 		if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionCommandEvent); err != nil {
-			logger.WarnContext(ctx.Context, "Failed to emit command event", "error", err)
+			log.WithError(err).Warn("Failed to emit command event.")
 		}
 
 		// Now that the event has been processed, remove from cache.
@@ -438,7 +436,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 	var event rawOpenEvent
 	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
-		logger.DebugContext(s.closeContext, "Failed to read binary data", "error", err)
+		log.Debugf("Failed to read binary data: %v.", err)
 		return
 	}
 
@@ -491,7 +489,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 	var event rawConn4Event
 	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
-		logger.DebugContext(s.closeContext, "Failed to read binary data", "error", err)
+		log.Debugf("Failed to read binary data: %v.", err)
 		return
 	}
 
@@ -538,7 +536,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		TCPVersion: 4,
 	}
 	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
-		logger.WarnContext(ctx.Context, "Failed to emit network event", "error", err)
+		log.WithError(err).Warn("Failed to emit network event.")
 	}
 }
 
@@ -548,7 +546,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 	var event rawConn6Event
 	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
-		logger.DebugContext(s.closeContext, "Failed to read binary data", "error", err)
+		log.Debugf("Failed to read binary data: %v.", err)
 		return
 	}
 
@@ -595,7 +593,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		TCPVersion: 6,
 	}
 	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
-		logger.WarnContext(ctx.Context, "Failed to emit network event", "error", err)
+		log.WithError(err).Warn("Failed to emit network event.")
 	}
 }
 

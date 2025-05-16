@@ -37,7 +37,7 @@ export function useLocalStorage<T>(
 
     try {
       return JSON.parse(value) as T;
-    } catch {
+    } catch (err) {
       return initialValue;
     }
   }, [initialValue, key]);

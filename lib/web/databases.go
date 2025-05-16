@@ -303,11 +303,10 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	dbServer, err := fetchDatabaseServerByDatabaseName(r.Context(), clt, r, databaseName)
+	database, err := fetchDatabaseWithName(r.Context(), clt, r, databaseName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	database := dbServer.GetDatabase()
 
 	switch {
 	case database.IsAWSHosted():
@@ -457,7 +456,7 @@ func (h *Handler) dbConnect(
 	}
 
 	// Get host CA for this Proxy.
-	clusterName, err := h.GetAccessPoint().GetClusterName(ctx)
+	clusterName, err := h.GetAccessPoint().GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -708,8 +707,7 @@ func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, error) {
 		RouteToDatabase: routeToDatabase,
 	}
 
-	var certs *proto.Certs
-	result, err := client.PerformSessionMFACeremony(s.ctx, client.PerformSessionMFACeremonyParams{
+	_, certs, err := client.PerformSessionMFACeremony(s.ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: s.clt,
 		RootAuthClient:    s.sctx.cfg.RootClient,
 		MFACeremony:       newMFACeremony(s.stream.WSStream, s.sctx.cfg.RootClient.CreateAuthenticateChallenge, s.proxyAddr),
@@ -721,10 +719,6 @@ func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, error) {
 	})
 	if err != nil && !errors.Is(err, services.ErrSessionMFANotRequired) {
 		return nil, trace.Wrap(err, "failed performing mfa ceremony")
-	}
-
-	if result != nil {
-		certs = result.NewCerts
 	}
 
 	if certs == nil {
@@ -819,8 +813,8 @@ func (s *databaseInteractiveSession) sendSessionMetadata() error {
 	return nil
 }
 
-// fetchDatabaseServerByDatabaseName fetch a database with provided database name.
-func fetchDatabaseServerByDatabaseName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) (types.DatabaseServer, error) {
+// fetchDatabaseWithName fetch a database with provided database name.
+func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) (types.Database, error) {
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 		Limit:               defaults.MaxIterationLimit,
 		ResourceType:        types.KindDatabaseServer,
@@ -840,7 +834,7 @@ func fetchDatabaseServerByDatabaseName(ctx context.Context, clt resourcesAPIGett
 	case 0:
 		return nil, trace.NotFound("database %q not found", databaseName)
 	default:
-		return servers[0], nil
+		return servers[0].GetDatabase(), nil
 	}
 }
 

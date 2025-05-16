@@ -54,7 +54,7 @@ export function SearchBarConnected() {
 }
 
 function SearchBar() {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>();
   const { getAccelerator } = useKeyboardShortcutFormatters();
   const {
     activePicker,

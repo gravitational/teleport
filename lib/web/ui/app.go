@@ -20,9 +20,9 @@ package ui
 
 import (
 	"cmp"
-	"context"
-	"log/slog"
 	"sort"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ui"
@@ -47,6 +47,9 @@ type App struct {
 	PublicAddr string `json:"publicAddr"`
 	// FQDN is a fully qualified domain name of the application (app.example.com)
 	FQDN string `json:"fqdn"`
+	// UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the
+	// request originated from.
+	UseAnyProxyPublicAddr bool `json:"useAnyProxyPublicAddr,omitempty"`
 	// ClusterID is this app cluster ID
 	ClusterID string `json:"clusterId"`
 	// Labels is a map of static labels associated with an application.
@@ -107,15 +110,16 @@ type MakeAppsConfig struct {
 	// AppClusterName is the name of the cluster apps reside in.
 	AppClusterName string
 	// AppsToUserGroups is a mapping of application names to user groups.
-	AppsToUserGroups        map[string]types.UserGroups
-	SAMLIdPServiceProviders types.SAMLIdPServiceProviders
+	AppsToUserGroups map[string]types.UserGroups
+	// AppServersAndSAMLIdPServiceProviders is a list of AppServers and SAMLIdPServiceProviders.
+	AppServersAndSAMLIdPServiceProviders types.AppServersOrSAMLIdPServiceProviders
 	// AllowedAWSRolesLookup is a map of AWS IAM Role ARNs available to each App for the logged user.
 	// Only used for AWS Console Apps.
 	AllowedAWSRolesLookup map[string][]string
 	// UserGroupLookup is a map of user groups to provide to each App
 	UserGroupLookup map[string]types.UserGroup
 	// Logger is a logger used for debugging while making an app
-	Logger *slog.Logger
+	Logger logrus.FieldLogger
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool
 }
@@ -128,7 +132,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	for _, userGroupName := range app.GetUserGroups() {
 		userGroup := c.UserGroupLookup[userGroupName]
 		if userGroup == nil {
-			c.Logger.DebugContext(context.Background(), "Unable to find user group when creating user groups, skipping", "user_group", userGroupName)
+			c.Logger.Debugf("Unable to find user group %s when creating user groups, skipping", userGroupName)
 			continue
 		}
 
@@ -153,22 +157,23 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	permissionSets := makePermissionSets(app.GetIdentityCenter().GetPermissionSets())
 
 	resultApp := App{
-		Kind:            types.KindApp,
-		SubKind:         app.GetSubKind(),
-		Name:            app.GetName(),
-		Description:     description,
-		URI:             app.GetURI(),
-		PublicAddr:      app.GetPublicAddr(),
-		Labels:          labels,
-		ClusterID:       c.AppClusterName,
-		FQDN:            fqdn,
-		AWSConsole:      app.IsAWSConsole(),
-		FriendlyName:    types.FriendlyName(app),
-		UserGroups:      userGroupAndDescriptions,
-		SAMLApp:         false,
-		RequiresRequest: c.RequiresRequest,
-		Integration:     app.GetIntegration(),
-		PermissionSets:  permissionSets,
+		Kind:                  types.KindApp,
+		SubKind:               app.GetSubKind(),
+		Name:                  app.GetName(),
+		Description:           description,
+		URI:                   app.GetURI(),
+		PublicAddr:            app.GetPublicAddr(),
+		Labels:                labels,
+		ClusterID:             c.AppClusterName,
+		FQDN:                  fqdn,
+		AWSConsole:            app.IsAWSConsole(),
+		FriendlyName:          types.FriendlyName(app),
+		UserGroups:            userGroupAndDescriptions,
+		SAMLApp:               false,
+		RequiresRequest:       c.RequiresRequest,
+		Integration:           app.GetIntegration(),
+		PermissionSets:        permissionSets,
+		UseAnyProxyPublicAddr: app.GetUseAnyProxyPublicAddr(),
 	}
 
 	if app.IsAWSConsole() {
@@ -225,6 +230,67 @@ func MakeAppTypeFromSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) 
 	}
 
 	return resultApp
+}
+
+// MakeApps creates application objects (either Application Servers or SAML IdP Service Provider) for the WebUI.
+func MakeApps(c MakeAppsConfig) []App {
+	result := []App{}
+	for _, appOrSP := range c.AppServersAndSAMLIdPServiceProviders {
+		if appOrSP.IsAppServer() {
+			app := appOrSP.GetAppServer().GetApp()
+			fqdn := utils.AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
+			labels := ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels())
+
+			userGroups := c.AppsToUserGroups[app.GetName()]
+
+			userGroupAndDescriptions := make([]UserGroupAndDescription, len(userGroups))
+			for i, userGroup := range userGroups {
+				userGroupAndDescriptions[i] = UserGroupAndDescription{
+					Name:        userGroup.GetName(),
+					Description: userGroup.GetMetadata().Description,
+				}
+			}
+
+			resultApp := App{
+				Kind:         types.KindApp,
+				Name:         appOrSP.GetName(),
+				Description:  appOrSP.GetDescription(),
+				URI:          app.GetURI(),
+				PublicAddr:   appOrSP.GetPublicAddr(),
+				Labels:       labels,
+				ClusterID:    c.AppClusterName,
+				FQDN:         fqdn,
+				AWSConsole:   app.IsAWSConsole(),
+				FriendlyName: types.FriendlyName(app),
+				UserGroups:   userGroupAndDescriptions,
+				SAMLApp:      false,
+			}
+
+			if app.IsAWSConsole() {
+				allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]
+				resultApp.AWSRoles = aws.FilterAWSRoles(allowedAWSRoles,
+					app.GetAWSAccountID())
+			}
+
+			result = append(result, resultApp)
+		} else {
+			labels := ui.MakeLabelsWithoutInternalPrefixes(appOrSP.GetSAMLIdPServiceProvider().GetAllLabels())
+			resultApp := App{
+				Kind:         types.KindApp,
+				Name:         appOrSP.GetName(),
+				Description:  appOrSP.GetDescription(),
+				PublicAddr:   appOrSP.GetPublicAddr(),
+				Labels:       labels,
+				ClusterID:    c.AppClusterName,
+				FriendlyName: types.FriendlyName(appOrSP),
+				SAMLApp:      true,
+			}
+
+			result = append(result, resultApp)
+		}
+	}
+
+	return result
 }
 
 // SAMLAppLaunchURLs contains service provider specific authentication

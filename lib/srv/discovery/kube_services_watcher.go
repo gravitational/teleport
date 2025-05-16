@@ -20,6 +20,7 @@ package discovery
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -61,7 +62,8 @@ func (s *Server) startKubeAppsWatchers() error {
 				defer mu.Unlock()
 				return utils.FromSlice(appResources, types.Application.GetName)
 			},
-			Logger:   s.Log.With("kind", types.KindApp),
+			// TODO(tross): update to use the server logger once it is converted to use slog
+			Logger:   slog.With("kind", types.KindApp),
 			OnCreate: s.onAppCreate,
 			OnUpdate: s.onAppUpdate,
 			OnDelete: s.onAppDelete,
@@ -74,7 +76,7 @@ func (s *Server) startKubeAppsWatchers() error {
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
 		FetchersFn:     common.StaticFetchers(s.kubeAppsFetchers),
 		Interval:       5 * time.Minute,
-		Logger:         s.Log.With("kind", types.KindApp),
+		Log:            s.LegacyLogger.WithField("kind", types.KindApp),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Origin:         types.OriginDiscoveryKubernetes,
 	})

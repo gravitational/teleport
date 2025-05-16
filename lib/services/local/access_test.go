@@ -53,7 +53,7 @@ func TestLockCRUD(t *testing.T) {
 
 	lock2, err := types.NewLock("lock2", types.LockSpecV2{
 		Target: types.LockTarget{
-			ServerID: "node",
+			Node: "node",
 		},
 	})
 	require.NoError(t, err)

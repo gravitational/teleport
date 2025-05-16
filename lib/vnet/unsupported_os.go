@@ -15,6 +15,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //go:build !darwin && !windows
+// +build !darwin,!windows
 
 package vnet
 
@@ -23,15 +24,13 @@ import (
 	"runtime"
 
 	"github.com/gravitational/trace"
-
-	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
 // ErrVnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
 var ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
 
-func runPlatformUserProcess(_ context.Context, _ *UserProcessConfig) (*ProcessManager, *vnetv1.NetworkStackInfo, error) {
-	return nil, nil, trace.Wrap(ErrVnetNotImplemented)
+func (*UserProcess) runPlatformUserProcess(_ context.Context) error {
+	return trace.Wrap(ErrVnetNotImplemented)
 }
 
 type platformOSConfigState struct{}

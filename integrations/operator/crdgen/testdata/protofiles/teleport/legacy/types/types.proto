@@ -202,12 +202,6 @@ message DatabaseServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
-
-  // Status is the database server status.
-  DatabaseServerStatusV3 Status = 6 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "status"
-  ];
 }
 
 // DatabaseServerSpecV3 is the database server spec.
@@ -242,13 +236,6 @@ message DatabaseServerSpecV3 {
   DatabaseV3 Database = 12 [(gogoproto.jsontag) = "database,omitempty"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 13 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
-}
-
-// DatabaseServerStatusV3 is the database server status.
-message DatabaseServerStatusV3 {
-  // TargetHealth is the health status of network connectivity between
-  // the agent and the database.
-  TargetHealth TargetHealth = 14 [(gogoproto.jsontag) = "target_health,omitempty"];
 }
 
 // DatabaseV3List represents a list of databases.
@@ -725,31 +712,6 @@ message InstanceSpecV1 {
 
   // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
   string ExternalUpgraderVersion = 8 [(gogoproto.jsontag) = "ext_upgrader_version,omitempty"];
-
-  // LastMeasurement stores information about the latest measurement between services.
-  SystemClockMeasurement LastMeasurement = 9;
-}
-
-// SystemClockMeasurement represents the measurement state of the systems clock difference.
-message SystemClockMeasurement {
-  // ControllerSystemClock is the system clock of the inventory controller.
-  google.protobuf.Timestamp ControllerSystemClock = 1 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "controller_system_clock,omitempty"
-  ];
-  // SystemClock is the system clock of the upstream.
-  google.protobuf.Timestamp SystemClock = 2 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "system_clock,omitempty"
-  ];
-  // RequestDuration stores information about the request duration between auth and remote service.
-  google.protobuf.Duration RequestDuration = 3 [
-    (gogoproto.jsontag) = "request_duration",
-    (gogoproto.nullable) = false,
-    (gogoproto.stdduration) = true
-  ];
 }
 
 // InstanceControlLogEntry represents an entry in a given instance's control log. The control log of
@@ -1076,11 +1038,25 @@ message AppSpecV3 {
   // If this field is not empty, URI is expected to contain no port number and start with the tcp
   // protocol.
   repeated PortRange TCPPorts = 13 [(gogoproto.jsontag) = "tcp_ports,omitempty"];
-  // UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the
-  // request originated from. This should be true if your proxy has multiple proxy public addrs and you
-  // want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec,
-  // setting this value to true will overwrite that public address in the web UI.
-  bool UseAnyProxyPublicAddr = 14 [(gogoproto.jsontag) = "use_any_proxy_public_addr,omitempty"];
+}
+
+// AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
+// Used in application listings that request both app servers and saml apps.
+//
+// DEPRECATED: Use AppServer and SAMLIdPServiceProvider type individually.
+message AppServerOrSAMLIdPServiceProviderV1 {
+  option deprecated = true;
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+  // Kind is the resource kind. Always "app_server_saml_idp_sp".
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // The AppServer or SAMLIdPServiceProvider resource.
+  oneof Resource {
+    // AppServer is the AppServer resource.
+    AppServerV3 AppServer = 2 [(gogoproto.jsontag) = "app_server,omitempty"];
+    // SAMLIdPServiceProvider is the SAMLIdPServiceProvider resource.
+    SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 3 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
+  }
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -6725,7 +6701,7 @@ message PluginOktaSyncSettings {
 
   // AppName is the Okta-assigned unique name of the Okta App that Teleport uses
   // as a gateway to interact with Okta for SAML login, SCIM provisioning and user
-  // sync.
+  // sync. May be missing for old Okta integration installs.
   string app_name = 8;
 
   // DisableSyncAppGroups disables syncing of app groups from Okta.
@@ -7244,9 +7220,7 @@ message PluginOktaStatusDetailsSSO {
   // SSO login.
   string app_id = 2;
 
-  // AppName is the Okta-assigned unique name of the Okta App that Teleport uses
-  // as a gateway to interact with Okta for SAML login, SCIM provisioning and user
-  // sync.
+  // AppName is the human-readable name of the Okta Applicaion used for SSO.
   string app_name = 3;
 }
 
@@ -8273,28 +8247,4 @@ message AccessGraphAzureSync {
   string SubscriptionID = 1 [(gogoproto.jsontag) = "subscription_id,omitempty"];
   // Integration is the integration name used to generate credentials to interact with AWS APIs.
   string Integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
-}
-
-// TargetHealth describes the health status of network connectivity between
-// an agent and a resource.
-message TargetHealth {
-  // Address is the resource address.
-  string Address = 1 [(gogoproto.jsontag) = "address,omitempty"];
-  // Protocol is the health check protocol such as "tcp".
-  string Protocol = 2 [(gogoproto.jsontag) = "protocol,omitempty"];
-  // Status is the health status, one of "", "disabled", "initialized", "healthy", "unhealthy".
-  string Status = 3 [(gogoproto.jsontag) = "status,omitempty"];
-  // TransitionTimestamp is the time that the last status transition occurred.
-  google.protobuf.Timestamp TransitionTimestamp = 4 [
-    (gogoproto.jsontag) = "transition_timestamp,omitempty",
-    (gogoproto.nullable) = true,
-    (gogoproto.stdtime) = true
-  ];
-  // TransitionReason is a unique single word reason why the last transition occurred.
-  string TransitionReason = 5 [(gogoproto.jsontag) = "transition_reason,omitempty"];
-  // TransitionError shows the health check error observed when the transition
-  // happened. Empty when transitioning to "healthy".
-  string TransitionError = 6 [(gogoproto.jsontag) = "transition_error,omitempty"];
-  // Message is additional information meant for a user.
-  string Message = 7 [(gogoproto.jsontag) = "message,omitempty"];
 }
