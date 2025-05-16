@@ -135,20 +135,20 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 	// If a custom slot was not specified, check for a key in the
 	// default slot for the given policy and generate a new one if needed.
 	if config.CustomSlot == "" {
-		switch cert, err := y.getCertificate(pivSlot); {
-		case errors.Is(err, piv.ErrNotFound):
+		switch err := y.checkCertificate(pivSlot); {
+		case trace.IsNotFound(err):
+			return generatePrivateKey()
+
+		// Unknown cert found, this slot could be in use by a non-teleport client.
+		// Prompt the user before we overwrite the slot.
+		case errors.As(err, &nonTeleportCertError{}):
+			if err := s.promptOverwriteSlot(ctx, err.Error(), config.ContextualKeyInfo); err != nil {
+				return nil, trace.Wrap(err)
+			}
 			return generatePrivateKey()
 
 		case err != nil:
 			return nil, trace.Wrap(err)
-
-		// Unknown cert found, this slot could be in use by a non-teleport client.
-		// Prompt the user before we overwrite the slot.
-		case !isTeleportMetadataCertificate(cert):
-			if err := s.promptOverwriteSlot(ctx, nonTeleportCertificateMessage(pivSlot, cert), config.ContextualKeyInfo); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return generatePrivateKey()
 		}
 	}
 
