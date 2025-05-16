@@ -206,45 +206,10 @@ func (handler *Handler) onPendingRequest(ctx context.Context, req types.AccessRe
 		return trace.Wrap(err)
 	}
 
-	var reviewRule *accessmonitoringrulesv1.AccessMonitoringRule
-	for _, rule := range handler.rules.Get() {
-		// Check if any access monitoring rule enables automatic review for the access request.
-		conditionMatch, err := accessmonitoring.EvaluateCondition(
-			rule.GetSpec().GetCondition(),
-			getAccessRequestExpressionEnv(req, user.GetTraits()))
-		if err != nil {
-			log.WarnContext(ctx, "Failed to evaluate access monitoring rule",
-				"error", err,
-				"rule", rule.GetMetadata().GetName(),
-			)
-			continue
-		}
-
-		if !conditionMatch {
-			continue
-		}
-
-		if reviewRule == nil {
-			reviewRule = rule
-			continue
-		}
-
-		// Unable to submit review if set of rules contain conflicting
-		// review decisions.
-		if reviewRule.GetSpec().GetAutomaticReview().GetDecision() !=
-			rule.GetSpec().GetAutomaticReview().GetDecision() {
-			log.WarnContext(ctx, "Conflicting automatic review rules found",
-				"rules", []string{
-					reviewRule.GetMetadata().GetName(),
-					rule.GetMetadata().GetName(),
-				},
-			)
-			return trace.BadParameter("conflicting access review rules found")
-		}
-	}
-
-	// Automatic review is not enabled for this access request.
+	env := getAccessRequestExpressionEnv(req, user.GetTraits())
+	reviewRule := handler.selectMatchingRule(ctx, env)
 	if reviewRule == nil {
+		// This access request does not match any access monitoring rules.
 		return nil
 	}
 
@@ -271,6 +236,40 @@ func (handler *Handler) onPendingRequest(ctx context.Context, req types.AccessRe
 
 	log.InfoContext(ctx, "Successfully submitted an access review.")
 	return nil
+}
+
+// selectMatchingRule returns the first access monitoring rule that matches the
+// given access request environment. If multiple rules match, `DENIED` rules
+// take precedence.
+func (handler *Handler) selectMatchingRule(
+	ctx context.Context,
+	env accessmonitoring.AccessRequestExpressionEnv,
+) *accessmonitoringrulesv1.AccessMonitoringRule {
+	var reviewRule *accessmonitoringrulesv1.AccessMonitoringRule
+
+	for _, rule := range handler.rules.Get() {
+		conditionMatch, err := accessmonitoring.EvaluateCondition(rule.GetSpec().GetCondition(), env)
+		if err != nil {
+			handler.Logger.WarnContext(ctx, "Failed to evaluate access monitoring rule",
+				"error", err,
+				"rule", rule.GetMetadata().GetName(),
+			)
+			continue
+		}
+
+		if !conditionMatch {
+			continue
+		}
+
+		if rule.GetSpec().GetAutomaticReview().GetDecision() == types.RequestState_DENIED.String() {
+			return rule
+		}
+
+		if reviewRule == nil {
+			reviewRule = rule
+		}
+	}
+	return reviewRule
 }
 
 func newAccessReview(userName, ruleName, state string) (types.AccessReview, error) {
