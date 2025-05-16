@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/listener"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type mcpCommands struct {
@@ -70,11 +69,7 @@ func newMCPDBCommand(parent *kingpin.CmdClause) *mcpDBCommand {
 }
 
 func (c *mcpDBCommand) run(cf *CLIConf) error {
-	logger, _, err := logutils.Initialize(logutils.Config{
-		Severity: slog.LevelInfo.String(),
-		Format:   mcpLogFormat,
-		Output:   mcpLogOutput,
-	})
+	logger, err := initMCPLogger(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -234,13 +229,4 @@ var (
 	defaultDBMCPRegistry = map[string]dbmcp.NewServerFunc{
 		defaults.ProtocolPostgres: pgmcp.NewServer,
 	}
-)
-
-const (
-	// mcpLogFormat defiens the log format of the MCP command.
-	mcpLogFormat = "json"
-	// mcpLogFormat defines to where the MCP command logs will be directed to.
-	// The stdout is exclusively used as the MCP server transport, leaving only
-	// stderr available.
-	mcpLogOutput = "stderr"
 )

@@ -26,11 +26,19 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
 	debugEnvVar = teleport.VerboseLogsEnvVar // "TELEPORT_DEBUG"
 	osLogEnvVar = "TELEPORT_OS_LOG"
+
+	// mcpLogFormat defiens the log format of the MCP command.
+	mcpLogFormat = "json"
+	// mcpLogFormat defines to where the MCP command logs will be directed to.
+	// The stdout is exclusively used as the MCP server transport, leaving only
+	// stderr available.
+	mcpLogOutput = "stderr"
 )
 
 // initLogger initializes the logger.
@@ -50,6 +58,25 @@ func initLogger(cf *CLIConf, opts loggingOpts) error {
 	}
 
 	return trace.Wrap(utils.InitLogger(utils.LoggingForCLI, level, initLoggerOpts...))
+}
+
+// initMCPLogger initializes a logger to be used on MCP servers.
+func initMCPLogger(cf *CLIConf) (*slog.Logger, error) {
+	opts := parseLoggingOptsFromEnvAndArgv(cf)
+	cf.OSLog = opts.osLog
+	cf.Debug = opts.debug || opts.osLog
+
+	level := slog.LevelInfo
+	if cf.Debug {
+		level = slog.LevelDebug
+	}
+
+	logger, _, err := logutils.Initialize(logutils.Config{
+		Severity: level.String(),
+		Format:   mcpLogFormat,
+		Output:   mcpLogOutput,
+	})
+	return logger, trace.Wrap(err)
 }
 
 type loggingOpts struct {
