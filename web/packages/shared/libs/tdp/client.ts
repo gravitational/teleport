@@ -26,6 +26,7 @@ import init, {
 } from 'shared/libs/ironrdp/pkg/ironrdp';
 import Logger from 'shared/libs/logger';
 import { isAbortError } from 'shared/utils/abortError';
+import { ensureError } from 'shared/utils/error';
 
 import Codec, {
   FileType,
@@ -152,7 +153,7 @@ export class TdpClient extends EventEmitter {
         this.transportAbortController.signal
       );
     } catch (error) {
-      this.emit(TdpClientEvent.ERROR, error);
+      this.emit(TdpClientEvent.ERROR, ensureError(error));
       return;
     }
 
@@ -173,7 +174,7 @@ export class TdpClient extends EventEmitter {
       subscribers.add(
         this.transport.onMessage(data => {
           void this.processMessage(data).catch(error => {
-            processingError = error;
+            processingError = ensureError(error);
             unsubscribe();
             // All errors are treated as fatal, close the connection.
             this.transportAbortController.abort();
