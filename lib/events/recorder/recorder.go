@@ -92,8 +92,7 @@ type Config struct {
 	// value is used to generate the events index.
 	StartTime time.Time
 
-	// Encrypter provides data encryption and decryption for recorded
-	// sessions.
+	// Encrypter wraps the final gzip writer with encryption.
 	Encrypter events.EncryptionWrapper
 }
 

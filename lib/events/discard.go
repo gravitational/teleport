@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	recordingencryptionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -67,6 +68,12 @@ func (d *DiscardAuditLog) EmitAuditEvent(ctx context.Context, event apievents.Au
 
 func (d *DiscardAuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+	close(c)
+	return c, e
+}
+
+func (d *DiscardAuditLog) UploadEncryptedRecording(ctx context.Context) (chan *recordingencryptionpb.UploadEncryptedRecordingRequest, chan error) {
+	c, e := make(chan *recordingencryptionpb.UploadEncryptedRecordingRequest), make(chan error, 1)
 	close(c)
 	return c, e
 }

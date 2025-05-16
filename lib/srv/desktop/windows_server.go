@@ -486,7 +486,8 @@ func (s *WindowsService) newSessionRecorder(recConfig types.SessionRecordingConf
 		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentWindowsDesktop),
 		// Session stream is using server context, not session context,
 		// to make sure that session is uploaded even after it is closed
-		Context: s.closeCtx,
+		Context:   s.closeCtx,
+		Encrypter: auth.NewEncryptionWrapper(recConfig),
 	})
 }
 
