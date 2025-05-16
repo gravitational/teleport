@@ -6756,7 +6756,6 @@ type AuthPreferenceSpecV2 struct {
 	// Type is the type of authentication.
 	Type string `protobuf:"bytes,1,opt,name=Type,proto3" json:"type"`
 	// SecondFactor is the type of mult-factor.
-	// Deprecated: Prefer using SecondFactors instead.
 	SecondFactor github_com_gravitational_teleport_api_constants.SecondFactorType `protobuf:"bytes,2,opt,name=SecondFactor,proto3,casttype=github.com/gravitational/teleport/api/constants.SecondFactorType" json:"second_factor,omitempty"` // Deprecated: Do not use.
 	// ConnectorName is the name of the OIDC or SAML connector. If this value is
 	// not set the first connector in the backend will be used.
@@ -6808,6 +6807,10 @@ type AuthPreferenceSpecV2 struct {
 	// SecondFactors is a list of supported multi-factor types.
 	// 1 is "otp", 2 is "webauthn", 3 is "sso",
 	// If unspecified, the current default value is [1], or ["otp"].
+	//
+	// WARNING: only set SecondFactors if your cluster is fully upgraded to v17+.
+	// Due to a version compatibility bug, v16 teleport services do not properly
+	// handle this setting and may fail to start as a result.
 	SecondFactors []SecondFactorType `protobuf:"varint,21,rep,packed,name=SecondFactors,proto3,enum=types.SecondFactorType" json:"second_factors,omitempty"`
 	// StableUnixUserConfig contains the cluster-wide configuration for stable
 	// UNIX users.
