@@ -346,7 +346,7 @@ const StatusDetails = ({
       )}
       {updatePluginAttempt.status === 'error' && (
         <Alert kind="outline-danger">
-          {getErrMessage(updatePluginAttempt.statusText)}
+          {getErrMessage(updatePluginAttempt.error)}
         </Alert>
       )}
       <FlexWrap
