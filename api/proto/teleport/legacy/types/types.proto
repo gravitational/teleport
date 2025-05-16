@@ -7280,6 +7280,15 @@ message AWSICResourceFilter {
     // the supplied regex.
     string name_regex = 2 [(gogoproto.jsontag) = "name_regex,omitempty"];
   }
+
+  // Exclude specifies which AWS resources should be explicitly excluded.
+  oneof exclude {
+    // ExcludeId indicates that a resource should be excluded by exact ID.
+    string exclude_id = 3 [(gogoproto.jsontag) = "id,omitempty"];
+
+    // ExcludeNameRegex excludes resources whose name matches this regex.
+    string exclude_name_regex = 4 [(gogoproto.jsontag) = "name_regex,omitempty"];
+  }
 }
 
 // UserSyncFilter is a map of key-value pairs used to filter users based on their metadata labels.

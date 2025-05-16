@@ -6678,6 +6678,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 			switch cfg.JoinMethod {
 			case types.JoinMethodToken,
 				types.JoinMethodUnspecified,
+				types.JoinMethodAzureDevops,
 				types.JoinMethodIAM,
 				types.JoinMethodCircleCI,
 				types.JoinMethodKubernetes,
