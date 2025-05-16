@@ -18,6 +18,7 @@ package teleport.integration.v1;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1;integrationv1";
@@ -211,6 +212,6 @@ message GenerateAWSRACredentialsResponse {
   string secret_access_key = 2;
   // SessionToken is the the AWS session token for temporary credentials.
   string session_token = 3;
-  // Expiration is ISO8601 timestamp string when the credentials expire.
-  string expiration = 4;
+  // Expiration is the timestamp string when the credentials expires.
+  google.protobuf.Timestamp expiration = 4;
 }

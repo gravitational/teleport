@@ -26,6 +26,7 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -920,8 +921,8 @@ type GenerateAWSRACredentialsResponse struct {
 	SecretAccessKey string `protobuf:"bytes,2,opt,name=secret_access_key,json=secretAccessKey,proto3" json:"secret_access_key,omitempty"`
 	// SessionToken is the the AWS session token for temporary credentials.
 	SessionToken string `protobuf:"bytes,3,opt,name=session_token,json=sessionToken,proto3" json:"session_token,omitempty"`
-	// Expiration is ISO8601 timestamp string when the credentials expire.
-	Expiration    string `protobuf:"bytes,4,opt,name=expiration,proto3" json:"expiration,omitempty"`
+	// Expiration is the timestamp string when the credentials expires.
+	Expiration    *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expiration,proto3" json:"expiration,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -977,18 +978,18 @@ func (x *GenerateAWSRACredentialsResponse) GetSessionToken() string {
 	return ""
 }
 
-func (x *GenerateAWSRACredentialsResponse) GetExpiration() string {
+func (x *GenerateAWSRACredentialsResponse) GetExpiration() *timestamppb.Timestamp {
 	if x != nil {
 		return x.Expiration
 	}
-	return ""
+	return nil
 }
 
 var File_teleport_integration_v1_integration_service_proto protoreflect.FileDescriptor
 
 const file_teleport_integration_v1_integration_service_proto_rawDesc = "" +
 	"\n" +
-	"1teleport/integration/v1/integration_service.proto\x12\x17teleport.integration.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a!teleport/legacy/types/types.proto\"J\n" +
+	"1teleport/integration/v1/integration_service.proto\x12\x17teleport.integration.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/legacy/types/types.proto\"J\n" +
 	"\x17ListIntegrationsRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x19\n" +
 	"\bnext_key\x18\x02 \x01(\tR\anextKey\"\x90\x01\n" +
@@ -1036,13 +1037,13 @@ const file_teleport_integration_v1_integration_service_proto_rawDesc = "" +
 	"!profile_accepts_role_session_name\x18\x03 \x01(\bR\x1dprofileAcceptsRoleSessionName\x12\x19\n" +
 	"\brole_arn\x18\x04 \x01(\tR\aroleArn\x12!\n" +
 	"\fsubject_name\x18\x05 \x01(\tR\vsubjectName\x12K\n" +
-	"\x14session_max_duration\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\x12sessionMaxDuration\"\xb7\x01\n" +
+	"\x14session_max_duration\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\x12sessionMaxDuration\"\xd3\x01\n" +
 	" GenerateAWSRACredentialsResponse\x12\"\n" +
 	"\raccess_key_id\x18\x01 \x01(\tR\vaccessKeyId\x12*\n" +
 	"\x11secret_access_key\x18\x02 \x01(\tR\x0fsecretAccessKey\x12#\n" +
-	"\rsession_token\x18\x03 \x01(\tR\fsessionToken\x12\x1e\n" +
+	"\rsession_token\x18\x03 \x01(\tR\fsessionToken\x12:\n" +
 	"\n" +
-	"expiration\x18\x04 \x01(\tR\n" +
+	"expiration\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"expiration2\xc3\n" +
 	"\n" +
 	"\x12IntegrationService\x12w\n" +
@@ -1092,7 +1093,8 @@ var file_teleport_integration_v1_integration_service_proto_goTypes = []any{
 	(*types.IntegrationV1)(nil),                      // 17: types.IntegrationV1
 	(*durationpb.Duration)(nil),                      // 18: google.protobuf.Duration
 	(*types.CAKeySet)(nil),                           // 19: types.CAKeySet
-	(*emptypb.Empty)(nil),                            // 20: google.protobuf.Empty
+	(*timestamppb.Timestamp)(nil),                    // 20: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                            // 21: google.protobuf.Empty
 }
 var file_teleport_integration_v1_integration_service_proto_depIdxs = []int32{
 	17, // 0: teleport.integration.v1.ListIntegrationsResponse.integrations:type_name -> types.IntegrationV1
@@ -1101,33 +1103,34 @@ var file_teleport_integration_v1_integration_service_proto_depIdxs = []int32{
 	18, // 3: teleport.integration.v1.GenerateGitHubUserCertRequest.ttl:type_name -> google.protobuf.Duration
 	19, // 4: teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse.cert_authorities:type_name -> types.CAKeySet
 	18, // 5: teleport.integration.v1.GenerateAWSRACredentialsRequest.session_max_duration:type_name -> google.protobuf.Duration
-	0,  // 6: teleport.integration.v1.IntegrationService.ListIntegrations:input_type -> teleport.integration.v1.ListIntegrationsRequest
-	2,  // 7: teleport.integration.v1.IntegrationService.GetIntegration:input_type -> teleport.integration.v1.GetIntegrationRequest
-	3,  // 8: teleport.integration.v1.IntegrationService.CreateIntegration:input_type -> teleport.integration.v1.CreateIntegrationRequest
-	4,  // 9: teleport.integration.v1.IntegrationService.UpdateIntegration:input_type -> teleport.integration.v1.UpdateIntegrationRequest
-	5,  // 10: teleport.integration.v1.IntegrationService.DeleteIntegration:input_type -> teleport.integration.v1.DeleteIntegrationRequest
-	6,  // 11: teleport.integration.v1.IntegrationService.DeleteAllIntegrations:input_type -> teleport.integration.v1.DeleteAllIntegrationsRequest
-	7,  // 12: teleport.integration.v1.IntegrationService.GenerateAWSOIDCToken:input_type -> teleport.integration.v1.GenerateAWSOIDCTokenRequest
-	9,  // 13: teleport.integration.v1.IntegrationService.GenerateAzureOIDCToken:input_type -> teleport.integration.v1.GenerateAzureOIDCTokenRequest
-	11, // 14: teleport.integration.v1.IntegrationService.GenerateGitHubUserCert:input_type -> teleport.integration.v1.GenerateGitHubUserCertRequest
-	13, // 15: teleport.integration.v1.IntegrationService.ExportIntegrationCertAuthorities:input_type -> teleport.integration.v1.ExportIntegrationCertAuthoritiesRequest
-	15, // 16: teleport.integration.v1.IntegrationService.GenerateAWSRACredentials:input_type -> teleport.integration.v1.GenerateAWSRACredentialsRequest
-	1,  // 17: teleport.integration.v1.IntegrationService.ListIntegrations:output_type -> teleport.integration.v1.ListIntegrationsResponse
-	17, // 18: teleport.integration.v1.IntegrationService.GetIntegration:output_type -> types.IntegrationV1
-	17, // 19: teleport.integration.v1.IntegrationService.CreateIntegration:output_type -> types.IntegrationV1
-	17, // 20: teleport.integration.v1.IntegrationService.UpdateIntegration:output_type -> types.IntegrationV1
-	20, // 21: teleport.integration.v1.IntegrationService.DeleteIntegration:output_type -> google.protobuf.Empty
-	20, // 22: teleport.integration.v1.IntegrationService.DeleteAllIntegrations:output_type -> google.protobuf.Empty
-	8,  // 23: teleport.integration.v1.IntegrationService.GenerateAWSOIDCToken:output_type -> teleport.integration.v1.GenerateAWSOIDCTokenResponse
-	10, // 24: teleport.integration.v1.IntegrationService.GenerateAzureOIDCToken:output_type -> teleport.integration.v1.GenerateAzureOIDCTokenResponse
-	12, // 25: teleport.integration.v1.IntegrationService.GenerateGitHubUserCert:output_type -> teleport.integration.v1.GenerateGitHubUserCertResponse
-	14, // 26: teleport.integration.v1.IntegrationService.ExportIntegrationCertAuthorities:output_type -> teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse
-	16, // 27: teleport.integration.v1.IntegrationService.GenerateAWSRACredentials:output_type -> teleport.integration.v1.GenerateAWSRACredentialsResponse
-	17, // [17:28] is the sub-list for method output_type
-	6,  // [6:17] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	20, // 6: teleport.integration.v1.GenerateAWSRACredentialsResponse.expiration:type_name -> google.protobuf.Timestamp
+	0,  // 7: teleport.integration.v1.IntegrationService.ListIntegrations:input_type -> teleport.integration.v1.ListIntegrationsRequest
+	2,  // 8: teleport.integration.v1.IntegrationService.GetIntegration:input_type -> teleport.integration.v1.GetIntegrationRequest
+	3,  // 9: teleport.integration.v1.IntegrationService.CreateIntegration:input_type -> teleport.integration.v1.CreateIntegrationRequest
+	4,  // 10: teleport.integration.v1.IntegrationService.UpdateIntegration:input_type -> teleport.integration.v1.UpdateIntegrationRequest
+	5,  // 11: teleport.integration.v1.IntegrationService.DeleteIntegration:input_type -> teleport.integration.v1.DeleteIntegrationRequest
+	6,  // 12: teleport.integration.v1.IntegrationService.DeleteAllIntegrations:input_type -> teleport.integration.v1.DeleteAllIntegrationsRequest
+	7,  // 13: teleport.integration.v1.IntegrationService.GenerateAWSOIDCToken:input_type -> teleport.integration.v1.GenerateAWSOIDCTokenRequest
+	9,  // 14: teleport.integration.v1.IntegrationService.GenerateAzureOIDCToken:input_type -> teleport.integration.v1.GenerateAzureOIDCTokenRequest
+	11, // 15: teleport.integration.v1.IntegrationService.GenerateGitHubUserCert:input_type -> teleport.integration.v1.GenerateGitHubUserCertRequest
+	13, // 16: teleport.integration.v1.IntegrationService.ExportIntegrationCertAuthorities:input_type -> teleport.integration.v1.ExportIntegrationCertAuthoritiesRequest
+	15, // 17: teleport.integration.v1.IntegrationService.GenerateAWSRACredentials:input_type -> teleport.integration.v1.GenerateAWSRACredentialsRequest
+	1,  // 18: teleport.integration.v1.IntegrationService.ListIntegrations:output_type -> teleport.integration.v1.ListIntegrationsResponse
+	17, // 19: teleport.integration.v1.IntegrationService.GetIntegration:output_type -> types.IntegrationV1
+	17, // 20: teleport.integration.v1.IntegrationService.CreateIntegration:output_type -> types.IntegrationV1
+	17, // 21: teleport.integration.v1.IntegrationService.UpdateIntegration:output_type -> types.IntegrationV1
+	21, // 22: teleport.integration.v1.IntegrationService.DeleteIntegration:output_type -> google.protobuf.Empty
+	21, // 23: teleport.integration.v1.IntegrationService.DeleteAllIntegrations:output_type -> google.protobuf.Empty
+	8,  // 24: teleport.integration.v1.IntegrationService.GenerateAWSOIDCToken:output_type -> teleport.integration.v1.GenerateAWSOIDCTokenResponse
+	10, // 25: teleport.integration.v1.IntegrationService.GenerateAzureOIDCToken:output_type -> teleport.integration.v1.GenerateAzureOIDCTokenResponse
+	12, // 26: teleport.integration.v1.IntegrationService.GenerateGitHubUserCert:output_type -> teleport.integration.v1.GenerateGitHubUserCertResponse
+	14, // 27: teleport.integration.v1.IntegrationService.ExportIntegrationCertAuthorities:output_type -> teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse
+	16, // 28: teleport.integration.v1.IntegrationService.GenerateAWSRACredentials:output_type -> teleport.integration.v1.GenerateAWSRACredentialsResponse
+	18, // [18:29] is the sub-list for method output_type
+	7,  // [7:18] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_teleport_integration_v1_integration_service_proto_init() }
