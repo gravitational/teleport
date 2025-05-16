@@ -588,11 +588,14 @@ func TestDialFakeApp(t *testing.T) {
 	}, dialOpts, reissueClientCert, clock)
 
 	clusterConfigCache := NewClusterConfigCache(clock)
+	leafClusterCache, err := newLeafClusterCache(clock)
+	require.NoError(t, err)
 	p := newTestPack(t, ctx, testPackConfig{
 		clock: clock,
 		fqdnResolver: newLocalFQDNResolver(&localFQDNResolverConfig{
 			clientApplication:  clientApp,
 			clusterConfigCache: clusterConfigCache,
+			leafClusterCache:   leafClusterCache,
 		}),
 		appProvider: newLocalAppProvider(&localAppProviderConfig{
 			clientApplication: clientApp,
@@ -859,11 +862,14 @@ func TestOnNewConnection(t *testing.T) {
 	invalidAppName := "not.an.app.example.com."
 
 	clusterConfigCache := NewClusterConfigCache(clock)
+	leafClusterCache, err := newLeafClusterCache(clock)
+	require.NoError(t, err)
 	p := newTestPack(t, ctx, testPackConfig{
 		clock: clock,
 		fqdnResolver: newLocalFQDNResolver(&localFQDNResolverConfig{
 			clientApplication:  clientApp,
 			clusterConfigCache: clusterConfigCache,
+			leafClusterCache:   leafClusterCache,
 		}),
 		appProvider: newLocalAppProvider(&localAppProviderConfig{
 			clientApplication: clientApp,
@@ -874,7 +880,7 @@ func TestOnNewConnection(t *testing.T) {
 	// called.
 	lookupCtx, lookupCtxCancel := context.WithTimeout(ctx, 200*time.Millisecond)
 	defer lookupCtxCancel()
-	_, err := p.lookupHost(lookupCtx, invalidAppName)
+	_, err = p.lookupHost(lookupCtx, invalidAppName)
 	require.Error(t, err, "Expected lookup of an invalid app to fail")
 	require.Equal(t, uint32(0), clientApp.onNewConnectionCallCount.Load())
 
@@ -943,9 +949,12 @@ func testRemoteAppProvider(t *testing.T, alg cryptosuites.Algorithm) {
 		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)
 	clusterConfigCache := NewClusterConfigCache(clock)
+	leafClusterCache, err := newLeafClusterCache(clock)
+	require.NoError(t, err)
 	localResolver := newLocalFQDNResolver(&localFQDNResolverConfig{
 		clientApplication:  clientApp,
 		clusterConfigCache: clusterConfigCache,
+		leafClusterCache:   leafClusterCache,
 	})
 	appProvider := newLocalAppProvider(&localAppProviderConfig{
 		clientApplication: clientApp,

@@ -41,6 +41,7 @@ type localFQDNResolver struct {
 type localFQDNResolverConfig struct {
 	clientApplication  ClientApplication
 	clusterConfigCache *ClusterConfigCache
+	leafClusterCache   *leafClusterCache
 }
 
 func newLocalFQDNResolver(cfg *localFQDNResolverConfig) *localFQDNResolver {
@@ -127,7 +128,7 @@ func (r *localFQDNResolver) clusterClientForAppFQDN(ctx context.Context, profile
 		return rootClient, nil
 	}
 
-	leafClusters, err := getLeafClusters(ctx, rootClient)
+	leafClusters, err := r.cfg.leafClusterCache.getLeafClusters(ctx, rootClient)
 	if err != nil {
 		// Good chance we're here because the user is not logged in to the profile.
 		log.ErrorContext(ctx, "Failed to list leaf clusters, apps in this cluster will not be resolved.", "profile", profileName, "error", err)
@@ -245,7 +246,7 @@ func (r *localFQDNResolver) tryResolveSSH(ctx context.Context, profileNames []st
 		if !isDescendantSubdomain(fqdn, rootClusterName) {
 			continue
 		}
-		leafClusters, err := getLeafClusters(ctx, rootClient)
+		leafClusters, err := r.cfg.leafClusterCache.getLeafClusters(ctx, rootClient)
 		if err != nil {
 			// Good chance we're here because the user is not logged in to the profile.
 			log.ErrorContext(ctx, "Failed to list leaf clusters, SSH nodes in this cluster will not be resolved", "error", err)
