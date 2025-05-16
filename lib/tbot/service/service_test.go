@@ -119,6 +119,8 @@ func TestService_OneShot(t *testing.T) {
 }
 
 func TestService_Retries(t *testing.T) {
+	t.Parallel()
+
 	called := make(chan struct{}, 1)
 
 	svc := service.NewService(
@@ -152,6 +154,8 @@ func TestService_Retries(t *testing.T) {
 }
 
 func TestService_IrrecoverableError(t *testing.T) {
+	t.Parallel()
+
 	var calls int
 
 	a := service.NewService(
@@ -187,6 +191,8 @@ func TestService_IrrecoverableError(t *testing.T) {
 }
 
 func TestService_MultipleSupervisors(t *testing.T) {
+	t.Parallel()
+
 	svc := service.NewService(
 		"service",
 		handlerFunc(nil),
@@ -203,6 +209,8 @@ func TestService_MultipleSupervisors(t *testing.T) {
 }
 
 func TestService_SupervisorRunMultipleTimes(t *testing.T) {
+	t.Parallel()
+
 	sup, err := service.NewSupervisor(service.SupervisorConfig{})
 	require.NoError(t, err)
 	require.NoError(t, sup.Run(context.Background()))
