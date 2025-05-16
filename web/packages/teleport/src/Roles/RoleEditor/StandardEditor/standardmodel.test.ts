@@ -47,7 +47,7 @@ import {
   defaultRoleVersion,
   gitHubOrganizationsToModel,
   KubernetesAccess,
-  kubernetesResourceKindOptionsMap,
+  kubernetesResourceKindOptionsMapV7,
   kubernetesVerbOptionsMap,
   labelsModelToLabels,
   labelsToModel,
@@ -63,15 +63,17 @@ import {
 } from './standardmodel';
 import { withDefaults } from './withDefaults';
 
-const minimalRole = (roleVersion?: RoleVersion) =>
+const minimalRole = (roleVersion = defaultRoleVersion) =>
   withDefaults({ metadata: { name: 'foobar' } }, roleVersion);
 
-const minimalRoleModel = (roleVersion?: RoleVersion): RoleEditorModel => ({
+const minimalRoleModel = (
+  roleVersion = defaultRoleVersion
+): RoleEditorModel => ({
   metadata: {
     name: 'foobar',
     nameCollision: false,
     labels: [],
-    version: roleVersionOptionsMap.get(roleVersion || defaultRoleVersion),
+    version: roleVersionOptionsMap.get(roleVersion),
   },
   resources: [],
   rules: [],
@@ -645,8 +647,7 @@ describe('roleToRoleEditorModel', () => {
           ...minRole.spec.allow,
           allowUnknown: 123,
           kubernetes_resources: [
-            { kind: 'job', resUnknown: 123 } as KubernetesResource,
-            { kind: 'illegal' } as unknown as KubernetesResource,
+            { kind: 'jobs', resUnknown: 123 } as KubernetesResource,
             {
               kind: '*',
               verbs: ['illegal', 'get'],
@@ -708,8 +709,7 @@ describe('roleToRoleEditorModel', () => {
         {
           type: ConversionErrorType.UnsupportedValue,
           errors: simpleConversionErrors(ConversionErrorType.UnsupportedValue, [
-            'spec.allow.kubernetes_resources[1]',
-            'spec.allow.kubernetes_resources[2].verbs[0]',
+            'spec.allow.kubernetes_resources[1].verbs[0]',
             'spec.allow.rules[1].verbs[1]',
             'spec.allow.rules[2].verbs[1]',
             'spec.options.ssh_port_forwarding',
@@ -761,7 +761,7 @@ describe('roleToRoleEditorModel', () => {
           ...newKubeClusterResourceAccess(),
           resources: [
             expect.objectContaining({
-              kind: kubernetesResourceKindOptionsMap.get('job'),
+              kind: { value: 'jobs', label: 'jobs' },
             }),
             expect.objectContaining({
               verbs: [kubernetesVerbOptionsMap.get('get')],
@@ -839,6 +839,120 @@ describe('roleToRoleEditorModel', () => {
     } as RoleEditorModel);
   });
 
+  test('support custom resource', () => {
+    expect(
+      roleToRoleEditorModel({
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            kubernetes_resources: [
+              { kind: 'unknown', api_group: 'group.example.com' },
+              { kind: 'jobs', api_group: '*' },
+            ],
+          },
+        },
+      })
+    ).toEqual({
+      ...minRoleModel,
+      resources: [
+        {
+          ...newKubeClusterResourceAccess(),
+          resources: [
+            expect.objectContaining({
+              kind: { value: 'unknown', label: 'unknown' },
+              apiGroup: 'group.example.com',
+            }),
+            expect.objectContaining({
+              kind: { value: 'jobs', label: 'jobs' },
+              apiGroup: '*',
+            }),
+          ],
+        },
+      ],
+    });
+  });
+
+  test('not support custom resource', () => {
+    expect(
+      roleToRoleEditorModel({
+        ...minimalRole(RoleVersion.V7),
+        spec: {
+          ...minimalRole(RoleVersion.V7).spec,
+          allow: {
+            ...minimalRole(RoleVersion.V7).spec.allow,
+            kubernetes_resources: [
+              { kind: 'unknown', api_group: 'group.example.com' },
+              { kind: 'jobs', api_group: '*' },
+            ],
+          },
+          options: {
+            ...minimalRole(RoleVersion.V7).spec.options,
+            idp: { saml: { enabled: true } },
+          },
+        },
+      })
+    ).toEqual({
+      ...minimalRoleModel(RoleVersion.V7),
+      requiresReset: true,
+      resources: [],
+      conversionErrors: [
+        {
+          type: ConversionErrorType.UnsupportedValue,
+          errors: [
+            {
+              type: ConversionErrorType.UnsupportedValue,
+              path: 'spec.allow.kubernetes_resources[0].kind',
+            },
+            {
+              type: ConversionErrorType.UnsupportedValue,
+              path: 'spec.allow.kubernetes_resources[1].kind',
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  test('v8 not support v7 kind', () => {
+    expect(
+      roleToRoleEditorModel({
+        ...minimalRole(RoleVersion.V8),
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            kubernetes_resources: [{ kind: 'job', api_group: '*' }],
+          },
+        },
+      })
+    ).toEqual({
+      ...minimalRoleModel(RoleVersion.V8),
+      requiresReset: true,
+      resources: [
+        {
+          ...newKubeClusterResourceAccess(),
+          resources: [
+            expect.objectContaining({ kind: { value: 'jobs', label: 'jobs' } }),
+          ],
+        },
+      ],
+      conversionErrors: [
+        {
+          type: ConversionErrorType.UnsupportedValueWithReplacement,
+          errors: [
+            {
+              type: ConversionErrorType.UnsupportedValueWithReplacement,
+              path: 'spec.allow.kubernetes_resources[0].kind',
+              replacement: '"jobs"',
+            },
+          ],
+        },
+      ],
+    });
+  });
+
   it('revision change requires reset', () => {
     const rev = '5d7e724b-a52c-4c12-9372-60a8d1af5d33';
     const originalRev = '9c2d5732-c514-46c3-b18d-2009b65af7b8';
@@ -889,14 +1003,14 @@ describe('roleToRoleEditorModel', () => {
             kubernetes_labels: { bar: 'foo' },
             kubernetes_resources: [
               {
-                kind: 'pod',
+                kind: 'pods',
                 name: 'some-pod',
                 namespace: '*',
                 verbs: ['get', 'update'],
               },
               {
                 // No namespace required for cluster-wide resources.
-                kind: 'kube_node',
+                kind: 'nodes',
                 name: 'some-node',
               },
             ],
@@ -917,7 +1031,7 @@ describe('roleToRoleEditorModel', () => {
           resources: [
             {
               id: expect.any(String),
-              kind: kubernetesResourceKindOptionsMap.get('pod'),
+              kind: { value: 'pods', label: 'pods' },
               name: 'some-pod',
               namespace: '*',
               verbs: [
@@ -928,7 +1042,7 @@ describe('roleToRoleEditorModel', () => {
             },
             {
               id: expect.any(String),
-              kind: kubernetesResourceKindOptionsMap.get('kube_node'),
+              kind: { value: 'nodes', label: 'nodes' },
               name: 'some-node',
               namespace: '',
               verbs: [],
@@ -1136,7 +1250,7 @@ describe('roleEditorModelToRole', () => {
             resources: [
               {
                 id: 'dummy-id-1',
-                kind: kubernetesResourceKindOptionsMap.get('pod'),
+                kind: kubernetesResourceKindOptionsMapV7.get('pod'),
                 name: 'some-pod',
                 namespace: '*',
                 verbs: [
@@ -1147,7 +1261,7 @@ describe('roleEditorModelToRole', () => {
               },
               {
                 id: 'dummy-id-2',
-                kind: kubernetesResourceKindOptionsMap.get('kube_node'),
+                kind: kubernetesResourceKindOptionsMapV7.get('kube_node'),
                 name: 'some-node',
                 namespace: '',
                 verbs: [],

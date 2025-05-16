@@ -26,20 +26,19 @@ import {
 } from 'shared/components/Validation/rules';
 
 import { nonEmptyLabels } from 'teleport/components/LabelsInput/LabelsInput';
-import {
-  KubernetesResourceKind,
-  RoleVersion,
-} from 'teleport/services/resources';
+import { RoleVersion } from 'teleport/services/resources';
 
 import {
   AppAccess,
   DatabaseAccess,
   KubernetesAccess,
+  kubernetesResourceKindV7Groups,
   KubernetesResourceModel,
   KubernetesVerbOption,
   MetadataModel,
   ResourceAccess,
   ResourceKindOption,
+  resourceKindOptions,
   RoleEditorModel,
   RuleModel,
   ServerAccess,
@@ -47,7 +46,7 @@ import {
   WindowsDesktopAccess,
 } from './standardmodel';
 
-export const kubernetesClusterWideResourceKinds: KubernetesResourceKind[] = [
+export const kubernetesClusterWideResourceKinds: string[] = [
   'namespace',
   'kube_node',
   'persistentvolume',
@@ -191,7 +190,11 @@ export type ResourceAccessValidationResult =
   | GitHubOrganizationAccessValidationResult;
 
 const validKubernetesResource = (res: KubernetesResourceModel) => () => {
-  const kind = validKubernetesKind(res.kind.value, res.roleVersion);
+  const kind = validKubernetesKind(
+    res.kind.value,
+    res.apiGroup,
+    res.roleVersion
+  );
   const name = requiredField(
     'Resource name is required, use "*" for any resource'
   )(res.name)();
@@ -201,19 +204,29 @@ const validKubernetesResource = (res: KubernetesResourceModel) => () => {
         res.namespace
       )();
   const verbs = validKubernetesVerbs(res.verbs);
+  const apiGroup = validKubernetesGroup(res.apiGroup, res.roleVersion);
+
   return {
-    valid: kind.valid && name.valid && namespace.valid && verbs.valid,
+    valid:
+      kind.valid &&
+      name.valid &&
+      namespace.valid &&
+      verbs.valid &&
+      apiGroup.valid,
     kind,
     name,
     namespace,
     verbs,
+    apiGroup,
   };
 };
+
 export type KubernetesResourceValidationResult = {
   kind: ValidationResult;
   name: ValidationResult;
   namespace: ValidationResult;
   verbs: ValidationResult;
+  apiGroup: ValidationResult;
 };
 
 /**
@@ -222,7 +235,8 @@ export type KubernetesResourceValidationResult = {
  * Kubernetes resources.
  */
 const validKubernetesKind = (
-  kind: KubernetesResourceKind,
+  kind: string,
+  apiGroup: string | undefined,
   ver: RoleVersion
 ): ValidationResult => {
   switch (ver) {
@@ -239,8 +253,65 @@ const validKubernetesKind = (
       };
 
     case RoleVersion.V7:
+      // NOTE: We need to validate in case the user switches between role versions.
+      // Valid values in rolev8 could be invalid in older versions.
+      const v7valid = resourceKindOptions.some(elem => elem.value === kind);
+
+      return {
+        valid: v7valid,
+        message: v7valid
+          ? undefined
+          : `Only core predefined kinds are allowed for role version ${ver}`,
+      };
+
     case RoleVersion.V8:
+      const v7groups = kubernetesResourceKindV7Groups[kind];
+      const v8valid =
+        !v7groups || (apiGroup !== '*' && !v7groups.groups.includes(apiGroup));
+      return {
+        valid: v8valid,
+        message: v8valid
+          ? undefined
+          : `Kind must use k8s plural name. Did you mean "${v7groups.v8name}"?`,
+      };
+
+    default:
+      ver satisfies never;
       return { valid: true };
+  }
+};
+
+/**
+ * Validates a `group` field of a `KubernetesResourceModel`. In roles with
+ * version prior to v8, the auth server only accepts empty string or "*".
+ */
+const validKubernetesGroup = (
+  group: string,
+  ver: RoleVersion
+): ValidationResult => {
+  switch (ver) {
+    case RoleVersion.V3:
+    case RoleVersion.V4:
+    case RoleVersion.V5:
+    case RoleVersion.V6:
+    case RoleVersion.V7:
+      const v7valid = !group;
+
+      return {
+        valid: v7valid,
+        message: v7valid
+          ? undefined
+          : `API Group not supported for role version ${ver}.`,
+      };
+
+    case RoleVersion.V8:
+      const v8valid = !!group;
+      return {
+        valid: v8valid,
+        message: v8valid
+          ? undefined
+          : `API Group required. Use "*" for any group.`,
+      };
 
     default:
       ver satisfies never;
