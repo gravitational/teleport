@@ -17,7 +17,8 @@
  */
 
 const BASE_PATH = '/web';
-const SAML_IDP_SSO_PATH = '/enterprise/saml-idp/sso';
+const SAML_SP_INITIATED_SSO_PATH = '/enterprise/saml-idp/sso';
+const SAML_IDP_INITIATED_SSO_PATH = '/enterprise/saml-idp/login';
 
 /**
  * Processes a redirect URI to ensure it's valid and follows the expected format.
@@ -53,7 +54,10 @@ export function processRedirectUri(redirectUri: string | null): string {
       return path;
     }
 
-    if (path.startsWith(SAML_IDP_SSO_PATH)) {
+    if (
+      path.startsWith(SAML_IDP_INITIATED_SSO_PATH) ||
+      path.startsWith(SAML_SP_INITIATED_SSO_PATH)
+    ) {
       return path + url.search;
     }
 

@@ -102,8 +102,9 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 // a path ensuring its prefixed with "/web".
 func (h *Handler) getRedirectURL(host, unsafeRedirectURI string) (string, error) {
 	const (
-		basePath       = "/web"
-		samlIdPSSOPath = "/enterprise/saml-idp/sso"
+		basePath                = "/web"
+		samlSPInitiatedSSOPath  = "/enterprise/saml-idp/sso"
+		samlIDPInitiatedSSOPath = "/enterprise/saml-idp/login"
 	)
 
 	if unsafeRedirectURI == "" {
@@ -123,14 +124,20 @@ func (h *Handler) getRedirectURL(host, unsafeRedirectURI string) (string, error)
 		cleanPath = "/" + cleanPath
 	}
 
-	if cleanPath == samlIdPSSOPath {
+	// IDP initiated SSO path format: "/enterprise/saml-idp/login/<service provider name>"
+	isIdpInitiatedSSOPath := strings.HasPrefix(cleanPath, samlIDPInitiatedSSOPath) && len(strings.Split(cleanPath, "/")) == 5
+	if cleanPath == samlSPInitiatedSSOPath || isIdpInitiatedSSOPath {
 		if parsedURL.Host != host {
 			return "", trace.BadParameter("host mismatch")
+		}
+		path := samlSPInitiatedSSOPath
+		if isIdpInitiatedSSOPath {
+			path = cleanPath
 		}
 		ensuredURL := &url.URL{
 			Scheme:   "https",
 			Host:     host,
-			Path:     samlIdPSSOPath,
+			Path:     path,
 			RawQuery: parsedURL.RawQuery,
 		}
 		return ensuredURL.String(), nil

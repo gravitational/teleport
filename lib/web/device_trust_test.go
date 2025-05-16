@@ -102,9 +102,16 @@ func TestHandler_DeviceWebConfirm(t *testing.T) {
 			statusCode:         http.StatusSeeOther,
 		},
 		{
-			name:               "saml idp sso endpoint",
+			name:               "saml idp service provider initiated sso endpoint",
 			redirectURI:        fmt.Sprintf("https://%s/enterprise/saml-idp/sso?SAMLRequest=example-authn-request", proxy.webURL.Host),
 			expectedRedirectTo: fmt.Sprintf("https://%s/enterprise/saml-idp/sso?SAMLRequest=example-authn-request", proxy.webURL.Host),
+			redirectsToFullURL: true,
+			statusCode:         http.StatusSeeOther,
+		},
+		{
+			name:               "saml idp identity provider initiated sso endpoint",
+			redirectURI:        fmt.Sprintf("https://%s/enterprise/saml-idp/login/example-app", proxy.webURL.Host),
+			expectedRedirectTo: fmt.Sprintf("https://%s/enterprise/saml-idp/login/example-app", proxy.webURL.Host),
 			redirectsToFullURL: true,
 			statusCode:         http.StatusSeeOther,
 		},
