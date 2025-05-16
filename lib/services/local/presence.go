@@ -1274,7 +1274,7 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 		keyPrefix = []string{gitServerPrefix}
 		unmarshalItemFunc = backendItemToServer(types.KindGitServer)
 	default:
-		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
+		return nil, trace.NotImplemented("%s not implemented2 at ListResources", req.ResourceType)
 	}
 
 	rangeStart := backend.NewKey(append(keyPrefix, req.StartKey)...)

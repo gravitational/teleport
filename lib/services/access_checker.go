@@ -439,7 +439,7 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 			// access the Kubernetes cluster that it belongs to.
 			// At this point, we do not verify that the accessed resource matches the
 			// allowed resources, but that verification happens in the caller function.
-			(resourceID.Kind == r.GetKind() || (slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) && r.GetKind() == types.KindKubernetesCluster)) &&
+			(resourceID.Kind == r.GetKind() || ((slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) || strings.HasPrefix(resourceID.Kind, types.PrefixKindKube)) && r.GetKind() == types.KindKubernetesCluster)) &&
 			resourceID.Name == r.GetName() {
 			// Allowed to access this resource by resource ID, move on to role checks.
 
@@ -523,7 +523,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 			continue
 		}
 		switch {
-		case slices.Contains(types.KubernetesResourcesKinds, r.Kind):
+		case slices.Contains(types.KubernetesResourcesKinds, r.Kind) || strings.HasPrefix(r.Kind, types.PrefixKindKube):
 			namespace := ""
 			name := ""
 			if slices.Contains(types.KubernetesClusterWideResourceKinds, r.Kind) {

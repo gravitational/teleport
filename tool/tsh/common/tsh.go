@@ -527,8 +527,12 @@ type CLIConf struct {
 	// kubeNamespace allows to configure the default Kubernetes namespace.
 	kubeNamespace string
 
-	// kubeAllNamespaces allows users to search for pods in every namespace.
+	// kubeAllNamespaces allows users to search for resources in every namespace.
 	kubeAllNamespaces bool
+
+	// kubeAPIGroup allows to search for CRD and unknown resources.
+	// Setting this disables the enum validationin the ResourceKind field.
+	kubeAPIGroup string
 
 	// KubeConfigPath is the location of the Kubeconfig for the current test.
 	// Setting this value allows Teleport tests to run `tsh login` commands in
@@ -1276,9 +1280,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	reqSearch := req.Command("search", "Search for resources to request access to.")
 	reqSearch.Flag("kind",
-		fmt.Sprintf("Resource kind to search for (%s)",
+		fmt.Sprintf("Resource kind to search for (if --kube-api-group is not set, then %s)",
 			strings.Join(types.RequestableResourceKinds, ", ")),
-	).Required().EnumVar(&cf.ResourceKind, types.RequestableResourceKinds...)
+	).Required().StringVar(&cf.ResourceKind)
+	reqSearch.Flag("kube-api-group", "Kubernetes API group to search for resources. Sets --kind to target a kubernetes resource.").StringVar(&cf.kubeAPIGroup)
+	// If the --kube-api-group flag not set, enforce the enum validation for --kind.
+	reqSearch.PreAction(func(*kingpin.ParseContext) error {
+		if cf.kubeAPIGroup == "" && !slices.Contains(types.RequestableResourceKinds, cf.ResourceKind) {
+			return trace.BadParameter("enum value must be one of %s, got '%s'", strings.Join(types.RequestableResourceKinds, ", "), cf.ResourceKind)
+		}
+		return nil
+	})
+
 	reqSearch.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	reqSearch.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	reqSearch.Flag("labels", labelHelp).StringVar(&cf.Labels)

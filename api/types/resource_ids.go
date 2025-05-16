@@ -32,7 +32,7 @@ func (id *ResourceID) CheckAndSetDefaults() error {
 	if len(id.Kind) == 0 {
 		return trace.BadParameter("ResourceID must include Kind")
 	}
-	if !slices.Contains(RequestableResourceKinds, id.Kind) {
+	if !slices.Contains(RequestableResourceKinds, id.Kind) && !strings.HasPrefix(id.Kind, PrefixKindKube) {
 		return trace.BadParameter("Resource kind %q is invalid or unsupported", id.Kind)
 	}
 	if len(id.Name) == 0 {
@@ -40,7 +40,7 @@ func (id *ResourceID) CheckAndSetDefaults() error {
 	}
 
 	switch {
-	case slices.Contains(KubernetesResourcesKinds, id.Kind):
+	case slices.Contains(KubernetesResourcesKinds, id.Kind) || strings.HasPrefix(id.Kind, PrefixKindKube):
 		return trace.Wrap(id.validateK8sSubResource())
 	case id.SubResourceName != "":
 		return trace.BadParameter("resource kind %q doesn't allow sub resources", id.Kind)
@@ -52,7 +52,7 @@ func (id *ResourceID) validateK8sSubResource() error {
 	if id.SubResourceName == "" {
 		return trace.BadParameter("resource of kind %q must include a subresource name", id.Kind)
 	}
-	isResourceNamespaceScoped := slices.Contains(KubernetesClusterWideResourceKinds, id.Kind)
+	isResourceNamespaceScoped := slices.Contains(KubernetesClusterWideResourceKinds, id.Kind) || strings.HasPrefix(id.Kind, PrefixKindKubeNamespaced)
 	switch split := strings.Split(id.SubResourceName, "/"); {
 	case isResourceNamespaceScoped && len(split) != 1:
 		return trace.BadParameter("subresource %q must follow the following format: <name>", id.SubResourceName)
@@ -96,8 +96,8 @@ func ResourceIDFromString(raw string) (ResourceID, error) {
 		Name:        parts[2],
 	}
 	switch {
-	case slices.Contains(KubernetesResourcesKinds, resourceID.Kind):
-		isResourceNamespaceScoped := slices.Contains(KubernetesClusterWideResourceKinds, resourceID.Kind)
+	case slices.Contains(KubernetesResourcesKinds, resourceID.Kind) || strings.HasPrefix(resourceID.Kind, PrefixKindKube):
+		isResourceNamespaceScoped := slices.Contains(KubernetesClusterWideResourceKinds, resourceID.Kind) || strings.HasPrefix(resourceID.Kind, PrefixKindKubeNamespaced)
 		// Kubernetes forbids slashes "/" in Namespaces and Pod names, so it's safe to
 		// explode the resourceID.Name and extract the last two entries as namespace
 		// and name.
