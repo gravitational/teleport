@@ -395,7 +395,7 @@ function KubernetesResourceKindView({
   onChange?(m: KubernetesResourceModel): void;
   roleVersion: RoleVersion;
 }) {
-  const supportsCRDs = supportsKubernetesCustomResources(roleVersion);
+  const supportsCrds = supportsKubernetesCustomResources(roleVersion);
   const v7selectField = (
     <FieldSelect
       label="Kind"
