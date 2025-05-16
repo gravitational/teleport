@@ -68,6 +68,27 @@ func (c *IDTokenClaims) GetSubject() string {
 	return c.Sub
 }
 
+// ForAudit returns a map of the claims with the names adjusted to match the
+// definition in the JoinToken allow rules. This allows us to provide a better
+// UX by using the same names in the allow rules as are presented in the audit
+// logs.
+func (c *IDTokenClaims) ForAudit() map[string]any {
+	return map[string]any{
+		"sub":               c.Sub,
+		"organization_name": c.OrganizationName,
+		"project_name":      c.ProjectName,
+		"pipeline_name":     c.PipelineName,
+		"organization_id":   c.OrganizationID,
+		"project_id":        c.ProjectID,
+		"definition_id":     c.DefinitionID,
+		"repository_id":     c.RepositoryID,
+		"repository_uri":    c.RepositoryURI,
+		"repository_ver":    c.RepositoryVersion,
+		"repository_ref":    c.RepositoryRef,
+		"raw":               c,
+	}
+}
+
 // JoinAttrs returns the protobuf representation of the attested identity.
 // This is used for auditing and for evaluation of WorkloadIdentity rules and
 // templating.
