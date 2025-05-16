@@ -41,7 +41,7 @@ func TestRegisterDatabase(t *testing.T) {
 		buildDatabase(t, "third"),
 	}
 	// sort databases by name to ensure the same order every test.
-	slices.SortFunc(databases, func(a *Database, b *Database) int {
+	slices.SortFunc(databases, func(a, b *Database) int {
 		return strings.Compare(a.ResourceURI(), b.ResourceURI())
 	})
 
@@ -57,7 +57,7 @@ func TestRegisterDatabase(t *testing.T) {
 
 		// sort the result using the same field as databases to avoid flaky
 		// test.
-		slices.SortFunc(listResult.Resources, func(a mcp.Resource, b mcp.Resource) int {
+		slices.SortFunc(listResult.Resources, func(a, b mcp.Resource) int {
 			return strings.Compare(a.URI, b.URI)
 		})
 
@@ -79,8 +79,22 @@ func TestRegisterDatabase(t *testing.T) {
 		require.False(t, res.IsError)
 		require.Len(t, res.Content, len(databases))
 
-		for i, c := range res.Content {
+		for _, c := range res.Content {
 			require.IsType(t, mcp.EmbeddedResource{}, c)
+			require.IsType(t, mcp.TextResourceContents{}, c.(mcp.EmbeddedResource).Resource)
+		}
+
+		// Although we're not sorting by the URI directly, the only field that
+		// is different across the databases is their name and URI (which would
+		// cause them to have the same order). So here we sort by the YAML
+		// contents to avoid having to decode.
+		slices.SortFunc(res.Content, func(a, b mcp.Content) int {
+			resourceA := a.(mcp.EmbeddedResource).Resource.(mcp.TextResourceContents)
+			resourceB := b.(mcp.EmbeddedResource).Resource.(mcp.TextResourceContents)
+			return strings.Compare(resourceA.Text, resourceB.Text)
+		})
+
+		for i, c := range res.Content {
 			content := c.(mcp.EmbeddedResource)
 			assertDatabaseResource(t, databases[i], content.Resource)
 		}
