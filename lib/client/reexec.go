@@ -43,8 +43,7 @@ type ForkAuthenticateParams struct {
 type forkAuthCmd struct {
 	*exec.Cmd
 	disownSignal io.ReadCloser
-	parentStdin  io.Reader
-	childStdin   io.WriteCloser
+	parentStdin  io.ReadCloser
 }
 
 // RunForkAuthenticate re-execs the current executable and waits for any of
@@ -76,24 +75,23 @@ func buildForkAuthenticateCommand(params ForkAuthenticateParams) (*forkAuthCmd, 
 	signalFd := addSignalFdToChild(cmd, signalW)
 
 	cmd.Args = append(cmd.Args, params.GetArgs(signalFd)...)
-	cmd.Stdout = params.Stdout
-	cmd.Stderr = params.Stderr
-
-	// Stdin needs to go through an explicit pipe so we can cut it off without
-	// actually closing stdin.
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if params.Stdin == nil {
 		params.Stdin = os.Stdin
 	}
-	return &forkAuthCmd{
+	cmd.Stdin = params.Stdin
+	cmd.Stdout = params.Stdout
+	cmd.Stderr = params.Stderr
+
+	forkCmd := &forkAuthCmd{
 		Cmd:          cmd,
 		disownSignal: signalR,
-		parentStdin:  params.Stdin,
-		childStdin:   stdin,
-	}, nil
+	}
+	if stdinClose, ok := params.Stdin.(io.ReadCloser); ok {
+		forkCmd.parentStdin = stdinClose
+	} else {
+		forkCmd.parentStdin = io.NopCloser(params.Stdin)
+	}
+	return forkCmd, nil
 }
 
 func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
@@ -117,14 +115,14 @@ func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 		childFinished <- cmd.Wait()
 	}()
 
-	// Copy stdin until the child is ready to disown.
-	go io.Copy(cmd.childStdin, cmd.parentStdin)
-	defer cmd.childStdin.Close()
-
 	select {
 	case err := <-childFinished:
 		return trace.Wrap(err)
 	case err := <-disownReady:
+		// Child should not read from stdin after authentication.
+		if err := cmd.parentStdin.Close(); err != nil {
+			return trace.Wrap(err)
+		}
 		return trace.Wrap(err)
 	case <-ctx.Done():
 		if err := cmd.Process.Kill(); err != nil {
