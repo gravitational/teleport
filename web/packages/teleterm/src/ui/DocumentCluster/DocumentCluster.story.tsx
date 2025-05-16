@@ -94,6 +94,7 @@ export const OnlineLoadedResources = () => {
               targetHealth: {
                 status: 'unhealthy',
                 error: 'some unhealthy error message',
+                message: 'some message',
               },
             }),
             requiresRequest: false,
@@ -323,15 +324,20 @@ function renderState({
           hostname: 'some-hostname-1',
           hostId: 'some-host-id-1',
           uri: 'some-uri-1',
-          targetHealth: { status: 'unhealthy', error: 'some unhealthy error' },
+          targetHealth: {
+            status: 'unhealthy',
+            error: 'some unhealthy error',
+            message: '',
+          },
         },
         {
           hostname: 'some-hostname-2',
           hostId: 'some-host-id-2',
           uri: 'some-uri-2',
           targetHealth: {
-            status: 'unhealthy',
-            error: 'some other unhealthy error',
+            status: 'unknown',
+            message: 'some unknown related message',
+            error: 'some other unknown error',
           },
         },
       ],
