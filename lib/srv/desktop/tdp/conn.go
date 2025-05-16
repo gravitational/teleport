@@ -192,7 +192,6 @@ type ConnProxy struct {
 	// If the returned message is non-nil, it is forwarded to the client.
 	// If an error is returned, the stream is canceled.
 	serverInterceptor ServerInterceptor
-	messagesToClient  chan Message
 }
 
 // ServerInterceptor intercepts messages received from the server.
