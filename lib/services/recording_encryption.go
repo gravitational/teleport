@@ -34,3 +34,7 @@ type RecordingEncryption interface {
 	// GetRecordingEncryption retrieves the RecordingEncryption for the cluster.
 	GetRecordingEncryption(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error)
 }
+
+type EncryptedRecordingUploader interface {
+	UploadEncryptedRecording(ctx context.Context) (chan *recordingencryptionv1.UploadEncryptedRecordingRequest, chan error)
+}

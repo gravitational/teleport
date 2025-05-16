@@ -19,6 +19,7 @@
 package events
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	recordingencryptionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -620,6 +622,59 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	}()
 
 	return c, e
+}
+
+func (l *AuditLog) UploadEncryptedRecording(ctx context.Context) (chan *recordingencryptionpb.UploadEncryptedRecordingRequest, chan error) {
+	inputCh := make(chan *recordingencryptionpb.UploadEncryptedRecordingRequest)
+	errCh := make(chan error)
+
+	uploader := l.AuditLogConfig.UploadHandler
+	go func() (err error) {
+		defer func() {
+			errCh <- err
+		}()
+
+		var upload *StreamUpload
+		var parts []StreamPart
+
+	Loop:
+		for {
+			select {
+			case req, moreParts := <-inputCh:
+				if !moreParts {
+					break Loop
+				}
+
+				if upload == nil {
+					sessID, err := session.ParseID(req.SessionId)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+
+					upload, err = uploader.CreateUpload(ctx, *sessID)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+				}
+
+				if err := uploader.ReserveUploadPart(ctx, *upload, req.PartIndex+1); err != nil {
+					return trace.Wrap(err)
+				}
+
+				part, err := uploader.UploadPart(ctx, *upload, req.PartIndex, bytes.NewReader(req.Part))
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				parts = append(parts, *part)
+
+			case <-ctx.Done():
+				return trace.Wrap(ctx.Err())
+			}
+		}
+		return trace.Wrap(uploader.CompleteUpload(ctx, *upload, parts))
+	}()
+
+	return inputCh, errCh
 }
 
 // getLocalLog returns the local (file based) AuditLogger.
