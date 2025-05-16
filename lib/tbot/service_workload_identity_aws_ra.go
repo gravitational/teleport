@@ -91,7 +91,14 @@ func (s *WorkloadIdentityAWSRAService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "marshaling private key")
 	}
-	svid, err := x509svid.ParseRaw(res.GetX509Svid().Cert, pkcs8)
+	certWithChain := bytes.NewBuffer(res.GetX509Svid().Cert)
+	for _, cert := range res.GetX509Svid().Chain {
+		_, err := certWithChain.Write(cert)
+		if err != nil {
+			return trace.Wrap(err, "writing chain cert to buffer")
+		}
+	}
+	svid, err := x509svid.ParseRaw(certWithChain.Bytes(), pkcs8)
 	if err != nil {
 		return trace.Wrap(err, "parsing x509 svid")
 	}
