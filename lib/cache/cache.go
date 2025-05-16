@@ -505,8 +505,11 @@ type Cache struct {
 	// cancel triggers exit context closure
 	cancel context.CancelFunc
 
-	// collections is a registry of resource collections
-	collections *cacheCollections
+	// legacyCacheCollections is a registry of resource legacyCollections
+	legacyCacheCollections *legacyCollections
+
+	// collections is a registry of resource collections.
+	collections *collections
 
 	// confirmedKinds is a map of kinds confirmed by the server to be included in the current generation
 	// by resource Kind/SubKind
@@ -587,18 +590,9 @@ func (c *Cache) setReadStatus(ok bool, confirmedKinds map[resourceKind]types.Wat
 	c.confirmedKinds = confirmedKinds
 }
 
-// readCollectionCache acquires the cache read lock and uses getReader() to select the appropriate target for read
-// operations on resources of the specified collection. The returned guard *must* be released to prevent deadlocks.
-func readCollectionCache[R any](cache *Cache, collection collectionReader[R]) (rg readGuard[R], err error) {
-	if collection == nil {
-		return rg, trace.BadParameter("cannot read from an uninitialized cache collection")
-	}
-	return readCache(cache, collection.watchKind(), collection.getReader)
-}
-
 // readListResourcesCache acquires the cache read lock and uses getReader() to select the appropriate target
 // for listing resources of the specified resourceType. The returned guard *must* be released to prevent deadlocks.
-func readListResourcesCache(cache *Cache, resourceType string) (readGuard[resourceGetter], error) {
+func readListResourcesCache(cache *Cache, resourceType string) (legacyReadGuard[resourceGetter], error) {
 	getResourceReader := func(cacheOK bool) resourceGetter {
 		if cacheOK {
 			return cache.presenceCache
@@ -606,20 +600,53 @@ func readListResourcesCache(cache *Cache, resourceType string) (readGuard[resour
 		return cache.Config.Presence
 	}
 
-	return readCache(cache, types.WatchKind{Kind: resourceType}, getResourceReader)
+	return legacyReadCache(cache, types.WatchKind{Kind: resourceType}, getResourceReader)
 }
 
-// readCache acquires the cache read lock and uses getReader() to select the appropriate target for read operations
-// on resources of the specified kind. The returned guard *must* be released to prevent deadlocks.
-func readCache[R any](cache *Cache, kind types.WatchKind, getReader func(cacheOK bool) R) (readGuard[R], error) {
+// readLegacyCollectionCache acquires the cache read lock and uses getReader() to select the appropriate target for read
+// operations on resources of the specified collection. The returned guard *must* be released to prevent deadlocks.
+func readLegacyCollectionCache[R any](cache *Cache, collection collectionReader[R]) (legacyReadGuard[R], error) {
+	if collection == nil {
+		return legacyReadGuard[R]{}, trace.BadParameter("cannot read from an uninitialized cache collection")
+	}
+	return legacyReadCache(cache, collection.watchKind(), collection.getReader)
+}
+
+// acquireReadGuard provides a readGuard that may be used to determine how
+// a cache read should operate. The returned guard *must* be released to prevent deadlocks.
+func acquireReadGuard[T any, I comparable](cache *Cache, c *collection[T, I]) (readGuard[T, I], error) {
 	if cache.closed.Load() {
-		return readGuard[R]{}, trace.Errorf("cache is closed")
+		return readGuard[T, I]{}, trace.Errorf("cache is closed")
+	}
+	cache.rw.RLock()
+
+	if cache.ok {
+		if _, kindOK := cache.confirmedKinds[resourceKind{kind: c.watch.Kind, subkind: c.watch.SubKind}]; kindOK {
+			return readGuard[T, I]{
+				cacheRead: true,
+				release:   cache.rw.RUnlock,
+				store:     c.store,
+			}, nil
+		}
+	}
+
+	cache.rw.RUnlock()
+	return readGuard[T, I]{
+		cacheRead: false,
+	}, nil
+}
+
+// legacyReadCache acquires the cache read lock and uses getReader() to select the appropriate target for read operations
+// on resources of the specified kind. The returned guard *must* be released to prevent deadlocks.
+func legacyReadCache[R any](cache *Cache, kind types.WatchKind, getReader func(cacheOK bool) R) (legacyReadGuard[R], error) {
+	if cache.closed.Load() {
+		return legacyReadGuard[R]{}, trace.Errorf("cache is closed")
 	}
 	cache.rw.RLock()
 
 	if cache.ok {
 		if _, kindOK := cache.confirmedKinds[resourceKind{kind: kind.Kind, subkind: kind.SubKind}]; kindOK {
-			return readGuard[R]{
+			return legacyReadGuard[R]{
 				reader:  getReader(true),
 				release: cache.rw.RUnlock,
 			}, nil
@@ -627,32 +654,58 @@ func readCache[R any](cache *Cache, kind types.WatchKind, getReader func(cacheOK
 	}
 
 	cache.rw.RUnlock()
-	return readGuard[R]{
+	return legacyReadGuard[R]{
 		reader:  getReader(false),
 		release: nil,
 	}, nil
 }
 
-// readGuard holds a reference to a read-only "backend" R. If the referenced backed is the cache, then readGuard
+// legacyReadGuard holds a reference to a read-only "backend" R. If the referenced backed is the cache, then legacyReadGuard
 // also holds the release function for the read lock, and ensures that it is not double-called.
-type readGuard[R any] struct {
-	reader   R
-	release  func()
-	released bool
+type legacyReadGuard[R any] struct {
+	reader  R
+	once    sync.Once
+	release func()
 }
 
-// Release releases the read lock if it is held.  This method
-// can be called multiple times, but is not thread-safe.
-func (r *readGuard[R]) Release() {
-	if r.release != nil && !r.released {
+// Release releases the read lock if it is held. This method
+// can be called multiple times.
+func (r *legacyReadGuard[R]) Release() {
+	r.once.Do(func() {
+		if r.release == nil {
+			return
+		}
+
 		r.release()
-		r.released = true
-	}
+	})
 }
 
 // IsCacheRead checks if this readGuard holds a cache reference.
-func (r *readGuard[R]) IsCacheRead() bool {
+func (r *legacyReadGuard[R]) IsCacheRead() bool {
 	return r.release != nil
+}
+
+type readGuard[T any, I comparable] struct {
+	cacheRead bool
+	store     *store[T, I]
+	once      sync.Once
+	release   func()
+}
+
+func (r *readGuard[T, I]) ReadCache() bool {
+	return r.cacheRead
+}
+
+// Release releases the read lock if it is held.  This method
+// can be called multiple times.
+func (r *readGuard[T, I]) Release() {
+	r.once.Do(func() {
+		if r.release == nil {
+			return
+		}
+
+		r.release()
+	})
 }
 
 // Config defines cache configuration parameters
@@ -1112,7 +1165,15 @@ func New(config Config) (*Cache, error) {
 			teleport.ComponentKey: config.Component,
 		}),
 	}
-	collections, err := setupCollections(cs, config.Watches)
+
+	legacyCollections, err := setupLegacyCollections(cs, config.Watches)
+	if err != nil {
+		cs.Close()
+		return nil, trace.Wrap(err)
+	}
+	cs.legacyCacheCollections = legacyCollections
+
+	collections, err := setupCollections(config, legacyCollections.byKind)
 	if err != nil {
 		cs.Close()
 		return nil, trace.Wrap(err)
@@ -1344,7 +1405,7 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //	we assume that this cache will eventually end up in a correct state
 //	potentially lagging behind the state of the database.
 func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) error {
-	requestKinds := c.watchKinds()
+	requestKinds := c.Config.Watches
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		Name:                c.Component,
 		Kinds:               requestKinds,
@@ -1646,14 +1707,6 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 	return nil
 }
 
-func (c *Cache) watchKinds() []types.WatchKind {
-	out := make([]types.WatchKind, 0, len(c.collections.byKind))
-	for _, collection := range c.collections.byKind {
-		out = append(out, collection.watchKind())
-	}
-	return out
-}
-
 // isClosing checks if the cache has begun closing.
 func (c *Cache) isClosing() bool {
 	if c.closed.Load() {
@@ -1732,9 +1785,9 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(fetchLimit(c.target))
-	applyfns := make([]applyFn, len(c.collections.byKind))
+	applyfns := make([]applyFn, len(c.legacyCacheCollections.byKind)+len(c.collections.byKind))
 	i := 0
-	for kind, collection := range c.collections.byKind {
+	for kind, collection := range c.legacyCacheCollections.byKind {
 		kind, collection := kind, collection
 		ii := i
 		i++
@@ -1751,6 +1804,31 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 
 			_, cacheOK := confirmedKinds[resourceKind{kind: kind.kind, subkind: kind.subkind}]
 			applyfn, err := collection.fetch(ctx, cacheOK)
+			if err != nil {
+				return trace.Wrap(err, "failed to fetch resource: %q", kind)
+			}
+
+			applyfns[ii] = tracedApplyFn(fetchSpan, c.Tracer, kind, applyfn)
+			return nil
+		})
+	}
+
+	for kind, handler := range c.collections.byKind {
+		ii := i
+		i++
+
+		g.Go(func() (err error) {
+			ctx, span := c.Tracer.Start(
+				ctx,
+				fmt.Sprintf("cache/fetch/%s", kind.String()),
+				oteltrace.WithAttributes(
+					attribute.String("target", c.target),
+				),
+			)
+			defer func() { apitracing.EndSpan(span, err) }()
+
+			_, cacheOK := confirmedKinds[resourceKind{kind: kind.kind, subkind: kind.subkind}]
+			applyfn, err := handler.fetch(ctx, cacheOK)
 			if err != nil {
 				return trace.Wrap(err, "failed to fetch resource: %q", kind)
 			}
@@ -1779,13 +1857,31 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 // the event will be emitted via the fanout.
 func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	resourceKind := resourceKindFromResource(event.Resource)
-	collection, ok := c.collections.byKind[resourceKind]
-	if !ok {
-		c.Logger.Warnf("Skipping unsupported event %v/%v", event.Resource.GetKind(), event.Resource.GetSubKind())
-		return nil
-	}
-	if err := collection.processEvent(ctx, event); err != nil {
-		return trace.Wrap(err)
+
+	legacyCollection, legacyFound := c.legacyCacheCollections.byKind[resourceKind]
+	handler, handlerFound := c.collections.byKind[resourceKind]
+
+	switch {
+	case legacyFound:
+		if err := legacyCollection.processEvent(ctx, event); err != nil {
+			return trace.Wrap(err)
+		}
+	case handlerFound:
+		switch event.Type {
+		case types.OpDelete:
+			if err := handler.onDelete(event.Resource); err != nil {
+				if !trace.IsNotFound(err) {
+					c.Logger.Warnf("Failed to delete resource: %v", err)
+					return trace.Wrap(err)
+				}
+			}
+		case types.OpPut:
+			if err := handler.onPut(event.Resource); err != nil {
+				return trace.Wrap(err)
+			}
+		default:
+			c.Logger.Warnf("Skipping unsupported event type %T", event.Type)
+		}
 	}
 
 	c.eventsFanout.Emit(event)
@@ -1808,7 +1904,7 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthority")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.certAuthorities)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.certAuthorities)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1848,7 +1944,7 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthorities")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.certAuthorities)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.certAuthorities)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1875,7 +1971,7 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetStaticTokens")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.staticTokens)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.staticTokens)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1888,7 +1984,7 @@ func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.tokens)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.tokens)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1901,7 +1997,7 @@ func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken
 	ctx, span := c.Tracer.Start(ctx, "cache/GetToken")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.tokens)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.tokens)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1929,7 +2025,7 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditCo
 	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterAuditConfig")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.clusterAuditConfigs)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.clusterAuditConfigs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1952,7 +2048,7 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNe
 	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterNetworkingConfig")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.clusterNetworkingConfigs)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.clusterNetworkingConfigs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1975,7 +2071,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetClusterName")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.clusterNames)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.clusterNames)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2002,7 +2098,7 @@ func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdate
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateConfig")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.autoUpdateConfigs)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.autoUpdateConfigs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2025,7 +2121,7 @@ func (c *Cache) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdat
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateVersion")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.autoUpdateVersions)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.autoUpdateVersions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2048,7 +2144,7 @@ func (c *Cache) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.Auto
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateAgentRollout")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.autoUpdateAgentRollouts)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.autoUpdateAgentRollouts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2070,7 +2166,7 @@ func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetUIConfig")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.uiConfigs)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.uiConfigs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2085,7 +2181,7 @@ func (c *Cache) GetInstaller(ctx context.Context, name string) (types.Installer,
 	ctx, span := c.Tracer.Start(ctx, "cache/GetInstaller")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.installers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.installers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2100,7 +2196,7 @@ func (c *Cache) GetInstallers(ctx context.Context) ([]types.Installer, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetInstallers")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.installers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.installers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2115,7 +2211,7 @@ func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetRoles")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.roles)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.roles)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2128,7 +2224,7 @@ func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*pr
 	ctx, span := c.Tracer.Start(ctx, "cache/ListRoles")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.roles)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.roles)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2141,7 +2237,7 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetRole")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.roles)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.roles)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2164,7 +2260,7 @@ func (c *Cache) GetNamespace(name string) (*types.Namespace, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetNamespace")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.namespaces)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.namespaces)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2177,7 +2273,7 @@ func (c *Cache) GetNamespaces() ([]types.Namespace, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetNamespaces")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.namespaces)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.namespaces)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2190,7 +2286,7 @@ func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Serv
 	ctx, span := c.Tracer.Start(ctx, "cache/GetNode")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.nodes)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.nodes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2207,7 +2303,7 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server,
 	ctx, span := c.Tracer.Start(ctx, "cache/GetNodes")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.nodes)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.nodes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2246,7 +2342,7 @@ func (c *Cache) GetAuthServers() ([]types.Server, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetAuthServers")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.authServers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.authServers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2259,7 +2355,7 @@ func (c *Cache) GetProxies() ([]types.Server, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetProxies")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.proxies)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.proxies)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2276,7 +2372,7 @@ func (c *Cache) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, e
 	ctx, span := c.Tracer.Start(ctx, "cache/GetRemoteClusters")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.remoteClusters)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.remoteClusters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2304,7 +2400,7 @@ func (c *Cache) GetRemoteCluster(ctx context.Context, clusterName string) (types
 	ctx, span := c.Tracer.Start(ctx, "cache/GetRemoteCluster")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.remoteClusters)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.remoteClusters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2338,7 +2434,7 @@ func (c *Cache) ListRemoteClusters(ctx context.Context, pageSize int, nextToken 
 	_, span := c.Tracer.Start(ctx, "cache/ListRemoteClusters")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.remoteClusters)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.remoteClusters)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2355,7 +2451,7 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (typ
 	if withSecrets { // cache never tracks user secrets
 		return c.Config.Users.GetUser(ctx, name, withSecrets)
 	}
-	rg, err := readCollectionCache(c, c.collections.users)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.users)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2382,7 +2478,7 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 	if withSecrets { // cache never tracks user secrets
 		return c.Users.GetUsers(ctx, withSecrets)
 	}
-	rg, err := readCollectionCache(c, c.collections.users)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.users)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2399,7 +2495,7 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 		rsp, err := c.Users.ListUsers(ctx, req)
 		return rsp, trace.Wrap(err)
 	}
-	rg, err := readCollectionCache(c, c.collections.users)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.users)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2413,7 +2509,7 @@ func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.Marsha
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetTunnelConnections")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.tunnelConnections)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.tunnelConnections)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2426,7 +2522,7 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetAllTunnelConnections")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.tunnelConnections)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.tunnelConnections)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2439,7 +2535,7 @@ func (c *Cache) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, e
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesServers")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.kubeServers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.kubeServers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2454,7 +2550,7 @@ func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize in
 	ctx, span := c.Tracer.Start(ctx, "cache/ListKubernetesWaitingContainers")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.kubeWaitingContainers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.kubeWaitingContainers)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2469,7 +2565,7 @@ func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req *kubewait
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesWaitingContainer")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.kubeWaitingContainers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.kubeWaitingContainers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2482,7 +2578,7 @@ func (c *Cache) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken
 	ctx, span := c.Tracer.Start(ctx, "cache/ListStaticHostUsers")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.staticHostUsers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.staticHostUsers)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2495,7 +2591,7 @@ func (c *Cache) GetStaticHostUser(ctx context.Context, name string) (*userprovis
 	ctx, span := c.Tracer.Start(ctx, "cache/GetStaticHostUser")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.staticHostUsers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.staticHostUsers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2508,7 +2604,7 @@ func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]
 	ctx, span := c.Tracer.Start(ctx, "cache/GetApplicationServers")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.appServers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.appServers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2521,7 +2617,7 @@ func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster,
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesClusters")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.kubeClusters)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.kubeClusters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2534,7 +2630,7 @@ func (c *Cache) GetKubernetesCluster(ctx context.Context, name string) (types.Ku
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesCluster")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.kubeClusters)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.kubeClusters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2547,7 +2643,7 @@ func (c *Cache) GetApps(ctx context.Context) ([]types.Application, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetApps")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.apps)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.apps)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2560,7 +2656,7 @@ func (c *Cache) GetApp(ctx context.Context, name string) (types.Application, err
 	ctx, span := c.Tracer.Start(ctx, "cache/GetApp")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.apps)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.apps)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2573,7 +2669,7 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAppSession")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.appSessions)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.appSessions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2598,7 +2694,7 @@ func (c *Cache) ListAppSessions(ctx context.Context, pageSize int, pageToken, us
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAppSessions")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.appSessions)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.appSessions)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2611,7 +2707,7 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSnowflakeSession")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.snowflakeSessions)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.snowflakeSessions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2637,7 +2733,7 @@ func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessi
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPSession")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.samlIdPSessions)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.samlIdPSessions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2663,7 +2759,7 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseServers")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.databaseServers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.databaseServers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2676,7 +2772,7 @@ func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabases")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.databases)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.databases)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2688,7 +2784,7 @@ func (c *Cache) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseObject")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.databaseObjects)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.databaseObjects)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2700,7 +2796,7 @@ func (c *Cache) ListDatabaseObjects(ctx context.Context, size int, pageToken str
 	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktopServices")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.databaseObjects)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.databaseObjects)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2713,7 +2809,7 @@ func (c *Cache) GetDatabase(ctx context.Context, name string) (types.Database, e
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabase")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.databases)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.databases)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2726,7 +2822,7 @@ func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionReques
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWebSession")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.webSessions)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.webSessions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2752,7 +2848,7 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWebToken")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.webTokens)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.webTokens)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2765,7 +2861,7 @@ func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, er
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAuthPreference")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.authPreferences)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.authPreferences)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2778,7 +2874,7 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context) (types.SessionRec
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSessionRecordingConfig")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.sessionRecordingConfigs)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.sessionRecordingConfigs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2791,7 +2887,7 @@ func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestri
 	ctx, span := c.Tracer.Start(ctx, "cache/GetNetworkRestrictions")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.networkRestrictions)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.networkRestrictions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2805,7 +2901,7 @@ func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetLock")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.locks)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.locks)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2830,7 +2926,7 @@ func (c *Cache) GetLocks(ctx context.Context, inForceOnly bool, targets ...types
 	ctx, span := c.Tracer.Start(ctx, "cache/GetLocks")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.locks)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.locks)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2843,7 +2939,7 @@ func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsD
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktopServices")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.windowsDesktopServices)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.windowsDesktopServices)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2856,7 +2952,7 @@ func (c *Cache) GetWindowsDesktopService(ctx context.Context, name string) (type
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktopService")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.windowsDesktopServices)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.windowsDesktopServices)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2869,7 +2965,7 @@ func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesk
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktops")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.windowsDesktops)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.windowsDesktops)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2882,7 +2978,7 @@ func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDe
 	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktops")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.windowsDesktops)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.windowsDesktops)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2895,7 +2991,7 @@ func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWi
 	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktopServices")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.windowsDesktopServices)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.windowsDesktopServices)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2908,7 +3004,7 @@ func (c *Cache) GetDynamicWindowsDesktop(ctx context.Context, name string) (type
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDynamicWindowsDesktop")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.dynamicWindowsDesktops)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.dynamicWindowsDesktops)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2921,7 +3017,7 @@ func (c *Cache) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, ne
 	ctx, span := c.Tracer.Start(ctx, "cache/ListDynamicWindowsDesktops")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.dynamicWindowsDesktops)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.dynamicWindowsDesktops)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2934,7 +3030,7 @@ func (c *Cache) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, n
 	ctx, span := c.Tracer.Start(ctx, "cache/ListSAMLIdPServiceProviders")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.samlIdPServiceProviders)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.samlIdPServiceProviders)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2947,7 +3043,7 @@ func (c *Cache) GetSAMLIdPServiceProvider(ctx context.Context, name string) (typ
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPServiceProvider")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.samlIdPServiceProviders)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.samlIdPServiceProviders)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2960,7 +3056,7 @@ func (c *Cache) ListUserGroups(ctx context.Context, pageSize int, nextKey string
 	ctx, span := c.Tracer.Start(ctx, "cache/ListUserGroups")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.userGroups)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userGroups)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2973,7 +3069,7 @@ func (c *Cache) GetUserGroup(ctx context.Context, name string) (types.UserGroup,
 	ctx, span := c.Tracer.Start(ctx, "cache/GetUserGroup")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.userGroups)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userGroups)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2986,7 +3082,7 @@ func (c *Cache) ListOktaImportRules(ctx context.Context, pageSize int, nextKey s
 	ctx, span := c.Tracer.Start(ctx, "cache/ListOktaImportRules")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.oktaImportRules)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.oktaImportRules)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2999,7 +3095,7 @@ func (c *Cache) GetOktaImportRule(ctx context.Context, name string) (types.OktaI
 	ctx, span := c.Tracer.Start(ctx, "cache/GetOktaImportRule")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.oktaImportRules)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.oktaImportRules)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3012,7 +3108,7 @@ func (c *Cache) ListOktaAssignments(ctx context.Context, pageSize int, nextKey s
 	ctx, span := c.Tracer.Start(ctx, "cache/ListOktaAssignments")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.oktaAssignments)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.oktaAssignments)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3025,7 +3121,7 @@ func (c *Cache) GetOktaAssignment(ctx context.Context, name string) (types.OktaA
 	ctx, span := c.Tracer.Start(ctx, "cache/GetOktaAssignment")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.oktaAssignments)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.oktaAssignments)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3038,7 +3134,7 @@ func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey stri
 	ctx, span := c.Tracer.Start(ctx, "cache/ListIntegrations")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.integrations)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.integrations)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3051,7 +3147,7 @@ func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integrat
 	ctx, span := c.Tracer.Start(ctx, "cache/GetIntegration")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.integrations)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.integrations)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3064,7 +3160,7 @@ func (c *Cache) ListUserTasks(ctx context.Context, pageSize int64, nextKey strin
 	ctx, span := c.Tracer.Start(ctx, "cache/ListUserTasks")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.userTasks)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userTasks)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3077,7 +3173,7 @@ func (c *Cache) GetUserTask(ctx context.Context, name string) (*usertasksv1.User
 	ctx, span := c.Tracer.Start(ctx, "cache/GetUserTask")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.userTasks)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userTasks)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3090,7 +3186,7 @@ func (c *Cache) ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey 
 	ctx, span := c.Tracer.Start(ctx, "cache/ListDiscoveryConfigs")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.discoveryConfigs)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.discoveryConfigs)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3103,7 +3199,7 @@ func (c *Cache) GetDiscoveryConfig(ctx context.Context, name string) (*discovery
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDiscoveryConfig")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.discoveryConfigs)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.discoveryConfigs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3116,7 +3212,7 @@ func (c *Cache) ListCrownJewels(ctx context.Context, pageSize int64, nextKey str
 	ctx, span := c.Tracer.Start(ctx, "cache/ListCrownJewels")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.crownJewels)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.crownJewels)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3129,7 +3225,7 @@ func (c *Cache) GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.C
 	ctx, span := c.Tracer.Start(ctx, "cache/GetCrownJewel")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.crownJewels)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.crownJewels)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3142,7 +3238,7 @@ func (c *Cache) GetSecurityAuditQuery(ctx context.Context, name string) (*secrep
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityAuditQuery")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.auditQueries)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.auditQueries)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3155,7 +3251,7 @@ func (c *Cache) GetSecurityAuditQueries(ctx context.Context) ([]*secreports.Audi
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityAuditQueries")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.auditQueries)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.auditQueries)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3168,7 +3264,7 @@ func (c *Cache) ListSecurityAuditQueries(ctx context.Context, pageSize int, next
 	ctx, span := c.Tracer.Start(ctx, "cache/ListSecurityAuditQueries")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.auditQueries)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.auditQueries)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3181,7 +3277,7 @@ func (c *Cache) GetSecurityReport(ctx context.Context, name string) (*secreports
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReport")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.secReports)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReports)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3194,7 +3290,7 @@ func (c *Cache) GetSecurityReports(ctx context.Context) ([]*secreports.Report, e
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReports")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.secReports)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReports)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3207,7 +3303,7 @@ func (c *Cache) ListSecurityReports(ctx context.Context, pageSize int, nextKey s
 	ctx, span := c.Tracer.Start(ctx, "cache/ListSecurityReports")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.secReports)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReports)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3220,7 +3316,7 @@ func (c *Cache) GetSecurityReportState(ctx context.Context, name string) (*secre
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReportState")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.secReportsStates)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReportsStates)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3233,7 +3329,7 @@ func (c *Cache) GetSecurityReportsStates(ctx context.Context) ([]*secreports.Rep
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReportsStates")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.secReportsStates)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReportsStates)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3246,7 +3342,7 @@ func (c *Cache) ListSecurityReportsStates(ctx context.Context, pageSize int, nex
 	ctx, span := c.Tracer.Start(ctx, "cache/ListSecurityReportsStates")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.secReportsStates)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReportsStates)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3259,7 +3355,7 @@ func (c *Cache) GetUserLoginStates(ctx context.Context) ([]*userloginstate.UserL
 	ctx, span := c.Tracer.Start(ctx, "cache/GetUserLoginStates")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.userLoginStates)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userLoginStates)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3272,7 +3368,7 @@ func (c *Cache) GetUserLoginState(ctx context.Context, name string) (*userlogins
 	ctx, span := c.Tracer.Start(ctx, "cache/GetUserLoginState")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.userLoginStates)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userLoginStates)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3296,7 +3392,7 @@ func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, e
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessLists")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.accessLists)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessLists)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3309,7 +3405,7 @@ func (c *Cache) ListAccessLists(ctx context.Context, pageSize int, nextToken str
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessLists")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.accessLists)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessLists)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3322,7 +3418,7 @@ func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.Acc
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessList")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.accessLists)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessLists)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3345,7 +3441,7 @@ func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName strin
 	ctx, span := c.Tracer.Start(ctx, "cache/CountAccessListMembers")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessListMembers)
 	if err != nil {
 		return 0, 0, trace.Wrap(err)
 	}
@@ -3361,7 +3457,7 @@ func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListMembers")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessListMembers)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3374,7 +3470,7 @@ func (c *Cache) ListAllAccessListMembers(ctx context.Context, pageSize int, page
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAllAccessListMembers")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessListMembers)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3390,7 +3486,7 @@ func (c *Cache) GetAccessListMember(ctx context.Context, accessList string, memb
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessListMember")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessListMembers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3403,7 +3499,7 @@ func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pa
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListReviews")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.accessListReviews)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessListReviews)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3416,7 +3512,7 @@ func (c *Cache) ListUserNotifications(ctx context.Context, pageSize int, startKe
 	ctx, span := c.Tracer.Start(ctx, "cache/ListUserNotifications")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.userNotifications)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userNotifications)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3432,7 +3528,7 @@ func (c *Cache) ListGlobalNotifications(ctx context.Context, pageSize int, start
 	ctx, span := c.Tracer.Start(ctx, "cache/ListGlobalNotifications")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.globalNotifications)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.globalNotifications)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3446,7 +3542,7 @@ func (c *Cache) ListAccessMonitoringRules(ctx context.Context, pageSize int, nex
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessMonitoringRules")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.accessMonitoringRules)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessMonitoringRules)
 
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -3461,7 +3557,7 @@ func (c *Cache) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSiz
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessMonitoringRules")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.accessMonitoringRules)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessMonitoringRules)
 
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -3476,7 +3572,7 @@ func (c *Cache) GetAccessMonitoringRule(ctx context.Context, name string) (*acce
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessMonitoringRule")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.accessMonitoringRules)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessMonitoringRules)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3540,7 +3636,7 @@ func (c *Cache) GetAccessGraphSettings(ctx context.Context) (*clusterconfigpb.Ac
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessGraphSettings")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.accessGraphSettings)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessGraphSettings)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3564,7 +3660,7 @@ func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.Do
 	ctx, span := c.Tracer.Start(ctx, "cache/GetProvisioningState")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.provisioningStates)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.provisioningStates)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3577,7 +3673,7 @@ func (c *Cache) GetAccountAssignment(ctx context.Context, id services.IdentityCe
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAccountAssignment")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.identityCenterAccountAssignments)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.identityCenterAccountAssignments)
 	if err != nil {
 		return services.IdentityCenterAccountAssignment{}, trace.Wrap(err)
 	}
@@ -3591,7 +3687,7 @@ func (c *Cache) ListAccountAssignments(ctx context.Context, pageSize int, pageTo
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccountAssignments")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.identityCenterAccountAssignments)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.identityCenterAccountAssignments)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3604,7 +3700,7 @@ func (c *Cache) GetIdentityCenterAccount(ctx context.Context, name services.Iden
 	ctx, span := c.Tracer.Start(ctx, "cache/GetIdentityCenterAccount")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.identityCenterAccounts)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.identityCenterAccounts)
 	if err != nil {
 		return services.IdentityCenterAccount{}, trace.Wrap(err)
 	}
@@ -3617,7 +3713,7 @@ func (c *Cache) ListIdentityCenterAccounts(ctx context.Context, pageSize int, to
 	ctx, span := c.Tracer.Start(ctx, "cache/ListIdentityCenterAccounts")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.identityCenterAccounts)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.identityCenterAccounts)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3630,7 +3726,7 @@ func (c *Cache) GetPrincipalAssignment(ctx context.Context, id services.Principa
 	ctx, span := c.Tracer.Start(ctx, "cache/GetPrincipalAssignment")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.identityCenterPrincipalAssignments)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.identityCenterPrincipalAssignments)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3643,7 +3739,7 @@ func (c *Cache) ListPrincipalAssignments(ctx context.Context, pageSize int, req 
 	ctx, span := c.Tracer.Start(ctx, "cache/ListPrincipalAssignments")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.identityCenterPrincipalAssignments)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.identityCenterPrincipalAssignments)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3656,7 +3752,7 @@ func (c *Cache) ListProvisioningStatesForAllDownstreams(ctx context.Context, pag
 	ctx, span := c.Tracer.Start(ctx, "cache/ListPrincipalAssignments")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.provisioningStates)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.provisioningStates)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
