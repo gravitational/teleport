@@ -169,7 +169,7 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyI
 
 	// If the sign request is for an unknown agent key, ensure that the requested PIV slot was
 	// configured with a self-signed Teleport metadata certificate.
-	if keyInfo.AgentKey {
+	if keyInfo.AgentKeyInfo.UnknownAgentKey {
 		switch err := y.checkCertificate(pivSlot); {
 		case trace.IsNotFound(err), errors.As(err, &nonTeleportCertError{}):
 			return nil, trace.Wrap(err, agentRequiresTeleportCertMessage)

@@ -254,16 +254,21 @@ type ContextualKeyInfo struct {
 	Username string
 	// ClusterName is a Teleport cluster name that the key is associated with.
 	ClusterName string
-	// AgentKey specifies whether this key is being utilized through an agent and
-	// the key is unknown to the client running the agent, probably because the
-	// client on the other side of the agent is using a different Teleport Home
-	// directory.
+	// AgentKeyInfo contains info associated with an hardware key agent signature request.
+	AgentKeyInfo AgentKeyInfo
+}
+
+// AgentKeyInfo contains info associated with an hardware key agent signature request.
+type AgentKeyInfo struct {
+	// UnknownAgentKey indicates whether this hardware private key is known to the hardware key agent
+	// process, usually based on whether a matching key is found in the process's client key store.
 	//
-	// When true, the hardware key service will check that the certificate in the
-	// same slot as the key matches a Teleport client metadata certificate in order
-	// to ensure the agent doesn't provide access to non teleport client PIV keys.
-	AgentKey bool
-	// Command is the running command utilizing this key.
+	// For unknown agent keys, the hardware key service will check that the certificate in the same
+	// slot as the key matches a Teleport client metadata certificate in order to ensure the agent
+	// doesn't provide access to non teleport client PIV keys.
+	UnknownAgentKey bool
+	// Command is the command reported by the agent client which this agent key is being utilized to
+	// complete, e.g. `tsh ssh server01`.
 	Command string
 }
 

@@ -61,7 +61,7 @@ func NewAgentClient(ctx context.Context, keyAgentDir string) (hardwarekeyagentv1
 		return nil, err
 	}
 
-	return hardwarekeyagent.NewClient(ctx, socketPath, creds)
+	return hardwarekeyagent.NewClient(socketPath, creds)
 }
 
 // Server implementation [hardwarekeyagentv1.HardwareKeyAgentServiceServer].
@@ -95,7 +95,12 @@ func NewAgentServer(ctx context.Context, s hardwarekey.Service, keyAgentDir stri
 		return nil, trace.Wrap(err)
 	}
 
-	grpcServer := hardwarekeyagent.NewServer(ctx, s, credentials.NewServerTLSFromCert(&cert), knownKeyFn)
+	grpcServer, err := hardwarekeyagent.NewServer(s, credentials.NewServerTLSFromCert(&cert), knownKeyFn)
+	if err != nil {
+		l.Close()
+		return nil, trace.Wrap(err)
+	}
+
 	return &Server{
 		grpcServer: grpcServer,
 		listener:   l,

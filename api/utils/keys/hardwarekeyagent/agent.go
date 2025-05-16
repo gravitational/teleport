@@ -38,7 +38,7 @@ import (
 )
 
 // NewClient creates a new hardware key agent client.
-func NewClient(ctx context.Context, socketPath string, creds credentials.TransportCredentials) (hardwarekeyagentv1.HardwareKeyAgentServiceClient, error) {
+func NewClient(socketPath string, creds credentials.TransportCredentials) (hardwarekeyagentv1.HardwareKeyAgentServiceClient, error) {
 	if _, err := os.Stat(socketPath); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -61,17 +61,22 @@ func NewClient(ctx context.Context, socketPath string, creds credentials.Transpo
 }
 
 // NewServer returns a new hardware key agent server.
-func NewServer(_ context.Context, s hardwarekey.Service, creds credentials.TransportCredentials, knownKeyFn KnownHardwareKeyFn) *grpc.Server {
+func NewServer(s hardwarekey.Service, creds credentials.TransportCredentials, knownKeyFn KnownHardwareKeyFn) (*grpc.Server, error) {
+	if knownKeyFn == nil {
+		return nil, trace.BadParameter("knownKeyFn must be provided")
+	}
+
 	grpcServer := grpc.NewServer(
 		grpc.Creds(creds),
 		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 	)
 	hardwarekeyagentv1.RegisterHardwareKeyAgentServiceServer(grpcServer, &agentService{s: s, knownKeyFn: knownKeyFn})
-	return grpcServer
+	return grpcServer, nil
 }
 
-// KnownHardwareKeyFn is a function to determine if the hardware private key described by the given key ref
-// and info is known or not, usually based on whether a matching key is found in the client's key store.
+// KnownHardwareKeyFn is a function to determine if the hardware private key, described by the given
+// key ref and key info, is known by this process. This is usually based on whether a matching key
+// is found in the process's client key store.
 type KnownHardwareKeyFn func(ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo) (bool, error)
 
 // agentService implements [hardwarekeyagentv1.HardwareKeyAgentServiceServer].
@@ -79,9 +84,14 @@ type agentService struct {
 	hardwarekeyagentv1.UnimplementedHardwareKeyAgentServiceServer
 	s hardwarekey.Service
 
-	// knownKeyFn dictates whether a PIV key referenced in a [agentService.Sign] request is
-	// treated as a known key or an unknown agent key. Unknown agent keys are treated with
-	// additional restrictions to ensure the PIV slot is intended for Teleport client usage.
+	// knownKeyFn is a function to determine if the hardware private key, described by the given
+	// key ref and key info, is known by this process. This is usually based on whether a matching key
+	// is found in the process's client key store.
+	//
+	// Unknown keys will treated with additional restrictions in [agentService.Sign] requests to
+	// ensure the PIV slot is intended for Teleport client usage, e.g. the agent will require that
+	// the PIV slot has a self-signed metadata certificate used to identify PIV keys generated
+	// specifically for Teleport use.
 	knownKeyFn KnownHardwareKeyFn
 }
 
@@ -117,14 +127,17 @@ func (s *agentService) Sign(ctx context.Context, req *hardwarekeyagentv1.SignReq
 		ProxyHost:   req.KeyInfo.ProxyHost,
 		Username:    req.KeyInfo.Username,
 		ClusterName: req.KeyInfo.ClusterName,
-		Command:     req.Command,
 	}
 
 	knownKey, err := s.knownKeyFn(keyRef, keyInfo)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keyInfo.AgentKey = !knownKey
+
+	keyInfo.AgentKeyInfo = hardwarekey.AgentKeyInfo{
+		UnknownAgentKey: !knownKey,
+		Command:         req.Command,
+	}
 
 	var signerOpts crypto.SignerOpts
 	switch req.Hash {

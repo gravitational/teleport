@@ -46,7 +46,8 @@ func TestHardwareKeyAgentService(t *testing.T) {
 
 	// Prepare the agent server
 	mockService := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
-	server := hardwarekeyagent.NewServer(ctx, mockService, insecure.NewCredentials(), knownKeyFn)
+	server, err := hardwarekeyagent.NewServer(mockService, insecure.NewCredentials(), knownKeyFn)
+	require.NoError(t, err)
 	t.Cleanup(server.Stop)
 
 	agentDir := t.TempDir()
@@ -60,7 +61,7 @@ func TestHardwareKeyAgentService(t *testing.T) {
 	}()
 
 	// Prepare the agent client
-	agentClient, err := hardwarekeyagent.NewClient(ctx, socketPath, insecure.NewCredentials())
+	agentClient, err := hardwarekeyagent.NewClient(socketPath, insecure.NewCredentials())
 	require.NoError(t, err)
 
 	unusedService := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)

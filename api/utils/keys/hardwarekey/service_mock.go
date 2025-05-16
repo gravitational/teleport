@@ -150,7 +150,7 @@ func (s *MockHardwareKeyService) Sign(ctx context.Context, ref *PrivateKeyRef, k
 		slot:         ref.SlotKey,
 	}
 
-	if keyInfo.AgentKey && s.unknownAgentKey[slot] {
+	if keyInfo.AgentKeyInfo.UnknownAgentKey && s.unknownAgentKey[slot] {
 		return nil, trace.BadParameter("unknown agent key")
 	}
 
