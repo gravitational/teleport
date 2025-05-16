@@ -22,10 +22,10 @@ package player_test
 
 import (
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"testing/synctest"
 
 	"github.com/gravitational/teleport/lib/player"
 )
