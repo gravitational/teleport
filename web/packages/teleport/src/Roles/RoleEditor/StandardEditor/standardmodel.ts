@@ -30,6 +30,7 @@ import {
   CreateDBUserMode,
   CreateHostUserMode,
   GitHubPermission,
+  isLegacySamlIdpRbac,
   KubernetesResourceKind,
   KubernetesVerb,
   RequireMFAType,
@@ -71,6 +72,12 @@ export type StandardEditorModel = {
    * Will be true if fields have been modified from the original.
    */
   isDirty: boolean;
+  /**
+   * Indicates if the user interacted with the editor. It's different from
+   * {@link StandardEditorModel.isDirty} by not taking into consideration if
+   * anything changed from the original.
+   */
+  isTouched: boolean;
   /**
    * Result of validating {@link StandardEditorModel.roleModel}. Can be
    * undefined if there was an unhandled error when converting an existing
@@ -458,7 +465,7 @@ export const roleVersionOptions = Object.values(RoleVersion)
   .map(o => ({ value: o, label: o }));
 export const roleVersionOptionsMap = optionsToMap(roleVersionOptions);
 
-export const defaultRoleVersion = RoleVersion.V7;
+export const defaultRoleVersion = RoleVersion.V8;
 
 /**
  * Returns the role object with required fields defined with empty values.
@@ -472,7 +479,7 @@ export function newRole(): Role {
     spec: {
       allow: {},
       deny: {},
-      options: defaultOptions(),
+      options: defaultOptions(defaultRoleVersion),
     },
     version: defaultRoleVersion,
   };
@@ -629,7 +636,7 @@ export function roleToRoleEditorModel(
   const versionOption = getOptionOrPushError(
     version,
     roleVersionOptionsMap,
-    RoleVersion.V7,
+    RoleVersion.V8,
     'version',
     conversionErrors
   );
@@ -649,7 +656,7 @@ export function roleToRoleEditorModel(
   conversionErrors.push(...allowConversionErrors);
 
   const { model: optionsModel, conversionErrors: optionsConversionErrors } =
-    optionsToModel(options, 'spec.options');
+    optionsToModel(version, options, 'spec.options');
   conversionErrors.push(...optionsConversionErrors);
 
   return {
@@ -1128,13 +1135,14 @@ const uneditableOptionKeys: (keyof RoleOptions)[] = [
 ];
 
 function optionsToModel(
+  roleVersion: RoleVersion,
   options: RoleOptions,
   pathPrefix: string
 ): {
   model: OptionsModel;
   conversionErrors: ConversionError[];
 } {
-  const defaultOpts = defaultOptions();
+  const defaultOpts = defaultOptions(roleVersion);
   const conversionErrors: ConversionError[] = [];
   const {
     // Customizable options.
@@ -1155,8 +1163,13 @@ function optionsToModel(
 
     ...unsupported
   } = options;
-
   for (const key of uneditableOptionKeys) {
+    // delete saml idp option for role v8 and above as it
+    // is no longer supported.
+    if (!isLegacySamlIdpRbac(roleVersion) && key === 'idp') {
+      delete unsupported[key];
+      continue;
+    }
     // Report uneditable options as errors if they diverge from their defaults.
     if (!equalsDeep(options[key], defaultOpts[key])) {
       conversionErrors.push(
@@ -1362,7 +1375,7 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
     spec: {
       allow: {},
       deny: {},
-      options: optionsModelToRoleOptions(roleModel.options),
+      options: optionsModelToRoleOptions(version.value, roleModel.options),
     },
     version: version.value,
   };
@@ -1456,9 +1469,12 @@ export function labelsModelToLabels(uiLabels: UILabel[]): Labels {
   return labels;
 }
 
-function optionsModelToRoleOptions(model: OptionsModel): RoleOptions {
+function optionsModelToRoleOptions(
+  roleVersion: RoleVersion,
+  model: OptionsModel
+): RoleOptions {
   const options = {
-    ...defaultOptions(),
+    ...defaultOptions(roleVersion),
 
     // Note: technically, coercing the optional fields to undefined is not
     // necessary, but it's easier to test it this way, since we achieve

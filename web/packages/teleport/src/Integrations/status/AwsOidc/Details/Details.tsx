@@ -57,13 +57,13 @@ export function Details() {
   let pendingTasks = unresolvedUserTasks;
   switch (resourceKind) {
     case AwsResource.rds:
-      pendingTasks = awsrds.unresolvedUserTasks;
+      pendingTasks = awsrds.unresolvedUserTasks || 0;
       break;
     case AwsResource.ec2:
-      pendingTasks = awsec2.unresolvedUserTasks;
+      pendingTasks = awsec2.unresolvedUserTasks || 0;
       break;
     case AwsResource.eks:
-      pendingTasks = awseks.unresolvedUserTasks;
+      pendingTasks = awseks.unresolvedUserTasks || 0;
       break;
   }
 
@@ -72,7 +72,7 @@ export function Details() {
       {integration && (
         <AwsOidcHeader integration={integration} resource={resourceKind} />
       )}
-      <FeatureBox maxWidth={1440} margin="auto" gap={3} paddingLeft={5}>
+      <FeatureBox maxWidth={1440} margin="auto" gap={3}>
         <>
           {integration && (
             <>

@@ -2,90 +2,101 @@ ssh_service:
     # Turns 'ssh' role on. Default is true
     enabled: true
 
-    # IP and the port for SSH service to bind to.
-    listen_addr: 0.0.0.0:3022
+  # IP and the port for SSH service to bind to.
+  listen_addr: 0.0.0.0:3022
 
-    # The optional public address the SSH service. This is useful if
-    # administrators want to allow users to connect to nodes directly,
-    # bypassing a Teleport proxy.
-    public_addr: node.example.com:3022
+  # The optional public address the SSH service. This is useful if
+  # administrators want to allow users to connect to nodes directly,
+  # bypassing a Teleport proxy.
+  public_addr: node.example.com:3022
 
-    labels:
-        role: leader
-        type: postgres
+  labels:
+    role: leader
+    type: postgres
 
-    # List of the commands to periodically execute. Their output will be used
-    # as node labels.
-    commands:
+  # List of the commands to periodically execute. Their output will be used
+  # as node labels.
+  commands:
     # this command will add a label 'arch=x86_64' to a node
     - name: arch
       command: ['/bin/uname', '-p']
       period: 1h0m0s
 
-    # Enables reading ~/.tsh/environment on the server before creating a session.
-    # Disabled by default. Can be enabled here or via the `--permit-user-env` flag.
-    permit_user_env: false
+  # Enables reading ~/.tsh/environment on the server before creating a session.
+  # Disabled by default. Can be enabled here or via the `--permit-user-env` flag.
+  permit_user_env: false
 
-    # Disables automatic creation of host users on this SSH node.
-    # Set to false by default.
-    disable_create_host_user: true
+  # Disables automatic creation of host users on this SSH node.
+  # Set to false by default.
+  disable_create_host_user: true
 
-    # Enhanced Session Recording
-    enhanced_recording:
-       # Enable or disable enhanced auditing for this node. Default value:
-       # false.
-       enabled: false
+  # Enables listening on the configured listen_addr when connected
+  # to the cluster via a reverse tunnel. If no listen_addr is
+  # configured, the default address is used.
+  #
+  # This allows the service to be connectable by users with direct network access.
+  # All connections still require a valid user certificate to be presented and will
+  # not permit any additional access. This is intended to provide an optional connection
+  # path to reduce latency if the Proxy is not co-located with the user and service.
+  #
+  # Set to false by default.
+  force_listen: false
 
-       # command_buffer_size is optional with a default value of 8 pages.
-       command_buffer_size: 8
+  # Enhanced Session Recording
+  enhanced_recording:
+    # Enable or disable enhanced auditing for this node. Default value:
+    # false.
+    enabled: false
 
-       # disk_buffer_size is optional with default value of 128 pages.
-       disk_buffer_size: 128
+    # command_buffer_size is optional with a default value of 8 pages.
+    command_buffer_size: 8
 
-       # network_buffer_size is optional with default value of 8 pages.
-       network_buffer_size: 8
+    # disk_buffer_size is optional with default value of 128 pages.
+    disk_buffer_size: 128
 
-       # Controls where cgroupv2 hierarchy is mounted. Default value:
-       # /cgroup2.
-       cgroup_path: /cgroup2
+    # network_buffer_size is optional with default value of 8 pages.
+    network_buffer_size: 8
 
-       # Optional: Controls the path inside cgroupv2 hierarchy where Teleport
-       # cgroups will be placed. Default value: /teleport
-       root_path: /teleport
+    # Controls where cgroupv2 hierarchy is mounted. Default value:
+    # /cgroup2.
+    cgroup_path: /cgroup2
 
-    # Configures the PAM integration.
-    pam:
-        # "no" by default
-        enabled: yes
-        # use /etc/pam.d/sshd configuration (the default)
-        service_name: "sshd"
-        # use the "auth" modules in the PAM config
-        # "false" by default
-        use_pam_auth: true
+    # Optional: Controls the path inside cgroupv2 hierarchy where Teleport
+    # cgroups will be placed. Default value: /teleport
+    root_path: /teleport
 
-    # Enables/disables TCP forwarding. Default is 'true'
-    port_forwarding: true
+  # Configures the PAM integration.
+  pam:
+    # "no" by default
+    enabled: yes
+    # use /etc/pam.d/sshd configuration (the default)
+    service_name: 'sshd'
+    # use the "auth" modules in the PAM config
+    # "false" by default
+    use_pam_auth: true
 
-    # When x11.enabled is set to yes, users with the "permit_x11_forwarding"
-    # role option will be able to request X11 forwarding sessions with
-    # "tsh ssh -X".
-    #
-    # X11 forwarding will only work if the server has the "xauth" binary
-    # installed and the Teleport Node can open Unix sockets.
-    # e.g. "$TEMP/.X11-unix/X[display_number]."
-    x11:
-      # no by default
-      enabled: yes
-      # display_offset can be used to specify the start of the range of X11
-      # displays the server will use when granting X11 forwarding sessions
-      # 10 by default
-      display_offset: 10
-      # max_display can be set to specify the end of the range of X11 displays
-      # to use when granting X11 forwarding sessions
-      # display_offset + 1000 by default
-      max_display: 1010
+  # Enables/disables TCP forwarding. Default is 'true'
+  port_forwarding: true
 
-    # Enables/disables remote file operations via SCP/SFTP for this Node. Default
-    # value: true
-    ssh_file_copy: true
+  # When x11.enabled is set to yes, users with the "permit_x11_forwarding"
+  # role option will be able to request X11 forwarding sessions with
+  # "tsh ssh -X".
+  #
+  # X11 forwarding will only work if the server has the "xauth" binary
+  # installed and the Teleport Node can open Unix sockets.
+  # e.g. "$TEMP/.X11-unix/X[display_number]."
+  x11:
+    # no by default
+    enabled: yes
+    # display_offset can be used to specify the start of the range of X11
+    # displays the server will use when granting X11 forwarding sessions
+    # 10 by default
+    display_offset: 10
+    # max_display can be set to specify the end of the range of X11 displays
+    # to use when granting X11 forwarding sessions
+    # display_offset + 1000 by default
+    max_display: 1010
 
+  # Enables/disables remote file operations via SCP/SFTP for this Node. Default
+  # value: true
+  ssh_file_copy: true

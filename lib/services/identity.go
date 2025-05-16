@@ -65,8 +65,6 @@ type UsersService interface {
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// ListUsers returns a page of users.
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
-	// DeleteAllUsers deletes all users
-	DeleteAllUsers(ctx context.Context) error
 }
 
 // Identity is responsible for managing user entries and external identities

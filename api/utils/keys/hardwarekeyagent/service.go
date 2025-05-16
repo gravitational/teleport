@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	hardwarekeyagentv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -43,9 +44,10 @@ type Service struct {
 }
 
 // NewService creates a new hardware key agent service from the given
-// agent client and fallback service. The fallback service is used for
-// non-signature methods of [hardwarekey.Service] which are not implemented
-// by the agent. Generally this fallback service is only used during login.
+// agent client and fallback service.
+//
+// The fallback service is used for methods unsupported by the agent service,
+// such as [Service.NewPrivateKey], and as a fallback for failed agent signatures.
 func NewService(agentClient hardwarekeyagentv1.HardwareKeyAgentServiceClient, fallbackService hardwarekey.Service) *Service {
 	return &Service{
 		agentClient:     agentClient,
@@ -142,6 +144,7 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 		KeyInfo: &hardwarekeyagentv1.KeyInfo{
 			TouchRequired: ref.Policy.TouchRequired,
 			PinRequired:   ref.Policy.PINRequired,
+			PinCacheTtl:   durationpb.New(ref.PINCacheTTL),
 			ProxyHost:     keyInfo.ProxyHost,
 			Username:      keyInfo.Username,
 			ClusterName:   keyInfo.ClusterName,
@@ -160,14 +163,4 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 // TODO(Joerger): DELETE IN v19.0.0
 func (s *Service) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
 	return s.fallbackService.GetFullKeyRef(serialNumber, slotKey)
-}
-
-// SetPrompt for the fallback service.
-func (s *Service) SetPrompt(prompt hardwarekey.Prompt) {
-	s.fallbackService.SetPrompt(prompt)
-}
-
-// GetPrompt for the fallback service.
-func (s *Service) GetPrompt() hardwarekey.Prompt {
-	return s.fallbackService.GetPrompt()
 }

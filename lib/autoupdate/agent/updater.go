@@ -35,7 +35,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
-	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -84,13 +83,6 @@ const (
 var (
 	initTime = time.Now().UTC()
 )
-
-// SetRequiredUmask sets the umask to match the systemd umask that the teleport-update service will execute with.
-// This ensures consistent file permissions.
-// NOTE: This must be run in main.go before any goroutines that create files are started.
-func SetRequiredUmask(ctx context.Context, log *slog.Logger) {
-	warnUmask(ctx, log, syscall.Umask(requiredUmask))
-}
 
 func warnUmask(ctx context.Context, log *slog.Logger, old int) {
 	if old&^requiredUmask != 0 {
@@ -345,7 +337,7 @@ type OverrideConfig struct {
 	// ForceVersion to the specified version.
 	ForceVersion string
 	// ForceFlags in installed Teleport.
-	ForceFlags autoupdate.InstallFlags
+	ForceFlags []string
 	// AllowOverwrite of installed binaries.
 	AllowOverwrite bool
 	// AllowProxyConflict when proxies in teleport.yaml and update.yaml are mismatched.
@@ -402,7 +394,7 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	}
 	targetVersion := resp.Target.Version
 	targetFlags := resp.Target.Flags
-	targetFlags |= override.ForceFlags
+	targetFlags |= autoupdate.NewInstallFlagsFromStrings(override.ForceFlags)
 	if override.ForceVersion != "" {
 		targetVersion = override.ForceVersion
 	}

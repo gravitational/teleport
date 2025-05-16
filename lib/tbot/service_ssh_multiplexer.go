@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -177,8 +178,10 @@ func (s *SSHMultiplexerService) writeArtifacts(
 	// Generate SSH config
 	proxyCommand := s.cfg.ProxyCommand
 	if len(proxyCommand) == 0 {
-		executablePath, err := os.Executable()
-		if err != nil {
+		executablePath, err := autoupdate.StableExecutable()
+		if errors.Is(err, autoupdate.ErrUnstableExecutable) {
+			s.log.WarnContext(ctx, "SSH multiplexer proxy command will be rendered with an unstable path to the tbot executable. Please reinstall tbot with Managed Updates to prevent instability.")
+		} else if err != nil {
 			return trace.Wrap(err, "determining executable path")
 		}
 		proxyCommand = []string{

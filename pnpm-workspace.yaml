@@ -17,9 +17,14 @@ onlyBuiltDependencies:
 # is defined as a peer dep of one of electron-builder deps, while in reality it's more like an
 # optional dep.
 autoInstallPeers: false
-strictPeerDependencies: true
+# strictPeerDependencies cannot be set to true. Dependabot updates deps one-by-one and runs `pnpm
+# install` after each update. With this option set to true, that command is likely to fail when
+# updating a dep without updating its peer deps at the same time.
+strictPeerDependencies: false
 peerDependencyRules:
   ignoreMissing:
     # This dep is needed only when using Squirrel.Windows as an installer in electron-build which we
     # don't use. https://www.electron.build/squirrel-windows.html
     - electron-builder-squirrel-windows
+# shellEmulator enables cross-platform scripting, allowing POSIX-style shell variables to work on Windows.
+shellEmulator: true

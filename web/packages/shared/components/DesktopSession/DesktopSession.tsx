@@ -18,25 +18,36 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
-import { Box, ButtonPrimary, ButtonSecondary, Flex, Indicator } from 'design';
-import { Info } from 'design/Alert';
-import Dialog, {
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from 'design/Dialog';
+import {
+  Alert,
+  Box,
+  ButtonPrimary,
+  Flex,
+  H2,
+  Indicator,
+  Stack,
+  Text,
+} from 'design';
+import { ActionButton, Warning } from 'design/Alert';
+import { Desktop } from 'design/Icon';
 import {
   CanvasRenderer,
   CanvasRendererRef,
 } from 'shared/components/CanvasRenderer';
-import { Attempt, makeSuccessAttempt, useAsync } from 'shared/hooks/useAsync';
+import { Latency } from 'shared/components/LatencyDiagnostic';
+import {
+  Attempt,
+  makeEmptyAttempt,
+  makeSuccessAttempt,
+  useAsync,
+} from 'shared/hooks/useAsync';
 import {
   ButtonState,
   ScrollAxis,
   TdpClient,
   useListener,
 } from 'shared/libs/tdp';
+import { TdpError } from 'shared/libs/tdp/client';
 
 import { KeyboardHandler } from './KeyboardHandler';
 import TopBar from './TopBar';
@@ -51,7 +62,9 @@ import useDesktopSession, {
 
 export interface DesktopSessionProps {
   client: TdpClient;
+  /** Username for display purposes. */
   username: string;
+  /** Desktop name for display purposes. */
   desktop: string;
   aclAttempt: Attempt<{
     clipboardSharingEnabled: boolean;
@@ -130,6 +143,7 @@ export function DesktopSession({
       setClipboardSharingState(defaultClipboardSharingState);
       setTdpConnectionStatus({
         status: 'disconnected',
+        fromTdpError: error instanceof TdpError,
         message: error.message || error.toString(),
       });
       initialTdpConnectionSucceeded.current = false;
@@ -166,8 +180,11 @@ export function DesktopSession({
   useListener(
     client.onTransportClose,
     useCallback(
-      statusText => {
-        setTdpConnectionStatus({ status: 'disconnected', message: statusText });
+      error => {
+        setTdpConnectionStatus({
+          status: 'disconnected',
+          message: error?.message || error?.toString(),
+        });
         initialTdpConnectionSucceeded.current = false;
       },
       [setTdpConnectionStatus]
@@ -203,6 +220,17 @@ export function DesktopSession({
   );
   useListener(client.onReset, canvasRendererRef.current?.clear);
   useListener(client.onScreenSpec, canvasRendererRef.current?.setResolution);
+
+  const [latencyStats, setLatencyStats] = useState<Latency | undefined>();
+  useListener(
+    client.onLatencyStats,
+    useCallback(stats => {
+      setLatencyStats({
+        client: stats.client,
+        server: stats.server,
+      });
+    }, [])
+  );
 
   const shouldConnect =
     aclAttempt.status === 'success' &&
@@ -299,8 +327,12 @@ export function DesktopSession({
     client.sendKeyboardInput('Delete', ButtonState.DOWN);
   }
 
-  //TODO(gzdunek): Replace with client.connect(), so that we don't refresh the entire page.
-  const onRetry = () => window.location.reload();
+  /** Cleans attempts to rerun effects. */
+  const onRetry = async () => {
+    setTdpConnectionStatus({ status: '' });
+    setAnotherDesktopActiveAttempt(makeEmptyAttempt());
+  };
+
   const screenState = getScreenState(
     aclAttempt,
     anotherDesktopActiveAttempt,
@@ -319,6 +351,7 @@ export function DesktopSession({
       `}
     >
       <TopBar
+        isConnected={screenState.state === 'canvas-visible'}
         onDisconnect={() => {
           setClipboardSharingState(prevState => ({
             ...prevState,
@@ -339,19 +372,27 @@ export function DesktopSession({
         onCtrlAltDel={handleCtrlAltDel}
         alerts={alerts}
         onRemoveAlert={onRemoveAlert}
+        latency={latencyStats}
       />
 
+      {/* The UI states below (except the loading indicator) take up space.*/}
+      {/* They're hidden while the canvas is visible, so when `connect()` reads the screen size, */}
+      {/* it's not affected by these elements.*/}
       {screenState.state === 'another-session-active' && (
-        <AnotherSessionActiveDialog
+        <AnotherSessionActive
+          desktopName={desktop}
           onContinue={() =>
             setAnotherDesktopActiveAttempt(makeSuccessAttempt(false))
           }
-          onAbort={() => window.close()}
         />
       )}
       {screenState.state === 'custom' && screenState.component}
-      {screenState.state === 'error' && (
-        <AlertDialog message={screenState.message} onRetry={onRetry} />
+      {screenState.state === 'disconnected' && (
+        <DisconnectedState
+          desktopName={desktop}
+          message={screenState.message}
+          onRetry={onRetry}
+        />
       )}
       {screenState.state === 'processing' && <Processing />}
 
@@ -372,52 +413,77 @@ export function DesktopSession({
   );
 }
 
-export const AlertDialog = (props: {
-  message: { title: string; details?: string };
-  onRetry(): void;
-}) => (
-  <Dialog dialogCss={() => ({ width: '484px' })} open={true}>
-    <DialogHeader style={{ flexDirection: 'column' }}>
-      <DialogTitle>Disconnected</DialogTitle>
-    </DialogHeader>
-    <DialogContent>
-      <Info details={props.message.details}>{props.message.title}</Info>
-      Refresh the page to reconnect.
-    </DialogContent>
-    <DialogFooter>
-      <ButtonSecondary size="large" width="30%" onClick={props.onRetry}>
-        Refresh
-      </ButtonSecondary>
-    </DialogFooter>
-  </Dialog>
-);
-
-const AnotherSessionActiveDialog = (props: {
-  onAbort(): void;
-  onContinue(): void;
-}) => {
+function DisconnectedStateContainer(props: {
+  desktopName: string;
+  children: React.ReactNode;
+}) {
   return (
-    <Dialog
-      dialogCss={() => ({ width: '484px' })}
-      onClose={() => {}}
-      open={true}
+    <Flex
+      flexDirection="column"
+      mx="auto"
+      alignItems="center"
+      maxWidth="700px"
+      css={`
+        top: 10%;
+        position: relative;
+      `}
     >
-      <DialogHeader style={{ flexDirection: 'column' }}>
-        <DialogTitle>Another Session Is Active</DialogTitle>
-      </DialogHeader>
-      <DialogContent>
-        This desktop has an active session, connecting to it may close the other
-        session. Do you wish to continue?
-      </DialogContent>
-      <DialogFooter>
-        <ButtonPrimary mr={3} onClick={props.onAbort}>
-          Abort
-        </ButtonPrimary>
-        <ButtonSecondary onClick={props.onContinue}>Continue</ButtonSecondary>
-      </DialogFooter>
-    </Dialog>
+      <Flex>
+        <Desktop mr={2} />
+        <H2>{props.desktopName}</H2>
+      </Flex>
+      {props.children}
+    </Flex>
   );
-};
+}
+
+export function DisconnectedState(props: {
+  desktopName: string;
+  message?: DisconnectedMessage;
+  onRetry(): void;
+}) {
+  return (
+    <DisconnectedStateContainer desktopName={props.desktopName}>
+      <Text mb={3}>The desktop session is offline.</Text>
+      {props.message && (
+        <Alert kind={props.message.kind} mb={4} details={props.message.details}>
+          {props.message.title}
+        </Alert>
+      )}
+      <ButtonPrimary onClick={props.onRetry}>Reconnect</ButtonPrimary>
+    </DisconnectedStateContainer>
+  );
+}
+
+function AnotherSessionActive(props: {
+  desktopName: string;
+  onContinue(): void;
+}) {
+  return (
+    <DisconnectedStateContainer desktopName={props.desktopName}>
+      <Warning
+        mt={3}
+        details={
+          <Stack gap={2}>
+            This desktop has an active session, connecting to it may close the
+            other session. <br />
+            Do you wish to continue?
+            <ActionButton
+              fill="border"
+              intent="neutral"
+              action={{
+                content: 'Continue',
+                onClick: props.onContinue,
+              }}
+            />
+          </Stack>
+        }
+      >
+        Another session is active
+      </Warning>
+    </DisconnectedStateContainer>
+  );
+}
 
 const Processing = () => {
   return (
@@ -447,7 +513,7 @@ function getScreenState(
 
   if (aclAttempt.status === 'error') {
     return {
-      state: 'error',
+      state: 'disconnected',
       message: {
         title: 'Could not fetch session details',
         details: aclAttempt.statusText,
@@ -456,7 +522,7 @@ function getScreenState(
   }
   if (anotherDesktopActiveAttempt.status === 'error') {
     return {
-      state: 'error',
+      state: 'disconnected',
       message: {
         title: 'Could not fetch session details',
         details: anotherDesktopActiveAttempt.statusText,
@@ -464,9 +530,23 @@ function getScreenState(
     };
   }
   if (tdpConnectionStatus.status === 'disconnected') {
+    if (tdpConnectionStatus.fromTdpError) {
+      return {
+        state: 'disconnected',
+        message: {
+          // A TDP error can mean a "graceful disconnection",
+          // so for safety we treat all TDP errors as informational.
+          kind: 'info',
+          // TDP errors can be long so display them as details.
+          details: tdpConnectionStatus.message,
+        },
+      };
+    }
     return {
-      state: 'error',
-      message: { title: tdpConnectionStatus.message },
+      state: 'disconnected',
+      message: tdpConnectionStatus.message && {
+        title: tdpConnectionStatus.message,
+      },
     };
   }
 
@@ -499,6 +579,7 @@ type TdpConnectionStatus =
    */
   | {
       status: 'disconnected';
+      fromTdpError?: boolean;
       message: string;
     };
 
@@ -508,6 +589,13 @@ type ScreenState =
   | { state: 'processing' }
   | { state: 'canvas-visible' }
   | {
-      state: 'error';
-      message: { title: string; details?: string };
+      state: 'disconnected';
+      message?: DisconnectedMessage;
     };
+
+interface DisconnectedMessage {
+  /** Kind is danger by default. */
+  kind?: 'info' | 'danger';
+  title?: string;
+  details?: string;
+}

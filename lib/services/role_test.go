@@ -1111,7 +1111,7 @@ func TestValidateRole(t *testing.T) {
 					Name:      "name1",
 					Namespace: apidefaults.Namespace,
 				},
-				Version: types.V7,
+				Version: types.V8,
 				Spec:    tc.spec,
 			}, withWarningReporter(func(err error) {
 				warning = err
@@ -3904,6 +3904,79 @@ func TestExtractFrom(t *testing.T) {
 	require.Equal(t, traits, origTraits)
 }
 
+// TestCanCopyFiles verifies the behavior of the RoleSet.CanCopyFiles method
+// and the underlying Options.SSHFileCopy role field.
+func TestCanCopyFiles(t *testing.T) {
+	tts := []struct {
+		name   string
+		values []*types.BoolOption
+		expect bool
+	}{
+		{
+			name: "nil",
+			values: []*types.BoolOption{
+				nil,
+			},
+			expect: true,
+		},
+		{
+			name: "false",
+			values: []*types.BoolOption{
+				types.NewBoolOption(false),
+			},
+			expect: false,
+		},
+		{
+			name: "true",
+			values: []*types.BoolOption{
+				types.NewBoolOption(true),
+			},
+			expect: true,
+		},
+		{
+			name: "true and false",
+			values: []*types.BoolOption{
+				types.NewBoolOption(true),
+				types.NewBoolOption(false),
+			},
+			expect: false,
+		},
+		{
+			name: "nil and true",
+			values: []*types.BoolOption{
+				nil,
+				types.NewBoolOption(true),
+			},
+			expect: true,
+		},
+		{
+			name: "nil and false",
+			values: []*types.BoolOption{
+				nil,
+				types.NewBoolOption(false),
+			},
+			expect: false,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			var roles RoleSet
+			for _, v := range tt.values {
+				roles = append(roles, &types.RoleV6{
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							SSHFileCopy: v,
+						},
+					},
+				})
+			}
+
+			require.Equal(t, tt.expect, roles.CanCopyFiles())
+		})
+	}
+}
+
 // TestBoolOptions makes sure that bool options (like agent forwarding and
 // port forwarding) can be disabled in a role.
 func TestBoolOptions(t *testing.T) {
@@ -6183,83 +6256,56 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 	}
 }
 
-func TestCheckAccessToSAMLIdP(t *testing.T) {
-	roleNoSAMLOptions := &types.RoleV6{
-		Metadata: types.Metadata{Name: "roleNoSAMLOptions", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV6{
-			Options: types.RoleOptions{MaxSessionTTL: types.Duration(time.Hour)},
-			Allow: types.RoleConditions{
-				Namespaces: []string{apidefaults.Namespace},
+func TestCheckAccessToSAMLIdPV2(t *testing.T) {
+	createRole := func(t *testing.T, name, version string, spec types.RoleSpecV6) *types.RoleV6 {
+		t.Helper()
+		return &types.RoleV6{
+			Version: version,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: apidefaults.Namespace,
 			},
-		},
+			Spec: spec,
+		}
 	}
-	//nolint:revive // Because we want this to be IdP.
-	roleOnlyIdPBlock := &types.RoleV6{
-		Metadata: types.Metadata{Name: "roleOnlyIdPBlock", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV6{
-			Options: types.RoleOptions{
-				MaxSessionTTL: types.Duration(time.Hour),
-				IDP:           &types.IdPOptions{},
+
+	idpEnabled := func(t *testing.T, enabled bool) *types.IdPOptions {
+		t.Helper()
+		return &types.IdPOptions{
+			SAML: &types.IdPSAMLOptions{
+				Enabled: types.NewBoolOption(enabled),
 			},
-			Allow: types.RoleConditions{
-				Namespaces: []string{apidefaults.Namespace},
-			},
-		},
+		}
 	}
-	roleOnlySAMLBlock := &types.RoleV6{
-		Metadata: types.Metadata{Name: "roleOnlySAMLBlock", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV6{
-			Options: types.RoleOptions{
-				MaxSessionTTL: types.Duration(time.Hour),
-				IDP: &types.IdPOptions{
-					SAML: &types.IdPSAMLOptions{},
+
+	roleV8SAMLAllowed := func(t *testing.T) types.RoleConditions {
+		t.Helper()
+		return types.RoleConditions{
+			Namespaces: []string{apidefaults.Namespace},
+			AppLabels:  types.Labels{"env": []string{"dev"}},
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSAMLIdPServiceProvider},
+					Verbs:     RO(),
 				},
 			},
-			Allow: types.RoleConditions{
-				Namespaces: []string{apidefaults.Namespace},
+		}
+	}
+
+	sp, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "saml-app",
+			Labels: map[string]string{
+				"env": "dev",
 			},
 		},
-	}
-	roleSAMLAllowed := &types.RoleV6{
-		Metadata: types.Metadata{Name: "roleSAMLAllowed", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV6{
-			Options: types.RoleOptions{
-				MaxSessionTTL: types.Duration(2 * time.Hour),
-				IDP: &types.IdPOptions{
-					SAML: &types.IdPSAMLOptions{
-						Enabled: types.NewBoolOption(true),
-					},
-				},
-			},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityID:   "https://example.com",
+			ACSURL:     "https://example.com",
+			RelayState: "test-relay-state",
 		},
-	}
-	roleSAMLNotAllowed := &types.RoleV6{
-		Metadata: types.Metadata{Name: "roleSAMLNotAllowed", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV6{
-			Options: types.RoleOptions{
-				MaxSessionTTL: types.Duration(2 * time.Hour),
-				IDP: &types.IdPOptions{
-					SAML: &types.IdPSAMLOptions{
-						Enabled: types.NewBoolOption(false),
-					},
-				},
-			},
-		},
-	}
-	roleSAMLAllowedMFARequired := &types.RoleV6{
-		Metadata: types.Metadata{Name: "roleSAMLAllowedMFARequired", Namespace: apidefaults.Namespace},
-		Spec: types.RoleSpecV6{
-			Options: types.RoleOptions{
-				RequireMFAType: types.RequireMFAType_SESSION,
-				MaxSessionTTL:  types.Duration(2 * time.Hour),
-				IDP: &types.IdPOptions{
-					SAML: &types.IdPSAMLOptions{
-						Enabled: types.NewBoolOption(true),
-					},
-				},
-			},
-		},
-	}
+	)
+	require.NoError(t, err)
 
 	testCases := []struct {
 		name                string
@@ -6269,67 +6315,235 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 		errAssertionFunc    require.ErrorAssertionFunc
 	}{
 		{
-			name:                "role with no IdP block",
-			roles:               RoleSet{roleNoSAMLOptions},
-			authPrefSamlEnabled: true,
-			errAssertionFunc:    require.NoError,
-		},
-		{
-			name:                "role with only IdP block",
-			roles:               RoleSet{roleOnlyIdPBlock},
-			authPrefSamlEnabled: true,
-			errAssertionFunc:    require.NoError,
-		},
-		{
-			name:                "role with only SAML block",
-			roles:               RoleSet{roleOnlySAMLBlock},
-			authPrefSamlEnabled: true,
-			errAssertionFunc:    require.NoError,
-		},
-		{
-			name:                "only allowed role",
-			roles:               RoleSet{roleSAMLAllowed},
-			authPrefSamlEnabled: true,
-			errAssertionFunc:    require.NoError,
-		},
-		{
-			name:                "only denied role",
-			roles:               RoleSet{roleSAMLNotAllowed},
+			name:                "no roles",
+			roles:               RoleSet{},
 			authPrefSamlEnabled: true,
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleSAMLNotAllowed"))
+				require.ErrorContains(t, err, "No roles assigned to user")
 			},
 		},
 		{
-			name:                "allowed and denied role",
-			roles:               RoleSet{roleSAMLAllowed, roleSAMLNotAllowed},
+			name: "roleV7: no idp option",
+			roles: RoleSet{
+				createRole(t, "roleV7NoSAMLOptions", types.V7, types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces: []string{apidefaults.Namespace},
+					},
+					Options: types.RoleOptions{},
+				}),
+			},
+			authPrefSamlEnabled: true,
+			errAssertionFunc:    require.NoError,
+		},
+		{
+			name: "roleV7: idp option block undefined",
+			roles: RoleSet{
+				createRole(t, "roleV7OnlyIdPBlock", types.V7, types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces: []string{apidefaults.Namespace},
+					},
+					Options: types.RoleOptions{
+						IDP: &types.IdPOptions{},
+					}}),
+			},
+			authPrefSamlEnabled: true,
+			errAssertionFunc:    require.NoError,
+		},
+		{
+			name: "roleV7: idp saml option block undefined",
+			roles: RoleSet{
+				createRole(t, "roleV7OnlySAMLBlock", types.V7, types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces: []string{apidefaults.Namespace},
+					},
+					Options: types.RoleOptions{
+						IDP: &types.IdPOptions{
+							SAML: &types.IdPSAMLOptions{},
+						},
+					}}),
+			},
+			authPrefSamlEnabled: true,
+			errAssertionFunc:    require.NoError,
+		},
+		{
+			name: "roleV7: idp option enabled",
+			roles: RoleSet{
+				createRole(t, "roleV7IdPEnabled", types.V7, types.RoleSpecV6{
+					Options: types.RoleOptions{
+						IDP: idpEnabled(t, true),
+					}}),
+			},
+			authPrefSamlEnabled: true,
+			errAssertionFunc:    require.NoError,
+		},
+		{
+			name: "roleV7: idp option disabled",
+			roles: RoleSet{
+				createRole(t, "roleV7IdPDisabled", types.V7, types.RoleSpecV6{
+					Options: types.RoleOptions{
+						IDP: idpEnabled(t, false),
+					}}),
+			},
 			authPrefSamlEnabled: true,
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleSAMLNotAllowed"))
+				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleV7IdPDisabled"))
 			},
 		},
 		{
-			name:                "allowed role, but denied at cluster level",
-			roles:               RoleSet{roleSAMLAllowed},
+			name: "roleV7: multiple roles with enabled and disabled idp option",
+			roles: RoleSet{
+				createRole(t, "roleV7IdPEnabled", types.V7, types.RoleSpecV6{
+					Options: types.RoleOptions{
+						IDP: idpEnabled(t, true),
+					}}),
+				createRole(t, "roleV7IdPDisabled", types.V7, types.RoleSpecV6{
+					Options: types.RoleOptions{
+						IDP: idpEnabled(t, false),
+					}}),
+			},
+			authPrefSamlEnabled: true,
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleV7IdPDisabled"))
+			},
+		},
+		{
+			name: "roleV7: idp option enabled, but denied at cluster level",
+			roles: RoleSet{
+				createRole(t, "roleV7IdPEnabled", types.V7, types.RoleSpecV6{
+					Options: types.RoleOptions{
+						IDP: idpEnabled(t, true),
+					}}),
+			},
 			authPrefSamlEnabled: false,
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.AccessDenied("SAML IdP is disabled at the cluster level"))
 			},
 		},
-		// Per-session MFA checks
+		// labels matching
 		{
-			name:                "MFA required by cluster or all roles, mfa verified",
-			roles:               RoleSet{roleSAMLAllowed},
+			name: "roleV7: idp disabled and wildcard labels does not grant access",
+			roles: RoleSet{
+				createRole(t, "roleV7labelsNotMatched", types.V7, types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+						Rules: []types.Rule{
+							{
+								Resources: []string{types.KindSAMLIdPServiceProvider},
+								Verbs:     RO(),
+							},
+						},
+					},
+					Options: types.RoleOptions{
+						IDP: idpEnabled(t, false),
+					}}),
+			},
+			authPrefSamlEnabled: true,
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleV7labelsNotMatched"))
+			},
+		},
+		{
+			name: "roleV7: idp enabled and denying label and verbs does not deny access",
+			roles: RoleSet{
+				createRole(t, "roleV7labelsNotMatched", types.V7, types.RoleSpecV6{
+					Deny: types.RoleConditions{
+						AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+						Rules: []types.Rule{
+							{
+								Resources: []string{types.KindSAMLIdPServiceProvider},
+								Verbs:     RO(),
+							},
+						},
+					},
+					Options: types.RoleOptions{
+						IDP: idpEnabled(t, true),
+					}}),
+			},
+			authPrefSamlEnabled: true,
+			errAssertionFunc:    require.NoError,
+		},
+		{
+			name: "roleV8: labels matched, idp disabled is not disable access",
+			roles: RoleSet{
+				createRole(t, "roleV8labelsMatched", types.V8, types.RoleSpecV6{
+					Allow: roleV8SAMLAllowed(t),
+					Options: types.RoleOptions{
+						IDP: idpEnabled(t, false),
+					}}),
+			},
+			authPrefSamlEnabled: true,
+			errAssertionFunc:    require.NoError,
+		},
+		{
+			name: "roleV8: unmatched labels denies access, idp enabled is not applied",
+			roles: RoleSet{
+				createRole(t, "roleV8labelsMatched", types.V8, types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces: []string{apidefaults.Namespace},
+						AppLabels:  types.Labels{"env": []string{"prod"}},
+						Rules: []types.Rule{
+							{
+								Resources: []string{types.KindSAMLIdPServiceProvider},
+								Verbs:     RO(),
+							},
+						},
+					},
+					Options: types.RoleOptions{
+						IDP: idpEnabled(t, true),
+					}}),
+			},
 			authPrefSamlEnabled: true,
 			state: AccessState{
 				MFARequired: MFARequiredAlways,
 				MFAVerified: true,
 			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "User does not have permissions")
+			},
+		},
+		// MFA checks for role v7
+		{
+			name: "roleV7: per-session MFA denies unverified MFA",
+			roles: RoleSet{
+				createRole(t, "roleV7MFARequired", types.V7, types.RoleSpecV6{
+					Options: types.RoleOptions{
+						RequireMFAType: types.RequireMFAType_SESSION,
+						IDP:            idpEnabled(t, true),
+					}}),
+			},
+			authPrefSamlEnabled: true,
+			state: AccessState{
+				MFARequired: MFARequiredPerRole,
+				MFAVerified: false,
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrSessionMFARequired)
+			},
+		},
+		{
+			name: "roleV7: per-session MFA allows verified MFA",
+			roles: RoleSet{
+				createRole(t, "roleV7MFARequired", types.V7, types.RoleSpecV6{
+					Allow: roleV8SAMLAllowed(t),
+					Options: types.RoleOptions{
+						RequireMFAType: types.RequireMFAType_SESSION,
+						IDP:            idpEnabled(t, true),
+					}}),
+			},
+			authPrefSamlEnabled: true,
+			state: AccessState{
+				MFARequired: MFARequiredPerRole,
+				MFAVerified: true,
+			},
 			errAssertionFunc: require.NoError,
 		},
 		{
-			name:                "MFA required by cluster or all roles, mfa not verified",
-			roles:               RoleSet{roleSAMLAllowed},
+			name: "roleV7: cluster-level MFA denies unverified MFA",
+			roles: RoleSet{
+				createRole(t, "roleV7MFARequired", types.V7, types.RoleSpecV6{
+					Options: types.RoleOptions{
+						IDP: idpEnabled(t, true),
+					}})},
 			authPrefSamlEnabled: true,
 			state: AccessState{
 				MFARequired: MFARequiredAlways,
@@ -6340,18 +6554,30 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 			},
 		},
 		{
-			name:                "MFA required by cluster or all roles, mfa verified",
-			roles:               RoleSet{roleSAMLAllowed},
+			name: "roleV7: cluster-level MFA allows verified MFA",
+			roles: RoleSet{
+				createRole(t, "roleV7MFARequired", types.V7, types.RoleSpecV6{
+					Options: types.RoleOptions{
+						IDP: idpEnabled(t, true),
+					}}),
+			},
 			authPrefSamlEnabled: true,
 			state: AccessState{
-				MFARequired: MFARequiredPerRole,
+				MFARequired: MFARequiredAlways,
 				MFAVerified: true,
 			},
 			errAssertionFunc: require.NoError,
 		},
+		// MFA checks for role v8
 		{
-			name:                "MFA required by some roles, mfa not verified",
-			roles:               RoleSet{roleSAMLAllowed, roleSAMLAllowedMFARequired},
+			name: "roleV8: per-session MFA denies unverified MFA",
+			roles: RoleSet{
+				createRole(t, "roleV8MFARequired", types.V8, types.RoleSpecV6{
+					Allow: roleV8SAMLAllowed(t),
+					Options: types.RoleOptions{
+						RequireMFAType: types.RequireMFAType_SESSION,
+					}}),
+			},
 			authPrefSamlEnabled: true,
 			state: AccessState{
 				MFARequired: MFARequiredPerRole,
@@ -6360,6 +6586,51 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, ErrSessionMFARequired)
 			},
+		},
+		{
+			name: "roleV8: per-session MFA allows verified MFA",
+			roles: RoleSet{
+				createRole(t, "roleV8MFARequired", types.V8, types.RoleSpecV6{
+					Allow: roleV8SAMLAllowed(t),
+					Options: types.RoleOptions{
+						RequireMFAType: types.RequireMFAType_SESSION,
+					}}),
+			},
+			authPrefSamlEnabled: true,
+			state: AccessState{
+				MFARequired: MFARequiredPerRole,
+				MFAVerified: true,
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "roleV8: cluster-level MFA denies unverified MFA",
+			roles: RoleSet{
+				createRole(t, "roleV8MFARequired", types.V8, types.RoleSpecV6{
+					Allow: roleV8SAMLAllowed(t),
+				})},
+			authPrefSamlEnabled: true,
+			state: AccessState{
+				MFARequired: MFARequiredAlways,
+				MFAVerified: false,
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrSessionMFARequired)
+			},
+		},
+		{
+			name: "roleV8: cluster-level MFA allows verified MFA",
+			roles: RoleSet{
+				createRole(t, "roleV8MFARequired", types.V8, types.RoleSpecV6{
+					Allow: roleV8SAMLAllowed(t),
+				}),
+			},
+			authPrefSamlEnabled: true,
+			state: AccessState{
+				MFARequired: MFARequiredAlways,
+				MFAVerified: true,
+			},
+			errAssertionFunc: require.NoError,
 		},
 	}
 	for _, tc := range testCases {
@@ -6372,7 +6643,8 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			tc.errAssertionFunc(t, tc.roles.CheckAccessToSAMLIdP(authPref, tc.state))
+			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
+			tc.errAssertionFunc(t, accessChecker.CheckAccessToSAMLIdPV2(sp, authPref, tc.state))
 		})
 	}
 }

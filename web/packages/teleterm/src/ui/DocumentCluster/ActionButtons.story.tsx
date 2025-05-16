@@ -288,7 +288,7 @@ function WindowsDesktop() {
   return (
     <ConnectWindowsDesktopActionButton
       windowsDesktop={makeWindowsDesktop({
-        uri: `${testCluster.uri}/windowsDesktops/bar`,
+        uri: `${testCluster.uri}/windows_desktops/bar`,
       })}
     />
   );

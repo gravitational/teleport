@@ -38,8 +38,6 @@ type CrownJewels interface {
 	UpsertCrownJewel(context.Context, *crownjewelv1.CrownJewel) (*crownjewelv1.CrownJewel, error)
 	// DeleteCrownJewel deletes the crown jewel resource by name.
 	DeleteCrownJewel(context.Context, string) error
-	// DeleteAllCrownJewels deletes all crown jewel resources.
-	DeleteAllCrownJewels(context.Context) error
 }
 
 // MarshalCrownJewel marshals the CrownJewel object into a JSON byte array.

@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -103,6 +104,8 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 		item, err = itemFromAutoUpdateConfig(r.UnwrapT())
 	case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:
 		item, err = itemFromAutoUpdateVersion(r.UnwrapT())
+	case types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]:
+		item, err = itemFromHealthCheckConfig(r.UnwrapT())
 	default:
 		return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)
 	}

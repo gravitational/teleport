@@ -86,7 +86,6 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust"
 	dtauthntypes "github.com/gravitational/teleport/lib/devicetrust/authn/types"
 	"github.com/gravitational/teleport/lib/events"
-	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -256,6 +255,7 @@ type Config struct {
 	// Agent is an SSH agent to use for local Agent procedures. Defaults to in-memory agent keyring.
 	Agent agent.ExtendedAgent
 
+	// ClientStore is the store for client data, e.g. keys, certs, profiles.
 	ClientStore *Store
 
 	// ForwardAgent is used by the client to request agent forwarding from the server.
@@ -288,10 +288,6 @@ type Config struct {
 	Stderr io.Writer
 	Stdin  io.Reader
 
-	// ExitStatus carries the returned value (exit status) of the remote
-	// process execution (via SSH exec)
-	ExitStatus int
-
 	// SiteName specifies site to execute operation,
 	// if omitted, first available site will be selected
 	SiteName string
@@ -321,10 +317,6 @@ type Config struct {
 	// node, if not specified will be using CheckHostSignature function
 	// that uses local cache to validate hosts
 	HostKeyCallback ssh.HostKeyCallback
-
-	// KeyDir defines where temporary session keys will be stored.
-	// if empty, they'll go to ~/.tsh
-	KeysDir string
 
 	// SessionID is a session ID to use when opening a new session.
 	SessionID string
@@ -388,10 +380,10 @@ type Config struct {
 	//	off - do not attempt to load keys into agent
 	AddKeysToAgent string
 
-	// EnableEscapeSequences will scan Stdin for SSH escape sequences during
+	// DisableEscapeSequences will disable scanning Stdin for SSH escape sequences during
 	// command/shell execution. This also requires Stdin to be an interactive
 	// terminal.
-	EnableEscapeSequences bool
+	DisableEscapeSequences bool
 
 	// MockSSOLogin is used in tests for mocking the SSO login response.
 	MockSSOLogin SSOLoginFunc
@@ -408,9 +400,6 @@ type Config struct {
 	// Useful in parallel tests so they don't all use the default path in the
 	// user home dir.
 	OverridePostgresServiceFilePath string
-
-	// HomePath is where tsh stores profiles
-	HomePath string
 
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
@@ -499,11 +488,6 @@ type Config struct {
 	// SSOMFACeremonyConstructor is a custom SSO MFA ceremony constructor.
 	SSOMFACeremonyConstructor func(rd *sso.Redirector) mfa.SSOMFACeremony
 
-	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
-	// for a hardware key PIN, touch, etc.
-	// If empty, a default CLI prompt is used.
-	CustomHardwareKeyPrompt hardwarekey.Prompt
-
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
 
@@ -538,16 +522,74 @@ type CachePolicy struct {
 	NeverExpires bool
 }
 
-// MakeDefaultConfig returns default client config
-func MakeDefaultConfig() *Config {
-	return &Config{
-		Stdout:                os.Stdout,
-		Stderr:                os.Stderr,
-		Stdin:                 os.Stdin,
-		AddKeysToAgent:        AddKeysToAgentAuto,
-		EnableEscapeSequences: true,
-		Tracer:                tracing.NoopProvider().Tracer("TeleportClient"),
+// MakeDefaultConfig returns default client config.
+// If store is not provided, it will default to in-memory storage without
+// hardware key support. This should only be used with static auth methods
+// (TLS and AuthMethods fields).
+func MakeDefaultConfig(store *Store) *Config {
+	if store == nil {
+		store = NewMemClientStore()
 	}
+	return &Config{
+		Stdout:         os.Stdout,
+		Stderr:         os.Stderr,
+		Stdin:          os.Stdin,
+		AddKeysToAgent: AddKeysToAgentAuto,
+		Tracer:         tracing.NoopProvider().Tracer("TeleportClient"),
+		ClientStore:    store,
+	}
+}
+
+func (c *Config) CheckAndSetDefaults() error {
+	if c.ClientStore == nil {
+		if c.TLS == nil && c.AuthMethods == nil {
+			return trace.BadParameter("either client store is or static auth methods are required")
+		}
+		// Client will use static auth methods instead of client store.
+		// Initialize empty client store to prevent panics.
+		c.ClientStore = NewMemClientStore()
+	}
+
+	// validate configuration
+	var err error
+	if c.Username == "" {
+		c.Username, err = Username()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.InfoContext(context.Background(), "No teleport login given, using default", "default_login", c.Username)
+	}
+	if c.WebProxyAddr == "" {
+		return trace.BadParameter("No proxy address specified, missed --proxy flag?")
+	}
+	if c.HostLogin == "" {
+		c.HostLogin, err = Username()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.InfoContext(context.Background(), "no host login given, using default", "default_host_login", c.HostLogin)
+	}
+	if len(c.JumpHosts) > 1 {
+		return trace.BadParameter("only one jump host is supported, got %v", len(c.JumpHosts))
+	}
+
+	// set defaults
+	if c.Stdout == nil {
+		c.Stdout = os.Stdout
+	}
+	if c.Stderr == nil {
+		c.Stderr = os.Stderr
+	}
+	if c.Stdin == nil {
+		c.Stdin = os.Stdin
+	}
+	if c.AddKeysToAgent == "" {
+		c.AddKeysToAgent = AddKeysToAgentAuto
+	}
+	if c.Tracer == nil {
+		c.Tracer = tracing.NoopProvider().Tracer("TeleportClient")
+	}
+	return nil
 }
 
 // VirtualPathKind is the suffix component for env vars denoting the type of
@@ -849,13 +891,16 @@ func IsErrorResolvableWithRelogin(err error) bool {
 		IsNoCredentialsError(err)
 }
 
-// GetProfile gets the profile for the specified proxy address, or
-// the current profile if no proxy is specified.
-func (c *Config) GetProfile(ps ProfileStore, proxyAddr string) (*profile.Profile, error) {
+// GetProfile gets the client profile for the specified proxy address.
+func (c *Config) GetProfile(proxyAddr string) (*profile.Profile, error) {
+	if c.ClientStore == nil {
+		return nil, trace.BadParameter("client store can not be nil")
+	}
+
 	var proxyHost string
 	var err error
 	if proxyAddr == "" {
-		proxyHost, err = ps.CurrentProfile()
+		proxyHost, err = c.ClientStore.CurrentProfile()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -866,18 +911,17 @@ func (c *Config) GetProfile(ps ProfileStore, proxyAddr string) (*profile.Profile
 		}
 	}
 
-	profile, err := ps.GetProfile(proxyHost)
+	profile, err := c.ClientStore.GetProfile(proxyHost)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return profile, nil
 }
 
-// LoadProfile populates Config with the values stored in the given
-// profiles directory. If profileDir is an empty string, the default profile
-// directory ~/.tsh is used.
-func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
-	profile, err := c.GetProfile(ps, proxyAddr)
+// LoadProfile populates Config with the values stored in the client
+// profile for the specified proxy address.
+func (c *Config) LoadProfile(proxyAddr string) error {
+	profile, err := c.GetProfile(proxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -892,7 +936,6 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.MongoProxyAddr = profile.MongoProxyAddr
 	c.TLSRoutingEnabled = profile.TLSRoutingEnabled
 	c.TLSRoutingConnUpgradeRequired = profile.TLSRoutingConnUpgradeRequired
-	c.KeysDir = profile.Dir
 	c.AuthConnector = profile.AuthConnector
 	c.LoadAllCAs = profile.LoadAllCAs
 	c.PrivateKeyPolicy = profile.PrivateKeyPolicy
@@ -1217,6 +1260,9 @@ type DTAutoEnrollFunc func(context.Context, devicepb.DeviceTrustServiceClient) (
 // TeleportClient is NOT safe for concurrent use.
 type TeleportClient struct {
 	Config
+	exitStatus int
+	statusMu   sync.Mutex
+
 	localAgent *LocalKeyAgent
 
 	// OnChannelRequest gets called when SSH channel requests are
@@ -1245,61 +1291,12 @@ type ShellCreatedCallback func(s *tracessh.Session, c *tracessh.Client, terminal
 
 // NewClient creates a TeleportClient object and fully configures it
 func NewClient(c *Config) (tc *TeleportClient, err error) {
-	if len(c.JumpHosts) > 1 {
-		return nil, trace.BadParameter("only one jump host is supported, got %v", len(c.JumpHosts))
-	}
-	// validate configuration
-	if c.Username == "" {
-		c.Username, err = Username()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		log.InfoContext(context.Background(), "No teleport login given, using default", "default_login", c.Username)
-	}
-	if c.WebProxyAddr == "" {
-		return nil, trace.BadParameter("No proxy address specified, missed --proxy flag?")
-	}
-	if c.HostLogin == "" {
-		c.HostLogin, err = Username()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		log.InfoContext(context.Background(), "no host login given, using default", "default_host_login", c.HostLogin)
-	}
-
-	if c.Tracer == nil {
-		c.Tracer = tracing.NoopProvider().Tracer(teleport.ComponentTeleport)
+	if err := c.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	tc = &TeleportClient{
 		Config: *c,
-	}
-
-	if tc.Stdout == nil {
-		tc.Stdout = os.Stdout
-	}
-	if tc.Stderr == nil {
-		tc.Stderr = os.Stderr
-	}
-	if tc.Stdin == nil {
-		tc.Stdin = os.Stdin
-	}
-
-	if tc.ClientStore == nil {
-		if tc.TLS != nil || tc.AuthMethods != nil {
-			// Client will use static auth methods instead of client store.
-			// Initialize empty client store to prevent panics.
-			tc.ClientStore = NewMemClientStore()
-		} else {
-			// TODO (Joerger): init hardware key service (and client store) earlier where it can
-			// be properly shared.
-			hardwareKeyService := libhwk.NewService(context.TODO(), tc.CustomHardwareKeyPrompt)
-			tc.ClientStore = NewFSClientStore(c.KeysDir, WithHardwareKeyService(hardwareKeyService))
-			if c.AddKeysToAgent == AddKeysToAgentOnly {
-				// Store client keys in memory, but still save trusted certs and profile to disk.
-				tc.ClientStore.KeyStore = NewMemKeyStore()
-			}
-		}
 	}
 
 	// Create a buffered channel to hold events that occurred during this session.
@@ -1330,6 +1327,22 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	}
 
 	return tc, nil
+}
+
+// ExitStatus returns the exit status of the most recent SSH command. It is the
+// caller's responsibility to ensure the command has finished before checking
+// the exit status.
+func (tc *TeleportClient) ExitStatus() int {
+	tc.statusMu.Lock()
+	defer tc.statusMu.Unlock()
+	return tc.exitStatus
+}
+
+// SetExitStatus sets the exit status of the most recent SSH command.
+func (tc *TeleportClient) SetExitStatus(status int) {
+	tc.statusMu.Lock()
+	defer tc.statusMu.Unlock()
+	tc.exitStatus = status
 }
 
 func (tc *TeleportClient) stdin() prompt.StdinReader {
@@ -1724,8 +1737,11 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer clusterClient.Close()
 
-	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, params)
-	return keyRing, trace.Wrap(err)
+	result, err := clusterClient.IssueUserCertsWithMFA(ctx, params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return result.KeyRing, nil
 }
 
 // CreateAccessRequestV2 registers a new access request with the auth server.
@@ -2174,7 +2190,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		tc.Config.HostLogin,
 	)
 	if err != nil {
-		tc.ExitStatus = 1
+		tc.SetExitStatus(1)
 		return trace.Wrap(err)
 	}
 	defer nodeClient.Close()
@@ -2941,6 +2957,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 			)
 			defer span.End()
 
+			displayName := nodeName(node)
 			nodeClient, err := tc.ConnectToNode(
 				ctx,
 				clt,
@@ -2955,26 +2972,32 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 			if err != nil {
 				// Returning the error here would cancel all the other goroutines, so
 				// print the error instead to let them all finish.
-				fmt.Fprintln(tc.Stderr, err)
+				fmt.Fprintln(stderr, err)
+				resultsCh <- execResult{
+					hostname:   displayName,
+					exitStatus: 1,
+				}
 				return nil
 			}
 			defer nodeClient.Close()
 
-			displayName := nodeName(node)
-			fmt.Printf("Running command on %v:\n", displayName)
+			fmt.Fprintf(stdout, "Running command on %v:\n", displayName)
 
-			if err := nodeClient.RunCommand(
+			err = nodeClient.RunCommand(
 				ctx,
 				command,
 				WithLabeledOutput(width),
 				WithOutput(stdout, stderr),
-			); err != nil && tc.ExitStatus == 0 {
-				fmt.Fprintln(tc.Stderr, err)
+			)
+			// Use the status from the error to avoid a race on the exit status.
+			exitStatus := getExitStatus(err)
+			if err != nil && exitStatus == 0 {
+				fmt.Fprintln(stderr, err)
 				return nil
 			}
 			resultsCh <- execResult{
 				hostname:   displayName,
-				exitStatus: tc.ExitStatus,
+				exitStatus: exitStatus,
 			}
 			return nil
 		})
@@ -4017,6 +4040,7 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 				Username:    tc.Username,
 				ClusterName: tc.SiteName,
 			},
+			PINCacheTTL: tc.PIVPINCacheTTL,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4865,7 +4889,7 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 // connectToSSHAgent connects to the system SSH agent and returns an agent.Agent.
 func connectToSSHAgent() agent.ExtendedAgent {
 	ctx := context.Background()
-	logger := log.With(teleport.ComponentKey, "KEYAGENT")
+	logger := log.With(teleport.ComponentKey, teleport.ComponentKeyAgent)
 
 	socketPath := os.Getenv(teleport.SSHAuthSock)
 	conn, err := agentconn.Dial(socketPath)

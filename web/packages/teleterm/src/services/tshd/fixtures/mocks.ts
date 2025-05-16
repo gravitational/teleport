@@ -95,6 +95,8 @@ export class MockTshClient implements TshdClient {
     new MockedUnaryCall({ resources: [], nextKey: '' });
   listKubernetesResources = () =>
     new MockedUnaryCall({ resources: [], nextKey: '' });
+  listDatabaseServers = () =>
+    new MockedUnaryCall({ resources: [], nextKey: '' });
   getUserPreferences = () =>
     new MockedUnaryCall({
       userPreferences: {
@@ -115,6 +117,8 @@ export class MockTshClient implements TshdClient {
     });
   startHeadlessWatcher = () => new MockedUnaryCall({});
   getApp = () => new MockedUnaryCall({ app: makeApp() });
+  connectToDesktop = undefined;
+  setSharedDirectoryForDesktopSession = () => new MockedUnaryCall({});
 }
 
 export class MockVnetClient implements VnetClient {

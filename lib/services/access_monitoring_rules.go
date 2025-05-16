@@ -28,6 +28,14 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/accessmonitoring"
+	"github.com/gravitational/teleport/lib/utils/typical"
+)
+
+var (
+	// accessRequestConditionParser is a parser for the access request condition.
+	// It is used to validate access monitoring rules before write operations.
+	accessRequestConditionParser = mustNewAccessRequestConditionParser()
 )
 
 // AccessMonitoringRules is the AccessMonitoringRule service
@@ -93,12 +101,29 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 		if automaticReview.GetIntegration() == "" {
 			return trace.BadParameter("accessMonitoringRule automatic_review integration is missing")
 		}
-		if automaticReview.GetDecision() == "" {
+
+		switch automaticReview.GetDecision() {
+		case types.RequestState_APPROVED.String(), types.RequestState_DENIED.String():
+		case "":
 			return trace.BadParameter("accessMonitoringRule automatic_review decision is missing")
+		default:
+			return trace.BadParameter("accessMonitoringRule automatic_review decision %q is not supported", automaticReview.GetDecision())
 		}
 	}
 
 	if slices.Contains(accessMonitoringRule.GetSpec().GetSubjects(), types.KindAccessRequest) {
+		_, err := accessRequestConditionParser.Parse(accessMonitoringRule.GetSpec().GetCondition())
+		if err != nil {
+			return trace.BadParameter("accessMonitoringRule condition is invalid: %s", err.Error())
+		}
+
+		desiredState := accessMonitoringRule.GetSpec().GetDesiredState()
+		switch desiredState {
+		case "", types.AccessMonitoringRuleStateReviewed:
+		default:
+			return trace.BadParameter("accessMonitoringRule desired_state %q is not supported", desiredState)
+		}
+
 		if accessMonitoringRule.GetSpec().GetNotification() != nil {
 			return nil
 		}
@@ -120,4 +145,36 @@ func MarshalAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.A
 // UnmarshalAccessMonitoringRule unmarshals the AccessMonitoringRule resource.
 func UnmarshalAccessMonitoringRule(data []byte, opts ...MarshalOption) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
 	return FastUnmarshalProtoResourceDeprecated[*accessmonitoringrulesv1.AccessMonitoringRule](data, opts...)
+}
+
+// MatchAccessMonitoringRule returns true if the provided rule matches the provided match fields.
+// The match fields are optional. If a match field is not provided, then the
+// rule matches any value for that field.
+func MatchAccessMonitoringRule(rule *accessmonitoringrulesv1.AccessMonitoringRule, subjects []string, notificationIntegration, automaticReviewIntegration string) bool {
+	if notificationIntegration != "" {
+		if rule.GetSpec().GetNotification().GetName() != notificationIntegration {
+			return false
+		}
+	}
+	if automaticReviewIntegration != "" {
+		if rule.GetSpec().GetAutomaticReview().GetIntegration() != automaticReviewIntegration {
+			return false
+		}
+	}
+	for _, subject := range subjects {
+		if ok := slices.ContainsFunc(rule.Spec.Subjects, func(s string) bool {
+			return s == subject
+		}); !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func mustNewAccessRequestConditionParser() *typical.Parser[accessmonitoring.AccessRequestExpressionEnv, any] {
+	parser, err := accessmonitoring.NewAccessRequestConditionParser()
+	if err != nil {
+		panic(err)
+	}
+	return parser
 }

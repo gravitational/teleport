@@ -25,7 +25,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"syscall"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -62,7 +61,7 @@ func NewAgentClient(ctx context.Context, keyAgentDir string) (hardwarekeyagentv1
 		return nil, err
 	}
 
-	return hardwarekeyagent.NewClient(ctx, socketPath, creds)
+	return hardwarekeyagent.NewClient(socketPath, creds)
 }
 
 // Server implementation [hardwarekeyagentv1.HardwareKeyAgentServiceServer].
@@ -76,7 +75,11 @@ type Server struct {
 // The given directory will be created when the server is served and destroyed with the server is stopped.
 //
 // [DefaultAgentDir] should be used for [keyAgentDir] outside of tests.
-func NewAgentServer(ctx context.Context, s hardwarekey.Service, keyAgentDir string) (*Server, error) {
+func NewAgentServer(ctx context.Context, s hardwarekey.Service, keyAgentDir string, knownKeyFn hardwarekeyagent.KnownHardwareKeyFn) (*Server, error) {
+	if knownKeyFn == nil {
+		return nil, trace.BadParameter("knownKeyFn must be provided")
+	}
+
 	if err := os.MkdirAll(keyAgentDir, 0o700); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -92,7 +95,12 @@ func NewAgentServer(ctx context.Context, s hardwarekey.Service, keyAgentDir stri
 		return nil, trace.Wrap(err)
 	}
 
-	grpcServer := hardwarekeyagent.NewServer(ctx, s, credentials.NewServerTLSFromCert(&cert))
+	grpcServer, err := hardwarekeyagent.NewServer(s, credentials.NewServerTLSFromCert(&cert), knownKeyFn)
+	if err != nil {
+		l.Close()
+		return nil, trace.Wrap(err)
+	}
+
 	return &Server{
 		grpcServer: grpcServer,
 		listener:   l,
@@ -105,7 +113,7 @@ func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, er
 	l, err := net.Listen("unix", socketPath)
 	if err == nil {
 		return l, nil
-	} else if !errors.Is(err, syscall.EADDRINUSE) {
+	} else if !errors.Is(err, errAddrInUse) {
 		return nil, trace.Wrap(err)
 	}
 

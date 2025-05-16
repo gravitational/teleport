@@ -824,6 +824,355 @@ func (x *RollbackAutoUpdateAgentGroupRequest) GetAllStartedGroups() bool {
 	return false
 }
 
+// ListAutoUpdateAgentReportsRequest is a request for a paginated list of AutoUpdateAgentReports.
+type ListAutoUpdateAgentReportsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// page_size is the size of the page to request.
+	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// next_token is the page token.
+	NextToken     string `protobuf:"bytes,2,opt,name=next_token,json=nextToken,proto3" json:"next_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAutoUpdateAgentReportsRequest) Reset() {
+	*x = ListAutoUpdateAgentReportsRequest{}
+	mi := &file_teleport_autoupdate_v1_autoupdate_service_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAutoUpdateAgentReportsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAutoUpdateAgentReportsRequest) ProtoMessage() {}
+
+func (x *ListAutoUpdateAgentReportsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_autoupdate_v1_autoupdate_service_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAutoUpdateAgentReportsRequest.ProtoReflect.Descriptor instead.
+func (*ListAutoUpdateAgentReportsRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *ListAutoUpdateAgentReportsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListAutoUpdateAgentReportsRequest) GetNextToken() string {
+	if x != nil {
+		return x.NextToken
+	}
+	return ""
+}
+
+// ListAutoUpdateAgentReportsResponse is the response for ListAutoUpdateAgentReportsRequest.
+type ListAutoUpdateAgentReportsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// AutoUpdateAgentReports is a list of AutoUpdateAgentReports.
+	AutoupdateAgentReports []*AutoUpdateAgentReport `protobuf:"bytes,1,rep,name=autoupdate_agent_reports,json=autoupdateAgentReports,proto3" json:"autoupdate_agent_reports,omitempty"`
+	// NextKey is the key for the next page of AutoUpdateAgentReports.
+	NextKey string `protobuf:"bytes,2,opt,name=next_key,json=nextKey,proto3" json:"next_key,omitempty"`
+	// TotalCount is the total number of autoupdate_agent_report in all pages.
+	TotalCount    int32 `protobuf:"varint,3,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAutoUpdateAgentReportsResponse) Reset() {
+	*x = ListAutoUpdateAgentReportsResponse{}
+	mi := &file_teleport_autoupdate_v1_autoupdate_service_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAutoUpdateAgentReportsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAutoUpdateAgentReportsResponse) ProtoMessage() {}
+
+func (x *ListAutoUpdateAgentReportsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_autoupdate_v1_autoupdate_service_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAutoUpdateAgentReportsResponse.ProtoReflect.Descriptor instead.
+func (*ListAutoUpdateAgentReportsResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ListAutoUpdateAgentReportsResponse) GetAutoupdateAgentReports() []*AutoUpdateAgentReport {
+	if x != nil {
+		return x.AutoupdateAgentReports
+	}
+	return nil
+}
+
+func (x *ListAutoUpdateAgentReportsResponse) GetNextKey() string {
+	if x != nil {
+		return x.NextKey
+	}
+	return ""
+}
+
+func (x *ListAutoUpdateAgentReportsResponse) GetTotalCount() int32 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+// GetAutoUpdateAgentReportRequest is a request for a specific AutoUpdateAgentReport resource.
+type GetAutoUpdateAgentReportRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Name is the name of the AutoUpdateAgentReport to be requested.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAutoUpdateAgentReportRequest) Reset() {
+	*x = GetAutoUpdateAgentReportRequest{}
+	mi := &file_teleport_autoupdate_v1_autoupdate_service_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAutoUpdateAgentReportRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAutoUpdateAgentReportRequest) ProtoMessage() {}
+
+func (x *GetAutoUpdateAgentReportRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_autoupdate_v1_autoupdate_service_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAutoUpdateAgentReportRequest.ProtoReflect.Descriptor instead.
+func (*GetAutoUpdateAgentReportRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *GetAutoUpdateAgentReportRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// CreateAutoUpdateAgentReportRequest is the request to create the provided AutoUpdateAgentReport.
+type CreateAutoUpdateAgentReportRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// AutoUpdateAgentReport is the AutoUpdateAgentReport to be created.
+	AutoupdateAgentReport *AutoUpdateAgentReport `protobuf:"bytes,1,opt,name=autoupdate_agent_report,json=autoupdateAgentReport,proto3" json:"autoupdate_agent_report,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *CreateAutoUpdateAgentReportRequest) Reset() {
+	*x = CreateAutoUpdateAgentReportRequest{}
+	mi := &file_teleport_autoupdate_v1_autoupdate_service_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateAutoUpdateAgentReportRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateAutoUpdateAgentReportRequest) ProtoMessage() {}
+
+func (x *CreateAutoUpdateAgentReportRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_autoupdate_v1_autoupdate_service_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateAutoUpdateAgentReportRequest.ProtoReflect.Descriptor instead.
+func (*CreateAutoUpdateAgentReportRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *CreateAutoUpdateAgentReportRequest) GetAutoupdateAgentReport() *AutoUpdateAgentReport {
+	if x != nil {
+		return x.AutoupdateAgentReport
+	}
+	return nil
+}
+
+// UpdateAutoUpdateAgentReportRequest is the request to update the provided AutoUpdateAgentReport.
+type UpdateAutoUpdateAgentReportRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// AutoUpdateAgentReport is the AutoUpdateAgentReport to be updated.
+	AutoupdateAgentReport *AutoUpdateAgentReport `protobuf:"bytes,1,opt,name=autoupdate_agent_report,json=autoupdateAgentReport,proto3" json:"autoupdate_agent_report,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *UpdateAutoUpdateAgentReportRequest) Reset() {
+	*x = UpdateAutoUpdateAgentReportRequest{}
+	mi := &file_teleport_autoupdate_v1_autoupdate_service_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateAutoUpdateAgentReportRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateAutoUpdateAgentReportRequest) ProtoMessage() {}
+
+func (x *UpdateAutoUpdateAgentReportRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_autoupdate_v1_autoupdate_service_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateAutoUpdateAgentReportRequest.ProtoReflect.Descriptor instead.
+func (*UpdateAutoUpdateAgentReportRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *UpdateAutoUpdateAgentReportRequest) GetAutoupdateAgentReport() *AutoUpdateAgentReport {
+	if x != nil {
+		return x.AutoupdateAgentReport
+	}
+	return nil
+}
+
+// UpsertAutoUpdateAgentReportRequest is the request to upsert the provided AutoUpdateAgentReport.
+type UpsertAutoUpdateAgentReportRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// AutoUpdateAgentReport is the AutoUpdateAgentReport to be upserted.
+	AutoupdateAgentReport *AutoUpdateAgentReport `protobuf:"bytes,1,opt,name=autoupdate_agent_report,json=autoupdateAgentReport,proto3" json:"autoupdate_agent_report,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *UpsertAutoUpdateAgentReportRequest) Reset() {
+	*x = UpsertAutoUpdateAgentReportRequest{}
+	mi := &file_teleport_autoupdate_v1_autoupdate_service_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertAutoUpdateAgentReportRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertAutoUpdateAgentReportRequest) ProtoMessage() {}
+
+func (x *UpsertAutoUpdateAgentReportRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_autoupdate_v1_autoupdate_service_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpsertAutoUpdateAgentReportRequest.ProtoReflect.Descriptor instead.
+func (*UpsertAutoUpdateAgentReportRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *UpsertAutoUpdateAgentReportRequest) GetAutoupdateAgentReport() *AutoUpdateAgentReport {
+	if x != nil {
+		return x.AutoupdateAgentReport
+	}
+	return nil
+}
+
+// DeleteAutoUpdateAgentReportRequest is a request for deleting a specific AutoUpdateAgentReport resource.
+type DeleteAutoUpdateAgentReportRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Name is the name of the AutoUpdateAgentReport to be deleted.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteAutoUpdateAgentReportRequest) Reset() {
+	*x = DeleteAutoUpdateAgentReportRequest{}
+	mi := &file_teleport_autoupdate_v1_autoupdate_service_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteAutoUpdateAgentReportRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteAutoUpdateAgentReportRequest) ProtoMessage() {}
+
+func (x *DeleteAutoUpdateAgentReportRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_autoupdate_v1_autoupdate_service_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteAutoUpdateAgentReportRequest.ProtoReflect.Descriptor instead.
+func (*DeleteAutoUpdateAgentReportRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *DeleteAutoUpdateAgentReportRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 var File_teleport_autoupdate_v1_autoupdate_service_proto protoreflect.FileDescriptor
 
 const file_teleport_autoupdate_v1_autoupdate_service_proto_rawDesc = "" +
@@ -860,7 +1209,26 @@ const file_teleport_autoupdate_v1_autoupdate_service_proto_rawDesc = "" +
 	"\x06groups\x18\x01 \x03(\tR\x06groups\"k\n" +
 	"#RollbackAutoUpdateAgentGroupRequest\x12\x16\n" +
 	"\x06groups\x18\x01 \x03(\tR\x06groups\x12,\n" +
-	"\x12all_started_groups\x18\x02 \x01(\bR\x10allStartedGroups2\x88\x12\n" +
+	"\x12all_started_groups\x18\x02 \x01(\bR\x10allStartedGroups\"_\n" +
+	"!ListAutoUpdateAgentReportsRequest\x12\x1b\n" +
+	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"next_token\x18\x02 \x01(\tR\tnextToken\"\xc9\x01\n" +
+	"\"ListAutoUpdateAgentReportsResponse\x12g\n" +
+	"\x18autoupdate_agent_reports\x18\x01 \x03(\v2-.teleport.autoupdate.v1.AutoUpdateAgentReportR\x16autoupdateAgentReports\x12\x19\n" +
+	"\bnext_key\x18\x02 \x01(\tR\anextKey\x12\x1f\n" +
+	"\vtotal_count\x18\x03 \x01(\x05R\n" +
+	"totalCount\"5\n" +
+	"\x1fGetAutoUpdateAgentReportRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"\x8b\x01\n" +
+	"\"CreateAutoUpdateAgentReportRequest\x12e\n" +
+	"\x17autoupdate_agent_report\x18\x01 \x01(\v2-.teleport.autoupdate.v1.AutoUpdateAgentReportR\x15autoupdateAgentReport\"\x8b\x01\n" +
+	"\"UpdateAutoUpdateAgentReportRequest\x12e\n" +
+	"\x17autoupdate_agent_report\x18\x01 \x01(\v2-.teleport.autoupdate.v1.AutoUpdateAgentReportR\x15autoupdateAgentReport\"\x8b\x01\n" +
+	"\"UpsertAutoUpdateAgentReportRequest\x12e\n" +
+	"\x17autoupdate_agent_report\x18\x01 \x01(\v2-.teleport.autoupdate.v1.AutoUpdateAgentReportR\x15autoupdateAgentReport\"8\n" +
+	"\"DeleteAutoUpdateAgentReportRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name2\xb7\x18\n" +
 	"\x11AutoUpdateService\x12s\n" +
 	"\x13GetAutoUpdateConfig\x122.teleport.autoupdate.v1.GetAutoUpdateConfigRequest\x1a(.teleport.autoupdate.v1.AutoUpdateConfig\x12y\n" +
 	"\x16CreateAutoUpdateConfig\x125.teleport.autoupdate.v1.CreateAutoUpdateConfigRequest\x1a(.teleport.autoupdate.v1.AutoUpdateConfig\x12y\n" +
@@ -879,7 +1247,13 @@ const file_teleport_autoupdate_v1_autoupdate_service_proto_rawDesc = "" +
 	"\x1cDeleteAutoUpdateAgentRollout\x12;.teleport.autoupdate.v1.DeleteAutoUpdateAgentRolloutRequest\x1a\x16.google.protobuf.Empty\x12\x89\x01\n" +
 	"\x1bTriggerAutoUpdateAgentGroup\x12:.teleport.autoupdate.v1.TriggerAutoUpdateAgentGroupRequest\x1a..teleport.autoupdate.v1.AutoUpdateAgentRollout\x12\x85\x01\n" +
 	"\x19ForceAutoUpdateAgentGroup\x128.teleport.autoupdate.v1.ForceAutoUpdateAgentGroupRequest\x1a..teleport.autoupdate.v1.AutoUpdateAgentRollout\x12\x8b\x01\n" +
-	"\x1cRollbackAutoUpdateAgentGroup\x12;.teleport.autoupdate.v1.RollbackAutoUpdateAgentGroupRequest\x1a..teleport.autoupdate.v1.AutoUpdateAgentRolloutBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdateb\x06proto3"
+	"\x1cRollbackAutoUpdateAgentGroup\x12;.teleport.autoupdate.v1.RollbackAutoUpdateAgentGroupRequest\x1a..teleport.autoupdate.v1.AutoUpdateAgentRollout\x12\x93\x01\n" +
+	"\x1aListAutoUpdateAgentReports\x129.teleport.autoupdate.v1.ListAutoUpdateAgentReportsRequest\x1a:.teleport.autoupdate.v1.ListAutoUpdateAgentReportsResponse\x12\x82\x01\n" +
+	"\x18GetAutoUpdateAgentReport\x127.teleport.autoupdate.v1.GetAutoUpdateAgentReportRequest\x1a-.teleport.autoupdate.v1.AutoUpdateAgentReport\x12\x88\x01\n" +
+	"\x1bCreateAutoUpdateAgentReport\x12:.teleport.autoupdate.v1.CreateAutoUpdateAgentReportRequest\x1a-.teleport.autoupdate.v1.AutoUpdateAgentReport\x12\x88\x01\n" +
+	"\x1bUpdateAutoUpdateAgentReport\x12:.teleport.autoupdate.v1.UpdateAutoUpdateAgentReportRequest\x1a-.teleport.autoupdate.v1.AutoUpdateAgentReport\x12\x88\x01\n" +
+	"\x1bUpsertAutoUpdateAgentReport\x12:.teleport.autoupdate.v1.UpsertAutoUpdateAgentReportRequest\x1a-.teleport.autoupdate.v1.AutoUpdateAgentReport\x12q\n" +
+	"\x1bDeleteAutoUpdateAgentReport\x12:.teleport.autoupdate.v1.DeleteAutoUpdateAgentReportRequest\x1a\x16.google.protobuf.EmptyBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdateb\x06proto3"
 
 var (
 	file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescOnce sync.Once
@@ -893,7 +1267,7 @@ func file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP() []byte {
 	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescData
 }
 
-var file_teleport_autoupdate_v1_autoupdate_service_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_teleport_autoupdate_v1_autoupdate_service_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_teleport_autoupdate_v1_autoupdate_service_proto_goTypes = []any{
 	(*GetAutoUpdateConfigRequest)(nil),          // 0: teleport.autoupdate.v1.GetAutoUpdateConfigRequest
 	(*CreateAutoUpdateConfigRequest)(nil),       // 1: teleport.autoupdate.v1.CreateAutoUpdateConfigRequest
@@ -913,64 +1287,88 @@ var file_teleport_autoupdate_v1_autoupdate_service_proto_goTypes = []any{
 	(*TriggerAutoUpdateAgentGroupRequest)(nil),  // 15: teleport.autoupdate.v1.TriggerAutoUpdateAgentGroupRequest
 	(*ForceAutoUpdateAgentGroupRequest)(nil),    // 16: teleport.autoupdate.v1.ForceAutoUpdateAgentGroupRequest
 	(*RollbackAutoUpdateAgentGroupRequest)(nil), // 17: teleport.autoupdate.v1.RollbackAutoUpdateAgentGroupRequest
-	(*AutoUpdateConfig)(nil),                    // 18: teleport.autoupdate.v1.AutoUpdateConfig
-	(*AutoUpdateVersion)(nil),                   // 19: teleport.autoupdate.v1.AutoUpdateVersion
-	(*AutoUpdateAgentRollout)(nil),              // 20: teleport.autoupdate.v1.AutoUpdateAgentRollout
-	(AutoUpdateAgentGroupState)(0),              // 21: teleport.autoupdate.v1.AutoUpdateAgentGroupState
-	(*emptypb.Empty)(nil),                       // 22: google.protobuf.Empty
+	(*ListAutoUpdateAgentReportsRequest)(nil),   // 18: teleport.autoupdate.v1.ListAutoUpdateAgentReportsRequest
+	(*ListAutoUpdateAgentReportsResponse)(nil),  // 19: teleport.autoupdate.v1.ListAutoUpdateAgentReportsResponse
+	(*GetAutoUpdateAgentReportRequest)(nil),     // 20: teleport.autoupdate.v1.GetAutoUpdateAgentReportRequest
+	(*CreateAutoUpdateAgentReportRequest)(nil),  // 21: teleport.autoupdate.v1.CreateAutoUpdateAgentReportRequest
+	(*UpdateAutoUpdateAgentReportRequest)(nil),  // 22: teleport.autoupdate.v1.UpdateAutoUpdateAgentReportRequest
+	(*UpsertAutoUpdateAgentReportRequest)(nil),  // 23: teleport.autoupdate.v1.UpsertAutoUpdateAgentReportRequest
+	(*DeleteAutoUpdateAgentReportRequest)(nil),  // 24: teleport.autoupdate.v1.DeleteAutoUpdateAgentReportRequest
+	(*AutoUpdateConfig)(nil),                    // 25: teleport.autoupdate.v1.AutoUpdateConfig
+	(*AutoUpdateVersion)(nil),                   // 26: teleport.autoupdate.v1.AutoUpdateVersion
+	(*AutoUpdateAgentRollout)(nil),              // 27: teleport.autoupdate.v1.AutoUpdateAgentRollout
+	(AutoUpdateAgentGroupState)(0),              // 28: teleport.autoupdate.v1.AutoUpdateAgentGroupState
+	(*AutoUpdateAgentReport)(nil),               // 29: teleport.autoupdate.v1.AutoUpdateAgentReport
+	(*emptypb.Empty)(nil),                       // 30: google.protobuf.Empty
 }
 var file_teleport_autoupdate_v1_autoupdate_service_proto_depIdxs = []int32{
-	18, // 0: teleport.autoupdate.v1.CreateAutoUpdateConfigRequest.config:type_name -> teleport.autoupdate.v1.AutoUpdateConfig
-	18, // 1: teleport.autoupdate.v1.UpdateAutoUpdateConfigRequest.config:type_name -> teleport.autoupdate.v1.AutoUpdateConfig
-	18, // 2: teleport.autoupdate.v1.UpsertAutoUpdateConfigRequest.config:type_name -> teleport.autoupdate.v1.AutoUpdateConfig
-	19, // 3: teleport.autoupdate.v1.CreateAutoUpdateVersionRequest.version:type_name -> teleport.autoupdate.v1.AutoUpdateVersion
-	19, // 4: teleport.autoupdate.v1.UpdateAutoUpdateVersionRequest.version:type_name -> teleport.autoupdate.v1.AutoUpdateVersion
-	19, // 5: teleport.autoupdate.v1.UpsertAutoUpdateVersionRequest.version:type_name -> teleport.autoupdate.v1.AutoUpdateVersion
-	20, // 6: teleport.autoupdate.v1.CreateAutoUpdateAgentRolloutRequest.rollout:type_name -> teleport.autoupdate.v1.AutoUpdateAgentRollout
-	20, // 7: teleport.autoupdate.v1.UpdateAutoUpdateAgentRolloutRequest.rollout:type_name -> teleport.autoupdate.v1.AutoUpdateAgentRollout
-	20, // 8: teleport.autoupdate.v1.UpsertAutoUpdateAgentRolloutRequest.rollout:type_name -> teleport.autoupdate.v1.AutoUpdateAgentRollout
-	21, // 9: teleport.autoupdate.v1.TriggerAutoUpdateAgentGroupRequest.desired_state:type_name -> teleport.autoupdate.v1.AutoUpdateAgentGroupState
-	0,  // 10: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateConfig:input_type -> teleport.autoupdate.v1.GetAutoUpdateConfigRequest
-	1,  // 11: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateConfig:input_type -> teleport.autoupdate.v1.CreateAutoUpdateConfigRequest
-	2,  // 12: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateConfig:input_type -> teleport.autoupdate.v1.UpdateAutoUpdateConfigRequest
-	3,  // 13: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateConfig:input_type -> teleport.autoupdate.v1.UpsertAutoUpdateConfigRequest
-	4,  // 14: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateConfig:input_type -> teleport.autoupdate.v1.DeleteAutoUpdateConfigRequest
-	5,  // 15: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateVersion:input_type -> teleport.autoupdate.v1.GetAutoUpdateVersionRequest
-	6,  // 16: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateVersion:input_type -> teleport.autoupdate.v1.CreateAutoUpdateVersionRequest
-	7,  // 17: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateVersion:input_type -> teleport.autoupdate.v1.UpdateAutoUpdateVersionRequest
-	8,  // 18: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateVersion:input_type -> teleport.autoupdate.v1.UpsertAutoUpdateVersionRequest
-	9,  // 19: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateVersion:input_type -> teleport.autoupdate.v1.DeleteAutoUpdateVersionRequest
-	10, // 20: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateAgentRollout:input_type -> teleport.autoupdate.v1.GetAutoUpdateAgentRolloutRequest
-	11, // 21: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateAgentRollout:input_type -> teleport.autoupdate.v1.CreateAutoUpdateAgentRolloutRequest
-	12, // 22: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateAgentRollout:input_type -> teleport.autoupdate.v1.UpdateAutoUpdateAgentRolloutRequest
-	13, // 23: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateAgentRollout:input_type -> teleport.autoupdate.v1.UpsertAutoUpdateAgentRolloutRequest
-	14, // 24: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateAgentRollout:input_type -> teleport.autoupdate.v1.DeleteAutoUpdateAgentRolloutRequest
-	15, // 25: teleport.autoupdate.v1.AutoUpdateService.TriggerAutoUpdateAgentGroup:input_type -> teleport.autoupdate.v1.TriggerAutoUpdateAgentGroupRequest
-	16, // 26: teleport.autoupdate.v1.AutoUpdateService.ForceAutoUpdateAgentGroup:input_type -> teleport.autoupdate.v1.ForceAutoUpdateAgentGroupRequest
-	17, // 27: teleport.autoupdate.v1.AutoUpdateService.RollbackAutoUpdateAgentGroup:input_type -> teleport.autoupdate.v1.RollbackAutoUpdateAgentGroupRequest
-	18, // 28: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateConfig:output_type -> teleport.autoupdate.v1.AutoUpdateConfig
-	18, // 29: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateConfig:output_type -> teleport.autoupdate.v1.AutoUpdateConfig
-	18, // 30: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateConfig:output_type -> teleport.autoupdate.v1.AutoUpdateConfig
-	18, // 31: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateConfig:output_type -> teleport.autoupdate.v1.AutoUpdateConfig
-	22, // 32: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateConfig:output_type -> google.protobuf.Empty
-	19, // 33: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateVersion:output_type -> teleport.autoupdate.v1.AutoUpdateVersion
-	19, // 34: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateVersion:output_type -> teleport.autoupdate.v1.AutoUpdateVersion
-	19, // 35: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateVersion:output_type -> teleport.autoupdate.v1.AutoUpdateVersion
-	19, // 36: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateVersion:output_type -> teleport.autoupdate.v1.AutoUpdateVersion
-	22, // 37: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateVersion:output_type -> google.protobuf.Empty
-	20, // 38: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateAgentRollout:output_type -> teleport.autoupdate.v1.AutoUpdateAgentRollout
-	20, // 39: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateAgentRollout:output_type -> teleport.autoupdate.v1.AutoUpdateAgentRollout
-	20, // 40: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateAgentRollout:output_type -> teleport.autoupdate.v1.AutoUpdateAgentRollout
-	20, // 41: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateAgentRollout:output_type -> teleport.autoupdate.v1.AutoUpdateAgentRollout
-	22, // 42: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateAgentRollout:output_type -> google.protobuf.Empty
-	20, // 43: teleport.autoupdate.v1.AutoUpdateService.TriggerAutoUpdateAgentGroup:output_type -> teleport.autoupdate.v1.AutoUpdateAgentRollout
-	20, // 44: teleport.autoupdate.v1.AutoUpdateService.ForceAutoUpdateAgentGroup:output_type -> teleport.autoupdate.v1.AutoUpdateAgentRollout
-	20, // 45: teleport.autoupdate.v1.AutoUpdateService.RollbackAutoUpdateAgentGroup:output_type -> teleport.autoupdate.v1.AutoUpdateAgentRollout
-	28, // [28:46] is the sub-list for method output_type
-	10, // [10:28] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	25, // 0: teleport.autoupdate.v1.CreateAutoUpdateConfigRequest.config:type_name -> teleport.autoupdate.v1.AutoUpdateConfig
+	25, // 1: teleport.autoupdate.v1.UpdateAutoUpdateConfigRequest.config:type_name -> teleport.autoupdate.v1.AutoUpdateConfig
+	25, // 2: teleport.autoupdate.v1.UpsertAutoUpdateConfigRequest.config:type_name -> teleport.autoupdate.v1.AutoUpdateConfig
+	26, // 3: teleport.autoupdate.v1.CreateAutoUpdateVersionRequest.version:type_name -> teleport.autoupdate.v1.AutoUpdateVersion
+	26, // 4: teleport.autoupdate.v1.UpdateAutoUpdateVersionRequest.version:type_name -> teleport.autoupdate.v1.AutoUpdateVersion
+	26, // 5: teleport.autoupdate.v1.UpsertAutoUpdateVersionRequest.version:type_name -> teleport.autoupdate.v1.AutoUpdateVersion
+	27, // 6: teleport.autoupdate.v1.CreateAutoUpdateAgentRolloutRequest.rollout:type_name -> teleport.autoupdate.v1.AutoUpdateAgentRollout
+	27, // 7: teleport.autoupdate.v1.UpdateAutoUpdateAgentRolloutRequest.rollout:type_name -> teleport.autoupdate.v1.AutoUpdateAgentRollout
+	27, // 8: teleport.autoupdate.v1.UpsertAutoUpdateAgentRolloutRequest.rollout:type_name -> teleport.autoupdate.v1.AutoUpdateAgentRollout
+	28, // 9: teleport.autoupdate.v1.TriggerAutoUpdateAgentGroupRequest.desired_state:type_name -> teleport.autoupdate.v1.AutoUpdateAgentGroupState
+	29, // 10: teleport.autoupdate.v1.ListAutoUpdateAgentReportsResponse.autoupdate_agent_reports:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReport
+	29, // 11: teleport.autoupdate.v1.CreateAutoUpdateAgentReportRequest.autoupdate_agent_report:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReport
+	29, // 12: teleport.autoupdate.v1.UpdateAutoUpdateAgentReportRequest.autoupdate_agent_report:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReport
+	29, // 13: teleport.autoupdate.v1.UpsertAutoUpdateAgentReportRequest.autoupdate_agent_report:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReport
+	0,  // 14: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateConfig:input_type -> teleport.autoupdate.v1.GetAutoUpdateConfigRequest
+	1,  // 15: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateConfig:input_type -> teleport.autoupdate.v1.CreateAutoUpdateConfigRequest
+	2,  // 16: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateConfig:input_type -> teleport.autoupdate.v1.UpdateAutoUpdateConfigRequest
+	3,  // 17: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateConfig:input_type -> teleport.autoupdate.v1.UpsertAutoUpdateConfigRequest
+	4,  // 18: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateConfig:input_type -> teleport.autoupdate.v1.DeleteAutoUpdateConfigRequest
+	5,  // 19: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateVersion:input_type -> teleport.autoupdate.v1.GetAutoUpdateVersionRequest
+	6,  // 20: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateVersion:input_type -> teleport.autoupdate.v1.CreateAutoUpdateVersionRequest
+	7,  // 21: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateVersion:input_type -> teleport.autoupdate.v1.UpdateAutoUpdateVersionRequest
+	8,  // 22: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateVersion:input_type -> teleport.autoupdate.v1.UpsertAutoUpdateVersionRequest
+	9,  // 23: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateVersion:input_type -> teleport.autoupdate.v1.DeleteAutoUpdateVersionRequest
+	10, // 24: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateAgentRollout:input_type -> teleport.autoupdate.v1.GetAutoUpdateAgentRolloutRequest
+	11, // 25: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateAgentRollout:input_type -> teleport.autoupdate.v1.CreateAutoUpdateAgentRolloutRequest
+	12, // 26: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateAgentRollout:input_type -> teleport.autoupdate.v1.UpdateAutoUpdateAgentRolloutRequest
+	13, // 27: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateAgentRollout:input_type -> teleport.autoupdate.v1.UpsertAutoUpdateAgentRolloutRequest
+	14, // 28: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateAgentRollout:input_type -> teleport.autoupdate.v1.DeleteAutoUpdateAgentRolloutRequest
+	15, // 29: teleport.autoupdate.v1.AutoUpdateService.TriggerAutoUpdateAgentGroup:input_type -> teleport.autoupdate.v1.TriggerAutoUpdateAgentGroupRequest
+	16, // 30: teleport.autoupdate.v1.AutoUpdateService.ForceAutoUpdateAgentGroup:input_type -> teleport.autoupdate.v1.ForceAutoUpdateAgentGroupRequest
+	17, // 31: teleport.autoupdate.v1.AutoUpdateService.RollbackAutoUpdateAgentGroup:input_type -> teleport.autoupdate.v1.RollbackAutoUpdateAgentGroupRequest
+	18, // 32: teleport.autoupdate.v1.AutoUpdateService.ListAutoUpdateAgentReports:input_type -> teleport.autoupdate.v1.ListAutoUpdateAgentReportsRequest
+	20, // 33: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateAgentReport:input_type -> teleport.autoupdate.v1.GetAutoUpdateAgentReportRequest
+	21, // 34: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateAgentReport:input_type -> teleport.autoupdate.v1.CreateAutoUpdateAgentReportRequest
+	22, // 35: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateAgentReport:input_type -> teleport.autoupdate.v1.UpdateAutoUpdateAgentReportRequest
+	23, // 36: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateAgentReport:input_type -> teleport.autoupdate.v1.UpsertAutoUpdateAgentReportRequest
+	24, // 37: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateAgentReport:input_type -> teleport.autoupdate.v1.DeleteAutoUpdateAgentReportRequest
+	25, // 38: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateConfig:output_type -> teleport.autoupdate.v1.AutoUpdateConfig
+	25, // 39: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateConfig:output_type -> teleport.autoupdate.v1.AutoUpdateConfig
+	25, // 40: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateConfig:output_type -> teleport.autoupdate.v1.AutoUpdateConfig
+	25, // 41: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateConfig:output_type -> teleport.autoupdate.v1.AutoUpdateConfig
+	30, // 42: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateConfig:output_type -> google.protobuf.Empty
+	26, // 43: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateVersion:output_type -> teleport.autoupdate.v1.AutoUpdateVersion
+	26, // 44: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateVersion:output_type -> teleport.autoupdate.v1.AutoUpdateVersion
+	26, // 45: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateVersion:output_type -> teleport.autoupdate.v1.AutoUpdateVersion
+	26, // 46: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateVersion:output_type -> teleport.autoupdate.v1.AutoUpdateVersion
+	30, // 47: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateVersion:output_type -> google.protobuf.Empty
+	27, // 48: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateAgentRollout:output_type -> teleport.autoupdate.v1.AutoUpdateAgentRollout
+	27, // 49: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateAgentRollout:output_type -> teleport.autoupdate.v1.AutoUpdateAgentRollout
+	27, // 50: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateAgentRollout:output_type -> teleport.autoupdate.v1.AutoUpdateAgentRollout
+	27, // 51: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateAgentRollout:output_type -> teleport.autoupdate.v1.AutoUpdateAgentRollout
+	30, // 52: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateAgentRollout:output_type -> google.protobuf.Empty
+	27, // 53: teleport.autoupdate.v1.AutoUpdateService.TriggerAutoUpdateAgentGroup:output_type -> teleport.autoupdate.v1.AutoUpdateAgentRollout
+	27, // 54: teleport.autoupdate.v1.AutoUpdateService.ForceAutoUpdateAgentGroup:output_type -> teleport.autoupdate.v1.AutoUpdateAgentRollout
+	27, // 55: teleport.autoupdate.v1.AutoUpdateService.RollbackAutoUpdateAgentGroup:output_type -> teleport.autoupdate.v1.AutoUpdateAgentRollout
+	19, // 56: teleport.autoupdate.v1.AutoUpdateService.ListAutoUpdateAgentReports:output_type -> teleport.autoupdate.v1.ListAutoUpdateAgentReportsResponse
+	29, // 57: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateAgentReport:output_type -> teleport.autoupdate.v1.AutoUpdateAgentReport
+	29, // 58: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateAgentReport:output_type -> teleport.autoupdate.v1.AutoUpdateAgentReport
+	29, // 59: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateAgentReport:output_type -> teleport.autoupdate.v1.AutoUpdateAgentReport
+	29, // 60: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateAgentReport:output_type -> teleport.autoupdate.v1.AutoUpdateAgentReport
+	30, // 61: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateAgentReport:output_type -> google.protobuf.Empty
+	38, // [38:62] is the sub-list for method output_type
+	14, // [14:38] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_teleport_autoupdate_v1_autoupdate_service_proto_init() }
@@ -985,7 +1383,7 @@ func file_teleport_autoupdate_v1_autoupdate_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_autoupdate_v1_autoupdate_service_proto_rawDesc), len(file_teleport_autoupdate_v1_autoupdate_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   18,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
