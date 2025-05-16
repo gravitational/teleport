@@ -22,7 +22,6 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -115,23 +114,28 @@ func proxyChannel(
 	targetChan, targetChanRequests, err := targetConn.OpenChannel(
 		newChan.ChannelType(), newChan.ExtraData())
 	if err != nil {
-		var openChannelErr *ssh.OpenChannelError
-		var rejectErr error
+		// Failed to open the channel on the target, newChan must be rejected.
+		var (
+			rejectionReason  ssh.RejectionReason
+			rejectionMessage string
+			openChannelErr   *ssh.OpenChannelError
+		)
 		if errors.As(err, &openChannelErr) {
-			// The target rejected the channel, this is totally expected in some
-			// cases, just reject the incoming channel request.
-			rejectErr = trace.Wrap(newChan.Reject(openChannelErr.Reason, openChannelErr.Message))
+			// The target rejected the channel, this is totally expected.
+			rejectionReason = openChannelErr.Reason
+			rejectionMessage = openChannelErr.Message
 		} else {
-			// We got an unexpected error trying to open the channel on the
+			// We got an unexpected error type trying to open the channel on the
 			// target, this is fatal, log and kill the connection.
 			log.DebugContext(ctx, "Unexpected error opening SSH channel on target",
 				"error", err)
-			msg := "unexpected error opening channel on target: " + err.Error()
-			rejectErr = trace.Wrap(newChan.Reject(ssh.ConnectionFailed, msg))
 			closeConnections()
+			// newChan still has to be rejected below to satisfy the crypto/ssh
+			// API, but the underlying network connection is already closed so
+			// we just leave the reason and message empty.
 		}
-		if rejectErr != nil {
-			// We failed to reject the incoming channel, this is fatal, log and
+		if err := newChan.Reject(rejectionReason, rejectionMessage); err != nil {
+			// Failed to reject the incoming channel, this is fatal, log and
 			// kill the connection.
 			log.DebugContext(ctx, "Failed to reject SSH channel request",
 				"error", err)
@@ -145,15 +149,13 @@ func proxyChannel(
 	incomingChan, incomingChanRequests, err := newChan.Accept()
 	if err != nil {
 		// Failing to accept an incoming channel request that the target already
-		// accepted is fatal. Log, close the channel we just opened on the
-		// target, and kill the connection.
+		// accepted is fatal. Kill the connection, close the channel we
+		// just opened on the target and drain the request channel.
 		log.DebugContext(ctx, "Failed to accept SSH channel request already accepted by the target, killing the connection",
 			"error", err)
-		if err := targetChan.Close(); err != nil {
-			log.DebugContext(ctx, "Failed to close SSH channel on target",
-				"error", err)
-		}
 		closeConnections()
+		go ssh.DiscardRequests(targetChanRequests)
+		_ = targetChan.Close()
 		return
 	}
 
@@ -227,17 +229,11 @@ func proxyRequests(
 		if err != nil {
 			// We failed to send the request, the target must be dead.
 			log.DebugContext(ctx, "Failed to forward SSH request", "request_type", req.Type, "error", err)
-			// We must first send a reply if one was expected.
-			if req.WantReply {
-				req.Reply(false, nil)
-			}
 			// Close both connections or channels to clean up but we must
 			// continue handling requests on the chan until it is closed by
 			// crypto/ssh.
 			closeRequestSources()
-			continue
-		}
-		if !req.WantReply {
+			_ = req.Reply(false, nil)
 			continue
 		}
 		if err := req.Reply(ok, reply); err != nil {
