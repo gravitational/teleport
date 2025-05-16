@@ -387,6 +387,10 @@ func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListW
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
+func (c *Client) GetMultipartUploader() events.MultipartUploader {
+	return nil
+}
+
 const (
 	// UserTokenTypeResetPasswordInvite is a token type used for the UI invite flow that
 	// allows users to change their password and set second factor (if enabled).
