@@ -120,6 +120,9 @@ func TestIntegrationsCRUDRolesAnywhere(t *testing.T) {
 		SubKind: "aws-ra",
 		AWSRA: &ui.IntegrationAWSRASpec{
 			TrustAnchorARN: trustAnchorARN,
+			ProfileSyncConfig: ui.AWSRAProfileSync{
+				Enabled: false,
+			},
 		},
 	}
 	createEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations")
@@ -130,6 +133,23 @@ func TestIntegrationsCRUDRolesAnywhere(t *testing.T) {
 	intgrationResource, err := wPack.server.Auth().GetIntegration(ctx, integrationName)
 	require.NoError(t, err)
 	require.Equal(t, trustAnchorARN, intgrationResource.GetAWSRolesAnywhereIntegrationSpec().TrustAnchorARN)
+
+	// Create Integration fails when sync is enabled but config is not set
+	createDataWithoutSyncFields := ui.Integration{
+		Name:    "another-integration",
+		SubKind: "aws-ra",
+		AWSRA: &ui.IntegrationAWSRASpec{
+			TrustAnchorARN: trustAnchorARN,
+			ProfileSyncConfig: ui.AWSRAProfileSync{
+				Enabled:    true,
+				ProfileARN: "",
+				RoleARN:    "arn:aws:iam::123456789012:role/testrole",
+			},
+		},
+	}
+	createResp, err = authPack.clt.PostJSON(ctx, createEndpoint, createDataWithoutSyncFields)
+	require.ErrorContains(t, err, "missing awsra.profileSync.profileArn field")
+	require.Equal(t, 400, createResp.Code())
 
 	// Get single integration
 	getEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
@@ -144,9 +164,16 @@ func TestIntegrationsCRUDRolesAnywhere(t *testing.T) {
 
 	// Update integration
 	updatedTrustAnchor := "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/00000000-0000-0000-0000-123456789012"
+	syncProfileARN := "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/00000000-0000-0000-0000-123456789012"
+	syncRoleARN := "arn:aws:iam::123456789012:role/testrole"
 	updateIntegration := ui.UpdateIntegrationRequest{
 		AWSRA: &ui.IntegrationAWSRASpec{
 			TrustAnchorARN: updatedTrustAnchor,
+			ProfileSyncConfig: ui.AWSRAProfileSync{
+				Enabled:    true,
+				ProfileARN: syncProfileARN,
+				RoleARN:    syncRoleARN,
+			},
 		},
 	}
 	updateEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
@@ -164,7 +191,11 @@ func TestIntegrationsCRUDRolesAnywhere(t *testing.T) {
 	err = json.Unmarshal(listResp.Bytes(), &listRespObject)
 	require.NoError(t, err)
 	require.Len(t, listRespObject.Items, 1)
-	require.Equal(t, updatedTrustAnchor, listRespObject.Items[0].AWSRA.TrustAnchorARN)
+	integrationObject := listRespObject.Items[0]
+	require.Equal(t, updatedTrustAnchor, integrationObject.AWSRA.TrustAnchorARN)
+	require.True(t, integrationObject.AWSRA.ProfileSyncConfig.Enabled)
+	require.Equal(t, syncProfileARN, integrationObject.AWSRA.ProfileSyncConfig.ProfileARN)
+	require.Equal(t, syncRoleARN, integrationObject.AWSRA.ProfileSyncConfig.RoleARN)
 
 	// Delete Integration
 	err = wPack.server.Auth().DeleteIntegration(ctx, integrationName)
