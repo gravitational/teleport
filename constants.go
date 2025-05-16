@@ -298,6 +298,12 @@ const (
 	// ComponentForwardingGit represents the SSH proxy that forwards Git commands.
 	ComponentForwardingGit = "git:forward"
 
+	// ComponentRecordingEncryption represents session recording encryption.
+	ComponentRecordingEncryption
+
+	// ComponentRecordingEncryptionKeys represents session recording encryption key management.
+	ComponentRecordingEncryptionKeys
+
 	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
