@@ -2246,14 +2246,6 @@ func (a *ServerWithRoles) GetAuthServers() ([]types.Server, error) {
 	return a.authServer.GetAuthServers()
 }
 
-// DeleteAllAuthServers deletes all auth servers
-func (a *ServerWithRoles) DeleteAllAuthServers() error {
-	if err := a.action(types.KindAuthServer, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteAllAuthServers()
-}
-
 // DeleteAuthServer deletes auth server by name
 func (a *ServerWithRoles) DeleteAuthServer(name string) error {
 	if err := a.action(types.KindAuthServer, types.VerbDelete); err != nil {
