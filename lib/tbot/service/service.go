@@ -24,6 +24,7 @@ import (
 	"sync/atomic"
 
 	"github.com/gravitational/teleport/lib/tbot/service/status"
+	"github.com/gravitational/trace"
 )
 
 // Handler implements the logic of a long-running service.
@@ -146,9 +147,9 @@ func (s *Service[HandlerT]) WaitForStatus(ctx context.Context, statuses ...statu
 		case slices.Contains(statuses, s.status.Get()):
 			return s.handler, nil
 		case finalValue:
-			return zero, ErrWrongStatus
+			return zero, trace.Wrap(ErrWrongStatus)
 		case ctxDone:
-			return zero, ctx.Err()
+			return zero, trace.Wrap(ctx.Err())
 		default:
 			// Wait for the next update.
 		}
