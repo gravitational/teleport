@@ -25,7 +25,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOpenSharedDirectory(t *testing.T) {
+const (
+	testDirname         = "test_dir"
+	testFilename        = "test_file"
+	testSymlinkFilename = "test_symlink"
+)
+
+func TestNewDirectoryAccess(t *testing.T) {
 	path := t.TempDir()
 	filePath := filepath.Join(path, testFilename)
 	err := os.WriteFile(filePath, []byte("test"), 0600)
@@ -33,12 +39,6 @@ func TestOpenSharedDirectory(t *testing.T) {
 	_, err = NewDirectoryAccess(filePath)
 	require.True(t, trace.IsBadParameter(err), "%q is not a directory", filePath)
 }
-
-const (
-	testDirname         = "test_dir"
-	testFilename        = "test_file"
-	testSymlinkFilename = "test_symlink"
-)
 
 func setUpSharedDir(t *testing.T) (*DirectoryAccess, string) {
 	t.Helper()
