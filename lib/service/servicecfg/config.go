@@ -122,6 +122,8 @@ type Config struct {
 	// Jamf defines the Jamf MDM service configuration.
 	Jamf JamfConfig
 
+	Relay RelayConfig
+
 	// Tracing defines the tracing service configuration.
 	Tracing TracingConfig
 
@@ -361,6 +363,7 @@ func DisableLongRunningServices(cfg *Config) {
 	cfg.WindowsDesktop.Enabled = false
 	cfg.Databases.Enabled = false
 	cfg.Okta.Enabled = false
+	cfg.Relay.Enabled = false
 }
 
 // JoinParams is a set of extra parameters for joining the auth server.
@@ -804,6 +807,7 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.Okta.Enabled,
 		cfg.Jamf.Enabled(),
 		cfg.OpenSSH.Enabled,
+		cfg.Relay.Enabled,
 	}
 
 	for _, item := range enabled {

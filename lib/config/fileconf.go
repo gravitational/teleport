@@ -104,6 +104,8 @@ type FileConfig struct {
 	// Plugins is the section of the config for configuring the plugin service.
 	Plugins PluginService `yaml:"plugin_service,omitempty"`
 
+	Relay RelayService `yaml:"relay_service,omitempty"`
+
 	// AccessGraph is the section of the config describing AccessGraph service
 	AccessGraph AccessGraph `yaml:"access_graph,omitempty"`
 }
@@ -2855,4 +2857,12 @@ func readJamfPasswordFile(path, key string) (string, error) {
 	}
 
 	return pwd, nil
+}
+
+type RelayService struct {
+	Enabled bool `yaml:"enabled"`
+
+	RelayGroup string `yaml:"relay_group"`
+
+	APIPublicHostnames []string `yaml:"api_public_hostnames"`
 }

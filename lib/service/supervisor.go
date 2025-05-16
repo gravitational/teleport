@@ -290,6 +290,7 @@ var metricsServicesRunningMap = map[string]string{
 	"windows_desktop.init": "windows_desktop_service",
 	"okta.init":            "okta_service",
 	"jamf.init":            "jamf_service",
+	"relay.run":            "relay_service",
 }
 
 func (s *LocalSupervisor) serve(srv Service) {

@@ -213,6 +213,8 @@ const (
 	// DiscoveryIdentityEvent is generated when the identity of the
 	DiscoveryIdentityEvent = "DiscoveryIdentityEvent"
 
+	RelayIdentityEvent = "RelayIdentityEvent"
+
 	// AuthTLSReady is generated when the Auth Server has initialized the
 	// TLS Mutual Auth endpoint and is ready to start accepting connections.
 	AuthTLSReady = "AuthTLSReady"
@@ -272,6 +274,8 @@ const (
 	// DiscoveryReady is generated when the Teleport discovery service
 	// is ready to start accepting connections.
 	DiscoveryReady = "DiscoveryReady"
+
+	RelayReady = "RelayReady"
 
 	// TeleportExitEvent is generated when the Teleport process begins closing
 	// all listening sockets and exiting.
@@ -1443,6 +1447,9 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	if process.shouldInitDiscovery() {
 		eventMapping.In = append(eventMapping.In, DiscoveryReady)
 	}
+	if cfg.Relay.Enabled {
+		eventMapping.In = append(eventMapping.In, RelayReady)
+	}
 
 	process.RegisterEventMapping(eventMapping)
 
@@ -1527,6 +1534,13 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			process.logger.WarnContext(process.ExitContext(), "Discovery service is enabled with empty configuration, skipping initialization")
 		}
 		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentDiscovery), process.logger)
+	}
+
+	if cfg.Relay.Enabled {
+		process.initRelay()
+		serviceStarted = true
+	} else {
+		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentRelay), process.logger)
 	}
 
 	if process.enterpriseServicesEnabledWithCommunityBuild() {
@@ -3941,6 +3955,8 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 			utils.NetAddr{Addr: desktop.WildcardServiceDNS},
 		)
 		addrs = append(addrs, process.Config.WindowsDesktop.PublicAddrs...)
+	case types.RoleRelay:
+		dnsNames = append(dnsNames, process.Config.Relay.APIPublicHostnames...)
 	}
 
 	if process.Config.OpenSSH.Enabled {
@@ -6024,6 +6040,10 @@ func (process *TeleportProcess) registerExpectedServices(cfg *servicecfg.Config)
 
 	if cfg.Discovery.Enabled {
 		process.SetExpectedInstanceRole(types.RoleDiscovery, DiscoveryIdentityEvent)
+	}
+
+	if cfg.Relay.Enabled {
+		process.SetExpectedInstanceRole(types.RoleRelay, RelayIdentityEvent)
 	}
 }
 

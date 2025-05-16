@@ -78,6 +78,8 @@ const (
 	// Device Trust requires Teleport Enteprise.
 	RoleMDM SystemRole = "MDM"
 
+	RoleRelay SystemRole = "Relay"
+
 	// RoleAccessGraphPlugin is a role for Access Graph plugins to access
 	// Teleport's internal API and access graph.
 	RoleAccessGraphPlugin SystemRole = "AccessGraphPlugin"
@@ -107,6 +109,7 @@ var roleMappings = map[string]SystemRole{
 	"discovery":         RoleDiscovery,
 	"okta":              RoleOkta,
 	"mdm":               RoleMDM,
+	"relay":             RoleRelay,
 	"accessgraphplugin": RoleAccessGraphPlugin,
 }
 
@@ -139,6 +142,7 @@ var localServiceMappings = map[SystemRole]struct{}{
 	RoleDiscovery:         {},
 	RoleOkta:              {},
 	RoleMDM:               {},
+	RoleRelay:             {},
 	RoleAccessGraphPlugin: {},
 }
 

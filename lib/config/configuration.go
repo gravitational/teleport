@@ -717,6 +717,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 	}
 
+	if fc.Relay.Enabled {
+		if err := applyRelayConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -2996,4 +3002,36 @@ func applyJamfConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		Credentials: creds,
 	}
 	return nil
+}
+
+func applyRelayConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+	// we're here because fc.Relay.Enabled is true
+	cfg.Relay.Enabled = true
+
+	if fc.Relay.RelayGroup == "" {
+		return trace.BadParameter("missing relay_service.relay_group")
+	}
+	cfg.Relay.RelayGroup = fc.Relay.RelayGroup
+
+	if len(fc.Relay.APIPublicHostnames) < 1 {
+		return trace.BadParameter("missing relay_service.api_public_hostnames")
+	}
+	if slices.Contains(fc.Relay.APIPublicHostnames, "") {
+		return trace.BadParameter("empty hostname in relay_service.api_public_hostnames")
+	}
+	cfg.Relay.APIPublicHostnames = slices.Clone(fc.Relay.APIPublicHostnames)
+
+	return nil
+}
+
+func splitHostPortN(hostport string) (string, uint16, error) {
+	host, port, err := net.SplitHostPort(hostport)
+	if err != nil {
+		return "", 0, err
+	}
+	portn, err := strconv.ParseUint(port, 10, 16)
+	if err != nil {
+		return "", 0, err
+	}
+	return host, uint16(portn), nil
 }

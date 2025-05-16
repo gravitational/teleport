@@ -1290,6 +1290,17 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					},
 				},
 			})
+	case types.RoleRelay:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Rules: []types.Rule{
+						// TODO
+					},
+				},
+			},
+		)
 	}
 
 	return nil, trace.NotFound("builtin role %q is not recognized", role.String())
