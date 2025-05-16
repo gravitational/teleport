@@ -1382,6 +1382,11 @@ var RequestableResourceKinds = []string{
 	KindGitServer,
 }
 
+const (
+	PrefixKindKube           = "kube:"
+	PrefixKindKubeNamespaced = PrefixKindKube + ":"
+)
+
 // The list below needs to be kept in sync with `kubernetesResourceKindOptions`
 // in `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`. (Keeping
 // this comment separate to prevent it from being included in the official
