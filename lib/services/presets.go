@@ -210,6 +210,8 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindGitServer, RW()),
 					types.NewRule(types.KindWorkloadIdentityX509Revocation, RW()),
 					types.NewRule(types.KindAutoUpdateAgentRollout, RO()),
+					types.NewRule(types.KindWorkloadIdentityX509IssuerOverride, RW()),
+					types.NewRule(types.KindWorkloadIdentityX509IssuerOverrideCSR, RW()),
 				},
 			},
 		},
