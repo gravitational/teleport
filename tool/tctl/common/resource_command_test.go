@@ -2174,6 +2174,7 @@ spec:
   client_id: "12345"
   client_secret: "678910"
   display: OIDC
+  pkce_mode: "enabled"
   scope: [roles]
   claims_to_roles:
     - {claim: "test", value: "test", roles: ["access", "editor", "auditor"]}`
