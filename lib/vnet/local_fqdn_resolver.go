@@ -66,6 +66,10 @@ func (r *localFQDNResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnet
 			return nil, errNoTCPHandler
 		}
 	}
+	// First try to resolve a matching TCP or web app. A matching app is more
+	// specific than the cluster match we do for SSH, and checking for a
+	// matching app first maintains backward compatibility because apps were
+	// supported before SSH.
 	resp, err := r.tryResolveApp(ctx, profileNames, fqdn)
 	switch {
 	case err == nil:
@@ -267,7 +271,7 @@ func (r *localFQDNResolver) tryResolveSSH(ctx context.Context, profileNames []st
 				log.ErrorContext(ctx, "Failed to get VNet config, SSH nodes in this cluster will not be resolved", "error", err)
 				return nil, errNoMatch
 			}
-			log.InfoContext(ctx, "Query matched a leaf cluster subdomain and my later resolve to an app or SSH node")
+			log.InfoContext(ctx, "Query matched a leaf cluster subdomain and may later resolve to an app or SSH node")
 			return &vnetv1.ResolveFQDNResponse{
 				Match: &vnetv1.ResolveFQDNResponse_MatchedCluster{
 					MatchedCluster: &vnetv1.MatchedCluster{
