@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ensureError } from './error';
+import { ensureError, isAbortError } from './error';
 
 class CustomErrorClass extends Error {
   constructor(message: string) {
@@ -100,3 +100,31 @@ describe('ensureError', () => {
     }
   );
 });
+
+describe('isAbortError', () => {
+  describe.each([
+    ['DOMException', newDOMAbortError],
+    ['ApiError', newApiAbortError],
+    ['gRPC Error', newGrpcAbortError],
+  ])('for error type %s', (_, ErrorType) => {
+    it('is abort error', async () => {
+      expect(isAbortError(ErrorType())).toBe(true);
+    });
+  });
+});
+
+function newDOMAbortError() {
+  return new DOMException('Aborted', 'AbortError');
+}
+
+// mimics ApiError
+function newApiAbortError() {
+  return new Error('The user aborted a request', {
+    cause: newDOMAbortError(),
+  });
+}
+
+// mimics TshdRpcError
+function newGrpcAbortError() {
+  return { code: 'CANCELLED' };
+}

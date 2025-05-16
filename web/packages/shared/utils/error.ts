@@ -55,3 +55,16 @@ export function getErrorMessage(err: unknown): string {
   }
   return errorInstance.message;
 }
+
+export function isAbortError(err: any): boolean {
+  // handles Web UI abort error
+  if (
+    (err instanceof DOMException && err.name === 'AbortError') ||
+    (err.cause && isAbortError(err.cause))
+  ) {
+    return true;
+  }
+
+  // handles Connect abort error (specifically gRPC cancel error), see TshdRpcError
+  return err?.code === 'CANCELLED';
+}
