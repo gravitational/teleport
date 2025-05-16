@@ -21,7 +21,7 @@ func (e *Engine) useKerberosAuth() bool {
 type authenticateFunc func(username string, params protocol.KerberosAuthParams) ([]byte, error)
 
 func (e *Engine) authenticateKerberos(username string, params protocol.KerberosAuthParams) ([]byte, error) {
-	provider := kerberos.NewClientProvider(e.AuthClient, e.DataDir)
+	provider := kerberos.NewClientProvider(e.AuthClient, e.DataDir, e.Log)
 
 	kClient, err := provider.GetKerberosClient(e.Context, e.session.Database.GetAD(), username)
 	if err != nil {
