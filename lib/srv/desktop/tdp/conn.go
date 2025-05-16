@@ -237,10 +237,6 @@ func (c *ConnProxy) Run(ctx context.Context) error {
 		// need to split the stream into individual messages and
 		// write them to the client
 		for {
-			if err := ctx.Err(); err != nil {
-				return trace.Wrap(err)
-			}
-
 			msg, err := c.server.ReadMessage()
 
 			if err := c.handleError(err); err != nil {
@@ -267,10 +263,6 @@ func (c *ConnProxy) Run(ctx context.Context) error {
 	errs.Go(func() error {
 		defer closeOnce.Do(closeAll)
 		for {
-			if err := ctx.Err(); err != nil {
-				return trace.Wrap(err)
-			}
-
 			msg, err := c.client.ReadMessage()
 
 			if err := c.handleError(err); err != nil {
