@@ -10,11 +10,9 @@ on:
           Use this override to specify a tag for build debugging purposes.
         type: string
 
-  # TODO(vapopov): delete before merge.
-  push:
-    branches:
-      - vapopov/smoke-test-package
-
+  pull_request:
+    paths:
+      - '.github/workflows/smoke-test-package.yaml'
   merge_group:
     paths:
       - 'lib/autoupdate/**.go'
@@ -26,7 +24,6 @@ on:
       - 'Makefile'
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
     outputs:
@@ -160,9 +157,9 @@ jobs:
       fail-fast: false
       matrix:
         container:
-          - { image: "ubuntu:24.04", package-manager: "apt" }
-          - { image: "ubuntu:22.04", package-manager: "apt" }
-          - { image: "debian:12", package-manager: "apt" }
+          - { image: "ubuntu:24.04" }
+          - { image: "ubuntu:22.04" }
+          - { image: "debian:12" }
     container:
       image: ${{ matrix.container.image }}
     defaults:
@@ -173,7 +170,7 @@ jobs:
       PACKAGE_TO_TEST: "deb"
       RELEASE_CHANNEL: "stable"
       ARTIFACT_TAG: "${{ needs.build-packages.outputs.version }}"
-      INSTALLER: "${{ matrix.container.package-manager }}"
+      INSTALLER: "apt"
     steps:
       - name: Download packages
         uses: actions/download-artifact@v4
