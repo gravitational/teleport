@@ -122,7 +122,10 @@ func (s *Supervisor) Run(ctx context.Context) error {
 	for _, svc := range s.services {
 		svc := svc
 		group.Go(func() error {
-			return s.superviseService(groupCtx, svc)
+			return trace.Wrap(
+				s.superviseService(groupCtx, svc),
+				"service: %s", svc.getName(),
+			)
 		})
 	}
 	s.mu.Unlock()
@@ -155,7 +158,8 @@ func (s *Supervisor) OneShot(ctx context.Context) error {
 
 		svc := svc
 		go func() {
-			errCh <- s.oneShotService(ctx, svc)
+			err := s.oneShotService(ctx, svc)
+			errCh <- trace.Wrap(err, "service: %s", svc.getName())
 			wg.Done()
 		}()
 	}
