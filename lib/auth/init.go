@@ -388,6 +388,9 @@ type InitConfig struct {
 
 	// VnetConfigService manages the VNet config resource.
 	VnetConfigService services.VnetConfigService
+
+	// MultipartHandler handles multipart uploads.
+	MultipartHandler events.MultipartHandler
 }
 
 // Init instantiates and configures an instance of AuthServer

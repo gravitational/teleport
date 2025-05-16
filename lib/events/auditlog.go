@@ -19,10 +19,12 @@
 package events
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"io/fs"
+	"iter"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -633,6 +635,46 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	}()
 
 	return c, e
+}
+
+// UploadEncryptedRecording uploads recording parts provided over a channel using the
+// configured MultipartUploader.
+func UploadEncryptedRecording(ctx context.Context, uploader MultipartUploader, sessionID string, parts iter.Seq2[[]byte, error]) error {
+	sessID, err := session.ParseID(sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	upload, err := uploader.CreateUpload(ctx, *sessID)
+	if err != nil {
+		return trace.Wrap(err, "creating upload")
+	}
+
+	var streamParts []StreamPart
+	var partNumber int64
+	for part, err := range parts {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := uploader.ReserveUploadPart(ctx, *upload, partNumber); err != nil {
+			return trace.Wrap(err, "reserving upload part")
+		}
+
+		streamPart, err := uploader.UploadPart(ctx, *upload, partNumber, bytes.NewReader(part))
+		if err != nil {
+			return trace.Wrap(err, "uploading part")
+		}
+		streamParts = append(streamParts, *streamPart)
+		partNumber++
+	}
+
+	return trace.Wrap(uploader.CompleteUpload(ctx, *upload, streamParts), "completing upload")
+}
+
+// UploadEncryptedRecording uploads encrypted recordings using the AuditLog's configured
+// UploadHandler.
+func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error {
+	return UploadEncryptedRecording(ctx, l.UploadHandler, sessionID, parts)
 }
 
 // getLocalLog returns the local (file based) AuditLogger.

@@ -596,6 +596,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		BackendInfoService:              cfg.BackendInfo,
 		VnetConfigService:               cfg.VnetConfigService,
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
+		MultipartHandler:                cfg.MultipartHandler,
 	}
 
 	as := Server{
@@ -836,6 +837,7 @@ type Services struct {
 	services.BackendInfoService
 	services.VnetConfigService
 	RecordingEncryptionManager
+	events.MultipartHandler
 }
 
 // GetWebSession returns existing web session described by req.
