@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"iter"
 	"math"
 	"time"
 
@@ -1107,6 +1108,8 @@ type StreamEmitter interface {
 type AuditLogSessionStreamer interface {
 	AuditLogger
 	SessionStreamer
+	EncryptedRecordingUploader
+	GetMultipartUploader() MultipartUploader
 }
 
 // SessionStreamer supports streaming session chunks or events.
@@ -1119,6 +1122,12 @@ type SessionStreamer interface {
 	// is exhausted or the error channel reports an error, or until the context
 	// is canceled.
 	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
+}
+
+// EncryptedRecordingUploader takes a session ID and a sequence of encrypted
+// recording parts and uploads an encrypted session recording.
+type EncryptedRecordingUploader interface {
+	UploadEncryptedRecording(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error
 }
 
 type SearchEventsRequest struct {

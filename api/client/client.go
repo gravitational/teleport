@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"log/slog"
 	"net"
 	"slices"
@@ -88,6 +89,7 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	recordingencryptionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
@@ -125,6 +127,7 @@ type AuthServiceClient struct {
 	auditlogpb.AuditLogServiceClient
 	userpreferencespb.UserPreferencesServiceClient
 	notificationsv1pb.NotificationServiceClient
+	recordingencryptionv1pb.RecordingEncryptionServiceClient
 }
 
 // Client is a gRPC Client that connects to a Teleport Auth server either
@@ -531,10 +534,11 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 
 	c.conn = conn
 	c.grpc = AuthServiceClient{
-		AuthServiceClient:            proto.NewAuthServiceClient(c.conn),
-		AuditLogServiceClient:        auditlogpb.NewAuditLogServiceClient(c.conn),
-		UserPreferencesServiceClient: userpreferencespb.NewUserPreferencesServiceClient(c.conn),
-		NotificationServiceClient:    notificationsv1pb.NewNotificationServiceClient(c.conn),
+		AuthServiceClient:                proto.NewAuthServiceClient(c.conn),
+		AuditLogServiceClient:            auditlogpb.NewAuditLogServiceClient(c.conn),
+		UserPreferencesServiceClient:     userpreferencespb.NewUserPreferencesServiceClient(c.conn),
+		NotificationServiceClient:        notificationsv1pb.NewNotificationServiceClient(c.conn),
+		RecordingEncryptionServiceClient: recordingencryptionv1pb.NewRecordingEncryptionServiceClient(c.conn),
 	}
 	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
@@ -2452,6 +2456,47 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID string, star
 	}()
 
 	return ch, e
+}
+
+// UploadEncryptedRecording streams encrypted recording parts to the auth
+// server to be saved in long term storage.
+func (c *Client) UploadEncryptedRecording(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error {
+	createRes, err := c.grpc.CreateUpload(ctx, &recordingencryptionv1pb.CreateUploadRequest{
+		SessionId: sessionID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var uploadedParts []*recordingencryptionv1pb.UploadPartResponse
+	var partNumber int64
+	for part, err := range parts {
+		defer func() {
+			partNumber++
+		}()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		uploadRes, err := c.grpc.UploadPart(ctx, &recordingencryptionv1pb.UploadPartRequest{
+			Upload:     createRes.Upload,
+			PartNumber: partNumber,
+			Part:       part,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		uploadedParts = append(uploadedParts, uploadRes)
+	}
+
+	if _, err := c.grpc.CompleteUpload(ctx, &recordingencryptionv1pb.CompleteUploadRequest{
+		Upload: createRes.Upload,
+		Parts:  uploadedParts,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // SearchEvents allows searching for events with a full pagination support.

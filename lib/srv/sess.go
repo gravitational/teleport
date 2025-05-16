@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/moderation"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -1533,6 +1534,7 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder
 		ClusterName:  ctx.ClusterName,
 		RecordingCfg: ctx.SessionRecordingConfig,
 		SyncStreamer: ctx.srv,
+		Encrypter:    recordingencryption.NewEncryptionWrapper(ctx.SessionRecordingConfig),
 		DataDir:      ctx.srv.GetDataDir(),
 		Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 		// Session stream is using server context, not session context,
