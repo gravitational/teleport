@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2024 Gravitational, Inc.
+// Copyright (C) 2025 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -14,34 +14,29 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin && !windows
-
 package vnet
 
 import (
-	"context"
-	"runtime"
-
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
-// ErrVnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
-var ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
-
-func (*UserProcess) runPlatformUserProcess(_ context.Context) error {
-	return trace.Wrap(ErrVnetNotImplemented)
+func newNetworkStackConfig(tun tunDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {
+	appProvider := newRemoteAppProvider(clt)
+	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
+		fqdnResolver: clt,
+		appProvider:  appProvider,
+		clock:        clockwork.NewRealClock(),
+	})
+	ipv6Prefix, err := newIPv6Prefix()
+	if err != nil {
+		return nil, trace.Wrap(err, "creating new IPv6 prefix")
+	}
+	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
+	return &networkStackConfig{
+		tunDevice:          tun,
+		ipv6Prefix:         ipv6Prefix,
+		dnsIPv6:            dnsIPv6,
+		tcpHandlerResolver: tcpHandlerResolver,
+	}, nil
 }
-
-type platformOSConfigState struct{}
-
-func platformConfigureOS(_ context.Context, _ *osConfig, _ *platformOSConfigState) error {
-	return trace.Wrap(ErrVnetNotImplemented)
-}
-
-// Satisfy unused linter.
-var (
-	_ = newOSConfigurator
-	_ = (*osConfigurator).runOSConfigurationLoop
-	_ = runCommand
-	_ = newNetworkStackConfig
-)

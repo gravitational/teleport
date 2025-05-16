@@ -22,7 +22,6 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -30,8 +29,8 @@ import (
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
-// remoteAppProvider implements appProvider when the client application is
-// available over gRPC.
+// remoteAppProvider implements [appProvider] in the VNet admin process when the
+// client application is available remotely over gRPC.
 type remoteAppProvider struct {
 	clt *clientApplicationServiceClient
 }
@@ -40,16 +39,6 @@ func newRemoteAppProvider(clt *clientApplicationServiceClient) *remoteAppProvide
 	return &remoteAppProvider{
 		clt: clt,
 	}
-}
-
-// ResolveAppInfo implements [appProvider.ResolveAppInfo].
-func (p *remoteAppProvider) ResolveAppInfo(ctx context.Context, fqdn string) (*vnetv1.AppInfo, error) {
-	appInfo, err := p.clt.ResolveAppInfo(ctx, fqdn)
-	// Avoid wrapping errNoTCPHandler, no need to collect a stack trace.
-	if errors.Is(err, errNoTCPHandler) {
-		return nil, errNoTCPHandler
-	}
-	return appInfo, trace.Wrap(err)
 }
 
 // ReissueAppCert issues a new cert for the target app. Signatures made with the
