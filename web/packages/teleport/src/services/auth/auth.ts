@@ -326,6 +326,7 @@ const auth = {
     if (isMfaRequiredRequest) {
       try {
         const isMFARequired = await checkMfaRequired(
+          undefined,
           isMfaRequiredRequest,
           abortSignal
         );
@@ -372,9 +373,11 @@ const auth = {
   },
 };
 
+// When clusterId is undefined, the check is run against the root cluster.
 function checkMfaRequired(
+  clusterId: string | undefined,
   params: IsMfaRequiredRequest,
-  abortSignal?
+  abortSignal?: AbortSignal
 ): Promise<IsMfaRequiredResponse> {
   const appParams = params as IsMfaRequiredApp;
   if (appParams?.app?.cluster_name) {
@@ -384,7 +387,7 @@ function checkMfaRequired(
       abortSignal
     );
   }
-  return api.post(cfg.getMfaRequiredUrl(), params, abortSignal);
+  return api.post(cfg.getMfaRequiredUrl(clusterId), params, abortSignal);
 }
 
 function base64EncodeUnicode(str: string) {
