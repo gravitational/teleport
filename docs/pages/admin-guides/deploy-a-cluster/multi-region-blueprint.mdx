@@ -175,7 +175,8 @@ auth:
         audit_events_uri:
           - "postgres://teleport@cockroachdb-public.<region>.svc.cluster.local:26257/teleport_audit?sslmode=verify-full"
         # replace this with the URI of your regional object storage (S3, GCS, MinIO)
-        audit_sessions_uri: "uri://to-your-regional-bucket"
+        # set complete_initiators param to ensure Teleport will only complete uploads initiated by itself
+        audit_sessions_uri: "uri://to-your-regional-bucket?complete_initiators=<teleport-iam-role>"
         ttl_job_cron: '*/20 * * * *'
     
     # Configure proxy peering
