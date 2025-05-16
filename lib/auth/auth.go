@@ -4701,7 +4701,7 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 		return nil, trace.AccessDenied("access request %q is awaiting approval", accessRequestID)
 	}
 
-	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity); err != nil {
+	if _, err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -5292,10 +5292,12 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 
 	req.SetCreationTime(now)
 
-	// Always perform variable expansion on creation only; this ensures the
-	// access request that is reviewed is the same that is approved.
-	expandOpts := services.WithExpandVars(true)
-	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
+	validateOpts := []services.ValidateRequestOption{
+		services.WithExpandVars(true), // always perform variable expansion on creation
+		services.WithDryRun(req.GetDryRun()),
+	}
+	dryRunEnrichment, err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, validateOpts...)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -5311,6 +5313,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	if req.GetDryRun() {
+		req.SetDryRunEnrichment(dryRunEnrichment)
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
 		// update the request with additional reviewers if possible.
 		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessLists, promotions)

@@ -264,4 +264,6 @@ const baseProps: RequestCheckoutWithSliderProps = {
   dryRunResponse,
   startTime: null,
   onStartTimeChange: () => null,
+  reasonMode: 'optional',
+  reasonPrompts: null,
 };
