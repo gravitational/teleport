@@ -361,13 +361,21 @@ func (w *worker) getThreshold(cfg *healthCheckConfig) uint32 {
 
 func (w *worker) setThresholdReached(ctx context.Context) {
 	const transitionReason = types.TargetHealthTransitionReasonThreshold
+	checkWord := pluralize(w.lastResultCount, "check")
 	if w.lastResultErr == nil {
-		msg := fmt.Sprintf("%d health checks passed", w.lastResultCount)
+		msg := fmt.Sprintf("%d health %v passed", w.lastResultCount, checkWord)
 		w.setTargetHealthy(ctx, transitionReason, msg)
 	} else {
-		msg := fmt.Sprintf("%d health checks failed", w.lastResultCount)
+		msg := fmt.Sprintf("%d health %v failed", w.lastResultCount, checkWord)
 		w.setTargetUnhealthy(ctx, transitionReason, msg)
 	}
+}
+
+func pluralize(count uint32, word string) string {
+	if count != 1 {
+		return word + "s"
+	}
+	return word
 }
 
 func (w *worker) setTargetInit(ctx context.Context) {

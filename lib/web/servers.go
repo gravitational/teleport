@@ -143,17 +143,32 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	dbServer, err := fetchDatabaseServerByDatabaseName(r.Context(), clt, r, databaseName)
+	dbServers, err := fetchDatabaseServersWithName(r.Context(), clt, r, databaseName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if len(dbServers) == 0 {
+		return nil, trace.NotFound("database %q not found", databaseName)
+	}
+	statuses := make(types.TargetHealthStatuses, 0, len(dbServers))
+	for _, s := range dbServers {
+		statuses = append(statuses, types.TargetHealthStatus(s.GetTargetHealth().Status))
+	}
+	health := dbServers[0].GetTargetHealth()
+	health.Status = string(statuses.Aggregate())
+	dbServers[0].SetTargetHealth(health)
 
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return webui.MakeDatabaseFromDatabaseServer(dbServer, accessChecker, h.cfg.DatabaseREPLRegistry, false /* requiresRequest */), nil
+	return webui.MakeDatabaseFromDatabaseServer(
+		dbServers[0],
+		accessChecker,
+		h.cfg.DatabaseREPLRegistry,
+		false, /* requiresRequest */
+	), nil
 }
 
 // clusterDatabaseServicesList returns a list of DatabaseServices (database agents) in a form the UI can present.
