@@ -43,8 +43,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/state"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -56,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -292,6 +295,39 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	hostUUID := uuid.New().String()
+	clusterConfig, err := local.NewClusterConfigurationService(srv.Backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// create keystore
+	keystoreOpts := &keystore.Options{
+		HostUUID:             hostUUID,
+		ClusterName:          clusterName,
+		AuthPreferenceGetter: clusterConfig,
+		FIPS:                 cfg.FIPS,
+	}
+
+	switch {
+	case cfg.KeystoreConfig.PKCS11 != servicecfg.PKCS11Config{}:
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+			return nil, trace.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+		}
+	case cfg.KeystoreConfig.GCPKMS != servicecfg.GCPKMSConfig{}:
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+			return nil, trace.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+		}
+	case cfg.KeystoreConfig.AWSKMS != nil:
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+			return nil, trace.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+		}
+	}
+
+	keyStore, err := keystore.NewManager(context.Background(), &cfg.KeystoreConfig, keystoreOpts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	srv.AuthServer, err = NewServer(&InitConfig{
 		DataDir:                cfg.Dir,
 		Backend:                srv.Backend,
@@ -309,7 +345,8 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		HostUUID:               uuid.New().String(),
 		AccessLists:            accessLists,
 		FIPS:                   cfg.FIPS,
-		KeyStoreConfig:         cfg.KeystoreConfig,
+		KeyStore:               keyStore,
+		ClusterConfiguration:   clusterConfig,
 	},
 		WithClock(cfg.Clock),
 	)

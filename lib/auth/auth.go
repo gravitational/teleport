@@ -116,7 +116,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/resourceusage"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -190,6 +189,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	if cfg.VersionStorage == nil {
 		return nil, trace.BadParameter("version storage is not set")
+	}
+	if cfg.KeyStore == nil {
+		return nil, trace.BadParameter("key store is not set")
 	}
 	if cfg.Trust == nil {
 		cfg.Trust = local.NewCAService(cfg.Backend)
@@ -462,30 +464,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	limiter := limiter.NewConnectionsLimiter(defaults.LimiterMaxConcurrentSignatures)
 
-	keystoreOpts := &keystore.Options{
-		HostUUID:             cfg.HostUUID,
-		ClusterName:          cfg.ClusterName,
-		AuthPreferenceGetter: cfg.ClusterConfiguration,
-		FIPS:                 cfg.FIPS,
-	}
-	if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return nil, fmt.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
-		}
-	} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return nil, fmt.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
-		}
-	} else if cfg.KeyStoreConfig.AWSKMS != nil {
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
-		}
-	}
-	keyStore, err := keystore.NewManager(context.Background(), &cfg.KeyStoreConfig, keystoreOpts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if cfg.KubeWaitingContainers == nil {
 		cfg.KubeWaitingContainers, err = local.NewKubeWaitingContainerService(cfg.Backend)
 		if err != nil {
@@ -508,17 +486,22 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	if cfg.RecordingEncryption == nil {
-		cfg.RecordingEncryption, err = local.NewRecordingEncryptionService(cfg.Backend)
+		localRecordingEncryption, err := local.NewRecordingEncryptionService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	}
 
-	recordingEncryptionResolver, err := recordingencryption.NewResolverBackend(
-		cfg.RecordingEncryption,
-		keyStore,
-		cfg.Logger,
-	)
+		recordingEncryptionResolver, err := recordingencryption.NewResolverBackend(
+			localRecordingEncryption,
+			cfg.KeyStore,
+			cfg.Logger,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		cfg.RecordingEncryption = recordingEncryptionResolver
+	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
@@ -576,7 +559,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		HealthCheckConfig:               cfg.HealthCheckConfig,
 		BackendInfoService:              cfg.BackendInfo,
 		VnetConfigService:               cfg.VnetConfigService,
-		RecordingEncryptionWithResolver: recordingEncryptionResolver,
+		RecordingEncryptionWithResolver: cfg.RecordingEncryption,
 	}
 
 	as := Server{
@@ -593,7 +576,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Unstable:                local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
 		Services:                services,
 		Cache:                   services,
-		keyStore:                keyStore,
+		keyStore:                cfg.KeyStore,
 		traceClient:             cfg.TraceClient,
 		fips:                    cfg.FIPS,
 		loadAllCAs:              cfg.LoadAllCAs,
@@ -8064,12 +8047,15 @@ func (s *Server) CreateSessionRecordingConfig(ctx context.Context, cfg types.Ses
 
 // UpdateSessionRecordingConfig evaluates RecordingEncryption state before updating the SessionRecordingConfig.
 func (s *Server) UpdateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	s.logger.WarnContext(ctx, "Updating session recording config")
 	if cfg.GetEncrypted() {
+		s.logger.WarnContext(ctx, "Sessionrecording config will be encrypted")
 		encryption, err := s.ResolveRecordingEncryption(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
+		s.logger.WarnContext(ctx, "Setting encryption keys")
 		cfg.SetEncryptionKeys(recordingencryption.GetAgeEncryptionKeys(encryption.GetSpec().GetKeySet().ActiveKeys))
 	}
 
@@ -8079,12 +8065,15 @@ func (s *Server) UpdateSessionRecordingConfig(ctx context.Context, cfg types.Ses
 
 // UpsertSessionRecordingConfig evaluates RecordingEncryption state before upserting the SessionRecordingConfig.
 func (s *Server) UpsertSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	s.logger.WarnContext(ctx, "Upserting session recording config")
 	if cfg.GetEncrypted() {
+		s.logger.WarnContext(ctx, "Session recording config will be encrypted")
 		encryption, err := s.ResolveRecordingEncryption(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
+		s.logger.WarnContext(ctx, "Setting encryption keys")
 		cfg.SetEncryptionKeys(recordingencryption.GetAgeEncryptionKeys(encryption.GetSpec().GetKeySet().ActiveKeys))
 	}
 

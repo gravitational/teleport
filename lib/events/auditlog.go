@@ -203,6 +203,9 @@ type AuditLog struct {
 	// localLog is a local events log used
 	// to emit audit events if no external log has been specified
 	localLog *FileLog
+
+	// encryptedIO wraps writes/reads with encryption/decryption
+	encryptedIO EncryptedIO
 }
 
 // AuditLogConfig specifies configuration for AuditLog server
@@ -247,6 +250,9 @@ type AuditLogConfig struct {
 
 	// Context is audit log context
 	Context context.Context
+
+	// EncryptedIO facilitates encryption for the AuditLog
+	EncryptedIO EncryptedIO
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -304,6 +310,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 		activeDownloads: make(map[string]context.Context),
 		ctx:             ctx,
 		cancel:          cancel,
+		encryptedIO:     cfg.EncryptedIO,
 	}
 	// create a directory for audit logs, audit log does not create
 	// session logs before migrations are run in case if the directory
@@ -572,7 +579,11 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			return
 		}
 
-		protoReader := NewProtoReader(rawSession)
+		protoReader, err := NewProtoReader(rawSession, l.encryptedIO)
+		if err != nil {
+			e <- trace.Wrap(err)
+			return
+		}
 		defer protoReader.Close()
 
 		firstEvent := true

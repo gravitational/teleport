@@ -63,7 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
@@ -97,9 +96,9 @@ type InitConfig struct {
 	// Authority is key generator that we use
 	Authority sshca.Authority
 
-	// KeyStoreConfig is the config for the KeyStore which handles private CA
-	// keys that may be held in an HSM.
-	KeyStoreConfig servicecfg.KeystoreConfig
+	// KeyStore which handles private CA keys and encryption keys that may be
+	// held in an HSM.
+	KeyStore *keystore.Manager
 
 	// HostUUID is a UUID of this host
 	HostUUID string
@@ -369,7 +368,7 @@ type InitConfig struct {
 	BackendInfo services.BackendInfoService
 
 	// RecordingEncryption manages state for encrypted session recording.
-	RecordingEncryption services.RecordingEncryption
+	RecordingEncryption services.RecordingEncryptionWithResolver
 
 	// SkipVersionCheck skips version check during major version upgrade/downgrade.
 	SkipVersionCheck bool
