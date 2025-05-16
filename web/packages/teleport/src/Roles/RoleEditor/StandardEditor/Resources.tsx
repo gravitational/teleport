@@ -395,21 +395,19 @@ function KubernetesResourceKindView({
   onChange?(m: KubernetesResourceModel): void;
   roleVersion: RoleVersion;
 }) {
-  const supportsCrds = supportsKubernetesCustomResources(roleVersion);
-  const v7selectField = (
-    <FieldSelect
-      label="Kind"
-      isDisabled={isProcessing}
-      options={kubernetesResourceKindOptionsV7.filter(
-        elem => roleVersion == 'v7' || elem.value == 'pod' // In v7, we have the fill list, in v6 and earlier, only pod.
-      )}
-      value={value.kind}
-      rule={precomputed(validation)}
-      onChange={k => onChange?.({ ...value, kind: k })}
-    />
-  );
-  if (!supportsCRDs) {
-    return v7selectField;
+  if (!supportsKubernetesCustomResources(roleVersion)) {
+    return (
+      <FieldSelect
+        label="Kind"
+        isDisabled={isProcessing}
+        options={kubernetesResourceKindOptionsV7.filter(
+          elem => roleVersion == 'v7' || elem.value == 'pod' // In v7, we have the fill list, in v6 and earlier, only pod.
+        )}
+        value={value.kind}
+        rule={precomputed(validation)}
+        onChange={k => onChange?.({ ...value, kind: k })}
+      />
+    );
   }
   return (
     <FieldSelectCreatable
@@ -451,7 +449,7 @@ function KubernetesResourceView({
 }) {
   const { kind, name, namespace, verbs, apiGroup } = value;
   const theme = useTheme();
-  const supportsCRDs = supportsKubernetesCustomResources(value.roleVersion);
+  const supportsCrds = supportsKubernetesCustomResources(value.roleVersion);
   return (
     <Box
       border={1}
@@ -481,7 +479,7 @@ function KubernetesResourceView({
         onChange={k => onChange?.({ ...value, ...k })}
         roleVersion={value.roleVersion}
       />
-      {(supportsCRDs || apiGroup) && (
+      {(supportsCrds || apiGroup) && (
         <FieldInput
           label="API Group"
           required

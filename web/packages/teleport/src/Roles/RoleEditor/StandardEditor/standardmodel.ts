@@ -1022,12 +1022,12 @@ function kubernetesResourceToModel(
     unsupported
   );
 
-  const supportsCRDs = supportsKubernetesCustomResources(roleVersion);
-  const kindOption = supportsCRDs
+  const supportsCrds = supportsKubernetesCustomResources(roleVersion);
+  const kindOption = supportsCrds
     ? { value: kind, label: kind }
     : kubernetesResourceKindOptionsMapV7.get(kind);
 
-  if (supportsCRDs) {
+  if (supportsCrds) {
     // If we have an exact match with a v7 entry, it is most likely a mistake.
     const v7groups = kubernetesResourceKindV7Groups[kind];
     if (v7groups && (apiGroup == '*' || v7groups.groups.includes(apiGroup))) {
