@@ -76,15 +76,15 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	// Create database resources from databases defined in the static configuration.
 	var databases types.Databases
-	for _, db := range process.Config.Databases.Databases {
-		db, err := db.ToDatabase()
+	for _, dbSpec := range process.Config.Databases.Databases {
+		database, err := dbSpec.ToDatabase()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := services.ValidateDatabase(db); err != nil {
+		if err := services.ValidateDatabase(database); err != nil {
 			return trace.Wrap(err)
 		}
-		databases = append(databases, db)
+		databases = append(databases, database)
 	}
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
