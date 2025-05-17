@@ -34,11 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/accessmonitoring"
 )
 
-const (
-	// componentName specifies the access review handler component name used for debugging.
-	componentName = "access_review_handler"
-)
-
 // Client aggregates the parts of Teleport API client interface
 // (as implemented by github.com/gravitational/teleport/api/client.Client)
 // that are used by the access review handler.
@@ -288,7 +283,7 @@ func newAccessReview(userName, ruleName, state string) (types.AccessReview, erro
 		ProposedState: proposedState,
 		Reason: fmt.Sprintf("Access request has been automatically %[4]s by %[1]q. "+
 			"User %[2]q is %[4]s by access_monitoring_rule %[3]q.",
-			componentName, userName, ruleName, strings.ToLower(state)),
+			teleport.SystemAccessApproverUserName, userName, ruleName, strings.ToLower(state)),
 		Created: time.Now(),
 	}, nil
 }
