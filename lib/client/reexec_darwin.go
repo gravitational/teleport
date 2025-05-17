@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build unix
+//go:build darwin
 
 package client
 
@@ -22,6 +22,11 @@ import (
 	"os"
 	"os/exec"
 )
+
+// getExecutable gets the path to the executable that should be used for re-exec.
+func getExecutable() (string, error) {
+	return os.Executable()
+}
 
 // addSignalFdToChild adds a file for the child process to inherit and returns
 // the file descriptor of the file for the child.

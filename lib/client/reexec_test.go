@@ -82,6 +82,7 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		const script = `
 		read
 		# Close signal fd.
+		echo x >&%d
 		exec %d>&-
 		# stdout/err should still work.
 		echo "stdout: $REPLY"
@@ -90,7 +91,7 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		sleep 1
 		`
 		getArgs := func(signalFd uint64) []string {
-			return []string{"-c", fmt.Sprintf(script, signalFd)}
+			return []string{"-c", fmt.Sprintf(script, signalFd, signalFd)}
 		}
 		stdout := newSyncBuffer()
 		stderr := newSyncBuffer()

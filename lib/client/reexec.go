@@ -18,7 +18,6 @@ package client
 
 import (
 	"context"
-	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -43,7 +42,6 @@ type ForkAuthenticateParams struct {
 type forkAuthCmd struct {
 	*exec.Cmd
 	disownSignal io.ReadCloser
-	parentStdin  io.ReadCloser
 }
 
 // RunForkAuthenticate re-execs the current executable and waits for any of
@@ -60,7 +58,7 @@ func RunForkAuthenticate(ctx context.Context, params ForkAuthenticateParams) err
 }
 
 func buildForkAuthenticateCommand(params ForkAuthenticateParams) (*forkAuthCmd, error) {
-	executable, err := os.Executable()
+	executable, err := getExecutable()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -75,23 +73,14 @@ func buildForkAuthenticateCommand(params ForkAuthenticateParams) (*forkAuthCmd, 
 	signalFd := addSignalFdToChild(cmd, signalW)
 
 	cmd.Args = append(cmd.Args, params.GetArgs(signalFd)...)
-	if params.Stdin == nil {
-		params.Stdin = os.Stdin
-	}
 	cmd.Stdin = params.Stdin
 	cmd.Stdout = params.Stdout
 	cmd.Stderr = params.Stderr
 
-	forkCmd := &forkAuthCmd{
+	return &forkAuthCmd{
 		Cmd:          cmd,
 		disownSignal: signalR,
-	}
-	if stdinClose, ok := params.Stdin.(io.ReadCloser); ok {
-		forkCmd.parentStdin = stdinClose
-	} else {
-		forkCmd.parentStdin = io.NopCloser(params.Stdin)
-	}
-	return forkCmd, nil
+	}, nil
 }
 
 func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
@@ -101,9 +90,6 @@ func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 		// The child process will close the pipe when it has authenticated
 		// and is ready to be disowned.
 		_, err := cmd.disownSignal.Read(make([]byte, 1))
-		if errors.Is(err, io.EOF) {
-			err = nil
-		}
 		disownReady <- err
 	}()
 
@@ -119,10 +105,6 @@ func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 	case err := <-childFinished:
 		return trace.Wrap(err)
 	case err := <-disownReady:
-		// Child should not read from stdin after authentication.
-		if err := cmd.parentStdin.Close(); err != nil {
-			return trace.Wrap(err)
-		}
 		return trace.Wrap(err)
 	case <-ctx.Done():
 		if err := cmd.Process.Kill(); err != nil {

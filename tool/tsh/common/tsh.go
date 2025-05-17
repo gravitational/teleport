@@ -4015,6 +4015,32 @@ func onResolve(cf *CLIConf) error {
 
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) error {
+	// Handle fork after authentication.
+	if cf.ForkAfterAuthentication && cf.forkSignalFd == 0 {
+		if len(cf.RemoteCommand) == 0 {
+			return trace.BadParameter("fork after authentication not allowed for interactive sessions")
+		}
+		forkParams := client.ForkAuthenticateParams{
+			GetArgs: func(signalFd uint64) []string {
+				return append([]string{
+					// --fork-signal-fd goes immediately after `tsh`.
+					"--fork-signal-fd", strconv.FormatUint(signalFd, 10),
+				}, cf.rawArgs...)
+			},
+			Stdin:  cf.Stdin(),
+			Stdout: cf.Stdout(),
+			Stderr: cf.Stderr(),
+		}
+		if err := client.RunForkAuthenticate(cf.Context, forkParams); err != nil {
+			var execErr *exec.ExitError
+			if errors.As(trace.Unwrap(err), &execErr) {
+				err = &common.ExitCodeError{Code: execErr.ExitCode()}
+			}
+			return trace.Wrap(err)
+		}
+		return nil
+	}
+
 	// If "tsh ssh -V" is invoked, tsh is in OpenSSH compatibility mode, show
 	// the version and exit.
 	if cf.ShowVersion {
@@ -4053,33 +4079,6 @@ func onSSH(cf *CLIConf) error {
 	}
 
 	tc.Stdin = os.Stdin
-
-	// Handle fork after authentication.
-	if cf.ForkAfterAuthentication && cf.forkSignalFd == 0 {
-		if len(cf.RemoteCommand) == 0 {
-			return trace.BadParameter("fork after authentication not allowed for interactive sessions")
-		}
-		forkParams := client.ForkAuthenticateParams{
-			GetArgs: func(signalFd uint64) []string {
-				return append([]string{
-					// --fork-signal-fd goes immediately after `tsh`.
-					"--fork-signal-fd", strconv.FormatUint(signalFd, 10),
-				}, cf.rawArgs...)
-			},
-			Stdin:  tc.Stdin,
-			Stdout: tc.Stdout,
-			Stderr: tc.Stderr,
-		}
-		if err := client.RunForkAuthenticate(cf.Context, forkParams); err != nil {
-			var execErr *exec.ExitError
-			if errors.As(trace.Unwrap(err), &execErr) {
-				err = &common.ExitCodeError{Code: execErr.ExitCode()}
-			}
-			return trace.Wrap(err)
-		}
-		return nil
-	}
-
 	err = retryWithAccessRequest(cf, tc, func() error {
 		sshFunc := func() error {
 			var opts []func(*client.SSHOptions)
@@ -4091,8 +4090,15 @@ func onSSH(cf *CLIConf) error {
 				opts = append(opts, client.WithForkAfterAuthentication(func() error {
 					disownSignal := os.NewFile(uintptr(cf.forkSignalFd), "disown")
 					// Write to unblock the parent.
-					disownSignal.Write([]byte{0x00})
-					return trace.Wrap(disownSignal.Close())
+					_, err := disownSignal.Write([]byte{0x00})
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					errors := []error{disownSignal.Close()}
+					if stdin, ok := cf.Stdin().(io.ReadCloser); ok {
+						errors = append(errors, stdin.Close())
+					}
+					return trace.NewAggregate(errors...)
 				}))
 			}
 
