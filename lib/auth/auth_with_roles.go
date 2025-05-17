@@ -1946,6 +1946,10 @@ func (r *resourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 	state := services.AccessState{MFAVerified: true}
 	switch rr := resource.(type) {
 	case types.AppServer:
+		if rr.GetApp().GetSubKind() == types.KindIdentityCenterAccount {
+			return r.CheckAccess(rr.GetApp(), state, services.NewIdentityCenterAppMatcher(rr.GetApp()))
+		}
+
 		return r.CheckAccess(rr.GetApp(), state)
 	case types.KubeServer:
 		return r.CheckAccess(rr.GetCluster(), state)
