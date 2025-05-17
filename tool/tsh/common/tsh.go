@@ -618,6 +618,14 @@ type CLIConf struct {
 	// atomic here is overkill as the CLIConf is generally consumed sequentially. However, occasionally
 	// we need concurrency safety, such as for [forEachProfileParallel].
 	clientStoreSet int32
+	// ForkAfterAuthentication indicates that tsh should go into the background
+	// after authentication.
+	ForkAfterAuthentication bool
+	// forkSignalFd is the file descriptor for the child process to signal the
+	// parent when re-execing.
+	forkSignalFd uint64
+	// rawArgs are the raw arguments passed to Run().
+	rawArgs []string
 }
 
 // Stdout returns the stdout writer.
@@ -781,6 +789,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		TracingProvider:    tracing.NoopProvider(),
 		DTAuthnRunCeremony: dtauthn.NewCeremony().Run,
 		DTAutoEnroll:       dtenroll.AutoEnroll,
+		rawArgs:            args,
 	}
 
 	// run early to enable debug logging if env var is set.
@@ -812,6 +821,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
 	app.Flag("trace", "Capture and export distributed traces").Hidden().BoolVar(&cf.SampleTraces)
 	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to. Note - only tsh spans will be included.").Hidden().StringVar(&cf.TraceExporter)
+	// This flag only applies to tsh ssh; it's defined here to make configuring
+	// the re-exec command easier.
+	app.Flag("fork-signal-fd", "File descriptor to signal parent on when forked. Overrides --fork-after-authentication. For internal use only.").Hidden().Uint64Var(&cf.forkSignalFd)
 
 	if !moduleCfg.IsBoringBinary() {
 		// The user is *never* allowed to do this in FIPS mode.
@@ -891,6 +903,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
+	ssh.Flag("fork-after-authentication", "Run in background after authentication is complete.").Short('f').BoolVar(&cf.ForkAfterAuthentication)
 	// The following flags are OpenSSH compatibility flags. They are used for
 	// users that alias "ssh" to "tsh ssh." The following OpenSSH flags are
 	// implemented. From "man 1 ssh":
@@ -4004,6 +4017,32 @@ func onResolve(cf *CLIConf) error {
 
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) error {
+	// Handle fork after authentication.
+	if cf.ForkAfterAuthentication && cf.forkSignalFd == 0 {
+		if len(cf.RemoteCommand) == 0 {
+			return trace.BadParameter("fork after authentication not allowed for interactive sessions")
+		}
+		forkParams := client.ForkAuthenticateParams{
+			GetArgs: func(signalFd uint64) []string {
+				return append([]string{
+					// --fork-signal-fd goes immediately after `tsh`.
+					"--fork-signal-fd", strconv.FormatUint(signalFd, 10),
+				}, cf.rawArgs...)
+			},
+			Stdin:  cf.Stdin(),
+			Stdout: cf.Stdout(),
+			Stderr: cf.Stderr(),
+		}
+		if err := client.RunForkAuthenticate(cf.Context, forkParams); err != nil {
+			var execErr *exec.ExitError
+			if errors.As(trace.Unwrap(err), &execErr) {
+				err = &common.ExitCodeError{Code: execErr.ExitCode()}
+			}
+			return trace.Wrap(err)
+		}
+		return nil
+	}
+
 	// If "tsh ssh -V" is invoked, tsh is in OpenSSH compatibility mode, show
 	// the version and exit.
 	if cf.ShowVersion {
@@ -4047,6 +4086,22 @@ func onSSH(cf *CLIConf) error {
 			var opts []func(*client.SSHOptions)
 			if cf.LocalExec {
 				opts = append(opts, client.WithLocalCommandExecutor(runLocalCommand))
+			}
+
+			if cf.forkSignalFd != 0 {
+				opts = append(opts, client.WithForkAfterAuthentication(func() error {
+					disownSignal := os.NewFile(uintptr(cf.forkSignalFd), "disown")
+					// Write to unblock the parent.
+					_, err := disownSignal.Write([]byte{0x00})
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					errors := []error{disownSignal.Close()}
+					if stdin, ok := cf.Stdin().(io.ReadCloser); ok {
+						errors = append(errors, stdin.Close())
+					}
+					return trace.NewAggregate(errors...)
+				}))
 			}
 
 			return tc.SSH(cf.Context, cf.RemoteCommand, opts...)
