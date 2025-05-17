@@ -77,6 +77,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -94,6 +95,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -111,6 +113,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -128,6 +131,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 						Name:      "pod-2",
 						Namespace: "namespace-1",
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -145,12 +149,14 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 						Name:      "pod-2",
 						Namespace: "namespace-1",
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 					{
 						Kind:      types.KindKubePod,
 						Name:      "pod-1",
 						Namespace: "namespace-1",
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -168,6 +174,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 						Name:      "pod-2",
 						Namespace: "namespace-1",
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -185,6 +192,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 						Name:      "pod-2",
 						Namespace: "namespace-1",
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -197,9 +205,10 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				kind: "namespaces",
 				resources: []types.KubernetesResource{
 					{
-						Kind:  types.KindKubeNamespace,
-						Name:  "namespace-2",
-						Verbs: []string{types.Wildcard},
+						Kind:     types.KindKubeNamespace,
+						Name:     "namespace-2",
+						Verbs:    []string{types.Wildcard},
+						APIGroup: types.Wildcard,
 					},
 				},
 			},
@@ -212,9 +221,10 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				kind: "namespaces",
 				resources: []types.KubernetesResource{
 					{
-						Kind:  types.KindKubeNamespace,
-						Name:  "namespace",
-						Verbs: []string{types.Wildcard},
+						Kind:     types.KindKubeNamespace,
+						Name:     "namespace",
+						Verbs:    []string{types.Wildcard},
+						APIGroup: types.Wildcard,
 					},
 				},
 			},
@@ -227,9 +237,10 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				kind:      "pods",
 				resources: []types.KubernetesResource{
 					{
-						Kind:  types.KindKubeNamespace,
-						Name:  "namespace-2",
-						Verbs: []string{types.Wildcard},
+						Kind:     types.KindKubeNamespace,
+						Name:     "namespace-2",
+						Verbs:    []string{types.Wildcard},
+						APIGroup: types.Wildcard,
 					},
 				},
 			},
@@ -259,9 +270,10 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				apiGroup:  "resources.teleport.dev",
 				resources: []types.KubernetesResource{
 					{
-						Kind:  types.KindKubeNamespace,
-						Name:  "namespace-2",
-						Verbs: []string{types.Wildcard},
+						Kind:     types.KindKubeNamespace,
+						Name:     "namespace-2",
+						Verbs:    []string{types.Wildcard},
+						APIGroup: types.Wildcard,
 					},
 				},
 			},
@@ -275,9 +287,10 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				apiGroup: "rbac.authorization.k8s.io",
 				resources: []types.KubernetesResource{
 					{
-						Kind:  types.KindKubeNamespace,
-						Name:  "namespace-2",
-						Verbs: []string{types.Wildcard},
+						Kind:     types.KindKubeNamespace,
+						Name:     "namespace-2",
+						Verbs:    []string{types.Wildcard},
+						APIGroup: types.Wildcard,
 					},
 				},
 			},
@@ -291,9 +304,10 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				apiGroup: "rbac.authorization.k8s.io",
 				resources: []types.KubernetesResource{
 					{
-						Kind:  types.KindKubeClusterRole,
-						Name:  "role",
-						Verbs: []string{types.Wildcard},
+						Kind:     types.KindKubeClusterRole,
+						Name:     "role",
+						Verbs:    []string{types.Wildcard},
+						APIGroup: types.Wildcard,
 					},
 				},
 			},
@@ -307,9 +321,10 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				apiGroup: "rbac.authorization.k8s.io",
 				resources: []types.KubernetesResource{
 					{
-						Kind:  types.KindKubeClusterRole,
-						Name:  "role",
-						Verbs: []string{types.Wildcard},
+						Kind:     types.KindKubeClusterRole,
+						Name:     "role",
+						Verbs:    []string{types.Wildcard},
+						APIGroup: types.Wildcard,
 					},
 				},
 			},
@@ -323,9 +338,10 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				apiGroup: "rbac.authorization.k8s.io",
 				resources: []types.KubernetesResource{
 					{
-						Kind:  types.KindKubeClusterRole,
-						Name:  "role",
-						Verbs: []string{types.Wildcard},
+						Kind:     types.KindKubeClusterRole,
+						Name:     "role",
+						Verbs:    []string{types.Wildcard},
+						APIGroup: types.Wildcard,
 					},
 				},
 			},
@@ -339,9 +355,10 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				apiGroup: "rbac.authorization.k8s.io",
 				resources: []types.KubernetesResource{
 					{
-						Kind:  types.KindKubeClusterRole,
-						Name:  "role",
-						Verbs: []string{"get"},
+						Kind:     types.KindKubeClusterRole,
+						Name:     "role",
+						Verbs:    []string{"get"},
+						APIGroup: types.Wildcard,
 					},
 				},
 			},
@@ -355,9 +372,10 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				namespace: "namespace-1",
 				resources: []types.KubernetesResource{
 					{
-						Kind:  types.KindKubeNamespace,
-						Name:  "namespace-1",
-						Verbs: []string{types.Wildcard},
+						Kind:     types.KindKubeNamespace,
+						Name:     "namespace-1",
+						Verbs:    []string{types.Wildcard},
+						APIGroup: types.Wildcard,
 					},
 				},
 			},
@@ -366,7 +384,6 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			// create a user with full access to kubernetes Pods.
