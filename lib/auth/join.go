@@ -313,6 +313,15 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.JoinMethodAzureDevops:
+		claims, err := a.checkAzureDevopsJoinRequest(ctx, req, provisionToken)
+		if claims != nil {
+			rawClaims = claims.ForAudit()
+			attrs.AzureDevops = claims.JoinAttrs()
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	case types.JoinMethodToken:
 		// no additional validation to perform - the name is enough.
 	default:
