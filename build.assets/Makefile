@@ -151,7 +151,6 @@ buildbox-ng:
 	docker buildx build \
 		--build-arg THIRDPARTY_IMAGE=$(BUILDBOX_THIRDPARTY) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--cache-from $(BUILDBOX_NG) \
 		--cache-to type=inline \
 		$(if $(PUSH),--push,--load) \
@@ -175,7 +174,6 @@ buildbox:
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg GOLANGCI_LINT_VERSION=$(GOLANGCI_LINT_VERSION) \
-		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
@@ -218,7 +216,6 @@ buildbox-centos7:
 		--build-arg BUILDARCH=$(HOST_ARCH) \
 		--build-arg TARGETARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
@@ -247,7 +244,6 @@ buildbox-centos7-fips:
 		--build-arg BUILDARCH=$(HOST_ARCH) \
 		--build-arg TARGETARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
@@ -272,7 +268,6 @@ buildbox-arm:
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
-		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--cache-to type=inline \
 		--cache-from $(BUILDBOX_ARM) \
 		$(if $(PUSH),--push,--load) \
@@ -296,7 +291,6 @@ buildbox-node:
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
-		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--cache-to type=inline \
 		--cache-from $(BUILDBOX_NODE) \
@@ -729,13 +723,6 @@ print-golangci-lint-version:
 .PHONY:print-buf-version
 print-buf-version:
 	@echo $(BUF_VERSION)
-
-#
-# Print the Rust version used to build Teleport.
-#
-.PHONY:print-rust-version
-print-rust-version:
-	@echo $(RUST_VERSION)
 
 #
 # Print the wasm-pack version used to build Teleport.
