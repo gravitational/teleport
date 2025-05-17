@@ -289,13 +289,16 @@ func (rd *Redirector) clickableURL(redirectURL, postForm string) string {
 		if postForm != "" {
 			form, err := base64.StdEncoding.DecodeString(postForm)
 			if err != nil {
-				http.Redirect(w, r, "/", trace.ErrorToCode(err))
+				http.Error(w, err.Error(), trace.ErrorToCode(err))
+				return
 			}
 			if err := saml.WriteSAMLPostRequestWithHeaders(w, form); err != nil {
-				http.Redirect(w, r, "/", trace.ErrorToCode(err))
+				http.Error(w, err.Error(), trace.ErrorToCode(err))
+				return
 			}
 		} else {
 			http.Redirect(w, r, redirectURL, http.StatusFound)
+			return
 		}
 	})
 

@@ -120,7 +120,7 @@ func TestCLISAMLCeremony(t *testing.T) {
 		},
 		{
 			name:      "handles postForm param",
-			postForm:  postform,
+			postForm:  base64.StdEncoding.EncodeToString([]byte(postform)),
 			assertErr: require.NoError,
 		},
 		{
@@ -161,10 +161,11 @@ func TestCLISAMLCeremony(t *testing.T) {
 				return mockIdPServer.URL, base64.StdEncoding.EncodeToString([]byte(postform)), nil
 			})
 
-			// Modify handle redirect to also browse to the clickable URL printed to stderr.
-			baseHandleRedirect := ceremony.HandleRequest
+			// Modify handle request to also browse to the clickable URL printed to stderr.
+			baseRequestHandler := ceremony.HandleRequest
 			ceremony.HandleRequest = func(ctx context.Context, redirectURL, postForm string) error {
-				if err := baseHandleRedirect(ctx, tt.redirectURL, tt.postForm); err != nil {
+				// returned error will be checked on ceremony.Run(ctx) error.
+				if err := baseRequestHandler(ctx, tt.redirectURL, tt.postForm); err != nil {
 					return trace.Wrap(err)
 				}
 
@@ -189,10 +190,16 @@ func TestCLISAMLCeremony(t *testing.T) {
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
 
+				// We are only interested to check if a correct response was made based on redirectURL or postForm parameter.
+				// For redirectURL parameter, an HTTP 302 redirection with SAML authentication data is expected.
+				// For postForm parameter, an HTTP response with HTML that contains SAML authentication data is expected.
 				if tt.redirectURL != "" {
-					require.True(t, redirected)
+					require.True(t, redirected, "redirection failed for response that contains redirectURL")
+					require.Equal(t, http.StatusFound, resp.StatusCode)
 					require.Equal(t, tt.redirectURL, actualRedirectTo)
 				} else {
+					require.Equal(t, http.StatusOK, resp.StatusCode)
+					// Validate HTML title for the post form response.
 					require.Contains(t, string(body), "Teleport SAML Service Provider")
 				}
 
