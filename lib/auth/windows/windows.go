@@ -94,7 +94,7 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 			ExtraNames: []pkix.AttributeTypeAndValue{
 				{
 					Type:  DomainComponent,
-					Value: "ext",
+					Value: "gov",
 				},
 				{
 					Type:  DomainComponent,
@@ -102,7 +102,7 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 				},
 				{
 					Type:  DomainComponent,
-					Value: "gov",
+					Value: "ext",
 				},
 			},
 		}
