@@ -22,29 +22,17 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
-	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/tbot/service/status"
 )
-
-// backoffResetPeriod is the amount of time a service's handler needs to run
-// before exiting for us to consider it "stable" and reset the retry backoff.
-//
-// Resetting the backoff avoids a potential issue where a service fails many
-// times in quick succession (e.g. during a network partition), stabilizes, but
-// later fails again and is penalized for its earlier failures.
-const backoffResetPeriod = 10 * time.Minute
 
 // Supervisor is responsible for managing the lifecycle of tbot's component
 // services.
 type Supervisor struct {
 	logger *slog.Logger
-	clock  clockwork.Clock
 
 	mu       sync.Mutex
 	services map[string]InternalService
@@ -55,17 +43,11 @@ type Supervisor struct {
 type SupervisorConfig struct {
 	// Logger used to log messages and errors.
 	Logger *slog.Logger
-
-	// Clock allows you to override the clock in unit tests.
-	Clock clockwork.Clock
 }
 
 func (cfg *SupervisorConfig) checkAndSetDefaults() error {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
-	}
-	if cfg.Clock == nil {
-		cfg.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }
@@ -78,7 +60,6 @@ func NewSupervisor(cfg SupervisorConfig) (*Supervisor, error) {
 	return &Supervisor{
 		services: make(map[string]InternalService),
 		logger:   cfg.Logger,
-		clock:    cfg.Clock,
 	}, nil
 }
 
@@ -107,7 +88,7 @@ func (s *Supervisor) Register(service InternalService) error {
 }
 
 // Run the registered services until the given context is canceled or a service
-// exits with an irrecoverable error.
+// exits. If the given context is canceled, its error will be returned.
 func (s *Supervisor) Run(ctx context.Context) error {
 	group, groupCtx := errgroup.WithContext(ctx)
 
@@ -123,7 +104,7 @@ func (s *Supervisor) Run(ctx context.Context) error {
 		svc := svc
 		group.Go(func() error {
 			return trace.Wrap(
-				s.superviseService(groupCtx, svc),
+				s.runService(groupCtx, svc, false),
 				"service: %s", svc.getName(),
 			)
 		})
@@ -131,8 +112,8 @@ func (s *Supervisor) Run(ctx context.Context) error {
 	s.mu.Unlock()
 
 	err := group.Wait()
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-		return nil
+	if ctx.Err() != nil {
+		return ctx.Err()
 	}
 	return err
 }
@@ -158,7 +139,7 @@ func (s *Supervisor) OneShot(ctx context.Context) error {
 
 		svc := svc
 		go func() {
-			err := s.oneShotService(ctx, svc)
+			err := s.runService(ctx, svc, true)
 			errCh <- trace.Wrap(err, "service: %s", svc.getName())
 			wg.Done()
 		}()
@@ -171,7 +152,7 @@ func (s *Supervisor) OneShot(ctx context.Context) error {
 	return trace.NewAggregateFromChannel(errCh, ctx)
 }
 
-func (s *Supervisor) superviseService(ctx context.Context, svc InternalService) error {
+func (s *Supervisor) runService(ctx context.Context, svc InternalService, oneShot bool) error {
 	defer svc.finalize()
 
 	logger := s.logger.With("service", svc.getName())
@@ -182,68 +163,38 @@ func (s *Supervisor) superviseService(ctx context.Context, svc InternalService) 
 		}
 	}
 
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(1 * time.Second),
-		Jitter: retryutils.HalfJitter,
-		Max:    1 * time.Minute,
-		Clock:  s.clock,
-	})
-	if err != nil {
-		return trace.Wrap(err, "creating retrier")
+	var err error
+	if oneShot {
+		err = svc.runOneShotHandler(ctx)
+	} else {
+		err = svc.runHandler(ctx, &Runtime{setStatusFn: setStatus})
 	}
 
-	for {
-		start := time.Now()
-		err := svc.runHandler(ctx, &Runtime{setStatusFn: setStatus})
-		duration := time.Since(start)
-
-		setStatus(status.Failed)
-
-		if IsIrrecoverableError(err) {
-			logger.ErrorContext(ctx, "Service encountered irrecoverable error; supervisor is shutting down", "error", err)
-			return err
-		} else {
-			logger.InfoContext(ctx, "Service exited", "error", err)
-		}
-
-		if duration >= backoffResetPeriod {
-			retry.Reset()
-		}
-
-		retry.Inc()
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-retry.After():
-			logger.DebugContext(ctx, "Retrying failed service")
-		}
-	}
-}
-
-func (s *Supervisor) oneShotService(ctx context.Context, svc InternalService) error {
-	defer svc.finalize()
-
-	logger := s.logger.With("service", svc.getName())
-
-	setStatus := func(status status.Status) {
-		if svc.setStatus(status) {
-			logger.DebugContext(ctx, "Service status changed", "new_status", status)
-		}
-	}
-
-	err := svc.runOneShotHandler(ctx)
 	switch {
+	case ctx.Err() != nil:
+		// Handler exited because the context was cancelled (possibly because
+		// another service failed).
+		setStatus(status.Failed)
+		return nil
 	case errors.Is(err, errNoOneShotHandler):
+		// Supervisor running in one-shot mode but handler doesn't support it.
 		logger.DebugContext(ctx, "Service does not support one-shot mode")
 		return nil
 	case err != nil:
+		// Handler returned an error.
 		logger.ErrorContext(ctx, "Service returned error", "error", err)
 		setStatus(status.Failed)
-	default:
+		return err
+	case oneShot:
+		// One-shot handler succeeded.
 		setStatus(status.Ready)
+		return nil
+	default:
+		// Long-running handler returned early without the context being canceled.
+		setStatus(status.Failed)
+		logger.ErrorContext(ctx, "Service exited unexpectedly without error")
+		return trace.Errorf("service named %q exited unexpectedly without error", svc.getName())
 	}
-
-	return err
 }
 
 // InternalService is the internal API surface of Service[HandlerT] used by the

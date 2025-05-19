@@ -23,23 +23,23 @@ import (
 	"slices"
 	"sync/atomic"
 
-	"github.com/gravitational/teleport/lib/tbot/service/status"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/tbot/service/status"
 )
 
 // Handler implements the logic of a long-running service.
+//
+// For services that perform a task on an interval, consider using PeriodicHandler.
 type Handler interface {
 	// Run performs the task (potentially on an interval) until the given
 	// context is canceled, or an irrecoverable error is encountered.
 	//
 	// It should call runtime.SetStatus to report its health to the supervisor
-	// and other services. If Run returns an error, the service's status will be
-	// set to Failed and the supervisor will restart the handler after some
-	// backoff and jitter.
+	// and other services.
 	//
-	// If the handler encounters an error that cannot possibly be resolved, it
-	// should return the error wrapped with IrrecoverableError and the supervisor
-	// will shut down all of the other services.
+	// If Run returns an error, the supervisor will stop all other services too,
+	// so services should handle their own retries (or use PeriodicHandler).
 	Run(ctx context.Context, runtime *Runtime) error
 }
 

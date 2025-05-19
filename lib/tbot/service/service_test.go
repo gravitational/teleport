@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/tbot/service"
@@ -74,7 +73,7 @@ func TestService_EndToEnd(t *testing.T) {
 	require.Equal(t, status.Ready.String(), b.Status().String())
 
 	cancel()
-	require.NoError(t, <-errCh)
+	require.ErrorIs(t, <-errCh, context.Canceled)
 }
 
 func TestService_OneShot(t *testing.T) {
@@ -118,58 +117,21 @@ func TestService_OneShot(t *testing.T) {
 	require.Equal(t, status.Failed.String(), c.Status().String())
 }
 
-func TestService_Retries(t *testing.T) {
+func TestService_EarlyReturn(t *testing.T) {
 	t.Parallel()
-
-	called := make(chan struct{}, 1)
-
-	svc := service.NewService(
-		"service-a",
-		handlerFunc(func(ctx context.Context, _ *service.Runtime) error {
-			called <- struct{}{}
-			return errors.New("uh-oh")
-		}),
-	)
-
-	supervisor, err := service.NewSupervisor(service.SupervisorConfig{
-		Logger: utils.NewSlogLoggerForTests(),
-		Clock:  &retryClock{blockAfter: 2},
-	})
-	require.NoError(t, err)
-	require.NoError(t, supervisor.Register(svc))
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	errCh := make(chan error)
-	go func() { errCh <- supervisor.Run(ctx) }()
-
-	// Expect the service to be called multiple times.
-	for i := 0; i < 2; i++ {
-		<-called
-	}
-
-	cancel()
-	require.NoError(t, <-errCh)
-}
-
-func TestService_IrrecoverableError(t *testing.T) {
-	t.Parallel()
-
-	var calls int
 
 	a := service.NewService(
-		"service-a",
-		handlerFunc(func(context.Context, *service.Runtime) error {
-			calls++
-			return service.IrrecoverableError(errors.New("uh-oh"))
+		"a",
+		handlerFunc(func(ctx context.Context, runtime *service.Runtime) error {
+			return nil
 		}),
 	)
 
+	bShutdown := make(chan struct{})
 	b := service.NewService(
-		"service-b",
+		"b",
 		handlerFunc(func(ctx context.Context, runtime *service.Runtime) error {
-			runtime.SetStatus(status.Ready)
+			defer close(bShutdown)
 			<-ctx.Done()
 			return nil
 		}),
@@ -183,8 +145,13 @@ func TestService_IrrecoverableError(t *testing.T) {
 	require.NoError(t, supervisor.Register(b))
 
 	err = supervisor.Run(context.Background())
-	require.ErrorContains(t, err, "uh-oh")
-	require.Equal(t, 1, calls)
+	require.ErrorContains(t, err, `service named "a" exited unexpectedly without error`)
+
+	select {
+	case <-bShutdown:
+	case <-time.After(1 * time.Second):
+		t.Fatal("timeout waiting for service b to shut down")
+	}
 
 	require.Equal(t, status.Failed.String(), a.Status().String())
 	require.Equal(t, status.Failed.String(), b.Status().String())
@@ -233,21 +200,4 @@ func (oneShotHandlerFunc) Run(context.Context, *service.Runtime) error {
 
 func (fn oneShotHandlerFunc) OneShot(ctx context.Context) error {
 	return fn(ctx)
-}
-
-type retryClock struct {
-	clockwork.Clock
-
-	blockAfter int
-	calls      int
-}
-
-func (c *retryClock) After(time.Duration) <-chan time.Time {
-	c.calls++
-
-	ch := make(chan time.Time, 1)
-	if c.calls <= c.blockAfter {
-		ch <- time.Now()
-	}
-	return ch
 }
