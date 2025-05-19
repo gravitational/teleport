@@ -182,7 +182,12 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		if err != nil {
 			return internalErrStatus, trace.Wrap(err)
 		}
-		o.Object["items"] = items
+		objList := make([]any, 0, len(items))
+		for _, item := range items {
+			objList = append(objList, item.Object)
+		}
+
+		o.Object["items"] = objList
 	default:
 		// itemsFieldName is the field name of the items in the list
 		// object. This is used to get the items from the list object.
@@ -200,14 +205,13 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 
 		var (
 			underlyingType = itemsR.Index(0).Type()
-			apiVersion     string
+			apiVersion, _  = obj.GetObjectKind().GroupVersionKind().ToAPIVersionAndKind()
 			objs           = make([]kubeObjectInterface, 0, itemsR.Len())
 		)
 		for i := range itemsR.Len() {
 			item := itemsR.Index(i).Addr().Interface()
 			if item, ok := item.(kubeObjectInterface); ok {
 				objs = append(objs, item)
-				apiVersion, _ = item.GroupVersionKind().ToAPIVersionAndKind()
 			} else {
 				return internalErrStatus, trace.BadParameter("unexpected type %T", itemsR.Interface())
 			}
