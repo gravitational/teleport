@@ -158,7 +158,7 @@ const (
 	pivGenericAuthErrCodeString = "6982"
 )
 
-func (y *YubiKey) signWithPINRetry(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, prompt hardwarekey.Prompt, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, prompt hardwarekey.Prompt, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	// When using [piv.PINPolicyOnce], PIN is only required when it isn't cached in the PCSC
 	// transaction internally. The piv-go prompt logic attempts to check this requirement
 	// before prompting, which is generally workable. However, the PIN prompt logic is not
@@ -176,7 +176,14 @@ func (y *YubiKey) signWithPINRetry(ctx context.Context, ref *hardwarekey.Private
 		PINPolicy: piv.PINPolicyNever,
 	}
 
-	signature, err := y.sign(ctx, ref, keyInfo, prompt, auth, rand, digest, opts)
+	var promptTouch promptTouch
+	if ref.Policy.TouchRequired {
+		promptTouch = func(ctx context.Context) error {
+			return y.promptTouch(ctx, prompt, keyInfo)
+		}
+	}
+
+	signature, err := y.conn.sign(ctx, ref, auth, promptTouch, rand, digest, opts)
 	switch {
 	case err == nil:
 		return signature, nil
@@ -190,55 +197,10 @@ func (y *YubiKey) signWithPINRetry(ctx context.Context, ref *hardwarekey.Private
 		// the required check usually used with [piv.PINPolicyOnce].
 		auth.PINPolicy = piv.PINPolicyAlways
 		auth.PIN = pin
-		return y.sign(ctx, ref, keyInfo, prompt, auth, rand, digest, opts)
+		return y.conn.sign(ctx, ref, auth, promptTouch, rand, digest, opts)
 	default:
 		return nil, trace.Wrap(err)
 	}
-}
-
-func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, prompt hardwarekey.Prompt, auth piv.KeyAuth, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	if ref.Policy.TouchRequired {
-		ctx = y.promptTouch(ctx, prompt, keyInfo)
-	}
-
-	return y.conn.sign(ctx, ref, auth, rand, digest, opts)
-}
-
-// promptTouch starts the touch prompt. The context returned is tied to the touch
-// prompt so that if the user cancels the touch prompt it cancels the sign request.
-func (y *YubiKey) promptTouch(ctx context.Context, prompt hardwarekey.Prompt, keyInfo hardwarekey.ContextualKeyInfo) context.Context {
-	ctx, cancel := context.WithCancelCause(ctx)
-
-	// There is no built in mechanism to prompt for touch on demand, so we simply prompt for touch after
-	// a short duration in hopes of lining up with the actual YubiKey touch prompt (flashing key). In the
-	// case where touch is cached, the delay prevents the prompt from firing when it isn't needed.
-	go func() {
-		defer cancel(nil)
-
-		// Wait for any concurrent prompts to complete. If there is a concurrent touch prompt,
-		// or touch is otherwise provided in the meantime, we can skip the prompt below.
-		y.promptMu.Lock()
-		defer y.promptMu.Unlock()
-
-		select {
-		case <-time.After(signTouchPromptDelay):
-			err := prompt.Touch(ctx, keyInfo)
-			if err != nil {
-				// Cancel the entire function when an error occurs.
-				// This is typically used for aborting the prompt.
-				cancel(trace.Wrap(err))
-			}
-			return
-		case <-ctx.Done():
-			// touch cached, skip prompt.
-			return
-		}
-	}()
-
-	return ctx
 }
 
 // Reset resets the YubiKey PIV module to default settings.
@@ -333,18 +295,18 @@ func (y *YubiKey) checkCertificate(slot piv.Slot) error {
 	return nil
 }
 
-type cryptoPublicKeyI interface {
+type cryptoPublicKey interface {
 	Equal(x crypto.PublicKey) bool
 }
 
 // getPublicKey gets a public key from the given PIV slot.
-func (y *YubiKey) getPublicKey(slot piv.Slot) (cryptoPublicKeyI, error) {
+func (y *YubiKey) getPublicKey(slot piv.Slot) (cryptoPublicKey, error) {
 	slotCert, err := y.conn.attest(slot)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get slot cert on PIV slot 0x%x", slot.Key)
 	}
 
-	slotPub, ok := slotCert.PublicKey.(cryptoPublicKeyI)
+	slotPub, ok := slotCert.PublicKey.(cryptoPublicKey)
 	if !ok {
 		return nil, trace.BadParameter("expected crypto.PublicKey but got %T", slotCert.PublicKey)
 	}
@@ -464,6 +426,13 @@ func (y *YubiKey) promptPIN(ctx context.Context, prompt hardwarekey.Prompt, requ
 
 	y.pinCache.setPIN(pin, pinCacheTTL)
 	return pin, nil
+}
+
+func (y *YubiKey) promptTouch(ctx context.Context, prompt hardwarekey.Prompt, keyInfo hardwarekey.ContextualKeyInfo) error {
+	y.promptMu.Lock()
+	defer y.promptMu.Unlock()
+
+	return prompt.Touch(ctx, keyInfo)
 }
 
 func (y *YubiKey) setPINAndPUKFromDefault(ctx context.Context, prompt hardwarekey.Prompt, keyInfo hardwarekey.ContextualKeyInfo, pinCacheTTL time.Duration) (string, error) {
@@ -592,7 +561,9 @@ func (c *sharedPIVConnection) connect() (func(), error) {
 	return release, nil
 }
 
-func (c *sharedPIVConnection) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, auth piv.KeyAuth, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+type promptTouch func(ctx context.Context) error
+
+func (c *sharedPIVConnection) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, auth piv.KeyAuth, promptTouch promptTouch, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	pivSlot, err := parsePIVSlot(ref.SlotKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -619,16 +590,43 @@ func (c *sharedPIVConnection) sign(ctx context.Context, ref *hardwarekey.Private
 		return nil, trace.BadParameter("private key type %T does not implement crypto.Signer", priv)
 	}
 
-	return abandonableSign(ctx, signer, rand, digest, opts)
+	return abandonableSign(ctx, signer, promptTouch, rand, digest, opts)
 }
 
-// abandonableSign is a wrapper around signer.Sign.
-// It enhances the functionality of signer.Sign by allowing the caller to stop
-// waiting for the result if the provided context is canceled.
-// It is especially important for WarmupHardwareKey,
-// where waiting for the user providing a PIN/touch could block program termination.
+// abandonableSign extends [sharedPIVConnection.sign] to handle context, allowing the
+// caller to stop waiting for the result if the provided context is canceled.
+//
+// This is necessary for hardware key signatures which sometimes require touch from the
+// user to complete, which can block program termination.
+//
 // Important: this function only abandons the signer.Sign result, doesn't cancel it.
-func abandonableSign(ctx context.Context, signer crypto.Signer, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+func abandonableSign(ctx context.Context, signer crypto.Signer, promptTouch promptTouch, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	touchErrC := make(chan error)
+	if promptTouch != nil {
+		go func() {
+			defer close(touchErrC)
+
+			// There is no built in mechanism to prompt for touch on demand, so we simply prompt for touch after
+			// a short duration in hopes of lining up with the actual YubiKey touch prompt (flashing key). In the
+			// case where touch is cached, the delay prevents the prompt from firing when it isn't needed.
+			select {
+			case <-time.After(signTouchPromptDelay):
+				err := promptTouch(ctx)
+				if err != nil {
+					select {
+					case <-ctx.Done():
+					case touchErrC <- err:
+					}
+				}
+			case <-ctx.Done():
+				// prompt cached or signature canceled, skip prompt.
+			}
+		}()
+	}
+
 	type signResult struct {
 		signature []byte
 		err       error
@@ -636,6 +634,7 @@ func abandonableSign(ctx context.Context, signer crypto.Signer, rand io.Reader, 
 
 	signResultCh := make(chan signResult)
 	go func() {
+		defer close(signResultCh)
 		if err := ctx.Err(); err != nil {
 			return
 		}
@@ -651,6 +650,8 @@ func abandonableSign(ctx context.Context, signer crypto.Signer, rand io.Reader, 
 		return nil, ctx.Err()
 	case result := <-signResultCh:
 		return result.signature, trace.Wrap(result.err)
+	case err := <-touchErrC:
+		return nil, trace.Wrap(err)
 	}
 }
 

@@ -214,7 +214,7 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 		}
 	}
 
-	return y.signWithPINRetry(ctx, ref, keyInfo, s.getPrompt(), rand, digest, opts)
+	return y.sign(ctx, ref, keyInfo, s.getPrompt(), rand, digest, opts)
 }
 
 // TODO(Joerger): Re-attesting the key every time we decode a hardware key signer is very resource
