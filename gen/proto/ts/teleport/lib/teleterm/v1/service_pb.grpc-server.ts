@@ -21,6 +21,10 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
+import { SetSharedDirectoryForDesktopSessionResponse } from "./service_pb";
+import { SetSharedDirectoryForDesktopSessionRequest } from "./service_pb";
+import { ConnectToDesktopResponse } from "./service_pb";
+import { ConnectToDesktopRequest } from "./service_pb";
 import { GetAppResponse } from "./service_pb";
 import { GetAppRequest } from "./service_pb";
 import { AuthenticateWebDeviceResponse } from "./service_pb";
@@ -84,6 +88,8 @@ import { GetAccessRequestsResponse } from "./service_pb";
 import { GetAccessRequestsRequest } from "./service_pb";
 import { GetServersResponse } from "./service_pb";
 import { GetServersRequest } from "./service_pb";
+import { ListDatabaseServersResponse } from "./service_pb";
+import { ListDatabaseServersRequest } from "./service_pb";
 import { ListDatabaseUsersResponse } from "./service_pb";
 import { ListDatabaseUsersRequest } from "./service_pb";
 import { StartHeadlessWatcherResponse } from "./service_pb";
@@ -142,6 +148,12 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: ListDatabaseUsers(teleport.lib.teleterm.v1.ListDatabaseUsersRequest) returns (teleport.lib.teleterm.v1.ListDatabaseUsersResponse);
      */
     listDatabaseUsers: grpc.handleUnaryCall<ListDatabaseUsersRequest, ListDatabaseUsersResponse>;
+    /**
+     * ListDatabaseServers lists allowed users for the given database based on the role set.
+     *
+     * @generated from protobuf rpc: ListDatabaseServers(teleport.lib.teleterm.v1.ListDatabaseServersRequest) returns (teleport.lib.teleterm.v1.ListDatabaseServersResponse);
+     */
+    listDatabaseServers: grpc.handleUnaryCall<ListDatabaseServersRequest, ListDatabaseServersResponse>;
     /**
      * GetServers returns filtered, sorted, and paginated servers
      *
@@ -396,6 +408,23 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: GetApp(teleport.lib.teleterm.v1.GetAppRequest) returns (teleport.lib.teleterm.v1.GetAppResponse);
      */
     getApp: grpc.handleUnaryCall<GetAppRequest, GetAppResponse>;
+    /**
+     * ConnectToDesktop is a bidirectional stream for the desktop connection.
+     *
+     * @generated from protobuf rpc: ConnectToDesktop(stream teleport.lib.teleterm.v1.ConnectToDesktopRequest) returns (stream teleport.lib.teleterm.v1.ConnectToDesktopResponse);
+     */
+    connectToDesktop: grpc.handleBidiStreamingCall<ConnectToDesktopRequest, ConnectToDesktopResponse>;
+    /**
+     * SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
+     * If there is no active desktop session associated with the specified desktop_uri and login,
+     * the RPC returns an error.
+     *
+     * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+     * It only registers file system handlers for processing file system-related TDP events.
+     *
+     * @generated from protobuf rpc: SetSharedDirectoryForDesktopSession(teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse);
+     */
+    setSharedDirectoryForDesktopSession: grpc.handleUnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.v1.TerminalService.
@@ -458,6 +487,16 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => ListDatabaseUsersRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(ListDatabaseUsersResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(ListDatabaseUsersRequest.toBinary(value))
+    },
+    listDatabaseServers: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseServers",
+        originalName: "ListDatabaseServers",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => ListDatabaseServersResponse.fromBinary(bytes),
+        requestDeserialize: bytes => ListDatabaseServersRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ListDatabaseServersResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(ListDatabaseServersRequest.toBinary(value))
     },
     getServers: {
         path: "/teleport.lib.teleterm.v1.TerminalService/GetServers",
@@ -818,5 +857,25 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => GetAppRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(GetAppResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetAppRequest.toBinary(value))
+    },
+    connectToDesktop: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/ConnectToDesktop",
+        originalName: "ConnectToDesktop",
+        requestStream: true,
+        responseStream: true,
+        responseDeserialize: bytes => ConnectToDesktopResponse.fromBinary(bytes),
+        requestDeserialize: bytes => ConnectToDesktopRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ConnectToDesktopResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(ConnectToDesktopRequest.toBinary(value))
+    },
+    setSharedDirectoryForDesktopSession: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/SetSharedDirectoryForDesktopSession",
+        originalName: "SetSharedDirectoryForDesktopSession",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => SetSharedDirectoryForDesktopSessionResponse.fromBinary(bytes),
+        requestDeserialize: bytes => SetSharedDirectoryForDesktopSessionRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(SetSharedDirectoryForDesktopSessionResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(SetSharedDirectoryForDesktopSessionRequest.toBinary(value))
     }
 };

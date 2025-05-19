@@ -22,6 +22,7 @@ import {
   makeKubeGateway,
   makeServer,
   rootClusterUri,
+  windowsDesktopUri,
 } from 'teleterm/services/tshd/testHelpers';
 import { makeReport } from 'teleterm/services/vnet/testHelpers';
 
@@ -220,6 +221,21 @@ export function makeDocumentVnetInfo(
     title: 'VNet',
     rootClusterUri,
     app: undefined,
+    ...props,
+  };
+}
+
+export function makeDocumentDesktopSession(
+  props?: Partial<types.DocumentDesktopSession>
+): types.DocumentDesktopSession {
+  return {
+    kind: 'doc.desktop_session',
+    uri: '/docs/desktop-session',
+    title: 'admin on windows-machine',
+    desktopUri: windowsDesktopUri,
+    login: 'admin',
+    origin: 'resource_table',
+    status: '',
     ...props,
   };
 }

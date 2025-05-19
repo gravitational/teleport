@@ -41,6 +41,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
@@ -53,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/backendinfo"
 	"github.com/gravitational/teleport/api/types/label"
+	"github.com/gravitational/teleport/api/types/vnet"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
@@ -587,34 +589,36 @@ func TestAuthPreference(t *testing.T) {
 	})
 }
 
+func TestVnetConfig(t *testing.T) {
+	t.Parallel()
+
+	conf := setupConfig(t)
+	authServer, err := Init(context.Background(), conf)
+	require.NoError(t, err)
+	t.Cleanup(func() { authServer.Close() })
+
+	actualVnetConfig, err := authServer.GetVnetConfig(t.Context())
+	require.NoError(t, err)
+
+	defaultVnetConfig, err := vnet.DefaultVnetConfig()
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(defaultVnetConfig.GetSpec(), actualVnetConfig.GetSpec(), protocmp.Transform()))
+}
+
 func TestAuthPreferenceSecondFactorOnly(t *testing.T) {
 	modules.SetInsecureTestMode(false)
 	defer modules.SetInsecureTestMode(true)
 	ctx := context.Background()
 
-	t.Run("starting with second_factor disabled fails", func(t *testing.T) {
-		conf := setupConfig(t)
-		authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-			SecondFactor: constants.SecondFactorOff,
-		})
-		require.NoError(t, err)
-
-		conf.AuthPreference = authPref
-		_, err = Init(ctx, conf)
-		require.Error(t, err)
+	conf := setupConfig(t)
+	authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+		SecondFactor: constants.SecondFactorOff,
 	})
+	require.NoError(t, err)
 
-	t.Run("starting with defaults and dynamically updating to disable second factor fails", func(t *testing.T) {
-		conf := setupConfig(t)
-		s, err := Init(ctx, conf)
-		require.NoError(t, err)
-		authpref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-			SecondFactor: constants.SecondFactorOff,
-		})
-		require.NoError(t, err)
-		_, err = s.UpsertAuthPreference(ctx, authpref)
-		require.Error(t, err)
-	})
+	conf.AuthPreference = authPref
+	_, err = Init(ctx, conf)
+	require.Error(t, err)
 }
 
 func TestClusterNetworkingConfig(t *testing.T) {
@@ -1778,6 +1782,12 @@ spec:
   type: local
 version: v2
 `
+	botYAML = `kind: bot
+metadata:
+  name: my-bot
+spec:
+  roles: ["admin"]
+`
 )
 
 func TestInit_ApplyOnStartup(t *testing.T) {
@@ -1789,6 +1799,7 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 	lock := resourceFromYAML(t, lockYAML).(types.Lock)
 	clusterNetworkingConfig := resourceFromYAML(t, clusterNetworkingConfYAML).(types.ClusterNetworkingConfig)
 	authPref := resourceFromYAML(t, authPrefYAML).(types.AuthPreference)
+	bot := resourceFromYAML(t, botYAML)
 
 	tests := []struct {
 		name         string
@@ -1858,9 +1869,18 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name: "Apply HealthCheckConfig",
+			name: "Apply Role+Bot",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, newHealthCheckConfig(t))
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, bot)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply Bot+Role",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, bot)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
 			},
 			assertError: require.NoError,
 		},

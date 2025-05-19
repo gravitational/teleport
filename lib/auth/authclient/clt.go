@@ -300,9 +300,13 @@ func (c *Client) GetReverseTunnel(ctx context.Context, name string) (types.Rever
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllTokens not implemented: can only be called locally.
-func (c *Client) DeleteAllTokens() error {
-	return trace.NotImplemented(notImplementedMessage)
+// PatchToken not implemented: can only be called locally
+func (c *Client) PatchToken(
+	ctx context.Context,
+	token string,
+	updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
+) (types.ProvisionToken, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // AddUserLoginAttempt logs user login attempt
@@ -313,11 +317,6 @@ func (c *Client) AddUserLoginAttempt(user string, attempt services.LoginAttempt,
 // GetUserLoginAttempts returns user login attempts
 func (c *Client) GetUserLoginAttempts(user string) ([]services.LoginAttempt, error) {
 	panic("not implemented")
-}
-
-// DeleteAllAuthServers not implemented: can only be called locally.
-func (c *Client) DeleteAllAuthServers() error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteAuthServer not implemented: can only be called locally.
@@ -372,21 +371,6 @@ func (c *Client) DeleteClusterName() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllCertAuthorities not implemented: can only be called locally.
-func (c *Client) DeleteAllCertAuthorities(caType types.CertAuthType) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllReverseTunnels not implemented: can only be called locally.
-func (c *Client) DeleteAllReverseTunnels(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllRemoteClusters not implemented: can only be called locally.
-func (c *Client) DeleteAllRemoteClusters(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // CreateRemoteCluster not implemented: can only be called locally.
 func (c *Client) CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
@@ -397,16 +381,6 @@ func (c *Client) PatchRemoteCluster(ctx context.Context, name string, updateFn f
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllNamespaces not implemented: can only be called locally.
-func (c *Client) DeleteAllNamespaces() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllRoles not implemented: can only be called locally.
-func (c *Client) DeleteAllRoles(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // ListWindowsDesktops not implemented: can only be called locally.
 func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
@@ -415,11 +389,6 @@ func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsD
 // ListWindowsDesktopServices not implemented: can only be called locally.
 func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllUsers not implemented: can only be called locally.
-func (c *Client) DeleteAllUsers(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 const (
@@ -605,11 +574,6 @@ func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllLocks not implemented: can only be called locally.
-func (c *Client) DeleteAllLocks(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
@@ -755,26 +719,6 @@ func (c *Client) DeleteUserNotification(ctx context.Context, username string, no
 		NotificationId: notificationId,
 	})
 	return trace.Wrap(err)
-}
-
-// DeleteAllGlobalNotifications not implemented: can only be called locally.
-func (c *Client) DeleteAllGlobalNotifications(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllUserNotificationStatesForUser not implemented: can only be called locally.
-func (c *Client) DeleteAllUserNotificationStatesForUser(ctx context.Context, username string) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllUserNotifications not implemented: can only be called locally.
-func (c *Client) DeleteAllUserNotifications(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllUserNotificationsForUser not implemented: can only be called locally.
-func (c *Client) DeleteAllUserNotificationsForUser(ctx context.Context, username string) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteUserLastSeenNotification not implemented: can only be called locally.
@@ -1153,9 +1097,6 @@ type IdentityService interface {
 	// access the Target.
 	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
 
-	// DeleteAllUsers deletes all users
-	DeleteAllUsers(ctx context.Context) error
-
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
@@ -1226,14 +1167,19 @@ type ProvisioningService interface {
 	// could be a reset password token or a machine token
 	DeleteToken(ctx context.Context, token string) error
 
-	// DeleteAllTokens deletes all provisioning tokens
-	DeleteAllTokens() error
-
 	// UpsertToken adds provisioning tokens for the auth server
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 
 	// CreateToken creates a new provision token for the auth server
 	CreateToken(ctx context.Context, token types.ProvisionToken) error
+
+	// PatchToken performs a conditional update on the named token using
+	// `updateFn`, retrying internally if a comparison failure occurs.
+	PatchToken(
+		ctx context.Context,
+		token string,
+		updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
+	) (types.ProvisionToken, error)
 
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken

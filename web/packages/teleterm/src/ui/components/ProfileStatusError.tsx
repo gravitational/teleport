@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { JSX } from 'react';
+
 import { Flex, P3 } from 'design';
 import { Warning } from 'design/Icon';
 

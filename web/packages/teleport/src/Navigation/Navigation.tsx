@@ -252,7 +252,7 @@ function useDebounceClose<T>(
   isClosing: boolean
 ): T | null {
   const [debouncedValue, setDebouncedValue] = useState<T | null>(value);
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<NodeJS.Timeout>(undefined);
 
   useEffect(() => {
     // Clear any existing timeout
@@ -328,7 +328,7 @@ export function Navigation({
   const debouncedSection = useDebounceClose(targetSection, 200, isClosing);
   const [previousExpandedSection, setPreviousExpandedSection] =
     useState<NavigationSection | null>();
-  const navigationTimeoutRef = useRef<NodeJS.Timeout>();
+  const navigationTimeoutRef = useRef<NodeJS.Timeout>(undefined);
 
   // Clear navigation timeout on unmount.
   useEffect(() => {

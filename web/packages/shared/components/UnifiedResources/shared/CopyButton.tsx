@@ -18,6 +18,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import Box from 'design/Box';
 import ButtonIcon from 'design/ButtonIcon';
 import { Check, Copy } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
@@ -34,7 +35,7 @@ export function CopyButton({
 }) {
   const copySuccess = 'Copied!';
   const copyDefault = 'Click to copy';
-  const timeout = useRef<ReturnType<typeof setTimeout>>();
+  const timeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   const copyAnchorEl = useRef(null);
   const [copiedText, setCopiedText] = useState(copyDefault);
 
@@ -60,20 +61,16 @@ export function CopyButton({
   }, []);
 
   return (
-    <HoverTooltip tipContent={copiedText}>
-      <ButtonIcon
-        setRef={copyAnchorEl}
-        size={0}
-        mr={mr}
-        ml={ml}
-        onClick={handleCopy}
-      >
-        {copiedText === copySuccess ? (
-          <Check size="small" />
-        ) : (
-          <Copy size="small" />
-        )}
-      </ButtonIcon>
-    </HoverTooltip>
+    <Box mr={mr} ml={ml}>
+      <HoverTooltip tipContent={copiedText}>
+        <ButtonIcon setRef={copyAnchorEl} size={0} onClick={handleCopy}>
+          {copiedText === copySuccess ? (
+            <Check size="small" />
+          ) : (
+            <Copy size="small" />
+          )}
+        </ButtonIcon>
+      </HoverTooltip>
+    </Box>
   );
 }

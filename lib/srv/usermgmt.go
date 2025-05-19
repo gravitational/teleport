@@ -283,11 +283,11 @@ func (u *HostSudoersManagement) RemoveSudoers(name string) error {
 	return nil
 }
 
-// unmanagedUserErr is returned when attempting to modify or interact with a user that is not managed by Teleport.
-var unmanagedUserErr = errors.New("user not managed by teleport")
+// errUnmanagedUser is returned when attempting to modify or interact with a user that is not managed by Teleport.
+var errUnmanagedUser = errors.New("user not managed by teleport")
 
-// staticConversionErr is returned when attempting to convert a managed host user to or from a static host user
-var staticConversionErr = errors.New("managed host users can not be converted to or from a static host user")
+// errStaticConversion is returned when attempting to convert a managed host user to or from a static host user
+var errStaticConversion = errors.New("managed host users can not be converted to or from a static host user")
 
 func (u *HostUserManagement) updateUser(hostUser HostUser, ui *decisionpb.HostUsersInfo) error {
 	ctx := u.ctx
@@ -455,13 +455,13 @@ func (u *HostUserManagement) UpsertUser(name string, ui *decisionpb.HostUsersInf
 	log.DebugContext(u.ctx, "Resolving groups for user")
 	groups, err := ResolveGroups(log, hostUser, ui, options.takeOwnership)
 	if err != nil {
-		if errors.Is(err, staticConversionErr) {
+		if errors.Is(err, errStaticConversion) {
 			log.DebugContext(u.ctx, "Aborting host user creation, can't convert between auto-provisioned and static host users.",
 				"login", name)
 
 		}
 
-		if errors.Is(err, unmanagedUserErr) {
+		if errors.Is(err, errUnmanagedUser) {
 			log.DebugContext(u.ctx, "Aborting host user creation, can't update unmanaged user unless explicitly migrating.",
 				"login", name)
 		}
@@ -767,11 +767,11 @@ func ResolveGroups(logger *slog.Logger, hostUser *HostUser, ui *decisionpb.HostU
 		inStaticMode := ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_STATIC
 
 		if (inStaticMode && managedUser) || (!inStaticMode && staticUser) {
-			return nil, trace.Wrap(staticConversionErr)
+			return nil, trace.Wrap(errStaticConversion)
 		}
 
-		if !(managedUser || staticUser || migrateStaticUser || migrateKeepUser) {
-			return nil, trace.Wrap(unmanagedUserErr)
+		if !managedUser && !staticUser && !migrateStaticUser && !migrateKeepUser {
+			return nil, trace.Wrap(errUnmanagedUser)
 		}
 
 		groups[teleportGroup] = struct{}{}

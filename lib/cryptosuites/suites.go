@@ -121,6 +121,13 @@ const (
 	// AWSRACATLS represents the TLS key for the AWS IAM Roles Anywhere CA.
 	AWSRACATLS
 
+	// BoundKeypairJoining represents a key used for the bound keypair joining
+	// identity.
+	BoundKeypairJoining
+
+	// BoundKeypairCAJWT represents the JWT key for the bound_keypair CA.
+	BoundKeypairCAJWT
+
 	// keyPurposeMax is 1 greater than the last valid key purpose, used to test that all values less than this
 	// are valid for each suite.
 	keyPurposeMax
@@ -164,7 +171,10 @@ type suite map[KeyPurpose]Algorithm
 var (
 	// legacy is the original algorithm suite, which exclusively uses RSA2048
 	// for features developed before ECDSA and Ed25519 support were added. New
-	// features should always use the new algorithms.
+	// features should always use the new algorithms, and new CAs should use the
+	// algorithms in `fipsV1` for compatibility with FIPS mode clusters and
+	// HSMs. See also:
+	// https://github.com/gravitational/teleport/blob/master/rfd/0136-modern-signature-algorithms.md#legacy-suite
 	legacy = suite{
 		UserCATLS:               RSA2048,
 		UserCASSH:               RSA2048,
@@ -194,9 +204,11 @@ var (
 		ProxyToDatabaseAgent: RSA2048,
 		ProxyKubeClient:      RSA2048,
 		// EC2InstanceConnect has always used Ed25519 by default.
-		EC2InstanceConnect: Ed25519,
-		GitClient:          Ed25519,
-		AWSRACATLS:         ECDSAP256,
+		EC2InstanceConnect:  Ed25519,
+		GitClient:           Ed25519,
+		AWSRACATLS:          ECDSAP256,
+		BoundKeypairJoining: Ed25519,
+		BoundKeypairCAJWT:   ECDSAP256,
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and
@@ -229,6 +241,8 @@ var (
 		EC2InstanceConnect:      Ed25519,
 		GitClient:               Ed25519,
 		AWSRACATLS:              ECDSAP256,
+		BoundKeypairJoining:     Ed25519,
+		BoundKeypairCAJWT:       Ed25519,
 	}
 
 	// fipsv1 is an algorithm suite tailored for FIPS compliance. It is based on
@@ -262,6 +276,8 @@ var (
 		EC2InstanceConnect:      ECDSAP256,
 		GitClient:               ECDSAP256,
 		AWSRACATLS:              ECDSAP256,
+		BoundKeypairJoining:     ECDSAP256,
+		BoundKeypairCAJWT:       ECDSAP256,
 	}
 
 	// hsmv1 in an algorithm suite tailored for clusters using an HSM or KMS
@@ -297,6 +313,8 @@ var (
 		EC2InstanceConnect:      Ed25519,
 		GitClient:               Ed25519,
 		AWSRACATLS:              ECDSAP256,
+		BoundKeypairJoining:     Ed25519,
+		BoundKeypairCAJWT:       ECDSAP256,
 	}
 
 	allSuites = map[types.SignatureAlgorithmSuite]suite{

@@ -321,7 +321,7 @@ func (r *reconciler) computeStatus(
 
 	// If timeOverride is set to a non-zero value (we have two potential zeros, go time's zero and timestamppb's zero)
 	// we use this instead of the clock's time.
-	if timeOverride := status.GetTimeOverride().AsTime(); !(timeOverride.IsZero() || timeOverride.Unix() == 0) {
+	if timeOverride := status.GetTimeOverride().AsTime(); !timeOverride.IsZero() && timeOverride.Unix() != 0 {
 		r.log.DebugContext(ctx, "reconciling with synthetic time instead of real time",
 			"time_override", timeOverride,
 			"real_time", now,

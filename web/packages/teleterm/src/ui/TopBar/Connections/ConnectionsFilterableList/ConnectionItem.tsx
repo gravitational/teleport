@@ -57,7 +57,7 @@ export function ConnectionItem(props: {
   };
 
   const actionIcon = offline ? actionIcons.remove : actionIcons.disconnect;
-  const ref = useRef<HTMLLIElement>();
+  const ref = useRef<HTMLLIElement>(null);
 
   useEffect(() => {
     scrollIntoViewIfActive(ref.current);
@@ -166,13 +166,9 @@ function getKindName(connection: ExtendedTrackedConnection): string {
       return 'SSH';
     case 'connection.kube':
       return 'KUBE';
+    case 'connection.desktop':
+      return 'DESKTOP';
     default:
-      // The default branch is triggered when the state read from the disk
-      // contains a connection not supported by the given Connect version.
-      //
-      // For example, the user can open an app connection in Connect v15
-      // and then downgrade to a version that doesn't support apps.
-      // That connection should be shown as 'UNKNOWN' in the connection list.
       return 'UNKNOWN';
   }
 }

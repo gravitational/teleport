@@ -12,19 +12,17 @@ windows_desktop_service:
   # set this to false (its default value).
   show_desktop_wallpaper: false
   # (optional) ldap contains configuration keys used when connecting Teleport
-  # to an Active Directory domain. This enables the discovery service for
-  # Windows desktops belonging to an Active Directory domain configured for
-  # Teleport access.
+  # to an Active Directory domain.
   ldap:
     # Address of the LDAP server for secure LDAP connections.
     # Usually, this address will use port 636, like: ldap.example.com:636.
     # For best results, this address should point to a highly-available
     # endpoint rather than a single domain controller.
-    addr: '$LDAP_SERVER_ADDRESS'
+    addr: "$LDAP_SERVER_ADDRESS"
     # Optional: the server name to use when validating the LDAP server's
     # certificate. Useful in cases where addr is an IP but the server
     # presents a cert with some other hostname.
-    server_name: '$LDAP_SERVER_NAME'
+    server_name: "$LDAP_SERVER_NAME"
     # You can skip LDAPS certificate verification by setting
     # this to true. It is recommended that this be set to false
     # and the certificate added your system's trusted repository,
@@ -40,7 +38,7 @@ windows_desktop_service:
     # deprecated: prefer ldap_ca_cert instead
     der_ca_file: /path/to/cert
     # Active Directory domain name you are connecting to.
-    domain: '$LDAP_DOMAIN_NAME'
+    domain: "$LDAP_DOMAIN_NAME"
     # LDAP username for authentication. This username must include the domain
     # NetBIOS name. The use of single quotes here is intentional in order to
     # avoid the need to escape the backslash (\) character.
@@ -48,7 +46,7 @@ windows_desktop_service:
     # For example, if your domain is "example.com", the NetBIOS name for it is
     # likely "EXAMPLE". When connecting as the "svc-teleport" user, you should
     # use the format: "EXAMPLE\svc-teleport".
-    username: '$LDAP_USERNAME'
+    username: "$LDAP_USERNAME"
     # The security identifier of the service account specified by the username
     # field above. This looks like a string starting with "S-".
     #
@@ -61,7 +59,7 @@ windows_desktop_service:
     # The value can be obtained over LDAP by constructing a query with the
     # filter = (&(objectCategory=person)(objectClass=user)(sAMAccountName=$LDAP_USERNAME))
     # and requesting the attribute = objectSid
-    sid: '$LDAP_USER_SID'
+    sid: "$LDAP_USER_SID"
 
   # (optional) When AD support is used, this field allows you to override
   # the domain that Teleport uses for PKI operations. If empty, the domain
@@ -79,57 +77,61 @@ windows_desktop_service:
   #
   # Note: NLA is only supported in Active Directory environments - this field has
   # no effect when connecting to desktops as local Windows users.
-  kdc_address: '$KDC_SERVER_ADDRESS'
+  kdc_address: "$KDC_SERVER_ADDRESS"
 
   # (optional) static_hosts is a list of hosts to register as WindowsDesktop
   # objects in Teleport. You can define host name and labels directly.
   static_hosts:
-  - name: example1
-    ad: false
-    addr: win1.dev.example.com
-    labels:
-      datacenter: dc1
-  - ad: true
-    addr: win2.dev.example.com # name will be generated based on address
-    labels:
-      controller: all
+    - name: example1
+      ad: false
+      addr: win1.dev.example.com
+      labels:
+        datacenter: dc1
+    - ad: true
+      addr: win2.dev.example.com # name will be generated based on address
+      labels:
+        controller: all
 
-  # (optional) settings for enabling automatic desktop discovery via LDAP
-  discovery:
-    # The wildcard '*' character tells Teleport to discover all the hosts in
-    # the Active Directory Domain. To refine the search, specify a custom DN.
-    # To disable automatic discovery, leave this field blank.
-    base_dn: '*'
-    # (optional) LDAP filters for further customizing the LDAP search.
-    # See https://ldap.com/ldap-filters for details on LDAP filter syntax.
-    filters:
-    - '(location=Oakland)'
-    - '(!(primaryGroupID=516))' # exclude domain controllers
-    # (optional) LDAP attributes to convert into Teleport labels.
-    # The key of the label will be "ldap/" + the value of the attribute.
-    label_attributes:
-    - location
+  # (optional) settings for enabling automatic desktop discovery via LDAP.
+  # To disable automatic discovery, omit this section.
+  discovery_configs:
+    - base_dn: "OU=prod,DC=example,DC=com"
+      # (optional) LDAP filters for further customizing the LDAP search.
+      # See https://ldap.com/ldap-filters for details on LDAP filter syntax.
+      filters:
+        - "(location=Oakland)"
+        - "(!(primaryGroupID=516))" # exclude domain controllers
+      # (optional) LDAP attributes to convert into Teleport labels.
+      # The key of the label will be "ldap/" + the value of the attribute.
+      label_attributes:
+        - location
+      # (optional) The port to use for RDP.
+      # Defaults to 3389 if unspecified.
+      rdp_port: 3389
+
+  # (optional) interval at which to run desktop discovery
+  discovery_interval: 10m
 
   # (optional) configure a set of label selectors for dynamic registration.
   # If specified, this service will monitor the cluster for dynamic_windows_desktop
   # and automatically proxy connections for desktops with matching labels.
   resources:
-  - labels:
-      "env": "dev"
+    - labels:
+        "env": "dev"
 
   # (optional) rules for applying labels to Windows hosts based on regular expressions
   # matched against the host name. If multiple rules match, the desktop will
   # get the union of all matching labels.
   host_labels:
-  - match: '^.*\.dev\.example\.com'
-    labels:
-      environment: dev
-  - match: '^.*\.prod\.example\.com'
-    labels:
-      environment: prod
-  - match: '^EC2AMAZ-'
-    labels:
-      environment: discovered-in-aws
+    - match: '^.*\.dev\.example\.com'
+      labels:
+        environment: dev
+    - match: '^.*\.prod\.example\.com'
+      labels:
+        environment: prod
+    - match: "^EC2AMAZ-"
+      labels:
+        environment: discovered-in-aws
 
   # Labels to attach to the Windows Desktop Service. This is used internally, so
   # any custom labels added won't affect the Windows hosts.

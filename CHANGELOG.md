@@ -7,9 +7,10 @@
 #### TLS Cipher Suites
 
 TLS cipher suites with known security issues can no longer be manually
-configured in the Teleport YAML configuration file.
-If you do not explicitly configure any of the listed TLS cipher suites, you are
-not affected by this change.
+configured in the Teleport YAML configuration file. If you do not explicitly
+configure any of the listed TLS cipher suites, you are not affected by this
+change.
+
 Teleport 18 removes support for:
 - `tls-rsa-with-aes-128-cbc-sha`
 - `tls-rsa-with-aes-256-cbc-sha`
@@ -74,9 +75,43 @@ Here's a plan example for the code above:
 
 #### AWS endpoint URL mode removed
 
-The AWS endpoint URL mode (`--endpoint-url`) has been removed for
-`tsh proxy aws` and `tsh aws`. Users using this mode should use the default
-HTTPS Proxy mode from now on.
+The AWS endpoint URL mode (`--endpoint-url`) has been removed for `tsh proxy
+aws` and `tsh aws`. Users using this mode should use the default HTTPS Proxy
+mode from now on.
+
+### Other changes
+
+#### Windows desktop discovery enhancements
+
+Teleport's LDAP-based discovery mechanism for Windows desktops now supports:
+
+- a configurable discovery interval
+- custom RDP ports
+- the ability to run multiple separate discovery configurations, allowing you to
+  configure finely-grained discovery policies without running multiple agents
+
+To update your configuration, move the `discovery` section to `discovery_configs`:
+
+```diff
+windows_desktop_service:
+  enabled: yes
++  discovery_interval: 10m # optional, defaults to 5 minutes
+-  discovery:
+-    base_dn: '*'
+-    label_attributes: [ department ]
++  discovery_configs:
++    - base_dn: '*'
++      label_attributes: [ department ]
++      rdp_port: 9989 # optional, defaults to 3389
+```
+
+#### Legacy ALPN connection upgrade mode has been removed
+
+Teleport v15.1 added WebSocket upgrade support for Teleport proxies behind
+layer 7 load balancers and reverse proxies. The legacy ALPN upgrade mode using
+`alpn` or `alpn-ping` as upgrade types was left as a fallback until v17.
+Teleport v18 removes the legacy upgrade mode entirely including the use of
+environment variable `TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE`.
 
 ## 16.0.0 (xx/xx/xx)
 

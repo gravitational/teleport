@@ -79,6 +79,7 @@
     "Fqmh",
     "Frontends",
     "Frontmatter",
+    "Fulcio",
     "GCP's",
     "GENPASS",
     "GHES",
@@ -189,6 +190,7 @@
     "RPID",
     "RSQL",
     "Rdik",
+    "Rekor",
     "Relogging",
     "Relogin",
     "SAMLIDP",
@@ -403,6 +405,7 @@
     "configmap",
     "configmaps",
     "connectionupgrade",
+    "connstring",
     "connectorname",
     "connstring",
     "cprops",
@@ -447,6 +450,7 @@
     "displayname",
     "distros",
     "docdb",
+    "dockerconfigjson",
     "dockerhost",
     "dockerized",
     "doctl",
@@ -962,6 +966,7 @@
     "timechart",
     "timedatectl",
     "timekey",
+    "tlogs",
     "tlscacerts",
     "tlscert",
     "tlsexistingcasecretname",
@@ -976,6 +981,7 @@
     "tpmrm",
     "trustedclusters",
     "trustedclustersv2",
+    "trustedroot",
     "trustpolicy",
     "truststore",
     "tshd",
@@ -1012,6 +1018,7 @@
     "vmcopy",
     "vmjm",
     "vnet",
+    "vnetd",
     "vtgate",
     "walkthrough",
     "watcherjob",
@@ -1055,6 +1062,7 @@
   "flagWords": ["hte"],
   "ignorePaths": [
     "**/reference/terraform-provider/**",
-    "**/reference/operator-resources/**"
+    "**/reference/operator-resources/**",
+    "**/includes/reference/code-blocks-no-cspell/**"
   ]
 }

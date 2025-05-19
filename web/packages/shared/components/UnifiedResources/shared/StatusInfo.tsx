@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { type JSX } from 'react';
 import styled, { css } from 'styled-components';
 
 import { Box, ButtonBorder, Indicator, Mark, Text } from 'design';
@@ -29,14 +30,20 @@ import {
 import { ResourceIcon } from 'design/ResourceIcon';
 import { H2, H3 } from 'design/Text';
 import {
+  InfoGuideConfig,
   InfoParagraph,
   InfoTitle,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { resourceStatusPanelWidth } from 'shared/components/SlidingSidePanel/InfoGuide/const';
 import { useInfiniteScroll } from 'shared/hooks';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { pluralize } from 'shared/utils/text';
 
-import { SharedResourceServer, UnifiedResourceDefinition } from '../types';
+import {
+  ResourceStatus,
+  SharedResourceServer,
+  UnifiedResourceDefinition,
+} from '../types';
 import { SingleLineBox } from './SingleLineBox';
 import { getDatabaseIconName } from './viewItemsFactory';
 
@@ -257,9 +264,11 @@ function UnhealthyServerList({ servers }: { servers: SharedResourceServer[] }) {
       <Text>
         <InfoField>UUID:</InfoField> {server.hostId}
       </Text>
-      <Text>
-        <InfoField>Reason:</InfoField> {server.targetHealth?.reason}
-      </Text>
+      {server.targetHealth?.error && (
+        <Text>
+          <InfoField>Reason:</InfoField> {server.targetHealth.error}
+        </Text>
+      )}
     </Flex>
   ));
 }
@@ -267,3 +276,46 @@ function UnhealthyServerList({ servers }: { servers: SharedResourceServer[] }) {
 const InfoField = styled.span`
   font-weight: bold;
 `;
+
+/**
+ * Returns a unique id by appending the resource kind with
+ * their name/id (for most resources their id is the "name" field,
+ * other resources does not have name field, but an "id" field).
+ */
+export function getResourceId(resource: UnifiedResourceDefinition) {
+  const kind = resource.kind;
+  let id;
+  if (kind === 'node' || kind === 'git_server') {
+    id = resource.id;
+  } else {
+    id = resource.name;
+  }
+
+  return `${kind}/${id}`;
+}
+
+export function openStatusInfoPanel({
+  resource,
+  setInfoGuideConfig,
+  guide,
+  isEnterprise = false,
+}: {
+  resource: UnifiedResourceDefinition;
+  setInfoGuideConfig: (cfg: InfoGuideConfig) => void;
+  guide: JSX.Element;
+  isEnterprise?: boolean;
+}) {
+  if (resource.kind === 'db') {
+    setInfoGuideConfig({
+      guide,
+      id: getResourceId(resource),
+      title: <StatusInfoHeader resource={resource} />,
+      panelWidth: resourceStatusPanelWidth,
+      viewHasOwnSidePanel: isEnterprise,
+    });
+  }
+}
+
+export function isUnhealthy(status: ResourceStatus): boolean {
+  return status && status === 'unhealthy';
+}

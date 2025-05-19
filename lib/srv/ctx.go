@@ -185,6 +185,10 @@ type Server interface {
 	// sudoer file provisioning
 	GetHostSudoers() HostSudoers
 
+	// GetSELinuxEnabled returns whether the node should enable SELinux
+	// support or not.
+	GetSELinuxEnabled() bool
+
 	// TargetMetadata returns metadata about the session target node.
 	TargetMetadata() apievents.ServerMetadata
 }
@@ -1091,6 +1095,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
+		SetSELinuxContext:     c.srv.GetSELinuxEnabled(),
 	}, nil
 }
 
@@ -1176,7 +1181,7 @@ func closeAll(closers ...io.Closer) error {
 }
 
 func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
-	addr := c.ConnectionContext.ServerConn.Conn.RemoteAddr()
+	addr := c.ConnectionContext.ServerConn.RemoteAddr()
 	hostname, _, err := net.SplitHostPort(addr.String())
 	if err != nil {
 		return nil, trace.Wrap(err)

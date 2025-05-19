@@ -40,17 +40,19 @@ func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collectio
 	filter.FromMap(w.Filter)
 
 	return &collection[types.CertAuthority, certAuthorityIndex]{
-		store: newStore(map[certAuthorityIndex]func(types.CertAuthority) string{
-			certAuthorityIDIndex: func(ca types.CertAuthority) string {
-				return string(ca.GetType()) + "/" + ca.GetID().DomainName
-			},
-		}),
+		store: newStore(
+			types.CertAuthority.Clone,
+			map[certAuthorityIndex]func(types.CertAuthority) string{
+				certAuthorityIDIndex: func(ca types.CertAuthority) string {
+					return string(ca.GetType()) + "/" + ca.GetID().DomainName
+				},
+			}),
 		watch:  w,
 		filter: filter.Match,
 		headerTransform: func(hdr *types.ResourceHeader) types.CertAuthority {
 			return &types.CertAuthorityV2{
-				Kind:    types.KindCertAuthority,
-				Version: types.V2,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: hdr.Metadata.Name,
 				},
@@ -66,7 +68,7 @@ func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collectio
 				// if caType was added in this major version we might get a BadParameter
 				// error if we're connecting to an older upstream that doesn't know about it
 				if err != nil {
-					if !(types.IsUnsupportedAuthorityErr(err) && caType.NewlyAdded()) {
+					if !types.IsUnsupportedAuthorityErr(err) || !caType.NewlyAdded() {
 						return nil, trace.Wrap(err)
 					}
 					continue

@@ -35,6 +35,7 @@ import {
 import { PinButton } from '../shared/PinButton';
 import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
 import { SingleLineBox } from '../shared/SingleLineBox';
+import { isUnhealthy } from '../shared/StatusInfo';
 import { ResourceItemProps } from '../types';
 import { WarningRightEdgeBadgeSvg } from './WarningRightEdgeBadgeSvg';
 
@@ -167,7 +168,7 @@ export function ResourceCard({
     }
   };
 
-  const hasUnhealthyStatus = status && status !== 'healthy';
+  const hasUnhealthyStatus = isUnhealthy(status);
 
   return (
     <CardContainer
@@ -197,17 +198,11 @@ export function ResourceCard({
           {...(hasUnhealthyStatus && !showAllLabels && { pr: '35px' })}
           {...(hasUnhealthyStatus && showAllLabels && { pr: '7px' })}
         >
-          <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
-            <CheckboxInput
-              css={`
-                position: absolute;
-                top: 16px;
-                left: 16px;
-              `}
-              checked={selected}
-              onChange={selectResource}
-            />
-          </HoverTooltip>
+          <CheckboxInput
+            checked={selected}
+            onChange={selectResource}
+            style={{ position: 'absolute', top: '16px', left: '16px' }}
+          />
           <Box
             css={`
               position: absolute;

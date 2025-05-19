@@ -37,11 +37,13 @@ func newTunnelConnectionCollection(upstream services.Trust, w types.WatchKind) (
 	}
 
 	return &collection[types.TunnelConnection, tunnelConnectionIndex]{
-		store: newStore(map[tunnelConnectionIndex]func(types.TunnelConnection) string{
-			tunnelConnectionNameIndex: func(tc types.TunnelConnection) string {
-				return tc.GetClusterName() + "/" + tc.GetName()
-			},
-		}),
+		store: newStore(
+			types.TunnelConnection.Clone,
+			map[tunnelConnectionIndex]func(types.TunnelConnection) string{
+				tunnelConnectionNameIndex: func(tc types.TunnelConnection) string {
+					return tc.GetClusterName() + "/" + tc.GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.TunnelConnection, error) {
 			out, err := upstream.GetAllTunnelConnections()
 			return out, trace.Wrap(err)
@@ -122,9 +124,11 @@ func newRemoteClusterCollection(upstream services.Trust, w types.WatchKind) (*co
 	}
 
 	return &collection[types.RemoteCluster, remoteClusterIndex]{
-		store: newStore(map[remoteClusterIndex]func(types.RemoteCluster) string{
-			remoteClusterNameIndex: types.RemoteCluster.GetName,
-		}),
+		store: newStore(
+			types.RemoteCluster.Clone,
+			map[remoteClusterIndex]func(types.RemoteCluster) string{
+				remoteClusterNameIndex: types.RemoteCluster.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.RemoteCluster, error) {
 			var out []types.RemoteCluster
 			var startKey string
@@ -233,7 +237,6 @@ func (c *Cache) GetRemoteCluster(ctx context.Context, clusterName string) (types
 
 			return cachedRemote.Clone(), nil
 		},
-		clone: types.RemoteCluster.Clone,
 	}
 	out, err := getter.get(ctx, clusterName)
 	if trace.IsNotFound(err) && !upstreamRead {
@@ -257,7 +260,6 @@ func (c *Cache) ListRemoteClusters(ctx context.Context, pageSize int, nextToken 
 		index:        remoteClusterNameIndex,
 		upstreamList: c.Config.Trust.ListRemoteClusters,
 		nextToken:    types.RemoteCluster.GetName,
-		clone:        types.RemoteCluster.Clone,
 	}
 	out, next, err := lister.list(ctx, pageSize, nextToken)
 	return out, next, trace.Wrap(err)
