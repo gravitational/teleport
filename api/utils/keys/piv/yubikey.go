@@ -604,14 +604,11 @@ func (c *sharedPIVConnection) sign(ctx context.Context, ref *hardwarekey.Private
 //
 // Important: this function only abandons the signer.Sign result, doesn't cancel it.
 func abandonableSign(ctx context.Context, signer crypto.Signer, promptTouch promptTouch, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
 
-	touchErrC := make(chan error)
 	if promptTouch != nil {
 		go func() {
-			defer close(touchErrC)
-
 			// There is no built in mechanism to prompt for touch on demand, so we simply prompt for touch after
 			// a short duration in hopes of lining up with the actual YubiKey touch prompt (flashing key). In the
 			// case where touch is cached, the delay prevents the prompt from firing when it isn't needed.
@@ -619,10 +616,7 @@ func abandonableSign(ctx context.Context, signer crypto.Signer, promptTouch prom
 			case <-time.After(signTouchPromptDelay):
 				err := promptTouch(ctx)
 				if err != nil {
-					select {
-					case <-ctx.Done():
-					case touchErrC <- err:
-					}
+					cancel(err)
 				}
 			case <-ctx.Done():
 				// prompt cached or signature canceled, skip prompt.
@@ -653,8 +647,6 @@ func abandonableSign(ctx context.Context, signer crypto.Signer, promptTouch prom
 		return nil, ctx.Err()
 	case result := <-signResultCh:
 		return result.signature, trace.Wrap(result.err)
-	case err := <-touchErrC:
-		return nil, trace.Wrap(err)
 	}
 }
 
