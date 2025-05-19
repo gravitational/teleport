@@ -79,6 +79,7 @@ title: GKE Cluster Access Manager
 description: "Manage access to GKE clusters"
 stage: GA
 includedPermissions:
+- container.clusters.connect
 - container.clusters.get
 - container.clusters.impersonate
 - container.pods.get
@@ -367,7 +368,7 @@ teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  proxy_server: <Var name="teleport.example.com" />:443    
+  proxy_server: <Var name="teleport.example.com" />:443
 auth_service:
   enabled: off
 proxy_service:
@@ -389,7 +390,7 @@ teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  proxy_server: <Var name="teleport.example.com" />:443    
+  proxy_server: <Var name="teleport.example.com" />:443
 auth_service:
   enabled: off
 proxy_service:
