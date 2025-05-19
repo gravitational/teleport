@@ -276,7 +276,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Name:      "any1",
 					Namespace: "any1",
 					Verbs:     []string{types.KubeVerbGet},
-					APIGroup:  "core",
+					APIGroup:  "",
 				},
 			},
 			wantAllowed:  nil,
@@ -363,7 +363,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Name:      "dev",
 					Namespace: "dev",
 					Verbs:     []string{types.KubeVerbGet},
-					APIGroup:  "core",
+					APIGroup:  "",
 				},
 			},
 			wantAllowed: []types.KubernetesResource{
@@ -404,7 +404,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Name:      "dev",
 					Namespace: "dev",
 					Verbs:     []string{types.KubeVerbGet},
-					APIGroup:  "core",
+					APIGroup:  "",
 				},
 			},
 			wantAllowed: []types.KubernetesResource{

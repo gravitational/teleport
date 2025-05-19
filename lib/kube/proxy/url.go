@@ -80,7 +80,7 @@ func parseResourcePath(p string) apiResource {
 	// Let's try to parse this. Here be dragons!
 	//
 	// URLs have a prefix that defines an "API group":
-	// - /api/v1/ - the special "core" API group (e.g. pods, secrets, etc. belong here)
+	// - /api/v1/ - the special "" API group (e.g. pods, secrets, etc. belong here)
 	// - /apis/{group}/{version} - the other properly named groups (e.g. apps/v1 or rbac.authorization.k8s.io/v1beta1)
 	//
 	// After the prefix, we have the resource info:
@@ -111,7 +111,7 @@ func parseResourcePath(p string) apiResource {
 	switch {
 	// Core API group has a "special" URL prefix /api/v1/.
 	case len(parts) >= 3 && parts[1] == "api" && parts[2] == "v1":
-		r.apiGroup = "core"
+		r.apiGroup = ""
 		r.apiGroupVersion = parts[2]
 		parts = parts[3:]
 	// Other API groups have URL prefix /apis/{group}/{version}.
@@ -203,10 +203,6 @@ func (r rbacSupportedResources) getResource(apiGroup, resourceKind string) (meta
 		resourceKind: getResourceFromAPIResource(resourceKind),
 	}
 	out, ok := r[k]
-	if !ok && k.apiGroup == "" {
-		k.apiGroup = "core"
-		out, ok = r[k]
-	}
 	return out, ok
 }
 
@@ -220,17 +216,17 @@ func (r rbacSupportedResources) getTeleportResourceKindFromAPIResource(api apiRe
 // teleport resource kind for the purpose of resource rbac.
 // TODO(@creack): Remove this (keep a form of it for maybedowngraderole).
 var defaultRBACResources = rbacSupportedResources{
-	{apiGroup: "core", resourceKind: "pods"}:                                      {Name: "pods", Kind: types.KindKubePod, Group: "core", Namespaced: true},
-	{apiGroup: "core", resourceKind: "secrets"}:                                   {Name: "secrets", Kind: types.KindKubeSecret, Group: "core", Namespaced: true},
-	{apiGroup: "core", resourceKind: "configmaps"}:                                {Name: "configmaps", Kind: types.KindKubeConfigmap, Group: "core", Namespaced: true},
-	{apiGroup: "core", resourceKind: "namespaces"}:                                {Name: "namespaces", Kind: types.KindKubeNamespace, Group: "core", Namespaced: true},
-	{apiGroup: "core", resourceKind: "services"}:                                  {Name: "services", Kind: types.KindKubeService, Group: "core", Namespaced: true},
-	{apiGroup: "core", resourceKind: "endpoints"}:                                 {Name: "endpoints", Kind: types.KindKubeService, Group: "core", Namespaced: true},
-	{apiGroup: "core", resourceKind: "serviceaccounts"}:                           {Name: "serviceaccounts", Kind: types.KindKubeServiceAccount, Group: "core", Namespaced: true},
-	{apiGroup: "core", resourceKind: "nodes"}:                                     {Name: "nodes", Kind: types.KindKubeNode, Group: "core", Namespaced: false},
-	{apiGroup: "core", resourceKind: "persistentvolumes"}:                         {Name: "persistentvolumes", Kind: types.KindKubePersistentVolume, Group: "core", Namespaced: false},
-	{apiGroup: "core", resourceKind: "persistentvolumeclaims"}:                    {Name: "persistentvolumeclaims", Kind: types.KindKubePersistentVolumeClaim, Group: "core", Namespaced: true},
-	{apiGroup: "core", resourceKind: "replicationcontrollers"}:                    {Name: "replicationcontrollers", Kind: types.KindKubeReplicationController, Group: "core", Namespaced: true},
+	{apiGroup: "", resourceKind: "pods"}:                                          {Name: "pods", Kind: types.KindKubePod, Group: "", Namespaced: true},
+	{apiGroup: "", resourceKind: "secrets"}:                                       {Name: "secrets", Kind: types.KindKubeSecret, Group: "", Namespaced: true},
+	{apiGroup: "", resourceKind: "configmaps"}:                                    {Name: "configmaps", Kind: types.KindKubeConfigmap, Group: "", Namespaced: true},
+	{apiGroup: "", resourceKind: "namespaces"}:                                    {Name: "namespaces", Kind: types.KindKubeNamespace, Group: "", Namespaced: true},
+	{apiGroup: "", resourceKind: "services"}:                                      {Name: "services", Kind: types.KindKubeService, Group: "", Namespaced: true},
+	{apiGroup: "", resourceKind: "endpoints"}:                                     {Name: "endpoints", Kind: types.KindKubeService, Group: "", Namespaced: true},
+	{apiGroup: "", resourceKind: "serviceaccounts"}:                               {Name: "serviceaccounts", Kind: types.KindKubeServiceAccount, Group: "", Namespaced: true},
+	{apiGroup: "", resourceKind: "nodes"}:                                         {Name: "nodes", Kind: types.KindKubeNode, Group: "", Namespaced: false},
+	{apiGroup: "", resourceKind: "persistentvolumes"}:                             {Name: "persistentvolumes", Kind: types.KindKubePersistentVolume, Group: "", Namespaced: false},
+	{apiGroup: "", resourceKind: "persistentvolumeclaims"}:                        {Name: "persistentvolumeclaims", Kind: types.KindKubePersistentVolumeClaim, Group: "", Namespaced: true},
+	{apiGroup: "", resourceKind: "replicationcontrollers"}:                        {Name: "replicationcontrollers", Kind: types.KindKubeReplicationController, Group: "", Namespaced: true},
 	{apiGroup: "apps", resourceKind: "deployments"}:                               {Name: "deployments", Kind: types.KindKubeDeployment, Group: "apps", Namespaced: true},
 	{apiGroup: "apps", resourceKind: "replicasets"}:                               {Name: "replicasets", Kind: types.KindKubeReplicaSet, Group: "apps", Namespaced: true},
 	{apiGroup: "apps", resourceKind: "statefulsets"}:                              {Name: "statefulsets", Kind: types.KindKubeStatefulset, Group: "apps", Namespaced: true},

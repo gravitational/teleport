@@ -2095,70 +2095,51 @@ func maybeDowngradeRoleVersionToV7(role *types.RoleV6, clientVersion *semver.Ver
 }
 
 func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
-	var allowed []types.KubernetesResource
-	for _, elem := range role.Spec.Allow.KubernetesResources {
-		// If group is '*', simply remove it as the behavior in v7 would be the same.
-		if elem.APIGroup == types.Wildcard {
-			elem.APIGroup = ""
-		}
-		// If we have a wildcard kind, keep it.
-		if elem.Kind == types.Wildcard && elem.APIGroup == "" {
-			allowed = append(allowed, elem)
-			continue
-		}
-		// If Kind is known in v7 and group is known, remove it.
-		if v, ok := defaultRBACResources[allowedResourcesKey{elem.APIGroup, elem.Kind}]; ok {
-			elem.APIGroup = ""
-			elem.Kind = v
-			allowed = append(allowed, elem)
-			continue
-		}
-		// If we have a known kind, keep it.
-		if _, ok := defaultRBACResources[allowedResourcesKey{"", elem.Kind}]; ok {
-			elem.APIGroup = ""
-			allowed = append(allowed, elem)
-			continue
-		}
+	downgrade := func(resources []types.KubernetesResource) ([]types.KubernetesResource, bool) {
+		var out []types.KubernetesResource
+		for _, elem := range resources {
+			// If group is '*', simply remove it as the behavior in v7 would be the same.
+			if elem.APIGroup == types.Wildcard {
+				elem.APIGroup = ""
+			}
+			// If we have a wildcard kind, keep it.
+			if elem.Kind == types.Wildcard && elem.APIGroup == "" {
+				out = append(out, elem)
+				continue
+			}
+			// If Kind is known in v7 and group is known, remove it.
+			if v, ok := defaultRBACResources[allowedResourcesKey{elem.APIGroup, elem.Kind}]; ok {
+				elem.APIGroup = ""
+				elem.Kind = v
+				out = append(out, elem)
+				continue
+			}
 
-		// Otherwise, drop the entry, we don't want to unexpectedly grant access to something.
+			// If we reach this point, we are dealing with a resource we don't know about.
+			// As <=v17 granted too much access for unknown resource, we deny everything.
+			role.Spec.Allow.KubernetesResources = nil
+			role.Spec.Deny.KubernetesLabels = types.Labels{
+				types.Wildcard: {types.Wildcard},
+			}
+			role.Spec.Deny.KubernetesResources = []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			}
+			return nil, false
+		}
+		return out, true
 	}
-	role.Spec.Allow.KubernetesResources = allowed
 
-	var denied []types.KubernetesResource
-	for _, elem := range role.Spec.Deny.KubernetesResources {
-		// If group is '*', simply remove it as the behavior in v7 would be the same.
-		if elem.APIGroup == types.Wildcard {
-			elem.APIGroup = ""
-		}
-		// If we have a wildcard kind, keep it.
-		if elem.Kind == types.Wildcard && elem.APIGroup == "" {
-			denied = append(denied, elem)
-			continue
-		}
-		// If Kind is known in v7 and group is known, remove it.
-		if v, ok := defaultRBACResources[allowedResourcesKey{elem.APIGroup, elem.Kind}]; ok {
-			elem.APIGroup = ""
-			elem.Kind = v
-			denied = append(denied, elem)
-			continue
-		}
-		// If we have a known kind, keep it.
-		if _, ok := defaultRBACResources[allowedResourcesKey{"", elem.Kind}]; ok {
-			elem.APIGroup = ""
-			denied = append(denied, elem)
-			continue
-		}
-		// Otherwise, set a wildcard to block everything.
-		denied = append(denied, types.KubernetesResource{
-			Kind:      types.Wildcard,
-			Name:      types.Wildcard,
-			Namespace: types.Wildcard,
-			Verbs:     []string{types.Wildcard},
-		})
-		// As we deny everything, no need to keep going.
-		break
+	var ok bool
+	role.Spec.Allow.KubernetesResources, ok = downgrade(role.Spec.Allow.KubernetesResources)
+	if !ok {
+		return role
 	}
-	role.Spec.Deny.KubernetesResources = denied
+	role.Spec.Deny.KubernetesResources, _ = downgrade(role.Spec.Deny.KubernetesResources)
 
 	return role
 }
@@ -2173,17 +2154,17 @@ type allowedResourcesKey struct {
 // Only used in the maybeDowngradeRoleVersionToV7 function above.
 // Must be synced with the defaultRBACResources map in lib/kube/proxy/url.go.
 var defaultRBACResources = map[allowedResourcesKey]string{
-	{apiGroup: "core", resourceKind: "pods"}:                                      types.KindKubePod,
-	{apiGroup: "core", resourceKind: "secrets"}:                                   types.KindKubeSecret,
-	{apiGroup: "core", resourceKind: "configmaps"}:                                types.KindKubeConfigmap,
-	{apiGroup: "core", resourceKind: "namespaces"}:                                types.KindKubeNamespace,
-	{apiGroup: "core", resourceKind: "services"}:                                  types.KindKubeService,
-	{apiGroup: "core", resourceKind: "endpoints"}:                                 types.KindKubeService,
-	{apiGroup: "core", resourceKind: "serviceaccounts"}:                           types.KindKubeServiceAccount,
-	{apiGroup: "core", resourceKind: "nodes"}:                                     types.KindKubeNode,
-	{apiGroup: "core", resourceKind: "persistentvolumes"}:                         types.KindKubePersistentVolume,
-	{apiGroup: "core", resourceKind: "persistentvolumeclaims"}:                    types.KindKubePersistentVolumeClaim,
-	{apiGroup: "core", resourceKind: "replicationcontrollers"}:                    types.KindKubeReplicationController,
+	{apiGroup: "", resourceKind: "pods"}:                                          types.KindKubePod,
+	{apiGroup: "", resourceKind: "secrets"}:                                       types.KindKubeSecret,
+	{apiGroup: "", resourceKind: "configmaps"}:                                    types.KindKubeConfigmap,
+	{apiGroup: "", resourceKind: "namespaces"}:                                    types.KindKubeNamespace,
+	{apiGroup: "", resourceKind: "services"}:                                      types.KindKubeService,
+	{apiGroup: "", resourceKind: "endpoints"}:                                     types.KindKubeService,
+	{apiGroup: "", resourceKind: "serviceaccounts"}:                               types.KindKubeServiceAccount,
+	{apiGroup: "", resourceKind: "nodes"}:                                         types.KindKubeNode,
+	{apiGroup: "", resourceKind: "persistentvolumes"}:                             types.KindKubePersistentVolume,
+	{apiGroup: "", resourceKind: "persistentvolumeclaims"}:                        types.KindKubePersistentVolumeClaim,
+	{apiGroup: "", resourceKind: "replicationcontrollers"}:                        types.KindKubeReplicationController,
 	{apiGroup: "apps", resourceKind: "deployments"}:                               types.KindKubeDeployment,
 	{apiGroup: "apps", resourceKind: "replicasets"}:                               types.KindKubeReplicaSet,
 	{apiGroup: "apps", resourceKind: "statefulsets"}:                              types.KindKubeStatefulset,

@@ -37,6 +37,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
@@ -466,7 +467,7 @@ func (c *TestContext) CreateUserWithTraitsAndRole(ctx context.Context, t *testin
 	role.SetSessionJoinPolicies(roleSpec.SessionJoin)
 
 	if roleSpec.SetupRoleFunc == nil {
-		role.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: "core"}})
+		role.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: ""}})
 	} else {
 		roleSpec.SetupRoleFunc(role)
 	}
@@ -532,6 +533,12 @@ func WithMFAVerified() GenTestKubeClientTLSCertOptions {
 
 // GenTestKubeClientTLSCert generates a kube client to access kube service
 func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *rest.Config) {
+	client, _, cfg := c.GenTestKubeClientsTLSCert(t, userName, kubeCluster, opts...)
+	return client, cfg
+}
+
+// GenTestKubeClientsTLSCert generates a "regular" kube client and a dynamic one to access kube service
+func (c *TestContext) GenTestKubeClientsTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *dynamic.DynamicClient, *rest.Config) {
 	authServer := c.AuthServer
 	clusterName, err := authServer.GetClusterName(context.TODO())
 	require.NoError(t, err)
@@ -603,7 +610,10 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 	client, err := kubernetes.NewForConfig(restConfig)
 	require.NoError(t, err)
 
-	return client, restConfig
+	dynClient, err := dynamic.NewForConfig(restConfig)
+	require.NoError(t, err)
+
+	return client, dynClient, restConfig
 }
 
 // NewJoiningSession creates a new session stream for joining an existing session.

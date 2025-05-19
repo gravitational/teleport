@@ -5617,6 +5617,9 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 					KubernetesResources: nil,
 				},
 				Deny: types.RoleConditions{
+					KubernetesLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
 					KubernetesResources: []types.KubernetesResource{
 						{
 							Kind:      types.Wildcard,
@@ -5640,37 +5643,19 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 			inputRole: downgradev7mixedK8sResourcesRole,
 			expectedRole: newRole(downgradev7mixedK8sResourcesRole.GetName(), types.V7, types.RoleSpecV6{
 				Allow: types.RoleConditions{
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.KindKubePod,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
+					KubernetesResources: nil,
 				},
 				Deny: types.RoleConditions{
+					KubernetesLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
 					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.KindKubePod,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
 						{
 							Kind:      types.Wildcard,
 							Name:      types.Wildcard,
 							Namespace: types.Wildcard,
 							Verbs:     []string{types.Wildcard},
 						},
-						// NOTE: Anything after this point is discarded as we added a wildcard deny.
-						// We don't expect to see the Deployment entry.
 					},
 				},
 				Options: types.RoleOptions{

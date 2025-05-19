@@ -287,6 +287,7 @@ func (m *kubernetesResourceMatcher) Match(role types.Role, condition types.RoleC
 	kind := m.resource.Kind
 	name := m.resource.Name
 	namespace := m.resource.Namespace
+
 	// If the resource is global, clear the namespace.
 	// NOTE: kubectl will yield a warning for this case, but we still need to process the request.
 	if m.isClusterWideResource {
