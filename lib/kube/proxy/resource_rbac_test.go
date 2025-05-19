@@ -40,6 +40,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer/streaming"
 	kubetypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
@@ -1023,6 +1024,202 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 		})
 	}
 	require.Empty(t, kubeMock.DeletedPods(""), "a request as received without metav1.DeleteOptions.Preconditions.UID")
+}
+
+func TestDeleteCRDCollectionRBAC(t *testing.T) {
+	const (
+		usernameWithFullAccess      = "full_user"
+		usernameWithNamespaceAccess = "default_user"
+		usernameWithLimitedAccess   = "limited_user"
+	)
+	// kubeMock is a Kubernetes API mock for the session tests.
+	// Once a new session is created, this mock will write to
+	// stdout and stdin (if available) the pod name, followed
+	// by copying the contents of stdin into both streams.
+	kubeMock, err := tkm.NewKubeAPIMock(tkm.WithTeleportRoleCRD)
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	// creates a Kubernetes service with a configured cluster pointing to mock api server
+	testCtx := SetupTestContext(
+		context.Background(),
+		t,
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+		},
+	)
+	// close tests
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	// create a user with full access to kubernetes Pods.
+	// (kubernetes_user and kubernetes_groups specified)
+	userWithFullAccess, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		usernameWithFullAccess,
+		RoleSpec{
+			Name:       usernameWithFullAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow, []types.KubernetesResource{
+					{
+						Kind:      "teleportroles",
+						Name:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  "resources.teleport.dev",
+					},
+				})
+			},
+		},
+	)
+	// create a user with full access to kubernetes Pods.
+	// (kubernetes_user and kubernetes_groups specified)
+	userWithNamespaceAccess, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		usernameWithNamespaceAccess,
+		RoleSpec{
+			Name:       usernameWithNamespaceAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow,
+					[]types.KubernetesResource{
+						{
+							Kind:      "teleportroles",
+							Name:      types.Wildcard,
+							Namespace: metav1.NamespaceDefault,
+							Verbs:     []string{types.Wildcard},
+							APIGroup:  "resources.teleport.dev",
+						},
+					})
+			},
+		},
+	)
+
+	// create a moderator user with access to kubernetes
+	// (kubernetes_user and kubernetes_groups specified)
+	userWithLimitedAccess, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		usernameWithLimitedAccess,
+		RoleSpec{
+			Name:       usernameWithLimitedAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow,
+					[]types.KubernetesResource{
+						{
+							Kind:      "teleportroles",
+							Name:      "*-test",
+							Namespace: metav1.NamespaceDefault,
+							Verbs:     []string{types.Wildcard},
+							APIGroup:  "resources.teleport.dev",
+						},
+					},
+				)
+			},
+		},
+	)
+
+	type args struct {
+		user      types.User
+		namespace string
+	}
+	tests := []struct {
+		name        string
+		args        args
+		deletedCRDs []string
+		wantErr     bool
+	}{
+		{
+			name: "delete teleportroles in default namespace for user with full access",
+			args: args{
+				user:      userWithFullAccess,
+				namespace: metav1.NamespaceDefault,
+			},
+
+			deletedCRDs: []string{
+				"default/telerole-1",
+				"default/telerole-1",
+				"default/telerole-2",
+				"default/telerole-test",
+			},
+		},
+		{
+			name: "delete teleportroles for user limited to default namespace",
+			args: args{
+				user:      userWithNamespaceAccess,
+				namespace: metav1.NamespaceDefault,
+			},
+			deletedCRDs: []string{
+				"default/telerole-1",
+				"default/telerole-1",
+				"default/telerole-2",
+				"default/telerole-test",
+			},
+		},
+		{
+			name: "delete teleportroles in dev namespace for user limited to default",
+			args: args{
+				user:      userWithNamespaceAccess,
+				namespace: "dev",
+			},
+			wantErr:     true,
+			deletedCRDs: []string{},
+		},
+		{
+			name: "delete teleportroles in default namespace for user with limited access",
+			args: args{
+				user:      userWithLimitedAccess,
+				namespace: metav1.NamespaceDefault,
+			},
+
+			deletedCRDs: []string{
+				"default/telerole-test",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			requestID := kubetypes.UID(uuid.NewString())
+			// generate a kube client with user certs for auth
+			_, client, _ := testCtx.GenTestKubeClientsTLSCert(
+				t,
+				tt.args.user.GetName(),
+				kubeCluster,
+			)
+			err := client.Resource(schema.GroupVersionResource{
+				Group:    "resources.teleport.dev",
+				Version:  "v6",
+				Resource: "teleportroles",
+			}).Namespace(tt.args.namespace).DeleteCollection(
+				testCtx.Context,
+				metav1.DeleteOptions{
+					// We send the requestID as precondition to identify the request where it came
+					// from. kubemock receives this metav1.DeleteOptions and
+					// accumulates the deleted pods per Preconditions.UID.
+					Preconditions: &metav1.Preconditions{
+						UID: &requestID,
+					},
+				},
+				metav1.ListOptions{},
+			)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.deletedCRDs, kubeMock.DeletedCRDs("TeleportRole", string(requestID)))
+		})
+	}
+	require.Empty(t, kubeMock.DeletedCRDs("TeleportRole", ""), "a request as received without metav1.DeleteOptions.Preconditions.UID")
 }
 
 func TestListClusterRoleRBAC(t *testing.T) {

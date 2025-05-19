@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"path"
 	"path/filepath"
+	"sort"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -182,4 +183,14 @@ func (s *KubeMockServer) listCRDs(crd *CRD) httplib.HandlerFunc {
 			Items: items,
 		}, nil
 	}
+}
+
+func (s *KubeMockServer) DeletedCRDs(kind, reqID string) []string {
+	s.mu.Lock()
+	key := deletedResource{kind: kind, requestID: reqID}
+	deleted := make([]string, len(s.deletedResources[key]))
+	copy(deleted, s.deletedResources[key])
+	s.mu.Unlock()
+	sort.Strings(deleted)
+	return deleted
 }
