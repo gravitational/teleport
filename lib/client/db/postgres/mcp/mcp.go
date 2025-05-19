@@ -182,6 +182,9 @@ func buildQueryResult(rows pgx.Rows) (string, error) {
 }
 
 func (s *Server) getDatabase(uri string) (*database, error) {
+	// The caller might refer to the database by its name instead of its URI.
+	// For this case we fallback into generating the URI as the databases are
+	// organized by URI.
 	if !dbmcp.IsDatabaseResourceURI(uri) {
 		uri = dbmcp.DatabaseResourceURI(uri)
 	}

@@ -33,7 +33,7 @@ const (
 	debugEnvVar = teleport.VerboseLogsEnvVar // "TELEPORT_DEBUG"
 	osLogEnvVar = "TELEPORT_OS_LOG"
 
-	// mcpLogFormat defiens the log format of the MCP command.
+	// mcpLogFormat defines the log format of the MCP command.
 	mcpLogFormat = "json"
 	// mcpLogFormat defines to where the MCP command logs will be directed to.
 	// The stdout is exclusively used as the MCP server transport, leaving only

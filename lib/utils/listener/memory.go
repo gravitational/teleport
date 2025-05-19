@@ -60,7 +60,7 @@ func (m *InMemoryListener) Close() error {
 	return nil
 }
 
-// Dial dials the memory listener, creating a new net.Conn.
+// DialContext dials the memory listener, creating a new net.Conn.
 //
 // This function satisfies net.Dialer.DialContext signature.
 func (m *InMemoryListener) DialContext(ctx context.Context, _ string, _ string) (net.Conn, error) {

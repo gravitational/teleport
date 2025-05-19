@@ -89,6 +89,9 @@ func (s *RootServer) GetDatabaseResource(ctx context.Context, request mcp.ReadRe
 
 // RegisterDatabase register a database on the root server. This make it
 // available as a MCP resource.
+//
+// TODO(gabrielcorado): support dynamically registering/deregistering databases
+// after the server starts.
 func (s *RootServer) RegisterDatabase(db *Database) {
 	uri := db.ResourceURI()
 	s.availableDatabases[uri] = db

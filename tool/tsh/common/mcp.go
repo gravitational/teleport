@@ -23,8 +23,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
@@ -81,6 +79,7 @@ func (c *mcpDBCommand) run(cf *CLIConf) error {
 
 	// Set the labels so it gets parsed when the client is created.
 	cf.Labels = c.labels
+	cf.PredicateExpression = c.predicateExpression
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -95,7 +94,7 @@ func (c *mcpDBCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	dbs, err := c.getDatabases(cf.Context, sc, tc.Labels)
+	dbs, err := c.getDatabases(cf.Context, tc, sc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -194,7 +193,7 @@ func (c *mcpDBCommand) prepareDatabases(
 			// Since we're using in-memory listener we don't need to resolve the
 			// address.
 			LookupFunc: func(ctx context.Context, host string) (addrs []string, err error) {
-				return []string{"memory"}, nil
+				return []string{listener.Addr().String()}, nil
 			},
 			DialContextFunc: listener.DialContext,
 		}
@@ -213,14 +212,8 @@ func (c *mcpDBCommand) prepareDatabases(
 	}, nil
 }
 
-func (c *mcpDBCommand) getDatabases(ctx context.Context, sc *sharedDatabaseExecClient, labels map[string]string) ([]types.Database, error) {
-	dbsList, err := sc.listDatabasesWithFilter(ctx, &proto.ListResourcesRequest{
-		ResourceType:        types.KindDatabaseServer,
-		Namespace:           apidefaults.Namespace,
-		Labels:              labels,
-		PredicateExpression: c.predicateExpression,
-	})
-
+func (c *mcpDBCommand) getDatabases(ctx context.Context, tc *client.TeleportClient, sc *sharedDatabaseExecClient) ([]types.Database, error) {
+	dbsList, err := sc.listDatabasesWithFilter(ctx, tc.ResourceFilter(types.KindDatabaseServer))
 	return dbsList, trace.Wrap(err)
 }
 

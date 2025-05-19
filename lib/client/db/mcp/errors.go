@@ -47,6 +47,6 @@ const (
 	// when the tsh session expired.
 	ReloginRequiredErrorMessage = `It looks like your Teleport session expired,
 you must relogin (using "tsh login" on a terminal) before continue using this
-tool. After that, there is no need to update or relaunch the MCP client, only
-try the usage again.`
+tool. After that, there is no need to update or relaunch the MCP client - just
+try using it again.`
 )
