@@ -39,7 +39,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -918,11 +917,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	}
 	createUsers := err == nil
 
-	layout, err := s.cfg.AuthClient.GetKeyboardLayout(ctx, &userpreferencesv1.GetKeyboardLayoutRequest{Username: identity.Username})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// it's important that we set the OnSend and OnRecv handlers prior to
 	// initializing the client so that we capture all relevant data in the
 	// session recording
@@ -981,7 +975,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		Height:                height,
 		AD:                    !desktop.NonAD(),
 		NLA:                   nla,
-		KeyboardLayout:        layout.KeyboardLayout,
 	})
 	// before we check the error above, we grab the Windows user so that
 	// future audit events include the proper username

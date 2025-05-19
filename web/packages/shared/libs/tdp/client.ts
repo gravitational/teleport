@@ -140,7 +140,7 @@ export class TdpClient extends EventEmitter {
    * set the internal screen size when it receives the screen spec from the server
    * (see PlayerClient.handleClientScreenSpec).
    */
-  async connect(spec?: ClientScreenSpec) {
+  async connect(keyboardLayout: number = 0, spec?: ClientScreenSpec) {
     this.transportAbortController = new AbortController();
     if (!wasmReady) {
       wasmReady = this.initWasm();
@@ -160,6 +160,8 @@ export class TdpClient extends EventEmitter {
     if (spec) {
       this.sendClientScreenSpec(spec);
     }
+
+    this.sendClientKeyboardLayout(keyboardLayout);
 
     let processingError: Error | undefined;
     let connectionError: Error | undefined;
@@ -678,6 +680,10 @@ export class TdpClient extends EventEmitter {
       `requesting screen spec from client ${spec.width} x ${spec.height}`
     );
     this.send(this.codec.encodeClientScreenSpec(spec));
+  }
+
+  sendClientKeyboardLayout(keyboardLayout: number) {
+    this.send(this.codec.encodeClientKeyboardLayout(keyboardLayout));
   }
 
   sendMouseMove(x: number, y: number) {

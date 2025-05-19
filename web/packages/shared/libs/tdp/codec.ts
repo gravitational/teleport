@@ -56,6 +56,8 @@ export enum MessageType {
   SHARED_DIRECTORY_TRUNCATE_REQUEST = 33,
   SHARED_DIRECTORY_TRUNCATE_RESPONSE = 34,
   LATENCY_STATS = 35,
+  // MessageType 36 is a server-side only Ping message
+  CLIENT_KEYBOARD_LAYOUT = 37,
   __LAST, // utility value
 }
 
@@ -472,6 +474,16 @@ export default class Codec {
   // | message type (7) | username_length uint32 | username []byte |
   encodeUsername(username: string): Message {
     return this._encodeStringMessage(MessageType.CLIENT_USERNAME, username);
+  }
+
+  // encodeClientKeyboardLayout encodes a keyboard layout to use on the remote desktop.
+  // | messsage type (37) | keyboard_layout uint32 |
+  encodeClientKeyboardLayout(keyboardLayout: number): Message {
+    const buffer = new ArrayBuffer(BYTE_LEN + UINT_32_LEN);
+    const view = new DataView(buffer);
+    view.setUint8(0, MessageType.CLIENT_KEYBOARD_LAYOUT);
+    view.setUint32(1, keyboardLayout);
+    return buffer;
   }
 
   // encodeMouseWheelScroll encodes a mouse wheel scroll event.

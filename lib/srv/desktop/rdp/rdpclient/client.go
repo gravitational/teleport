@@ -138,6 +138,7 @@ type Client struct {
 	// Parameters read from the TDP stream
 	requestedWidth, requestedHeight uint16
 	username                        string
+	keyboardLayout                  uint32
 
 	// handle allows the rust code to call back into the client.
 	handle cgo.Handle
@@ -181,6 +182,9 @@ func New(cfg Config) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 	if err := c.readClientSize(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := c.readClientKeyboardLayout(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return c, nil
@@ -282,6 +286,23 @@ func (c *Client) readClientSize() error {
 	}
 }
 
+func (c *Client) readClientKeyboardLayout() error {
+	for {
+		msg, err := c.cfg.Conn.ReadMessage()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		k, ok := msg.(tdp.ClientKeyboardLayout)
+		if !ok {
+			c.cfg.Logger.DebugContext(context.Background(), "Received unexpected ClientKeyboardLayout message", "message_type", logutils.TypeAttr(msg))
+			continue
+		}
+		c.cfg.Logger.DebugContext(context.Background(), "Got RDP keyboard layout", "keyboard_layout", k.KeyboardLayout)
+		c.keyboardLayout = k.KeyboardLayout
+		return nil
+	}
+}
+
 func (c *Client) sendTDPAlert(message string, severity tdp.Severity) error {
 	return c.cfg.Conn.WriteMessage(tdp.Alert{Message: message, Severity: severity})
 }
@@ -367,7 +388,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
 			client_id:               cHostID,
-			keyboard_layout:         C.uint32_t(c.cfg.KeyboardLayout),
+			keyboard_layout:         C.uint32_t(c.keyboardLayout),
 		},
 	)
 
