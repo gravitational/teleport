@@ -76,7 +76,7 @@ func (s *Supervisor) Register(service InternalService) error {
 	}
 
 	if _, ok := s.services[service.getName()]; ok {
-		return trace.Errorf("service %q is already registered", service.getName())
+		return trace.Errorf("service named %q is already registered", service.getName())
 	}
 
 	if !service.registerToSupervisor() {
