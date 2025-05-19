@@ -2118,6 +2118,9 @@ func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
 			// If we reach this point, we are dealing with a resource we don't know about.
 			// As <=v17 granted too much access for unknown resource, we deny everything.
 			role.Spec.Allow.KubernetesResources = nil
+			role.Spec.Deny.KubernetesLabels = types.Labels{
+				types.Wildcard: {types.Wildcard},
+			}
 			role.Spec.Deny.KubernetesResources = []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
