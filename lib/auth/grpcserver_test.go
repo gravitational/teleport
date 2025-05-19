@@ -5617,6 +5617,9 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 					KubernetesResources: nil,
 				},
 				Deny: types.RoleConditions{
+					KubernetesLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
 					KubernetesResources: []types.KubernetesResource{
 						{
 							Kind:      types.Wildcard,
@@ -5643,6 +5646,9 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 					KubernetesResources: nil,
 				},
 				Deny: types.RoleConditions{
+					KubernetesLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
 					KubernetesResources: []types.KubernetesResource{
 						{
 							Kind:      types.Wildcard,
