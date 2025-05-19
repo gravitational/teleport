@@ -202,7 +202,7 @@ func (handler *Handler) onPendingRequest(ctx context.Context, req types.AccessRe
 	}
 
 	env := getAccessRequestExpressionEnv(req, user.GetTraits())
-	reviewRule := handler.selectMatchingRule(ctx, env)
+	reviewRule := handler.getMatchingRule(ctx, env)
 	if reviewRule == nil {
 		// This access request does not match any access monitoring rules.
 		return nil
@@ -233,10 +233,10 @@ func (handler *Handler) onPendingRequest(ctx context.Context, req types.AccessRe
 	return nil
 }
 
-// selectMatchingRule returns the first access monitoring rule that matches the
+// getMatchingRule returns the first access monitoring rule that matches the
 // given access request environment. If multiple rules match, `DENIED` rules
 // take precedence.
-func (handler *Handler) selectMatchingRule(
+func (handler *Handler) getMatchingRule(
 	ctx context.Context,
 	env accessmonitoring.AccessRequestExpressionEnv,
 ) *accessmonitoringrulesv1.AccessMonitoringRule {
