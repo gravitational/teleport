@@ -1075,7 +1075,7 @@ func validateServerSideAgentConfig(config *autoupdate.AutoUpdateConfig) error {
 	}
 
 	isLimitedCloud := modules.GetModules().Features().Cloud &&
-		!modules.GetModules().Features().Entitlements[entitlements.UnlimitedManagedUpdates].Enabled
+		!modules.GetModules().Features().Entitlements[entitlements.UnrestrictedManagedUpdates].Enabled
 
 	var maxGroups int
 	switch {
