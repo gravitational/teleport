@@ -660,7 +660,7 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 		TestFeatures: modules.Features{
 			Cloud: true,
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.UnlimitedManagedUpdates: {Enabled: true},
+				entitlements.UnrestrictedManagedUpdates: {Enabled: true},
 			},
 		},
 	}
