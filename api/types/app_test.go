@@ -610,9 +610,9 @@ func TestNewAppV3(t *testing.T) {
 			},
 			spec: AppSpecV3{
 				MCP: &MCP{
-					Command:        "docker",
-					Args:           []string{"run", "-i", "--rm", "mcp/everything"},
-					RunAsLocalUser: "docker",
+					Command:       "docker",
+					Args:          []string{"run", "-i", "--rm", "mcp/everything"},
+					RunAsHostUser: "docker",
 				},
 			},
 			want: &AppV3{
@@ -626,9 +626,9 @@ func TestNewAppV3(t *testing.T) {
 				Spec: AppSpecV3{
 					URI: "mcp+stdio://",
 					MCP: &MCP{
-						Command:        "docker",
-						Args:           []string{"run", "-i", "--rm", "mcp/everything"},
-						RunAsLocalUser: "docker",
+						Command:       "docker",
+						Args:          []string{"run", "-i", "--rm", "mcp/everything"},
+						RunAsHostUser: "docker",
 					},
 				},
 			},
@@ -645,7 +645,7 @@ func TestNewAppV3(t *testing.T) {
 			wantErr: require.Error,
 		},
 		{
-			name: "mcp missing run_as_local_user",
+			name: "mcp missing run_as_host_user",
 			meta: Metadata{
 				Name: "mcp-missing-spec",
 			},

@@ -2187,14 +2187,9 @@ type MCP struct {
 	Command string `yaml:"command,omitempty"`
 	// Args to execute with the command.
 	Args []string `yaml:"args,omitempty"`
-	// RunAsLocalUser is the local user account under which the command will be
+	// RunAsHostUser is the host user account under which the command will be
 	// executed. Required for stdio-based MCP servers.
-	RunAsLocalUser string `yaml:"run_as_local_user,omitempty"`
-	// StopSignal specifies the OS signal to send for gracefully stopping the
-	// process. If not set, defaults to 0x2 (SIGINT) as it is a common signal for
-	// stopping programs listening on stdin. Signal 0x9 (SIGKILL) is sent
-	// automatically after 10 seconds if the process has not exited.
-	StopSignal uint32 `yaml:"stop_signal,omitempty"`
+	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:

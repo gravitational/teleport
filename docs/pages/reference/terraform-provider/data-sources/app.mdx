@@ -117,8 +117,7 @@ Optional:
 
 - `args` (List of String) Args to execute with the command.
 - `command` (String) Command to launch stdio-based MCP servers.
-- `run_as_local_user` (String) RunAsLocalUser is the local user account under which the command will be executed. Required for stdio-based MCP servers.
-- `stop_signal` (Number) StopSignal specifies the OS signal to send for gracefully stopping the process. If not set, defaults to 0x2 (SIGINT) as it is a common signal for stopping programs listening on stdin. Signal 0x9 (SIGKILL) is sent automatically after 10 seconds if the process has not exited.
+- `run_as_host_user` (String) RunAsHostUser is the host user account under which the command will be executed. Required for stdio-based MCP servers.
 
 
 ### Nested Schema for `spec.rewrite`

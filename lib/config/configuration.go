@@ -1965,10 +1965,9 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 		if application.MCP != nil {
 			app.MCP = &types.MCP{
-				Command:        application.MCP.Command,
-				Args:           application.MCP.Args,
-				RunAsLocalUser: application.MCP.RunAsLocalUser,
-				StopSignal:     application.MCP.StopSignal,
+				Command:       application.MCP.Command,
+				Args:          application.MCP.Args,
+				RunAsHostUser: application.MCP.RunAsHostUser,
 			}
 		}
 

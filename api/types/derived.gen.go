@@ -489,8 +489,7 @@ func deriveTeleportEqual_25(this, that *MCP) bool {
 		this != nil && that != nil &&
 			this.Command == that.Command &&
 			deriveTeleportEqual_21(this.Args, that.Args) &&
-			this.RunAsLocalUser == that.RunAsLocalUser &&
-			this.StopSignal == that.StopSignal
+			this.RunAsHostUser == that.RunAsHostUser
 }
 
 // deriveTeleportEqual_26 returns whether this and that are equal.

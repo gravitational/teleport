@@ -450,10 +450,9 @@ func TestConfigReading(t *testing.T) {
 					Name:         "mcp-everything",
 					StaticLabels: Labels,
 					MCP: &MCP{
-						Command:        "docker",
-						RunAsLocalUser: "docker",
-						Args:           []string{"run", "-i", "--rm", "mcp/everything"},
-						StopSignal:     2,
+						Command:       "docker",
+						RunAsHostUser: "docker",
+						Args:          []string{"run", "-i", "--rm", "mcp/everything"},
 					},
 				},
 			},
@@ -1657,10 +1656,9 @@ func makeConfigFixture() string {
 			Name:         "mcp-everything",
 			StaticLabels: Labels,
 			MCP: &MCP{
-				Command:        "docker",
-				Args:           []string{"run", "-i", "--rm", "mcp/everything"},
-				RunAsLocalUser: "docker",
-				StopSignal:     2,
+				Command:       "docker",
+				Args:          []string{"run", "-i", "--rm", "mcp/everything"},
+				RunAsHostUser: "docker",
 			},
 		},
 	}

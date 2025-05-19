@@ -1128,14 +1128,9 @@ message MCP {
   string command = 1;
   // Args to execute with the command.
   repeated string args = 2;
-  // RunAsLocalUser is the local user account under which the command will be
+  // RunAsHostUser is the host user account under which the command will be
   // executed. Required for stdio-based MCP servers.
-  string run_as_local_user = 3;
-  // StopSignal specifies the OS signal to send for gracefully stopping the
-  // process. If not set, defaults to 0x2 (SIGINT) as it is a common signal for
-  // stopping programs listening on stdin. Signal 0x9 (SIGKILL) is sent
-  // automatically after 10 seconds if the process has not exited.
-  uint32 stop_signal = 4;
+  string run_as_host_user = 3;
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.

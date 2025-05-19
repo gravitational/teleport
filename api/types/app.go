@@ -415,14 +415,13 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 	}
 
-	if a.Spec.MCP != nil && a.Spec.MCP.Command != "" {
-		a.Spec.URI = SchemaMCPStdio
-	}
-
 	if a.Spec.URI == "" {
-		if a.Spec.Cloud != "" {
+		switch {
+		case a.Spec.Cloud != "":
 			a.Spec.URI = fmt.Sprintf("cloud://%v", a.Spec.Cloud)
-		} else {
+		case a.Spec.MCP != nil && a.Spec.MCP.Command != "":
+			a.Spec.URI = SchemaMCPStdio
+		default:
 			return trace.BadParameter("app %q URI is empty", a.GetName())
 		}
 	}
@@ -523,13 +522,13 @@ func (a *AppV3) checkMCP() error {
 
 func (a *AppV3) checkMCPStdio() error {
 	if a.Spec.MCP == nil {
-		return trace.BadParameter("MCP server %q missing mcp spec", a.GetName())
+		return trace.BadParameter("MCP server %q is missing 'mcp' spec", a.GetName())
 	}
 	if a.Spec.MCP.Command == "" {
-		return trace.BadParameter("MCP server %q missing command", a.GetName())
+		return trace.BadParameter("MCP server %q is missing 'command' which specifies the executable to launch the MCP server. Arguments should be specified through the 'args' field", a.GetName())
 	}
-	if a.Spec.MCP.RunAsLocalUser == "" {
-		return trace.BadParameter("MCP server %q missing run_as_local_user", a.GetName())
+	if a.Spec.MCP.RunAsHostUser == "" {
+		return trace.BadParameter("MCP server %q is missing 'run_as_host_user' which specifies a valid host user to execute the command", a.GetName())
 	}
 	return nil
 }

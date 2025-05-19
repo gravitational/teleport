@@ -986,15 +986,10 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"run_as_local_user": {
-							Description: "RunAsLocalUser is the local user account under which the command will be executed. Required for stdio-based MCP servers.",
+						"run_as_host_user": {
+							Description: "RunAsHostUser is the host user account under which the command will be executed. Required for stdio-based MCP servers.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-						},
-						"stop_signal": {
-							Description: "StopSignal specifies the OS signal to send for gracefully stopping the process. If not set, defaults to 0x2 (SIGINT) as it is a common signal for stopping programs listening on stdin. Signal 0x9 (SIGKILL) is sent automatically after 10 seconds if the process has not exited.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},
 					}),
 					Description: "MCP contains MCP server related configurations.",
@@ -11977,36 +11972,19 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 										}
 									}
 									{
-										a, ok := tf.Attrs["run_as_local_user"]
+										a, ok := tf.Attrs["run_as_host_user"]
 										if !ok {
-											diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.run_as_local_user"})
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.run_as_host_user"})
 										} else {
 											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.run_as_local_user", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.run_as_host_user", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											} else {
 												var t string
 												if !v.Null && !v.Unknown {
 													t = string(v.Value)
 												}
-												obj.RunAsLocalUser = t
-											}
-										}
-									}
-									{
-										a, ok := tf.Attrs["stop_signal"]
-										if !ok {
-											diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.stop_signal"})
-										} else {
-											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.stop_signal", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-											} else {
-												var t uint32
-												if !v.Null && !v.Unknown {
-													t = uint32(v.Value)
-												}
-												obj.StopSignal = t
+												obj.RunAsHostUser = t
 											}
 										}
 									}
@@ -13711,47 +13689,25 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 										}
 									}
 									{
-										t, ok := tf.AttrTypes["run_as_local_user"]
+										t, ok := tf.AttrTypes["run_as_host_user"]
 										if !ok {
-											diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.run_as_local_user"})
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.run_as_host_user"})
 										} else {
-											v, ok := tf.Attrs["run_as_local_user"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											v, ok := tf.Attrs["run_as_host_user"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
-													diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.run_as_local_user", err})
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.run_as_host_user", err})
 												}
 												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
 												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.run_as_local_user", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.run_as_host_user", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.RunAsLocalUser) == ""
+												v.Null = string(obj.RunAsHostUser) == ""
 											}
-											v.Value = string(obj.RunAsLocalUser)
+											v.Value = string(obj.RunAsHostUser)
 											v.Unknown = false
-											tf.Attrs["run_as_local_user"] = v
-										}
-									}
-									{
-										t, ok := tf.AttrTypes["stop_signal"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.stop_signal"})
-										} else {
-											v, ok := tf.Attrs["stop_signal"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-											if !ok {
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.stop_signal", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.stop_signal", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-												}
-												v.Null = int64(obj.StopSignal) == 0
-											}
-											v.Value = int64(obj.StopSignal)
-											v.Unknown = false
-											tf.Attrs["stop_signal"] = v
+											tf.Attrs["run_as_host_user"] = v
 										}
 									}
 								}

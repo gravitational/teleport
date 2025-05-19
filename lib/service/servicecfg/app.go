@@ -158,13 +158,13 @@ func (a *App) CheckAndSetDefaults() error {
 	if a.Name == "" {
 		return trace.BadParameter("missing application name")
 	}
-	if a.MCP != nil && a.MCP.Command != "" {
-		a.URI = types.SchemaMCPStdio
-	}
 	if a.URI == "" {
-		if a.Cloud != "" {
+		switch {
+		case a.Cloud != "":
 			a.URI = fmt.Sprintf("cloud://%v", a.Cloud)
-		} else {
+		case a.MCP != nil && a.MCP.Command != "":
+			a.URI = types.SchemaMCPStdio
+		default:
 			return trace.BadParameter("missing application %q URI", a.Name)
 		}
 	}
