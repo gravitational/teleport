@@ -41,6 +41,7 @@ Optional:
 - `issuer_url` (String) IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
 - `max_age` (String)
 - `mfa` (Attributes) MFASettings contains settings to enable SSO MFA checks through this auth connector. (see [below for nested schema](#nested-schema-for-specmfa))
+- `pkce_mode` (String) PKCEMode represents the configuration state for PKCE (Proof Key for Code Exchange). It can be "enabled" or "disabled"
 - `prompt` (String) Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.
 - `provider` (String) Provider is the external identity provider.
 - `redirect_url` (List of String) RedirectURLs is a list of callback URLs which the identity provider can use to redirect the client back to the Teleport Proxy to complete authentication. This list should match the URLs on the provider's side. The URL used for a given auth request will be chosen to match the requesting Proxy's public address. If there is no match, the first url in the list will be used.

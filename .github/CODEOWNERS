@@ -2,3 +2,7 @@
 # .github/workflows directory (and the merge logic) using CODEOWNERS.
 /.github/workflows/ @klizhentas @russjones @r0mant @zmb3 @fheinecke @camscale @tcsc @rosstimothy
 /build.assets/tooling/cmd/difftest/ @klizhentas @russjones @r0mant @zmb3
+
+# Owners for dependency updates in JS packages.
+/pnpm-lock.yaml @avatus @gzdunek @ravicious
+web/packages/teleterm/package.json @gzdunek @ravicious

@@ -27,13 +27,15 @@ import (
 // store persists cached resources directly in memory.
 type store[T any, I comparable] struct {
 	cache   *sortcache.SortCache[T, I]
+	clone   func(T) T
 	indexes map[I]func(T) string
 }
 
 // newStore creates a store that will index the resource
 // based on the provided indexes.
-func newStore[T any, I comparable](indexes map[I]func(T) string) *store[T, I] {
+func newStore[T any, I comparable](clone func(T) T, indexes map[I]func(T) string) *store[T, I] {
 	return &store[T, I]{
+		clone:   clone,
 		indexes: indexes,
 		cache: sortcache.New(sortcache.Config[T, I]{
 			Indexes: indexes,
@@ -49,7 +51,7 @@ func (s *store[T, I]) clear() error {
 
 // put adds a new item, or updates an existing item.
 func (s *store[T, I]) put(t T) error {
-	s.cache.Put(t)
+	s.cache.Put(s.clone(t))
 	return nil
 }
 

@@ -226,6 +226,9 @@ func GenerateWindowsDesktopCredentials(ctx context.Context, req *GenerateCredent
 		return nil, nil, trace.Wrap(err)
 	}
 	certBlock, _ := pem.Decode(genResp.Cert)
+	if certBlock == nil {
+		return nil, nil, trace.BadParameter("failed to decode certificate")
+	}
 	certDER = certBlock.Bytes
 	keyDER = certReq.keyDER
 	return certDER, keyDER, nil
@@ -259,6 +262,9 @@ func generateDatabaseCredentials(ctx context.Context, req *GenerateCredentialsRe
 		return nil, nil, nil, trace.Wrap(err)
 	}
 	certBlock, _ := pem.Decode(genResp.Cert)
+	if certBlock == nil {
+		return nil, nil, nil, trace.BadParameter("failed to decode certificate")
+	}
 	certDER = certBlock.Bytes
 	keyDER = certReq.keyDER
 	return certDER, keyDER, genResp.CACerts, nil

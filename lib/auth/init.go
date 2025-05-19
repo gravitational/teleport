@@ -26,9 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -898,15 +896,14 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		}
 
 		if !shouldReplace {
-			if allowNoSecondFactor, _ := strconv.ParseBool(os.Getenv(teleport.EnvVarAllowNoSecondFactor)); allowNoSecondFactor {
-				err := modules.ValidateResource(storedAuthPref)
+			if err := modules.ValidateResource(storedAuthPref); err != nil {
 				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
 					return trace.Wrap(err, secondFactorUpgradeInstructions)
 				}
-				if err != nil {
-					return trace.Wrap(err)
-				}
+
+				return trace.Wrap(err)
 			}
+
 			return nil
 		}
 
@@ -934,6 +931,14 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 			// would unset the default suite after the first auth restart.
 			newAuthPref = newAuthPref.Clone()
 			newAuthPref.SetSignatureAlgorithmSuite(storedAuthPref.GetSignatureAlgorithmSuite())
+		}
+
+		if err := modules.ValidateResource(newAuthPref); err != nil {
+			if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
+				return trace.Wrap(err, secondFactorUpgradeInstructions)
+			}
+
+			return trace.Wrap(err)
 		}
 
 		if storedAuthPref == nil {
@@ -1382,7 +1387,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
 			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
-			case types.JWTSigner, types.OIDCIdPCA, types.OktaCA:
+			case types.JWTSigner, types.OIDCIdPCA, types.OktaCA, types.BoundKeypairCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
 			default:
 				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)

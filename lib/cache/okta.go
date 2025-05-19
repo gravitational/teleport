@@ -35,11 +35,11 @@ func newOktaImportRuleCollection(upstream services.Okta, w types.WatchKind) (*co
 	}
 
 	return &collection[types.OktaImportRule, oktaImportRuleIndex]{
-		store: newStore(map[oktaImportRuleIndex]func(types.OktaImportRule) string{
-			oktaImportRuleNameIndex: func(r types.OktaImportRule) string {
-				return r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			types.OktaImportRule.Clone,
+			map[oktaImportRuleIndex]func(types.OktaImportRule) string{
+				oktaImportRuleNameIndex: types.OktaImportRule.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.OktaImportRule, error) {
 			var startKey string
 			var resources []types.OktaImportRule
@@ -88,7 +88,6 @@ func (c *Cache) ListOktaImportRules(ctx context.Context, pageSize int, pageToken
 		nextToken: func(t types.OktaImportRule) string {
 			return t.GetMetadata().Name
 		},
-		clone: types.OktaImportRule.Clone,
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
@@ -104,7 +103,6 @@ func (c *Cache) GetOktaImportRule(ctx context.Context, name string) (types.OktaI
 		collection:  c.collections.oktaImportRules,
 		index:       oktaImportRuleNameIndex,
 		upstreamGet: c.Config.Okta.GetOktaImportRule,
-		clone:       types.OktaImportRule.Clone,
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
@@ -120,11 +118,11 @@ func newOktaImportAssignmentCollection(upstream services.Okta, w types.WatchKind
 	}
 
 	return &collection[types.OktaAssignment, oktaAssignmentIndex]{
-		store: newStore(map[oktaAssignmentIndex]func(types.OktaAssignment) string{
-			oktaAssignmentNameIndex: func(r types.OktaAssignment) string {
-				return r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			types.OktaAssignment.Copy,
+			map[oktaAssignmentIndex]func(types.OktaAssignment) string{
+				oktaAssignmentNameIndex: types.OktaAssignment.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.OktaAssignment, error) {
 			var startKey string
 			var resources []types.OktaAssignment
@@ -173,7 +171,6 @@ func (c *Cache) ListOktaAssignments(ctx context.Context, pageSize int, pageToken
 		nextToken: func(t types.OktaAssignment) string {
 			return t.GetMetadata().Name
 		},
-		clone: types.OktaAssignment.Copy,
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
@@ -189,7 +186,6 @@ func (c *Cache) GetOktaAssignment(ctx context.Context, name string) (types.OktaA
 		collection:  c.collections.oktaAssignments,
 		index:       oktaAssignmentNameIndex,
 		upstreamGet: c.Config.Okta.GetOktaAssignment,
-		clone:       types.OktaAssignment.Copy,
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)

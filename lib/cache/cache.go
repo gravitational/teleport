@@ -72,7 +72,25 @@ var (
 		[]string{teleport.TagCacheComponent},
 	)
 
-	cacheCollectors = []prometheus.Collector{cacheEventsReceived, cacheStaleEventsReceived}
+	cacheHealth = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "cache",
+			Name:      "health",
+			Help:      "Whether the cache for a particular Teleport service is healthy.",
+		},
+		[]string{teleport.TagCacheComponent},
+	)
+
+	cacheLastReset = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "cache",
+			Name:      "last_reset_seconds",
+			Help:      "The unix time in seconds that the last cache reset was performed.",
+		},
+		[]string{teleport.TagCacheComponent},
+	)
 )
 
 // highVolumeResources is the set of cached resources that tend to produce high
@@ -179,6 +197,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAutoUpdateVersion},
 		{Kind: types.KindAutoUpdateConfig},
 		{Kind: types.KindAutoUpdateAgentRollout},
+		{Kind: types.KindAutoUpdateAgentReport},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindProvisioningPrincipalState},
 		{Kind: types.KindIdentityCenterAccount},
@@ -492,20 +511,9 @@ type Cache struct {
 	// regularly called methods.
 	fnCache *utils.FnCache
 
-	trustCache                   services.Trust
-	clusterConfigCache           services.ClusterConfigurationInternal
-	provisionerCache             services.Provisioner
-	usersCache                   services.UsersService
-	accessCache                  services.Access
-	dynamicAccessCache           services.DynamicAccessExt
-	presenceCache                services.Presence
-	userGroupsCache              services.UserGroups
-	headlessAuthenticationsCache services.HeadlessAuthenticationService
-	secReportsCache              services.SecReports
-	eventsFanout                 *services.FanoutV2
-	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
-	pluginStaticCredentialsCache *local.PluginStaticCredentialsService
-	gitServersCache              *local.GitServerService
+	secReportsCache       services.SecReports
+	eventsFanout          *services.FanoutV2
+	lowVolumeEventsFanout *utils.RoundRobin[*services.FanoutV2]
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -516,6 +524,12 @@ func (c *Cache) setInitError(err error) {
 		c.initErr = err
 		close(c.initC)
 	})
+
+	if err == nil {
+		cacheHealth.WithLabelValues(c.Component).Set(1.0)
+	} else {
+		cacheHealth.WithLabelValues(c.Component).Set(0.0)
+	}
 }
 
 // setReadStatus updates Cache.ok, which determines whether the
@@ -868,15 +882,16 @@ const (
 
 // New creates a new instance of Cache
 func New(config Config) (*Cache, error) {
-	if err := metrics.RegisterPrometheusCollectors(cacheCollectors...); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := config.CheckAndSetDefaults(); err != nil {
+	if err := metrics.RegisterPrometheusCollectors(
+		cacheEventsReceived,
+		cacheStaleEventsReceived,
+		cacheHealth,
+		cacheLastReset,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterConfigCache, err := local.NewClusterConfigurationService(config.Backend)
-	if err != nil {
+	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -886,12 +901,6 @@ func New(config Config) (*Cache, error) {
 		Clock:   config.Clock,
 		Context: ctx,
 	})
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	userGroupsCache, err := local.NewUserGroupService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -909,43 +918,15 @@ func New(config Config) (*Cache, error) {
 		lowVolumeFanouts = append(lowVolumeFanouts, services.NewFanoutV2(services.FanoutV2Config{}))
 	}
 
-	identityService, err := local.NewIdentityService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	pluginStaticCredentialsCache, err := local.NewPluginStaticCredentialsService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	gitServersCache, err := local.NewGitServerService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	cs := &Cache{
-		ctx:                          ctx,
-		cancel:                       cancel,
-		Config:                       config,
-		initC:                        make(chan struct{}),
-		fnCache:                      fnCache,
-		trustCache:                   local.NewCAService(config.Backend),
-		clusterConfigCache:           clusterConfigCache,
-		provisionerCache:             local.NewProvisioningService(config.Backend),
-		accessCache:                  local.NewAccessService(config.Backend),
-		dynamicAccessCache:           local.NewDynamicAccessService(config.Backend),
-		presenceCache:                local.NewPresenceService(config.Backend),
-		userGroupsCache:              userGroupsCache,
-		headlessAuthenticationsCache: identityService,
-		secReportsCache:              secReportsCache,
-		eventsFanout:                 fanout,
-		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
-		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
-		gitServersCache:              gitServersCache,
+		ctx:                   ctx,
+		cancel:                cancel,
+		Config:                config,
+		initC:                 make(chan struct{}),
+		fnCache:               fnCache,
+		secReportsCache:       secReportsCache,
+		eventsFanout:          fanout,
+		lowVolumeEventsFanout: utils.NewRoundRobin(lowVolumeFanouts),
 		Logger: slog.With(
 			teleport.ComponentKey, config.Component,
 			"target", config.target,
@@ -1191,6 +1172,7 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //	we assume that this cache will eventually end up in a correct state
 //	potentially lagging behind the state of the database.
 func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) error {
+	cacheLastReset.WithLabelValues(c.Component).SetToCurrentTime()
 	requestKinds := c.Config.Watches
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		Name:                c.Component,
