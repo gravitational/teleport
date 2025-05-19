@@ -1982,7 +1982,7 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 			// Best effort attempt to validate if the namespace field is needed.
 			if kubeResource.Namespace == "" {
 				if _, ok := KubernetesNamespacedResourceKinds[struct{ apiGroup, resourceName string }{kubeResource.APIGroup, kubeResource.Kind}]; ok {
-					return trace.BadParameter("KubernetesResource must include Namespace")
+					return trace.BadParameter("KubernetesResource %q must include Namespace", kubeResource.Kind)
 				}
 			}
 		}

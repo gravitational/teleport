@@ -805,11 +805,6 @@ func (f *Forwarder) setupContext(
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// TODO(@creack): Remove this once we have the new RBAC system in place using subresources.
-		// We use the verb to determine access to subresource.
-		if kubeResource.resourceDefinition != nil {
-			kubeResource.resourceDefinition.Name = strings.Split(kubeResource.requestedResource.resourceKind, "/")[0]
-		}
 	} else {
 		kubeResource.verb = kubeResource.requestedResource.getVerb(req)
 	}
@@ -2696,6 +2691,7 @@ func (f *Forwarder) isLocalKubeCluster(isRemoteTeleportCluster bool, kubeCluster
 // https://github.com/kubernetes/kubernetes/blob/ea0764452222146c47ec826977f49d7001b0ea8c/staging/src/k8s.io/apiserver/pkg/endpoints/handlers/responsewriters/errors.go#L51
 func (f *Forwarder) kubeResourceDeniedAccessMsg(user, verb string, resource apiResource) string {
 	kind := strings.Split(resource.resourceKind, "/")[0]
+
 	apiGroup := resource.apiGroup
 	teleportType, ok := defaultRBACResources.getTeleportResourceKindFromAPIResource(resource)
 	// If the resource is not in the default resources list, it is a custom resource
