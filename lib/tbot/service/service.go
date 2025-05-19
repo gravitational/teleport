@@ -172,7 +172,7 @@ func (s *Service[HandlerT]) runOneShotHandler(ctx context.Context) error {
 	return errNoOneShotHandler
 }
 func (s *Service[HandlerT]) finalize() { close(s.done) }
-func (s *Service[HandlerT]) registerToSupervisor() bool {
+func (s *Service[HandlerT]) markRegisteredToSupervisor() bool {
 	return s.registered.CompareAndSwap(false, true)
 }
 

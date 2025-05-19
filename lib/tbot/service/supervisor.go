@@ -79,7 +79,7 @@ func (s *Supervisor) Register(service InternalService) error {
 		return trace.Errorf("service named %q is already registered", service.getName())
 	}
 
-	if !service.registerToSupervisor() {
+	if !service.markRegisteredToSupervisor() {
 		return trace.Errorf("cannot register a service to more than one supervisor")
 	}
 
@@ -204,6 +204,6 @@ type InternalService interface {
 	runHandler(context.Context, *Runtime) error
 	runOneShotHandler(ctx context.Context) error
 	setStatus(status.Status) bool
-	registerToSupervisor() bool
+	markRegisteredToSupervisor() bool
 	finalize()
 }
