@@ -141,7 +141,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	require.Empty(t, cache.Get())
 }
 
-// TestConflictingRules verifies that when there are mutliple matching rules
+// TestConflictingRules verifies that when there are multiple matching rules
 // with conflicting review decisions, the `DENIED` rule will take precedence.
 func TestConflictingRules(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
