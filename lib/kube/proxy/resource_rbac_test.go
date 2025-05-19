@@ -1323,6 +1323,7 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 		listTeleportRolesResult []string
 		wantListErr             bool
 		getTestResult           error
+		deleteAllTestResult     error
 	}
 	tests := []struct {
 		name string
@@ -1410,6 +1411,14 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 					ErrStatus: metav1.Status{
 						Status:  "Failure",
 						Message: "teleportroles \"telerole-test\" is forbidden: User \"limited_user\" cannot get resource \"teleportroles\" in API group \"resources.teleport.dev\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+				deleteAllTestResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "User \"limited_user\" cannot deletecollection resource \"teleportroles\" in API group \"resources.teleport.dev\" at the cluster scope",
 						Code:    403,
 						Reason:  metav1.StatusReasonForbidden,
 					},
@@ -1513,6 +1522,22 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 				} else {
 					require.Error(t, err)
 					require.ErrorContains(t, err, tt.want.getTestResult.Error())
+				}
+			})
+
+			t.Run("delete_collection", func(t *testing.T) {
+				t.Parallel()
+
+				dl := tkm.NewTeleportRoleCRD()
+
+				if err := client.DeleteAllOf(context.Background(),
+					dl,
+				); tt.want.deleteAllTestResult != nil {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tt.want.deleteAllTestResult.Error())
+					return
+				} else {
+					require.NoError(t, err)
 				}
 			})
 		})

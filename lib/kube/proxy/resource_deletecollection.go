@@ -182,7 +182,12 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		if err != nil {
 			return internalErrStatus, trace.Wrap(err)
 		}
-		o.Object["items"] = items
+		objList := make([]any, 0, len(items))
+		for _, item := range items {
+			objList = append(objList, item.Object)
+		}
+
+		o.Object["items"] = objList
 	default:
 		// itemsFieldName is the field name of the items in the list
 		// object. This is used to get the items from the list object.
@@ -197,14 +202,10 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		if itemsR.Len() == 0 {
 			break
 		}
-		apiVersionR := objReflect.FieldByName("APIVersion")
-		if apiVersionR.Type().Kind() != reflect.String {
-			return internalErrStatus, trace.BadParameter("unexpected type %T, APIVersion is not a string", obj)
-		}
-		apiVersion := apiVersionR.String()
 
 		var (
 			underlyingType = itemsR.Index(0).Type()
+			apiVersion, _  = obj.GetObjectKind().GroupVersionKind().ToAPIVersionAndKind()
 			objs           = make([]kubeObjectInterface, 0, itemsR.Len())
 		)
 		for i := range itemsR.Len() {
