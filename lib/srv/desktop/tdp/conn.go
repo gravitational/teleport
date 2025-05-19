@@ -214,17 +214,16 @@ func (c *ConnProxy) SendToServer(message Message) error {
 func (c *ConnProxy) Run() error {
 	var errs errgroup.Group
 
-	var closeOnce sync.Once
-	closeAll := func() {
+	closeAll := sync.OnceFunc(func() {
 		c.client.Close()
 		c.server.Close()
-	}
-	defer closeOnce.Do(closeAll)
+	})
+	defer closeAll()
 
 	// Run a goroutine to read TDP messages from the Windows
 	// agent and write them to client.
 	errs.Go(func() error {
-		defer closeOnce.Do(closeAll)
+		defer closeAll()
 
 		// We avoid using io.Copy here, as we want to make sure
 		// each TDP message is sent as a unit so that a single
@@ -259,7 +258,7 @@ func (c *ConnProxy) Run() error {
 	// Run a goroutine to read TDP messages coming from the client
 	// and pass them on to the Windows agent.
 	errs.Go(func() error {
-		defer closeOnce.Do(closeAll)
+		defer closeAll()
 		for {
 			msg, err := c.client.ReadMessage()
 

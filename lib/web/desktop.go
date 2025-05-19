@@ -498,6 +498,9 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 
 	tdpConnProxy := tdp.NewConnProxy(&WebsocketIO{Conn: ws}, wds, func(_ *tdp.Conn, msg tdp.Message) (tdp.Message, error) {
 		if ping, ok := msg.(tdp.Ping); ok {
+			if !latencySupported {
+				return nil, errors.New("ping message received but latency monitoring is not enabled")
+			}
 			select {
 			case pings <- ping:
 			case <-ctx.Done():
