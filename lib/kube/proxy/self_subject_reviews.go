@@ -272,14 +272,15 @@ func (m *kubernetesResourceMatcher) Match(role types.Role, condition types.RoleC
 	name := m.resource.Name
 	namespace := m.resource.Namespace
 	apiGroup := m.resource.APIGroup
-	if apiGroup == "" {
-		apiGroup = "core"
-	}
 
 	for _, resource := range resources {
 		isResourceTheSameKind := kind == resource.Kind || resource.Kind == types.Wildcard
 
-		namespaceScopeMatch := resource.Kind == "namespaces" && slices.Contains(types.KubernetesNamespacedResourceKinds, kind+"."+apiGroup)
+		kindGroup := kind
+		if apiGroup != "" {
+			kindGroup += "." + apiGroup
+		}
+		namespaceScopeMatch := resource.Kind == "namespaces" && slices.Contains(types.KubernetesNamespacedResourceKinds, kindGroup)
 		if !isResourceTheSameKind && !namespaceScopeMatch {
 			continue
 		}

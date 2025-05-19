@@ -1971,12 +1971,13 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 			// If we have a kind that match a role v7 one, check the api group.
 			if slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) {
 				// If the api group is a wildcard or match v7, then it is mostly definitely a mistake, reject the role.
-				if kubeResource.APIGroup == Wildcard || KubernetesResourcesV7KindGroups[kubeResource.Kind] == kubeResource.APIGroup {
+				if kubeResource.APIGroup == Wildcard || kubeResource.APIGroup == KubernetesResourcesV7KindGroups[kubeResource.Kind] {
 					return trace.BadParameter("KubernetesResource kind %q is invalid. Please use plural name for role version %q", kubeResource.Kind, roleVersion)
 				}
 			}
-			if kubeResource.APIGroup == "" {
-				return trace.BadParameter("KubernetesResource group is required in role version %q", roleVersion)
+			// Only allow empty string for known core resources.
+			if kubeResource.APIGroup == "" && !slices.Contains(KubernetesCoreResourceKinds, kubeResource.Kind) {
+				return trace.BadParameter("KubernetesResource api_group is required for resource %q in role version %q", kubeResource.Kind, roleVersion)
 			}
 			// TODO(@creack): Replace this in favor of proper lookup.
 			kindAPI := kubeResource.Kind + "." + kubeResource.APIGroup

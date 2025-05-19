@@ -68,7 +68,7 @@ func init() {
 // the given scheme.
 func registerDefaultKubeTypes(s *runtime.Scheme) error {
 	// Register external types for Scheme
-	metav1.AddToGroupVersion(s, schema.GroupVersion{Group: "core", Version: "v1"})
+	metav1.AddToGroupVersion(s, schema.GroupVersion{Group: "", Version: "v1"})
 	if err := metav1.AddMetaToScheme(s); err != nil {
 		return trace.Wrap(err)
 	}
@@ -94,7 +94,7 @@ func newClientNegotiator(codecFactory *serializer.CodecFactory) runtime.ClientNe
 		schema.GroupVersion{
 			// create a serializer for Kube API v1
 			Version: "v1",
-			Group:   "core",
+			Group:   "",
 		},
 	)
 }

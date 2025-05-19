@@ -1419,15 +1419,15 @@ var KubernetesResourcesKinds = []string{
 // Used for validation in role >=v8 to check whether a older value as
 // been accidentally used.
 var KubernetesResourcesV7KindGroups = map[string]string{
-	KindKubePod:                       "core",
-	KindKubeSecret:                    "core",
-	KindKubeConfigmap:                 "core",
-	KindKubeNamespace:                 "core",
-	KindKubeService:                   "core",
-	KindKubeServiceAccount:            "core",
-	KindKubeNode:                      "core",
-	KindKubePersistentVolume:          "core",
-	KindKubePersistentVolumeClaim:     "core",
+	KindKubePod:                       "",
+	KindKubeSecret:                    "",
+	KindKubeConfigmap:                 "",
+	KindKubeNamespace:                 "",
+	KindKubeService:                   "",
+	KindKubeServiceAccount:            "",
+	KindKubeNode:                      "",
+	KindKubePersistentVolume:          "",
+	KindKubePersistentVolumeClaim:     "",
 	KindKubeDeployment:                "apps",
 	KindKubeReplicaSet:                "apps",
 	KindKubeStatefulset:               "apps",
@@ -1541,37 +1541,64 @@ var KubernetesClusterWideResourceKinds = []string{
 //
 // TODO(@creack): Remove in favor of a dynamic lookup.
 var KubernetesNamespacedResourceKinds = []string{
-	"bindings.core",
-	"configmaps.core",
+	"bindings",
+	"configmaps",
 	"controllerrevisions.apps",
 	"cronjobs.batch",
 	"csistoragecapacities.storage.k8s.io",
 	"daemonsets.apps",
 	"deployments.apps",
-	"endpoints.core",
+	"endpoints",
 	"endpointslices.discovery.k8s.io",
 	"events.events.k8s.io",
-	"events.core",
+	"events",
 	"horizontalpodautoscalers.autoscaling",
 	"ingresses.networking.k8s.io",
 	"jobs.batch",
 	"leases.coordination.k8s.io",
-	"limitranges.core",
+	"limitranges",
 	"localsubjectaccessreviews.authorization.k8s.io",
 	"networkpolicies.networking.k8s.io",
-	"persistentvolumeclaims.core",
+	"persistentvolumeclaims",
 	"poddisruptionbudgets.policy",
-	"pods.core",
-	"podtemplates.core",
+	"pods",
+	"podtemplates",
 	"replicasets.apps",
-	"replicationcontrollers.core",
-	"resourcequotas.core",
+	"replicationcontrollers",
+	"resourcequotas",
 	"rolebindings.rbac.authorization.k8s.io",
 	"roles.rbac.authorization.k8s.io",
-	"secrets.core",
-	"serviceaccounts.core",
-	"services.core",
+	"secrets",
+	"serviceaccounts",
+	"services",
 	"statefulsets.apps",
+}
+
+// List of "" (core / legacy) resources.
+//
+// Used to validate the api_group field.
+//
+// Generated with:
+//
+//	(kubectl api-resources --api-group "" --output=name --namespaced=true && kubectl api-resources --api-group "" --output=name --namespaced=false) | sort
+var KubernetesCoreResourceKinds = []string{
+	"bindings",
+	"componentstatuses",
+	"configmaps",
+	"endpoints",
+	"events",
+	"limitranges",
+	"namespaces",
+	"nodes",
+	"persistentvolumeclaims",
+	"persistentvolumes",
+	"pods",
+	"podtemplates",
+	"replicationcontrollers",
+	"resourcequotas",
+	"secrets",
+	"serviceaccounts",
+	"services",
 }
 
 const (

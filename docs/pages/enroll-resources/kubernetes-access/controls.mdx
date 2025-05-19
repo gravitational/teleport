@@ -45,11 +45,15 @@ spec:
       - kind: pods
         namespace: "production"
         name: "^webapp-[a-z0-9-]+$"
-        api_group: "*"
+        api_group: ""
       - kind: pods
         namespace: "development"
         name: "*"
-        api_group: "*"
+        api_group: ""
+      - kind: deployments
+        namespace: "development"
+        name: "*"
+        api_group: "apps"
     kubernetes_groups:
     - developers
     kubernetes_users:
@@ -493,7 +497,7 @@ spec:
         namespace: "production"
         name: "webapp"
         verbs: ['*']
-        api_group: "core"
+        api_group: ""
     # ...
 ```
 
@@ -532,7 +536,7 @@ the following kinds:
   | `exec` | Execute commands in Pods |
 
 - `api_group`: The API group of the resource. In `kube-access`, this is the
-  `core` API group. A wildcard can be used to match any API groups.
+  `""` for `pods` or `apps` for `deployments`. A wildcard can be used to match any API groups.
 
 For both the `namespace`, `name` and `api_group` fields, you can add a wildcard character
 (`*`) to replace any sequence of characters. For example, `name: "pod-*-*"`
