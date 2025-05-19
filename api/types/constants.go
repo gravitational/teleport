@@ -1533,45 +1533,41 @@ var KubernetesClusterWideResourceKinds = []string{
 // (added .core to core resources.)
 // The format is "<plural>.<apigroup>".
 //
-// NOTE: As role >= v8 supports custom resources, we can't know from a static list
-// if an arbitrary resource is namespaced or not, so we maintain a list of
-// of known namespaced ones to help with validation.
-// This means that if there is a match, we know we expect a namespace, but if there is
-// not a match, we don't know that it doesn't.
-//
-// TODO(@creack): Remove in favor of a dynamic lookup.
-var KubernetesNamespacedResourceKinds = []string{
-	"bindings",
-	"configmaps",
-	"controllerrevisions.apps",
-	"cronjobs.batch",
-	"csistoragecapacities.storage.k8s.io",
-	"daemonsets.apps",
-	"deployments.apps",
-	"endpoints",
-	"endpointslices.discovery.k8s.io",
-	"events.events.k8s.io",
-	"events",
-	"horizontalpodautoscalers.autoscaling",
-	"ingresses.networking.k8s.io",
-	"jobs.batch",
-	"leases.coordination.k8s.io",
-	"limitranges",
-	"localsubjectaccessreviews.authorization.k8s.io",
-	"networkpolicies.networking.k8s.io",
-	"persistentvolumeclaims",
-	"poddisruptionbudgets.policy",
-	"pods",
-	"podtemplates",
-	"replicasets.apps",
-	"replicationcontrollers",
-	"resourcequotas",
-	"rolebindings.rbac.authorization.k8s.io",
-	"roles.rbac.authorization.k8s.io",
-	"secrets",
-	"serviceaccounts",
-	"services",
-	"statefulsets.apps",
+// Only used in role >=v8 to attempt to validate the api_group field.
+// If we have a match, we know we need a namespaced value, if we don't
+// have a match, we don't know we don't. Best effort basis.
+var KubernetesNamespacedResourceKinds = map[struct{ apiGroup, resourceName string }]struct{}{
+	{"", "bindings"}:                                      {},
+	{"", "configmaps"}:                                    {},
+	{"apps", "controllerrevisions"}:                       {},
+	{"batch", "cronjobs"}:                                 {},
+	{"storage.k8s.io", "csistoragecapacities"}:            {},
+	{"apps", "daemonsets"}:                                {},
+	{"apps", "deployments"}:                               {},
+	{"", "endpoints"}:                                     {},
+	{"discovery.k8s.io", "endpointslices"}:                {},
+	{"events.k8s.io", "events"}:                           {},
+	{"", "events"}:                                        {},
+	{"autoscaling", "horizontalpodautoscalers"}:           {},
+	{"networking.k8s.io", "ingresses"}:                    {},
+	{"batch", "jobs"}:                                     {},
+	{"coordination.k8s.io", "leases"}:                     {},
+	{"", "limitranges"}:                                   {},
+	{"authorization.k8s.io", "localsubjectaccessreviews"}: {},
+	{"networking.k8s.io", "networkpolicies"}:              {},
+	{"", "persistentvolumeclaims"}:                        {},
+	{"policy", "poddisruptionbudgets"}:                    {},
+	{"", "pods"}:                                          {},
+	{"", "podtemplates"}:                                  {},
+	{"apps", "replicasets"}:                               {},
+	{"", "replicationcontrollers"}:                        {},
+	{"", "resourcequotas"}:                                {},
+	{"rbac.authorization.k8s.io", "rolebindings"}:         {},
+	{"rbac.authorization.k8s.io", "roles"}:                {},
+	{"", "secrets"}:                                       {},
+	{"", "serviceaccounts"}:                               {},
+	{"", "services"}:                                      {},
+	{"apps", "statefulsets"}:                              {},
 }
 
 // List of "" (core / legacy) resources.

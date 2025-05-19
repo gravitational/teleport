@@ -1979,10 +1979,11 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 			if kubeResource.APIGroup == "" && !slices.Contains(KubernetesCoreResourceKinds, kubeResource.Kind) {
 				return trace.BadParameter("KubernetesResource api_group is required for resource %q in role version %q", kubeResource.Kind, roleVersion)
 			}
-			// TODO(@creack): Replace this in favor of proper lookup.
-			kindAPI := kubeResource.Kind + "." + kubeResource.APIGroup
-			if kubeResource.Namespace == "" && slices.Contains(KubernetesNamespacedResourceKinds, kindAPI) {
-				return trace.BadParameter("KubernetesResource must include Namespace")
+			// Best effort attempt to validate if the namespace field is needed.
+			if kubeResource.Namespace == "" {
+				if _, ok := KubernetesNamespacedResourceKinds[struct{ apiGroup, resourceName string }{kubeResource.APIGroup, kubeResource.Kind}]; ok {
+					return trace.BadParameter("KubernetesResource must include Namespace")
+				}
 			}
 		}
 
