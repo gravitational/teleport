@@ -66,7 +66,7 @@ func TestConcurrentOperations(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := y.conn.sign(context.Background(), ref, piv.KeyAuth{PINPolicy: piv.PINPolicyNever}, nil, make([]byte, 100), crypto.Hash(0))
+			_, err := y.conn.sign(context.Background(), ref, piv.KeyAuth{PINPolicy: piv.PINPolicyNever}, nil, nil, make([]byte, 100), crypto.Hash(0))
 			assert.NoError(t, err, "sign")
 		}()
 		wg.Add(1)
