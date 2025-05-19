@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.24.2
+go 1.24.3
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.17.0
@@ -258,6 +258,8 @@ require (
 	sigs.k8s.io/yaml v1.4.0
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
+
+require github.com/zeebo/assert v1.3.0
 
 require (
 	cel.dev/expr v0.20.0 // indirect

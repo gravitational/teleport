@@ -252,7 +252,18 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 			t.Cleanup(func() {
 				reconciler.Close()
 				require.NoError(t, authServer.AuthServer.DeleteAllWindowsDesktops(ctx))
-				require.NoError(t, authServer.AuthServer.DeleteAllDynamicWindowsDesktops(ctx))
+				var key string
+				for {
+					page, next, err := authServer.AuthServer.ListDynamicWindowsDesktops(ctx, 0, key)
+					require.NoError(t, err)
+					for _, dwd := range page {
+						require.NoError(t, authServer.AuthServer.DeleteDynamicWindowsDesktop(ctx, dwd.GetName()))
+					}
+					if next == "" {
+						break
+					}
+					key = next
+				}
 			})
 
 			desktop, err := types.NewDynamicWindowsDesktopV1("test", testCase.labels, types.DynamicWindowsDesktopSpecV1{

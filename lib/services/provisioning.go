@@ -44,9 +44,6 @@ type Provisioner interface {
 	// Imlementations must guarantee that this returns trace.NotFound error if the token doesn't exist
 	DeleteToken(ctx context.Context, token string) error
 
-	// DeleteAllTokens deletes all provisioning tokens
-	DeleteAllTokens() error
-
 	// GetTokens returns all non-expired tokens
 	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
 

@@ -91,9 +91,6 @@ type Presence interface {
 	// DeleteAuthServer deletes auth server by name
 	DeleteAuthServer(name string) error
 
-	// DeleteAllAuthServers deletes all auth servers
-	DeleteAllAuthServers() error
-
 	// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertProxy(ctx context.Context, server types.Server) error
@@ -115,9 +112,6 @@ type Presence interface {
 
 	// DeleteReverseTunnel deletes reverse tunnel by its domain name
 	DeleteReverseTunnel(ctx context.Context, domainName string) error
-
-	// DeleteAllReverseTunnels deletes all reverse tunnels
-	DeleteAllReverseTunnels(ctx context.Context) error
 
 	// ListReverseTunnels returns a page of ReverseTunnels.
 	ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error)
