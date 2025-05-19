@@ -55,14 +55,7 @@ and click "Share Directory":
 
 ### Limitations on directories you can share
 
-#### Prohibited directories
-
-<Admonition type="note">
-
-  This restriction only affects the Web UI.
-  Teleport Connect uses a native file system API, so it can share any directory on your local machine.
-
-</Admonition>
+#### Prohibited directories (Web UI only)
 
 For security reasons, the web browser's filesystem access API prohibits you from
 sharing certain directories, including the standard locations for commonly used
@@ -73,6 +66,13 @@ For a full list of the blocked user directories, see the [File System Access
 Specification](https://wicg.github.io/file-system-access/#enumdef-wellknowndirectory).
 
 Subdirectories *within* these blocked user directories may still be shared.
+
+<Admonition type="note">
+
+  This restriction only affects the Web UI.
+  Teleport Connect uses a native file system API, so it can share any directory on your local machine.
+
+</Admonition>
 
 #### Long directory names
 
