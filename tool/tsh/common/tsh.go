@@ -4078,7 +4078,7 @@ func onSSH(cf *CLIConf) error {
 		cf.RemoteCommand = cf.RemoteCommand[1:]
 	}
 
-	tc.Stdin = os.Stdin
+	tc.Stdin = cf.Stdin()
 	err = retryWithAccessRequest(cf, tc, func() error {
 		sshFunc := func() error {
 			var opts []func(*client.SSHOptions)
@@ -4088,16 +4088,18 @@ func onSSH(cf *CLIConf) error {
 
 			if cf.forkSignalFd != 0 {
 				opts = append(opts, client.WithForkAfterAuthentication(func() error {
+					errors := make([]error, 0, 3)
+					if stdin, ok := tc.Stdin.(io.ReadCloser); ok {
+						errors = append(errors, stdin.Close())
+					}
 					disownSignal := os.NewFile(uintptr(cf.forkSignalFd), "disown")
 					// Write to unblock the parent.
 					_, err := disownSignal.Write([]byte{0x00})
-					if err != nil {
-						return trace.Wrap(err)
+					errors = append(errors, err)
+					if err == nil {
+						errors = append(errors, disownSignal.Close())
 					}
-					errors := []error{disownSignal.Close()}
-					if stdin, ok := cf.Stdin().(io.ReadCloser); ok {
-						errors = append(errors, stdin.Close())
-					}
+
 					return trace.NewAggregate(errors...)
 				}))
 			}

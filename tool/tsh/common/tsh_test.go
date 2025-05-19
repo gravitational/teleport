@@ -7501,32 +7501,46 @@ func TestSSHForkAfterAuthentication(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name       string
-		target     string
-		command    []string
-		assert     assert.ErrorAssertionFunc
-		expectFile bool
+		name                string
+		target              string
+		command             []string
+		assertRun           assert.ErrorAssertionFunc
+		assertCommandEffect func(t *testing.T, testFile string) bool
 	}{
 		{
-			name:       "ok",
-			target:     tsrv.Config.Hostname,
-			command:    []string{"echo", "hello", ">", "test.txt"},
-			assert:     assert.NoError,
-			expectFile: true,
+			name:      "ok",
+			target:    tsrv.Config.Hostname,
+			command:   []string{"echo", "hello", ">", "test.txt"},
+			assertRun: assert.NoError,
+			assertCommandEffect: func(t *testing.T, testFile string) bool {
+				return assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+					assert.FileExists(collect, testFile)
+				}, 3*time.Second, 100*time.Millisecond)
+			},
 		},
 		{
-			name:       "not allowed on multiple nodes",
-			target:     "foo=bar",
-			command:    []string{"echo", "hello", ">", "test.txt"},
-			assert:     assert.Error,
-			expectFile: false,
+			name:      "stdin is closed after disowning",
+			target:    tsrv.Config.Hostname,
+			command:   []string{"read", "&&", "echo", "should not happen", ">", "test.txt"},
+			assertRun: assert.NoError,
+			assertCommandEffect: func(t *testing.T, testFile string) bool {
+				return assert.Never(t, func() bool {
+					_, err := os.Stat(testFile)
+					return !errors.Is(err, os.ErrNotExist)
+				}, 3*time.Second, time.Second)
+			},
 		},
 		{
-			name:       "not allowed for interactive commands",
-			target:     tsrv.Config.Hostname,
-			command:    []string{},
-			assert:     assert.Error,
-			expectFile: false,
+			name:      "not allowed on multiple nodes",
+			target:    "foo=bar",
+			command:   []string{"echo", "hello", ">", "test.txt"},
+			assertRun: assert.Error,
+		},
+		{
+			name:      "not allowed for interactive commands",
+			target:    tsrv.Config.Hostname,
+			command:   []string{},
+			assertRun: assert.Error,
 		},
 	}
 	for _, tc := range tests {
@@ -7545,16 +7559,9 @@ func TestSSHForkAfterAuthentication(t *testing.T) {
 				"-f",
 				u.Username + "@" + tc.target,
 			}, cmd...))
-			tc.assert(t, err)
-			if tc.expectFile {
-				assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-					assert.FileExists(collect, testFile)
-				}, 3*time.Second, 100*time.Millisecond)
-			} else {
-				assert.Never(t, func() bool {
-					_, err := os.Stat(testFile)
-					return !errors.Is(err, os.ErrNotExist)
-				}, 3*time.Second, time.Second)
+			tc.assertRun(t, err)
+			if tc.assertCommandEffect != nil {
+				tc.assertCommandEffect(t, testFile)
 			}
 		})
 	}

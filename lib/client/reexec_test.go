@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os/exec"
 	"strings"
 	"sync"
@@ -194,37 +193,6 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 
 		require.Never(t, func() bool {
 			return strings.Contains(stdout.String(), "extra output")
-		}, 3*time.Second, time.Second)
-	})
-
-	t.Run("stdin is closed after disowning", func(t *testing.T) {
-		t.Parallel()
-		const script = `
-		# Close signal fd.
-		echo x >&%d
-		exec %d>&-
-		echo test
-		sleep 1
-		# Next read should not work
-		read && echo $REPLY
-		`
-		getArgs := func(signalFd uint64) []string {
-			return []string{"-c", fmt.Sprintf(script, signalFd, signalFd)}
-		}
-		stdout := newSyncBuffer()
-		stdinR, stdinW := io.Pipe()
-		params := ForkAuthenticateParams{
-			GetArgs: getArgs,
-			Stdin:   stdinR,
-			Stdout:  stdout,
-			Stderr:  io.Discard,
-		}
-		cmd := buildBashForkCommand(t, params)
-		err := runForkAuthenticateChild(t.Context(), cmd)
-		assert.NoError(t, err)
-		stdinW.Write([]byte("hello\n"))
-		assert.Never(t, func() bool {
-			return strings.Contains(stdout.String(), "hello")
 		}, 3*time.Second, time.Second)
 	})
 }
