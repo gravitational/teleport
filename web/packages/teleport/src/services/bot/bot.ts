@@ -18,7 +18,11 @@
 
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
-import { makeBot, toApiGitHubTokenSpec } from 'teleport/services/bot/consts';
+import {
+  makeBot,
+  parseListBotInstancesResponse,
+  toApiGitHubTokenSpec,
+} from 'teleport/services/bot/consts';
 import ResourceService, { RoleResource } from 'teleport/services/resources';
 import { FeatureFlags } from 'teleport/types';
 
@@ -29,6 +33,7 @@ import {
   CreateBotRequest,
   EditBotRequest,
   FlatBot,
+  ListBotInstancesResponse,
 } from './types';
 
 export function createBot(config: CreateBotRequest): Promise<void> {
@@ -102,4 +107,49 @@ export function deleteBot(flags: FeatureFlags, name: string) {
   }
 
   return api.delete(cfg.getBotUrlWithName(name));
+}
+
+const MAX_INSTANCES = 500_000;
+const INSTANCES_PAGE_SIZE = 100;
+export async function listAllBotInstances(
+  variables: {
+    botName?: string;
+  },
+  signal?: AbortSignal
+) {
+  const { botName } = variables;
+
+  const path = cfg.listBotInstancesUrl();
+  const qs = new URLSearchParams();
+
+  const instances: ListBotInstancesResponse['bot_instances'] = [];
+  let nextPageToken = '';
+
+  while (true) {
+    if (instances.length >= MAX_INSTANCES) {
+      return { instances, partial: true };
+    }
+    qs.set('page_size', INSTANCES_PAGE_SIZE.toFixed());
+
+    if (botName) {
+      qs.set('bot_name', botName);
+    }
+
+    if (nextPageToken) {
+      qs.set('page_token', nextPageToken);
+    }
+
+    const data = await api.get(`${path}?${qs.toString()}`, signal);
+
+    if (!parseListBotInstancesResponse(data)) {
+      throw new Error('failed to parse list bot instances response');
+    }
+
+    instances.push(...data.bot_instances);
+    nextPageToken = data.next_page_token ?? '';
+
+    if (!nextPageToken) {
+      return { instances, partial: false };
+    }
+  }
 }
