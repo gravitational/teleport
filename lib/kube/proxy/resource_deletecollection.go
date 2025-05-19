@@ -197,17 +197,20 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		if itemsR.Len() == 0 {
 			break
 		}
+		apiVersionR := objReflect.FieldByName("APIVersion")
+		if apiVersionR.Type().Kind() != reflect.String {
+			return internalErrStatus, trace.BadParameter("unexpected type %T, APIVersion is not a string", obj)
+		}
+		apiVersion := apiVersionR.String()
 
 		var (
 			underlyingType = itemsR.Index(0).Type()
-			apiVersion     string
 			objs           = make([]kubeObjectInterface, 0, itemsR.Len())
 		)
 		for i := range itemsR.Len() {
 			item := itemsR.Index(i).Addr().Interface()
 			if item, ok := item.(kubeObjectInterface); ok {
 				objs = append(objs, item)
-				apiVersion, _ = item.GroupVersionKind().ToAPIVersionAndKind()
 			} else {
 				return internalErrStatus, trace.BadParameter("unexpected type %T", itemsR.Interface())
 			}
