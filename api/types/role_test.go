@@ -192,13 +192,36 @@ func TestRole_GetKubeResources(t *testing.T) {
 			assertErrorCreation: require.NoError,
 		},
 		{
-			name: "v8 without group",
+			name: "v8 pods without group",
 			args: args{
 				version: V8,
 				labels:  kubeLabels,
 				resources: []KubernetesResource{
 					{
 						Kind:      "pods",
+						Namespace: "test",
+						Name:      "test",
+					},
+				},
+			},
+			wantAllow: []KubernetesResource{
+				{
+					Kind:      "pods",
+					Namespace: "test",
+					Name:      "test",
+					APIGroup:  "",
+				},
+			},
+			assertErrorCreation: require.NoError,
+		},
+		{
+			name: "v8 deployments without group",
+			args: args{
+				version: V8,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						Kind:      "deployements",
 						Namespace: "test",
 						Name:      "test",
 					},
@@ -1001,7 +1024,7 @@ func TestRoleV6_KubernetesResourcesCheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			}),
-			requireError: requireBadParameterContains("KubernetesResource group is required in role version \"v8\""),
+			requireError: requireBadParameterContains("KubernetesResource api_group is required for resource \"*\" in role version \"v8\""),
 		},
 	}
 
