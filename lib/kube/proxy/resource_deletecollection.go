@@ -160,11 +160,9 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	// TODO (tigrato):
 	//  - parallelize loop
 	//  -  check if the request should stop at the first fail.
-	var out runtime.Object
 	switch o := obj.(type) {
 	case *metav1.Status:
 		// Do nothing.
-		out = o
 	case *unstructured.Unstructured:
 		if !o.IsList() {
 			return internalErrStatus, trace.BadParameter("unexpected CRD type")
@@ -185,34 +183,35 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 			return internalErrStatus, trace.Wrap(err)
 		}
 		o.Object["items"] = items
-		out = o
 	default:
-		itemsR := reflect.ValueOf(obj).Elem().FieldByName("Items")
+		// itemsFieldName is the field name of the items in the list
+		// object. This is used to get the items from the list object.
+		// We use reflection to get the items field name since
+		// the list object can be of any type.
+		const itemsFieldName = "Items"
+		objReflect := reflect.ValueOf(obj).Elem()
+		itemsR := objReflect.FieldByName(itemsFieldName)
 		if itemsR.Type().Kind() != reflect.Slice {
 			return internalErrStatus, trace.BadParameter("unexpected type %T, Items is not a slice", obj)
 		}
-		apiVersionR := reflect.ValueOf(obj).Elem().FieldByName("APIVersion")
-		if apiVersionR.Type().Kind() != reflect.String {
-			return internalErrStatus, trace.BadParameter("unexpected APIVersion type %T, APIVersion is not a string", obj)
-		}
-		apiVersion := apiVersionR.String()
-
-		if apiVersion == "" {
-			return internalErrStatus, trace.BadParameter("unexpected APIVersion type %T, APIVersion is not a string", obj)
+		if itemsR.Len() == 0 {
+			break
 		}
 
-		objs := make([]kubeObjectInterface, 0, itemsR.Len())
+		var (
+			underlyingType = itemsR.Index(0).Type()
+			apiVersion     string
+			objs           = make([]kubeObjectInterface, 0, itemsR.Len())
+		)
 		for i := range itemsR.Len() {
 			item := itemsR.Index(i).Addr().Interface()
 			if item, ok := item.(kubeObjectInterface); ok {
 				objs = append(objs, item)
+				apiVersion, _ = item.GroupVersionKind().ToAPIVersionAndKind()
 			} else {
 				return internalErrStatus, trace.BadParameter("unexpected type %T", itemsR.Interface())
 			}
 		}
-		var unstructured unstructured.Unstructured
-		unstructured.SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
-
 		items, err := deleteResources(
 			params,
 			sess.apiResource.resourceKind,
@@ -224,9 +223,20 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		if err != nil {
 			return internalErrStatus, trace.Wrap(err)
 		}
+		// make a new slice of the same type as the original one.
+		slice := reflect.MakeSlice(itemsR.Type(), len(items), len(items))
+		for i := 0; i < len(items); i++ {
+			item := items[i]
+			// convert the item to the underlying type of the slice.
+			// this is needed because items is a slice of pointers that
+			// satisfy the kubeObjectInterface interface.
+			// but the underlying type of the slice of elements is not
+			// a pointer. We dereference the item and convert it to the
+			// original slice element type.
+			slice.Index(i).Set(reflect.ValueOf(item).Elem().Convert(underlyingType))
+		}
 
-		unstructured.Object["items"] = items
-		out = &unstructured
+		itemsR.Set(slice)
 	}
 
 	// reset the memory buffer.
@@ -238,7 +248,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		deleteRequestContentType,
 	)
 	// encode the filtered response into the memory buffer.
-	if err := deleteRequestEncoder.Encode(out, memWriter.Buffer()); err != nil {
+	if err := deleteRequestEncoder.Encode(obj, memWriter.Buffer()); err != nil {
 		return internalErrStatus, trace.Wrap(err)
 	}
 	// copy the output into the user's ResponseWriter and return.
