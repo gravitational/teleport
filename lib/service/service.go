@@ -146,6 +146,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	secretsscannerproxy "github.com/gravitational/teleport/lib/secretsscanner/proxy"
+	"github.com/gravitational/teleport/lib/selinux"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/expiry"
@@ -1027,6 +1028,23 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 		}
+	}
+
+	// If SELinux support is enabled ensure we have a valid configuration,
+	// and ensure SELinux itself is configured correctly
+	if cfg.SSH.EnableSELinux {
+		if runtime.GOOS != "linux" {
+			return nil, trace.Errorf("SELinux is only supported on Linux")
+		}
+
+		if !cfg.CheckServicesForSELinux() {
+			return nil, trace.Errorf("SELinux is only supported for the SSH service")
+		}
+
+		if err := selinux.CheckConfiguration(cfg.SSH.EnsureSELinuxEnforcing, cfg.Logger); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.Logger.InfoContext(context.Background(), "SELinux support is enabled for SSH service")
 	}
 
 	// create the data directory if it's missing
@@ -3142,6 +3160,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetSessionController(sessionController),
 			regular.SetPublicAddrs(cfg.SSH.PublicAddrs),
 			regular.SetStableUNIXUsers(conn.Client.StableUNIXUsersClient()),
+			regular.SetSELinuxEnabled(cfg.SSH.EnableSELinux),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -6660,6 +6679,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 			switch cfg.JoinMethod {
 			case types.JoinMethodToken,
 				types.JoinMethodUnspecified,
+				types.JoinMethodAzureDevops,
 				types.JoinMethodIAM,
 				types.JoinMethodCircleCI,
 				types.JoinMethodKubernetes,

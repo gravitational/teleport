@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.24.2
+go 1.24.3
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.17.0
@@ -13,6 +13,7 @@ require (
 	cloud.google.com/go/resourcemanager v1.10.6
 	cloud.google.com/go/spanner v1.80.0
 	cloud.google.com/go/storage v1.52.0
+	code.dny.dev/ssrf v0.2.0
 	connectrpc.com/connect v1.18.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.9.0
@@ -111,6 +112,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-git/go-git/v5 v5.16.0
 	github.com/go-jose/go-jose/v3 v3.0.4
+	github.com/go-jose/go-jose/v4 v4.0.5
 	github.com/go-ldap/ldap/v3 v3.4.11
 	github.com/go-logr/logr v1.4.2
 	github.com/go-mysql-org/go-mysql v1.9.1 // replaced
@@ -169,6 +171,7 @@ require (
 	github.com/moby/term v0.5.2
 	github.com/okta/okta-sdk-golang/v2 v2.20.0
 	github.com/opencontainers/go-digest v1.0.0
+	github.com/opencontainers/selinux v1.12.0
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
 	github.com/oracle/oci-go-sdk/v65 v65.89.3
 	github.com/parquet-go/parquet-go v0.25.0
@@ -254,6 +257,8 @@ require (
 	sigs.k8s.io/yaml v1.4.0
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
+
+require github.com/zeebo/assert v1.3.0
 
 require (
 	cel.dev/expr v0.20.0 // indirect
@@ -358,7 +363,6 @@ require (
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.6.2 // indirect
 	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
-	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-openapi/analysis v0.23.0 // indirect
@@ -595,6 +599,7 @@ replace (
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
 	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-teleport.1
 	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20230331180905-0f76f1751cd3
+	github.com/opencontainers/selinux => github.com/gravitational/selinux v1.13.0-teleport
 	github.com/redis/go-redis/v9 => github.com/gravitational/redis/v9 v9.6.1-teleport.1
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.2
 )

@@ -340,6 +340,9 @@ const (
 	// KindAutoUpdateAgentRollout is the resource that controls and tracks agent rollouts.
 	KindAutoUpdateAgentRollout = "autoupdate_agent_rollout"
 
+	// KindAutoUpdateAgentReport is the resource that tracks connected agents.
+	KindAutoUpdateAgentReport = "autoupdate_agent_report"
+
 	// MetaNameAutoUpdateConfig is the name of a configuration resource for autoupdate config.
 	MetaNameAutoUpdateConfig = "autoupdate-config"
 

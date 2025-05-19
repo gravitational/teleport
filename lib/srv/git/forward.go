@@ -717,6 +717,9 @@ func (s *ForwardServer) GetHostUsers() srv.HostUsers {
 func (s *ForwardServer) GetHostSudoers() srv.HostSudoers {
 	return nil
 }
+func (s *ForwardServer) GetSELinuxEnabled() bool {
+	return false
+}
 
 type serverContextKey struct{}
 

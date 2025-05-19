@@ -101,6 +101,7 @@ type collections struct {
 	autoUpdateConfig                   *collection[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex]
 	autoUpdateVerion                   *collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex]
 	autoUpdateRollout                  *collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex]
+	autoUpdateReports                  *collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]
 	oktaImportRules                    *collection[types.OktaImportRule, oktaImportRuleIndex]
 	oktaAssignments                    *collection[types.OktaAssignment, oktaAssignmentIndex]
 	samlIdPServiceProviders            *collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex]
@@ -456,6 +457,14 @@ func setupCollections(c Config, legacyCollections map[resourceKind]legacyCollect
 
 			out.autoUpdateRollout = collect
 			out.byKind[resourceKind] = out.autoUpdateRollout
+		case types.KindAutoUpdateAgentReport:
+			collect, err := newAutoUpdateAgentReportCollection(c.AutoUpdateService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.autoUpdateReports = collect
+			out.byKind[resourceKind] = out.autoUpdateReports
 		case types.KindOktaImportRule:
 			collect, err := newOktaImportRuleCollection(c.Okta, watch)
 			if err != nil {

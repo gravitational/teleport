@@ -756,8 +756,10 @@ func (g *GRPCServer) AssertSystemRole(ctx context.Context, req *authpb.SystemRol
 // icsServicesToMetricName is a helper for translating service names to keepalive names for control-stream
 // purposes. When new services switch to using control-stream based heartbeats, they should be added here.
 var icsServiceToMetricName = map[types.SystemRole]string{
-	types.RoleNode: constants.KeepAliveNode,
-	types.RoleApp:  constants.KeepAliveApp,
+	types.RoleApp:      constants.KeepAliveApp,
+	types.RoleDatabase: constants.KeepAliveDatabase,
+	types.RoleKube:     constants.KeepAliveKube,
+	types.RoleNode:     constants.KeepAliveNode,
 }
 
 func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryControlStreamServer) error {
@@ -1888,6 +1890,32 @@ func (g *GRPCServer) GetWebSessions(ctx context.Context, _ *emptypb.Empty) (*aut
 	}, nil
 }
 
+// StreamWebSessions implements [authpb.AuthServiceServer].
+func (g *GRPCServer) StreamWebSessions(req *emptypb.Empty, srv authpb.AuthService_StreamWebSessionsServer) error {
+	ctx := srv.Context()
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sessions, err := auth.WebSessions().List(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, session := range sessions {
+		sess, ok := session.(*types.WebSessionV2)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", session)
+		}
+		if err := srv.Send(sess); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
 // DeleteWebSession removes the web session given with req.
 func (g *GRPCServer) DeleteWebSession(ctx context.Context, req *types.DeleteWebSessionRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -2061,7 +2089,7 @@ var minSupportedRoleV8Version = semver.New(utils.VersionBeforeAlpha("18.0.0"))
 // the client version passed through the gRPC metadata is below the version
 // specified in minSupportedRoleV8Version.
 //
-// TODO(@creack,@flyinghermit): Downgrade role appropriately when introducing role v8 semantics changes.
+// TODO(@creack): Downgrade role appropriately when introducing role v8 semantics changes.
 // Currently, only downgrades the version as there is no logic change.
 //
 // TODO(@creack): Delete in v19.0.0.
@@ -2083,13 +2111,33 @@ func maybeDowngradeRoleVersionToV7(role *types.RoleV6, clientVersion *semver.Ver
 	// which can cause panics since it causes a race condition.
 	role = apiutils.CloneProtoMsg(role)
 	role.Version = types.V7
+	role = downgradeSAMLIdPRBAC(role)
 
-	reason := fmt.Sprintf(`Role V8 is only supported from the client version %q and above.`, minSupportedRoleV8Version)
+	reason := fmt.Sprintf(`Role V8 is only supported from the client version %q and above.`+
+		`Access to SAML IdP will be disabled.`, minSupportedRoleV8Version)
 	if role.Metadata.Labels == nil {
 		role.Metadata.Labels = make(map[string]string, 1)
 	}
 	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
+
 	return role
+}
+
+// downgradeSAMLIdPRBAC disables access to all saml_idp_service_provider
+// resources. The RBAC for saml_idp_service_provider resource before role V8
+// is a blanket allow/deny rule. Since the saml resource can now be
+// scoped per resource labels, disabling access on downgraded role is
+// a simpler and safer option.
+func downgradeSAMLIdPRBAC(downgradedRole *types.RoleV6) *types.RoleV6 {
+	options := downgradedRole.GetOptions()
+	options.IDP = &types.IdPOptions{
+		SAML: &types.IdPSAMLOptions{
+			Enabled: types.NewBoolOption(false),
+		},
+	}
+	downgradedRole.SetOptions(options)
+
+	return downgradedRole
 }
 
 var minSupportedSSHPortForwardingVersion = semver.Version{Major: 17, Minor: 1, Patch: 0}

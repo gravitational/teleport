@@ -24,6 +24,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -100,6 +101,11 @@ func init() {
 	endpoints.RegisterResolver(cassandra.NewEndpointsResolver, defaults.ProtocolCassandra)
 	endpoints.RegisterResolver(clickhouse.NewNativeEndpointsResolver, defaults.ProtocolClickHouse)
 	endpoints.RegisterResolver(clickhouse.NewHTTPEndpointsResolver, defaults.ProtocolClickHouseHTTP)
+	endpoints.RegisterResolver(dynamodb.NewEndpointsResolver, defaults.ProtocolDynamoDB)
+	endpoints.RegisterResolver(elasticsearch.NewEndpointsResolver, defaults.ProtocolElasticsearch)
+	endpoints.RegisterResolver(opensearch.NewEndpointsResolver, defaults.ProtocolOpenSearch)
+	endpoints.RegisterResolver(redis.NewEndpointsResolver, defaults.ProtocolRedis)
+	endpoints.RegisterResolver(snowflake.NewEndpointsResolver, defaults.ProtocolSnowflake)
 	endpoints.RegisterResolver(spanner.NewEndpointsResolver, defaults.ProtocolSpanner)
 	endpoints.RegisterResolver(sqlserver.NewEndpointsResolver, defaults.ProtocolSQLServer)
 }
@@ -1184,7 +1190,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	defer func() {
 		if r := recover(); r != nil {
-			s.log.WarnContext(ctx, "Recovered while handling DB connection.", "from", clientConn.RemoteAddr(), "to", r)
+			s.log.WarnContext(ctx, "Recovered while handling DB connection.", "from", clientConn.RemoteAddr(), "problem", r, "stack", debug.Stack())
 			err = trace.BadParameter("failed to handle client connection")
 		}
 		if err != nil {

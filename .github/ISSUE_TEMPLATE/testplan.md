@@ -1189,6 +1189,15 @@ manualy testing.
     - [ ] Postgres
 - [ ] Verify database access via Web UI
   - [ ] Postgres
+- [ ] Verify database health checks
+  - [ ] Dynamic `health_check_config` resource create, read, update, delete operations are supported using `tctl`
+  - [ ] Database servers (`$ tctl get db_server`) include `db_server.status.target_health` info
+  - [ ] Updating `health_check_config` resets `db_server.status.target_health.status` for matching databases (may take several minutes)
+  - [ ] Updating a `health_check_config` (or deleting it), such that a database should no longer have health checks enabled, resets that database's `db_server.status.target_health` to "unknown/disabled" (may take several minutes)
+  - [ ] Verify health check web UI indicators
+    Configure a database agent with a database that has an unreachable URI (e.g. localhost:5432).
+    - [ ] The web UI resource page shows an warning indicator for that database with error details.
+    - [ ] Without restarting the agent, make the database endpoint reachable and observe that the indicator in the web UI resources page disappears after some time.
 
 ## Git Proxy
 - [ ] [GitHub proxy](https://goteleport.com/docs/admin-guides/management/guides/github-integration/)
@@ -1705,6 +1714,9 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
     - [ ] Verify the Single Sign-On (SSO) connector created by the Okta Plugin.
   - [ ] Verify Okta users/apps/groups sync.
     - [ ] Verify that users/apps/groups are synced from Okta to Teleport.
+    - [ ] Verify that when bidirectional sync is disabled:
+      - [ ] `x.manage` scopes are not required for plugin to function.
+      - [ ] Updates to synced Access Lists' members/grants are not allowed.
     - [ ] Verify the custom `okta_import_rule` rule configuration.
     - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
     - [ ] Verify that users/groups are flattened on import, and are not duplicated on sync when their membership is inherited via nested Access Lists.

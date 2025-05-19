@@ -332,7 +332,7 @@ func TestValidateDatabase(t *testing.T) {
 					Krb5File:    "path-to.krb5",
 					Domain:      "domain.goteleport.com",
 					SPN:         "MSSQLSvc/sqlserver.goteleport.com:1433",
-					LDAPCert:    "-----BEGIN CERTIFICATE-----",
+					LDAPCert:    fixtures.TLSCACertPEM,
 				},
 			},
 			expectError: false,

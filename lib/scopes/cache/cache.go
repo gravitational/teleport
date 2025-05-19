@@ -19,28 +19,71 @@
 package cache
 
 import (
+	"cmp"
 	"iter"
+	"sync"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/utils/sortmap"
 )
 
+// Cursor describes a starting position for a paginated iteration over the cache. A cursor is only
+// considered filled in if both the key and scope are nonzero.
+type Cursor[K cmp.Ordered] struct {
+	// Scope is the scope to resume from.
+	Scope string
+	// Key is the primary key of the item to resume from.
+	Key K
+}
+
+// IsZero returns true if the cursor is empty.
+func (c *Cursor[K]) IsZero() bool {
+	return c == nil || (c.Key == *new(K) && c.Scope == "")
+}
+
+// Option is a functional option that can be used to configure cache query behavior.
+type Option[K cmp.Ordered] func(*options[K])
+
+type options[K cmp.Ordered] struct {
+	cursor Cursor[K]
+}
+
+// WithCursor specifies a cursor to use when querying the cache. If specified, the cache will
+// resume iteration from position described by the cursor. Passing in a zero value cursor
+// has no effect.
+func WithCursor[K cmp.Ordered](cursor Cursor[K]) Option[K] {
+	return func(o *options[K]) {
+		o.cursor = cursor
+	}
+}
+
 // Config configures a cache.
-type Config[T any, K comparable] struct {
+type Config[T any, K cmp.Ordered] struct {
 	// Scope is the function used to determine the scope of a value.
 	Scope func(T) string
 	// Key is the function used to determine the primary key of a value.
 	Key func(T) K
+	// Clone is an optional clone function that can be used to create deep copies
+	// of values prior to yielding them.
+	Clone func(T) T
 }
 
 // node is a tree node in the cache which stores values at a given scope.
-type node[T any, K comparable] struct {
+type node[K cmp.Ordered] struct {
 	// members is the set of values "at" this scope.
-	members map[K]struct{}
+	members *sortmap.Map[K, struct{}]
 
 	// children is the set of child scopes.
-	children map[string]*node[T, K]
+	children *sortmap.Map[string, *node[K]]
+}
+
+func newNode[K cmp.Ordered]() *node[K] {
+	return &node[K]{
+		members:  sortmap.New[K, struct{}](),
+		children: sortmap.New[string, *node[K]](),
+	}
 }
 
 // Cache is a generic scoped value cache. It constructs a basic tree structure based on scope segments
@@ -52,14 +95,15 @@ type node[T any, K comparable] struct {
 //   - Not currently safe for concurrent use.
 //   - Iteration order of read methods is nondeterministic.
 //   - No cleanup of empty scopes.
-type Cache[T any, K comparable] struct {
+type Cache[T any, K cmp.Ordered] struct {
 	cfg   Config[T, K]
+	rw    sync.RWMutex
 	items map[K]T
-	root  *node[T, K]
+	root  *node[K]
 }
 
 // New builds a new cache instance based on the supplied config.
-func New[T any, K comparable](cfg Config[T, K]) (*Cache[T, K], error) {
+func New[T any, K cmp.Ordered](cfg Config[T, K]) (*Cache[T, K], error) {
 	if cfg.Scope == nil {
 		return nil, trace.BadParameter("missing required scope function for scope cache")
 	}
@@ -68,54 +112,33 @@ func New[T any, K comparable](cfg Config[T, K]) (*Cache[T, K], error) {
 		return nil, trace.BadParameter("missing required key function for scope cache")
 	}
 
+	if cfg.Clone == nil {
+		cfg.Clone = func(value T) T { return value }
+	}
+
 	return &Cache[T, K]{
 		cfg:   cfg,
 		items: make(map[K]T),
 	}, nil
 }
 
-// ScopedItems provides the canonical representation of a scope and an iterator over the items within it. Typically
-// used as the item of an outer iterator across multiple scopes.
-type ScopedItems[T any] struct {
-	scope string
-	items iter.Seq[T]
-}
-
-// Scope is the canonical representation of the scope to which the items belong. Note that
-// it is theoretically possible for this to be different than the scope value of any particular
-// item in the iterator.
-func (s *ScopedItems[T]) Scope() string {
-	// TODO(fspmarshall): should we lazily build the scope string? changes are that a lot of
-	// usecases won't care about it.
-	return s.scope
-}
-
-// Items is an iterator over the items within the above scope. Note that within an iterator of ScopedItems,
-// this iterator may only be safe to use during the current outer iteration.
-func (s *ScopedItems[T]) Items() iter.Seq[T] {
-	// TODO(fspmarshall): lazily build the iterator here so that iteration can happen multiple times
-	// if needed.
-	return s.items
-}
-
-// newScopedItems is a helper function for creating a ScopedItems instance within a top-level iterator.
-func newScopedItems[T any, K comparable](segments []string, members map[K]struct{}, items map[K]T) ScopedItems[T] {
-	return ScopedItems[T]{
-		scope: scopes.Join(segments...),
-		items: func(yield func(T) bool) {
-			for key := range members {
-				if !yield(items[key]) {
-					return
-				}
-			}
-		},
-	}
+// KeyOf returns the primary key of the given value.
+func (c *Cache[T, K]) KeyOf(value T) K {
+	return c.cfg.Key(value)
 }
 
 // PoliciesApplicableToResourceScope iterates over the cached items using policy-application rules (i.e.
 // a descending iteration from root, through the leaf of the specified scope).
-func (c *Cache[T, K]) PoliciesApplicableToResourceScope(scope string) iter.Seq[ScopedItems[T]] {
+func (c *Cache[T, K]) PoliciesApplicableToResourceScope(scope string, opts ...Option[K]) iter.Seq[ScopedItems[T]] {
 	return func(yield func(ScopedItems[T]) bool) {
+		c.rw.RLock()
+		defer c.rw.RUnlock()
+
+		var options options[K]
+		for _, opt := range opts {
+			opt(&options)
+		}
+
 		if c.root == nil {
 			return
 		}
@@ -126,27 +149,34 @@ func (c *Cache[T, K]) PoliciesApplicableToResourceScope(scope string) iter.Seq[S
 		// start at the root
 		current := c.root
 
+		descender := newDescender(options.cursor)
+		defer descender.Stop()
+
 		for segment := range scopes.DescendingSegments(scope) {
-			// yield the current scope if it is non-empty
-			if len(current.members) != 0 {
-				if !yield(newScopedItems(visited, current.members, c.items)) {
+			// yield the current scope if we've finished descending to resume position and it is non-empty
+			if descender.Yield() && current.members.Len() != 0 {
+				if !yield(newScopedItems(visited, descender.StartKey(), current.members, c.items, c.cfg.Clone)) {
 					return
 				}
 			}
 
-			// check for the next scope
-			if _, ok := current.children[segment]; !ok {
+			// get next scope if it exists
+			var ok bool
+			current, ok = current.children.Get(segment)
+			if !ok {
 				return
 			}
 
-			// advance to the next scope
+			// finish yielding from this scope, advance the descender
+			descender.Descend(segment)
+
+			// update visited segments
 			visited = append(visited, segment)
-			current = current.children[segment]
 		}
 
 		// yield the final scope if it is non-empty
-		if len(current.members) != 0 {
-			if !yield(newScopedItems(visited, current.members, c.items)) {
+		if current.members.Len() != 0 {
+			if !yield(newScopedItems(visited, descender.StartKey(), current.members, c.items, c.cfg.Clone)) {
 				return
 			}
 		}
@@ -154,9 +184,17 @@ func (c *Cache[T, K]) PoliciesApplicableToResourceScope(scope string) iter.Seq[S
 }
 
 // ResourcesSubjectToPolicyScope iterates over the cached items using resources-subjugation rules (i.e.
-// an exhaustive iteration of the specified scope and all of its descendants).
-func (c *Cache[T, K]) ResourcesSubjectToPolicyScope(scope string) iter.Seq[ScopedItems[T]] {
+// an exhaustive descending iteration of the specified scope and all of its descendants).
+func (c *Cache[T, K]) ResourcesSubjectToPolicyScope(scope string, opts ...Option[K]) iter.Seq[ScopedItems[T]] {
 	return func(yield func(ScopedItems[T]) bool) {
+		c.rw.RLock()
+		defer c.rw.RUnlock()
+
+		var options options[K]
+		for _, opt := range opts {
+			opt(&options)
+		}
+
 		if c.root == nil {
 			return
 		}
@@ -165,23 +203,30 @@ func (c *Cache[T, K]) ResourcesSubjectToPolicyScope(scope string) iter.Seq[Scope
 		var visited []string
 
 		// search for start position, beginning at the root
-		start := c.root
+		current := c.root
+
+		descender := newDescender(options.cursor)
+		defer descender.Stop()
 
 		for segment := range scopes.DescendingSegments(scope) {
-			// check for the next scope
-			if _, ok := start.children[segment]; !ok {
+			// get next scope if it exists
+			var ok bool
+			current, ok = current.children.Get(segment)
+			if !ok {
 				// reached the end prior to finding the target scope,
 				// nothing to yield.
 				return
 			}
 
-			// advance to the next scope
+			// advance the descender to the next scope
+			descender.Descend(segment)
+
+			// update visited segments
 			visited = append(visited, segment)
-			start = start.children[segment]
 		}
 
 		// recursively yield starting position and all of its descendants
-		if !recursiveYield(yield, visited, start, c.items) {
+		if !recursiveYield(yield, visited, &descender, current, c.items, c.cfg.Clone) {
 			return
 		}
 	}
@@ -189,17 +234,20 @@ func (c *Cache[T, K]) ResourcesSubjectToPolicyScope(scope string) iter.Seq[Scope
 
 // recursiveYield is a helper function for recursively yielding all members of a given scope node, and all
 // members of all of its children. The returned bool is the return value of the last call to yield.
-func recursiveYield[T any, K comparable](yield func(ScopedItems[T]) bool, visited []string, current *node[T, K], items map[K]T) bool {
-	// yield the current scope if it is non-empty
-	if len(current.members) != 0 {
-		if !yield(newScopedItems(visited, current.members, items)) {
+func recursiveYield[T any, K cmp.Ordered](yield func(ScopedItems[T]) bool, visited []string, descender *descender[K], current *node[K], items map[K]T, clone func(T) T) bool {
+	// yield the current scope if we've finished descending to resume position and it is non-empty
+	if descender.Yield() && current.members.Len() != 0 {
+		if !yield(newScopedItems(visited, descender.StartKey(), current.members, items, clone)) {
 			return false
 		}
 	}
 
 	// recursively yield all child scopes
-	for segment, child := range current.children {
-		if !recursiveYield(yield, append(visited, segment), child, items) {
+	for segment, child := range current.children.Ascend(descender.NextSegment()) {
+		descender.Descend(segment)
+
+		// recursively yield all child and all of its descendants
+		if !recursiveYield(yield, append(visited, segment), descender, child, items, clone) {
 			return false
 		}
 	}
@@ -210,33 +258,27 @@ func recursiveYield[T any, K comparable](yield func(ScopedItems[T]) bool, visite
 // Put inserts the given value, potentially displacing an existing value with the same
 // primary key.
 func (c *Cache[T, K]) Put(value T) {
+	c.rw.Lock()
+	defer c.rw.Unlock()
+
 	// get scope and key for this value
 	scope, key := c.cfg.Scope(value), c.cfg.Key(value)
 
 	// ensure that any previous value at this primary key has been removed
-	c.Del(key)
+	c.deleteLocked(key)
 
 	if c.root == nil {
-		c.root = &node[T, K]{
-			members:  make(map[K]struct{}),
-			children: make(map[string]*node[T, K]),
-		}
+		c.root = newNode[K]()
 	}
 
 	// find the node for this scope
 	current := c.root
 	for segment := range scopes.DescendingSegments(scope) {
-		if _, ok := current.children[segment]; !ok {
-			current.children[segment] = &node[T, K]{
-				members:  make(map[K]struct{}),
-				children: make(map[string]*node[T, K]),
-			}
-		}
-		current = current.children[segment]
+		current = current.children.GetOrCreate(segment, newNode[K])
 	}
 
 	// add the value to the set of members at this scope
-	current.members[key] = struct{}{}
+	current.members.Set(key, struct{}{})
 
 	// add the value to the set of members at this primary key
 	c.items[key] = value
@@ -244,6 +286,13 @@ func (c *Cache[T, K]) Put(value T) {
 
 // Del deletes the value associated with the given primary key.
 func (c *Cache[T, K]) Del(key K) {
+	c.rw.Lock()
+	defer c.rw.Unlock()
+
+	c.deleteLocked(key)
+}
+
+func (c *Cache[T, K]) deleteLocked(key K) {
 	// get the value associated with this primary key
 	value, ok := c.items[key]
 	if !ok {
@@ -256,11 +305,11 @@ func (c *Cache[T, K]) Del(key K) {
 	// get the node for this scope
 	current := c.root
 	for segment := range scopes.DescendingSegments(scope) {
-		current = current.children[segment]
+		current, _ = current.children.Get(segment)
 	}
 
 	// remove the value from the set of members at this scope
-	delete(current.members, key)
+	current.members.Del(key)
 
 	// remove the value from the set of members at this primary key
 	delete(c.items, key)
@@ -268,5 +317,140 @@ func (c *Cache[T, K]) Del(key K) {
 
 // Len gets the total number of unique items stored in the cache.
 func (c *Cache[T, K]) Len() int {
+	c.rw.RLock()
+	defer c.rw.RUnlock()
 	return len(c.items)
+}
+
+// ScopedItems provides the canonical representation of a scope and an iterator over the items within it. Typically
+// used as the item of an outer iterator across multiple scopes. ScopedItems instances are not safe for use outside
+// of the context of the iterator that yielded them.
+type ScopedItems[T any] struct {
+	segments []string
+	items    func() iter.Seq[T]
+}
+
+// Scope returns the canonical representation of the scope to which the items belong. Calling code should
+// prefer to retain the returned value rather than call this method multiple times, as the returned
+// value is lazily constructed. Note that it is theoretically possible for the returned value to be
+// different than the scope value of any particular item in the iterator.
+func (s *ScopedItems[T]) Scope() string {
+	return scopes.Join(s.segments...)
+}
+
+// Items returns an iterator over the items within the associated scope. Note that within an iterator of
+// ScopedItems, this iterator may only be safe to use during the current outer iteration.
+func (s *ScopedItems[T]) Items() iter.Seq[T] {
+	return s.items()
+}
+
+// newScopedItems is a helper function for creating a ScopedItems instance within a top-level iterator.
+func newScopedItems[T any, K cmp.Ordered](segments []string, start K, members *sortmap.Map[K, struct{}], items map[K]T, clone func(T) T) ScopedItems[T] {
+	return ScopedItems[T]{
+		segments: segments,
+		items: func() iter.Seq[T] {
+			return func(yield func(T) bool) {
+				for key, _ := range members.Ascend(start) {
+					if !yield(clone(items[key])) {
+						return
+					}
+				}
+			}
+		},
+	}
+}
+
+// descender is a helper for descending to the correct target scope component when resuming iteration
+// using a cursor value. the descender is intended to make the logic of descent/resumption cleaner, and
+// to reduce branching in primary query logic by encapsulating most resumption logic into an iterative
+// state-machine. the zero value of the descender is a valid descender with behavior equivalent to a query
+// with no cursor.
+type descender[K cmp.Ordered] struct {
+	startKey   K
+	next       func() (string, bool)
+	stop       func()
+	segment    string
+	descending bool
+}
+
+// Descend advances the descender by one scope component depth. this should only be called
+// after any necessary invocations of yield/next/peek for the current scope level. it must
+// be called with the value of the segment that we are descending *into*.
+func (d *descender[K]) Descend(segment string) {
+	if !d.descending {
+		// we are continuing to descend after already having reached the target scope on a previous
+		// iteration. ensure the start key is cleared out so that we don't continue to use it on
+		// this or any future segments.
+		d.startKey = *new(K)
+		return
+	}
+
+	if segment != d.segment {
+		// we were still in descending mode and our path diverged from the expected one. this indicates
+		// that the target scope has been deleted/emptied since the time the initial cursor value was
+		// created. stop the underlying iterator and back out of descending mode. when the target scope
+		// no longer exists, we end up in the next existing scope in iteration order, so the next item
+		// encountered will be the proper place to start yielding items from.
+		d.Stop()
+		return
+	}
+
+	d.segment, d.descending = d.next()
+}
+
+// Yield indicates wether or not we've descended to the appropriate depth to
+// start yielding items.
+func (d *descender[K]) Yield() bool {
+	return !d.descending
+}
+
+// StartKey gets the StartKey that should be used for the current scope level. This will
+// be the zero value for all scopes except the resumption target scope.
+func (d *descender[K]) StartKey() K {
+	if !d.descending {
+		// we are at exactly the descent target, use the
+		// start key from our cursor.
+		return d.startKey
+	}
+
+	return *new(K)
+}
+
+// NextSegment reports the next scope component to descend to (only relevant in exhaustive descents,
+// where we need to know the next value in order to skip previously visited scopes).
+func (d *descender[K]) NextSegment() string {
+	return d.segment
+}
+
+// stop *must* be called to ensure that the descender doesn't leak coroutines. safe for double-call.
+func (d *descender[K]) Stop() {
+	if d.stop == nil {
+		return
+	}
+
+	// halt the underlying iterator
+	d.stop()
+
+	// clear the descender (only relevant for early halts due to scope path divergence)
+	*d = descender[K]{}
+}
+
+// newDescender creates a descender instance for use in managing descent to a target scope during
+// resumption of a previous iteration.
+func newDescender[K cmp.Ordered](cursor Cursor[K]) descender[K] {
+	if cursor.IsZero() {
+		return descender[K]{}
+	}
+
+	next, stop := iter.Pull(scopes.DescendingSegments(cursor.Scope))
+
+	segment, descending := next()
+
+	return descender[K]{
+		startKey:   cursor.Key,
+		next:       next,
+		stop:       stop,
+		segment:    segment,
+		descending: descending,
+	}
 }

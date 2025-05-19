@@ -98,9 +98,3 @@ func (c *Client) DeleteCrownJewel(ctx context.Context, name string) error {
 	})
 	return trace.Wrap(err)
 }
-
-// DeleteAllCrownJewels deletes all Crown Jewels.
-// Not implemented. Added to satisfy the interface.
-func (c *Client) DeleteAllCrownJewels(_ context.Context) error {
-	return trace.NotImplemented("DeleteAllCrownJewels is not implemented")
-}
