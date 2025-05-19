@@ -65,11 +65,13 @@ func NewService[HandlerT Handler](name string, handler HandlerT) *Service[Handle
 // credentials, serving the SPIFFE Workload API, or proxying database traffic.
 //
 // Services have a status that describes whether they're currently healthy.
-// Dependent services can subscribe to status changes using WatchStatusChanges
-// or wait for the service to have a given status using WaitForStatus.
+// Dependent services can use the Wait and WaitForStatus methods to block until
+// the service is ready before using it.
 //
-// If the service's handler implements OneShotHandler, it can be used with the
-// `--oneshot` flag.
+// All services must support long-running mode, either by performing a task on a
+// given interval or performing an inherently long-running task such as exposing
+// an HTTP or gRPC API. Services can also optionally support one-shot mode where
+// they perform a task just once (when `tbot` is run with the `--oneshot` flag).
 //
 // The service lifecycle is managed by a Supervisor.
 type Service[HandlerT Handler] struct {
