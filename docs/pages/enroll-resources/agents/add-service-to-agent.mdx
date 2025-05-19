@@ -1,0 +1,266 @@
+---
+title: Enable a New Service on an Agent
+description: Explains how to edit the services that are running on a Teleport Agent.
+---
+
+A single Teleport Agent can run multiple services. This guide shows you how to
+adjust the services that a Teleport Agent runs so you can proxy different
+resources in your infrastructure.
+
+## How it works
+
+When a Teleport Agent joins a cluster, it presents a **join token** to the
+Teleport Auth Service in order to authenticate itself. A join token is a dynamic
+resource stored on the Teleport Auth Service backend. It contains a time to live
+(TTL), name, and a list of Teleport services that the token authorizes to run on
+the agent. 
+
+When a Teleport Agent joins a cluster, the Teleport Auth Service issues a
+certificate for the agent. The certificate contains the Teleport services that
+it authorizes the agent to run. To run new services on an agent, you must repeat
+the initial join procedure for those services. The agent needs to re-join the
+cluster with the new token and receive a new certificate.
+
+## Prerequisites
+
+- A Teleport cluster
+- At least one Teleport Agent running in your cluster, either on a Linux server
+  or a Kubernetes pod
+ - (!docs/pages/includes/tctl.mdx!)
+
+As an example, this guide shows you how to add a service to an agent using the
+token join method. This is one of multiple available join methods. Read the
+[Using Teleport Agents overview](agents.mdx) for a complete list.
+
+## Step 1/3. Generate a new join token
+
+Generate a new join token for all services running on an agent, including any
+new services you want to run. 
+
+For example, if an agent runs the Teleport Kubernetes Service, and you want it
+to run the Teleport Application Service as well, create a join token for the
+Teleport Kubernetes Service and Teleport Application Service. To do so, specify
+the two services in the `--type` flag of `tctl tokens add`:
+
+```code
+$ tctl tokens add --type=kube,app --ttl=5m
+```
+
+You can specify the following token types:
+
+(!docs/pages/includes/token-types.mdx!)
+
+If you are running your Teleport Agent using the `teleport-kube-agent` Helm
+chart, once you know your token types, update your values file so the `roles`
+field includes your required roles.
+
+For example, this change adds the `app` role to enable the Teleport Application
+Service:
+
+```diff
+- roles: kube,db
++ roles: kube,app,db
+```
+
+See the `teleport-kube-agent` [chart
+reference](../../reference/helm-reference/teleport-kube-agent.mdx#roles) for the
+roles and token types that the chart supports.
+
+## Step 2/3. Edit your agent configuration
+
+All Teleport Agent services run concurrently on the same `teleport` process.
+When the `teleport` daemon starts, it loads its configuration file
+(`/etc/teleport.yaml` by default) and determines which services to run. The
+configuration file also contains a reference to the join token the agent
+presents to the Teleport Auth Service in order to authenticate.
+
+### Enable the new service
+
+In the Teleport configuration file, top-level configuration fields that include
+the substring `_service` indicate whether to run a given Teleport service. 
+
+To enable a service, add the configuration field for your service with the
+`enabled` field set to `true`. The following configuration snippets are examples
+of enabling each Teleport Agent service in the configuration file:
+
+<Tabs>
+<TabItem label="Application Service">
+
+If the Teleport Agent runs on a Linux server, edit the configuration
+file to enable the new service:
+
+```yaml
+app_service:
+  enabled: true
+```
+
+If the Teleport Agent runs using the `teleport-kube-agent` chart, edit the
+values file to add an entry to `apps`:
+
+```yaml
+apps:
+  - name: myapp
+    # ...
+```
+
+</TabItem>
+<TabItem label="Database Service">
+
+If the Teleport Agent runs on a Linux server, edit the configuration
+file to enable the new service:
+
+```yaml
+db_service:
+  enabled: true
+```
+
+If the Teleport Agent runs using the `teleport-kube-agent` chart, edit the
+values file to add an entry to `databases`:
+
+```yaml
+databases:
+  - name: mydb
+    # ...
+```
+
+</TabItem>
+<TabItem label="Kubernetes Service">
+
+If the Teleport Agent runs on a Linux server, edit the configuration
+file to enable the new service:
+
+```yaml
+kubernetes_service:
+  enabled: true
+```
+
+If the Teleport Agent runs using the `teleport-kube-agent` chart, edit the
+values file to add the `kubeClusterName` field:
+
+```yaml
+kubeClusterName: mycluster
+```
+
+</TabItem>
+<TabItem label="SSH Service">
+
+If the Teleport Agent runs on a Linux server, edit the configuration
+file to enable the new service:
+
+```yaml
+ssh_service:
+  enabled: true
+```
+
+The Teleport SSH Service is not available for the `teleport-kube-agent` chart.
+
+</TabItem>
+<TabItem label="Windows Desktop Service">
+
+If the Teleport Agent runs on a Linux server, edit the configuration
+file to enable the new service:
+
+```yaml
+windows_desktop_service:
+  enabled: true
+```
+
+The Windows Desktop Service is not available for the `teleport-kube-agent`
+chart.
+
+</TabItem>
+</Tabs>
+
+Note that while the examples above enable a new service, they do not configure
+it to proxy any resources. Read a [guide to enrolling
+resources](../enroll-resources.mdx) for how to configure the new Teleport
+service.
+
+### Update the join token
+
+Make sure the agent's configuration file refers to the new join token.
+
+1. Find the name of the join token you created:
+
+   ```code
+   $ tctl tokens ls
+   # Token                            Type        Labels Expiry Time (UTC)
+   # -------------------------------- ----------- ------ -------------------------------
+   # (=presets.tokens.first=) Node,Db,App        10 Aug 23 19:49 UTC (4m11s)
+   ```
+
+   In this case, the name of the token is `(=presets.tokens.first=)`.
+
+1. In the agent's configuration file, update `teleport.join_params` or
+   `teleport.auth_token`:
+
+   ```diff
+     teleport:
+       join_params:
+   -     token_name: (=presets.tokens.second=)
+   +     token_name: (=presets.tokens.first=)
+         method: token
+   ```
+    
+
+   If the value of this field is a file path, edit the file at that path to
+   refer to the name of the new token. For example, if the value of the field is
+   `/var/lib/teleport/token`, run the following command:
+
+   ```code
+   $ echo (=presets.tokens.first=) > /var/lib/teleport/token
+   ```
+
+   If you are using the `teleport-kube-agent` Helm chart to deploy an Agent,
+   check your values file for either the `authToken` field or the
+   `joinParams.tokenName` field instead.
+
+## Step 3/3. Start Teleport Agents with the new join tokens
+
+Restart your Teleport Agent so it rejoins the cluster with the new token and
+receives a certificate that authorizes the additional service you want to run.
+
+### Linux server
+
+If your Teleport Agent runs on a Linux server:
+
+1. Delete the agent's state directory, which is `/var/lib/teleport` by default.
+   (Check the `teleport.data_dir` field of the Agent's configuration file.) With
+   no data directory, the agent will obtain its initial credentials from the
+   Auth Service instead of reading existing credentials.
+
+1. Restart the agent:
+
+   ```code
+   $ sudo systemctl reload teleport
+   ```
+
+### Helm chart
+
+Upgrade your Helm release:
+
+```code
+$ helm upgrade teleport-agent teleport-kube-agent
+```
+
+## Further reading: manage tokens as code
+
+While this guide shows you how to create a token using `tctl`, you can also
+manage tokens using the Teleport Terraform provider or Kubernetes operator. See
+the following documentation for information on the token resource:
+- [Terraform
+  provider](../../reference/terraform-provider/resources/provision_token.mdx)
+- [Kubernetes
+  operator](../../reference/operator-resources/resources-teleport-dev-provisiontokens.mdx)
+
+You can set up a system to automate the process of assigning join tokens to
+agents, ensuring that all Teleport services you run have the correct join
+token permissions. Here are examples in the documentation:
+- [Enroll Infrastructure with
+  Terraform](../../admin-guides/infrastructure-as-code/terraform-starter/enroll-resources.mdx):
+  Using Terraform to launch Teleport Agent instances that depend on join token
+  resources.
+- [Automatically Register Resources with
+  Teleport](../../admin-guides/api/automatically-register-agents.mdx): Writing a
+  compute platform client that automatically creates join tokens and launches
+  Teleport Agents with them.
