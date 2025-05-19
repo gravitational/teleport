@@ -23,18 +23,12 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"reflect"
 	"strings"
 
 	"github.com/gravitational/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
-	certificatesv1 "k8s.io/api/certificates/v1"
-	corev1 "k8s.io/api/core/v1"
-	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
-	networkingv1 "k8s.io/api/networking/v1"
-	authv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -166,326 +160,11 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	// TODO (tigrato):
 	//  - parallelize loop
 	//  -  check if the request should stop at the first fail.
+	var out runtime.Object
 	switch o := obj.(type) {
 	case *metav1.Status:
 		// Do nothing.
-	case *corev1.PodList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *corev1.SecretList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *corev1.ConfigMapList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *corev1.NamespaceList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *corev1.ServiceAccountList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *corev1.PersistentVolumeList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-
-	case *corev1.PersistentVolumeClaimList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-
-	case *corev1.ReplicationControllerList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-
-	case *appsv1.DeploymentList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *appsv1.ReplicaSetList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-
-	case *appsv1.StatefulSetList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *appsv1.DaemonSetList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-
-	case *authv1.ClusterRoleList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *authv1.RoleList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *authv1.ClusterRoleBindingList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *authv1.RoleBindingList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *batchv1.CronJobList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *batchv1.JobList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *certificatesv1.CertificateSigningRequestList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *networkingv1.IngressList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *extensionsv1beta1.IngressList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *extensionsv1beta1.DaemonSetList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *extensionsv1beta1.DeploymentList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *extensionsv1beta1.ReplicaSetList:
-		items, err := deleteResources(
-			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
-			o.APIVersion,
-			slices.ToPointers(o.Items),
-			deleteOptions,
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
+		out = o
 	case *unstructured.Unstructured:
 		if !o.IsList() {
 			return internalErrStatus, trace.BadParameter("unexpected CRD type")
@@ -505,10 +184,51 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		if err != nil {
 			return internalErrStatus, trace.Wrap(err)
 		}
-		list.Items = slices.FromPointers(items)
+		o.Object["items"] = items
+		out = o
 	default:
-		return internalErrStatus, trace.BadParameter("unexpected type %T", obj)
+		itemsR := reflect.ValueOf(obj).Elem().FieldByName("Items")
+		if itemsR.Type().Kind() != reflect.Slice {
+			return internalErrStatus, trace.BadParameter("unexpected type %T, Items is not a slice", obj)
+		}
+		apiVersionR := reflect.ValueOf(obj).Elem().FieldByName("APIVersion")
+		if apiVersionR.Type().Kind() != reflect.String {
+			return internalErrStatus, trace.BadParameter("unexpected APIVersion type %T, APIVersion is not a string", obj)
+		}
+		apiVersion := apiVersionR.String()
+
+		if apiVersion == "" {
+			return internalErrStatus, trace.BadParameter("unexpected APIVersion type %T, APIVersion is not a string", obj)
+		}
+
+		objs := make([]kubeObjectInterface, 0, itemsR.Len())
+		for i := range itemsR.Len() {
+			item := itemsR.Index(i).Addr().Interface()
+			if item, ok := item.(kubeObjectInterface); ok {
+				objs = append(objs, item)
+			} else {
+				return internalErrStatus, trace.BadParameter("unexpected type %T", itemsR.Interface())
+			}
+		}
+		var unstructured unstructured.Unstructured
+		unstructured.SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
+
+		items, err := deleteResources(
+			params,
+			sess.apiResource.resourceKind,
+			sess.apiResource.apiGroup,
+			apiVersion,
+			objs,
+			deleteOptions,
+		)
+		if err != nil {
+			return internalErrStatus, trace.Wrap(err)
+		}
+
+		unstructured.Object["items"] = items
+		out = &unstructured
 	}
+
 	// reset the memory buffer.
 	memWriter.Buffer().Reset()
 	// set the content type to the response writer to match the delete
@@ -518,7 +238,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		deleteRequestContentType,
 	)
 	// encode the filtered response into the memory buffer.
-	if err := deleteRequestEncoder.Encode(obj, memWriter.Buffer()); err != nil {
+	if err := deleteRequestEncoder.Encode(out, memWriter.Buffer()); err != nil {
 		return internalErrStatus, trace.Wrap(err)
 	}
 	// copy the output into the user's ResponseWriter and return.
@@ -607,9 +327,10 @@ func deleteResources[T kubeObjectInterface](
 		}
 
 		gvk := item.GroupVersionKind()
-		if gvk.Version == "" {
+		if gvk.Group == "" || gvk.Version == "" {
 			tmp := strings.Split(apiVersion, "/")
 			if len(tmp) == 2 {
+				gvk.Group = tmp[0]
 				gvk.Version = tmp[1]
 			} else {
 				gvk.Version = apiVersion
