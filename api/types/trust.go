@@ -66,6 +66,9 @@ const (
 	// AWSRACA identifies the certificate authority that will be used by the
 	// AWS IAM Roles Anywhere integration functionality.
 	AWSRACA CertAuthType = "awsra"
+	// BoundKeypairCA identifies the CA used to sign bound keypair client state
+	// documents.
+	BoundKeypairCA CertAuthType = "bound_keypair"
 )
 
 // CertAuthTypes lists all certificate authority types.
@@ -80,6 +83,7 @@ var CertAuthTypes = []CertAuthType{HostCA,
 	SPIFFECA,
 	OktaCA,
 	AWSRACA,
+	BoundKeypairCA,
 }
 
 // NewlyAdded should return true for CA types that were added in the current
@@ -102,7 +106,7 @@ func (c CertAuthType) addedInMajorVer() int64 {
 		return 15
 	case OktaCA:
 		return 16
-	case AWSRACA:
+	case AWSRACA, BoundKeypairCA:
 		return 18
 	default:
 		// We don't care about other CAs added before v4.0.0

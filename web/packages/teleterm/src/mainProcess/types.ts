@@ -195,6 +195,17 @@ export type MainProcessClient = {
    */
   signalUserInterfaceReadiness(args: { success: boolean }): void;
   refreshClusterList(): void;
+  /**
+   * Opens the Electron directory picker and sends the selected path to tshd through SetSharedDirectoryForDesktopSession.
+   * tshd then verifies whether there is an active session for the specified desktop user and attempts to open the directory.
+   * Once that's done, everything is ready on the tsh daemon to intercept and handle the file system events.
+   *
+   * Returns selected directory name.
+   */
+  selectDirectoryForDesktopSession(args: {
+    desktopUri: string;
+    login: string;
+  }): Promise<string>;
 };
 
 export type ChildProcessAddresses = {
@@ -310,6 +321,7 @@ export enum MainProcessIpc {
   VerifyConnectMyComputerAgent = 'main-process-connect-my-computer-verify-agent',
   SaveTextToFile = 'main-process-save-text-to-file',
   ForceFocusWindow = 'main-process-force-focus-window',
+  SelectDirectoryForDesktopSession = 'main-process-select-directory-for-desktop-session',
 }
 
 export enum WindowsManagerIpc {

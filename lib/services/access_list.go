@@ -67,8 +67,6 @@ type AccessLists interface {
 	UpdateAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
 	// DeleteAccessList removes the specified access list resource.
 	DeleteAccessList(context.Context, string) error
-	// DeleteAllAccessLists removes all access lists.
-	DeleteAllAccessLists(context.Context) error
 
 	// UpsertAccessListWithMembers creates or updates an access list resource and its members.
 	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
@@ -174,8 +172,6 @@ type AccessListMembers interface {
 	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
 	// DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list.
 	DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error
-	// DeleteAllAccessListMembers hard deletes all access list members.
-	DeleteAllAccessListMembers(ctx context.Context) error
 }
 
 // MarshalAccessListMember marshals the access list member resource to JSON.
@@ -235,9 +231,6 @@ type AccessListReviews interface {
 
 	// DeleteAccessListReview will delete an access list review from the backend.
 	DeleteAccessListReview(ctx context.Context, accessListName, reviewName string) error
-
-	// DeleteAllAccessListReviews will delete all access list reviews from all access lists.
-	DeleteAllAccessListReviews(ctx context.Context) error
 }
 
 // MarshalAccessListReview marshals the access list review resource to JSON.

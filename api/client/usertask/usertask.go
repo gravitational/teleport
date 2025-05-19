@@ -99,9 +99,3 @@ func (c *Client) DeleteUserTask(ctx context.Context, name string) error {
 	})
 	return trace.Wrap(err)
 }
-
-// DeleteAllUserTasks deletes all User Tasks.
-// Not implemented. Added to satisfy the interface.
-func (c *Client) DeleteAllUserTasks(_ context.Context) error {
-	return trace.NotImplemented("DeleteAllUserTasks is not implemented")
-}
