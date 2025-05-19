@@ -92,6 +92,8 @@ func (s *WorkloadIdentityAWSRAService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "marshaling private key")
 	}
 	certWithChain := bytes.NewBuffer(res.GetX509Svid().Cert)
+	// If external PKI is configured, we need to append the chain to the leaf
+	// certificate before calling x509svid.ParseRaw.
 	for _, cert := range res.GetX509Svid().Chain {
 		_, err := certWithChain.Write(cert)
 		if err != nil {
