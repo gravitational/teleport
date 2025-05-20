@@ -62,7 +62,7 @@ func ValidateAutoUpdateAgentReport(v *autoupdate.AutoUpdateAgentReport) error {
 		return trace.BadParameter("Spec is nil")
 	}
 
-	if ts := v.GetSpec().GetTimestamp(); ts == nil || (ts.Seconds == 0 && ts.Nanos == 0) {
+	if ts := v.GetSpec().GetTimestamp(); ts.GetSeconds() == 0 && ts.GetNanos() == 0 {
 		return trace.BadParameter("Spec.Timestamp is empty or zero")
 	}
 

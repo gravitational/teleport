@@ -44,7 +44,7 @@ func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
 
 	// We skip servers that joined less than a minute ago as they might have been
 	// connected to another auth instance a few seconds ago, which would lead to double-counting.
-	if handle.RegistrationTime().After(ir.timestamp.Add(-time.Minute)) {
+	if ir.timestamp.Sub(handle.RegistrationTime()) < time.Minute {
 		return
 	}
 	// We skip control planes instances because we don't update them.
@@ -61,7 +61,7 @@ func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
 
 	// Reject instances who are not advertising the group properly.
 	// They might be running too old versions.
-	updateGroup := hello.GetUpdaterInfo().UpdateGroup
+	updateGroup := hello.GetUpdaterInfo().GetUpdateGroup()
 	if updateGroup == "" {
 		return
 	}
