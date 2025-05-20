@@ -13,15 +13,7 @@ run-name: Lint (Docs)
 
 on:
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - 'examples/**'
-      - 'CHANGELOG.md'
   merge_group:
-    paths-ignore:
-      - 'docs/**'
-      - 'examples/**'
-      - 'CHANGELOG.md'
 
 jobs:
   lint:
