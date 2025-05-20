@@ -21,13 +21,15 @@ import (
 	"context"
 	"fmt"
 
-	apitypes "github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jonboulle/clockwork"
+
+	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
@@ -78,15 +80,13 @@ func (r resourceTeleportSessionRecordingConfig) Create(ctx context.Context, req 
 		return
 	}
 
-	
-
 	sessionRecordingConfigBefore, err := r.p.Client.GetSessionRecordingConfig(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading SessionRecordingConfig", trace.Wrap(err), "session_recording_config"))
 		return
 	}
 
-	err = r.p.Client.SetSessionRecordingConfig(ctx, sessionRecordingConfig)
+	_, err = r.p.Client.ClusterConfigClient().UpsertSessionRecordingConfig(ctx, &clusterconfigv1.UpsertSessionRecordingConfigRequest{SessionRecordingConfig: sessionRecordingConfig})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating SessionRecordingConfig", trace.Wrap(err), "session_recording_config"))
 		return
@@ -162,7 +162,6 @@ func (r resourceTeleportSessionRecordingConfig) Read(ctx context.Context, req tf
 		return
 	}
 
-	
 	sessionRecordingConfig := sessionRecordingConfigI.(*apitypes.SessionRecordingConfigV2)
 	diags = tfschema.CopySessionRecordingConfigV2ToTerraform(ctx, sessionRecordingConfig, &state)
 	resp.Diagnostics.Append(diags...)
@@ -210,7 +209,7 @@ func (r resourceTeleportSessionRecordingConfig) Update(ctx context.Context, req 
 		return
 	}
 
-	err = r.p.Client.SetSessionRecordingConfig(ctx, sessionRecordingConfig)
+	_, err = r.p.Client.ClusterConfigClient().UpsertSessionRecordingConfig(ctx, &clusterconfigv1.UpsertSessionRecordingConfigRequest{SessionRecordingConfig: sessionRecordingConfig})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating SessionRecordingConfig", trace.Wrap(err), "session_recording_config"))
 		return
@@ -244,7 +243,6 @@ func (r resourceTeleportSessionRecordingConfig) Update(ctx context.Context, req 
 		return
 	}
 
-	
 	sessionRecordingConfig = sessionRecordingConfigI.(*apitypes.SessionRecordingConfigV2)
 	diags = tfschema.CopySessionRecordingConfigV2ToTerraform(ctx, sessionRecordingConfig, &plan)
 	resp.Diagnostics.Append(diags...)
