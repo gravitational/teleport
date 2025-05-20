@@ -75,10 +75,24 @@ provider "aws" {
 }
 ```
 
-The first implementation route that comes to mind is simply using the output of 
-a data source as a value in the configuration of a provider, e.g:
+The values provided to the provider in configuration do not have to be static
+values and can be sourced dynamically (e.g from data sources, variables etc)
+
+#### Using data sources
+
+Terraform includes a kind of object known as a "Data Source". Data sources
+are designed to surface read-only information from a provider. Typically, this 
+is used to read information about an existing resource that is not managed
+directly by that Terraform configuration.
+
+Leveraging data sources would look like:
 
 ```hcl
+
+data "mwi_aws_roles_anywhere" "account" {
+  # Various configuration here needed to generate credentials 
+}
+
 provider "aws" {
   region     = "us-west-2"
   access_key = data.mwi_aws_roles_anywhere.account.access_key
@@ -100,12 +114,60 @@ With this approach, we must consider:
   - It would appear that data sources, were at least partially, introduced to
     solve for this use-case:
     https://github.com/hashicorp/terraform/issues/4169
-- Whether this results in sensitive information being exposed in the Terraform
-  state?
 - Whether the data source is computed on both plan/apply or if the data source
   outputs are cached and reused from state?
   - It could be problematic if the data source is only computed during plan,
     as the credentials issued could expire before the apply is run.
+  - TODO: Determine this...
+
+Positives:
+
+- Well-supported by a number of Terraform versions and forks like OpenTofu
+
+Negatives:
+
+- Data source outputs are stored in the Terraform state, which can be plaintext.
+- Data source outputs are computed once, and provide no mechanism for refreshing
+  credentials. Users would need to configure a TTL that is long enough for the
+  entire plan/apply.
+
+#### Using ephemeral resources
+
+Terraform also includes a kind of object known as an "ephemeral resource".
+These are intended to be used as a source of sensitive, temporary values -
+like credentials! In other regards, they are fairly similar to data sources in
+that they are not intended to manage actual resources.
+
+```hcl
+ephemeral "mwi_aws_roles_anywhere" "account" {
+  # Various configuration here needed to generate credentials 
+}
+
+provider "aws" {
+  region     = "us-west-2"
+  access_key = ephemeral.mwi_aws_roles_anywhere.account.access_key
+  secret_key = ephemeral.mwi_aws_roles_anywhere.account.secret_key
+}
+```
+
+Positives:
+
+- Ephemeral resources are not stored in the Terraform state, avoiding the risk
+  of exposing sensitive information.
+- Ephemeral resource kinds can expose a `refresh` method, which can be used to
+  refresh the credentials if they expire during the plan/apply. This avoids the
+  need for the end user to manually configure an appropriate TTL.
+- Ephemeral resource kinds can expose a `close` method, which can be used to
+  clean up any resources that are created during the credential generation
+  process. This could be useful if we needed to open long-lived tunnels to allow
+  access to resources.
+
+Negatives:
+
+- Ephemeral resources are only available from Terraform v1.10 (December 2024) 
+  and are not yet available in OpenTofu.
+  - OpenTofu does plan to add support:
+    https://github.com/opentofu/opentofu/pull/2793
 
 ### Which provider to use
 
