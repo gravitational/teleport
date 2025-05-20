@@ -135,6 +135,10 @@ type AccessRequest interface {
 	GetDryRunEnrichment() *AccessRequestDryRunEnrichment
 	// SetDryRunEnrichment sets the dry run enrichment data.
 	SetDryRunEnrichment(*AccessRequestDryRunEnrichment)
+	// GetRequestKind gets the kind of request.
+	GetRequestKind() AccessRequestKind
+	// SetRequestKind sets the kind (short/long-term) of request.
+	SetRequestKind(AccessRequestKind)
 	// Copy returns a copy of the access request resource.
 	Copy() AccessRequest
 }
@@ -526,6 +530,26 @@ func (r *AccessRequestV3) GetDryRunEnrichment() *AccessRequestDryRunEnrichment {
 // SetDryRunEnrichment sets the dry run enrichment data.
 func (r *AccessRequestV3) SetDryRunEnrichment(enrichment *AccessRequestDryRunEnrichment) {
 	r.Spec.DryRunEnrichment = enrichment
+}
+
+// GetRequestKind gets the kind of request.
+func (r *AccessRequestV3) GetRequestKind() AccessRequestKind {
+	return r.Spec.RequestKind
+}
+
+// SetRequestKind sets the kind (short/long-term) of request.
+func (r *AccessRequestV3) SetRequestKind(kind AccessRequestKind) {
+	r.Spec.RequestKind = kind
+}
+
+// IsLongTerm checks if the request kind is long-term.
+func (ark AccessRequestKind) IsLongTerm() bool {
+	return ark == AccessRequestKind_LONG_TERM
+}
+
+// IsShortTerm checks if the request kind is explicitly short-term, or is undefined.
+func (ark AccessRequestKind) IsShortTerm() bool {
+	return ark != AccessRequestKind_LONG_TERM
 }
 
 // Copy returns a copy of the access request resource.
