@@ -57,7 +57,7 @@ Based on design partner feedback, we'll initially focus on the following:
 ### Providing credentials within a Terraform plan/apply
 
 Terraform Providers typically provide some method of providing credentials
-directly within their configuration within the Terraform plan.
+directly within their arguments within the Terraform configuration.
 
 For example, Kubernetes:
 
@@ -105,25 +105,23 @@ provider "aws" {
 }
 ```
 
-With this approach, we must consider:
+Generally, it appears safe to use values from a data source as an input to
+another provider:
 
-- Whether it is safe to pass the output of a data source as a value in the
-  configuration of a provider (e.g. does this introduce problems with execution
-  order of a Terraform plan/apply.)?
-  - It would appear that this pattern is at least shown in examples in relation
-    to the Vault and AWS providers:
-    https://github.com/hashicorp-education/learn-terraform-inject-secrets-aws-vault/blob/main/operator-workspace/main.tf
-  - It would appear that historically there have been bugs related to this 
-    pattern which have been resolved:
-    https://github.com/hashicorp/terraform/issues/11264
-  - It would appear that data sources, were at least partially, introduced to
-    solve for this use-case:
-    https://github.com/hashicorp/terraform/issues/4169
-- Whether the data source is computed on both plan/apply or if the data source
-  outputs are cached and reused from state?
-  - It could be problematic if the data source is only computed during plan,
-    as the credentials issued could expire before the apply is run.
-  - TODO: Determine this...
+- It would appear that this pattern is at least shown in examples in relation
+  to the Vault and AWS providers:
+  https://github.com/hashicorp-education/learn-terraform-inject-secrets-aws-vault/blob/main/operator-workspace/main.tf
+- It would appear that historically there have been bugs related to this 
+  pattern which have been resolved:
+  https://github.com/hashicorp/terraform/issues/11264
+- It would appear that data sources, were at least partially, introduced to
+  solve for this use-case:
+  https://github.com/hashicorp/terraform/issues/4169
+
+However, one key limitation is that the value of a data source will only be
+computed once - either during plan or during apply. The result of that
+computation will be stored in the Terraform state. This means that if the 
+apply runs long enough after the plan, the credentials may have expired.
 
 Positives:
 
@@ -132,9 +130,9 @@ Positives:
 Negatives:
 
 - Data source outputs are stored in the Terraform state, which can be plaintext.
-- Data source outputs are computed once, and provide no mechanism for refreshing
-  credentials. Users would need to configure a TTL that is long enough for the
-  entire plan/apply.
+- Users would need to configure a TTL that is long enough for the entire
+  plan/apply. It's possible for these credentials to expire between the plan and
+  apply phases where they run separately.
 
 #### Using ephemeral resources
 
@@ -164,6 +162,8 @@ Positives:
 
 - Ephemeral resources are not stored in the Terraform state, avoiding the risk
   of exposing sensitive information.
+- As ephemeral resources are invoked both during plan and apply, it's possible
+  to grant the "plan" phase a lower set of privileges than the "apply" phase.
 - Ephemeral resource kinds can expose a `refresh` method, which can be used to
   refresh the credentials if they expire during the plan/apply. This avoids the
   need for the end user to manually configure an appropriate TTL.
