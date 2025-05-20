@@ -42,7 +42,7 @@ module.exports = {
     'plugin:import/warnings',
     'plugin:import/typescript',
   ],
-  plugins: ['react', 'babel', 'import', 'react-hooks'],
+  plugins: ['react', 'babel', 'import', 'react-hooks', 'unused-imports'],
   overrides: [
     {
       files: ['**/*.test.{ts,tsx,js,jsx}'],
