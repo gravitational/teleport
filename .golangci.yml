@@ -162,7 +162,9 @@ linters:
         oidc:
           deny:
             - pkg: github.com/coreos/go-oidc$
-              desc: 'github.com/coreos/go-oidc/v3 or github.com/zitadel/oidc/v3 should be used instead'
+              desc: 'github.com/zitadel/oidc/v3 should be used instead'
+            - pkg: github.com/coreos/go-oidc/v3$
+              desc: 'github.com/zitadel/oidc/v3 should be used instead'
             - pkg: github.com/zitadel/oidc$
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
         testify:
