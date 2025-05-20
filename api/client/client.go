@@ -2616,7 +2616,7 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 // SearchUnstructuredEvents allows searching for events with a full pagination support
 // and returns events in an unstructured format (json like).
 // This method is used by the Teleport event-handler plugin to receive events
-// from the auth server wihout having to support the Protobuf event schema.
+// from the auth server without having to support the Protobuf event schema.
 func (c *Client) SearchUnstructuredEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]*auditlogpb.EventUnstructured, string, error) {
 	request := &auditlogpb.GetUnstructuredEventsRequest{
 		Namespace:  namespace,
