@@ -5434,6 +5434,13 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		return nil, trace.Wrap(err)
 	}
 
+	isDryRun := req.GetDryRun()
+	isLongTerm := req.GetRequestKind().IsLongTerm()
+
+	if isDryRun || isLongTerm {
+		// TODO(kiosion): Fetch all AccessLists at this scope, then pass down to generatePromotions/SuggestLongTermAccess
+	}
+
 	if req.GetDryRun() {
 		// NOTE: Some dry-run options are set in [services.ValidateAccessRequestForUser].
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
