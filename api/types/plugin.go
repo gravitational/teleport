@@ -597,8 +597,9 @@ func (s *PluginOktaSettings) CheckAndSetDefaults() error {
 	if s.SyncSettings == nil {
 		// TODO(mdwn): Remove upgrade once modifications have been made in enterprise.
 		s.SyncSettings = &PluginOktaSyncSettings{
-			SyncUsers:      s.EnableUserSync,
-			SsoConnectorId: s.SsoConnectorId,
+			SyncUsers:             s.EnableUserSync,
+			SsoConnectorId:        s.SsoConnectorId,
+			EnableSystemLogExport: s.EnableSystemLogExport,
 		}
 	}
 
