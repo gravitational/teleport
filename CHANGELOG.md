@@ -1,6 +1,6 @@
 # Changelog
 
-## 14.4.0 (05/16/25)
+## 14.4.0 (05/20/25)
 
 While Teleport 14 is discontinued and out-of-support, some users are still running it.
 To help updating to a supported version, we are issuing exceptional v14 releases to
