@@ -144,7 +144,7 @@ func makeToken(managedIdentityResourceID, azureResourceID string, issueTime time
 		return "", trace.Wrap(err)
 	}
 	claims := accessTokenClaims{
-		Claims: jwt.Claims{
+		jwtClaims: jwt.Claims{
 			Issuer:    "https://sts.windows.net/test-tenant-id/",
 			Audience:  []string{azureAccessTokenAudience},
 			Subject:   "test",
