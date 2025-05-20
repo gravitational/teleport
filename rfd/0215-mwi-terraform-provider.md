@@ -40,3 +40,117 @@ provider for resources protected by Teleport will:
   plan/apply itself.
 
 ## Details
+
+Today, we already have basic support for embedding `tbot` functionality within
+Go binaries. We leverage this already for allowing the Teleport terraform
+provider to authenticate to a Teleport cluster using a join token.
+
+Due to the distinct nature of the credentials and configuration required for
+the various resources that we support, the Terraform provider will require
+handwritten implementation for each resource type that we wish to support.
+
+### Providing credentials within a Terraform plan/apply
+
+Terraform Providers typically provide some method of providing credentials
+directly within their configuration within the Terraform plan.
+
+For example, Kubernetes:
+
+```hcl
+provider "kubernetes" {
+  host                   = "my-cluster.example.com"
+  client_certificate     = file("~/.kube/client-cert.pem")
+  client_key             = file("~/.kube/client-key.pem")
+  cluster_ca_certificate = file("~/.kube/cluster-ca-cert.pem")
+}
+```
+
+For example, AWS:
+
+```hcl
+provider "aws" {
+  region     = "us-west-2"
+  access_key = "my-access-key"
+  secret_key = "my-secret-key"
+}
+```
+
+The first implementation route that comes to mind is simply using the output of 
+a data source as a value in the configuration of a provider, e.g:
+
+```hcl
+provider "aws" {
+  region     = "us-west-2"
+  access_key = data.mwi_aws_roles_anywhere.account.access_key
+  secret_key = data.mwi_aws_roles_anywhere.account.secret_key
+}
+```
+
+With this approach, we must consider:
+
+- Whether it is safe to pass the output of a data source as a value in the
+  configuration of a provider (e.g. does this introduce problems with execution
+  order of a Terraform plan/apply.)?
+  - It would appear that this pattern is at least shown in examples in relation
+    to the Vault and AWS providers:
+    https://github.com/hashicorp-education/learn-terraform-inject-secrets-aws-vault/blob/main/operator-workspace/main.tf
+  - It would appear that historically there have been bugs related to this 
+    pattern which have been resolved:
+    https://github.com/hashicorp/terraform/issues/11264
+  - It would appear that data sources, were at least partially, introduced to
+    solve for this use-case:
+    https://github.com/hashicorp/terraform/issues/4169
+- Whether this results in sensitive information being exposed in the Terraform
+  state?
+- Whether the data source is computed on both plan/apply or if the data source
+  outputs are cached and reused from state?
+  - It could be problematic if the data source is only computed during plan,
+    as the credentials issued could expire before the apply is run.
+
+### Which provider to use
+
+One key decision is where to build this functionality. Largely, we have three
+choices:
+
+- Build this functionality within the existing Teleport Terraform provider.
+  - Positives:
+    - No additional build/release pipelines to maintain.
+    - Customers leveraging this functionality and managing a Teleport cluster 
+      within the same plan/apply only need to configure a single provider.
+  - Negatives:
+    - Existing Teleport terraform provider has a significant degree of tech
+      debt, and due to the different nature of this functionality, we're likely
+      to run into unforeseen edge-cases within the core implementation of the 
+      Terraform provider.
+    - Existing Terraform provider consists largely of generated code, whereas
+      this functionality will be largely hand-written. Mixing generated and 
+      hand-written code can make enforcing standards more difficult.
+    - Existing Terraform provider uses a very old version of the Terraform SDK
+      which makes compatability with other tools like Pulumi more challenging.
+    - Existing Terraform provider has a large number of configuration
+      parameters which would not be compatible with this functionality, this
+      poses a risk of creating a poor configuration UX.
+- Build all variants of this functionality into a new Terraform provider
+  - Positives:
+    - No inherited tech debt from existing provider & can leverage latest
+      versions of the Terraform SDK.
+    - Separation of hand-written and generated code.
+  - Negatives:
+    - Additional build and release infrastructure to maintain.
+    - Additional codebase to maintain.
+- Build each variant of this functionality as its own Terraform provider
+  - Positives:
+    - No inherited tech debt from existing provider & can leverage latest
+      versions of the Terraform SDK.
+    - Separation of hand-written and generated code.
+    - Separation of variants would allow for smaller binary sizes.
+  - Negatives:
+    - Much more build and release infrastructure to maintain. This would need 
+      to be handled each time we added a new variant.
+
+Overall, the most appropriate approach seems to be introducing a single new
+Terraform provider for this functionality.
+
+
+
+## UX
