@@ -11,21 +11,40 @@ on:
         type: string
 
   pull_request:
-    paths:
-      - '.github/workflows/smoke-test-package.yaml'
   merge_group:
-    paths:
-      - 'lib/autoupdate/**.go'
-      - 'tool/teleport-update/**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
-      - 'Makefile'
 
 jobs:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'merge_group' }}
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            changed:
+              - '.github/workflows/smoke-test-package.yaml'
+              - 'lib/autoupdate/**.go'
+              - 'tool/teleport-update/**.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'build.assets/Makefile'
+              - 'build.assets/Dockerfile*'
+              - 'Makefile'
+
   build:
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
     outputs:
       version: ${{ steps.set-version.outputs.version }}
     env:
@@ -43,23 +62,6 @@ jobs:
 
       - name: Checkout Teleport
         uses: actions/checkout@v4
-
-#      # Log into Docker Hub to increase rate limits
-#      - name: Login to Docker Hub
-#        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-#        with:
-#          username: ${{ secrets.DOCKERHUB_USERNAME }}
-#          password: ${{ secrets.DOCKERHUB_TOKEN }}
-#
-#      # Log into ECR to raise rate limits, needed for the public.ecr.aws/gravitational/fpm
-#      # image used for building .deb and .rpm files.
-#      - name: Log into ECR
-#        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
-#        with:
-#          registry-type: public
-#        env:
-#          # GetAuthorizationToken command is only supported in us-east-1.
-#          AWS_REGION: us-east-1
 
       # The step can be removed when we commit to the self-hosted ARC runners,
       # as it runs with a consistent UID/GID and creates the directories with
@@ -96,6 +98,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
+          retention-days: 1
           path: |
             ${{ github.workspace }}/build/artifacts
 
@@ -103,6 +106,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-assets
+          retention-days: 1
           path: |
             assets/package-test/*
 
@@ -145,6 +149,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: packages
+          retention-days: 1
           path: |
             ${{ github.workspace }}/build/*.deb
             ${{ github.workspace }}/build/*.rpm
