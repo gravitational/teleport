@@ -23,7 +23,7 @@ import { parseSortType } from 'design/DataTable/sort';
 import { SortType } from 'design/DataTable/types';
 import {
   IncludedResourceMode,
-  ResourceStatus,
+  isResourceStatus,
 } from 'shared/components/UnifiedResources';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
@@ -135,7 +135,7 @@ export default function getResourceUrlQueryParams(
   const sort = searchParams.get('sort');
   const kinds = searchParams.has('kinds') ? searchParams.getAll('kinds') : null;
   const statuses = searchParams.has('status')
-    ? (searchParams.getAll('status') as ResourceStatus[])
+    ? searchParams.getAll('status').filter(isResourceStatus)
     : null;
 
   const processedSortParam = parseSortType(sort);

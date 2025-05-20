@@ -105,7 +105,7 @@ export function FilterPanel({
   );
 
   const onKindsChanged = (newKinds: string[]) => {
-    if (statuses?.length && !resourceStatusFilterSupported(newKinds)) {
+    if (!resourceStatusFilterSupported(newKinds)) {
       setParams({ ...params, statuses: null, kinds: newKinds });
       return;
     }
@@ -174,9 +174,9 @@ export function FilterPanel({
           onChange={onHealthStatusChange}
           label="Health Status"
           tooltip={
-            'Health status filter is only available with database resources. Support for more resources will be added in the future.'
+            'Health status filter is only available for database resources. Support for more resource types will be added in the future.'
           }
-          disableMenu={!isResourceStatusFilterSupported}
+          disabled={!isResourceStatusFilterSupported}
           buffered
         />
       </Flex>
@@ -364,5 +364,5 @@ const AccessRequestsToggleItem = styled.div`
 `;
 
 function resourceStatusFilterSupported(kinds: string[]) {
-  return !kinds || kinds.length === 0 || !!kinds.find(k => k === 'db');
+  return !kinds || kinds.length === 0 || kinds.includes('db');
 }
