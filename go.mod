@@ -91,6 +91,7 @@ require (
 	github.com/datastax/go-cassandra-native-protocol v0.0.0-20220706104457-5e8aad05cf90
 	github.com/digitorus/pkcs7 v0.0.0-20230818184609-3a137a874352
 	github.com/distribution/reference v0.6.0
+	github.com/docker/cli v27.5.0+incompatible
 	github.com/docker/docker v28.0.4+incompatible
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-elasticsearch/v8 v8.15.0
@@ -251,6 +252,7 @@ require (
 
 require (
 	github.com/envoyproxy/go-control-plane/envoy v1.32.4
+	github.com/sigstore/protobuf-specs v0.4.0
 	github.com/zitadel/oidc/v3 v3.38.1
 )
 
@@ -330,7 +332,6 @@ require (
 	github.com/di-wu/xsd-datetime v1.0.0 // indirect
 	github.com/digitorus/timestamp v0.0.0-20231217203849-220c5c2851b7 // indirect
 	github.com/dmarkham/enumer v1.5.10 // indirect
-	github.com/docker/cli v27.5.0+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.2 // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
@@ -512,7 +513,6 @@ require (
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
 	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07 // indirect
-	github.com/sigstore/protobuf-specs v0.4.0 // indirect
 	github.com/sigstore/rekor v1.3.9 // indirect
 	github.com/sigstore/timestamp-authority v1.2.4 // indirect
 	github.com/sony/gobreaker v0.5.0 // indirect
