@@ -62,6 +62,10 @@ const (
 	// created from the AWS OIDC Integration.
 	OriginIntegrationAWSOIDC = "integration_awsoidc"
 
+	// OriginIntegrationAWSRolesAnywhere is an origin value indicating that the resource was
+	// created from the AWS IAM Roles Anywhere Integration.
+	OriginIntegrationAWSRolesAnywhere = "integration_awsrolesanywhere"
+
 	// OriginDiscoveryKubernetes indicates that the resource was imported
 	// from kubernetes cluster by discovery service.
 	OriginDiscoveryKubernetes = "discovery-kubernetes"

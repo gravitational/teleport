@@ -29,6 +29,7 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	ratypes "github.com/aws/aws-sdk-go-v2/service/rolesanywhere/types"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 
@@ -50,12 +51,12 @@ func (d AWSTags) String() string {
 // DefaultResourceCreationTags returns the default tags that should be applied when creating new AWS resources.
 // The following tags are returned:
 // - teleport.dev/cluster: <clusterName>
-// - teleport.dev/origin: aws-oidc-integration
+// - teleport.dev/origin: <origin>
 // - teleport.dev/integration: <integrationName>
-func DefaultResourceCreationTags(clusterName, integrationName string) AWSTags {
+func DefaultResourceCreationTags(clusterName, integrationName, origin string) AWSTags {
 	return AWSTags{
 		types.ClusterLabel:     clusterName,
-		types.OriginLabel:      types.OriginIntegrationAWSOIDC,
+		types.OriginLabel:      origin,
 		types.IntegrationLabel: integrationName,
 	}
 }
@@ -188,4 +189,36 @@ func (d AWSTags) ToSSMTags() []ssmtypes.Tag {
 // Eg Glue resources
 func (d AWSTags) ToMap() map[string]string {
 	return maps.Clone((map[string]string)(d))
+}
+
+// ToRolesAnywhereTags returns the default tags using the expected type for IAM Roles Anywhere resources: [ratypes.Tag]
+func (d AWSTags) ToRolesAnywhereTags() []ratypes.Tag {
+	rolesAnywhereTags := make([]ratypes.Tag, 0, len(d))
+	for k, v := range d {
+		rolesAnywhereTags = append(rolesAnywhereTags, ratypes.Tag{
+			Key:   &k,
+			Value: &v,
+		})
+	}
+	slices.SortFunc(rolesAnywhereTags, func(a, b ratypes.Tag) int {
+		return cmp.Compare(*a.Key, *b.Key)
+	})
+	return rolesAnywhereTags
+}
+
+// MatchesRolesAnywhereTags checks if the AWSTags are present and have the same value in resourceTags.
+func (d AWSTags) MatchesRolesAnywhereTags(resourceTags []ratypes.Tag) bool {
+	resourceTagsMap := make(map[string]string, len(resourceTags))
+	for _, tag := range resourceTags {
+		resourceTagsMap[*tag.Key] = *tag.Value
+	}
+
+	for awsTagKey, awsTagValue := range d {
+		resourceTagValue, found := resourceTagsMap[awsTagKey]
+		if !found || resourceTagValue != awsTagValue {
+			return false
+		}
+	}
+
+	return true
 }

@@ -2616,7 +2616,7 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 // SearchUnstructuredEvents allows searching for events with a full pagination support
 // and returns events in an unstructured format (json like).
 // This method is used by the Teleport event-handler plugin to receive events
-// from the auth server wihout having to support the Protobuf event schema.
+// from the auth server without having to support the Protobuf event schema.
 func (c *Client) SearchUnstructuredEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]*auditlogpb.EventUnstructured, string, error) {
 	request := &auditlogpb.GetUnstructuredEventsRequest{
 		Namespace:  namespace,
@@ -4925,6 +4925,16 @@ func (c *Client) GenerateAWSOIDCToken(ctx context.Context, integration string) (
 	}
 
 	return resp.GetToken(), nil
+}
+
+// GenerateAWSRACredentials generates a set of AWS Credentials using the AWS IAM Roles Anywhere Integration.
+func (c *Client) GenerateAWSRACredentials(ctx context.Context, req *integrationpb.GenerateAWSRACredentialsRequest) (*integrationpb.GenerateAWSRACredentialsResponse, error) {
+	resp, err := c.integrationsClient().GenerateAWSRACredentials(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, nil
 }
 
 // GenerateAzureOIDCToken generates a token to be used when executing an Azure OIDC Integration action.

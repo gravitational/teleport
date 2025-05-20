@@ -147,16 +147,6 @@ const (
 	signTouchPromptDelay = time.Millisecond * 200
 )
 
-var (
-	ErrMissingTeleportCert = trace.BadParameterError{
-		Message: "hardware key agent cannot perform signatures on PIV slots that aren't configured for Teleport. " +
-			"The PIV slot should be configured automatically by the Teleport client during login. If you are " +
-			"are configuring the PIV slot manually, you must also generate a certificate in the slot with " +
-			"\"teleport\" as the organization name: " +
-			"e.g. \"ykman piv keys generate -a ECCP256 9a pub.pem && ykman piv certificate generate 9a pub.pem -s O=teleport\"",
-	}
-)
-
 func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, prompt hardwarekey.Prompt, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	pivSlot, err := parsePIVSlot(ref.SlotKey)
 	if err != nil {
@@ -177,19 +167,14 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyI
 		return nil, trace.CompareFailed("public key mismatch on PIV slot 0x%x", pivSlot.Key)
 	}
 
-	// If this sign request is coming from the hardware key agent, ensure that the requested PIV
-	// slot was configured by a Teleport client, or manually configured by the user / hardware key
-	// administrator. Manual configuration is used in cases where the default PIV management key
-	// is not used, e.g. when the hardware key is managed by a third party provider by an admin.
-	if keyInfo.AgentKey {
-		cert, err := y.getCertificate(pivSlot)
-		switch {
-		case errors.Is(err, piv.ErrNotFound):
-			return nil, trace.Wrap(&ErrMissingTeleportCert, "certificate not found in PIV slot 0x%x", pivSlot.Key)
+	// If the sign request is for an unknown agent key, ensure that the requested PIV slot was
+	// configured with a self-signed Teleport metadata certificate.
+	if keyInfo.AgentKeyInfo.UnknownAgentKey {
+		switch err := y.checkCertificate(pivSlot); {
+		case trace.IsNotFound(err), errors.As(err, &nonTeleportCertError{}):
+			return nil, trace.Wrap(err, agentRequiresTeleportCertMessage)
 		case err != nil:
 			return nil, trace.Wrap(err)
-		case !isTeleportMetadataCertificate(cert):
-			return nil, trace.Wrap(&ErrMissingTeleportCert, nonTeleportCertificateMessage(pivSlot, cert))
 		}
 	}
 
@@ -404,10 +389,22 @@ func (y *YubiKey) SetMetadataCertificate(slot piv.Slot, subject pkix.Name) error
 	return trace.Wrap(err)
 }
 
-// getCertificate gets a certificate from the given PIV slot.
-func (y *YubiKey) getCertificate(slot piv.Slot) (*x509.Certificate, error) {
+// checkCertificate checks for a certificate on the PIV slot matching a Teleport client
+// metadata certificate. Expected errors include [trace.NotFoundError] and [nonTeleportCertError].
+func (y *YubiKey) checkCertificate(slot piv.Slot) error {
 	cert, err := y.conn.certificate(slot)
-	return cert, trace.Wrap(err)
+	switch {
+	case errors.Is(err, piv.ErrNotFound):
+		return trace.NotFound("certificate not found in PIV slot 0x%x", slot.Key)
+	case err != nil:
+		return trace.Wrap(err)
+	case !isTeleportMetadataCertificate(cert):
+		return nonTeleportCertError{
+			slot: slot,
+			cert: cert,
+		}
+	}
+	return nil
 }
 
 // attestKey attests the key in the given PIV slot.
@@ -810,9 +807,14 @@ func isTeleportMetadataCertificate(cert *x509.Certificate) bool {
 	return len(cert.Subject.Organization) > 0 && cert.Subject.Organization[0] == certOrgName
 }
 
-func nonTeleportCertificateMessage(slot piv.Slot, cert *x509.Certificate) string {
+type nonTeleportCertError struct {
+	slot piv.Slot
+	cert *x509.Certificate
+}
+
+func (e nonTeleportCertError) Error() string {
 	// Gather a small list of user-readable x509 certificate fields to display to the user.
-	sum := sha256.Sum256(cert.Raw)
+	sum := sha256.Sum256(e.cert.Raw)
 	fingerPrint := hex.EncodeToString(sum[:])
 	return fmt.Sprintf(`Certificate in YubiKey PIV slot %q is not a Teleport client cert:
 Slot %s:
@@ -824,13 +826,19 @@ Slot %s:
 	Not before:		%v
 	Not after:		%v
 `,
-		slot, slot,
-		cert.SignatureAlgorithm,
-		cert.Subject,
-		cert.Issuer,
-		cert.SerialNumber,
+		e.slot, e.slot,
+		e.cert.SignatureAlgorithm,
+		e.cert.Subject,
+		e.cert.Issuer,
+		e.cert.SerialNumber,
 		fingerPrint,
-		cert.NotBefore,
-		cert.NotAfter,
+		e.cert.NotBefore,
+		e.cert.NotAfter,
 	)
 }
+
+const agentRequiresTeleportCertMessage = "hardware key agent cannot perform signatures on PIV slots that aren't configured for Teleport. " +
+	"The PIV slot should be configured automatically by the Teleport client during login. If you are " +
+	"are configuring the PIV slot manually, you must also generate a certificate in the slot with " +
+	"\"teleport\" as the organization name: " +
+	"e.g. \"ykman piv keys generate -a ECCP256 9a pub.pem && ykman piv certificate generate 9a pub.pem -s O=teleport\""

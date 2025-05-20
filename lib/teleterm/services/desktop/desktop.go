@@ -155,7 +155,7 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 		return msg, nil
 	})
 
-	return trace.Wrap(tdpConnProxy.Run(ctx))
+	return trace.Wrap(tdpConnProxy.Run())
 }
 
 // clientStream implements the [streamutils.Source] interface

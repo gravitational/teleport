@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,17 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { expect, test } from '@playwright/test';
+package awsoidc
 
-test.beforeEach(async ({ page }) => {
-  await page.goto('/');
+import (
+	"github.com/gravitational/teleport/api/types/common"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
+)
 
-  await page.getByPlaceholder('Username').fill('bob');
-  await page.getByPlaceholder('Password').fill('secret');
-
-  await page.getByRole('button', { name: 'Sign In' }).click();
-});
-
-test('nodes should be visible', async ({ page }) => {
-  await expect(page.getByText(/^teleport-e2e$/).first()).toBeVisible();
-});
+// defaultResourceCreationTags returns the AWS Tags which are set on resources created by this integration.
+// It will serve two purposes:
+// - to identify resources created by this integration
+// - when updating AWS resources, only those containing this label will be updated
+func defaultResourceCreationTags(clusterName, integrationName string) tags.AWSTags {
+	return tags.DefaultResourceCreationTags(clusterName, integrationName, common.OriginIntegrationAWSOIDC)
+}
