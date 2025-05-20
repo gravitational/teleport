@@ -174,6 +174,20 @@ Negatives:
   - OpenTofu does plan to add support:
     https://github.com/opentofu/opentofu/pull/2793
 
+#### Decision
+
+It's clear that the ephemeral resource kind is designed for this precise
+use-case. However, the recency of its introduction and the lack of support in
+OpenTofu means that if this were the only option, uptake by our customers may
+be limited. Our design partner indicates that whilst some teams are able to 
+choose their own version, other teams are leveraging OpenTofu or platforms
+which currently use older versions of Terraform.
+
+Therefore, we should support both data sources and ephemeral resources at least
+until support is more common-place. This will enable customers with more recent
+versions of Terraform to use the more secure option. In 6-12 months, we can 
+revisit this decision and consider deprecating support for data sources.
+
 ### Which provider to use
 
 One key decision is where to build this functionality. Largely, we have three
@@ -217,7 +231,5 @@ choices:
 
 Overall, the most appropriate approach seems to be introducing a single new
 Terraform provider for this functionality.
-
-
 
 ## UX
