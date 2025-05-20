@@ -108,6 +108,7 @@ func NewChallengeValidator(
 	}, nil
 }
 
+// IssueChallenge generates a new challenge document using the configured clock.
 func (v *ChallengeValidator) IssueChallenge() (*ChallengeDocument, error) {
 	// Implementation note: these challenges are only ever sent to a single
 	// client once, and we expect a valid reply as the next exchange in the

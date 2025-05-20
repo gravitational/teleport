@@ -351,7 +351,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			require.NoError(t, auth.CreateToken(ctx, token))
 			tt.initReq.JoinRequest.Token = tt.name
 
-			_, _, err = auth.RegisterUsingBoundKeypairMethod(ctx, tt.initReq, tt.solver)
+			_, err = auth.RegisterUsingBoundKeypairMethod(ctx, tt.initReq, tt.solver)
 			tt.assertError(t, err)
 
 			if tt.assertSuccess != nil {

@@ -273,12 +273,12 @@ func mutateStatusBoundBotInstance(newBotInstance, expectPreviousBotInstance stri
 }
 
 // RegisterUsingBoundKeypairMethod handles joining requests for the bound
-// keypair join method.
+// keypair join method. If successful, returns
 func (a *Server) RegisterUsingBoundKeypairMethod(
 	ctx context.Context,
 	req *proto.RegisterUsingBoundKeypairInitialRequest,
 	challengeResponse client.RegisterUsingBoundKeypairChallengeResponseFunc,
-) (_ *proto.Certs, _ string, err error) {
+) (_ *client.BoundKeypairRegistrationResponse, err error) {
 	var provisionToken types.ProvisionToken
 	var joinFailureMetadata any
 	defer func() {
@@ -293,25 +293,25 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 	// First, check the specified token exists, and is a bound keypair-type join
 	// token.
 	if err := req.JoinRequest.CheckAndSetDefaults(); err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Only bot joining is supported at the moment - unique ID verification is
 	// required and this is currently only implemented for bots.
 	if req.JoinRequest.Role != types.RoleBot {
-		return nil, "", trace.BadParameter("bound keypair joining is only supported for bots")
+		return nil, trace.BadParameter("bound keypair joining is only supported for bots")
 	}
 
 	provisionToken, err = a.checkTokenJoinRequestCommon(ctx, req.JoinRequest)
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	ptv2, ok := provisionToken.(*types.ProvisionTokenV2)
 	if !ok {
-		return nil, "", trace.BadParameter("expected *types.ProvisionTokenV2, got %T", provisionToken)
+		return nil, trace.BadParameter("expected *types.ProvisionTokenV2, got %T", provisionToken)
 	}
 	if ptv2.Spec.JoinMethod != types.JoinMethodBoundKeypair {
-		return nil, "", trace.BadParameter("specified join token is not for `%s` method", types.JoinMethodBoundKeypair)
+		return nil, trace.BadParameter("specified join token is not for `%s` method", types.JoinMethodBoundKeypair)
 	}
 
 	if ptv2.Status == nil {
@@ -321,12 +321,22 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		ptv2.Status.BoundKeypair = &types.ProvisionTokenStatusV2BoundKeypair{}
 	}
 
+	clusterName, err := a.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	spec := ptv2.Spec.BoundKeypair
 	status := ptv2.Status.BoundKeypair
 	hasBoundPublicKey := status.BoundPublicKey != ""
 	hasBoundBotInstance := status.BoundBotInstanceID != ""
 	hasIncomingBotInstance := req.JoinRequest.BotInstanceID != ""
 	hasJoinsRemaining := status.RecoveryCount < spec.Recovery.Limit
+
+	// Join state is required after the initial join (first recovery), so long
+	// as the mode is not insecure.
+	joinStateRequired := status.RecoveryCount > 0 && spec.Recovery.Mode != boundkeypair.RecoveryModeInsecure
+	hasIncomingJoinState := len(req.PreviousJoinState) > 0
 
 	// if set, the bound bot instance will be updated in the backend
 	expectNewBotInstance := false
@@ -338,20 +348,60 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 	// Mutators to use during the token resource status patch at the end.
 	var mutators []boundKeypairStatusMutator
 
+	// Get the join state JWT signer CA
+	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.BoundKeypairCA,
+		DomainName: clusterName.GetClusterName(),
+	}, /* loadKeys */ true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var joinState *boundkeypair.JoinState
+	if joinStateRequired {
+		// If join state is required but missing, raise an error.
+		if !hasIncomingJoinState {
+			return nil, trace.AccessDenied("previous join state is required but was not provided")
+		}
+
+		joinState, err = boundkeypair.VerifyJoinState(
+			ca,
+			string(req.PreviousJoinState),
+			&boundkeypair.JoinStateParams{
+				Clock:       a.clock,
+				ClusterName: clusterName.GetClusterName(),
+				Token:       ptv2,
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Now that we've verified it, make sure the previous bot instance ID is
+		// passed along to generateCerts. This will only be used if a new bot
+		// instance is generated.
+		req.JoinRequest.PreviousBotInstanceID = joinState.BotInstanceID
+
+		// Note: we don't verify join state if it isn't expected. This is partly
+		// to ensure server-side recovery will work if join state desyncs - a
+		// cluster admin can reset the recovery counter to zero and start over
+		// with a fresh join state, with no client intervention.
+	}
+
 	switch {
 	case !hasBoundPublicKey && !hasIncomingBotInstance:
 		// Normal initial join attempt. No bound key, and no incoming bot
-		// instance. Consumes a rejoin.
+		// instance. Consumes a recovery attempt.
 		if spec.Onboarding.RegistrationSecret != "" {
-			return nil, "", trace.NotImplemented("initial joining secrets are not yet supported")
+			return nil, trace.NotImplemented("initial joining secrets are not yet supported")
 		}
 
 		if spec.Onboarding.InitialPublicKey == "" {
-			return nil, "", trace.BadParameter("an initial public key is required")
+			return nil, trace.BadParameter("an initial public key is required")
 		}
 
 		if spec.Recovery.Mode == string(boundkeypair.RecoveryModeStandard) && !hasJoinsRemaining {
-			return nil, "", trace.AccessDenied("no joins remaining")
+			return nil, trace.AccessDenied("no joins remaining")
 		}
 
 		if err := a.issueBoundKeypairChallenge(
@@ -359,7 +409,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			spec.Onboarding.InitialPublicKey,
 			challengeResponse,
 		); err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		// Now that we've confirmed the key, we can consider it bound.
@@ -374,16 +424,16 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 	case !hasBoundPublicKey && hasIncomingBotInstance:
 		// Not allowed, at least at the moment. This would imply e.g. trying to
 		// change auth methods.
-		return nil, "", trace.BadParameter("cannot perform first bound keypair join with existing credentials")
+		return nil, trace.BadParameter("cannot perform first bound keypair join with existing credentials")
 	case hasBoundPublicKey && !hasBoundBotInstance:
 		// TODO: Bad backend state, or maybe an incomplete previous join
 		// attempt. This shouldn't be a possible state, but we should handle it
 		// sanely anyway.
-		return nil, "", trace.BadParameter("bad backend state, please recreate the join token")
+		return nil, trace.BadParameter("bad backend state, please recreate the join token")
 	case hasBoundPublicKey && hasBoundBotInstance && hasIncomingBotInstance:
 		// Standard rejoin case, does not consume a rejoin.
 		if status.BoundBotInstanceID != req.JoinRequest.BotInstanceID {
-			return nil, "", trace.AccessDenied("bot instance mismatch")
+			return nil, trace.AccessDenied("bot instance mismatch")
 		}
 
 		if err := a.issueBoundKeypairChallenge(
@@ -391,7 +441,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			spec.Onboarding.InitialPublicKey,
 			challengeResponse,
 		); err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		// Nothing else to do, no key change
@@ -400,7 +450,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		// is required. Consumes a rejoin.
 		if spec.Recovery.Mode == string(boundkeypair.RecoveryModeStandard) && !hasJoinsRemaining {
 			// Recovery limit only applies in "standard" mode.
-			return nil, "", trace.AccessDenied("no rejoins remaining")
+			return nil, trace.AccessDenied("no rejoins remaining")
 		}
 
 		if err := a.issueBoundKeypairChallenge(
@@ -408,7 +458,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			status.BoundPublicKey,
 			challengeResponse,
 		); err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		mutators = append(
@@ -426,13 +476,13 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			"spec", spec,
 			"status", status,
 		)
-		return nil, "", trace.BadParameter("unexpected state")
+		return nil, trace.BadParameter("unexpected state")
 	}
 
 	if spec.RotateAfter != nil {
 		// TODO, to be implemented in a future PR. `boundPublicKey` will need to
 		// be updated.
-		return nil, "", trace.NotImplemented("key rotation not yet supported")
+		return nil, trace.NotImplemented("key rotation not yet supported")
 	}
 
 	// TODO: We should pass along the previous bot instance ID - if any - based
@@ -455,8 +505,12 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		)
 	}
 
+	// A reference to the final provision token state; may be modified below via
+	// mutators.
+	finalToken := ptv2
+
 	if len(mutators) > 0 {
-		if _, err := a.PatchToken(ctx, ptv2.GetName(), func(token types.ProvisionToken) (types.ProvisionToken, error) {
+		patched, err := a.PatchToken(ctx, ptv2.GetName(), func(token types.ProvisionToken) (types.ProvisionToken, error) {
 			ptv2, ok := provisionToken.(*types.ProvisionTokenV2)
 			if !ok {
 				return nil, trace.BadParameter("expected *types.ProvisionTokenV2, got %T", provisionToken)
@@ -471,10 +525,37 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			}
 
 			return ptv2, nil
-		}); err != nil {
-			return nil, "", trace.Wrap(err, "committing updated token state, please try again")
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "committing updated token state, please try again")
+		}
+
+		finalToken, ok = patched.(*types.ProvisionTokenV2)
+		if !ok {
+			// This should be impossible, but if it did fail, we can't generate
+			// a join state without an accurate token. The certs we just
+			// generated will be useless, so just return an error.
+			return nil, trace.BadParameter("expected *types.ProvisionTokenV2, got %T", provisionToken)
 		}
 	}
 
-	return certs, boundPublicKey, trace.Wrap(err)
+	signer, err := a.GetKeyStore().GetJWTSigner(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err, "issuing join state document")
+	}
+
+	newJoinState, err := boundkeypair.IssueJoinState(signer, &boundkeypair.JoinStateParams{
+		Clock:       a.clock,
+		ClusterName: clusterName.GetClusterName(),
+		Token:       finalToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "issuing join state document")
+	}
+
+	return &client.BoundKeypairRegistrationResponse{
+		Certs:          certs,
+		BoundPublicKey: boundPublicKey,
+		JoinState:      []byte(newJoinState),
+	}, nil
 }
