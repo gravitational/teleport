@@ -1093,8 +1093,8 @@ func (a *accessListSync) metadataToImportResources(irMetadata importResourceMeta
 	if len(irMetadata.roleGroupLabels) > 0 {
 		rules = append(rules, types.NewRule(types.KindUserGroup, services.RO()))
 	}
-
-	accessRole, err := types.NewRole(accessRoleName, types.RoleSpecV6{
+	// TODO(sshah): update role version to v8 in Teleport version v19.0.0.
+	accessRole, err := types.NewRoleWithVersion(accessRoleName, types.V7, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules:       rules,
 			AppLabels:   toLabels(irMetadata.roleAppLabels),
@@ -1105,8 +1105,8 @@ func (a *accessListSync) metadataToImportResources(irMetadata importResourceMeta
 		return nil, nil, nil, trace.Wrap(err)
 	}
 	accessRole.SetStaticLabels(labels)
-
-	reviewerRole, err := types.NewRole(reviewerRoleName, types.RoleSpecV6{
+	// TODO(sshah): update role version to v8 in Teleport version v19.0.0.
+	reviewerRole, err := types.NewRoleWithVersion(reviewerRoleName, types.V7, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			ReviewRequests: &types.AccessReviewConditions{
 				Roles: []string{accessRole.GetName()},

@@ -109,7 +109,8 @@ func getImportedRoleName(permissionSetName, accountName, accountID string) strin
 func NewAccountAssignmentRole(acct services.IdentityCenterAccount, ps *identitycenterv1.PermissionSetInfo) (*types.RoleV6, error) {
 	roleName := getImportedRoleName(ps.GetName(), acct.GetSpec().GetName(), acct.GetSpec().GetId())
 
-	role, err := types.NewRole(roleName, types.RoleSpecV6{
+	// TODO(sshah): update role version to v8 in Teleport version v19.0.0.
+	role, err := types.NewRoleWithVersion(roleName, types.V7, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			AccountAssignments: []types.IdentityCenterAccountAssignment{
 				{

@@ -908,7 +908,7 @@ func newAccessListMember(t *testing.T, accessListName, memberName string, joined
 func newReviewerRole(t *testing.T, roleName string, reviewRequestRole string) types.Role {
 	t.Helper()
 
-	role, err := types.NewRole(roleName, types.RoleSpecV6{
+	role, err := types.NewRoleWithVersion(roleName, types.V7, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			ReviewRequests: &types.AccessReviewConditions{
 				Roles: []string{reviewRequestRole},
@@ -930,7 +930,7 @@ func newRole(t *testing.T, name string, appLabels, groupLabels types.Labels) typ
 		rules = append(rules, types.NewRule(types.KindUserGroup, services.RO()))
 	}
 
-	role, err := types.NewRole(name, types.RoleSpecV6{
+	role, err := types.NewRoleWithVersion(name, types.V7, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules:       rules,
 			AppLabels:   appLabels,
