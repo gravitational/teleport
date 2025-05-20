@@ -49,6 +49,11 @@ Due to the distinct nature of the credentials and configuration required for
 the various resources that we support, the Terraform provider will require
 handwritten implementation for each resource type that we wish to support.
 
+Based on design partner feedback, we'll initially focus on the following:
+
+- Kubernetes
+- AWS via Roles Anywhere
+
 ### Providing credentials within a Terraform plan/apply
 
 Terraform Providers typically provide some method of providing credentials
