@@ -1416,7 +1416,7 @@ var KubernetesResourcesKinds = []string{
 
 // KubernetesResourcesV7KindGroups maps the legacy Teleport kube kinds
 // to their kubernetes group.
-// Used for validation in role >=v8 to check whether a older value as
+// Used for validation in role >=v8 to check whether an older value has
 // been accidentally used.
 var KubernetesResourcesV7KindGroups = map[string]string{
 	KindKubePod:                       "",
