@@ -164,7 +164,9 @@ func (x *GitHubAuditLogV1) GetCursor() *GitHubAuditLogV1Cursor {
 type GitHubConfigV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The desired start date for exporting GitHub audit logs.
-	StartDate     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
+	StartDate *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
+	// The Github Organization name.
+	Organization  string `protobuf:"bytes,2,opt,name=organization,proto3" json:"organization,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -204,6 +206,13 @@ func (x *GitHubConfigV1) GetStartDate() *timestamppb.Timestamp {
 		return x.StartDate
 	}
 	return nil
+}
+
+func (x *GitHubConfigV1) GetOrganization() string {
+	if x != nil {
+		return x.Organization
+	}
+	return ""
 }
 
 // GithubTokenV1 holds information about a GitHub access token,
@@ -791,10 +800,11 @@ const file_accessgraph_v1alpha_github_proto_rawDesc = "" +
 	"\x0flast_event_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\rlastEventTime\"\x88\x01\n" +
 	"\x10GitHubAuditLogV1\x12/\n" +
 	"\x06events\x18\x01 \x03(\v2\x17.google.protobuf.StructR\x06events\x12C\n" +
-	"\x06cursor\x18\x02 \x01(\v2+.accessgraph.v1alpha.GitHubAuditLogV1CursorR\x06cursor\"K\n" +
+	"\x06cursor\x18\x02 \x01(\v2+.accessgraph.v1alpha.GitHubAuditLogV1CursorR\x06cursor\"o\n" +
 	"\x0eGitHubConfigV1\x129\n" +
 	"\n" +
-	"start_date\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\"\xf3\x01\n" +
+	"start_date\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\x12\"\n" +
+	"\forganization\x18\x02 \x01(\tR\forganization\"\xf3\x01\n" +
 	"\rGithubTokenV1\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
