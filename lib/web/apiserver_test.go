@@ -1482,7 +1482,23 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		{Name: "ProdInstance", Display: "ProdInstance", ARN: "arn:aws:iam::999999999999:role/ProdInstance", AccountID: "999999999999"},
 	}
 	require.Equal(t, expectedRoles, listResp.Items[0].AWSRoles)
-	t.Log(string(re.Bytes()), listResp)
+
+	// Lists SAML apps in KindApp query
+	samlApp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+		Name: "saml-app",
+		Labels: map[string]string{
+			"env": "prod",
+		}},
+		types.SAMLIdPServiceProviderSpecV1{
+			ACSURL:   "https://example.com",
+			EntityID: "https://example.com",
+		})
+	require.NoError(t, err)
+	require.NoError(t, env.server.Auth().CreateSAMLIdPServiceProvider(context.Background(), samlApp))
+
+	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{"kinds": []string{types.KindApp}})
+	require.NoError(t, err)
+	require.Contains(t, string(re.Bytes()), samlApp.GetName())
 }
 
 type clusterAlertsGetResponse struct {

@@ -18,6 +18,7 @@ limitations under the License.
 package proto
 
 import (
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -75,6 +76,14 @@ func (req *ListUnifiedResourcesRequest) CheckAndSetDefaults() error {
 	if req.Limit < 0 {
 		return trace.BadParameter("negative parameter: limit")
 	}
+
+	// We need to include SAML apps in the app query because they are shown as "apps"
+	// and there isn't any filter provided for the `saml_idp_service_provider` kind.
+	kinds := req.GetKinds()
+	if slices.Contains(kinds, types.KindApp) && !slices.Contains(kinds, types.KindSAMLIdPServiceProvider) {
+		kinds = append(kinds, types.KindSAMLIdPServiceProvider)
+	}
+	req.Kinds = kinds
 
 	return nil
 }
