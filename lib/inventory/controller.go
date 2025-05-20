@@ -781,9 +781,13 @@ func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInvent
 		return
 	}
 	now := c.clock.Now()
+	var systemClock time.Time
+	if c := msg.GetSystemClock(); c != nil {
+		systemClock = c.AsTime()
+	}
 	pong := pingResponse{
 		reqDuration:     now.Sub(pending.start),
-		systemClock:     msg.SystemClock,
+		systemClock:     systemClock,
 		controllerClock: now,
 	}
 

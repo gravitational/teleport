@@ -33,6 +33,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -1682,7 +1683,7 @@ func TestTimeReconciliation(t *testing.T) {
 			case msg := <-downstream.Recv():
 				downstream.Send(ctx, proto.UpstreamInventoryPong{
 					ID:          msg.(proto.DownstreamInventoryPing).ID,
-					SystemClock: clock.Now().Add(-time.Minute).UTC(),
+					SystemClock: timestamppb.New(clock.Now().Add(-time.Minute)),
 				})
 			case <-downstream.Done():
 				return
