@@ -150,6 +150,11 @@ provider "aws" {
 }
 ```
 
+Values produced by ephemeral resources can only be used
+[within certain contexts](https://developer.hashicorp.com/terraform/language/resources/ephemeral/reference#reference-ephemeral-resources).
+This list includes "Configuring providers in the provider block" which is our
+intended use-case.
+
 Positives:
 
 - Ephemeral resources are not stored in the Terraform state, avoiding the risk
