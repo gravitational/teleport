@@ -29,7 +29,6 @@ import (
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -195,7 +194,7 @@ func TestValidateToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			claims, err := ValidateToken(
-				ctx, clockwork.NewRealClock(), fake.issuerURLTemplate(), realOrgID, tt.token,
+				ctx, fake.issuerURLTemplate(), realOrgID, tt.token,
 			)
 			tt.assertError(t, err)
 			require.Equal(t, tt.want, claims)

@@ -21,43 +21,39 @@ package circleci
 import (
 	"context"
 
-	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
+	"github.com/zitadel/oidc/v3/pkg/client"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func ValidateToken(
 	ctx context.Context,
-	clock clockwork.Clock,
 	issuerURLTemplate string,
 	organizationID string,
 	token string,
 ) (*IDTokenClaims, error) {
 	issuer := issuerURL(issuerURLTemplate, organizationID)
-	// We can't cache the provider as the issuer changes for every circleci
-	// organization - we should build a provider that can support a global
-	// cache.
-	p, err := oidc.NewProvider(
-		ctx,
-		issuer,
-	)
+
+	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
+	// aggressively across join tokens since this isn't going to change very
+	// regularly.
+	dc, err := client.Discover(ctx, issuer, otelhttp.DefaultClient)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "discovering oidc document")
 	}
 
-	verifier := p.Verifier(&oidc.Config{
-		ClientID: organizationID,
-		Now:      clock.Now,
-	})
+	// TODO(noah): Ideally we'd cache the remote keyset across joins/join tokens
+	// based on the issuer.
+	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
+	verifier := rp.NewIDTokenVerifier(issuer, organizationID, ks)
+	// TODO(noah): It'd be ideal if we could extend the verifier to use an
+	// injected "now" time.
 
-	idToken, err := verifier.Verify(ctx, token)
+	claims, err := rp.VerifyIDToken[*IDTokenClaims](ctx, token, verifier)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "verifying token")
 	}
 
-	claims := IDTokenClaims{}
-	if err := idToken.Claims(&claims); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &claims, nil
+	return claims, nil
 }

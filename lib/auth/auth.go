@@ -646,9 +646,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	if as.ghaIDTokenValidator == nil {
 		as.ghaIDTokenValidator = githubactions.NewIDTokenValidator(
-			githubactions.IDTokenValidatorConfig{
-				Clock: as.clock,
-			},
+			githubactions.IDTokenValidatorConfig{},
 		)
 	}
 	if as.ghaIDTokenJWKSValidator == nil {
@@ -656,9 +654,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if as.spaceliftIDTokenValidator == nil {
 		as.spaceliftIDTokenValidator = spacelift.NewIDTokenValidator(
-			spacelift.IDTokenValidatorConfig{
-				Clock: as.clock,
-			},
+			spacelift.IDTokenValidatorConfig{},
 		)
 	}
 	if as.gitlabIDTokenValidator == nil {
@@ -680,7 +676,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			ctx context.Context, organizationID, token string,
 		) (*circleci.IDTokenClaims, error) {
 			return circleci.ValidateToken(
-				ctx, as.clock, circleci.IssuerURLTemplate, organizationID, token,
+				ctx, circleci.IssuerURLTemplate, organizationID, token,
 			)
 		}
 	}
@@ -696,20 +692,16 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	if as.gcpIDTokenValidator == nil {
 		as.gcpIDTokenValidator = gcp.NewIDTokenValidator(
-			gcp.IDTokenValidatorConfig{
-				Clock: as.clock,
-			},
+			gcp.IDTokenValidatorConfig{},
 		)
 	}
 
 	if as.terraformIDTokenValidator == nil {
-		as.terraformIDTokenValidator = terraformcloud.NewIDTokenValidator(terraformcloud.IDTokenValidatorConfig{
-			Clock: as.clock,
-		})
+		as.terraformIDTokenValidator = terraformcloud.NewIDTokenValidator(terraformcloud.IDTokenValidatorConfig{})
 	}
 
 	if as.bitbucketIDTokenValidator == nil {
-		as.bitbucketIDTokenValidator = bitbucket.NewIDTokenValidator(as.clock)
+		as.bitbucketIDTokenValidator = bitbucket.NewIDTokenValidator()
 	}
 
 	if as.createBoundKeypairValidator == nil {

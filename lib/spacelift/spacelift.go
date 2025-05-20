@@ -19,6 +19,8 @@
 package spacelift
 
 import (
+	"github.com/zitadel/oidc/v3/pkg/oidc"
+
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
@@ -26,6 +28,8 @@ import (
 // See the following for the structure:
 // https://docs.spacelift.io/integrations/cloud-providers/oidc/#standard-claims
 type IDTokenClaims struct {
+	oidc.Claims
+
 	// Sub provides some information about the Spacelift run that generated this
 	// token.
 	// space:<space_id>:(stack|module):<stack_id|module_id>:run_type:<run_type>:scope:<read|write>

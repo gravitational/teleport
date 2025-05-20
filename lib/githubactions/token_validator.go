@@ -24,19 +24,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-jose/go-jose/v3"
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/zitadel/oidc/v3/pkg/client"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
+const audience = "teleport.cluster.local"
+
 type IDTokenValidatorConfig struct {
-	// Clock is used by the validator when checking expiry and issuer times of
-	// tokens. If omitted, a real clock will be used.
-	Clock clockwork.Clock
 	// GitHubIssuerHost is the host of the Issuer for tokens issued by
 	// GitHub's cloud hosted version. If no GHESHost override is provided to
 	// the call to Validate, then this will be used as the host.
@@ -53,9 +51,6 @@ type IDTokenValidator struct {
 func NewIDTokenValidator(cfg IDTokenValidatorConfig) *IDTokenValidator {
 	if cfg.GitHubIssuerHost == "" {
 		cfg.GitHubIssuerHost = DefaultIssuerHost
-	}
-	if cfg.Clock == nil {
-		cfg.Clock = clockwork.NewRealClock()
 	}
 
 	return &IDTokenValidator{
@@ -86,35 +81,29 @@ func (id *IDTokenValidator) issuerURL(
 func (id *IDTokenValidator) Validate(
 	ctx context.Context, GHESHost string, enterpriseSlug string, token string,
 ) (*IDTokenClaims, error) {
-	p, err := oidc.NewProvider(
-		ctx,
-		id.issuerURL(GHESHost, enterpriseSlug),
-	)
+	issuer := id.issuerURL(GHESHost, enterpriseSlug)
+
+	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
+	// aggressively across join tokens since this isn't going to change very
+	// regularly.
+	dc, err := client.Discover(ctx, issuer, otelhttp.DefaultClient)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "discovering oidc document")
 	}
 
-	verifier := p.Verifier(&oidc.Config{
-		ClientID: "teleport.cluster.local",
-		Now:      id.Clock.Now,
-	})
+	// TODO(noah): Ideally we'd cache the remote keyset across joins/join tokens
+	// based on the issuer.
+	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
+	verifier := rp.NewIDTokenVerifier(issuer, audience, ks)
+	// TODO(noah): It'd be ideal if we could extend the verifier to use an
+	// injected "now" time.
 
-	idToken, err := verifier.Verify(ctx, token)
+	claims, err := rp.VerifyIDToken[*IDTokenClaims](ctx, token, verifier)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "verifying token")
 	}
 
-	// `go-oidc` does not implement not before check, so we need to manually
-	// perform this
-	if err := jwt.CheckNotBefore(id.Clock.Now(), time.Minute*2, idToken); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	claims := IDTokenClaims{}
-	if err := idToken.Claims(&claims); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &claims, nil
+	return claims, nil
 }
 
 // ValidateTokenWithJWKS validates a GitHub Actions JWT using a configured
@@ -143,7 +132,7 @@ func ValidateTokenWithJWKS(
 	leeway := time.Second * 10
 	err = stdClaims.ValidateWithLeeway(josejwt.Expected{
 		Audience: []string{
-			"teleport.cluster.local",
+			audience,
 		},
 		Time: now,
 	}, leeway)

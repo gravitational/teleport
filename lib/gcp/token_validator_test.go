@@ -350,7 +350,6 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 			v := NewIDTokenValidator(IDTokenValidatorConfig{
-				Clock:      clock,
 				issuerHost: idp.server.Listener.Addr().String(),
 				insecure:   true,
 			})

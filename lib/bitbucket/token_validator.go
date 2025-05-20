@@ -22,9 +22,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
+	"github.com/zitadel/oidc/v3/pkg/client"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // providerTimeout is the maximum time allowed to fetch provider metadata before
@@ -32,21 +33,11 @@ import (
 const providerTimeout = 15 * time.Second
 
 // IDTokenValidator validates a Bitbucket issued ID Token.
-type IDTokenValidator struct {
-	// clock is used by the validator when checking expiry and issuer times of
-	// tokens. If omitted, a real clock will be used.
-	clock clockwork.Clock
-}
+type IDTokenValidator struct{}
 
 // NewIDTokenValidator returns an initialized IDTokenValidator
-func NewIDTokenValidator(clock clockwork.Clock) *IDTokenValidator {
-	if clock == nil {
-		clock = clockwork.NewRealClock()
-	}
-
-	return &IDTokenValidator{
-		clock: clock,
-	}
+func NewIDTokenValidator() *IDTokenValidator {
+	return &IDTokenValidator{}
 }
 
 // Validate validates a Bitbucket issued ID token.
@@ -56,24 +47,25 @@ func (id *IDTokenValidator) Validate(
 	timeoutCtx, cancel := context.WithTimeout(ctx, providerTimeout)
 	defer cancel()
 
-	p, err := oidc.NewProvider(timeoutCtx, issuerURL)
+	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
+	// aggressively across join tokens since this isn't going to change very
+	// regularly.
+	dc, err := client.Discover(timeoutCtx, issuerURL, otelhttp.DefaultClient)
 	if err != nil {
-		return nil, trace.Wrap(err, "creating oidc provider")
+		return nil, trace.Wrap(err, "discovering oidc document")
 	}
 
-	verifier := p.Verifier(&oidc.Config{
-		ClientID: audience,
-		Now:      id.clock.Now,
-	})
+	// TODO(noah): Ideally we'd cache the remote keyset across joins/join tokens
+	// based on the issuer.
+	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
+	verifier := rp.NewIDTokenVerifier(issuerURL, audience, ks)
+	// TODO(noah): It'd be ideal if we could extend the verifier to use an
+	// injected "now" time.
 
-	idToken, err := verifier.Verify(timeoutCtx, token)
+	claims, err := rp.VerifyIDToken[*IDTokenClaims](timeoutCtx, token, verifier)
 	if err != nil {
 		return nil, trace.Wrap(err, "verifying token")
 	}
 
-	var claims IDTokenClaims
-	if err := idToken.Claims(&claims); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &claims, nil
+	return claims, nil
 }

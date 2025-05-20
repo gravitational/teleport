@@ -29,7 +29,6 @@ import (
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -293,7 +292,6 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			}
 
 			v := NewIDTokenValidator(IDTokenValidatorConfig{
-				Clock:                  clockwork.NewRealClock(),
 				insecure:               true,
 				issuerHostnameOverride: hostnameOverride,
 			})

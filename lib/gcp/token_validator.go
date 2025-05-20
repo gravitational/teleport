@@ -22,20 +22,17 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"time"
 
-	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/zitadel/oidc/v3/pkg/client"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
+
+const audience = "teleport.cluster.local"
 
 // IDTokenValidatorConfig is the config for IDTokenValidator.
 type IDTokenValidatorConfig struct {
-	// Clock is used by the validator when checking expiry and issuer times of
-	// tokens. If omitted, a real clock will be used.
-	Clock clockwork.Clock
 	// issuerHost is the host of the Issuer for tokens issued by Google, to be
 	// overridden in tests. Defaults to "accounts.google.com".
 	issuerHost string
@@ -50,9 +47,6 @@ type IDTokenValidator struct {
 }
 
 func NewIDTokenValidator(cfg IDTokenValidatorConfig) *IDTokenValidator {
-	if cfg.Clock == nil {
-		cfg.Clock = clockwork.NewRealClock()
-	}
 	if cfg.issuerHost == "" {
 		cfg.issuerHost = defaultIssuerHost
 	}
@@ -71,33 +65,30 @@ func (id *IDTokenValidator) issuerURL() string {
 
 // Validate validates an ID token.
 func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDTokenClaims, error) {
-	p, err := oidc.NewProvider(ctx, id.issuerURL())
+	issuer := id.issuerURL()
+
+	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
+	// aggressively across join tokens since this isn't going to change very
+	// regularly.
+	dc, err := client.Discover(ctx, issuer, otelhttp.DefaultClient)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "discovering oidc document")
 	}
-	verifier := p.Verifier(&oidc.Config{
-		ClientID: "teleport.cluster.local",
-		Now:      id.Clock.Now,
-	})
 
-	idToken, err := verifier.Verify(ctx, token)
+	// TODO(noah): Ideally we'd cache the remote keyset across joins/join tokens
+	// based on the issuer.
+	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
+	verifier := rp.NewIDTokenVerifier(issuer, audience, ks)
+	// TODO(noah): It'd be ideal if we could extend the verifier to use an
+	// injected "now" time.
+
+	claims, err := rp.VerifyIDToken[*IDTokenClaims](ctx, token, verifier)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// `go-oidc` does not implement not before check, so we need to manually
-	// perform this
-	if err := jwt.CheckNotBefore(id.Clock.Now(), time.Minute*2, idToken); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	claims := IDTokenClaims{}
-	if err := idToken.Claims(&claims); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "verifying token")
 	}
 
 	if claims.Google.ComputeEngine != (ComputeEngine{}) {
-		return &claims, nil
+		return claims, nil
 	}
 
 	if gcpDefaultServiceAccountEmailRegex.MatchString(claims.Email) {
@@ -120,7 +111,7 @@ func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDToke
 	// Assign the project ID exatracted from the email to the Google claims.
 	claims.Google.ComputeEngine.ProjectID = matches[1]
 
-	return &claims, nil
+	return claims, nil
 }
 
 var (

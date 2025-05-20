@@ -30,7 +30,6 @@ import (
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -262,7 +261,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 
 			issuerAddr := "http://" + idp.server.Listener.Addr().String()
 
-			v := NewIDTokenValidator(clockwork.NewRealClock())
+			v := NewIDTokenValidator()
 
 			claims, err := v.Validate(
 				ctx,

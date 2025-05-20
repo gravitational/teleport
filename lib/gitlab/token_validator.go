@@ -24,14 +24,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-jose/go-jose/v3"
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/zitadel/oidc/v3/pkg/client"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/jwt"
 )
 
 type clusterNameGetter interface {
@@ -84,42 +85,35 @@ func (id *IDTokenValidator) issuerURL(domain string) string {
 func (id *IDTokenValidator) Validate(
 	ctx context.Context, domain string, token string,
 ) (*IDTokenClaims, error) {
-	p, err := oidc.NewProvider(
-		ctx,
-		id.issuerURL(domain),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	clusterNameResource, err := id.ClusterNameGetter.GetClusterName(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	verifier := p.Verifier(&oidc.Config{
-		ClientID: clusterNameResource.GetClusterName(),
-		Now:      id.Clock.Now,
-	})
+	audience := clusterNameResource.GetClusterName()
+	issuer := id.issuerURL(domain)
 
-	idToken, err := verifier.Verify(ctx, token)
+	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
+	// aggressively across join tokens since this isn't going to change very
+	// regularly.
+	dc, err := client.Discover(ctx, issuer, otelhttp.DefaultClient)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "discovering oidc document")
 	}
 
-	// `go-oidc` does not implement not before check, so we need to manually
-	// perform this
-	if err := jwt.CheckNotBefore(
-		id.Clock.Now(), time.Minute*2, idToken,
-	); err != nil {
-		return nil, trace.Wrap(err)
+	// TODO(noah): Ideally we'd cache the remote keyset across joins/join tokens
+	// based on the issuer.
+	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
+	verifier := rp.NewIDTokenVerifier(issuer, audience, ks)
+	// TODO(noah): It'd be ideal if we could extend the verifier to use an
+	// injected "now" time.
+
+	claims, err := rp.VerifyIDToken[*IDTokenClaims](ctx, token, verifier)
+	if err != nil {
+		return nil, trace.Wrap(err, "verifying token")
 	}
 
-	claims := IDTokenClaims{}
-	if err := idToken.Claims(&claims); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &claims, nil
+	return claims, nil
 }
 
 // ValidateTokenWithJWKS validates a token using the provided JWKS data.

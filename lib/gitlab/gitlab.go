@@ -19,6 +19,8 @@
 package gitlab
 
 import (
+	"github.com/zitadel/oidc/v3/pkg/oidc"
+
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
@@ -56,6 +58,7 @@ import (
 // See the following for the structure:
 // https://docs.gitlab.com/ee/ci/secrets/id_token_authentication.html#id-tokens
 type IDTokenClaims struct {
+	oidc.Claims
 	// Sub roughly uniquely identifies the workload. Example:
 	// `project_path:mygroup/my-project:ref_type:branch:ref:main`
 	// project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}

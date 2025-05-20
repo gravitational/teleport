@@ -21,13 +21,11 @@ package terraformcloud
 import (
 	"context"
 	"fmt"
-	"time"
 
-	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/zitadel/oidc/v3/pkg/client"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // DefaultIssuerURL is the issuer URL for Terraform Cloud
@@ -36,9 +34,6 @@ const DefaultIssuerURL = "https://app.terraform.io"
 // IDTokenValidatorConfig contains the configuration options needed to control
 // the behavior of IDTokenValidator.
 type IDTokenValidatorConfig struct {
-	// Clock is used by the validator when checking expiry and issuer times of
-	// tokens. If omitted, a real clock will be used.
-	Clock clockwork.Clock
 	// issuerHostnameOverride overrides the default Terraform Cloud issuer URL. Used only in
 	// tests.
 	issuerHostnameOverride string
@@ -56,10 +51,6 @@ type IDTokenValidator struct {
 func NewIDTokenValidator(
 	cfg IDTokenValidatorConfig,
 ) *IDTokenValidator {
-	if cfg.Clock == nil {
-		cfg.Clock = clockwork.NewRealClock()
-	}
-
 	return &IDTokenValidator{
 		IDTokenValidatorConfig: cfg,
 	}
@@ -91,35 +82,26 @@ func (id *IDTokenValidator) issuerURL(tfeHostname string) string {
 func (id *IDTokenValidator) Validate(
 	ctx context.Context, audience, hostname, token string,
 ) (*IDTokenClaims, error) {
-	p, err := oidc.NewProvider(
-		ctx,
-		id.issuerURL(hostname),
-	)
+	issuer := id.issuerURL(hostname)
+
+	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
+	// aggressively across join tokens since this isn't going to change very
+	// regularly.
+	dc, err := client.Discover(ctx, issuer, otelhttp.DefaultClient)
 	if err != nil {
-		return nil, trace.Wrap(err, "creating oidc provider")
+		return nil, trace.Wrap(err, "discovering oidc document")
 	}
 
-	verifier := p.Verifier(&oidc.Config{
-		ClientID: audience,
-		Now:      id.Clock.Now,
-	})
+	// TODO(noah): Ideally we'd cache the remote keyset across joins/join tokens
+	// based on the issuer.
+	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
+	verifier := rp.NewIDTokenVerifier(issuer, audience, ks)
+	// TODO(noah): It'd be ideal if we could extend the verifier to use an
+	// injected "now" time.
 
-	idToken, err := verifier.Verify(ctx, token)
+	claims, err := rp.VerifyIDToken[*IDTokenClaims](ctx, token, verifier)
 	if err != nil {
 		return nil, trace.Wrap(err, "verifying token")
 	}
-
-	// `go-oidc` does not implement not before check, so we need to manually
-	// perform this
-	if err := jwt.CheckNotBefore(
-		id.Clock.Now(), time.Minute*2, idToken,
-	); err != nil {
-		return nil, trace.Wrap(err, "enforcing nbf")
-	}
-
-	claims := IDTokenClaims{}
-	if err := idToken.Claims(&claims); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &claims, nil
+	return claims, nil
 }

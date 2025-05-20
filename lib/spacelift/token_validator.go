@@ -21,21 +21,16 @@ package spacelift
 import (
 	"context"
 	"fmt"
-	"time"
 
-	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/zitadel/oidc/v3/pkg/client"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // IDTokenValidatorConfig contains the configuration options needed to control
 // the behavior of IDTokenValidator.
 type IDTokenValidatorConfig struct {
-	// Clock is used by the validator when checking expiry and issuer times of
-	// tokens. If omitted, a real clock will be used.
-	Clock clockwork.Clock
 	// insecure configures the validator to use HTTP rather than HTTPS. This
 	// is not exported as this is only used in the test for now.
 	insecure bool
@@ -50,10 +45,6 @@ type IDTokenValidator struct {
 func NewIDTokenValidator(
 	cfg IDTokenValidatorConfig,
 ) *IDTokenValidator {
-	if cfg.Clock == nil {
-		cfg.Clock = clockwork.NewRealClock()
-	}
-
 	return &IDTokenValidator{
 		IDTokenValidatorConfig: cfg,
 	}
@@ -72,38 +63,27 @@ func (id *IDTokenValidator) issuerURL(hostname string) string {
 func (id *IDTokenValidator) Validate(
 	ctx context.Context, hostname string, token string,
 ) (*IDTokenClaims, error) {
-	p, err := oidc.NewProvider(
-		ctx,
-		id.issuerURL(hostname),
-	)
+	issuer := id.issuerURL(hostname)
+
+	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
+	// aggressively across join tokens since this isn't going to change very
+	// regularly.
+	dc, err := client.Discover(ctx, issuer, otelhttp.DefaultClient)
 	if err != nil {
-		return nil, trace.Wrap(err, "creating oidc provider")
+		return nil, trace.Wrap(err, "discovering oidc document")
 	}
 
-	verifier := p.Verifier(&oidc.Config{
-		// Spacelift uses an audience of your Spacelift tenant hostname
-		// This is weird - but we just have to work with this.
-		// See https://docs.spacelift.io/integrations/cloud-providers/oidc/#standard-claims
-		ClientID: hostname,
-		Now:      id.Clock.Now,
-	})
+	// TODO(noah): Ideally we'd cache the remote keyset across joins/join tokens
+	// based on the issuer.
+	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
+	verifier := rp.NewIDTokenVerifier(issuer, hostname, ks)
+	// TODO(noah): It'd be ideal if we could extend the verifier to use an
+	// injected "now" time.
 
-	idToken, err := verifier.Verify(ctx, token)
+	claims, err := rp.VerifyIDToken[*IDTokenClaims](ctx, token, verifier)
 	if err != nil {
 		return nil, trace.Wrap(err, "verifying token")
 	}
 
-	// `go-oidc` does not implement not before check, so we need to manually
-	// perform this
-	if err := jwt.CheckNotBefore(
-		id.Clock.Now(), time.Minute*2, idToken,
-	); err != nil {
-		return nil, trace.Wrap(err, "enforcing nbf")
-	}
-
-	claims := IDTokenClaims{}
-	if err := idToken.Claims(&claims); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &claims, nil
+	return claims, nil
 }
