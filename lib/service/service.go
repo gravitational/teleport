@@ -1261,13 +1261,13 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 	upgraderKind, externalUpgrader, upgraderVersion := process.detectUpgrader()
 
-	getHello := func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
+	getHello := func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
 		instanceRoles := process.getInstanceRoles()
 		services := make([]string, 0, len(instanceRoles))
 		for _, r := range instanceRoles {
 			services = append(services, string(r))
 		}
-		hello := proto.UpstreamInventoryHello{
+		hello := &proto.UpstreamInventoryHello{
 			ServerID:         cfg.HostUUID,
 			Version:          teleport.Version,
 			Services:         services,
@@ -1303,13 +1303,13 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		return nil, trace.Wrap(err, "building inventory handle")
 	}
 
-	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
+	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping *proto.DownstreamInventoryPing) {
 		systemClock := process.Clock.Now().UTC()
 		process.logger.InfoContext(process.ExitContext(), "Handling incoming inventory ping.",
-			"id", ping.ID,
+			"id", ping.GetID(),
 			"clock", systemClock)
-		err := sender.Send(process.ExitContext(), proto.UpstreamInventoryPong{
-			ID:          ping.ID,
+		err := sender.Send(process.ExitContext(), &proto.UpstreamInventoryPong{
+			ID:          ping.GetID(),
 			SystemClock: timestamppb.New(systemClock),
 		})
 		if err != nil {

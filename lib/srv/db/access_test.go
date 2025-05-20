@@ -2566,8 +2566,8 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(clt.InventoryControlStream,
-		func(_ context.Context) (proto.UpstreamInventoryHello, error) {
-			return proto.UpstreamInventoryHello{
+		func(_ context.Context) (*proto.UpstreamInventoryHello, error) {
+			return &proto.UpstreamInventoryHello{
 				ServerID: p.HostID,
 				Version:  teleport.Version,
 				Services: types.SystemRoles{types.RoleDatabase}.StringSlice(),
@@ -2632,7 +2632,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 			case sender := <-inventoryHandle.Sender():
 				dbServer, err := server.getServerInfo(ctx, db)
 				require.NoError(t, err)
-				require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat{
+				require.NoError(t, sender.Send(ctx, &proto.InventoryHeartbeat{
 					DatabaseServer: dbServer,
 				}))
 			case <-time.After(20 * time.Second):

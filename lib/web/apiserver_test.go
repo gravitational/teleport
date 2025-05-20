@@ -9178,8 +9178,8 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	require.NoError(t, err)
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
-		func(ctx context.Context) (authproto.UpstreamInventoryHello, error) {
-			return authproto.UpstreamInventoryHello{
+		func(ctx context.Context) (*authproto.UpstreamInventoryHello, error) {
+			return &authproto.UpstreamInventoryHello{
 				ServerID: hostID,
 				Version:  teleport.Version,
 				Services: types.SystemRoles{role}.StringSlice(),

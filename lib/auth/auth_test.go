@@ -1152,14 +1152,14 @@ func TestLocalControlStream(t *testing.T) {
 	stream := s.a.MakeLocalInventoryControlStream()
 	defer stream.Close()
 
-	err := stream.Send(ctx, proto.UpstreamInventoryHello{
+	err := stream.Send(ctx, &proto.UpstreamInventoryHello{
 		ServerID: serverID,
 	})
 	require.NoError(t, err)
 
 	select {
 	case msg := <-stream.Recv():
-		_, ok := msg.(proto.DownstreamInventoryHello)
+		_, ok := msg.(*proto.DownstreamInventoryHello)
 		require.True(t, ok)
 	case <-stream.Done():
 		t.Fatalf("stream closed unexpectedly: %v", stream.Error())
@@ -1181,8 +1181,7 @@ func TestLocalControlStream(t *testing.T) {
 
 	select {
 	case msg := <-stream.Recv():
-		_, ok := msg.(proto.DownstreamInventoryPing)
-		require.True(t, ok)
+		require.IsType(t, *new(*proto.DownstreamInventoryPing), msg)
 	case <-stream.Done():
 		t.Fatalf("stream closed unexpectedly: %v", stream.Error())
 	case <-time.After(time.Second * 10):
