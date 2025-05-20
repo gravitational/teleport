@@ -1,6 +1,6 @@
 # Changelog
 
-## 14.4.0 (Upcoming)
+## 14.4.0 (05/20/25)
 
 While Teleport 14 is discontinued and out-of-support, some users are still running it.
 To help updating to a supported version, we are issuing exceptional v14 releases to
@@ -33,6 +33,10 @@ managers, will place the Teleport binaries in `/opt/teleport` instead of `/usr/l
 The binaries will be symlinked to their previous location, no change should be required in your scripts or systemd units.
 
 This change allows us to do automatic updates without conflicting with the package manager.
+
+### Other fixes and improvements
+
+* Client tools {tctl,tsh} auto-updates controlled by cluster configuration. [#52025](https://github.com/gravitational/teleport/pull/52025)
 
 ## 14.3.36 (02/13/25)
 
