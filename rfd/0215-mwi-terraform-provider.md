@@ -239,6 +239,26 @@ Terraform provider for this functionality.
 
 ## UX
 
+Before using the data sources or ephemeral resources, the user must configure
+the provider itself. To do so, they will provide the details required to
+connect and authenticate to the Teleport cluster.
+
+Configuring the MWI provider:
+
+```hcl
+provider "mwi" {
+  proxy_addr  = "example.teleport.sh:443"
+  join_method = "terraform_cloud"
+  join_token  = "my-join-token"
+}
+```
+
+Provider arguments:
+
+- `proxy_addr`: the address of the Teleport Proxy. Required. 
+- `join_method`: the method to use to join the Teleport cluster. Required.
+- `join_token`: the join token to use to join the Teleport cluster. Required.
+
 ### Kubernetes Access
 
 ```hcl
@@ -265,6 +285,26 @@ provider "kubernetes" {
 }
 ```
 
+Ephemeral resource arguments:
+
+- `selector`: this object mirrors the `selector` object within the
+  `kubernetes/v2` output. This identifies the Teleport resource that we want to
+   connect to.
+  - `name`: the name of the resource to connect to. Required.
+- `credential_ttl`: how long the generated credentials should be valid for. 
+  This is a string supporting the 's', 'm', 'h', 'd' suffixes. Required.
+
+Ephemeral resource outputs:
+
+- `host`: the address of the Teleport Proxy.
+- `tls_server_name`: the TLS server name to use when connecting to the
+  Teleport Proxy. 
+- `client_certificate`: the client certificate to use when connecting to the
+  Teleport Proxy.
+- `client_key`: the client key to use when connecting to the Teleport Proxy.
+- `cluster_ca_certificate`: the CA certificate to use when connecting to the
+  Teleport Proxy.
+
 ### AWS via Roles Anywhere
 
 ```hcl
@@ -290,9 +330,27 @@ provider "aws" {
   region     = "us-west-2"
   access_key = ephemeral.mwi_aws_roles_anywhere.account.access_key
   secret_key = ephemeral.mwi_aws_roles_anywhere.account.secret_key
-  token      = ephemeral.mwi_aws_roles_anywhere.account.session_token
+  token      = ephemeral.mwi_aws_roles_anywhere.account.token
 }
 ```
+
+Ephemeral resource arguments:
+
+- `selector`: this object mirrors the `selector` object within the
+  `workload-identity-aws-roles-anywhere` output. It identifies the Workload 
+  Identity resource to use when issuing credentials.
+  - `name`: the name of the Workload Identity resource. Required.
+- `role_arn`: the ARN of the IAM role to assume. Required.
+- `profile_arn`: the ARN of the Roles Anywhere profile to use. Required.
+- `trust_anchor_arn`: the ARN of the Roles Anywhere trust anchor to use.
+  Required.
+
+Ephemeral resource outputs:
+
+- `access_key`: the access key to use when connecting to AWS.
+- `secret_key`: the secret key to use when connecting to AWS.
+- `token`: the session token to use when connecting to AWS. Sometimes known as
+  the "session token".
 
 ## Security Considerations
 
