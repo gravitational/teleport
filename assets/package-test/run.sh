@@ -68,6 +68,12 @@ function test_upgrade_downgrade() {
     elif [[ "$version_number" -eq 16 ]]; then
         version_release="16.4.29"
         version_chanel="v16"
+    elif [[ "$version_number" -eq 15 ]]; then
+        version_release="15.5.0"
+        version_chanel="v15"
+    elif [[ "$version_number" -eq 14 ]]; then
+        version_release="14.4.0"
+        version_chanel="v14
     else
         echo "VERSION_CHANNEL ($VERSION_CHANNEL) is not supported, skipping initialization."
         return
