@@ -92,12 +92,6 @@ type AccessChecker interface {
 	// CheckGCPServiceAccounts returns a list of GCP service accounts the user is allowed to assume.
 	CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error)
 
-	// CheckAccessToSAMLIdP checks access to the SAML IdP.
-	//
-	//nolint:revive // Because we want this to be IdP.
-	// TODO(sshah): Delete after enterprise changes is merged to use v2.
-	CheckAccessToSAMLIdP(readonly.AuthPreference, AccessState) error
-
 	// CheckAccessToSAMLIdPV2 checks access to SAML IdP service provider resource.
 	// It checks for both the legacy RBAC (role v7 and below) that checks for IDP
 	// role option and MFA, as well as non-legacy RBAC (role v8 and above) that checks

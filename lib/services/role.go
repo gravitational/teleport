@@ -1557,52 +1557,6 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 	return utils.StringsSliceFromSet(accounts), nil
 }
 
-// CheckAccessToSAMLIdP checks access to the SAML IdP.
-//
-// TODO(sshah): Delete after enterprise changes is merged to use v2.
-//
-//nolint:revive // Because we want this to be IdP.
-func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, state AccessState) error {
-	ctx := context.Background()
-
-	if authPref != nil {
-		if !authPref.IsSAMLIdPEnabled() {
-			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
-		}
-	}
-
-	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
-		rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access to SAML IdP denied, cluster requires per-session MFA")
-		return trace.Wrap(ErrSessionMFARequired)
-	}
-
-	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
-
-	for _, role := range set {
-		options := role.GetOptions()
-
-		// This should never happen, but we should make sure that we don't get a nil pointer error here.
-		if options.IDP == nil || options.IDP.SAML == nil || options.IDP.SAML.Enabled == nil {
-			continue
-		}
-
-		// If any role specifically denies access to the IdP, we'll return AccessDenied.
-		if !options.IDP.SAML.Enabled.Value {
-			return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
-		}
-
-		if !mfaAllowed && options.RequireMFAType.IsSessionMFARequired() {
-			rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access to SAML IdP denied, role requires per-session MFA",
-				slog.String("role", role.GetName()),
-			)
-
-			return trace.Wrap(ErrSessionMFARequired)
-		}
-	}
-
-	return nil
-}
-
 // checkAccessToSAMLIdP checks access to the SAML IdP based on
 // IDP enabled/disabled in role option and MFA. The IDP option is enforced
 // in Teleport role version v7 and below.
