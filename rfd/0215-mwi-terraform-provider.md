@@ -247,7 +247,7 @@ Configuring the MWI provider:
 
 ```hcl
 provider "mwi" {
-  proxy_addr  = "example.teleport.sh:443"
+  proxy_server  = "example.teleport.sh:443"
   join_method = "terraform_cloud"
   join_token  = "my-join-token"
 }
@@ -255,7 +255,7 @@ provider "mwi" {
 
 Provider arguments:
 
-- `proxy_addr`: the address of the Teleport Proxy. Required. 
+- `proxy_server`: the address of the Teleport Proxy. Required. 
 - `join_method`: the method to use to join the Teleport cluster. Required.
 - `join_token`: the join token to use to join the Teleport cluster. Required.
 
@@ -263,7 +263,7 @@ Provider arguments:
 
 ```hcl
 provider "mwi" {
-  proxy_addr  = "example.teleport.sh:443"
+  proxy_server  = "example.teleport.sh:443"
   join_method = "terraform_cloud"
   join_token  = "my-join-token"
 }
@@ -309,7 +309,7 @@ Ephemeral resource outputs:
 
 ```hcl
 provider "mwi" {
-  proxy_addr  = "example.teleport.sh:443"
+  proxy_server  = "example.teleport.sh:443"
   join_method = "terraform_cloud"
   join_token  = "my-join-token"
 }
