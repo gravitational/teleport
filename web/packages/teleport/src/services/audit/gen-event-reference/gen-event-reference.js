@@ -1,9 +1,3 @@
-// The functions in this package rely on the following packages in the Teleport
-// Web UI source:
-// 
-// - The events array in web/packages/teleport/src/Audit/fixtures/index.ts
-// - The formatters array in web/packages/teleport/src/services/audit/makeEvent.ts
-
 // eventsWithoutExamples returns an array of event objects based on the
 // elements in formatters that do not have corresponding examples in fixtures.
 export function eventsWithoutExamples(fixtures, formatters) {
