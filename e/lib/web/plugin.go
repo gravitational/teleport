@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -419,13 +420,18 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 // In an HTTP-Redirect binding, the SSO request is sent using an HTTP GET method.
 // In an HTTP-POST binding, the SSO request is sent using an HTTP POST method.
 // In order to preseve the original request format throughout the login redirection,
-//   - For an HTTP-Redirect binding request: we just retrieve the SSO request message
-//     from the URL query and append it to the redirect_uri query param.
-//   - For an HTTP-POST binding request: we parse the incoming HTML form, append the form
-//     values to the redirect_uri, along with a new query param "Method=POST". When the user is
-//     redirected back to this middleware after authentication, if the request contains query
-//     param "Method=POST", we convert the GET request to the original POST request by responding
-//     with an HTML POST form that will be auto submitted by the browser.
+//   - For a HTTP-Redirect binding request: we just retrieve the SSO request message
+//     from the URL query, base64 encode it and append it to the redirect_uri query param
+//     as the value of the SAMLAuthRequest query key.
+//   - For a HTTP-POST binding request: we parse the incoming HTML form, build a new URL query
+//     based on the form value and append a new query param "Method=POST". This query is
+//     then base64 encoded and appended to the redirect_uri query param as the value of
+//     the SAMLAuthRequest query key.
+//
+// When the user is redirected back to this middleware after authentication, the original
+// message is rebuilt by decoding SAMLAuthRequest query param. And if the original query contains query
+// param "Method=POST", we convert the GET request to the original POST request by responding
+// with an HTML POST form that will be auto submitted by the browser.
 func (p *Plugin) withSAMLAuth() httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 		p.samlIdPMu.RLock()
@@ -465,28 +471,43 @@ func (p *Plugin) withSAMLAuth() httprouter.Handle {
 		// We will convert the request to the POST method so the original request format remains
 		// unchanged.
 		queryParams := r.URL.Query()
-		if queryParams.Get("Method") == http.MethodPost {
-			webauthnData := queryParams.Get(samlidp.Webauthn.String())
-			if webauthnData != "" {
-				webauthnData = url.Values{
-					samlidp.Webauthn.String(): []string{webauthnData},
-				}.Encode()
-			}
-			if err := samlidp.WriteSAMLPOSTFormWithHeaders(w, samlidp.POSTFormData{
-				URL: (&url.URL{
-					Scheme:   "https",
-					Host:     r.Host,
-					Path:     r.URL.Path,
-					RawQuery: webauthnData,
-				}).String(),
-				SAMLAuthnMessageType: samlidp.SAMLRequest,
-				SAMLAuthnMessage:     queryParams.Get(samlidp.SAMLRequest.String()),
-				RelayState:           queryParams.Get(samlidp.RelayState.String()),
-			}); err != nil {
-				return nil, trace.Wrap(err)
+		query, err := rebuildSAMLRequest(queryParams)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// query will be nil if the request is hitting the SSO endpoint
+		// without any redirection, i.e. user is already authenticated.
+		if query != nil {
+			if query.Get("Method") == http.MethodPost {
+				webauthnData := queryParams.Get(samlidp.Webauthn.String())
+				if webauthnData != "" {
+					webauthnData = url.Values{
+						samlidp.Webauthn.String(): []string{webauthnData},
+					}.Encode()
+				}
+				if err := samlidp.WriteSAMLPOSTFormWithHeaders(w, samlidp.POSTFormData{
+					URL: (&url.URL{
+						Scheme:   "https",
+						Host:     r.Host,
+						Path:     r.URL.Path,
+						RawQuery: webauthnData,
+					}).String(),
+					SAMLAuthnMessageType: samlidp.SAMLRequest,
+					SAMLAuthnMessage:     query.Get(samlidp.SAMLRequest.String()),
+					RelayState:           query.Get(samlidp.RelayState.String()),
+				}); err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				return nil, nil
 			}
 
-			return nil, nil
+			webauthnData := queryParams.Get(samlidp.Webauthn.String())
+			if webauthnData != "" {
+				query.Add(samlidp.Webauthn.String(), webauthnData)
+			}
+
+			r.URL.RawQuery = query.Encode()
 		}
 
 		cert, err := sessCtx.GetX509Certificate()
@@ -508,6 +529,22 @@ func (p *Plugin) withSAMLAuth() httprouter.Handle {
 		samlIdP.ServeHTTP(w, r.WithContext(newCtx))
 		return nil, nil
 	})
+}
+
+// rebuildSAMLRequest returns original SAML authentication request queries
+// that was available before redirection.
+func rebuildSAMLRequest(queryParams url.Values) (url.Values, error) {
+	encodedSAMLAuthRequest := queryParams.Get(samlidp.SAMLAuthRequest)
+	samlAuthRequest, err := base64.URLEncoding.DecodeString(encodedSAMLAuthRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	query, err := url.ParseQuery(string(samlAuthRequest))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return query, nil
 }
 
 func (p *Plugin) getAuthClient() (*authclient.Client, error) {

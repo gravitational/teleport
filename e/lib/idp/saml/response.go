@@ -2,6 +2,7 @@ package saml
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -29,6 +30,9 @@ const (
 	// Per Session MFA assertion, i.e the credential object created from
 	// the result of navigator.credentials.get.
 	Webauthn MessageType = "Webauthn"
+	// SAMLAuthRequest is used to relay base64 encoded original SAML authentication
+	// request data when the user is redirected to login page for authentication.
+	SAMLAuthRequest = "SAMLAuthRequest"
 )
 
 func (m MessageType) String() string {
@@ -53,22 +57,33 @@ func (f FormID) String() string {
 // request protocol binding: HTTP-POST (POST method) and HTTP-Redirect (GET method)
 // protocol binding. For the HTTP-Redirect binding, we can construct the redirect URL
 // by copying original URL query params. But for the HTTP-POST binding, we need to
-// parse the form values and append it to the redirect URI query, along with a
-// new query named "Method" so that the withSAMLAuth middleware can convert the
-// GET request to POST after user is redirected back to the IdP after authentication.
+// parse the form values and append a new query named "Method" so that the withSAMLAuth
+// middleware can convert the GET request to POST after user is redirected back to
+// the IdP after authentication. In both the cases, the query param is base64 encoded
+// and placed under SAMLAuthRequest query param so that original request survives
+// multiple redirects to and from the login page..
 func SSORedirectURL(r *http.Request, redirectPath string) (*url.URL, error) {
 	// Authentication message available in URL query for HTTP-Redirect binding request.
-	redirectURI := url.QueryEscape(r.URL.Query().Encode())
+	redirectQuery := ""
+	if r.URL.RawQuery != "" {
+		redirectQuery = url.Values{
+			SAMLAuthRequest: []string{base64.URLEncoding.EncodeToString([]byte(r.URL.RawQuery))},
+		}.Encode()
+	}
+
 	if r.Method == http.MethodPost {
 		// In an HTTP-POST binding request, the authentication message is sent
 		// in a POST form.
 		if err := r.ParseForm(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		redirectURI = url.QueryEscape(url.Values{
+		queryString := url.Values{
 			SAMLRequest.String(): []string{r.Form.Get(SAMLRequest.String())},
 			RelayState.String():  []string{r.Form.Get(RelayState.String())},
 			"Method":             []string{http.MethodPost},
+		}.Encode()
+		redirectQuery = url.QueryEscape(url.Values{
+			SAMLAuthRequest: []string{base64.URLEncoding.EncodeToString([]byte(queryString))},
 		}.Encode())
 	}
 
@@ -76,7 +91,7 @@ func SSORedirectURL(r *http.Request, redirectPath string) (*url.URL, error) {
 		Scheme:   "https",
 		Host:     r.Host,
 		Path:     redirectPath,
-		RawQuery: redirectURI,
+		RawQuery: redirectQuery,
 	}, nil
 }
 

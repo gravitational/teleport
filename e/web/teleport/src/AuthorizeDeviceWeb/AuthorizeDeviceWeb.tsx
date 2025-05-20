@@ -18,7 +18,6 @@
 
 import { useEffect } from 'react';
 import { useLocation, useParams } from 'react-router';
-import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Box, ButtonLink, ButtonPrimary, Flex, Text } from 'design';
@@ -127,14 +126,14 @@ export const DeviceTrustConnectPassthrough = ({
         <SkipAuthNotice>
           <Text>
             You can{' '}
-            <Link
+            <a
               css={`
                 text-decoration: none;
               `}
-              to={processRedirectUri(redirectUri)}
+              href={processRedirectUri(redirectUri)}
             >
               continue without device trust{' '}
-            </Link>
+            </a>
             but you will not be able to connect to resources that require Device
             Trust.
           </Text>

@@ -113,7 +113,9 @@ func TestWithSAMLAuthHTTPRedirectBinding(t *testing.T) {
 	require.Equal(t, http.StatusSeeOther, resp.Code())
 	redirectLocation := resp.Headers().Get("Location")
 	redirectURL := ssoRedirectURL(t, redirectLocation)
-	require.Equal(t, redirectURL.Query(), authnMessage)
+	originalQuery, err := rebuildSAMLRequest(redirectURL.Query())
+	require.NoError(t, err)
+	require.Equal(t, originalQuery, authnMessage)
 
 	// HTTP-Redirect binding with session and redirectURL.
 	client = s.newAuthWebPack(t, "user").clt
@@ -142,9 +144,11 @@ func TestWithSAMLAuthHTTPPOSTBinding(t *testing.T) {
 	// The values from POST form should be available in the redirect url.
 	redirectLocation := resp.Headers().Get("Location")
 	redirectURL := ssoRedirectURL(t, redirectLocation)
-	require.Equal(t, http.MethodPost, redirectURL.Query().Get("Method"))
-	require.Equal(t, authnMessage.Get(samlidp.SAMLRequest.String()), redirectURL.Query().Get(samlidp.SAMLRequest.String()))
-	require.Equal(t, authnMessage.Get(samlidp.RelayState.String()), redirectURL.Query().Get(samlidp.RelayState.String()))
+	originalQuery, err := rebuildSAMLRequest(redirectURL.Query())
+	require.NoError(t, err)
+	require.Equal(t, http.MethodPost, originalQuery.Get("Method"))
+	require.Equal(t, authnMessage.Get(samlidp.SAMLRequest.String()), originalQuery.Get(samlidp.SAMLRequest.String()))
+	require.Equal(t, authnMessage.Get(samlidp.RelayState.String()), originalQuery.Get(samlidp.RelayState.String()))
 
 	// Requesting the redirectURL with session and a query param Method=POST should
 	// respond with an HTML POST form.
