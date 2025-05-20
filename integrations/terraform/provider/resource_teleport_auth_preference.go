@@ -21,15 +21,13 @@ import (
 	"context"
 	"fmt"
 
+	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jonboulle/clockwork"
-
-	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
-	apitypes "github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/lib/backoff"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
@@ -80,13 +78,15 @@ func (r resourceTeleportAuthPreference) Create(ctx context.Context, req tfsdk.Cr
 		return
 	}
 
+	
+
 	authPreferenceBefore, err := r.p.Client.GetAuthPreference(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading AuthPreference", trace.Wrap(err), "cluster_auth_preference"))
 		return
 	}
 
-	_, err = r.p.Client.ClusterConfigClient().UpsertAuthPreference(ctx, &clusterconfigv1.UpsertAuthPreferenceRequest{AuthPreference: authPreference})
+	_, err = r.p.Client.UpsertAuthPreference(ctx, authPreference)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating AuthPreference", trace.Wrap(err), "cluster_auth_preference"))
 		return
@@ -162,6 +162,7 @@ func (r resourceTeleportAuthPreference) Read(ctx context.Context, req tfsdk.Read
 		return
 	}
 
+	
 	authPreference := authPreferenceI.(*apitypes.AuthPreferenceV2)
 	diags = tfschema.CopyAuthPreferenceV2ToTerraform(ctx, authPreference, &state)
 	resp.Diagnostics.Append(diags...)
@@ -209,7 +210,7 @@ func (r resourceTeleportAuthPreference) Update(ctx context.Context, req tfsdk.Up
 		return
 	}
 
-	_, err = r.p.Client.ClusterConfigClient().UpsertAuthPreference(ctx, &clusterconfigv1.UpsertAuthPreferenceRequest{AuthPreference: authPreference})
+	_, err = r.p.Client.UpsertAuthPreference(ctx, authPreference)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating AuthPreference", trace.Wrap(err), "cluster_auth_preference"))
 		return
@@ -243,6 +244,7 @@ func (r resourceTeleportAuthPreference) Update(ctx context.Context, req tfsdk.Up
 		return
 	}
 
+	
 	authPreference = authPreferenceI.(*apitypes.AuthPreferenceV2)
 	diags = tfschema.CopyAuthPreferenceV2ToTerraform(ctx, authPreference, &plan)
 	resp.Diagnostics.Append(diags...)
