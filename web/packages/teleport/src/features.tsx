@@ -29,6 +29,7 @@ import {
   License,
   ListAddCheck,
   ListThin,
+  ListView as ListViewIcon,
   LockKey,
   PlugsConnected,
   Question,
@@ -292,7 +293,7 @@ export class FeatureBotInstances implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.BotInstances,
-    icon: BotInstancesIcon,
+    icon: ListViewIcon,
     exact: true,
     getLink() {
       return cfg.getBotInstancesRoute();
