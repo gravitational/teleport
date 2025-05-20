@@ -1045,13 +1045,11 @@ func applyAWSKMSConfig(kmsConfig *AWSKMS, cfg *servicecfg.Config) error {
 		return trace.BadParameter("must set region in ca_key_params.aws_kms")
 	}
 	cfg.Auth.KeyStore.AWSKMS = &servicecfg.AWSKMSConfig{
-		AWSAccount: kmsConfig.Account,
-		AWSRegion:  kmsConfig.Region,
-		Tags:       kmsConfig.Tags,
+		AWSAccount:  kmsConfig.Account,
+		AWSRegion:   kmsConfig.Region,
+		Tags:        kmsConfig.Tags,
+		MultiRegion: kmsConfig.MultiRegion,
 	}
-	cfg.Auth.KeyStore.AWSKMS.MultiRegion.Enabled = kmsConfig.MultiRegion.Enabled
-	cfg.Auth.KeyStore.AWSKMS.MultiRegion.PrimaryRegion = kmsConfig.MultiRegion.PrimaryRegion
-	cfg.Auth.KeyStore.AWSKMS.MultiRegion.ReplicaRegions = kmsConfig.MultiRegion.ReplicaRegions
 
 	return nil
 }
