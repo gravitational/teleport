@@ -33,12 +33,15 @@ import (
 )
 
 type githubArgs struct {
-	cmd                *kingpin.CmdClause
-	insecureSkipVerify bool
+	cmd       *kingpin.CmdClause
+	startDate string
 }
 
 func (p *PluginsCommand) initInstallGithub(parent *kingpin.CmdClause) {
 	p.install.github.cmd = parent.Command("github", "Install an Access Graph Github integration.")
+	p.install.github.cmd.Flag("start-date", "Start date for the audit log ingest in the YYYY-MM-DD format.").
+		Default(time.Now().Add(10 * 24 * time.Hour).UTC().Format(time.DateOnly)).
+		StringVar(&p.install.github.startDate)
 }
 
 type githubSettings struct {
@@ -72,6 +75,11 @@ func (p *PluginsCommand) gitubSetupGuide(ctx context.Context) (githubSettings, e
 		return githubSettings{}, trace.Wrap(err)
 	}
 
+	settings.startDate, err = time.Parse(time.DateOnly, p.install.github.startDate)
+	if err != nil {
+		return githubSettings{}, trace.Wrap(err, "failed to parse start date")
+	}
+
 	privateKey, err := promptForInput(
 		ctx,
 		os.Stdout,
@@ -87,7 +95,6 @@ func (p *PluginsCommand) gitubSetupGuide(ctx context.Context) (githubSettings, e
 	}
 	settings.privateKeyData = privateKeyData
 
-	settings.startDate = time.Now().UTC().Add(-10 * 24 * time.Hour)
 	return settings, nil
 }
 
