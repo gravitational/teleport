@@ -542,63 +542,6 @@ func (a *awsKMSKeystore) forEachKey(ctx context.Context, fn func(ctx context.Con
 	return trace.Wrap(errGroup.Wait())
 }
 
-type awsKMSKeyID struct {
-	id, arn, account, region string
-}
-
-func (a awsKMSKeyID) marshal() []byte {
-	return []byte(awskmsPrefix + a.arn)
-}
-
-// isMRK checks if a key is a multi-region key.
-func (a awsKMSKeyID) isMRK() bool {
-	return strings.HasPrefix(a.id, "mrk-")
-}
-
-func keyIDFromArn(keyARN string) (awsKMSKeyID, error) {
-	parsedARN, err := arn.Parse(keyARN)
-	if err != nil {
-		return awsKMSKeyID{}, trace.Wrap(err, "unable parse ARN of AWS KMS key")
-	}
-	id := strings.TrimPrefix(parsedARN.Resource, "key/")
-	return awsKMSKeyID{
-		id:      id,
-		arn:     keyARN,
-		account: parsedARN.AccountID,
-		region:  parsedARN.Region,
-	}, nil
-}
-
-func parseAWSKMSKeyID(raw []byte) (awsKMSKeyID, error) {
-	if keyType(raw) != types.PrivateKeyType_AWS_KMS {
-		return awsKMSKeyID{}, trace.BadParameter("unable to parse invalid AWS KMS key")
-	}
-	keyARN := strings.TrimPrefix(string(raw), awskmsPrefix)
-	key, err := keyIDFromArn(keyARN)
-	return key, trace.Wrap(err)
-}
-
-type kmsClient interface {
-	CreateKey(context.Context, *kms.CreateKeyInput, ...func(*kms.Options)) (*kms.CreateKeyOutput, error)
-	GetPublicKey(context.Context, *kms.GetPublicKeyInput, ...func(*kms.Options)) (*kms.GetPublicKeyOutput, error)
-	ListKeys(context.Context, *kms.ListKeysInput, ...func(*kms.Options)) (*kms.ListKeysOutput, error)
-	ScheduleKeyDeletion(context.Context, *kms.ScheduleKeyDeletionInput, ...func(*kms.Options)) (*kms.ScheduleKeyDeletionOutput, error)
-	DescribeKey(context.Context, *kms.DescribeKeyInput, ...func(*kms.Options)) (*kms.DescribeKeyOutput, error)
-	ListResourceTags(context.Context, *kms.ListResourceTagsInput, ...func(*kms.Options)) (*kms.ListResourceTagsOutput, error)
-	Sign(context.Context, *kms.SignInput, ...func(*kms.Options)) (*kms.SignOutput, error)
-}
-
-// mrkClient is a client for managing multi-region keys.
-type mrkClient interface {
-	ReplicateKey(context.Context, *kms.ReplicateKeyInput, ...func(*kms.Options)) (*kms.ReplicateKeyOutput, error)
-	UpdatePrimaryRegion(context.Context, *kms.UpdatePrimaryRegionInput, ...func(*kms.Options)) (*kms.UpdatePrimaryRegionOutput, error)
-	DescribeKey(context.Context, *kms.DescribeKeyInput, ...func(*kms.Options)) (*kms.DescribeKeyOutput, error)
-}
-
-type stsClient interface {
-	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
-}
-
 func (a *awsKMSKeystore) applyMultiRegionConfig(ctx context.Context, keyID []byte) ([]byte, error) {
 	if keyType(keyID) != types.PrivateKeyType_AWS_KMS {
 		return keyID, nil
@@ -742,4 +685,61 @@ func (a *awsKMSKeystore) waitForKeyEnabled(ctx context.Context, client mrkClient
 		return nil
 	})
 	return trace.Wrap(err)
+}
+
+type awsKMSKeyID struct {
+	id, arn, account, region string
+}
+
+func (a awsKMSKeyID) marshal() []byte {
+	return []byte(awskmsPrefix + a.arn)
+}
+
+// isMRK checks if a key is a multi-region key.
+func (a awsKMSKeyID) isMRK() bool {
+	return strings.HasPrefix(a.id, "mrk-")
+}
+
+func keyIDFromArn(keyARN string) (awsKMSKeyID, error) {
+	parsedARN, err := arn.Parse(keyARN)
+	if err != nil {
+		return awsKMSKeyID{}, trace.Wrap(err, "unable parse ARN of AWS KMS key")
+	}
+	id := strings.TrimPrefix(parsedARN.Resource, "key/")
+	return awsKMSKeyID{
+		id:      id,
+		arn:     keyARN,
+		account: parsedARN.AccountID,
+		region:  parsedARN.Region,
+	}, nil
+}
+
+func parseAWSKMSKeyID(raw []byte) (awsKMSKeyID, error) {
+	if keyType(raw) != types.PrivateKeyType_AWS_KMS {
+		return awsKMSKeyID{}, trace.BadParameter("unable to parse invalid AWS KMS key")
+	}
+	keyARN := strings.TrimPrefix(string(raw), awskmsPrefix)
+	key, err := keyIDFromArn(keyARN)
+	return key, trace.Wrap(err)
+}
+
+type kmsClient interface {
+	CreateKey(context.Context, *kms.CreateKeyInput, ...func(*kms.Options)) (*kms.CreateKeyOutput, error)
+	GetPublicKey(context.Context, *kms.GetPublicKeyInput, ...func(*kms.Options)) (*kms.GetPublicKeyOutput, error)
+	ListKeys(context.Context, *kms.ListKeysInput, ...func(*kms.Options)) (*kms.ListKeysOutput, error)
+	ScheduleKeyDeletion(context.Context, *kms.ScheduleKeyDeletionInput, ...func(*kms.Options)) (*kms.ScheduleKeyDeletionOutput, error)
+	DescribeKey(context.Context, *kms.DescribeKeyInput, ...func(*kms.Options)) (*kms.DescribeKeyOutput, error)
+	ListResourceTags(context.Context, *kms.ListResourceTagsInput, ...func(*kms.Options)) (*kms.ListResourceTagsOutput, error)
+	Sign(context.Context, *kms.SignInput, ...func(*kms.Options)) (*kms.SignOutput, error)
+}
+
+// mrkClient is a client for managing multi-region keys.
+type mrkClient interface {
+	ReplicateKey(context.Context, *kms.ReplicateKeyInput, ...func(*kms.Options)) (*kms.ReplicateKeyOutput, error)
+	UpdatePrimaryRegion(context.Context, *kms.UpdatePrimaryRegionInput, ...func(*kms.Options)) (*kms.UpdatePrimaryRegionOutput, error)
+	DescribeKey(context.Context, *kms.DescribeKeyInput, ...func(*kms.Options)) (*kms.DescribeKeyOutput, error)
+}
+
+type stsClient interface {
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
 }
