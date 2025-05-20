@@ -554,8 +554,6 @@ func TestListBotInstancesPaging(t *testing.T) {
 			var resp ListBotInstancesResponse
 			require.NoError(t, json.Unmarshal(response.Bytes(), &resp), "invalid response received")
 
-			fmt.Printf("%+v\n", resp)
-
 			assert.Len(t, resp.BotInstances, int(math.Min(float64(tc.numInstances), float64(tc.pageSize))))
 		})
 	}

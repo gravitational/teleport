@@ -18,7 +18,6 @@ package web
 
 import (
 	"net/http"
-	"slices"
 	"strconv"
 	"time"
 
@@ -289,15 +288,12 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 
 	uiInstances := tslices.Map(instances.BotInstances, func(instance *machineidv1.BotInstance) BotInstance {
 		latestHeartbeats := []*machineidv1.BotInstanceStatusHeartbeat{}
-		if instance.Status != nil && instance.Status.LatestHeartbeats != nil {
-			latestHeartbeats = make([]*machineidv1.BotInstanceStatusHeartbeat, len(instance.Status.LatestHeartbeats))
+		if instance.Status != nil {
+			latestHeartbeats = instance.Status.LatestHeartbeats
+			if latestHeartbeats == nil {
+				latestHeartbeats = make([]*machineidv1.BotInstanceStatusHeartbeat, len(instance.Status.LatestHeartbeats))
+			}
 		}
-
-		copy(latestHeartbeats, instance.Status.LatestHeartbeats)
-
-		slices.SortFunc(latestHeartbeats, func(a, b *machineidv1.BotInstanceStatusHeartbeat) int {
-			return a.RecordedAt.AsTime().Compare(b.RecordedAt.AsTime())
-		})
 
 		heartbeat := instance.Status.InitialHeartbeat // Use initial heartbeat as a fallback
 		if len(latestHeartbeats) > 0 {
