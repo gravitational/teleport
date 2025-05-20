@@ -160,6 +160,8 @@ message UpdateIntegrationRequest {
   // in turn will disable JIT Access Requests. Makes sense only when apps and groups sync is
   // enabled.
   bool enable_bidirectional_sync = 10;
+  // Enable Okta system log export.
+  bool enable_system_log_export = 11;
 }
 
 // AccessListSettings contains the settings for access list synchronization.
