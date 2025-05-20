@@ -89,7 +89,7 @@ const getDocPtySession: () => DocumentPtySession = () => ({
 });
 
 const getDocTshNodeWithLoginHost: () => DocumentTshNodeWithLoginHost = () => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { serverId, serverUri, login, ...rest } = getDocTshNodeWithServerId();
   return {
     ...rest,
