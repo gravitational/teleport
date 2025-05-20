@@ -13,13 +13,12 @@ development.
 ## How it works
 
 Automatic reviews are triggered by Access Monitoring Rules. These rules instruct
-Teleport to monitor specific Access Requests and automatically submit a review
-when certain conditions are met. The conditions can be configured based on the
-requested roles, and based on the requesting user's Teleport traits.
+Teleport to monitor Access Requests and automatically submit a review
+when certain conditions (such as requested roles or user traits) are met.
 
-For example, an Access Monitoring Rule can configure automatic Access Request
-approval when a user with the Teleport traits `team: demo` requests access to
-the `access` role.
+For example, an Access Monitoring Rule can perform an automatic Access Request
+approval when a user with the Teleport traits or IdP attribute `team: demo`
+requests access to the `access` role.
 
 ## Prerequisites
 
