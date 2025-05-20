@@ -678,7 +678,8 @@ func (m *Manager) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) err
 }
 
 // ApplyMultiRegionConfig configures the given keyID with the current multi-region
-// parameters. This is currently only implemented for AWS KMS.
+// parameters and returns the updated keyID. This is currently only implemented
+// for AWS KMS.
 func (m *Manager) ApplyMultiRegionConfig(ctx context.Context, keyID []byte) ([]byte, error) {
 	backend, ok := m.backendForNewKeys.(*awsKMSKeystore)
 	if !ok {
