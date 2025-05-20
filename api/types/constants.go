@@ -1581,24 +1581,24 @@ var KubernetesNamespacedResourceKinds = []string{
 // Generated with:
 //
 //	(kubectl api-resources --api-group "" --output=name --namespaced=true && kubectl api-resources --api-group "" --output=name --namespaced=false) | sort
-var KubernetesCoreResourceKinds = map[string]struct{
-	"bindings",
-	"componentstatuses",
-	"configmaps",
-	"endpoints",
-	"events",
-	"limitranges",
-	"namespaces",
-	"nodes",
-	"persistentvolumeclaims",
-	"persistentvolumes",
-	"pods",
-	"podtemplates",
-	"replicationcontrollers",
-	"resourcequotas",
-	"secrets",
-	"serviceaccounts",
-	"services",
+var KubernetesCoreResourceKinds = map[string]struct{}{
+	"bindings":               {},
+	"componentstatuses":      {},
+	"configmaps":             {},
+	"endpoints":              {},
+	"events":                 {},
+	"limitranges":            {},
+	"namespaces":             {},
+	"nodes":                  {},
+	"persistentvolumeclaims": {},
+	"persistentvolumes":      {},
+	"pods":                   {},
+	"podtemplates":           {},
+	"replicationcontrollers": {},
+	"resourcequotas":         {},
+	"secrets":                {},
+	"serviceaccounts":        {},
+	"services":               {},
 }
 
 const (

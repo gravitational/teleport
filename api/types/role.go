@@ -1958,7 +1958,7 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 			if kubeResource.APIGroup != "" {
 				return trace.BadParameter("Group %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.APIGroup, roleVersion, V8)
 			}
-			if kubeResource.Kind != Wildcard && !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind)  {
+			if kubeResource.Kind != Wildcard && !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) {
 				return trace.BadParameter("KubernetesResource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
 			}
 			if kubeResource.Namespace == "" && !slices.Contains(KubernetesClusterWideResourceKinds, kubeResource.Kind) {
@@ -1976,8 +1976,10 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 				}
 			}
 			// Only allow empty string for known core resources.
-			if kubeResource.APIGroup == "" && !slices.Contains(KubernetesCoreResourceKinds, kubeResource.Kind) {
-				return trace.BadParameter("KubernetesResource api_group is required for resource %q in role version %q", kubeResource.Kind, roleVersion)
+			if kubeResource.APIGroup == "" {
+				if _, ok := KubernetesCoreResourceKinds[kubeResource.Kind]; !ok {
+					return trace.BadParameter("KubernetesResource api_group is required for resource %q in role version %q", kubeResource.Kind, roleVersion)
+				}
 			}
 			// TODO(@creack): Replace this in favor of proper lookup.
 			kindAPI := kubeResource.Kind + "." + kubeResource.APIGroup
