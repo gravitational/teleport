@@ -1444,7 +1444,7 @@ var KubernetesResourcesV7KindGroups = map[string]string{
 
 // KubernetesResourcesKindsPlurals maps the legacy Teleport kube kinds
 // to their kubernetes name.
-// Used to upgrade roles <=v7 as well as to support exiting access request
+// Used to upgrade roles <=v7 as well as to support existing access request
 // format.
 // TODO(@creack): Remove this, find a better way to handle the mapping.
 var KubernetesResourcesKindsPlurals = map[string]string{
