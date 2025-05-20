@@ -238,3 +238,62 @@ Overall, the most appropriate approach seems to be introducing a single new
 Terraform provider for this functionality.
 
 ## UX
+
+### Kubernetes Access
+
+```hcl
+provider "mwi" {
+  proxy_addr  = "example.teleport.sh:443"
+  join_method = "terraform_cloud"
+  join_token  = "my-join-token"
+}
+
+ephemeral "mwi_kubernetes" "my_cluster" {
+  selector {
+    name = "my-kubernetes-cluster"
+  }
+  credential_ttl = "1h" 
+}
+
+// https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs
+provider "kubernetes" {
+  host                   = ephemeral.mwi_kubernetes.my_cluster.host
+  tls_server_name        = ephemeral.mwi_kubernetes.my_cluster.tls_server_name
+  client_certificate     = ephemeral.mwi_kubernetes.my_cluster.client_certificate
+  client_key             = ephemeral.mwi_kubernetes.my_cluster.client_key 
+  cluster_ca_certificate = ephemeral.mwi_kubernetes.my_cluster.cluster_ca_certificate 
+}
+```
+
+### AWS via Roles Anywhere
+
+```hcl
+provider "mwi" {
+  proxy_addr  = "example.teleport.sh:443"
+  join_method = "terraform_cloud"
+  join_token  = "my-join-token"
+}
+
+ephemeral "mwi_aws_roles_anywhere" "my_account" {
+  selector {
+    name = "my-workload-identity"
+  }
+  role_arn         = "arn:aws:iam::123456789012:role/my-role"
+  profile_arn      = "arn:aws:rolesanywhere:us-east-1:123456789012:profile/0000000-0000-0000-0000-00000000000"
+  trust_anchor_arn = "arn:aws:rolesanywhere:us-east-1:123456789012:trust-anchor/0000000-0000-0000-0000-000000000000" 
+  region           = "us-west-2"
+  session_duration = "1h"
+}
+
+// https://registry.terraform.io/providers/hashicorp/aws/latest/docs
+provider "aws" {
+  region     = "us-west-2"
+  access_key = ephemeral.mwi_aws_roles_anywhere.account.access_key
+  secret_key = ephemeral.mwi_aws_roles_anywhere.account.secret_key
+  token      = ephemeral.mwi_aws_roles_anywhere.account.session_token
+}
+```
+
+## Security Considerations
+
+### Sensitive data in Terraform state
