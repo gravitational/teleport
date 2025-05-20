@@ -6946,6 +6946,9 @@ message PluginJamfSettings {
 message PluginOktaSettings {
   option (gogoproto.equal) = true;
 
+  reserved 6;
+  reserved "enable_system_log_export";
+
   // OrgUrl is the Okta organization URL to use for API communication.
   string org_url = 1;
 
@@ -6962,9 +6965,6 @@ message PluginOktaSettings {
 
   // CredentialsInfo contains information about the Okta credentials.
   PluginOktaCredentialsInfo credentials_info = 5;
-
-  // EnableSiemIntegration enables SIEM (Security Information and Event Management).
-  bool enable_system_log_export = 6;
 }
 
 // PluginOktaCredentialsInfo contains information about the Okta credentials.
