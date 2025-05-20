@@ -14,6 +14,8 @@
 
 syntax = "proto3";
 
+// buf:lint:ignore PACKAGE_DIRECTORY_MATCH
+// buf:lint:ignore PACKAGE_VERSION_SUFFIX
 package proto;
 
 import "google/protobuf/timestamp.proto";
@@ -24,6 +26,7 @@ option go_package = "github.com/gravitational/teleport/api/client/proto";
 // UpstreamInventoryOneOf is the upstream message for the inventory control stream,
 // sent from teleport instances to the auth server.
 message UpstreamInventoryOneOf {
+  // buf:lint:ignore ONEOF_LOWER_SNAKE_CASE
   oneof Msg {
     // Hello is the first message sent up the control stream.
     UpstreamInventoryHello Hello = 1;
@@ -41,6 +44,7 @@ message UpstreamInventoryOneOf {
 // DownstreamInventoryOneOf is the downstream message for the inventory control stream,
 // sent from auth servers to teleport instances.
 message DownstreamInventoryOneOf {
+  // buf:lint:ignore ONEOF_LOWER_SNAKE_CASE
   oneof Msg {
     // Hello is the first message sent down the control stream.
     DownstreamInventoryHello Hello = 1;
@@ -169,8 +173,11 @@ message DownstreamInventoryHello {
 }
 
 // LabelUpdateKind is the type of service to update labels for.
+// buf:lint:ignore ENUM_VALUE_PREFIX
+// buf:lint:ignore ENUM_VALUE_UPPER_SNAKE_CASE
 enum LabelUpdateKind {
   // SSHServer is a label update for an SSH server.
+  // buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
   SSHServer = 0;
   // SSHServerCloudLabels is a label update for an SSH server coming from a
   // cloud provider.
