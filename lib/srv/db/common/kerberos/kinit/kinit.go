@@ -180,11 +180,10 @@ func (d *dbCertGetter) getCertificate(ctx context.Context, username string) (*ge
 		ClusterName:        clusterName.GetClusterName(),
 		OmitCDP:            true,
 		Username:           username,
-		AuthClient:         d.auth,
 		ActiveDirectorySID: sid,
 	}
 
-	certPEM, keyPEM, caCerts, err := windows.DatabaseCredentials(ctx, req)
+	certPEM, keyPEM, caCerts, err := windows.DatabaseCredentials(ctx, d.auth, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

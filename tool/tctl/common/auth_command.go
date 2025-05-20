@@ -405,7 +405,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		return trace.Wrap(err)
 	}
 
-	certDER, _, err := windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
+	certDER, _, err := windows.GenerateWindowsDesktopCredentials(ctx, clusterAPI, &windows.GenerateCredentialsRequest{
 		CAType:             types.UserCA,
 		Username:           a.windowsUser,
 		Domain:             a.windowsDomain,
@@ -414,7 +414,6 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		TTL:                a.genTTL,
 		ClusterName:        cn.GetClusterName(),
 		OmitCDP:            a.omitCDP,
-		AuthClient:         clusterAPI,
 	})
 	if err != nil {
 		return trace.Wrap(err)

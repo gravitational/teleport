@@ -1340,7 +1340,7 @@ type generateCredentialsRequest struct {
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
 func (s *WindowsService) generateCredentials(ctx context.Context, request generateCredentialsRequest) (certDER, keyDER []byte, err error) {
-	return windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
+	return windows.GenerateWindowsDesktopCredentials(ctx, s.cfg.AuthClient, &windows.GenerateCredentialsRequest{
 		CAType:             types.UserCA,
 		Username:           request.username,
 		Domain:             request.domain,
@@ -1349,7 +1349,6 @@ func (s *WindowsService) generateCredentials(ctx context.Context, request genera
 		TTL:                request.ttl,
 		ClusterName:        s.clusterName,
 		ActiveDirectorySID: request.activeDirectorySID,
-		AuthClient:         s.cfg.AuthClient,
 		CreateUser:         request.createUser,
 		Groups:             request.groups,
 		OmitCDP:            request.omitCDP,

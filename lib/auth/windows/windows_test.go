@@ -87,13 +87,12 @@ func TestGenerateCredentials(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			certb, keyb, err := GenerateWindowsDesktopCredentials(ctx, &GenerateCredentialsRequest{
+			certb, keyb, err := GenerateWindowsDesktopCredentials(ctx, client, &GenerateCredentialsRequest{
 				Username:           user,
 				Domain:             domain,
 				TTL:                5 * time.Minute,
 				ClusterName:        clusterName,
 				ActiveDirectorySID: test.activeDirectorySID,
-				AuthClient:         client,
 			})
 			require.NoError(t, err)
 			require.NotNil(t, certb)
