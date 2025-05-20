@@ -64,6 +64,7 @@ jobs:
               - 'integrations/terraform/Makefile'
               - 'integrations/terraform/examples/**'
               - 'integrations/terraform/templates/**'
+              - 'integrations/terraform/provider/**'
               # rendered doc changes
               - 'docs/pages/admin-guides/**'
               - 'docs/pages/enroll-resources/**'
