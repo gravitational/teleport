@@ -1416,7 +1416,7 @@ var KubernetesResourcesKinds = []string{
 
 // KubernetesResourcesV7KindGroups maps the legacy Teleport kube kinds
 // to their kubernetes group.
-// Used for validation in role >=v8 to check whether a older value as
+// Used for validation in role >=v8 to check whether an older value has
 // been accidentally used.
 var KubernetesResourcesV7KindGroups = map[string]string{
 	KindKubePod:                       "",
@@ -1444,7 +1444,7 @@ var KubernetesResourcesV7KindGroups = map[string]string{
 
 // KubernetesResourcesKindsPlurals maps the legacy Teleport kube kinds
 // to their kubernetes name.
-// Used to upgrade roles <=v7 as well as to support exiting access request
+// Used to upgrade roles <=v7 as well as to support existing access request
 // format.
 // TODO(@creack): Remove this, find a better way to handle the mapping.
 var KubernetesResourcesKindsPlurals = map[string]string{
@@ -1577,24 +1577,24 @@ var KubernetesNamespacedResourceKinds = map[struct{ apiGroup, resourceName strin
 // Generated with:
 //
 //	(kubectl api-resources --api-group "" --output=name --namespaced=true && kubectl api-resources --api-group "" --output=name --namespaced=false) | sort
-var KubernetesCoreResourceKinds = []string{
-	"bindings",
-	"componentstatuses",
-	"configmaps",
-	"endpoints",
-	"events",
-	"limitranges",
-	"namespaces",
-	"nodes",
-	"persistentvolumeclaims",
-	"persistentvolumes",
-	"pods",
-	"podtemplates",
-	"replicationcontrollers",
-	"resourcequotas",
-	"secrets",
-	"serviceaccounts",
-	"services",
+var KubernetesCoreResourceKinds = map[string]struct{}{
+	"bindings":               {},
+	"componentstatuses":      {},
+	"configmaps":             {},
+	"endpoints":              {},
+	"events":                 {},
+	"limitranges":            {},
+	"namespaces":             {},
+	"nodes":                  {},
+	"persistentvolumeclaims": {},
+	"persistentvolumes":      {},
+	"pods":                   {},
+	"podtemplates":           {},
+	"replicationcontrollers": {},
+	"resourcequotas":         {},
+	"secrets":                {},
+	"serviceaccounts":        {},
+	"services":               {},
 }
 
 const (

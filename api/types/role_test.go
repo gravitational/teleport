@@ -919,9 +919,9 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 func TestRoleV6_KubernetesResourcesCheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 	requireBadParameterContains := func(contains string) require.ErrorAssertionFunc {
-		return func(t require.TestingT, err error, _ ...any) {
-			require.True(t, trace.IsBadParameter(err))
-			require.ErrorContains(t, err, contains)
+		return func(t require.TestingT, err error, args ...any) {
+			require.True(t, trace.IsBadParameter(err), args...)
+			require.ErrorContains(t, err, contains, args...)
 		}
 	}
 	newRole := func(t *testing.T, version string, spec RoleSpecV6) *RoleV6 {
