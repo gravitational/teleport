@@ -379,7 +379,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 			return proto.UpstreamInventoryHello{
 				ServerID: s.hostUUID,
 				Version:  teleport.Version,
-				Services: []types.SystemRole{types.RoleApp},
+				Services: types.SystemRoles{types.RoleApp}.StringSlice(),
 				Hostname: "test",
 			}, nil
 		})

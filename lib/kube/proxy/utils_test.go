@@ -232,7 +232,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			return proto.UpstreamInventoryHello{
 				ServerID: testCtx.HostID,
 				Version:  teleport.Version,
-				Services: []types.SystemRole{types.RoleKube},
+				Services: types.SystemRoles{types.RoleKube}.StringSlice(),
 				Hostname: "test",
 			}, nil
 		})

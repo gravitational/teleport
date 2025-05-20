@@ -322,7 +322,7 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 
 		for _, hello := range status.Connected {
 			for _, s := range hello.Services {
-				if s != types.RoleNode {
+				if s != string(types.RoleNode) {
 					continue
 				}
 				nodeID = hello.ServerID

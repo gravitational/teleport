@@ -2570,7 +2570,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 			return proto.UpstreamInventoryHello{
 				ServerID: p.HostID,
 				Version:  teleport.Version,
-				Services: []types.SystemRole{types.RoleDatabase},
+				Services: types.SystemRoles{types.RoleDatabase}.StringSlice(),
 				Hostname: "test",
 			}, nil
 		})

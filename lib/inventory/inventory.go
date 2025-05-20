@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -643,9 +644,14 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.Upstream
 		}
 	}
 
+	services := make([]types.SystemRole, 0, len(hello.GetServices()))
+	for _, s := range hello.GetServices() {
+		services = append(services, types.SystemRole(s))
+	}
+
 	instance, err := types.NewInstance(hello.ServerID, types.InstanceSpecV1{
 		Version:                 vc.Normalize(hello.Version),
-		Services:                hello.Services,
+		Services:                services,
 		Hostname:                hello.Hostname,
 		AuthID:                  authID,
 		LastSeen:                now.UTC(),
@@ -821,12 +827,7 @@ func (h *upstreamHandle) SetAgentMetadata(agentMD proto.UpstreamInventoryAgentMe
 // HasService is a helper for checking if a given service is associated with this
 // stream.
 func (h *upstreamHandle) HasService(service types.SystemRole) bool {
-	for _, s := range h.hello.Services {
-		if s == service {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(h.hello.GetServices(), string(service))
 }
 
 // HasControlPlaneService implements UpstreamHandle and returns true if at

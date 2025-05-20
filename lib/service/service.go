@@ -1261,10 +1261,15 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	upgraderKind, externalUpgrader, upgraderVersion := process.detectUpgrader()
 
 	getHello := func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
+		instanceRoles := process.getInstanceRoles()
+		services := make([]string, 0, len(instanceRoles))
+		for _, r := range instanceRoles {
+			services = append(services, string(r))
+		}
 		hello := proto.UpstreamInventoryHello{
 			ServerID:         cfg.HostUUID,
 			Version:          teleport.Version,
-			Services:         process.getInstanceRoles(),
+			Services:         services,
 			Hostname:         cfg.Hostname,
 			ExternalUpgrader: externalUpgrader,
 		}

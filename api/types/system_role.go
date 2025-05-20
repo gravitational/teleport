@@ -207,7 +207,7 @@ func (roles SystemRoles) IncludeAny(candidates ...SystemRole) bool {
 
 // StringSlice returns teleport roles as string slice
 func (roles SystemRoles) StringSlice() []string {
-	s := make([]string, 0)
+	s := make([]string, 0, len(roles))
 	for _, r := range roles {
 		s = append(s, r.String())
 	}

@@ -435,7 +435,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	}()
 
 	for _, service := range handle.hello.Services {
-		c.serviceCounter.increment(service)
+		c.serviceCounter.increment(types.SystemRole(service))
 	}
 
 	defer func() {
@@ -445,7 +445,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 
 		c.instanceHBVariableDuration.Dec()
 		for _, service := range handle.hello.Services {
-			c.serviceCounter.decrement(service)
+			c.serviceCounter.decrement(types.SystemRole(service))
 		}
 		c.store.Remove(handle)
 		handle.Close() // no effect if CloseWithError was called below
@@ -1050,7 +1050,7 @@ func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.Upstrea
 
 	svcs := make([]string, 0, len(handle.Hello().Services))
 	for _, svc := range handle.Hello().Services {
-		svcs = append(svcs, strings.ToLower(svc.String()))
+		svcs = append(svcs, strings.ToLower(svc))
 	}
 
 	c.usageReporter.AnonymizeAndSubmit(&usagereporter.AgentMetadataEvent{

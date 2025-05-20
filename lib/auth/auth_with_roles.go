@@ -732,9 +732,9 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 
 	// in order to reduce sensitivity to downgrades/misconfigurations, we simply filter out
 	// services that are unrecognized or unauthorized, rather than rejecting hellos that claim them.
-	var filteredServices []types.SystemRole
+	var filteredServices []string
 	for _, service := range hello.Services {
-		if !a.hasBuiltinRole(service) {
+		if !a.hasBuiltinRole(types.SystemRole(service)) {
 			a.authServer.logger.WarnContext(a.CloseContext(), "Omitting unknown or unauthorized service for instance control stream",
 				"omitted_service", service,
 				"instance", role.GetServerID(),

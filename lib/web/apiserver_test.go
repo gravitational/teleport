@@ -9182,7 +9182,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			return authproto.UpstreamInventoryHello{
 				ServerID: hostID,
 				Version:  teleport.Version,
-				Services: []types.SystemRole{role},
+				Services: types.SystemRoles{role}.StringSlice(),
 				Hostname: "test",
 			}, nil
 		})

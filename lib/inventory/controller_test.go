@@ -230,7 +230,7 @@ func TestSSHServerBasics(t *testing.T) {
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode},
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
 	})
 
 	// verify that control stream handle is now accessible
@@ -441,7 +441,7 @@ func TestAppServerBasics(t *testing.T) {
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleApp},
+		Services: types.SystemRoles{types.RoleApp}.StringSlice(),
 	})
 
 	// verify that control stream handle is now accessible
@@ -674,7 +674,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleDatabase},
+		Services: types.SystemRoles{types.RoleDatabase}.StringSlice(),
 	})
 
 	// verify that control stream handle is now accessible
@@ -878,7 +878,7 @@ func TestInstanceHeartbeat_Disabled(t *testing.T) {
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode},
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
 	})
 
 	// verify that control stream handle is now accessible
@@ -941,7 +941,7 @@ func TestInstanceHeartbeat(t *testing.T) {
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode, types.RoleApp},
+		Services: types.SystemRoles{types.RoleNode, types.RoleApp}.StringSlice(),
 	})
 
 	// verify that control stream handle is now accessible
@@ -1042,7 +1042,7 @@ func TestUpdateLabels(t *testing.T) {
 	upstreamHello := proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode},
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
 	}
 	downstreamHello := proto.DownstreamInventoryHello{
 		Version:  teleport.Version,
@@ -1106,7 +1106,7 @@ func TestAgentMetadata(t *testing.T) {
 	upstreamHello := proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode},
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
 	}
 	downstreamHello := proto.DownstreamInventoryHello{
 		Version:  teleport.Version,
@@ -1184,7 +1184,7 @@ func TestGoodbye(t *testing.T) {
 	upstreamHello := proto.UpstreamInventoryHello{
 		ServerID: "llama",
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode, types.RoleApp},
+		Services: types.SystemRoles{types.RoleNode, types.RoleApp}.StringSlice(),
 	}
 
 	for _, test := range tests {
@@ -1399,7 +1399,7 @@ func TestKubernetesServerBasics(t *testing.T) {
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleKube},
+		Services: types.SystemRoles{types.RoleKube}.StringSlice(),
 	})
 
 	// verify that control stream handle is now accessible
@@ -1608,7 +1608,7 @@ func TestGetSender(t *testing.T) {
 	upstreamHello := proto.UpstreamInventoryHello{
 		ServerID: "llama",
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode, types.RoleApp},
+		Services: types.SystemRoles{types.RoleNode, types.RoleApp}.StringSlice(),
 	}
 
 	handle, err := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
@@ -1695,7 +1695,7 @@ func TestTimeReconciliation(t *testing.T) {
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode},
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
 	})
 
 	_, ok := controller.GetControlStream(serverID)

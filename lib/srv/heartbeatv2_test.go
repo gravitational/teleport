@@ -136,7 +136,7 @@ func newFakeHeartbeatDriver(t *testing.T) *fakeHeartbeatDriver {
 	hello := proto.UpstreamInventoryHello{
 		ServerID: "test-node",
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode},
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
 	}
 
 	handle, err := inventory.NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {

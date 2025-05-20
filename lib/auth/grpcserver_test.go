@@ -3044,7 +3044,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	err = stream.Send(ctx, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: roles,
+		Services: types.SystemRoles(roles).StringSlice(),
 	})
 	require.NoError(t, err)
 

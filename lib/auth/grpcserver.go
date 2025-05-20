@@ -785,7 +785,7 @@ func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryC
 	// mapping for translation.
 	var metricServices []string
 	for _, service := range hello.Services {
-		if name, ok := icsServiceToMetricName[service]; ok {
+		if name, ok := icsServiceToMetricName[types.SystemRole(service)]; ok {
 			metricServices = append(metricServices, name)
 		}
 	}
