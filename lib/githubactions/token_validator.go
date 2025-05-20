@@ -27,9 +27,8 @@ import (
 	"github.com/go-jose/go-jose/v3"
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
-	"github.com/zitadel/oidc/v3/pkg/client"
-	"github.com/zitadel/oidc/v3/pkg/client/rp"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
+	"github.com/gravitational/teleport/lib/oidc"
 )
 
 const audience = "teleport.cluster.local"
@@ -82,28 +81,7 @@ func (id *IDTokenValidator) Validate(
 	ctx context.Context, GHESHost string, enterpriseSlug string, token string,
 ) (*IDTokenClaims, error) {
 	issuer := id.issuerURL(GHESHost, enterpriseSlug)
-
-	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
-	// aggressively across join tokens since this isn't going to change very
-	// regularly.
-	dc, err := client.Discover(ctx, issuer, otelhttp.DefaultClient)
-	if err != nil {
-		return nil, trace.Wrap(err, "discovering oidc document")
-	}
-
-	// TODO(noah): Ideally we'd cache the remote keyset across joins/join tokens
-	// based on the issuer.
-	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
-	verifier := rp.NewIDTokenVerifier(issuer, audience, ks)
-	// TODO(noah): It'd be ideal if we could extend the verifier to use an
-	// injected "now" time.
-
-	claims, err := rp.VerifyIDToken[*IDTokenClaims](ctx, token, verifier)
-	if err != nil {
-		return nil, trace.Wrap(err, "verifying token")
-	}
-
-	return claims, nil
+	return oidc.ValidateToken[*IDTokenClaims](ctx, issuer, audience, token)
 }
 
 // ValidateTokenWithJWKS validates a GitHub Actions JWT using a configured

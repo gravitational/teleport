@@ -21,10 +21,7 @@ package circleci
 import (
 	"context"
 
-	"github.com/gravitational/trace"
-	"github.com/zitadel/oidc/v3/pkg/client"
-	"github.com/zitadel/oidc/v3/pkg/client/rp"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"github.com/gravitational/teleport/lib/oidc"
 )
 
 func ValidateToken(
@@ -34,26 +31,5 @@ func ValidateToken(
 	token string,
 ) (*IDTokenClaims, error) {
 	issuer := issuerURL(issuerURLTemplate, organizationID)
-
-	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
-	// aggressively across join tokens since this isn't going to change very
-	// regularly.
-	dc, err := client.Discover(ctx, issuer, otelhttp.DefaultClient)
-	if err != nil {
-		return nil, trace.Wrap(err, "discovering oidc document")
-	}
-
-	// TODO(noah): Ideally we'd cache the remote keyset across joins/join tokens
-	// based on the issuer.
-	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
-	verifier := rp.NewIDTokenVerifier(issuer, organizationID, ks)
-	// TODO(noah): It'd be ideal if we could extend the verifier to use an
-	// injected "now" time.
-
-	claims, err := rp.VerifyIDToken[*IDTokenClaims](ctx, token, verifier)
-	if err != nil {
-		return nil, trace.Wrap(err, "verifying token")
-	}
-
-	return claims, nil
+	return oidc.ValidateToken[*IDTokenClaims](ctx, issuer, organizationID, token)
 }

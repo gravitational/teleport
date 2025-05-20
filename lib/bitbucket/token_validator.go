@@ -20,17 +20,9 @@ package bitbucket
 
 import (
 	"context"
-	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/zitadel/oidc/v3/pkg/client"
-	"github.com/zitadel/oidc/v3/pkg/client/rp"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"github.com/gravitational/teleport/lib/oidc"
 )
-
-// providerTimeout is the maximum time allowed to fetch provider metadata before
-// giving up.
-const providerTimeout = 15 * time.Second
 
 // IDTokenValidator validates a Bitbucket issued ID Token.
 type IDTokenValidator struct{}
@@ -44,28 +36,5 @@ func NewIDTokenValidator() *IDTokenValidator {
 func (id *IDTokenValidator) Validate(
 	ctx context.Context, issuerURL, audience, token string,
 ) (*IDTokenClaims, error) {
-	timeoutCtx, cancel := context.WithTimeout(ctx, providerTimeout)
-	defer cancel()
-
-	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
-	// aggressively across join tokens since this isn't going to change very
-	// regularly.
-	dc, err := client.Discover(timeoutCtx, issuerURL, otelhttp.DefaultClient)
-	if err != nil {
-		return nil, trace.Wrap(err, "discovering oidc document")
-	}
-
-	// TODO(noah): Ideally we'd cache the remote keyset across joins/join tokens
-	// based on the issuer.
-	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
-	verifier := rp.NewIDTokenVerifier(issuerURL, audience, ks)
-	// TODO(noah): It'd be ideal if we could extend the verifier to use an
-	// injected "now" time.
-
-	claims, err := rp.VerifyIDToken[*IDTokenClaims](timeoutCtx, token, verifier)
-	if err != nil {
-		return nil, trace.Wrap(err, "verifying token")
-	}
-
-	return claims, nil
+	return oidc.ValidateToken[*IDTokenClaims](ctx, issuerURL, audience, token)
 }
