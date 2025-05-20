@@ -18,7 +18,6 @@
 
 import {
   AddCircle,
-  BotInstances as BotInstancesIcon,
   Bots as BotsIcon,
   CirclePlay,
   ClipboardUser,

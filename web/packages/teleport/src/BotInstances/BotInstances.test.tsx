@@ -75,7 +75,7 @@ describe('BotInstances', () => {
     expect(screen.getByText('No active instances found')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Bot instances are ephemeral, and disappear once their outputs (jwts, certificates, etc) have expired.'
+        'Bot instances are ephemeral, and disappear once all issued credentials have expired.'
       )
     ).toBeInTheDocument();
   });
