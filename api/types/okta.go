@@ -543,6 +543,13 @@ func (o *PluginOktaSyncSettings) GetEnableBidirectionalSync() bool {
 	return !o.DisableBidirectionalSync
 }
 
+func (o *PluginOktaSyncSettings) GetEnableSystemLogExport() bool {
+	if o == nil {
+		return false
+	}
+	return o.EnableSystemLogExport
+}
+
 type OktaUserSyncSource string
 
 // IsUnknown returns true if user sync source is empty or explicitly set to "unknown".
