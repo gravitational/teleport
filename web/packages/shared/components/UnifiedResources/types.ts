@@ -34,6 +34,22 @@ export type ResourceHealthStatus =
   | 'unknown'
   | 'mixed';
 
+const resourcesStatuses = new Set<ResourceHealthStatus>([
+  'healthy',
+  'unhealthy',
+  'unknown',
+  'mixed',
+]);
+
+export function isResourceStatus(
+  status: unknown
+): status is ResourceHealthStatus {
+  return (
+    typeof status === 'string' &&
+    resourcesStatuses.has(status as ResourceHealthStatus)
+  );
+}
+
 export type ResourceTargetHealth = {
   status: ResourceHealthStatus;
   // additional information meant for user.
@@ -145,7 +161,7 @@ export type UnifiedResourcesQueryParams = {
     dir: 'ASC' | 'DESC';
   };
   pinnedOnly?: boolean;
-  statuses?: ResourceStatus[];
+  statuses?: ResourceHealthStatus[];
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
   includedResourceMode?: IncludedResourceMode;

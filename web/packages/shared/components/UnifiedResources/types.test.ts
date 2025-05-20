@@ -16,18 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export function buildPredicateExpression(
-  requestedStatuses: string[] = [],
-  requestedPredicateExpression = ''
-): string {
-  // deduplicate statuses
-  const statusPredicate = [...new Set(requestedStatuses)]
-    // ignore empty
-    .filter(Boolean)
-    .map(status => `health.status == "${status}"`)
-    .join(' || ');
-  if (requestedPredicateExpression && statusPredicate) {
-    return `(${requestedPredicateExpression}) && (${statusPredicate})`;
-  }
-  return requestedPredicateExpression || statusPredicate;
-}
+import { isResourceStatus, ResourceStatus } from './types';
+
+test('isResourceStatus', () => {
+  const validStatuses: ResourceStatus[] = [
+    'healthy',
+    'unhealthy',
+    'unknown',
+    '',
+  ];
+  const statuses = ['healthy', 'random', 'unhealthy', 'llama', 'unknown', ''];
+
+  expect(statuses.filter(isResourceStatus)).toEqual(validStatuses);
+});

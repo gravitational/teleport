@@ -59,7 +59,7 @@ export default {
       description: 'Buffer selections until "Apply" is clicked',
       table: { defaultValue: { summary: 'false' } },
     },
-    disableMenu: {
+    disabled: {
       control: { type: 'boolean' },
       table: { defaultValue: { summary: 'false' } },
     },
@@ -110,7 +110,7 @@ export default {
     showIndicator: true,
     showSelectControls: true,
     onChange: action('onChange'),
-    disableMenu: false,
+    disabled: false,
   },
   render: (args => {
     const [{ selected }, updateArgs] =
@@ -150,7 +150,7 @@ const WithDisabledOption: Story = {
 const WithDisabledMenu: Story = {
   args: {
     options,
-    disableMenu: true,
+    disabled: true,
   },
 };
 

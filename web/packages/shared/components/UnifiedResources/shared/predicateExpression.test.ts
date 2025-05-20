@@ -61,14 +61,14 @@ describe('getPredicateExpression', () => {
       name: 'with status and query',
       requestedStatuses: ['healthy'],
       requestedQuery: 'name == "mysql"',
-      expected: 'name == "mysql" && (health.status == "healthy")',
+      expected: '(name == "mysql") && (health.status == "healthy")',
     },
     {
       name: 'with multi status and query',
       requestedStatuses: ['healthy', '', 'unhealthy'],
-      requestedQuery: 'name == "mysql"',
+      requestedQuery: 'name == "mysql" || name == "postgres"',
       expected:
-        'name == "mysql" && (health.status == "healthy" || health.status == "unhealthy")',
+        '(name == "mysql" || name == "postgres") && (health.status == "healthy" || health.status == "unhealthy")',
     },
   ];
 

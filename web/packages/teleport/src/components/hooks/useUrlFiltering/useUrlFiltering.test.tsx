@@ -118,7 +118,8 @@ test('extracting params from URL with no search param and with sort param with u
 });
 
 test('extracting params from URL with resource kinds and statuses', () => {
-  const url = '/test?kinds=node&status=unknown&&kinds=db&status=healthy';
+  const url =
+    '/test?kinds=node&status=unknown&kinds=db&status=healthy&status=random-word';
   const expected = {
     kinds: ['node', 'db'],
     search: null,
