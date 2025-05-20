@@ -71,7 +71,9 @@ test('renders', () => {
   };
 
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <LayoutContextProvider>
         <ContextProvider ctx={ctx}>
           <Main {...props} />
@@ -92,7 +94,9 @@ test('toggle rendering of info guide panel', async () => {
   };
 
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <ContextProvider ctx={ctx}>
         <LayoutContextProvider>
           <Main {...props} />
@@ -130,7 +134,9 @@ test('displays invite collaborators feedback if present', () => {
   };
 
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <LayoutContextProvider>
         <ContextProvider ctx={ctx}>
           <Main {...props} />
@@ -152,7 +158,9 @@ test('renders without invite collaborators feedback enabled', () => {
   expect(props.inviteCollaboratorsFeedback).toBeUndefined();
 
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <LayoutContextProvider>
         <ContextProvider ctx={ctx}>
           <Main {...props} />

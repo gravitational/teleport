@@ -27,7 +27,10 @@ export default {
 };
 
 export const CardTerminal = () => (
-  <MemoryRouter initialEntries={[cfg.routes.loginTerminalRedirect]}>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    initialEntries={[cfg.routes.loginTerminalRedirect]}
+  >
     <CardTerminalComponent />
   </MemoryRouter>
 );

@@ -17,7 +17,7 @@
  */
 
 import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import renderHook from 'design/utils/renderHook';
 
@@ -126,6 +126,12 @@ function makeWrapper(route: string) {
       initialEntries: [route],
     });
 
-    return <Router history={history} {...props} />;
+    return (
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+        initialEntries={history.entries}
+        {...props}
+      />
+    );
   };
 }

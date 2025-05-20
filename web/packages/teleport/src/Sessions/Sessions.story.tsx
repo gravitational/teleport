@@ -33,7 +33,9 @@ export function Loaded() {
   const props = makeSessionProps({ attempt: { isSuccess: true } });
 
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <ContextProvider ctx={createTeleportContextWithApiMock()}>
         <Sessions {...props} />
       </ContextProvider>
@@ -48,7 +50,9 @@ export function ActiveSessionsCTA() {
   });
 
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <ContextProvider ctx={createTeleportContextWithApiMock()}>
         <Sessions {...props} />
       </ContextProvider>
@@ -63,7 +67,9 @@ export function ModeratedSessionsCTA() {
   });
 
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <ContextProvider ctx={createTeleportContextWithApiMock()}>
         <Sessions {...props} />
       </ContextProvider>

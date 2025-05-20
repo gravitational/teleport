@@ -26,7 +26,9 @@ import { IntegrationTiles } from './IntegrationTiles';
 
 test('render', async () => {
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <IntegrationTiles />
     </MemoryRouter>
   );
@@ -43,7 +45,9 @@ test('render', async () => {
 
 test('render disabled', async () => {
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <IntegrationTiles
         hasIntegrationAccess={false}
         hasExternalAuditStorage={false}
@@ -77,7 +81,9 @@ test('dont render External Audit Storage for enterprise unless it is cloud', asy
   cfg.isCloud = false;
 
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <IntegrationTiles />
     </MemoryRouter>
   );

@@ -28,7 +28,9 @@ export default {
 };
 
 export const Loaded = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <IamPolicyView {...props} />
     </DiscoverBox>
@@ -36,7 +38,9 @@ export const Loaded = () => (
 );
 
 export const Failed = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <IamPolicyView
         {...props}
@@ -47,7 +51,9 @@ export const Failed = () => (
 );
 
 export const Processing = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <IamPolicyView {...props} attempt={{ status: 'processing' }} />
     </DiscoverBox>

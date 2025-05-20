@@ -42,7 +42,9 @@ test('saml app: launch url with one item should display <a> link with href value
   const samlApp = resource;
   samlApp.samlAppLaunchUrls = [{ url: 'https://example.com' }];
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <SamlAppActionProvider>
         <ResourceActionButton resource={samlApp} />
       </SamlAppActionProvider>
@@ -62,7 +64,9 @@ test('saml app: multiple launch urls should display menu login button', async ()
     { url: 'https://2.example.com' },
   ];
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <SamlAppActionProvider>
         <ResourceActionButton resource={samlApp} />
       </SamlAppActionProvider>

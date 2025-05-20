@@ -29,7 +29,9 @@ export default {
 };
 
 export const InitSelfHostedPostgres = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <CreateDatabaseView {...props} />
     </DiscoverBox>
@@ -37,7 +39,9 @@ export const InitSelfHostedPostgres = () => (
 );
 
 export const InitSelfHostedMySql = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <CreateDatabaseView {...props} dbEngine={DatabaseEngine.MySql} />
     </DiscoverBox>
@@ -45,7 +49,9 @@ export const InitSelfHostedMySql = () => (
 );
 
 export const NoPerm = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <CreateDatabaseView {...props} canCreateDatabase={false} />
     </DiscoverBox>
@@ -53,7 +59,9 @@ export const NoPerm = () => (
 );
 
 export const Processing = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <CreateDatabaseView {...props} attempt={{ status: 'processing' }} />
     </DiscoverBox>
@@ -61,7 +69,9 @@ export const Processing = () => (
 );
 
 export const Failed = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <CreateDatabaseView
         {...props}

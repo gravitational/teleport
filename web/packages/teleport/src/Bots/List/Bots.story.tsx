@@ -30,7 +30,9 @@ export default {
 
 export const Empty = () => {
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <TeleportProviderBasic>
         <EmptyState />
       </TeleportProviderBasic>

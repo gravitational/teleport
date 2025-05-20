@@ -24,7 +24,9 @@ import Empty, { Props } from './Empty';
 
 test('empty state for enterprise or oss, with create perms', async () => {
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <Empty {...props} />
     </MemoryRouter>
   );
@@ -36,7 +38,9 @@ test('empty state for enterprise or oss, with create perms', async () => {
 
 test('empty state for cant create or leaf cluster', async () => {
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <Empty {...props} canCreate={false} />
     </MemoryRouter>
   );

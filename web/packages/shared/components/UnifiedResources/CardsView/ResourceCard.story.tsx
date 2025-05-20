@@ -98,7 +98,9 @@ const ActionButton = <ButtonBorder size="small">Action</ButtonBorder>;
 export const Cards: Story = {
   render() {
     return (
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <SamlAppActionProvider>
           <Grid gap={2}>
             {[

@@ -31,7 +31,9 @@ test('disabled assume button with assume start date', async () => {
   jest.useFakeTimers().setSystemTime(new Date('2024-02-16T02:51:12.70087Z'));
 
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <RequestList
         attempt={makeSuccessAttempt([request])}
         assumeRole={() => null}
@@ -59,7 +61,9 @@ test('enabled assume button with assume start date', () => {
   jest.useFakeTimers().setSystemTime(request.assumeStartTime);
 
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <RequestList
         attempt={makeSuccessAttempt([request])}
         assumeRole={() => null}
@@ -78,7 +82,9 @@ test('enabled assume button with assume start date', () => {
 
 test('enabled assume button with no assume start date', () => {
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <RequestList
         attempt={makeSuccessAttempt([
           { ...request, assumeStartTime: null, assumeStartTimeDuration: '' },

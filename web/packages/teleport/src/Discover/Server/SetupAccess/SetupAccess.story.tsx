@@ -31,7 +31,9 @@ export default {
 };
 
 export const NoTraits = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <SetupAccess {...props} initSelectedOptions={() => []} />
     </DiscoverBox>
@@ -39,7 +41,9 @@ export const NoTraits = () => (
 );
 
 export const WithTraits = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <SetupAccess {...props} />
     </DiscoverBox>
@@ -47,7 +51,9 @@ export const WithTraits = () => (
 );
 
 export const NoAccess = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <SetupAccess {...props} canEditUser={false} />
     </DiscoverBox>
@@ -55,7 +61,9 @@ export const NoAccess = () => (
 );
 
 export const SsoUser = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <SetupAccess {...props} isSsoUser={true} />
     </DiscoverBox>

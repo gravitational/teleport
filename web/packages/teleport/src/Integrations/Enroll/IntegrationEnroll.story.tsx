@@ -32,7 +32,10 @@ export const Picker = () => {
   const ctx = createTeleportContext();
 
   return (
-    <MemoryRouter initialEntries={[cfg.routes.integrationEnroll]}>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      initialEntries={[cfg.routes.integrationEnroll]}
+    >
       <ContextProvider ctx={ctx}>
         <IntegrationEnroll />
       </ContextProvider>

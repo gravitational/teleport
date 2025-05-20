@@ -43,7 +43,10 @@ export const MockAwsOidcStatusProvider = ({
   const ctx = createTeleportContext();
 
   return (
-    <MemoryRouter initialEntries={initialEntries}>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      initialEntries={initialEntries}
+    >
       <ContextProvider ctx={ctx}>
         <InfoGuidePanelProvider>
           <awsOidcStatusContext.Provider value={value}>

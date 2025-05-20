@@ -81,7 +81,9 @@ describe('gitHub component', () => {
     jest.spyOn(botService, 'getBot').mockResolvedValue(null);
 
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <ContextProvider ctx={ctx}>
           <GitHubFlowProvider>
             <GitHubActions />

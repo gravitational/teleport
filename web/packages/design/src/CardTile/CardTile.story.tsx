@@ -43,7 +43,9 @@ export const WithBorder = () => (
 );
 
 export const AsLink = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <CardTile as={InternalLink} to="goteleport.com">
       <Text as="h1" typography="h1">
         Curabitur ullamcorper diam sed ante gravida imperdiet

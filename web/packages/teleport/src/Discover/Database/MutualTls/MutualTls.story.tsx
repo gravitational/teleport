@@ -29,7 +29,9 @@ export default {
 };
 
 export const LoadedPostgres = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <MutualTlsView {...props} />
     </DiscoverBox>
@@ -37,7 +39,9 @@ export const LoadedPostgres = () => (
 );
 
 export const LoadedMongo = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <MutualTlsView {...props} dbEngine={DatabaseEngine.MongoDb} />
     </DiscoverBox>
@@ -45,7 +49,9 @@ export const LoadedMongo = () => (
 );
 
 export const LoadedSqlMaria = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <MutualTlsView {...props} dbEngine={DatabaseEngine.MySql} />
     </DiscoverBox>
@@ -53,7 +59,9 @@ export const LoadedSqlMaria = () => (
 );
 
 export const NoPerm = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <MutualTlsView {...props} canUpdateDatabase={false} />
     </DiscoverBox>
@@ -61,7 +69,9 @@ export const NoPerm = () => (
 );
 
 export const Failed = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <MutualTlsView
         {...props}
@@ -72,7 +82,9 @@ export const Failed = () => (
 );
 
 export const Processing = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <MutualTlsView {...props} attempt={{ status: 'processing' }} />
     </DiscoverBox>

@@ -1032,7 +1032,9 @@ test('displays an info banner if lacking "all" permissions to add resources', as
   ctx.storeUser.setState({ acl: { ...allAccessAcl, tokens: noAccess } });
 
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <ContextProvider ctx={ctx}>
         <SelectResource onSelect={() => {}} />
       </ContextProvider>
@@ -1056,7 +1058,9 @@ test('add and remove pin, and rendering of default pins', async () => {
   jest.spyOn(service, 'updateUserPreferences').mockResolvedValue(prefs);
 
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <ContextProvider ctx={createTeleportContext()}>
         <UserContextProvider>
           <SelectResource onSelect={() => {}} />
@@ -1105,7 +1109,9 @@ test('does not display erorr banner if user has "some" permissions to add', asyn
   ctx.storeUser.setState({ acl: { ...allAccessAcl } });
 
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <ContextProvider ctx={ctx}>
         <SelectResource onSelect={() => {}} />
       </ContextProvider>

@@ -55,7 +55,9 @@ test('show all dashboard navigation items', async () => {
   );
 
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <ContextProvider ctx={ctx}>
         <FeaturesContextProvider value={features}>
           <Navigation />

@@ -49,7 +49,9 @@ describe('configureBot Component', () => {
       acl: access || allAccessAcl,
     });
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <ContextProvider ctx={ctx}>
           <GitHubFlowProvider>
             <ConfigureBot />

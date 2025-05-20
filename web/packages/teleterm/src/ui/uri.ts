@@ -176,7 +176,7 @@ export const routing = {
     const pattern: PathPattern = {
       path: route,
       caseSensitive: false,
-      end: true,
+      end: false,
     };
     return matchPath(pattern, path);
   },

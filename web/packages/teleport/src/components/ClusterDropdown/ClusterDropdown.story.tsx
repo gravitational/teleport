@@ -35,7 +35,9 @@ const fetchClusters = () => null;
 export const Dropdown = () => {
   const ctx = createTeleportContext();
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <ContextProvider ctx={ctx}>
         <Box mb={4}>
           <Text>500 clusters</Text>

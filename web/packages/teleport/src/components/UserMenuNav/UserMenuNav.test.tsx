@@ -70,7 +70,10 @@ function render(path: string) {
   });
 
   testingRender(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      initialEntries={[path]}
+    >
       <TeleportContextProvider ctx={ctx}>
         <FeaturesContextProvider value={getOSSFeatures()}>
           <UserMenuNav username="llama" />

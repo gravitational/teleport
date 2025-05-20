@@ -24,7 +24,9 @@ import { IntegrationsAddButton } from './IntegrationsAddButton';
 
 test('is disables if all permissions are missing', async () => {
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <IntegrationsAddButton
         requiredPermissions={[
           { value: false, label: 'permissions.1' },
@@ -41,7 +43,9 @@ test('is disables if all permissions are missing', async () => {
 
 test('is enabled if at least one permission is true', async () => {
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <IntegrationsAddButton
         requiredPermissions={[
           { value: false, label: 'permissions.1' },

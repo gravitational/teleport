@@ -66,7 +66,9 @@ describe('Roles list', () => {
   test('button is enabled if user has create perms', async () => {
     const ctx = createTeleportContext();
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <InfoGuidePanelProvider>
           <ContextProvider ctx={ctx}>
             <Roles {...defaultState} />
@@ -91,7 +93,9 @@ describe('Roles list', () => {
     };
 
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <InfoGuidePanelProvider>
           <ContextProvider ctx={ctx}>
             <Roles {...testState} />
@@ -109,7 +113,9 @@ describe('Roles list', () => {
     const ctx = createTeleportContext();
 
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <InfoGuidePanelProvider>
           <ContextProvider ctx={ctx}>
             <Roles {...defaultState} />
@@ -140,7 +146,9 @@ describe('Roles list', () => {
     };
 
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <InfoGuidePanelProvider>
           <ContextProvider ctx={ctx}>
             <Roles {...testState} />
@@ -177,7 +185,9 @@ describe('Roles list', () => {
     };
 
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <InfoGuidePanelProvider>
           <ContextProvider ctx={ctx}>
             <Roles {...testState} />
@@ -214,7 +224,9 @@ describe('Roles list', () => {
     };
 
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <InfoGuidePanelProvider>
           <ContextProvider ctx={ctx}>
             <Roles {...testState} />
@@ -245,7 +257,9 @@ describe('Roles list', () => {
     };
 
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <InfoGuidePanelProvider>
           <ContextProvider ctx={ctx}>
             <Roles {...testState} />
@@ -295,7 +309,9 @@ test('renders the role diff component', async () => {
   const roleDiffElement = <div>i am rendered</div>;
 
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <InfoGuidePanelProvider>
         <ContextProvider ctx={ctx}>
           <Roles

@@ -38,7 +38,9 @@ function renderWithContext(element, ctx?: TeleportContext) {
     ctx = createTeleportContext();
   }
   return render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <InfoGuidePanelProvider>
         <ContextProvider ctx={ctx}>{element}</ContextProvider>
       </InfoGuidePanelProvider>

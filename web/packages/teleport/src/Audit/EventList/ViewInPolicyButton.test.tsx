@@ -57,7 +57,9 @@ test('should render a link for access path changes', () => {
   };
 
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <ViewInPolicyButton event={makeEvent(event)} />
     </MemoryRouter>
   );

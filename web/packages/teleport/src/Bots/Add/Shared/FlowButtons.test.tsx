@@ -46,7 +46,9 @@ describe('flowButtons component', () => {
 
   it('disables the buttons according to the props', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <FlowButtons
           {...props}
           backButton={{ disabled: true }}
@@ -61,7 +63,9 @@ describe('flowButtons component', () => {
 
   it('hides the buttons according to the props', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <FlowButtons
           {...props}
           backButton={{ hidden: true }}
@@ -78,7 +82,9 @@ describe('flowButtons component', () => {
     const prevMock = jest.fn();
     const nextMock = jest.fn();
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <FlowButtons {...props} prevStep={prevMock} nextStep={nextMock} />
       </MemoryRouter>
     );
@@ -105,13 +111,12 @@ describe('flowButtons component', () => {
       </MemoryRouter>
     );
 
-    await userEvent.click(screen.getByTestId('button-back-first-step'));
-    expect(history.push).toHaveBeenCalledWith('web/random/route');
+    const backLink = screen.getByTestId('button-back-first-step');
+    expect(backLink).toHaveAttribute('href', '/web/random/route');
   });
 
   test('when useLocation.state is NOT defined, the first step back button defaults to bots pathname', async () => {
     const history = createMemoryHistory();
-    history.push = jest.fn();
 
     render(
       <MemoryRouter
@@ -122,7 +127,7 @@ describe('flowButtons component', () => {
       </MemoryRouter>
     );
 
-    await userEvent.click(screen.getByTestId('button-back-first-step'));
-    expect(history.push).toHaveBeenCalledWith(cfg.getBotsNewRoute());
+    const backLink = screen.getByTestId('button-back-first-step');
+    expect(backLink).toHaveAttribute('href', cfg.getBotsNewRoute());
   });
 });

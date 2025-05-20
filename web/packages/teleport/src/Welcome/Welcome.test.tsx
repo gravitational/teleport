@@ -335,7 +335,10 @@ describe('teleport/components/Welcome', () => {
 
 function renderInvite(url = inviteContinuePath) {
   render(
-    <MemoryRouter initialEntries={[url]}>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      initialEntries={[url]}
+    >
       <Route path={cfg.routes.userInviteContinue}>
         <Welcome NewCredentials={NewCredentials} />
       </Route>

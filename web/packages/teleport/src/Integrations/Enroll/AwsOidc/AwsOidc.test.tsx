@@ -37,7 +37,9 @@ test('render', async () => {
     .spyOn(userEventService, 'captureIntegrationEnrollEvent')
     .mockImplementation();
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <AwsOidc />
     </MemoryRouter>
   );
@@ -70,7 +72,9 @@ test('generate command', async () => {
   window.prompt = jest.fn();
 
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <AwsOidc />
     </MemoryRouter>
   );

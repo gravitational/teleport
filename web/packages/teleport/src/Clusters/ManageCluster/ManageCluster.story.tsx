@@ -37,7 +37,10 @@ function render(fetchClusterDetails: (clusterId: string) => Promise<any>) {
 
   ctx.clusterService.fetchClusterDetails = fetchClusterDetails;
   return (
-    <MemoryRouter initialEntries={['/clusters/test-cluster']}>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      initialEntries={['/clusters/test-cluster']}
+    >
       <Route path="/clusters/:clusterId">
         <InfoGuidePanelProvider>
           <ContentMinWidth>

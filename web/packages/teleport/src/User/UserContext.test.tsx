@@ -54,7 +54,9 @@ describe('user context - success state', () => {
 
   it('should render with the settings from the backend', async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <UserContextProvider>
           <ThemeName />
         </UserContextProvider>
@@ -81,7 +83,9 @@ describe('user context - error state', () => {
 
   it('should render with the default settings', async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <UserContextProvider>
           <ThemeName />
         </UserContextProvider>
@@ -102,7 +106,9 @@ describe('user context - error state', () => {
     );
 
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <UserContextProvider>
           <ThemeName />
         </UserContextProvider>

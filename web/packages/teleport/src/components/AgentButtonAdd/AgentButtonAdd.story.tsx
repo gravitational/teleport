@@ -27,19 +27,25 @@ export default {
 };
 
 export const CanCreate = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <AgentButtonAdd {...props} />
   </MemoryRouter>
 );
 
 export const CannotCreate = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <AgentButtonAdd {...props} canCreate={false} />
   </MemoryRouter>
 );
 
 export const CannotCreateVowel = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <AgentButtonAdd
       {...props}
       agent={SearchResource.APPLICATION}
@@ -50,13 +56,17 @@ export const CannotCreateVowel = () => (
 );
 
 export const OnLeaf = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <AgentButtonAdd {...props} isLeafCluster={true} />
   </MemoryRouter>
 );
 
 export const OnLeafVowel = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <AgentButtonAdd {...props} isLeafCluster={true} beginsWithVowel={true} />
   </MemoryRouter>
 );

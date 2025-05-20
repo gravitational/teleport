@@ -34,7 +34,9 @@ export default {
 
 export function List() {
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <IntegrationList list={[...plugins, ...integrations]} />
     </MemoryRouter>
   );

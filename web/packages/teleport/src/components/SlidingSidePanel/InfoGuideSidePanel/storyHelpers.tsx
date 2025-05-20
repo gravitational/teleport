@@ -40,7 +40,9 @@ export const TopBar: React.FC<PropsWithChildren> = ({ children }) => {
   const preferences = makeDefaultUserPreferences();
 
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <UserContext.Provider
         value={{
           preferences,

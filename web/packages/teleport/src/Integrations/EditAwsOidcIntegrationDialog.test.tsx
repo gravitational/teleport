@@ -117,7 +117,10 @@ test('health check is called before calling update', async () => {
     .mockResolvedValue({} as any); // response doesn't matter
 
   render(
-    <MemoryRouter initialEntries={[cfg.getClusterRoute('some-cluster')]}>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      initialEntries={[cfg.getClusterRoute('some-cluster')]}
+    >
       <ComponentWithEditOperation />
     </MemoryRouter>
   );

@@ -25,31 +25,41 @@ export default {
 };
 
 export const HasAccessAndTraits = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <SetupAccessWrapper {...props} />
   </MemoryRouter>
 );
 
 export const HasAccessButNoTraits = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <SetupAccessWrapper {...props} hasTraits={false} />
   </MemoryRouter>
 );
 
 export const NoAccessAndNoTraits = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <SetupAccessWrapper {...props} canEditUser={false} hasTraits={false} />
   </MemoryRouter>
 );
 
 export const NoAccessButHasTraits = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <SetupAccessWrapper {...props} canEditUser={false} />
   </MemoryRouter>
 );
 
 export const SsoUserAndNoTraits = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <SetupAccessWrapper
       {...props}
       canEditUser={false}
@@ -60,19 +70,25 @@ export const SsoUserAndNoTraits = () => (
 );
 
 export const SsoUserButHasTraits = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <SetupAccessWrapper {...props} isSsoUser={true} />
   </MemoryRouter>
 );
 
 export const Processing = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <SetupAccessWrapper {...props} attempt={{ status: 'processing' }} />
   </MemoryRouter>
 );
 
 export const Failed = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <SetupAccessWrapper
       {...props}
       attempt={{ status: 'failed', statusText: 'some error message' }}

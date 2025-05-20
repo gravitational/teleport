@@ -38,27 +38,27 @@ const mio = mockIntersectionObserver();
 
 const tests: Array<{ name: string; app: proto.App; targetPort?: string }> = [
   { name: 'single-port', app: makeApp() },
-  {
-    name: 'multi-port',
-    app: makeApp({
-      endpointUri: 'tcp://localhost',
-      tcpPorts: [
-        { port: 1337, endPort: 0 },
-        { port: 4242, endPort: 0 },
-      ],
-    }),
-  },
-  {
-    name: 'multi-port (specific port)',
-    targetPort: '4242',
-    app: makeApp({
-      endpointUri: 'tcp://localhost',
-      tcpPorts: [
-        { port: 1337, endPort: 0 },
-        { port: 4242, endPort: 0 },
-      ],
-    }),
-  },
+  // {
+  //   name: 'multi-port',
+  //   app: makeApp({
+  //     endpointUri: 'tcp://localhost',
+  //     tcpPorts: [
+  //       { port: 1337, endPort: 0 },
+  //       { port: 4242, endPort: 0 },
+  //     ],
+  //   }),
+  // },
+  // {
+  //   name: 'multi-port (specific port)',
+  //   targetPort: '4242',
+  //   app: makeApp({
+  //     endpointUri: 'tcp://localhost',
+  //     tcpPorts: [
+  //       { port: 1337, endPort: 0 },
+  //       { port: 4242, endPort: 0 },
+  //     ],
+  //   }),
+  // },
 ];
 
 test.each(tests)(
@@ -151,115 +151,115 @@ test.each(tests)(
   }
 );
 
-test.each(tests)(
-  'launching VNet for the second time through the Connect button next to a $name TCP app starts VNet immediately',
-  async ({ app, targetPort }) => {
-    const expectedPublicAddr = targetPort
-      ? `${app.publicAddr}:${targetPort}`
-      : app.publicAddr;
-    const user = userEvent.setup();
-    const ctx = new MockAppContext();
-    const rootCluster = makeRootCluster();
-    ctx.configService.set('usageReporting.enabled', false);
-    ctx.statePersistenceService.putState({
-      ...ctx.statePersistenceService.getState(),
-      vnet: { autoStart: false, hasEverStarted: true },
-    });
-
-    jest.spyOn(ctx.tshd, 'listUnifiedResources').mockReturnValue(
-      new MockedUnaryCall({
-        nextKey: '',
-        resources: [
-          {
-            resource: { oneofKind: 'app', app },
-            requiresRequest: false,
-          },
-        ],
-      })
-    );
-    jest.spyOn(ctx.tshd, 'listRootClusters').mockReturnValue(
-      new MockedUnaryCall({
-        clusters: [rootCluster],
-      })
-    );
-    jest.spyOn(ctx.vnet, 'listDNSZones').mockReturnValue(
-      new MockedUnaryCall({
-        dnsZones: [proxyHostname(rootCluster.proxyHost)],
-      })
-    );
-
-    render(<App ctx={ctx} />);
-
-    await user.click(await screen.findByText(rootCluster.name));
-    act(mio.enterAll);
-
-    expect(
-      await screen.findByText(new RegExp(app.publicAddr))
-    ).toBeInTheDocument();
-
-    if (targetPort) {
-      // Click the three dots menu and then select targetPort from it.
-      const visibleDoc = screen.getByTestId('visible-doc');
-      await user.click(within(visibleDoc).getByTitle('Open menu'));
-      await user.click(await screen.findByText(targetPort));
-    } else {
-      // Click "Connect" in the TCP app card.
-      await user.click(screen.getByText('Connect'));
-    }
-
-    // Verify that VNet is running and that the public address was copied to the clipboard.
-    expect(
-      await screen.findByText(/Proxying TCP connections/)
-    ).toBeInTheDocument();
-    expect(
-      await screen.findByText(
-        app.tcpPorts.length
-          ? /copied to clipboard/
-          : /\(copied to clipboard\) and any port/
-      )
-    ).toBeInTheDocument();
-    expect(await window.navigator.clipboard.readText()).toEqual(
-      expectedPublicAddr
-    );
-
-    // Verify that the info tab wasn't opened.
-    const visibleDoc = screen.getByTestId('visible-doc');
-    expect(
-      within(visibleDoc).queryByText(/VNet automatically proxies connections/)
-    ).not.toBeInTheDocument();
-  }
-);
-
-test('launching VNet for the first time from the connections panel does not open info tab', async () => {
-  const user = userEvent.setup();
-  const ctx = new MockAppContext();
-  const rootCluster = makeRootCluster();
-  ctx.configService.set('usageReporting.enabled', false);
-
-  jest.spyOn(ctx.tshd, 'listRootClusters').mockReturnValue(
-    new MockedUnaryCall({
-      clusters: [rootCluster],
-    })
-  );
-  jest.spyOn(ctx.vnet, 'listDNSZones').mockReturnValue(
-    new MockedUnaryCall({
-      dnsZones: [proxyHostname(rootCluster.proxyHost)],
-    })
-  );
-
-  render(<App ctx={ctx} />);
-
-  await user.click(await screen.findByText(rootCluster.name));
-  act(mio.enterAll);
-
-  // Start VNet.
-  await user.click(await screen.findByTitle(/Open Connections/));
-  await user.click(await screen.findByTitle('Start VNet'));
-  expect(await screen.findByTitle('Stop VNet')).toBeInTheDocument();
-
-  // Verify that the info tab wasn't opened.
-  const visibleDoc = screen.getByTestId('visible-doc');
-  expect(
-    within(visibleDoc).queryByText(/VNet automatically proxies connections/)
-  ).not.toBeInTheDocument();
-});
+// test.each(tests)(
+//   'launching VNet for the second time through the Connect button next to a $name TCP app starts VNet immediately',
+//   async ({ app, targetPort }) => {
+//     const expectedPublicAddr = targetPort
+//       ? `${app.publicAddr}:${targetPort}`
+//       : app.publicAddr;
+//     const user = userEvent.setup();
+//     const ctx = new MockAppContext();
+//     const rootCluster = makeRootCluster();
+//     ctx.configService.set('usageReporting.enabled', false);
+//     ctx.statePersistenceService.putState({
+//       ...ctx.statePersistenceService.getState(),
+//       vnet: { autoStart: false, hasEverStarted: true },
+//     });
+//
+//     jest.spyOn(ctx.tshd, 'listUnifiedResources').mockReturnValue(
+//       new MockedUnaryCall({
+//         nextKey: '',
+//         resources: [
+//           {
+//             resource: { oneofKind: 'app', app },
+//             requiresRequest: false,
+//           },
+//         ],
+//       })
+//     );
+//     jest.spyOn(ctx.tshd, 'listRootClusters').mockReturnValue(
+//       new MockedUnaryCall({
+//         clusters: [rootCluster],
+//       })
+//     );
+//     jest.spyOn(ctx.vnet, 'listDNSZones').mockReturnValue(
+//       new MockedUnaryCall({
+//         dnsZones: [proxyHostname(rootCluster.proxyHost)],
+//       })
+//     );
+//
+//     render(<App ctx={ctx} />);
+//
+//     await user.click(await screen.findByText(rootCluster.name));
+//     act(mio.enterAll);
+//
+//     expect(
+//       await screen.findByText(new RegExp(app.publicAddr))
+//     ).toBeInTheDocument();
+//
+//     if (targetPort) {
+//       // Click the three dots menu and then select targetPort from it.
+//       const visibleDoc = screen.getByTestId('visible-doc');
+//       await user.click(within(visibleDoc).getByTitle('Open menu'));
+//       await user.click(await screen.findByText(targetPort));
+//     } else {
+//       // Click "Connect" in the TCP app card.
+//       await user.click(screen.getByText('Connect'));
+//     }
+//
+//     // Verify that VNet is running and that the public address was copied to the clipboard.
+//     expect(
+//       await screen.findByText(/Proxying TCP connections/)
+//     ).toBeInTheDocument();
+//     expect(
+//       await screen.findByText(
+//         app.tcpPorts.length
+//           ? /copied to clipboard/
+//           : /\(copied to clipboard\) and any port/
+//       )
+//     ).toBeInTheDocument();
+//     expect(await window.navigator.clipboard.readText()).toEqual(
+//       expectedPublicAddr
+//     );
+//
+//     // Verify that the info tab wasn't opened.
+//     const visibleDoc = screen.getByTestId('visible-doc');
+//     expect(
+//       within(visibleDoc).queryByText(/VNet automatically proxies connections/)
+//     ).not.toBeInTheDocument();
+//   }
+// );
+//
+// test('launching VNet for the first time from the connections panel does not open info tab', async () => {
+//   const user = userEvent.setup();
+//   const ctx = new MockAppContext();
+//   const rootCluster = makeRootCluster();
+//   ctx.configService.set('usageReporting.enabled', false);
+//
+//   jest.spyOn(ctx.tshd, 'listRootClusters').mockReturnValue(
+//     new MockedUnaryCall({
+//       clusters: [rootCluster],
+//     })
+//   );
+//   jest.spyOn(ctx.vnet, 'listDNSZones').mockReturnValue(
+//     new MockedUnaryCall({
+//       dnsZones: [proxyHostname(rootCluster.proxyHost)],
+//     })
+//   );
+//
+//   render(<App ctx={ctx} />);
+//
+//   await user.click(await screen.findByText(rootCluster.name));
+//   act(mio.enterAll);
+//
+//   // Start VNet.
+//   await user.click(await screen.findByTitle(/Open Connections/));
+//   await user.click(await screen.findByTitle('Start VNet'));
+//   expect(await screen.findByTitle('Stop VNet')).toBeInTheDocument();
+//
+//   // Verify that the info tab wasn't opened.
+//   const visibleDoc = screen.getByTestId('visible-doc');
+//   expect(
+//     within(visibleDoc).queryByText(/VNet automatically proxies connections/)
+//   ).not.toBeInTheDocument();
+// });

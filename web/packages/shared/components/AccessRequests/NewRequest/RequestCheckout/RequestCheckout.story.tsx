@@ -65,7 +65,9 @@ export const Loaded = () => {
   }
 
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <RequestCheckoutWithSlider {...baseProps} {...props} />
     </MemoryRouter>
   );
@@ -76,7 +78,9 @@ export const Empty = () => {
   const [requestTTL, setRequestTTL] = useState<Option<number>>();
 
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <RequestCheckoutWithSlider
         {...baseProps}
         pendingAccessRequests={[]}
@@ -92,7 +96,9 @@ export const Empty = () => {
 };
 
 export const Failed = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <RequestCheckoutWithSlider
       {...baseProps}
       requireReason={false}
@@ -113,7 +119,9 @@ export const LoadedResourceRequest = () => {
   const [selectedResourceRequestRoles, setSelectedResourceRequestRoles] =
     useState(baseProps.resourceRequestRoles);
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <RequestCheckoutWithSlider
         {...baseProps}
         isResourceRequest={true}
@@ -128,7 +136,9 @@ export const LoadedResourceRequest = () => {
 };
 
 export const ProcessingResourceRequest = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <RequestCheckoutWithSlider
       {...baseProps}
       isResourceRequest={true}
@@ -138,7 +148,9 @@ export const ProcessingResourceRequest = () => (
 );
 
 export const FailedResourceRequest = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <RequestCheckoutWithSlider
       {...baseProps}
       isResourceRequest={true}
@@ -151,7 +163,9 @@ export const FailedResourceRequest = () => (
 );
 
 export const FailedUnsupportedKubeResourceKindWithTooltip = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <RequestCheckoutWithSlider
       {...baseProps}
       isResourceRequest={true}
@@ -164,7 +178,9 @@ export const FailedUnsupportedKubeResourceKindWithTooltip = () => (
 );
 
 export const FailedUnsupportedKubeResourceKindWithoutTooltip = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <RequestCheckoutWithSlider
       {...baseProps}
       isResourceRequest={true}
@@ -177,7 +193,10 @@ export const FailedUnsupportedKubeResourceKindWithoutTooltip = () => (
 );
 
 export const Success = () => (
-  <MemoryRouter initialEntries={['']}>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    initialEntries={['']}
+  >
     <RequestCheckoutWithSlider
       {...baseProps}
       requireReason={false}

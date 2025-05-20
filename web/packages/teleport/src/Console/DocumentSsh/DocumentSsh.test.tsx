@@ -48,7 +48,9 @@ test('file transfer buttons are enabled if user has access', async () => {
 
 function Component({ ctx }: { ctx: ConsoleContext }) {
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <ConsoleContextProvider value={ctx}>
         <DocumentSsh
           doc={{

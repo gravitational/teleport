@@ -30,7 +30,9 @@ export default {
 };
 
 export const Story = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <FinishDialog
       integration={{
         resourceType: 'integration',
@@ -49,7 +51,10 @@ export const Story = () => (
 Story.storyName = 'FinishDialogue';
 
 export const FinishDialogueDiscover = () => (
-  <MemoryRouter initialEntries={[{ state: { discover: {} } }]}>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    initialEntries={[{ state: { discover: {} } }]}
+  >
     <FinishDialog
       integration={{
         resourceType: 'integration',

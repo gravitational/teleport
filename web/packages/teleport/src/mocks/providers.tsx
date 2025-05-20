@@ -37,7 +37,10 @@ export const TeleportProviderBasic: React.FC<
   const ctx = teleportCtx || createTeleportContext();
 
   return (
-    <MemoryRouter initialEntries={initialEntries}>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      initialEntries={initialEntries}
+    >
       <InfoGuidePanelProvider>
         <ContextProvider ctx={ctx}>
           <FeaturesContextProvider value={getOSSFeatures()}>

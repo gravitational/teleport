@@ -54,7 +54,9 @@ test('lock search', async () => {
   );
 
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <ContextProvider ctx={ctx}>
         <Locks />
       </ContextProvider>

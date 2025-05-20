@@ -45,7 +45,9 @@ export const NotificationCard = () => {
   const ctx = createTeleportContext();
 
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <ContextProvider ctx={ctx}>
         <Flex
           mt={4}
@@ -94,7 +96,9 @@ export const NotificationTypes = () => {
   const ctx = createTeleportContext();
 
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <ContextProvider ctx={ctx}>
         Enterprise notifications can be viewed in the
         "TeleportE/Notifications/Notification Types E" story.
@@ -212,7 +216,9 @@ const ListComponent = () => {
   const ctx = createTeleportContext();
 
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <ContextProvider ctx={ctx}>
         <Flex
           css={`

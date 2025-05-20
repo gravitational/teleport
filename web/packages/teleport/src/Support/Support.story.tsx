@@ -34,7 +34,11 @@ const Provider = ({ children }) => (
   <ContextProvider ctx={ctx}>
     <InfoGuidePanelProvider>
       <ContentMinWidth>
-        <MemoryRouter>{children}</MemoryRouter>
+        <MemoryRouter
+          future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+        >
+          {children}
+        </MemoryRouter>
       </ContentMinWidth>
     </InfoGuidePanelProvider>
   </ContextProvider>

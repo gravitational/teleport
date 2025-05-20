@@ -50,7 +50,10 @@ export default {
 };
 
 export const EnrollmentDialogStory = () => (
-  <MemoryRouter initialEntries={[{ state: { discover: {} } }]}>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    initialEntries={[{ state: { discover: {} } }]}
+  >
     <EnrollmentDialog
       clusterName={'EKS1'}
       status={'enrolling'}
@@ -63,7 +66,10 @@ export const EnrollmentDialogStory = () => (
 EnrollmentDialogStory.storyName = 'EnrollmentDialog';
 
 export const AgentWaitingDialogStory = () => (
-  <MemoryRouter initialEntries={[{ state: { discover: {} } }]}>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    initialEntries={[{ state: { discover: {} } }]}
+  >
     <ContextProvider ctx={createTeleportContext()}>
       <PingTeleportProvider
         interval={100000}
@@ -93,7 +99,10 @@ AgentWaitingDialogStory.parameters = {
 };
 
 export const AgentWaitingDialogSuccess = () => (
-  <MemoryRouter initialEntries={[{ state: { discover: {} } }]}>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    initialEntries={[{ state: { discover: {} } }]}
+  >
     <ContextProvider ctx={createTeleportContext()}>
       <PingTeleportProvider
         interval={100000}

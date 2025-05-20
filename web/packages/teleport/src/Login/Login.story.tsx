@@ -65,7 +65,10 @@ export const MessageOfTheDay = () => {
 };
 export const Success = () => <LoginSuccess />;
 export const TerminalRedirect = () => (
-  <MemoryRouter initialEntries={[cfg.routes.loginTerminalRedirect]}>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    initialEntries={[cfg.routes.loginTerminalRedirect]}
+  >
     <Route path={cfg.routes.loginTerminalRedirect + '?auth=MyAuth'}>
       <LoginTerminalRedirect />
     </Route>

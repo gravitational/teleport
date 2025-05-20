@@ -33,7 +33,10 @@ import { ManageCluster } from './ManageCluster';
 
 function renderElement(element, ctx) {
   return render(
-    <MemoryRouter initialEntries={[`/clusters/cluster-id`]}>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      initialEntries={[`/clusters/cluster-id`]}
+    >
       <Route path="/clusters/:clusterId">
         <InfoGuidePanelProvider>
           <ContentMinWidth>

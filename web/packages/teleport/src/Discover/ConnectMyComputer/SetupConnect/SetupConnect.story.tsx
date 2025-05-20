@@ -148,7 +148,9 @@ const Provider = ({ children }) => {
   const updateDiscoverResourcePreferences = () => Promise.resolve();
 
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <UserContext.Provider
         value={{
           preferences,

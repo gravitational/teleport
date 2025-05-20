@@ -69,7 +69,9 @@ const defaultUserGet = http.get(cfg.api.userWithUsernamePath, () =>
 );
 
 export const NoTraits = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <Provider awsRoles={[]}>
       <SetupAccess />
     </Provider>
@@ -82,7 +84,9 @@ NoTraits.parameters = {
 };
 
 export const WithTraits = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <Provider awsRoles={awsRoles}>
       <SetupAccess />
     </Provider>
@@ -108,7 +112,9 @@ WithTraits.parameters = {
 };
 
 export const NoAccess = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <Provider awsRoles={awsRoles} noAccess={true}>
       <SetupAccess />
     </Provider>
@@ -121,7 +127,9 @@ NoAccess.parameters = {
 };
 
 export const SsoUser = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <Provider awsRoles={awsRoles} isSso={true}>
       <SetupAccess />
     </Provider>

@@ -38,13 +38,19 @@ export const WelcomeCustom = () => (
 );
 
 export const WelcomeInvite = () => (
-  <MemoryRouter initialEntries={['/web/invite/1234']}>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    initialEntries={['/web/invite/1234']}
+  >
     <Welcome NewCredentials={NewCredentials} />
   </MemoryRouter>
 );
 
 export const WelcomeReset = () => (
-  <MemoryRouter initialEntries={['/web/reset/1234']}>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    initialEntries={['/web/reset/1234']}
+  >
     <Welcome NewCredentials={NewCredentials} />
   </MemoryRouter>
 );

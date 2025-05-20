@@ -43,7 +43,9 @@ const testIntegration: IntegrationAwsOidc = {
 
 test('renders with resource', () => {
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <InfoGuidePanelProvider>
         <AwsOidcTitle
           integration={testIntegration}
@@ -66,7 +68,9 @@ test('renders with resource', () => {
 
 test('renders without resource', () => {
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <InfoGuidePanelProvider>
         <AwsOidcTitle integration={testIntegration} />
       </InfoGuidePanelProvider>
@@ -85,7 +89,9 @@ test('renders without resource', () => {
 
 test('renders tasks', () => {
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <InfoGuidePanelProvider>
         <AwsOidcTitle integration={testIntegration} tasks={true} />
       </InfoGuidePanelProvider>

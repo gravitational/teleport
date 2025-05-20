@@ -38,7 +38,9 @@ const meta: Meta<StoryProps> = {
   decorators: (Story, { args }) => {
     const ctx = createTeleportContext();
     return (
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <ContextProvider ctx={ctx}>
           <OverrideUserAgent
             userAgent={

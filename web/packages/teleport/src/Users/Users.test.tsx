@@ -84,7 +84,9 @@ describe('invite collaborators integration', () => {
     server.use(successGetUsers([]));
 
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <InfoGuidePanelProvider>
           <ContextProvider ctx={ctx}>
             <Users {...props} />
@@ -112,7 +114,9 @@ describe('invite collaborators integration', () => {
     };
 
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <InfoGuidePanelProvider>
           <ContextProvider ctx={ctx}>
             <Users {...props} />
@@ -165,7 +169,9 @@ test('Users not equal to MAU Notice', async () => {
   const user = userEvent.setup();
 
   render(
-    <MemoryRouter>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <InfoGuidePanelProvider>
         <ContextProvider ctx={ctx}>
           <Users {...props} />
@@ -215,7 +221,9 @@ describe('email password reset integration', () => {
 
   test('displays the traditional reset UI when not configured', async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <InfoGuidePanelProvider>
           <ContextProvider ctx={ctx}>
             <Users {...props} />
@@ -237,7 +245,9 @@ describe('email password reset integration', () => {
     };
 
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <InfoGuidePanelProvider>
           <ContextProvider ctx={ctx}>
             <Users {...props} />
@@ -303,7 +313,9 @@ describe('permission handling', () => {
       },
     };
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <InfoGuidePanelProvider>
           <ContextProvider ctx={ctx}>
             <Users {...testProps} />
@@ -326,7 +338,9 @@ describe('permission handling', () => {
       },
     };
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <InfoGuidePanelProvider>
           <ContextProvider ctx={ctx}>
             <Users {...testProps} />
@@ -358,7 +372,9 @@ describe('permission handling', () => {
       },
     };
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <InfoGuidePanelProvider>
           <ContextProvider ctx={ctx}>
             <Users {...testProps} />
@@ -397,7 +413,9 @@ describe('permission handling', () => {
       },
     };
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
         <InfoGuidePanelProvider>
           <ContextProvider ctx={ctx}>
             <Users {...testProps} />

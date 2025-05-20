@@ -28,7 +28,9 @@ export default {
 };
 
 export const InitWithLocal = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <TestConnection {...props} />
     </DiscoverBox>
@@ -36,7 +38,9 @@ export const InitWithLocal = () => (
 );
 
 export const InitWithSso = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <TestConnection {...props} authType="sso" />
     </DiscoverBox>
@@ -44,7 +48,9 @@ export const InitWithSso = () => (
 );
 
 export const WithKubeUsers = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <TestConnection
         {...props}
@@ -61,7 +67,9 @@ export const WithKubeUsers = () => (
 );
 
 export const WithKubeGroups = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <TestConnection
         {...props}
@@ -78,7 +86,9 @@ export const WithKubeGroups = () => (
 );
 
 export const WithKubeUsersAndGroups = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+  >
     <DiscoverBox>
       <TestConnection
         {...props}
