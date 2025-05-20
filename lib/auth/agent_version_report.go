@@ -59,17 +59,22 @@ func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
 		return
 	}
 
+	// Reject instance not advertising
+	updaterInfo := hello.GetUpdaterInfo()
+	if updaterInfo == nil {
+		return
+	}
+
 	// Reject instances who are not advertising the group properly.
 	// They might be running too old versions.
-	updateGroup := hello.GetUpdaterInfo().GetUpdateGroup()
+	updateGroup := updaterInfo.UpdateGroup
 	if updateGroup == "" {
 		return
 	}
 
-	// We skip instances whose updater status is not unknown or OK.
-	// Note: is it OK to allow unknown? Discuss this with Stephen.
-	status := hello.GetUpdaterInfo().UpdaterStatus
-	if status != types.UpdaterStatus_UPDATER_STATUS_OK && status != types.UpdaterStatus_UPDATER_STATUS_UNSPECIFIED {
+	// We skip instances whose updater status is not OK.
+	status := updaterInfo.UpdaterStatus
+	if status != types.UpdaterStatus_UPDATER_STATUS_OK {
 		return
 	}
 
@@ -85,7 +90,6 @@ type instanceGroupReport map[string]instanceGroupVersionReport
 func (ir instanceGroupReport) collectInstance(handle inventory.UpstreamHandle) {
 	hello := handle.Hello()
 
-	// Note: not validating if the semver is correct, is this an issue?
 	stats, ok := ir[hello.Version]
 	if !ok {
 		stats = instanceGroupVersionReport{}
