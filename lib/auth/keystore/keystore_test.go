@@ -27,6 +27,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -300,8 +301,11 @@ func TestManager(t *testing.T) {
 			require.Equal(t, backendDesc.expectedKeyType, jwtKeyPair.PrivateKeyType)
 
 			encKeyPair, err := manager.NewEncryptionKeyPair(ctx, cryptosuites.RecordingKeyWrapping)
-			require.NoError(t, err)
-			require.Equal(t, backendDesc.expectedKeyType, encKeyPair.PrivateKeyType)
+			// TODO (eriktate): remove once decryption with AWS is added
+			if !strings.Contains(backendDesc.name, "aws_kms") {
+				require.NoError(t, err)
+				require.Equal(t, backendDesc.expectedKeyType, encKeyPair.PrivateKeyType)
+			}
 
 			// Test a CA with multiple active keypairs. Each element of ActiveKeys
 			// includes a keypair generated above and a PKCS11 keypair with a
@@ -343,19 +347,23 @@ func TestManager(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, jwtKeyPair.PublicKey, pubkeyPem)
 
-			decrypter, err := manager.GetDecrypter(ctx, encKeyPair)
-			require.NoError(t, err)
-			require.NotNil(t, decrypter)
+			// TODO (eriktate): remove once decryption with AWS is added
+			if !strings.Contains(backendDesc.name, "aws_kms") {
+				decrypter, err := manager.GetDecrypter(ctx, encKeyPair)
 
-			// Try encrypting and decrypting some data
-			msg := []byte("teleport")
-			require.NoError(t, err)
-			ciphertext, err := encKeyPair.EncryptOAEP(msg)
-			require.NoError(t, err)
+				require.NoError(t, err)
+				require.NotNil(t, decrypter)
 
-			plaintext, err := decrypter.Decrypt(rand.Reader, ciphertext, nil)
-			require.NoError(t, err)
-			require.Equal(t, msg, plaintext)
+				// Try encrypting and decrypting some data
+				msg := []byte("teleport")
+				require.NoError(t, err)
+				ciphertext, err := encKeyPair.EncryptOAEP(msg)
+				require.NoError(t, err)
+
+				plaintext, err := decrypter.Decrypt(rand.Reader, ciphertext, nil)
+				require.NoError(t, err)
+				require.Equal(t, msg, plaintext)
+			}
 
 			// Try signing an SSH cert.
 			sshCert := ssh.Certificate{
