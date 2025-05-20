@@ -16,13 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import format from 'date-fns/format';
 import formatDistanceToNowStrict from 'date-fns/formatDistanceToNowStrict';
+import parseISO from 'date-fns/parseISO';
 import styled from 'styled-components';
 
 import { Info } from 'design/Alert/Alert';
 import { Cell, LabelCell } from 'design/DataTable/Cells';
 import Flex from 'design/Flex';
 import Text from 'design/Text';
+import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 
 import { ClientSearcheableTableWithQueryParamSupport } from 'teleport/components/ClientSearcheableTableWithQueryParamSupport/ClientSearcheableTableWithQueryParamSupport';
@@ -46,8 +49,9 @@ export function BotInstancesList({
     versionSortBy: x.version_latest ? semverExpand(x.version_latest) : 'Z',
     versionDisplay: x.version_latest ? `v${x.version_latest}` : '-',
     activeAtDisplay: x.active_at_latest
-      ? `${formatDistanceToNowStrict(new Date(x.active_at_latest))} ago`
+      ? `${formatDistanceToNowStrict(parseISO(x.active_at_latest))} ago`
       : '-',
+    activeAtLocal: format(parseISO(x.active_at_latest), 'PP, p z'),
   }));
 
   return (
@@ -103,6 +107,15 @@ export function BotInstancesList({
           headerText: 'Last active',
           isSortable: true,
           altSortKey: 'active_at_latest',
+          render: ({ activeAtDisplay, activeAtLocal }) => (
+            <Cell>
+              <Flex>
+                <HoverTooltip tipContent={activeAtLocal}>
+                  {activeAtDisplay}
+                </HoverTooltip>
+              </Flex>
+            </Cell>
+          ),
         },
       ]}
       emptyText="No active instances found"
