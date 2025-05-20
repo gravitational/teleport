@@ -104,7 +104,7 @@ export function BotInstancesList({
         },
         {
           key: 'activeAtDisplay',
-          headerText: 'Last active',
+          headerText: 'Last heartbeat',
           isSortable: true,
           altSortKey: 'active_at_latest',
           render: ({ activeAtDisplay, activeAtLocal }) => (
