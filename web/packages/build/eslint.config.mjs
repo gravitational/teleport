@@ -17,13 +17,14 @@
  */
 
 import eslint from '@eslint/js';
-import tseslint from 'typescript-eslint';
+import jestPlugin from 'eslint-plugin-jest';
+import jestDomPlugin from 'eslint-plugin-jest-dom';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
-import jestPlugin from 'eslint-plugin-jest';
 import testingLibraryPlugin from 'eslint-plugin-testing-library';
-import jestDomPlugin from 'eslint-plugin-jest-dom';
+import unusedImportsPlugin from 'eslint-plugin-unused-imports';
 import globals from 'globals';
+import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
@@ -62,6 +63,7 @@ export default tseslint.config(
     plugins: {
       // There is no flat config available.
       'react-hooks': reactHooksPlugin,
+      'unused-imports': unusedImportsPlugin,
     },
     rules: {
       ...reactHooksPlugin.configs.recommended.rules,

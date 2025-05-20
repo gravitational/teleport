@@ -301,10 +301,6 @@ func (s *Server) startHeartbeat(ctx context.Context, app types.Application) erro
 		InventoryHandle: s.c.InventoryHandle,
 		GetResource:     s.getServerInfoFunc(app),
 		OnHeartbeat:     s.c.OnHeartbeat,
-		// Announcer is provided to allow falling back to non-ICS heartbeats if
-		// the Auth server is older than the app service.
-		// TODO(tross): DELETE IN 16.0.0
-		Announcer: s.c.AccessPoint,
 	})
 	if err != nil {
 		return trace.Wrap(err)
