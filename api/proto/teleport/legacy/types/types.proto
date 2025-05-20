@@ -6946,9 +6946,6 @@ message PluginJamfSettings {
 message PluginOktaSettings {
   option (gogoproto.equal) = true;
 
-  reserved 6;
-  reserved "enable_system_log_export";
-
   // OrgUrl is the Okta organization URL to use for API communication.
   string org_url = 1;
 
@@ -6965,6 +6962,9 @@ message PluginOktaSettings {
 
   // CredentialsInfo contains information about the Okta credentials.
   PluginOktaCredentialsInfo credentials_info = 5;
+
+  reserved 6;
+  reserved "enable_system_log_export";
 }
 
 // PluginOktaCredentialsInfo contains information about the Okta credentials.
@@ -7043,7 +7043,7 @@ message PluginOktaSyncSettings {
   // AppID is empty or "saml_app" if not.
   string user_sync_source = 11;
 
-  // Enable Okta system log export.
+  // EnableSystemLogExport enables the Teleport Identity Security SIEM integration for Okta.
   bool enable_system_log_export = 12;
 }
 

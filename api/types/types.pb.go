@@ -17892,7 +17892,7 @@ type PluginOktaSyncSettings struct {
 	// that has not been yet updated and during the next update the value will be set to "org" if
 	// AppID is empty or "saml_app" if not.
 	UserSyncSource string `protobuf:"bytes,11,opt,name=user_sync_source,json=userSyncSource,proto3" json:"user_sync_source,omitempty"`
-	// Enable Okta system log export.
+	// EnableSystemLogExport enables the Teleport Identity Security SIEM integration for Okta.
 	EnableSystemLogExport bool     `protobuf:"varint,12,opt,name=enable_system_log_export,json=enableSystemLogExport,proto3" json:"enable_system_log_export,omitempty"`
 	XXX_NoUnkeyedLiteral  struct{} `json:"-"`
 	XXX_unrecognized      []byte   `json:"-"`
