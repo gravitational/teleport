@@ -74,6 +74,8 @@ const (
 	PluginTypeDiscord = "discord"
 	// PluginTypeGitlab indicates the Gitlab access plugin
 	PluginTypeGitlab = "gitlab"
+	// PluginTypeGithub indicates the Github access plugin
+	PluginTypeGithub = "github"
 	// PluginTypeEntraID indicates the Entra ID sync plugin
 	PluginTypeEntraID = "entra-id"
 	// PluginTypeSCIM indicates a generic SCIM integration
