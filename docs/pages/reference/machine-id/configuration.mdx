@@ -216,7 +216,7 @@ output used in context.
 # always be `identity`.
 type: identity
 # ssh_config controls whether the identity output will attempt to generate an
-# OpenSSH configuration file. This requires that `tbot` can connect to the 
+# OpenSSH configuration file. This requires that `tbot` can connect to the
 # Teleport Proxy Service. Must be "on" or "off". If unspecified, this defaults to
 # "on".
 ssh_config: on
@@ -710,6 +710,21 @@ attestors:
     allowed_private_network_prefixes:
       - "192.168.1.42/32"
       - "fd12:3456:789a:1::1/128"
+  # systemd is configuration for the Systemd Workload Attestor. See the Workload
+  # Identity API & Workload Attestation reference for more information.
+  systemd:
+    # enabled specifies whether the workload's identity should be attested with
+    # information about its Systemd service. If unspecified, this defaults to
+    # false.
+    enabled: true
+  # unix is configuration for the Unix Workload Attestor.
+  unix:
+    # binary_hash_max_size_bytes is the maximum number of bytes that will be
+    # read from a process' binary to calculate its SHA-256 checksum. If the
+    # binary is larger than this, the `workload.unix.binary_hash` attribute
+    # will be empty. If unspecified, this defaults to 1GiB. Set it to -1 to
+    # make it unlimited.
+    binary_hash_max_size_bytes: 1024
 # svids specifies the SPIFFE SVIDs that the Workload API should provide.
 svids:
     # path specifies what the path element should be requested for the SPIFFE
