@@ -91,7 +91,6 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.5
 	github.com/charmbracelet/huh v0.7.0
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/coreos/go-oidc/v3 v3.14.1
 	github.com/coreos/go-semver v0.3.1
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/creack/pty v1.1.24
@@ -198,6 +197,7 @@ require (
 	github.com/sigstore/sigstore v1.9.4
 	github.com/sigstore/sigstore-go v0.7.1
 	github.com/sijms/go-ora/v2 v2.8.24
+	github.com/sirupsen/logrus v1.9.3
 	github.com/snowflakedb/gosnowflake v1.14.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spiffe/aws-spiffe-workload-helper v0.0.1-rc.8
@@ -206,6 +206,7 @@ require (
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
 	github.com/vulcand/predicate v1.2.0 // replaced
 	github.com/yusufpapurcu/wmi v1.2.4
+	github.com/zeebo/assert v1.3.0
 	github.com/zitadel/oidc/v3 v3.38.1
 	gitlab.com/gitlab-org/api/client-go v0.127.0
 	go.etcd.io/etcd/api/v3 v3.5.21
@@ -518,7 +519,6 @@ require (
 	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07 // indirect
 	github.com/sigstore/rekor v1.3.9 // indirect
 	github.com/sigstore/timestamp-authority v1.2.5 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sony/gobreaker v0.5.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
