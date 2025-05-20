@@ -122,7 +122,7 @@ export type IntegrationAwsOidc = IntegrationTemplate<
   'integration',
   IntegrationKind.AwsOidc,
   IntegrationSpecAwsOidc
->;
+> & { redirectText?: string };
 
 export type AwsOidcPingRequest = {
   // Define roleArn if the ping request should

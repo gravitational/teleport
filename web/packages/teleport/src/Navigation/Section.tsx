@@ -384,7 +384,7 @@ export function SubsectionItem({
     <StyledSubsectionItem
       $active={$active}
       to={to}
-      exact={exact}
+      end={exact}
       tabIndex={0}
       onClick={onClick}
     >

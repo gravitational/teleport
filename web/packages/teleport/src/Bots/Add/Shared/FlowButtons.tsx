@@ -76,14 +76,15 @@ function BackButton({
   disabled: boolean;
   prevStep: () => void;
 }) {
-  const location = useLocation<{ previousPathname: string }>();
+  const location = useLocation();
+  const state = location.state as { previousPathname: string };
 
   if (isFirstStep) {
     return (
       <ButtonSecondary
         disabled={disabled}
         as={Link}
-        to={location.state?.previousPathname || cfg.getBotsNewRoute()}
+        to={state?.previousPathname || cfg.getBotsNewRoute()}
         data-testid="button-back-first-step"
       >
         Back

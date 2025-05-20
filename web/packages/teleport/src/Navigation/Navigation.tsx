@@ -200,10 +200,13 @@ function getNavSubsectionForRoute(
   let feature = features
     .filter(feature => Boolean(feature.route))
     .find(feature =>
-      matchPath(route.pathname, {
-        path: feature.route.path,
-        exact: feature.route.exact,
-      })
+      matchPath(
+        {
+          path: feature.route.path,
+          end: feature.route.exact,
+        },
+        route.pathname
+      )
     );
 
   // If this is a child feature, use its parent as the subsection instead.
@@ -455,10 +458,13 @@ export function Navigation({
   const hideNav = features.find(
     f =>
       f.route &&
-      matchPath(location.pathname, {
-        path: f.route.path,
-        exact: f.route.exact ?? false,
-      })
+      matchPath(
+        {
+          path: f.route.path,
+          end: f.route.exact ?? false,
+        },
+        location.pathname
+      )
   )?.hideNavigation;
 
   if (hideNav) {

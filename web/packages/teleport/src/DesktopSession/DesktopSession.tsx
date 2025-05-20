@@ -28,7 +28,7 @@ import { BrowserFileSystem, TdpClient } from 'shared/libs/tdp';
 
 import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
-import cfg, { UrlDesktopParams } from 'teleport/config';
+import cfg from 'teleport/config';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 import { adaptWebSocketToTdpTransport } from 'teleport/lib/tdp';
 import { shouldShowMfaPrompt, useMfaEmitter } from 'teleport/lib/useMfa';
@@ -37,7 +37,7 @@ import auth from 'teleport/services/auth';
 
 export function DesktopSession() {
   const ctx = useTeleport();
-  const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
+  const { username, desktopName, clusterId } = useParams();
   useEffect(() => {
     document.title = `${username} on ${desktopName} • ${clusterId}`;
   }, [clusterId, desktopName, username]);

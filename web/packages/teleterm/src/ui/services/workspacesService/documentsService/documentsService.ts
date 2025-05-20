@@ -401,10 +401,7 @@ export class DocumentsService {
 
   isActive(uri: string) {
     const location = this.getLocation();
-    return !!routing.parseUri(location, {
-      exact: true,
-      path: uri,
-    });
+    return !!routing.parseUri(location, uri);
   }
 
   add(doc: Document, position?: number) {

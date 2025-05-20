@@ -17,7 +17,7 @@
  */
 
 import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import { render, screen, userEvent } from 'design/utils/testing';
 
@@ -32,7 +32,10 @@ test('integration list does not display action menu for aws-oidc, row click navi
   history.push = jest.fn();
 
   render(
-    <Router history={history}>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      initialEntries={history.entries}
+    >
       <IntegrationList
         list={[
           {
@@ -44,7 +47,7 @@ test('integration list does not display action menu for aws-oidc, row click navi
           },
         ]}
       />
-    </Router>
+    </MemoryRouter>
   );
 
   expect(

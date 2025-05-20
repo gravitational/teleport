@@ -122,10 +122,13 @@ const history = {
 
     const match = (known: string) =>
       // only match against pathname
-      matchPath(pathname, {
-        path: known,
-        exact: !nonExactRoutes.includes(known),
-      });
+      matchPath(
+        {
+          path: known,
+          end: !nonExactRoutes.includes(known),
+        },
+        pathname
+      );
 
     return knownRoutes.some(match);
   },

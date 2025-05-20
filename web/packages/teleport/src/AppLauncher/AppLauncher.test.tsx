@@ -17,7 +17,7 @@
  */
 
 import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import { render, screen, waitFor } from 'design/utils/testing';
 
@@ -111,11 +111,16 @@ describe('app launcher path is properly formed', () => {
     '$name',
     async ({ path: query, expectedPath }) => {
       render(
-        <Router history={createMockHistory(`grafana.localhost${query}`)}>
+        <MemoryRouter
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+          initialEntries={
+            createMockHistory(`grafana.localhost${query}`).entries
+          }
+        >
           <Route path={cfg.routes.appLauncher}>
             <AppLauncher />
           </Route>
-        </Router>
+        </MemoryRouter>
       );
 
       await waitFor(() =>
@@ -297,11 +302,14 @@ describe('fqdn is matched', () => {
       jest.spyOn(service, 'createAppSession');
 
       render(
-        <Router history={createMockHistory(path)}>
+        <MemoryRouter
+          future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+          initialEntries={createMockHistory(path).entries}
+        >
           <Route path={cfg.routes.appLauncher}>
             <AppLauncher />
           </Route>
-        </Router>
+        </MemoryRouter>
       );
 
       await waitFor(() => {
@@ -324,15 +332,18 @@ describe('fqdn is matched', () => {
     });
 
     render(
-      <Router
-        history={createMockHistory(
-          'test-app.test.teleport:443/test.teleport/test-app.test.teleport:443?state=ABC'
-        )}
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        initialEntries={
+          createMockHistory(
+            'test-app.test.teleport:443/test.teleport/test-app.test.teleport:443?state=ABC'
+          ).entries
+        }
       >
         <Route path={cfg.routes.appLauncher}>
           <AppLauncher />
         </Route>
-      </Router>
+      </MemoryRouter>
     );
 
     await screen.findByText(/access denied/i);
@@ -350,15 +361,18 @@ describe('fqdn is matched', () => {
     });
 
     render(
-      <Router
-        history={createMockHistory(
-          'test-app.test.teleport:443/test.teleport/test-app.test.teleport:443?state=ABC'
-        )}
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+        initialEntries={
+          createMockHistory(
+            'test-app.test.teleport:443/test.teleport/test-app.test.teleport:443?state=ABC'
+          ).entries
+        }
       >
         <Route path={cfg.routes.appLauncher}>
           <AppLauncher />
         </Route>
-      </Router>
+      </MemoryRouter>
     );
 
     await screen.findByText(/access denied/i);

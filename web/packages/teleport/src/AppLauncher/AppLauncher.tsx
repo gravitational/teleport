@@ -32,7 +32,7 @@ import { MfaChallengeScope } from 'teleport/services/auth/auth';
 export function AppLauncher() {
   const { attempt, setAttempt } = useAttempt('processing');
 
-  const pathParams = useParams<UrlLauncherParams>();
+  const pathParams = useParams() as UrlLauncherParams;
   const { search } = useLocation();
   const queryParams = new URLSearchParams(search);
   const isRedirectFlow = queryParams.get('required-apps');

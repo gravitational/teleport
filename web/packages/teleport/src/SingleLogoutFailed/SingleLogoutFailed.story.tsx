@@ -17,7 +17,7 @@
  */
 
 import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import { SingleLogoutFailed } from './SingleLogoutFailed';
 
@@ -32,9 +32,12 @@ export const FailedDefault = () => {
   });
 
   return (
-    <Router history={history}>
+    <MemoryRouter
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      initialEntries={history.entries}
+    >
       <SingleLogoutFailed />
-    </Router>
+    </MemoryRouter>
   );
 };
 
@@ -45,8 +48,11 @@ export const FailedOkta = () => {
   });
 
   return (
-    <Router history={history}>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      initialEntries={history.entries}
+    >
       <SingleLogoutFailed />
-    </Router>
+    </MemoryRouter>
   );
 };

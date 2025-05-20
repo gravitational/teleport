@@ -19,7 +19,7 @@
 import { act } from '@testing-library/react';
 import { userEvent, UserEvent } from '@testing-library/user-event';
 import { createMemoryHistory } from 'history';
-import { MemoryRouter, Route, Router } from 'react-router';
+import { MemoryRouter, Route } from 'react-router';
 
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 import { Logger } from 'shared/libs/logger';
@@ -65,11 +65,14 @@ describe('teleport/components/Welcome', () => {
     });
 
     render(
-      <Router history={mockHistory}>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        initialEntries={mockHistory.entries}
+      >
         <Route path={cfg.routes.userInvite}>
           <Welcome NewCredentials={NewCredentials} />
         </Route>
-      </Router>
+      </MemoryRouter>
     );
 
     expect(
@@ -97,11 +100,14 @@ describe('teleport/components/Welcome', () => {
     });
 
     render(
-      <Router history={mockHistory}>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+        initialEntries={mockHistory.entries}
+      >
         <Route path={cfg.routes.userReset}>
           <Welcome NewCredentials={NewCredentials} />
         </Route>
-      </Router>
+      </MemoryRouter>
     );
 
     expect(

@@ -17,13 +17,13 @@
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { History } from 'history';
 import React, { Suspense, useEffect } from 'react';
 import { Routes } from 'react-router';
+import { BrowserRouter } from 'react-router-dom';
 
 import Authenticated from 'teleport/components/Authenticated';
 import { CatchError } from 'teleport/components/CatchError';
-import { Route, Router } from 'teleport/components/Router';
+import { Route } from 'teleport/components/Router';
 import { getOSSFeatures } from 'teleport/features';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 import { ThemeProvider, updateFavicon } from 'teleport/ThemeProvider';
@@ -62,7 +62,7 @@ const queryClient = new QueryClient({
 });
 
 const Teleport: React.FC<Props> = props => {
-  const { ctx, history } = props;
+  const { ctx } = props;
   const createPublicRoutes = props.renderPublicRoutes || publicOSSRoutes;
   const createPrivateRoutes = props.renderPrivateRoutes || privateOSSRoutes;
   // update the favicon based on the system pref, and listen if it changes
@@ -95,7 +95,7 @@ const Teleport: React.FC<Props> = props => {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <LayoutContextProvider>
-            <Router history={history}>
+            <BrowserRouter>
               <Suspense fallback={null}>
                 <Routes>
                   {createPublicRoutes()}
@@ -116,7 +116,7 @@ const Teleport: React.FC<Props> = props => {
                   </Route>
                 </Routes>
               </Suspense>
-            </Router>
+            </BrowserRouter>
           </LayoutContextProvider>
         </ThemeProvider>
       </QueryClientProvider>
@@ -222,7 +222,6 @@ export default Teleport;
 
 export type Props = {
   ctx: TeleportContext;
-  history: History;
   renderPublicRoutes?: () => React.ReactNode[];
   renderPrivateRoutes?: () => React.ReactNode;
 };

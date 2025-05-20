@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { generatePath, matchPath, type RouteProps } from 'react-router';
+import { generatePath, matchPath, PathPattern } from 'react-router-dom';
 
 /*
  * Resource URIs
@@ -99,22 +99,21 @@ export const paths = {
   // Resources.
   rootCluster: '/clusters/:rootClusterId',
   leafCluster: '/clusters/:rootClusterId/leaves/:leafClusterId',
-  server:
-    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/servers/:serverId',
+  server: '/clusters/:rootClusterId/:leaves?/:leafClusterId?/servers/:serverId',
   serverLeaf:
     '/clusters/:rootClusterId/leaves/:leafClusterId/servers/:serverId',
-  kube: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId',
+  kube: '/clusters/:rootClusterId/:leaves?/:leafClusterId?/kubes/:kubeId',
   kubeLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/kubes/:kubeId',
   kubeResourceNamespace:
-    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId/namespaces/:kubeNamespaceId',
+    '/clusters/:rootClusterId/:leaves?/:leafClusterId?/kubes/:kubeId/namespaces/:kubeNamespaceId',
   kubeResourceNamespaceLeaf:
     '/clusters/:rootClusterId/leaves/:leafClusterId/kubes/:kubeId/namespaces/:kubeNamespaceId',
-  db: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/dbs/:dbId',
+  db: '/clusters/:rootClusterId/:leaves?/:leafClusterId?/dbs/:dbId',
   dbLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/dbs/:dbId',
-  app: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/apps/:appId',
+  app: '/clusters/:rootClusterId/:leaves?/:leafClusterId?/apps/:appId',
   appLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId?/apps/:appId',
   windowsDesktop:
-    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/windows_desktops/:windowsDesktopId',
+    '/clusters/:rootClusterId/:leaves?/:leafClusterId?/windows_desktops/:windowsDesktopId',
   windowsDesktopLeaf:
     '/clusters/:rootClusterId/leaves/:leafClusterId?/windows_desktops/:windowsDesktopId',
   // Documents.
@@ -173,8 +172,13 @@ export const routing = {
     return routing.parseUri(uri, paths.db);
   },
 
-  parseUri(path: string, route: string | RouteProps) {
-    return matchPath<Params>(path, route);
+  parseUri(path: string, route: string) {
+    const pattern: PathPattern = {
+      path: route,
+      caseSensitive: false,
+      end: true,
+    };
+    return matchPath(pattern, path);
   },
 
   /**

@@ -63,7 +63,8 @@ export function useAwsOidcIntegration() {
     useState<IntegrationAwsOidc>();
   const { clusterId } = useStickyClusterId();
 
-  const location = useLocation<DiscoverUrlLocationState>();
+  const location = useLocation();
+  const state = location.state as DiscoverUrlLocationState;
 
   const [eventData] = useState<IntegrationEnrollEventData>({
     id: crypto.randomUUID(),
@@ -73,7 +74,7 @@ export function useAwsOidcIntegration() {
   useEffect(() => {
     // If a user came from the discover wizard,
     // discover wizard will send of appropriate events.
-    if (location.state?.discover) {
+    if (state?.discover) {
       return;
     }
 
@@ -142,7 +143,7 @@ export function useAwsOidcIntegration() {
       return;
     }
 
-    if (location.state?.discover) {
+    if (state?.discover) {
       return;
     }
     emitEvent(IntegrationEnrollEvent.Complete);

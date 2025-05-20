@@ -18,11 +18,12 @@
 
 import { Meta } from '@storybook/react';
 import { createMemoryHistory } from 'history';
+import { MemoryRouter } from 'react-router';
 
 import { Flex } from 'design';
 
 import { ContextProvider } from 'teleport';
-import { Route, Router } from 'teleport/components/Router';
+import { Route } from 'teleport/components/Router';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { Player } from './Player';
@@ -50,13 +51,16 @@ export const SSH = () => {
   });
 
   return (
-    <Router history={history}>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      initialEntries={history.entries}
+    >
       <Flex m={-3}>
         <Route path="/web/cluster/:clusterId/session/:sid">
           <Player />
         </Route>
       </Flex>
-    </Router>
+    </MemoryRouter>
   );
 };
 
@@ -74,13 +78,16 @@ export const Desktop = () => {
   });
 
   return (
-    <Router history={history}>
+    <MemoryRouter
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      initialEntries={history.entries}
+    >
       <Flex m={-3}>
         <Route path="/web/cluster/:clusterId/session/:sid">
           <Player />
         </Route>
       </Flex>
-    </Router>
+    </MemoryRouter>
   );
 };
 
@@ -91,13 +98,16 @@ export const RecordingTypeError = () => {
   });
 
   return (
-    <Router history={history}>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      initialEntries={history.entries}
+    >
       <Flex m={-3}>
         <Route path="/web/cluster/:clusterId/session/:sid">
           <Player />
         </Route>
       </Flex>
-    </Router>
+    </MemoryRouter>
   );
 };
 
@@ -110,12 +120,15 @@ export const DurationMsError = () => {
   });
 
   return (
-    <Router history={history}>
+    <MemoryRouter
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      initialEntries={history.entries}
+    >
       <Flex m={-3}>
         <Route path="/web/cluster/:clusterId/session/:sid">
           <Player />
         </Route>
       </Flex>
-    </Router>
+    </MemoryRouter>
   );
 };

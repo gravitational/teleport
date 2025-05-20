@@ -17,7 +17,7 @@
  */
 
 import { useRef } from 'react';
-import { useRouteMatch } from 'react-router';
+import { useMatch } from 'react-router';
 
 import cfg from 'teleport/config';
 import { StickyCluster } from 'teleport/types';
@@ -32,7 +32,7 @@ export default function useStickyClusterId(): StickyCluster {
     isLeafCluster: false,
   });
 
-  const match = useRouteMatch<{ clusterId: string }>(cfg.routes.cluster);
+  const match = useMatch(cfg.routes.cluster);
   const clusterId = match?.params?.clusterId;
   if (clusterId) {
     stickyCluster.current.clusterId = clusterId;

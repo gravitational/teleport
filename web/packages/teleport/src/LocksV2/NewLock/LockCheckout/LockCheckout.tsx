@@ -324,10 +324,10 @@ function SuccessActionComponent({ reset, onClose, locks }) {
           locks.length
             ? {
                 pathname: cfg.getLocksRoute(),
-                state: { createdLocks: locks },
               }
             : cfg.getLocksRoute()
         }
+        state={locks.length ? { createdLocks: locks } : null}
       >
         Back to Locks
       </ButtonPrimary>

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import { render, screen, userEvent, waitFor } from 'design/utils/testing';
 
@@ -61,13 +61,16 @@ test('deep links an open task', async () => {
   history.replace = jest.fn();
 
   render(
-    <Router history={history}>
+    <MemoryRouter
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      initialEntries={history.entries}
+    >
       <ContextProvider ctx={ctx}>
         <awsOidcStatusContext.Provider value={makeAwsOidcStatusContextState()}>
           <Route path={cfg.routes.integrationTasks} render={() => <Tasks />} />
         </awsOidcStatusContext.Provider>
       </ContextProvider>
-    </Router>
+    </MemoryRouter>
   );
 
   await screen.findAllByText('Pending Tasks');

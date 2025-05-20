@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Location } from 'history';
 import React from 'react';
 import { useLocation } from 'react-router';
 import { Link } from 'react-router-dom';
@@ -38,7 +37,8 @@ export function FinishDialog({
 }: {
   integration: IntegrationAwsOidc;
 }) {
-  const location = useLocation<DiscoverUrlLocationState>();
+  const location = useLocation();
+  const state = location.state as DiscoverUrlLocationState;
   return (
     <Dialog
       dialogCss={() => ({ maxWidth: '500px', width: '100%' })}
@@ -55,20 +55,20 @@ export function FinishDialog({
         </Text>
       </DialogContent>
       <DialogFooter css={{ margin: '0 auto' }}>
-        <FooterButton location={location} integration={integration} />
+        <FooterButton state={state} integration={integration} />
       </DialogFooter>
     </Dialog>
   );
 }
 
 function FooterButton({
-  location,
+  state,
   integration,
 }: {
-  location: Location<any>;
+  state: DiscoverUrlLocationState;
   integration: IntegrationAwsOidc;
 }): React.ReactElement {
-  if (location.state?.discover) {
+  if (state?.discover) {
     return (
       <ButtonPrimary
         size="large"
@@ -76,7 +76,7 @@ function FooterButton({
         to={cfg.routes.discover}
         state={{
           integration,
-          discover: location.state.discover,
+          discover: state.discover,
         }}
       >
         Begin AWS Resource Enrollment
@@ -84,14 +84,14 @@ function FooterButton({
     );
   }
 
-  if (location.state?.integration) {
+  if (state?.integration) {
     return (
       <ButtonPrimary
         size="large"
         as={Link}
-        to={cfg.getIntegrationEnrollRoute(location.state.integration.kind)}
+        to={cfg.getIntegrationEnrollRoute(state.integration.kind)}
       >
-        {location.state.integration?.redirectText || `Back to integration`}
+        {state.integration?.redirectText || `Back to integration`}
       </ButtonPrimary>
     );
   }

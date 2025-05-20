@@ -46,10 +46,13 @@ function getIconForRoute(
   route: string
 ): (props) => ReactNode {
   const feature = features.find(feature =>
-    matchPath(route, {
-      path: feature?.route?.path,
-      exact: false,
-    })
+    matchPath(
+      {
+        path: feature?.route?.path,
+        end: false,
+      },
+      route
+    )
   );
 
   const icon = feature?.navigationItem?.icon || feature?.topMenuItem?.icon;

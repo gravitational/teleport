@@ -1492,7 +1492,7 @@ export interface UrlClusterEventsParams {
 }
 
 export interface UrlLauncherParams {
-  fqdn: string;
+  fqdn?: string;
   clusterId?: string;
   publicAddr?: string;
   arn?: string;

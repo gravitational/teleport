@@ -24,7 +24,6 @@ import { Danger } from 'design/Alert';
 import { makeSuccessAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import { useLocation, useParams } from 'teleport/components/Router';
-import { UrlPlayerParams } from 'teleport/config';
 import { getUrlParameter } from 'teleport/services/history';
 import { RecordingType } from 'teleport/services/recordings';
 import session from 'teleport/services/websession';
@@ -39,7 +38,7 @@ const validRecordingTypes = ['ssh', 'k8s', 'desktop', 'database'];
 
 export function Player() {
   const ctx = useTeleport();
-  const { sid, clusterId } = useParams<UrlPlayerParams>();
+  const { sid, clusterId } = useParams();
   const { search } = useLocation();
 
   useEffect(() => {

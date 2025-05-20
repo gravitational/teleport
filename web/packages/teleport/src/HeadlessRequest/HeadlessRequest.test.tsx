@@ -17,7 +17,7 @@
  */
 
 import { createMemoryHistory } from 'history';
-import { Route, Router } from 'react-router';
+import { MemoryRouter, Route } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
 
@@ -39,11 +39,14 @@ test('ip address should be visible', async () => {
   });
 
   render(
-    <Router history={mockHistory}>
+    <MemoryRouter
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      initialEntries={mockHistory.entries}
+    >
       <Route path={cfg.routes.headlessSso}>
         <HeadlessRequest />
       </Route>
-    </Router>
+    </MemoryRouter>
   );
 
   await expect(

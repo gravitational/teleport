@@ -19,7 +19,7 @@
 import { createMemoryHistory } from 'history';
 import { http, HttpResponse } from 'msw';
 import { useState } from 'react';
-import { Route, Router } from 'react-router';
+import { MemoryRouter, Route } from 'react-router';
 
 import { Flex } from 'design';
 
@@ -77,7 +77,10 @@ export function TestLayout(props: PropType) {
   });
 
   return (
-    <Router history={history}>
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      initialEntries={history}
+    >
       <Route path="/:clusterId">
         <ConsoleContextProvider value={context}>
           <Flex
@@ -90,7 +93,7 @@ export function TestLayout(props: PropType) {
           </Flex>
         </ConsoleContextProvider>
       </Route>
-    </Router>
+    </MemoryRouter>
   );
 }
 

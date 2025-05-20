@@ -17,7 +17,7 @@
  */
 
 import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import { SortType } from 'design/DataTable/types';
 import renderHook from 'design/utils/renderHook';
@@ -140,5 +140,12 @@ const initialSort: SortType = {
 const initialParams = { sort: initialSort };
 
 function Wrapper(props: any) {
-  return <Router history={props.history}>{props.children}</Router>;
+  return (
+    <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      initialEntries={props.history}
+    >
+      {props.children}
+    </MemoryRouter>
+  );
 }

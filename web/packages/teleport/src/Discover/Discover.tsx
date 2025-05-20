@@ -18,7 +18,7 @@
 
 import React from 'react';
 import { useLocation } from 'react-router';
-import { Prompt } from 'react-router-dom';
+import { unstable_usePrompt } from 'react-router-dom';
 
 import { Box, Flex } from 'design';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
@@ -26,7 +26,6 @@ import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { FeatureBox } from 'teleport/components/Layout';
 import { findViewAtIndex } from 'teleport/components/Wizard/flow';
 import { Navigation } from 'teleport/components/Wizard/Navigation';
-import cfg from 'teleport/config';
 import type { View } from 'teleport/Discover/flow';
 import { SelectResource } from 'teleport/Discover/SelectResource/SelectResource';
 import { DiscoverBox } from 'teleport/Discover/Shared';
@@ -92,42 +91,36 @@ function DiscoverContent() {
     );
   }
 
-  return (
-    <>
-      <FeatureBox>
-        {hasSelectedResource && (
-          <Box mt={3} mb={6}>
-            <Navigation
-              currentStep={currentStep}
-              views={indexedViews}
-              startWithIcon={{
-                title: agentProps.resourceSpec.name,
-                component: <DiscoverIcon name={agentProps.resourceSpec.icon} />,
-              }}
-            />
-          </Box>
-        )}
-        <Box>{content}</Box>
-      </FeatureBox>
+  const when =
+    hasSelectedResource && viewConfig.shouldPrompt
+      ? viewConfig.shouldPrompt(
+          currentStep,
+          currentView,
+          agentProps.resourceSpec
+        )
+      : currentView?.eventName !== DiscoverEvent.Completed;
+  unstable_usePrompt({
+    message:
+      'Are you sure you want to exit the "Enroll New Resource” workflow? You’ll have to start from the beginning next time.',
+    when,
+  });
 
+  return (
+    <FeatureBox>
       {hasSelectedResource && (
-        <Prompt
-          message={nextLocation => {
-            if (nextLocation.pathname === cfg.routes.discover) return true;
-            return 'Are you sure you want to exit the "Enroll New Resource” workflow? You’ll have to start from the beginning next time.';
-          }}
-          when={
-            viewConfig.shouldPrompt
-              ? viewConfig.shouldPrompt(
-                  currentStep,
-                  currentView,
-                  agentProps.resourceSpec
-                )
-              : currentView?.eventName !== DiscoverEvent.Completed
-          }
-        />
+        <Box mt={3} mb={6}>
+          <Navigation
+            currentStep={currentStep}
+            views={indexedViews}
+            startWithIcon={{
+              title: agentProps.resourceSpec.name,
+              component: <DiscoverIcon name={agentProps.resourceSpec.icon} />,
+            }}
+          />
+        </Box>
       )}
-    </>
+      <Box>{content}</Box>
+    </FeatureBox>
   );
 }
 

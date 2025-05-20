@@ -17,7 +17,7 @@
  */
 
 import { useMemo } from 'react';
-import { useLocation, useParams, useRouteMatch } from 'react-router';
+import { useLocation, useMatch, useParams } from 'react-router-dom';
 
 import cfg, {
   UrlDbConnectParams,
@@ -31,22 +31,26 @@ import ConsoleContext from './consoleContext';
 export default function useRouting(ctx: ConsoleContext) {
   const { pathname, search } = useLocation();
   const { clusterId } = useParams<{ clusterId: string }>();
-  const sshRouteMatch = useRouteMatch<UrlSshParams>(cfg.routes.consoleConnect);
-  const kubeExecRouteMatch = useRouteMatch<UrlKubeExecParams>(
-    cfg.routes.kubeExec
-  );
-  const nodesRouteMatch = useRouteMatch(cfg.routes.consoleNodes);
-  const joinSshRouteMatch = useRouteMatch<UrlSshParams>(
-    cfg.routes.consoleSession
-  );
-  const joinKubeExecRouteMatch = useRouteMatch<UrlKubeExecParams>(
-    cfg.routes.kubeExecSession
-  );
-  const dbConnectMatch = useRouteMatch<UrlDbConnectParams>(
-    cfg.routes.dbConnect
-  );
 
-  // Ensure that each URL has corresponding document
+  const sshRouteMatch = useMatch(cfg.routes.consoleConnect);
+  const kubeExecRouteMatch = useMatch(cfg.routes.kubeExec);
+  const nodesRouteMatch = useMatch(cfg.routes.consoleNodes);
+  const joinSshRouteMatch = useMatch(cfg.routes.consoleSession);
+  const joinKubeExecRouteMatch = useMatch(cfg.routes.kubeExecSession);
+  const dbConnectMatch = useMatch(cfg.routes.dbConnect);
+
+  const getSshParams = (match): UrlSshParams => {
+    return match?.params as UrlSshParams;
+  };
+
+  const getKubeExecParams = (match): UrlKubeExecParams => {
+    return match?.params as UrlKubeExecParams;
+  };
+
+  const getDbConnectParams = (match): UrlDbConnectParams => {
+    return match?.params as UrlDbConnectParams;
+  };
+
   useMemo(() => {
     if (ctx.getActiveDocId(pathname) !== -1) {
       return;
@@ -57,19 +61,24 @@ export default function useRouting(ctx: ConsoleContext) {
     // When no document matches current URL that means we need to
     // create one base on URL parameters.
     if (sshRouteMatch) {
-      ctx.addSshDocument(sshRouteMatch.params);
+      const params = getSshParams(sshRouteMatch);
+      ctx.addSshDocument(params);
     } else if (joinSshRouteMatch) {
-      joinSshRouteMatch.params.mode = participantMode;
-      ctx.addSshDocument(joinSshRouteMatch.params);
+      const params = getSshParams(joinSshRouteMatch);
+      params.mode = participantMode;
+      ctx.addSshDocument(params);
     } else if (nodesRouteMatch) {
       ctx.addNodeDocument(clusterId);
     } else if (kubeExecRouteMatch) {
-      ctx.addKubeExecDocument(kubeExecRouteMatch.params);
+      const params = getKubeExecParams(kubeExecRouteMatch);
+      ctx.addKubeExecDocument(params);
     } else if (joinKubeExecRouteMatch) {
-      joinKubeExecRouteMatch.params.mode = participantMode;
-      ctx.addKubeExecDocument(joinKubeExecRouteMatch.params);
+      const params = getKubeExecParams(joinKubeExecRouteMatch);
+      params.mode = participantMode;
+      ctx.addKubeExecDocument(params);
     } else if (dbConnectMatch) {
-      ctx.addDbDocument(dbConnectMatch.params);
+      const params = getDbConnectParams(dbConnectMatch);
+      ctx.addDbDocument(params);
     }
   }, [ctx, pathname]);
 

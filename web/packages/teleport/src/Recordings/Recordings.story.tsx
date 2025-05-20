@@ -17,7 +17,7 @@
  */
 
 import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import { Context, ContextProvider } from 'teleport';
 import { makeRecording } from 'teleport/services/recordings/makeRecording';
@@ -76,9 +76,12 @@ function render(ctx) {
 
   return (
     <ContextProvider ctx={ctx}>
-      <Router history={history}>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+        initialEntries={history.entries}
+      >
         <Recordings />
-      </Router>
+      </MemoryRouter>
     </ContextProvider>
   );
 }

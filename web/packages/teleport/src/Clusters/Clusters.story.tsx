@@ -17,7 +17,7 @@
  */
 
 import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import * as teleport from 'teleport';
 import { getOSSFeatures } from 'teleport/features';
@@ -36,9 +36,12 @@ export function Story({ value }: { value: teleport.Context }) {
   return (
     <teleport.ContextProvider ctx={ctx}>
       <FeaturesContextProvider value={getOSSFeatures()}>
-        <Router history={createMemoryHistory()}>
+        <MemoryRouter
+          future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+          initialEntries={createMemoryHistory().entries}
+        >
           <ClusterListPage />
-        </Router>
+        </MemoryRouter>
       </FeaturesContextProvider>
     </teleport.ContextProvider>
   );

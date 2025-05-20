@@ -17,7 +17,7 @@
  */
 
 import { createMemoryHistory } from 'history';
-import { MemoryRouter, Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import { render, screen, userEvent } from 'design/utils/testing';
 
@@ -97,9 +97,12 @@ describe('flowButtons component', () => {
     history.push = jest.fn();
 
     render(
-      <Router history={history}>
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        initialEntries={history.entries}
+      >
         <FlowButtons {...props} isFirstStep={true} />
-      </Router>
+      </MemoryRouter>
     );
 
     await userEvent.click(screen.getByTestId('button-back-first-step'));
@@ -111,9 +114,12 @@ describe('flowButtons component', () => {
     history.push = jest.fn();
 
     render(
-      <Router history={history}>
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+        initialEntries={history.entries}
+      >
         <FlowButtons {...props} isFirstStep={true} />
-      </Router>
+      </MemoryRouter>
     );
 
     await userEvent.click(screen.getByTestId('button-back-first-step'));
