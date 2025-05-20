@@ -1581,7 +1581,7 @@ var KubernetesNamespacedResourceKinds = []string{
 // Generated with:
 //
 //	(kubectl api-resources --api-group "" --output=name --namespaced=true && kubectl api-resources --api-group "" --output=name --namespaced=false) | sort
-var KubernetesCoreResourceKinds = []string{
+var KubernetesCoreResourceKinds = map[string]struct{
 	"bindings",
 	"componentstatuses",
 	"configmaps",
