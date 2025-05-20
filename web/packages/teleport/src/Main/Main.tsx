@@ -26,7 +26,7 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { matchPath, Routes, useNavigate } from 'react-router';
+import { matchPath, Routes, useLocation, useNavigate } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Flex, Indicator } from 'design';
@@ -72,7 +72,8 @@ export interface MainProps {
 
 export function Main(props: MainProps) {
   const ctx = useTeleport();
-  const history = useHistory();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const { attempt, setAttempt, run } = useAttempt('processing');
 
@@ -103,16 +104,19 @@ export function Main(props: MainProps) {
 
   useEffect(() => {
     if (
-      matchPath(history.location.pathname, {
-        path: ctx.redirectUrl,
-        exact: true,
-      })
+      matchPath(
+        {
+          end: true,
+          path: ctx.redirectUrl,
+        },
+        location.pathname
+      )
     ) {
       // hide the onboarding popup if we're on the redirectUrl, just in case
       setShowOnboardDiscover(false);
       ctx.redirectUrl = null;
     }
-  }, [ctx, history.location.pathname]);
+  }, [ctx, location.pathname]);
 
   if (attempt.status === 'failed') {
     return <Failed message={attempt.statusText} />;
@@ -128,7 +132,7 @@ export function Main(props: MainProps) {
 
   function handleOnboard() {
     updateOnboardDiscover();
-    history.push(cfg.routes.discover);
+    navigate(cfg.routes.discover);
   }
 
   function handleOnClose() {
@@ -142,9 +146,7 @@ export function Main(props: MainProps) {
   }
 
   // redirect to the default feature when hitting the root /web URL
-  if (
-    matchPath(history.location.pathname, { path: cfg.routes.root, exact: true })
-  ) {
+  if (matchPath({ path: cfg.routes.root, end: true }, location.pathname)) {
     if (ctx.redirectUrl) {
       return <Redirect to={ctx.redirectUrl} />;
     }

@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { useHistory, useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 
 import { useAsync } from 'shared/hooks/useAsync';
 
@@ -35,7 +35,7 @@ export function GitHubConnectorEditor({ isNew = false }) {
     connectorName: string;
   }>();
   const ctx = useTeleport();
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const [content, setContent] = useState(templates['github']);
   const [initialContent, setInitialContent] = useState(templates['github']);
@@ -54,13 +54,13 @@ export function GitHubConnectorEditor({ isNew = false }) {
       if (isNew) {
         await ctx.resourceService
           .createGithubConnector(content)
-          .then(() => history.push(cfg.routes.sso));
+          .then(() => navigate(cfg.routes.sso));
       } else {
         await ctx.resourceService
           .updateGithubConnector(connectorName, content)
-          .then(() => history.push(cfg.routes.sso));
+          .then(() => navigate(cfg.routes.sso));
       }
-    }, [connectorName, content, isNew, history, ctx.resourceService])
+    }, [connectorName, content, isNew, navigate, ctx.resourceService])
   );
 
   const isSaveDisabled =
@@ -86,7 +86,7 @@ export function GitHubConnectorEditor({ isNew = false }) {
       saveAttempt={saveAttempt}
       fetchAttempt={fetchAttempt}
       onSave={saveConnector}
-      onCancel={() => history.push(cfg.routes.sso)}
+      onCancel={() => navigate(cfg.routes.sso)}
       setContent={setContent}
       isGithub={true}
     />

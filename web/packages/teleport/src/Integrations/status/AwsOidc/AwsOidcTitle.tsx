@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import { JSX } from 'react';
-import { useHistory } from 'react-router';
+import { useNavigate } from 'react-router';
 import { Link as InternalLink } from 'react-router-dom';
 import { useTheme } from 'styled-components';
 
@@ -49,7 +49,7 @@ export function AwsOidcTitle({
   tasks?: boolean;
 }) {
   const theme = useTheme();
-  const history = useHistory();
+  const navigate = useNavigate();
   const integrationOps = useIntegrationOperation();
   const { status, labelKind } = getStatusAndLabel(integration);
   const content = getContent(integration, resource, tasks);
@@ -57,7 +57,7 @@ export function AwsOidcTitle({
   async function removeIntegration() {
     await integrationOps.remove();
     integrationOps.clear();
-    history.push(cfg.routes.integrations);
+    navigate(cfg.routes.integrations);
   }
 
   async function editIntegration(req: EditableIntegrationFields) {

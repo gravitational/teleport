@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
-import { useHistory } from 'react-router';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { Flex, Indicator } from 'design';
@@ -37,8 +37,12 @@ import { integrationService, UserTask } from 'teleport/services/integrations';
 
 export function Tasks() {
   const theme = useTheme();
-  const history = useHistory();
-  const searchParams = new URLSearchParams(history.location.search);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = useMemo(
+    () => new URLSearchParams(location.search),
+    [location]
+  );
   const [notification, setNotification] = useState<NotificationItem>();
 
   const { integrationAttempt } = useAwsOidcStatus();
@@ -108,13 +112,13 @@ export function Tasks() {
         id: selectedTask,
       });
     }
-    history.replace(history.location.pathname);
+    navigate(location.pathname, { replace: true });
   }
 
   function openTask(task: UserTask) {
     const urlParams = new URLSearchParams();
     urlParams.append('task', task.name);
-    history.replace(`${history.location.pathname}?${urlParams.toString()}`);
+    navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
   }
 
   return (

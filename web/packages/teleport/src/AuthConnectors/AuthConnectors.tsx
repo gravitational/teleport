@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Routes, useHistory } from 'react-router';
+import { Routes, useNavigate } from 'react-router';
 
 import { Alert, Box, Flex, Indicator } from 'design';
 import { H2 } from 'design/Text/Text';
@@ -121,7 +121,7 @@ export function AuthConnectors() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const history = useHistory();
+  const navigate = useNavigate();
   const isEmpty = items.length === 0;
   const resources = useResources(items, templates);
 
@@ -147,9 +147,7 @@ export function AuthConnectors() {
         <InfoGuideButton config={{ guide: <InfoGuide isGitHub={true} /> }}>
           <ResponsiveAddButton
             fill="border"
-            onClick={() =>
-              history.push(cfg.getCreateAuthConnectorRoute('github'))
-            }
+            onClick={() => navigate(cfg.getCreateAuthConnectorRoute('github'))}
           >
             New GitHub Connector
           </ResponsiveAddButton>
@@ -177,7 +175,7 @@ export function AuthConnectors() {
               {isEmpty ? (
                 <EmptyList
                   onCreate={() =>
-                    history.push(cfg.getCreateAuthConnectorRoute('github'))
+                    navigate(cfg.getCreateAuthConnectorRoute('github'))
                   }
                   isLocalDefault={defaultConnector.type === 'local'}
                 />

@@ -17,7 +17,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { useHistory } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, ButtonSecondary, Flex, Menu, MenuItem, Text } from 'design';
@@ -70,7 +70,8 @@ export function ClusterDropdown({
   );
   const showInput = options.length > 5 ? true : false;
   const [clusterFilter, setClusterFilter] = useState('');
-  const history = useHistory();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [anchorEl, setAnchorEl] = useState(null);
 
   const selectedOption = {
@@ -92,10 +93,10 @@ export function ClusterDropdown({
 
     const oldPathName = cfg.getClusterRoute(selectedOption.value);
 
-    const newPath = history.location.pathname.replace(oldPathName, newPathName);
+    const newPath = location.pathname.replace(oldPathName, newPathName);
 
     // keep current view just change the clusterId
-    history.push(newPath);
+    navigate(newPath);
   }
 
   function onChangeOption(clusterId: string) {
