@@ -23,6 +23,7 @@ import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 import {
   KubernetesResource,
   Labels,
+  MCPPermissions,
   Role,
   RoleConditions,
 } from 'teleport/services/resources';
@@ -782,7 +783,9 @@ function roleConditionsToModel(
   const awsRoleARNsModel = aws_role_arns ?? [];
   const azureIdentitiesModel = azure_identities ?? [];
   const gcpServiceAccountsModel = gcp_service_accounts ?? [];
-  const mcpToolsModel = mcp?.tools ?? [];
+  const { model: mcpToolsModel, conversionErrors: mcpToolsConversionErrors } =
+    mcpToolsToModel(mcp || {}, `${pathPrefix}.mcp`);
+  conversionErrors.push(...mcpToolsConversionErrors);
   if (
     someNonEmpty(
       appLabelsModel,
@@ -962,6 +965,24 @@ function kubernetesResourceToModel(
             roleVersion,
           }
         : undefined,
+    conversionErrors,
+  };
+}
+
+export function mcpToolsToModel(
+  mcpPermissions: MCPPermissions,
+  pathPrefix: string
+): {
+  model: string[];
+  conversionErrors: ConversionError[];
+} {
+  const { tools, ...unsupported } = mcpPermissions;
+  const conversionErrors: ConversionError[] = [];
+  conversionErrors.push(
+    ...unsupportedFieldErrorsFromObject(pathPrefix, unsupported)
+  );
+  return {
+    model: tools || [],
     conversionErrors,
   };
 }
