@@ -141,6 +141,7 @@ export type ResourceAccess =
  * A base for all resource section models. Contains a type discriminator field.
  */
 type ResourceAccessBase<T extends ResourceAccessKind> = {
+  id: string;
   /**
    * Determines kind of resource that is accessed using this spec. Intended to
    * be mostly consistent with UnifiedResourceKind, but that has no real
@@ -524,9 +525,11 @@ export function newResourceAccess(
   kind: ResourceAccessKind,
   roleVersion: RoleVersion
 ): ResourceAccess {
+  const id = crypto.randomUUID();
   switch (kind) {
     case 'node':
       return {
+        id,
         kind: 'node',
         labels: [],
         logins: [stringToOption('{{internal.logins}}')],
@@ -534,6 +537,7 @@ export function newResourceAccess(
       };
     case 'kube_cluster':
       return {
+        id,
         kind: 'kube_cluster',
         groups: [stringToOption('{{internal.kubernetes_groups}}')],
         labels: [],
@@ -544,6 +548,7 @@ export function newResourceAccess(
       };
     case 'app':
       return {
+        id,
         kind: 'app',
         labels: [],
         awsRoleARNs: ['{{internal.aws_role_arns}}'],
@@ -553,6 +558,7 @@ export function newResourceAccess(
       };
     case 'db':
       return {
+        id,
         kind: 'db',
         labels: [],
         names: [stringToOption('{{internal.db_names}}')],
@@ -563,6 +569,7 @@ export function newResourceAccess(
       };
     case 'windows_desktop':
       return {
+        id,
         kind: 'windows_desktop',
         labels: [],
         logins: [stringToOption('{{internal.windows_logins}}')],
@@ -570,6 +577,7 @@ export function newResourceAccess(
       };
     case 'git_server':
       return {
+        id,
         kind: 'git_server',
         organizations: [stringToOption('{{internal.github_orgs}}')],
         hideValidationErrors: true,
@@ -734,6 +742,7 @@ function roleConditionsToModel(
   const nodeLoginsModel = stringsToOptions(logins ?? []);
   if (someNonEmpty(nodeLabelsModel, nodeLoginsModel)) {
     resources.push({
+      id: crypto.randomUUID(),
       kind: 'node',
       labels: nodeLabelsModel,
       logins: nodeLoginsModel,
@@ -763,6 +772,7 @@ function roleConditionsToModel(
     )
   ) {
     resources.push({
+      id: crypto.randomUUID(),
       kind: 'kube_cluster',
       groups: kubeGroupsModel,
       labels: kubeLabelsModel,
@@ -786,6 +796,7 @@ function roleConditionsToModel(
     )
   ) {
     resources.push({
+      id: crypto.randomUUID(),
       kind: 'app',
       labels: appLabelsModel,
       awsRoleARNs: awsRoleARNsModel,
@@ -810,6 +821,7 @@ function roleConditionsToModel(
     )
   ) {
     resources.push({
+      id: crypto.randomUUID(),
       kind: 'db',
       labels: dbLabelsModel,
       names: stringsToOptions(dbNamesModel),
@@ -826,6 +838,7 @@ function roleConditionsToModel(
   );
   if (someNonEmpty(windowsDesktopLabelsModel, windowsDesktopLoginsModel)) {
     resources.push({
+      id: crypto.randomUUID(),
       kind: 'windows_desktop',
       labels: windowsDesktopLabelsModel,
       logins: windowsDesktopLoginsModel,
@@ -842,6 +855,7 @@ function roleConditionsToModel(
   );
   if (someNonEmpty(gitHubOrganizationsModel)) {
     resources.push({
+      id: crypto.randomUUID(),
       kind: 'git_server',
       organizations: gitHubOrganizationsModel,
       hideValidationErrors: false,

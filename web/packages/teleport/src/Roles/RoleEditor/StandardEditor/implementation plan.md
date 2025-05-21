@@ -1,0 +1,5 @@
+- Add IDs to resource section model
+- Use the ID in `SetResourceAccess` handler, thus allowing changing the `kind`
+- Add UI for changing the kind
+- Perhaps preserve labels?
+- Support allow/deny

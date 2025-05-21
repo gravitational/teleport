@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { produce } from 'immer';
+
 import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 import {
   CreateDBUserMode,
@@ -170,6 +172,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
       ...minimalRoleModel(),
       resources: [
         {
+          id: 'dummy-id',
           kind: 'node',
           labels: [{ name: 'foo', value: 'bar' }],
           logins: [
@@ -210,6 +213,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
       ...minimalRoleModel(),
       resources: [
         {
+          id: 'dummy-id',
           kind: 'app',
           labels: [{ name: 'foo', value: 'bar' }],
           awsRoleARNs: [
@@ -249,6 +253,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
       ...minimalRoleModel(),
       resources: [
         {
+          id: 'dummy-id',
           kind: 'db',
           labels: [{ name: 'env', value: 'prod' }],
           names: [
@@ -286,6 +291,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
       ...minimalRoleModel(),
       resources: [
         {
+          id: 'dummy-id',
           kind: 'windows_desktop',
           labels: [{ name: 'os', value: 'WindowsForWorkgroups' }],
           logins: [
@@ -313,6 +319,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
       ...minimalRoleModel(),
       resources: [
         {
+          id: 'dummy-id',
           kind: 'git_server',
           organizations: [
             { label: 'illuminati', value: 'illuminati' },
@@ -407,7 +414,12 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
   },
 ])('$name', ({ role, model }) => {
   it('is converted to a model', () => {
-    expect(roleToRoleEditorModel(role)).toEqual(model);
+    const expected = produce(model, m => {
+      for (const r of Object.values(m.resources)) {
+        r.id = expect.any(String);
+      }
+    });
+    expect(roleToRoleEditorModel(role)).toEqual(expected);
   });
 
   it('is created from a model', () => {
@@ -623,6 +635,7 @@ describe('roleToRoleEditorModel', () => {
   };
   // Same as newResourceAccess('kube_cluster'), but without default groups.
   const newKubeClusterResourceAccess = (): KubernetesAccess => ({
+    id: expect.any(String),
     kind: 'kube_cluster',
     groups: [],
     labels: [],
@@ -769,6 +782,7 @@ describe('roleToRoleEditorModel', () => {
           ],
         },
         {
+          id: expect.any(String),
           kind: 'git_server',
           organizations: [{ label: 'foo', value: 'foo' }],
           hideValidationErrors: false,
@@ -908,6 +922,7 @@ describe('roleToRoleEditorModel', () => {
       ...minimalRoleModel(),
       resources: [
         {
+          id: expect.any(String),
           kind: 'kube_cluster',
           groups: [
             { label: 'group1', value: 'group1' },
@@ -1064,6 +1079,7 @@ describe('roleToRoleEditorModel', () => {
       ...minimalRoleModel(),
       resources: [
         {
+          id: expect.any(String),
           kind: 'git_server',
           organizations: [
             { label: 'foo', value: 'foo' },
@@ -1127,6 +1143,7 @@ describe('roleEditorModelToRole', () => {
         ...minimalRoleModel(),
         resources: [
           {
+            id: 'dummy-id',
             kind: 'kube_cluster',
             groups: [
               { label: 'group1', value: 'group1' },
