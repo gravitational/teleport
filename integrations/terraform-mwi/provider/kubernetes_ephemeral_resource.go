@@ -152,10 +152,17 @@ func (r *KubernetesEphemeralResource) Open(
 			DisableExecPlugin: true,
 		},
 	}
+	if err := botCfg.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting defaults for bot config",
+			"Failed to set defaults for bot config: "+err.Error(),
+		)
+		return
+	}
 	bot := tbot.New(botCfg, slog.Default())
 	if err := bot.Run(ctx); err != nil {
 		resp.Diagnostics.AddError(
-			"Error running tbot",
+			"Error running tbot in resource",
 			"Failed to run tbot: "+err.Error(),
 		)
 		return

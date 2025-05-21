@@ -86,24 +86,32 @@ func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest,
 	newBotConfig := func() *config.BotConfig {
 		return &config.BotConfig{
 			Version:     "v2",
-			ProxyServer: data.ProxyServer.String(),
+			ProxyServer: data.ProxyServer.ValueString(),
 			Storage: &config.StorageConfig{
 				Destination: &botInternalStore,
 			},
 			Onboarding: config.OnboardingConfig{
-				JoinMethod: apitypes.JoinMethod(data.JoinMethod.String()),
-				TokenValue: data.JoinToken.String(),
+				JoinMethod: apitypes.JoinMethod(data.JoinMethod.ValueString()),
+				TokenValue: data.JoinToken.ValueString(),
 			},
 			Oneshot: true,
 		}
 	}
 
-	bot := tbot.New(newBotConfig(), slog.Default())
+	botCfg := newBotConfig()
+	if err := botCfg.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting defaults for bot config",
+			"Failed to set defaults for bot config: "+err.Error(),
+		)
+		return
+	}
+	bot := tbot.New(botCfg, slog.Default())
 
 	// Run bot just to validate that the configuration is correct.
 	if err := bot.Run(ctx); err != nil {
 		resp.Diagnostics.AddError(
-			"Error running tbot",
+			"Error running tbot in provider",
 			"Failed to run tbot: "+err.Error(),
 		)
 		return
