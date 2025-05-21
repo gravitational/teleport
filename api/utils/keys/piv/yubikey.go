@@ -601,8 +601,24 @@ func (c *sharedPIVConnection) sign(ctx context.Context, ref *hardwarekey.Private
 //
 // Important: this function only abandons the signer.Sign result, doesn't cancel it.
 func abandonableSign(ctx context.Context, signer crypto.Signer, promptTouch promptTouch, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	ctx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Since this function isn't fully synchronous, the goroutines below may outlive
+	// the function call, especially sign which cannot be stopped once started. We
+	// use buffered channels to ensure these goroutines can send even with no receiver
+	// to avoid leaking.
+	signatureC := make(chan []byte, 1)
+	errC := make(chan error, 2)
+
+	go func() {
+		signature, err := signer.Sign(rand, digest, opts)
+		if err != nil {
+			errC <- err
+			return
+		}
+		signatureC <- signature
+	}()
 
 	if promptTouch != nil {
 		go func() {
@@ -611,9 +627,8 @@ func abandonableSign(ctx context.Context, signer crypto.Signer, promptTouch prom
 			// case where touch is cached, the delay prevents the prompt from firing when it isn't needed.
 			select {
 			case <-time.After(signTouchPromptDelay):
-				err := promptTouch(ctx)
-				if err != nil {
-					cancel(err)
+				if err := promptTouch(ctx); err != nil {
+					errC <- promptTouch(ctx)
 				}
 			case <-ctx.Done():
 				// prompt cached or signature canceled, skip prompt.
@@ -621,27 +636,11 @@ func abandonableSign(ctx context.Context, signer crypto.Signer, promptTouch prom
 		}()
 	}
 
-	type signResult struct {
-		signature []byte
-		err       error
-	}
-
-	signResultCh := make(chan signResult)
-	go func() {
-		defer close(signResultCh)
-		if err := ctx.Err(); err != nil {
-			return
-		}
-		signature, err := signer.Sign(rand, digest, opts)
-		select {
-		case <-ctx.Done():
-		case signResultCh <- signResult{signature: signature, err: trace.Wrap(err)}:
-		}
-	}()
-
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, trace.Wrap(ctx.Err())
+	case err := <-errC:
+		return nil, trace.Wrap(err)
 	case result := <-signResultCh:
 		return result.signature, trace.Wrap(result.err)
 	}
