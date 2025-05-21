@@ -89,19 +89,6 @@ export interface DocumentTshNodeWithLoginHost extends DocumentTshNodeBase {
   // force places which use DocumentTshNode to narrow down the type before using it.
 }
 
-// DELETE IN 15.0.0. See DocumentGatewayKube for more details.
-export interface DocumentTshKube extends DocumentBase {
-  kind: 'doc.terminal_tsh_kube';
-  // status is used merely to show a progress bar when the document is being set up.
-  status: '' | 'connecting' | 'connected' | 'error';
-  kubeId: string;
-  kubeUri: uri.KubeUri;
-  kubeConfigRelativePath: string;
-  rootClusterId: string;
-  leafClusterId?: string;
-  origin: DocumentOrigin;
-}
-
 /**
  * DocumentGateway is used for database and app gateways. The two are distinguished by the kind of
  * resource that targetUri points to.
@@ -176,9 +163,8 @@ export interface DocumentGatewayCliClient extends DocumentBase {
 }
 
 /**
- * DocumentGatewayKube replaced DocumentTshKube in Connect v14. Before removing DocumentTshKube
- * completely, we should add a migration that transforms all DocumentTshKube docs into
- * DocumentGatewayKube docs when loading the workspace state from disk.
+ * DocumentGatewayKube transparently sets up a local proxy for the given kube cluster and spins up
+ * a local shell session with KUBECONFIG pointing at the config managed by the local proxy.
  */
 export interface DocumentGatewayKube extends DocumentBase {
   kind: 'doc.gateway_kube';
@@ -326,7 +312,6 @@ export type DocumentTerminal =
   | DocumentPtySession
   | DocumentGatewayCliClient
   | DocumentTshNode
-  | DocumentTshKube
   | DocumentGatewayKube;
 
 export type Document =
@@ -383,12 +368,6 @@ export type CreateGatewayDocumentOpts = {
   targetSubresourceName?: string;
   title?: string;
   port?: string;
-  origin: DocumentOrigin;
-};
-
-export type CreateTshKubeDocumentOptions = {
-  kubeUri: uri.KubeUri;
-  kubeConfigRelativePath?: string;
   origin: DocumentOrigin;
 };
 

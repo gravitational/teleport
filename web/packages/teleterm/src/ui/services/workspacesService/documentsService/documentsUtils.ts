@@ -69,8 +69,6 @@ export function getResourceUri(
       return isDocumentTshNodeWithServerId(document)
         ? document.serverUri
         : undefined;
-    case 'doc.terminal_tsh_kube':
-      return document.kubeUri;
     case 'doc.access_requests':
       return document.clusterUri;
     case 'doc.terminal_shell':
@@ -220,7 +218,6 @@ export function getStaticNameAndIcon(
         Icon: Desktop,
       };
     case 'doc.blank':
-    case 'doc.terminal_tsh_kube':
       return undefined;
     default:
       document satisfies never;

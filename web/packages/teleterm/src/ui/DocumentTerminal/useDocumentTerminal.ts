@@ -269,7 +269,7 @@ async function setUpPtyProcess(
       accessThrough: 'proxy_service',
     });
   }
-  if (doc.kind === 'doc.terminal_tsh_kube' || doc.kind === 'doc.gateway_kube') {
+  if (doc.kind === 'doc.gateway_kube') {
     ctx.usageService.captureProtocolUse({
       uri: clusterUri,
       // Other gateways send one protocol use event per gateway being created, but here we're
@@ -402,16 +402,6 @@ function createCmd(
       serverId: doc.serverId,
       rootClusterId: doc.rootClusterId,
       leafClusterId: doc.leafClusterId,
-    };
-  }
-
-  // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
-  if (doc.kind === 'doc.terminal_tsh_kube') {
-    return {
-      ...doc,
-      proxyHost,
-      clusterName,
-      kind: 'pty.tsh-kube-login',
     };
   }
 

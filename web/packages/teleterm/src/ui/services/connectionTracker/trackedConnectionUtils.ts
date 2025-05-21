@@ -21,7 +21,6 @@ import {
   DocumentDesktopSession,
   DocumentGateway,
   DocumentGatewayKube,
-  DocumentTshKube,
   DocumentTshNode,
   DocumentTshNodeWithServerId,
   getDocumentGatewayTargetUriKind,
@@ -86,12 +85,6 @@ export function getServerConnectionByDocument(document: DocumentTshNode) {
     i.kind === 'connection.server' &&
     i.serverUri === document.serverUri &&
     i.login === document.login;
-}
-
-// DELETE IN 15.0.0. See DocumentGatewayKube for more details.
-export function getKubeConnectionByDocument(document: DocumentTshKube) {
-  return (i: TrackedKubeConnection) =>
-    i.kind === 'connection.kube' && i.kubeUri === document.kubeUri;
 }
 
 export function getGatewayKubeConnectionByDocument(
@@ -171,12 +164,6 @@ export function getGatewayKubeDocumentByConnection(
     i.kind === 'doc.gateway_kube' && i.targetUri === connection.kubeUri;
 }
 
-// DELETE IN 15.0.0. See DocumentGatewayKube for more details.
-export function getKubeDocumentByConnection(connection: TrackedKubeConnection) {
-  return (i: DocumentTshKube) =>
-    i.kind === 'doc.terminal_tsh_kube' && i.kubeUri === connection.kubeUri;
-}
-
 export function getServerDocumentByConnection(
   connection: TrackedServerConnection
 ) {
@@ -213,19 +200,6 @@ export function createServerConnection(
     title: document.title,
     login: document.login,
     serverUri: document.serverUri,
-  };
-}
-
-export function createKubeConnection(
-  document: DocumentTshKube
-): TrackedKubeConnection {
-  return {
-    kind: 'connection.kube',
-    connected: document.status === 'connected',
-    id: unique(),
-    title: document.title,
-    kubeConfigRelativePath: document.kubeConfigRelativePath,
-    kubeUri: document.kubeUri,
   };
 }
 
