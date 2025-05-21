@@ -36,6 +36,16 @@ export function AddLabels({
 }: AddLabelsProps) {
   const [labels, setLabels] = useState<DiscoverLabel[]>([]);
 
+  if (
+    labels.length === 0 &&
+    Object.keys(spConfig.labels).length !== labels.length
+  ) {
+    const mapOfLabels: DiscoverLabel[] = Object.keys(spConfig.labels).map(
+      i => ({ name: i, value: spConfig.labels[i] })
+    );
+    setLabels(mapOfLabels);
+  }
+
   function onLabelChange(validator: Validator, customLabels: DiscoverLabel[]) {
     setLabelsValidator(validator);
     setLabels(customLabels);

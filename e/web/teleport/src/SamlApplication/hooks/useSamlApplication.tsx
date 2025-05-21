@@ -146,6 +146,7 @@ export function transformSamlSpecToCreateRequest(
 ): CreateSamlIdpServiceProviderRequest {
   return {
     name: samlMeta.samlGeneric?.metadata?.name || '',
+    labels: samlMeta.samlGeneric?.metadata?.labels || {},
     entityID: samlMeta.samlGeneric?.spec?.entity_id || '',
     acsURL: samlMeta.samlGeneric?.spec?.acs_url || '',
     entityDescriptor: samlMeta.samlGeneric?.spec?.entity_descriptor || '',
@@ -160,6 +161,7 @@ export function transformSamlSpecToCreateRequest(
 
 export const emptyUpsertRequest: CreateSamlIdpServiceProviderRequest = {
   name: '',
+  labels: {},
   entityID: '',
   acsURL: '',
   entityDescriptor: '',
