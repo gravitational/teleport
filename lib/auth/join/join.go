@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -1033,9 +1032,6 @@ func registerUsingBoundKeypairMethod(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// TODO: Figure out some way to sync the response back to the client state.
-	fmt.Printf("bound keypair response: %+#v\n", regResponse)
 
 	return &RegisterResult{
 		PrivateKey: hostKeys.privateKey,
