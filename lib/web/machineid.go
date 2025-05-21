@@ -278,9 +278,10 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 	}
 
 	instances, err := clt.BotInstanceServiceClient().ListBotInstances(r.Context(), &machineidv1.ListBotInstancesRequest{
-		FilterBotName: r.URL.Query().Get("bot_name"),
-		PageSize:      int32(pageSize),
-		PageToken:     r.URL.Query().Get("page_token"),
+		FilterBotName:    r.URL.Query().Get("bot_name"),
+		PageSize:         int32(pageSize),
+		PageToken:        r.URL.Query().Get("page_token"),
+		FilterSearchTerm: r.URL.Query().Get("search"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -288,11 +289,8 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 
 	uiInstances := tslices.Map(instances.BotInstances, func(instance *machineidv1.BotInstance) BotInstance {
 		latestHeartbeats := []*machineidv1.BotInstanceStatusHeartbeat{}
-		if instance.Status != nil {
+		if instance.Status != nil && instance.Status.LatestHeartbeats != nil {
 			latestHeartbeats = instance.Status.LatestHeartbeats
-			if latestHeartbeats == nil {
-				latestHeartbeats = make([]*machineidv1.BotInstanceStatusHeartbeat, len(instance.Status.LatestHeartbeats))
-			}
 		}
 
 		heartbeat := instance.Status.InitialHeartbeat // Use initial heartbeat as a fallback

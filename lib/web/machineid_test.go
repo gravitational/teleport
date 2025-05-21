@@ -357,6 +357,8 @@ func TestEditBot(t *testing.T) {
 }
 
 func TestListBotInstances(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
@@ -430,6 +432,8 @@ func TestListBotInstances(t *testing.T) {
 }
 
 func TestListBotInstancesWithInitialHeartbeat(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
@@ -560,6 +564,8 @@ func TestListBotInstancesPaging(t *testing.T) {
 }
 
 func TestListBotInstancesWithBotFilter(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
@@ -599,4 +605,120 @@ func TestListBotInstancesWithBotFilter(t *testing.T) {
 	require.NoError(t, json.Unmarshal(response.Bytes(), &instances), "invalid response received")
 
 	assert.Len(t, instances.BotInstances, 3)
+}
+
+func TestListBotInstancesWithSearchTermFilter(t *testing.T) {
+	t.Parallel()
+
+	tcs := []struct {
+		name       string
+		searchTerm string
+		spec       *machineidv1.BotInstanceSpec
+		heartbeat  *machineidv1.BotInstanceStatusHeartbeat
+	}{
+		{
+			name:       "match on bot name",
+			searchTerm: "nick",
+			spec: &machineidv1.BotInstanceSpec{
+				BotName:    "this-is-nicks-test-bot",
+				InstanceId: "00000000-0000-0000-0000-000000000000",
+			},
+		},
+		{
+			name:       "match on instance id",
+			searchTerm: "0000000",
+		},
+		{
+			name:       "match on join method",
+			searchTerm: "ubernete",
+			heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+				JoinMethod: "kubernetes",
+			},
+		},
+		{
+			name:       "match on version",
+			searchTerm: "1.0.0",
+			heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+				Version: "1.0.0-dev-a2g3hd",
+			},
+		},
+		{
+			name:       "match on version (with v)",
+			searchTerm: "v1.0.0",
+			heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+				Version: "1.0.0-dev-a2g3hd",
+			},
+		},
+		{
+			name:       "match on hostname",
+			searchTerm: "tel-123",
+			heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+				Hostname: "svr-eu-tel-123-a",
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			env := newWebPack(t, 1)
+			proxy := env.proxies[0]
+			pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+			clusterName := env.server.ClusterName()
+			endpoint := pack.clt.Endpoint(
+				"webapi",
+				"sites",
+				clusterName,
+				"machine-id",
+				"bot-instance",
+			)
+
+			spec := tc.spec
+			if spec == nil {
+				spec = &machineidv1.BotInstanceSpec{
+					BotName:    "test-bot",
+					InstanceId: "00000000-0000-0000-0000-000000000000",
+				}
+			}
+
+			_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+				Kind:    types.KindBotInstance,
+				Version: types.V1,
+				Spec:    spec,
+				Status: &machineidv1.BotInstanceStatus{
+					InitialHeartbeat: tc.heartbeat,
+				},
+			})
+			require.NoError(t, err)
+
+			_, err = env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+				Kind:    types.KindBotInstance,
+				Version: types.V1,
+				Spec: &machineidv1.BotInstanceSpec{
+					BotName:    "bot-gone",
+					InstanceId: uuid.New().String(),
+				},
+				Status: &machineidv1.BotInstanceStatus{
+					InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+						Version:    "1.1.1-prod",
+						Hostname:   "test-hostname",
+						JoinMethod: "test-join-method",
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			response, err := pack.clt.Get(ctx, endpoint, url.Values{
+				"search": []string{tc.searchTerm},
+			})
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
+
+			var instances ListBotInstancesResponse
+			require.NoError(t, json.Unmarshal(response.Bytes(), &instances), "invalid response received")
+
+			assert.Len(t, instances.BotInstances, 1)
+			assert.Equal(t, "00000000-0000-0000-0000-000000000000", instances.BotInstances[0].InstanceId)
+		})
+	}
 }
