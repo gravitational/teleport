@@ -133,8 +133,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAppServerV3Parser()
 		case types.KindWebSession:
 			switch kind.SubKind {
-			case types.KindSAMLIdPSession:
-				parser = newSAMLIdPSessionParser(kind.LoadSecrets)
 			case types.KindSnowflakeSession:
 				parser = newSnowflakeSessionParser(kind.LoadSecrets)
 			case types.KindAppSession:
@@ -1346,18 +1344,6 @@ func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
-func newSAMLIdPSessionParser(loadSecrets bool) *webSessionParser {
-	return &webSessionParser{
-		baseParser:  newBaseParser(backend.NewKey(samlIdPPrefix, sessionsPrefix)),
-		loadSecrets: loadSecrets,
-		hdr: types.ResourceHeader{
-			Kind:    types.KindWebSession,
-			SubKind: types.KindSAMLIdPSession,
-			Version: types.V2,
-		},
 	}
 }
 

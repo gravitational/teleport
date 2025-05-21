@@ -141,9 +141,6 @@ const (
 	// KindSnowflakeSession represents a Snowflake specific web session.
 	KindSnowflakeSession = "snowflake_session"
 
-	// KindSAMLIdPSession represents a SAML IdP session.
-	KindSAMLIdPSession = "saml_idp_session"
-
 	// KindEvent is structured audit logging event
 	KindEvent = "event"
 
@@ -676,7 +673,7 @@ const (
 var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt, PackageNameEntFIPS}
 
 // WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.
