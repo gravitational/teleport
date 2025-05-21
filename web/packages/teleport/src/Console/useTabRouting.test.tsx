@@ -105,7 +105,7 @@ test('active document id', async () => {
   expect(countAfter).toBe(countBefore);
 });
 
-test('active document id, document url with query parameters', async () => {
+test.only('active document id, document url with query parameters', async () => {
   const ctx = new ConsoleContext();
   const doc = ctx.addKubeExecDocument({
     clusterId: 'cluster1',

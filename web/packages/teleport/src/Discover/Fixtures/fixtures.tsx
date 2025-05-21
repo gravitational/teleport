@@ -80,6 +80,7 @@ export const RequiredDiscoverProviders: React.FC<
 
   return (
     <MemoryRouter
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
       initialEntries={
         props.initialEntries || [{ pathname: cfg.routes.discover }]
       }
