@@ -22,12 +22,20 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
@@ -39,9 +47,11 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -170,6 +180,35 @@ func (s *Server) getAllAWSSyncFetchers() []*aws_sync.Fetcher {
 	return allFetchers
 }
 
+func (s *Server) getAllAWSSyncFetchersWithTrailEnabled() []*types.AccessGraphAWSSync {
+	var allFetchers []*types.AccessGraphAWSSync
+
+	s.dynamicDiscoveryConfigMu.RLock()
+	for _, discConfig := range s.dynamicDiscoveryConfig {
+		if discConfig.Spec.AccessGraph == nil || len(discConfig.Spec.AccessGraph.AWS) == 0 {
+			continue
+		}
+
+		for _, disc := range discConfig.Spec.AccessGraph.AWS {
+			if disc.CloudTrailLogs != nil {
+				allFetchers = append(allFetchers, disc)
+			}
+		}
+
+	}
+	s.dynamicDiscoveryConfigMu.RUnlock()
+
+	if s.Config.Matchers.AccessGraph == nil {
+		return allFetchers
+	}
+	for _, disc := range s.Config.Matchers.AccessGraph.AWS {
+		if disc.CloudTrailLogs != nil {
+			allFetchers = append(allFetchers, disc)
+		}
+	}
+	return allFetchers
+}
+
 func pushUpsertInBatches(
 	client accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient,
 	upsert *accessgraphv1alpha.AWSResourceList,
@@ -247,11 +286,15 @@ func newAccessGraphClient(ctx context.Context, getCert func() (*tls.Certificate,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	const maxMessageSize = 50 * 1024 * 1024 // 50MB
 	opts = append(opts,
 		opt,
 		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
 		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(maxMessageSize),
+			grpc.MaxCallSendMsgSize(maxMessageSize),
+		),
 	)
 
 	conn, err := grpc.DialContext(ctx, config.Addr, opts...)
@@ -481,6 +524,40 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 				}
 			}
 		}()
+		go func() {
+			reloadCh := s.newDiscoveryConfigChangedSub()
+			for {
+				allFetchers := s.getAllAWSSyncFetchersWithTrailEnabled()
+				// If there are no fetchers, we don't need to start the access graph sync.
+				// We will wait for the config to change and re-evaluate the fetchers
+				// before starting the sync.
+				if len(allFetchers) == 0 {
+					s.Log.DebugContext(ctx, "No AWS sync fetchers configured. Access graph sync will not be enabled.")
+					select {
+					case <-ctx.Done():
+						return
+					case <-reloadCh:
+						// if the config changes, we need to re-evaluate the fetchers.
+					}
+					continue
+				}
+				// reset the currentTAGResources to force a full sync
+				if err := s.startCloudtrailPoller(ctx, reloadCh, allFetchers); errors.Is(err, errTAGFeatureNotEnabled) {
+					s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Identity Security. Access graph sync will not be enabled.")
+					break
+				} else if err != nil {
+					s.Log.WarnContext(ctx, "Error initializing and watching access graph", "error", err)
+				}
+
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(time.Minute):
+				case <-reloadCh:
+				}
+			}
+		}()
+
 	}
 	return nil
 }
@@ -521,4 +598,396 @@ func (s *Server) accessGraphAWSFetchersFromMatchers(ctx context.Context, matcher
 	}
 
 	return fetchers, trace.NewAggregate(errs...)
+}
+
+func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan struct{}, matchers []*types.AccessGraphAWSSync) error {
+	// aws discovery semaphore lock.
+	const semaphoreName = "access_graph_aws_cloudtrail_sync"
+
+	clusterFeatures := s.Config.ClusterFeatures()
+	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
+	if !clusterFeatures.AccessGraph && !policy.Enabled {
+		return trace.Wrap(errTAGFeatureNotEnabled)
+	}
+
+	const semaphoreExpiration = time.Minute
+	// AcquireSemaphoreLock will retry until the semaphore is acquired.
+	// This prevents multiple discovery services to push AWS resources in parallel.
+	// lease must be released to cleanup the resource in auth server.
+	lease, err := services.AcquireSemaphoreLockWithRetry(
+		ctx,
+		services.SemaphoreLockConfigWithRetry{
+			SemaphoreLockConfig: services.SemaphoreLockConfig{
+				Service: s.AccessPoint,
+				Params: types.AcquireSemaphoreRequest{
+					SemaphoreKind: types.KindAccessGraph,
+					SemaphoreName: semaphoreName,
+					MaxLeases:     1,
+					Holder:        s.Config.ServerID,
+				},
+				Expiry: semaphoreExpiration,
+				Clock:  s.clock,
+			},
+			Retry: retryutils.LinearConfig{
+				Clock:  s.clock,
+				First:  time.Second,
+				Step:   semaphoreExpiration / 2,
+				Max:    semaphoreExpiration,
+				Jitter: retryutils.DefaultJitter,
+			},
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	// once the lease parent context is canceled, the lease will be released.
+	// this will stop the access graph sync.
+	ctx, cancel := context.WithCancel(lease)
+	defer cancel()
+
+	defer func() {
+		lease.Stop()
+		if err := lease.Wait(); err != nil {
+			s.Log.WarnContext(ctx, "Error cleaning up semaphore", "error", err)
+		}
+	}()
+
+	config := s.Config.AccessGraphConfig
+
+	accessGraphConn, err := newAccessGraphClient(
+		ctx,
+		s.GetClientCert,
+		config,
+		grpc.WithDefaultServiceConfig(serviceConfig),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Close the connection when the function returns.
+	defer accessGraphConn.Close()
+	client := accessgraphv1alpha.NewAccessGraphServiceClient(accessGraphConn)
+
+	stream, err := client.AWSCloudTrailStream(ctx)
+	if err != nil {
+		s.Log.ErrorContext(ctx, "Failed to get access graph service stream", "error", err)
+		return trace.Wrap(err)
+	}
+	err = stream.Send(
+		&accessgraphv1alpha.AWSCloudTrailStreamRequest{
+			Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_Config{
+				Config: &accessgraphv1alpha.AWSCloudTrailConfig{},
+			},
+		},
+	)
+	if err != nil {
+		err = consumeTillErr(stream)
+		s.Log.ErrorContext(ctx, "Failed to send access graph config", "error", err)
+		return trace.Wrap(err)
+	}
+
+	tagAWSConfig, err := stream.Recv()
+	if err != nil {
+		s.Log.ErrorContext(ctx, "Failed to get aws cloud trail config", "error", err)
+		return trace.Wrap(err)
+	}
+
+	if tagAWSConfig.GetCloudTrailConfig() == nil {
+		return trace.BadParameter("access graph service did not return cloud trail config")
+	}
+
+	s.Log.InfoContext(ctx, "Access graph service cloud trail config", "config", tagAWSConfig.GetCloudTrailConfig())
+
+	resumeState, err := stream.Recv()
+	if err != nil {
+		s.Log.ErrorContext(ctx, "Failed to get aws cloud trail resume state", "error", err)
+		return trace.Wrap(err)
+	}
+
+	if resumeState.GetResumeState() == nil {
+		return trace.BadParameter("access graph service did not return cloud trail resume state")
+	}
+	s.Log.InfoContext(ctx, "Access graph service cloud trail resume state", "resume_state", resumeState.GetResumeState())
+
+	// Start a goroutine to watch the access graph service connection state.
+	// If the connection is closed, cancel the context to stop the event watcher
+	// before it tries to send any events to the access graph service.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer cancel()
+		if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
+			s.Log.InfoContext(ctx, "Access graph service connection was closed")
+		}
+	}()
+
+	// Configure the poll interval
+	tickerInterval := 10 * time.Second
+	s.Log.InfoContext(ctx, "Access graph service poll interval", "poll_interval", tickerInterval)
+
+	filePayload := make(chan payloadChannelMessage, 1)
+	type mapPayload struct {
+		disc       *types.AccessGraphAWSSync
+		cancelFunc context.CancelFunc
+	}
+	stateMatchersMap := make(map[string]mapPayload)
+
+	spawnMatcher := func(ctx context.Context, matcher *types.AccessGraphAWSSync) {
+		localCtx, cancel := context.WithCancel(ctx)
+		stateMatchersMap[matcher.Integration] = mapPayload{
+			disc:       matcher,
+			cancelFunc: cancel,
+		}
+		go func(ctx context.Context, matcher *types.AccessGraphAWSSync) {
+			accountID, err := s.getAccountId(ctx, matcher)
+			if err != nil {
+				s.Log.ErrorContext(ctx, "Error getting account ID", "error", err)
+				return
+			}
+			err = s.pollEventsFromSQSFiles(ctx, accountID, matcher, filePayload)
+			if err != nil {
+				s.Log.ErrorContext(ctx, "Error extracting events from SQS files", "error", err)
+			}
+		}(localCtx, matcher)
+	}
+
+	for _, matcher := range matchers {
+		if matcher.CloudTrailLogs == nil {
+			continue
+		}
+		spawnMatcher(ctx, matcher)
+	}
+
+	reconciler, err := services.NewGenericReconciler(services.GenericReconcilerConfig[string, *types.AccessGraphAWSSync]{
+		Matcher: func(matcher *types.AccessGraphAWSSync) bool {
+			return true
+		},
+		GetCurrentResources: func() map[string]*types.AccessGraphAWSSync {
+			matchersMap := make(map[string]*types.AccessGraphAWSSync)
+			for k, matcher := range stateMatchersMap {
+				matchersMap[k] = matcher.disc
+			}
+			return matchersMap
+		},
+		GetNewResources: func() map[string]*types.AccessGraphAWSSync {
+			matchersMap := make(map[string]*types.AccessGraphAWSSync)
+			for _, matcher := range s.getAllAWSSyncFetchersWithTrailEnabled() {
+				matchersMap[matcher.Integration] = matcher
+			}
+			return matchersMap
+		},
+		// Compare allows custom comparators without having to implement IsEqual.
+		// Defaults to `CompareResources[T]` if not specified.
+		CompareResources: services.CompareResources[*types.AccessGraphAWSSync],
+		OnCreate: func(_ context.Context, disc *types.AccessGraphAWSSync) error {
+			spawnMatcher(ctx, disc)
+			return nil
+		},
+		// OnUpdate is called when an existing resource is updated.
+		OnUpdate: func(ctx context.Context, new, old *types.AccessGraphAWSSync) error {
+			if p, ok := stateMatchersMap[old.Integration]; ok {
+				p.cancelFunc()
+				delete(stateMatchersMap, old.Integration)
+			}
+			spawnMatcher(ctx, new)
+			return nil
+		},
+		// OnDelete is called when an existing resource is deleted.
+		OnDelete: func(_ context.Context, disc *types.AccessGraphAWSSync) error {
+			if p, ok := stateMatchersMap[disc.Integration]; ok {
+				p.cancelFunc()
+				delete(stateMatchersMap, disc.Integration)
+			}
+			return nil
+		},
+		Logger: s.Log,
+	})
+	if err != nil {
+		s.Log.ErrorContext(ctx, "Error creating reconciler", "error", err)
+		return trace.Wrap(err)
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case <-reloadCh:
+			if err := reconciler.Reconcile(ctx); err != nil {
+				s.Log.ErrorContext(ctx, "Error reconciling access graph fetchers", "error", err)
+			}
+			continue
+		case file := <-filePayload:
+			err := stream.Send(
+				&accessgraphv1alpha.AWSCloudTrailStreamRequest{
+					Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_EventsFile{
+						EventsFile: &accessgraphv1alpha.AWSCloudTrailEventsFile{
+							Payload:      file.payload,
+							AwsAccountId: file.accountID,
+						},
+					},
+				},
+			)
+			if err != nil {
+				err = consumeTillErr(stream)
+				s.Log.ErrorContext(ctx, "Failed to send access graph service events", "error", err)
+				return trace.Wrap(err)
+			}
+			continue
+		}
+	}
+}
+
+func consumeTillErr(stream accessgraphv1alpha.AccessGraphService_AWSCloudTrailStreamClient) error {
+	for {
+		_, err := stream.Recv()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+}
+
+func getOptions(matcher *types.AccessGraphAWSSync) []awsconfig.OptionsFn {
+	opts := []awsconfig.OptionsFn{
+		awsconfig.WithCredentialsMaybeIntegration(matcher.Integration),
+	}
+	if matcher.AssumeRole != nil {
+		opts = append(opts, awsconfig.WithAssumeRole(matcher.AssumeRole.RoleARN, matcher.AssumeRole.ExternalID))
+	}
+	return opts
+}
+
+func (a *Server) getAccountId(ctx context.Context, matcher *types.AccessGraphAWSSync) (string, error) {
+	awsCfg, err := a.AWSConfigProvider.GetConfig(
+		ctx,
+		"", /* region is empty because groups are global */
+		getOptions(matcher)...,
+	)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	stsClient := stsutils.NewFromConfig(awsCfg)
+
+	input := &sts.GetCallerIdentityInput{}
+	req, err := stsClient.GetCallerIdentity(ctx, input)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return aws.ToString(req.Account), nil
+}
+
+type payloadChannelMessage struct {
+	payload   []byte
+	accountID string
+}
+
+func (a *Server) pollEventsFromSQSFiles(ctx context.Context, accountID string, matcher *types.AccessGraphAWSSync, eventsC chan<- payloadChannelMessage) error {
+	awsCfg, err := a.AWSConfigProvider.GetConfig(ctx, matcher.CloudTrailLogs.Region, getOptions(matcher)...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sqsClient := sqs.NewFromConfig(awsCfg)
+
+	s3Client := s3.NewFromConfig(awsCfg)
+	input := &sqs.ReceiveMessageInput{
+		QueueUrl:            aws.String(matcher.CloudTrailLogs.SQSQueue),
+		MaxNumberOfMessages: 10,
+		WaitTimeSeconds:     10,
+	}
+	parallelDownloads := make(chan struct{}, 100)
+	errG, ctx := errgroup.WithContext(ctx)
+	for i := 0; i < 10; i++ {
+		errG.Go(func() error {
+			for {
+				select {
+				case <-ctx.Done():
+					return trace.Wrap(ctx.Err())
+				default:
+					resp, err := sqsClient.ReceiveMessage(ctx, input)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					if len(resp.Messages) == 0 {
+						continue
+					}
+					for _, message := range resp.Messages {
+						parallelDownloads <- struct{}{}
+						go func(message sqstypes.Message) {
+							defer func() {
+								<-parallelDownloads
+							}()
+							var sqsEvent sqsFileEvent
+							body := aws.ToString(message.Body)
+							err := json.Unmarshal([]byte(body), &sqsEvent)
+							if err != nil {
+								a.Log.ErrorContext(ctx, "Failed to unmarshal SQS message", "error", err, "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
+								return
+							}
+
+							if len(sqsEvent.S3ObjectKey) == 0 {
+								a.Log.ErrorContext(ctx, "SQS message does not contain S3 object key", "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
+								return
+							}
+							for _, objectKey := range sqsEvent.S3ObjectKey {
+								if len(objectKey) == 0 {
+									a.Log.ErrorContext(ctx, "SQS message contains empty S3 object key", "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
+									continue
+								}
+								payload, err := downloadCloudTrailFile(ctx, s3Client, sqsEvent.S3Bucket, objectKey)
+								if err != nil {
+									a.Log.ErrorContext(ctx, "Failed to download and parse S3 object", "error", err, "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
+									continue
+								}
+
+								select {
+								case <-ctx.Done():
+									return
+								case eventsC <- payloadChannelMessage{
+									payload:   payload,
+									accountID: accountID,
+								}:
+									_, err := sqsClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
+										QueueUrl:      aws.String(matcher.CloudTrailLogs.SQSQueue),
+										ReceiptHandle: message.ReceiptHandle,
+									})
+									if err != nil {
+										a.Log.ErrorContext(ctx, "Failed to delete message from sqs", "error", err, "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
+									}
+
+								}
+							}
+						}(message)
+					}
+
+				}
+			}
+		})
+	}
+	return errG.Wait()
+}
+
+type sqsFileEvent struct {
+	S3Bucket    string   `json:"s3Bucket"`
+	S3ObjectKey []string `json:"s3ObjectKey"`
+}
+
+func downloadCloudTrailFile(ctx context.Context, client *s3.Client, bucket, key string) ([]byte, error) {
+	getObjInput := &s3.GetObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+	}
+
+	resp, err := client.GetObject(ctx, getObjInput)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read object body: %w", err)
+	}
+
+	return body, nil
 }
