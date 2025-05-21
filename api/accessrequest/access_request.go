@@ -144,7 +144,7 @@ func GetResourceNames(ctx context.Context, lister client.ListResourcesClient, re
 		for _, resource := range resources {
 			resourceName := types.ResourceIDToString(resource)
 			if details, ok := resourceDetails[resourceName]; ok && details.FriendlyName != "" {
-				resourceName = fmt.Sprintf("%s/%s", resource.Kind, details.FriendlyName)
+				resourceName = fmt.Sprintf("/%s/%s", resource.Kind, details.FriendlyName)
 			}
 			resourceNames = append(resourceNames, resourceName)
 		}

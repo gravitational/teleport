@@ -154,11 +154,11 @@ func TestGetResourceNames(t *testing.T) {
 	names, err := GetResourceNames(ctx, presence, req)
 	require.NoError(t, err)
 	expected := []string{
-		"node/hostname 1",
+		"/node/hostname 1",
 		"/cluster/app/app1",
 		"/cluster/app/app2",
-		"app/friendly app 3",
-		"user_group/friendly group 1",
+		"/app/friendly app 3",
+		"/user_group/friendly group 1",
 	}
 	require.Equal(t, expected, names)
 }
