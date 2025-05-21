@@ -3,20 +3,27 @@ package provider
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/gravitational/teleport/lib/tbot"
+	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 var _ ephemeral.EphemeralResourceWithConfigure = &KubernetesEphemeralResource{}
 
-func NewKubernetesEphemeralResource() *KubernetesEphemeralResource {
+func NewKubernetesEphemeralResource() ephemeral.EphemeralResource {
 	return &KubernetesEphemeralResource{}
 }
 
-type KubernetesEphemeralResource struct{}
+type KubernetesEphemeralResource struct {
+	pd *providerData
+}
 
 func (r *KubernetesEphemeralResource) Metadata(
 	_ context.Context,
@@ -101,7 +108,7 @@ func (d *KubernetesEphemeralResource) Configure(
 	if req.ProviderData == nil {
 		return
 	}
-	_, ok := req.ProviderData.(*providerData)
+	pd, ok := req.ProviderData.(*providerData)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected type",
@@ -114,6 +121,7 @@ func (d *KubernetesEphemeralResource) Configure(
 		return
 	}
 	// TODO: end wrap in helper?
+	d.pd = pd
 }
 
 func (r *KubernetesEphemeralResource) Open(
@@ -127,7 +135,62 @@ func (r *KubernetesEphemeralResource) Open(
 		return
 	}
 
-	data.ClientKey = types.StringValue("xyzzy") // TODO!
+	dest := &config.DestinationMemory{}
+	if err := dest.CheckAndSetDefaults(); err != nil {
+		panic("boo")
+		return
+	}
+	botCfg := r.pd.newBotConfig()
+	botCfg.Services = config.ServiceConfigs{
+		&config.KubernetesV2Output{
+			Destination: dest,
+			Selectors: []*config.KubernetesSelector{
+				{
+					Name: data.Selector.Name.String(),
+				},
+			},
+			DisableExecPlugin: true,
+		},
+	}
+	bot := tbot.New(botCfg, slog.Default())
+	if err := bot.Run(ctx); err != nil {
+		resp.Diagnostics.AddError(
+			"Error running tbot",
+			"Failed to run tbot: "+err.Error(),
+		)
+		return
+	}
+
+	// TODO: parse kubeconfig out of destination...
+	destData, err := dest.Read(ctx, "kubeconfig.yaml")
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading kubeconfig",
+			"Failed to read kubeconfig: "+err.Error(),
+		)
+		return
+	}
+
+	cfg, err := clientcmd.Load(destData)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error parsing kubeconfig",
+			"Failed to load kubeconfig: "+err.Error(),
+		)
+		return
+	}
+
+	// TODO: make this bit nil-safe
+	kubectx := cfg.Contexts[cfg.CurrentContext]
+	cluster := cfg.Clusters[kubectx.Cluster]
+	user := cfg.AuthInfos[kubectx.AuthInfo]
+
+	// TODO: Probably fix this...
+	data.Host = types.StringValue(cluster.Server)
+	data.TLSServerName = types.StringValue(cluster.TLSServerName)
+	data.ClientKey = types.StringValue(string(user.ClientKeyData))
+	data.ClientCertificate = types.StringValue(string(user.ClientCertificateData))
+	data.ClusterCACertificate = types.StringValue(string(cluster.CertificateAuthorityData))
 
 	resp.Diagnostics.Append(resp.Result.Set(ctx, &data)...)
 }

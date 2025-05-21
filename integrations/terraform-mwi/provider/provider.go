@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
@@ -9,6 +10,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot"
+	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 var (
@@ -26,6 +31,8 @@ type ProviderModel struct {
 }
 
 type providerData struct {
+	bot          *tbot.Bot
+	newBotConfig func() *config.BotConfig
 }
 
 func (p *Provider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -59,14 +66,54 @@ func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest,
 		return
 	}
 
-	providerData := providerData{}
+	// TODO: Can multiple ephemeral resources/data sources initialize at the
+	// same time? If so, we'll need some kind of protection over this.
+	botInternalStore := config.DestinationMemory{}
+	if err := botInternalStore.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting defaults for bot internal store",
+			"Failed to set defaults for bot internal store: "+err.Error(),
+		)
+		return
+	}
+
+	newBotConfig := func() *config.BotConfig {
+		return &config.BotConfig{
+			Version:     "v2",
+			ProxyServer: data.ProxyServer.String(),
+			Storage: &config.StorageConfig{
+				Destination: &botInternalStore,
+			},
+			Onboarding: config.OnboardingConfig{
+				JoinMethod: apitypes.JoinMethod(data.JoinMethod.String()),
+				TokenValue: data.JoinToken.String(),
+			},
+			Oneshot: true,
+		}
+	}
+
+	bot := tbot.New(newBotConfig(), slog.Default())
+
+	// Run bot just to validate that the configuration is correct.
+	if err := bot.Run(ctx); err != nil {
+		resp.Diagnostics.AddError(
+			"Error running tbot",
+			"Failed to run tbot: "+err.Error(),
+		)
+		return
+	}
+
+	providerData := providerData{
+		bot:          bot,
+		newBotConfig: newBotConfig,
+	}
 	resp.DataSourceData = &providerData
 	resp.EphemeralResourceData = &providerData
 }
 
 func (p *Provider) EphemeralResources(ctx context.Context) []func() ephemeral.EphemeralResource {
 	return []func() ephemeral.EphemeralResource{
-		// TODO
+		NewKubernetesEphemeralResource,
 	}
 }
 
