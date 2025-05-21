@@ -2775,19 +2775,7 @@ func (c *Client) ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClien
 // GetClusterNetworkingConfig gets cluster networking configuration.
 func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	resp, err := c.ClusterConfigClient().GetClusterNetworkingConfig(ctx, &clusterconfigpb.GetClusterNetworkingConfigRequest{})
-	if err != nil && trace.IsNotImplemented(err) {
-		//nolint:staticcheck // this rpc is used as a fallback
-		resp, err = c.grpc.GetClusterNetworkingConfig(ctx, &emptypb.Empty{})
-	}
 	return resp, trace.Wrap(err)
-}
-
-// SetClusterNetworkingConfig sets cluster networking configuration.
-// Deprecated: Use UpdateClusterNetworkingConfig or UpsertClusterNetworkingConfig instead.
-func (c *Client) SetClusterNetworkingConfig(ctx context.Context, netConfig *types.ClusterNetworkingConfigV2) error {
-	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
-	_, err := c.grpc.SetClusterNetworkingConfig(ctx, netConfig)
-	return trace.Wrap(err)
 }
 
 // UpdateClusterNetworkingConfig updates an existing cluster networking configuration.

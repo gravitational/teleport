@@ -1900,7 +1900,7 @@ func TestClusterNetworkingCloudUpdates(t *testing.T) {
 			client, err := srv.NewClient(tc.identity)
 			require.NoError(t, err)
 
-			err = client.SetClusterNetworkingConfig(ctx, tc.clusterNetworkingConfig.(*types.ClusterNetworkingConfigV2))
+			_, err = client.UpsertClusterNetworkingConfig(ctx, tc.clusterNetworkingConfig.(*types.ClusterNetworkingConfigV2))
 			if tc.expectSetErr != "" {
 				assert.ErrorContains(t, err, tc.expectSetErr)
 			} else {
