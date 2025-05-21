@@ -152,7 +152,7 @@ require (
 	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/ebitengine/purego v0.8.0 // indirect
+	github.com/ebitengine/purego v0.8.3 // indirect
 	github.com/elimity-com/scim v0.0.0-20240320110924-172bf2aee9c8 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.3 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.32.4 // indirect
