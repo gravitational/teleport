@@ -138,6 +138,19 @@ func FromProtoAuditQueriesSpec(in []*secreports.AuditQuerySpec) []*secreportsv1.
 	return out
 }
 
+// FromProtoReportStates converts the security report states from proto.
+func FromProtoReportStates(in []*secreportsv1.ReportState) ([]*secreports.ReportState, error) {
+	out := make([]*secreports.ReportState, 0, len(in))
+	for _, v := range in {
+		item, err := FromProtoReportState(v)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+
 // FromProtoReportState converts the security report state from proto.
 func FromProtoReportState(in *secreportsv1.ReportState) (*secreports.ReportState, error) {
 	t, err := time.Parse(time.RFC3339, in.GetSpec().GetUpdatedAt())

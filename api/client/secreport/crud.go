@@ -120,11 +120,6 @@ func (c *Client) GetSecurityReportsStates(ctx context.Context) ([]*secreports.Re
 	return nil, trace.NotImplemented("GetSecurityReportsStates is not supported in the gRPC client")
 }
 
-// ListSecurityReportsStates returns all security reports states.
-func (c *Client) ListSecurityReportsStates(ctx context.Context, i int, s string) ([]*secreports.ReportState, string, error) {
-	return nil, "", trace.NotImplemented("ListSecurityReportsStates is not supported in the gRPC client")
-}
-
 // UpsertSecurityReportsState upserts security reports state.
 func (c *Client) UpsertSecurityReportsState(ctx context.Context, item *secreports.ReportState) error {
 	return trace.NotImplemented("UpsertSecurityReportsState is not supported in the gRPC client")

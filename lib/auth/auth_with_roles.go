@@ -1427,7 +1427,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}
 	}
 
-	paginatedResources, err := services.MakePaginatedResources(ctx, types.KindUnifiedResource, unifiedResources, resourceLister.requestableMap)
+	paginatedResources, err := services.MakePaginatedResources(types.KindUnifiedResource, unifiedResources, resourceLister.requestableMap)
 	if err != nil {
 		return nil, trace.Wrap(err, "making paginated unified resources")
 	}
@@ -1833,8 +1833,6 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindWindowsDesktopService,
 		types.KindUserGroup,
 		types.KindSAMLIdPServiceProvider,
-		types.KindIdentityCenterAccount,
-		types.KindIdentityCenterAccountAssignment,
 		types.KindGitServer:
 
 	default:
@@ -1946,6 +1944,10 @@ func (r *resourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 	state := services.AccessState{MFAVerified: true}
 	switch rr := resource.(type) {
 	case types.AppServer:
+		if rr.GetSubKind() == types.KindIdentityCenterAccount {
+			return r.CheckAccess(rr.GetApp(), state, services.NewIdentityCenterAppMatcher(rr.GetApp()))
+		}
+
 		return r.CheckAccess(rr.GetApp(), state)
 	case types.KubeServer:
 		return r.CheckAccess(rr.GetCluster(), state)
