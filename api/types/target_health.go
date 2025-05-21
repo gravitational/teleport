@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"iter"
 	"time"
 )
 
@@ -38,7 +39,37 @@ const (
 	TargetHealthStatusUnhealthy TargetHealthStatus = "unhealthy"
 	// TargetHealthStatusUnknown indicates that an unknown health check target health status.
 	TargetHealthStatusUnknown TargetHealthStatus = "unknown"
+	// TargetHealthStatusMixed indicates the resource has a mix of health
+	// statuses. This can happen when multiple agents proxy the same resource.
+	TargetHealthStatusMixed TargetHealthStatus = "mixed"
 )
+
+// Canonical converts a status into its canonical form.
+// An empty or unknown status is converted to [TargetHealthStatusUnknown].
+func (s TargetHealthStatus) Canonical() TargetHealthStatus {
+	switch s {
+	case TargetHealthStatusHealthy, TargetHealthStatusUnhealthy:
+		return s
+	default:
+		return TargetHealthStatusUnknown
+	}
+}
+
+// Aggregates health statuses into a single status. If there are a mix of
+// different statuses then the aggregate status is "mixed".
+func AggregateHealthStatus(statuses iter.Seq[TargetHealthStatus]) TargetHealthStatus {
+	first := true
+	out := TargetHealthStatusUnknown
+	for s := range statuses {
+		if first {
+			out = s.Canonical()
+			first = false
+		} else if out != s.Canonical() {
+			return TargetHealthStatusMixed
+		}
+	}
+	return out
+}
 
 // TargetHealthTransitionReason is the reason for the target health status
 // transition.

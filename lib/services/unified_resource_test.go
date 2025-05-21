@@ -176,14 +176,22 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	icAcct := newICAccount(t, ctx, clt)
 
 	// we expect each of the resources above to exist
-	expectedRes := []types.ResourceWithLabels{node, app, samlapp, dbServer, win,
+	expectedRes := []types.ResourceWithLabels{
+		node,
+		app,
+		samlapp,
+		dbServer,
+		win,
 		gitServer, gitServer2,
 		services.IdentityCenterAccountToAppServer(icAcct),
 	}
-	assert.Eventually(t, func() bool {
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		res, err = w.GetUnifiedResources(ctx)
-		return len(res) == len(expectedRes)
-	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.ElementsMatch(t, expectedRes, res)
+	}, 5*time.Second, 100*time.Millisecond, "Timed out waiting for unified resources to be added")
 	assert.Empty(t, cmp.Diff(
 		expectedRes,
 		res,
@@ -202,20 +210,27 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// this should include the updated node, and shouldn't have any apps included
-	expectedRes = []types.ResourceWithLabels{nodeUpdated, samlapp, dbServer, win,
+	expectedRes = []types.ResourceWithLabels{
+		nodeUpdated,
+		samlapp,
+		dbServer,
+		win,
 		gitServer, gitServer2,
 		services.IdentityCenterAccountToAppServer(icAcct),
 	}
 
-	assert.Eventually(t, func() bool {
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		res, err = w.GetUnifiedResources(ctx)
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return
+		}
 		serverUpdated := slices.ContainsFunc(res, func(r types.ResourceWithLabels) bool {
 			node, ok := r.(types.Server)
 			return ok && node.GetAddr() == "192.168.0.1:22"
 		})
-		return len(res) == len(expectedRes) && serverUpdated
-	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be updated")
+		assert.True(t, serverUpdated)
+		assert.ElementsMatch(t, expectedRes, res)
+	}, 5*time.Second, 100*time.Millisecond, "Timed out waiting for unified resources to be updated")
 	assert.Empty(t, cmp.Diff(
 		expectedRes,
 		res,
@@ -226,6 +241,23 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
 	))
+
+	require.NoError(t, clt.DeleteAllNodes(ctx, defaults.Namespace))
+	require.NoError(t, clt.DeleteAllDatabaseServers(ctx, defaults.Namespace))
+	require.NoError(t, clt.DeleteAllApplicationServers(ctx, ""))
+	require.NoError(t, clt.DeleteAllSAMLIdPServiceProviders(ctx))
+	require.NoError(t, clt.DeleteAllWindowsDesktops(ctx))
+	require.NoError(t, clt.DeleteGitServer(ctx, gitServer.GetName()))
+	require.NoError(t, clt.DeleteGitServer(ctx, gitServer2.GetName()))
+	require.NoError(t, clt.DeleteIdentityCenterAccount(ctx, services.IdentityCenterAccountID(icAcct.GetMetadata().Name)))
+
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err = w.GetUnifiedResources(ctx)
+		if assert.NoError(t, err) {
+			return
+		}
+		assert.Empty(t, res)
+	}, 5*time.Second, 100*time.Millisecond, "Timed out waiting for unified resources to be updated")
 }
 
 func TestUnifiedResourceCacheIterateResources(t *testing.T) {
@@ -403,9 +435,10 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 
 	ctx := context.Background()
 
+	// TODO(gavin): revert this when done fixing iteration
 	const resourceCount = 1234
 	ids := make([]string, 0, resourceCount)
-	for i := 0; i < resourceCount; i++ {
+	for i := range resourceCount {
 		ids = append(ids, "resource"+strconv.Itoa(i))
 	}
 
@@ -663,7 +696,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			for i := 0; i < resourceCount; i++ {
+			for i := range resourceCount {
 				require.NoError(t, test.createResource(ids[i], clt), "creating resource %d", i)
 			}
 
@@ -965,14 +998,16 @@ const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
 func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenterAccounts) *identitycenterv1.Account {
 	t.Helper()
 
-	accountID := t.Name()
+	accountID := uuid.NewString()
+	name := "Test AWS Account"
 
 	icAcct, err := svc.CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
 		Account: &identitycenterv1.Account{
 			Kind:    types.KindIdentityCenterAccount,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
-				Name: t.Name(),
+				Name:        accountID,
+				Description: name,
 				Labels: map[string]string{
 					types.OriginLabel: common.OriginAWSIdentityCenter,
 				},
@@ -980,7 +1015,7 @@ func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenter
 			Spec: &identitycenterv1.AccountSpec{
 				Id:          accountID,
 				Arn:         "arn:aws:sso:::account/" + accountID,
-				Name:        "Test AWS Account",
+				Name:        name,
 				Description: "Used for testing",
 				PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
 					{
@@ -1041,7 +1076,7 @@ func mustCreateOktaAppServer(t *testing.T, name, friendlyName string) *types.App
 	resource, err := types.NewAppServerV3(types.Metadata{
 		Name: name,
 	}, types.AppServerSpecV3{
-		HostID: "localhost",
+		HostID: name,
 		App:    app,
 	})
 	require.NoError(t, err)

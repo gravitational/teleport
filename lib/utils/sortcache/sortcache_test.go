@@ -440,3 +440,181 @@ func TestSortCachePagination(t *testing.T) {
 		require.Equal(t, -1, i)
 	})
 }
+
+func TestAdvancedBounds(t *testing.T) {
+	t.Parallel()
+
+	type resource struct {
+		name, kind, host string
+	}
+	cache := New(Config[resource, string]{
+		Indexes: map[string]func(resource) string{
+			Name: func(r resource) string {
+				return r.name + "/" + r.kind + "/" + r.host
+			},
+			Kind: func(r resource) string {
+				return r.kind + "/" + r.name + "/" + r.host
+			},
+		},
+	})
+
+	// set up some test resources
+	rscs := []resource{
+		{"001", "db", "111"},
+		{"001", "kube", "111"},
+		{"001", "db", "222"},
+		{"001", "kube", "222"},
+		{"001", "app_server", ""},
+		{"001", "app_server", "111"},
+		{"002", "app_server", ""},
+		{"002", "app_server", "111"},
+		{"003", "db", "111"},
+		{"002", "db", "222"},
+		{"002", "db", "111"},
+		{"002", "kube", "111"},
+		{"002", "kube", "222"},
+	}
+
+	for _, rsc := range rscs {
+		require.Equal(t, 0, cache.Put(rsc))
+	}
+
+	// verify fully open ascend
+	t.Run("open ascend includes all keys in order", func(t *testing.T) {
+		out := slices.Collect(cache.Ascend(Name, "", NextKey("")))
+		require.Equal(t, []resource{
+			{"001", "app_server", ""},
+			{"001", "app_server", "111"},
+			{"001", "db", "111"},
+			{"001", "db", "222"},
+			{"001", "kube", "111"},
+			{"001", "kube", "222"},
+			{"002", "app_server", ""},
+			{"002", "app_server", "111"},
+			{"002", "db", "111"},
+			{"002", "db", "222"},
+			{"002", "kube", "111"},
+			{"002", "kube", "222"},
+			{"003", "db", "111"},
+		}, out)
+	})
+
+	// verify fully open descend
+	t.Run("open descend includes all keys in reverse order", func(t *testing.T) {
+		out := slices.Collect(cache.Descend(Name, NextKey(""), ""))
+		require.Equal(t, []resource{
+			{"003", "db", "111"},
+			{"002", "kube", "222"},
+			{"002", "kube", "111"},
+			{"002", "db", "222"},
+			{"002", "db", "111"},
+			{"002", "app_server", "111"},
+			{"002", "app_server", ""},
+			{"001", "kube", "222"},
+			{"001", "kube", "111"},
+			{"001", "db", "222"},
+			{"001", "db", "111"},
+			{"001", "app_server", "111"},
+			{"001", "app_server", ""},
+		}, out)
+	})
+
+	// verify open-ended ascend
+	t.Run("ascending from a key includes that key", func(t *testing.T) {
+		out := slices.Collect(cache.Ascend(Name, "002/db", ""))
+		require.Equal(t, []resource{
+			{"002", "db", "111"},
+			{"002", "db", "222"},
+			{"002", "kube", "111"},
+			{"002", "kube", "222"},
+			{"003", "db", "111"},
+		}, out)
+	})
+
+	// verify open-ended descend
+	t.Run("descending from a key excludes that key", func(t *testing.T) {
+		out := slices.Collect(cache.Descend(Name, "001/kube", ""))
+		require.Equal(t, []resource{
+			{"001", "db", "222"},
+			{"001", "db", "111"},
+			{"001", "app_server", "111"},
+			{"001", "app_server", ""},
+		}, out)
+	})
+
+	// verify open-start ascend
+	t.Run("ascending to a key excludes that key", func(t *testing.T) {
+		out := slices.Collect(cache.Ascend(Name, "", "002/kube"))
+		require.Equal(t, []resource{
+			{"001", "app_server", ""},
+			{"001", "app_server", "111"},
+			{"001", "db", "111"},
+			{"001", "db", "222"},
+			{"001", "kube", "111"},
+			{"001", "kube", "222"},
+			{"002", "app_server", ""},
+			{"002", "app_server", "111"},
+			{"002", "db", "111"},
+			{"002", "db", "222"},
+		}, out)
+	})
+
+	// verify open-start descend
+	t.Run("descending to a key includes that key", func(t *testing.T) {
+		out := slices.Collect(cache.Descend(Name, "", "001/db"))
+		require.Equal(t, []resource{
+			{"003", "db", "111"},
+			{"002", "kube", "222"},
+			{"002", "kube", "111"},
+			{"002", "db", "222"},
+			{"002", "db", "111"},
+			{"002", "app_server", "111"},
+			{"002", "app_server", ""},
+			{"001", "kube", "222"},
+			{"001", "kube", "111"},
+			{"001", "db", "222"},
+			{"001", "db", "111"},
+		}, out)
+	})
+
+	// verify range ascend
+	t.Run("ascending a range of resource servers only includes those servers", func(t *testing.T) {
+		out := slices.Collect(cache.Ascend(Name, "003/db", NextKey("003/db")))
+		require.Equal(t, []resource{
+			{"003", "db", "111"},
+		}, out)
+	})
+
+	// verify range descend
+	t.Run("descending a range of resource servers only includes those servers", func(t *testing.T) {
+		out := slices.Collect(cache.Descend(Name, NextKey("001/db"), "001/db"))
+		require.Equal(t, []resource{
+			{"001", "db", "222"},
+			{"001", "db", "111"},
+		}, out)
+	})
+
+	// verify range ascend with missing field
+	t.Run("ascending a range of resource servers only includes those servers", func(t *testing.T) {
+		out := slices.Collect(cache.Ascend(Name, "001/app_server", NextKey("001/app_server")))
+		require.Equal(t, []resource{
+			{"001", "app_server", ""},
+			{"001", "app_server", "111"},
+		}, out)
+	})
+
+	// verify range descend
+	t.Run("descending a range of resource servers only includes those servers", func(t *testing.T) {
+		out := slices.Collect(cache.Descend(Name, NextKey("001/app_server"), "001/app_server"))
+		require.Equal(t, []resource{
+			{"001", "app_server", "111"},
+			{"001", "app_server", ""},
+		}, out)
+	})
+
+	t.Run("get a key with partial fields", func(t *testing.T) {
+		out, ok := cache.Get(Name, "001/app_server/")
+		require.True(t, ok)
+		require.Equal(t, resource{"001", "app_server", ""}, out)
+	})
+}
