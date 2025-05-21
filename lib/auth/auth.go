@@ -1238,6 +1238,10 @@ type Server struct {
 	// normally be fetched from the GitHub API. Used for testing.
 	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
 
+	// OverrideAWSCredentialGeneration overrides the generation of AWS credentials for AWS Apps which use the Roles Anywhere Integration.
+	// Used for testing.
+	OverrideAWSCredentialGeneration func() string
+
 	// sigstorePolicyEvaluator checks workload signatures and attestations
 	// against Sigstore policies.
 	sigstorePolicyEvaluator workloadidentityv1.SigstorePolicyEvaluator
@@ -3467,6 +3471,11 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
+	var awsCredentialProcessCredentials string
+	if a.OverrideAWSCredentialGeneration != nil {
+		awsCredentialProcessCredentials = a.OverrideAWSCredentialGeneration()
+	}
+
 	identity := tlsca.Identity{
 		Username:          req.user.GetName(),
 		Impersonator:      req.impersonator,
@@ -3479,15 +3488,16 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
-			SessionID:         req.appSessionID,
-			URI:               req.appURI,
-			TargetPort:        req.appTargetPort,
-			PublicAddr:        req.appPublicAddr,
-			ClusterName:       req.appClusterName,
-			Name:              req.appName,
-			AWSRoleARN:        req.awsRoleARN,
-			AzureIdentity:     req.azureIdentity,
-			GCPServiceAccount: req.gcpServiceAccount,
+			SessionID:                       req.appSessionID,
+			URI:                             req.appURI,
+			TargetPort:                      req.appTargetPort,
+			PublicAddr:                      req.appPublicAddr,
+			ClusterName:                     req.appClusterName,
+			Name:                            req.appName,
+			AWSRoleARN:                      req.awsRoleARN,
+			AWSCredentialProcessCredentials: awsCredentialProcessCredentials,
+			AzureIdentity:                   req.azureIdentity,
+			GCPServiceAccount:               req.gcpServiceAccount,
 		},
 		TeleportCluster: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{
