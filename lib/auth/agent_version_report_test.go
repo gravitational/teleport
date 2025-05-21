@@ -241,12 +241,16 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 			for _, fixture := range tt.fixtures {
 				clock.Advance(fixture.delay)
 				stream := newFakeControlStream()
+				status := fixture.updaterStatus
+				if status == types.UpdaterStatus_UPDATER_STATUS_UNSPECIFIED {
+					status = types.UpdaterStatus_UPDATER_STATUS_OK
+				}
 				controller.RegisterControlStream(stream, proto.UpstreamInventoryHello{
 					Services:         fixture.roles,
 					ServerID:         uuid.New().String(),
 					Version:          fixture.version,
 					ExternalUpgrader: types.UpgraderKindTeleportUpdate,
-					UpdaterInfo:      &types.UpdaterV2Info{UpdaterStatus: fixture.updaterStatus, UpdateGroup: fixture.updateGroup},
+					UpdaterInfo:      &types.UpdaterV2Info{UpdaterStatus: status, UpdateGroup: fixture.updateGroup},
 				})
 				if fixture.goodbye != nil {
 					stream.fakeMsg(*fixture.goodbye)
