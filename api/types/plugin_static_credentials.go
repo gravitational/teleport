@@ -120,6 +120,13 @@ func (p *PluginStaticCredentialsV1) CheckAndSetDefaults() error {
 				return trace.Wrap(err, "invalid SSH CA")
 			}
 		}
+	case *PluginStaticCredentialsSpecV1_PrivateKey:
+		if credentials.PrivateKey == nil {
+			return trace.BadParameter("private key object is missing")
+		}
+		if len(credentials.PrivateKey) == 0 {
+			return trace.BadParameter("private key is empty")
+		}
 	default:
 		return trace.BadParameter("credentials are not set or have an unknown type %T", credentials)
 	}

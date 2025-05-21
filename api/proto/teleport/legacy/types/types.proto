@@ -6963,8 +6963,8 @@ message PluginOktaSettings {
   // CredentialsInfo contains information about the Okta credentials.
   PluginOktaCredentialsInfo credentials_info = 5;
 
-  // EnableSiemIntegration enables SIEM (Security Information and Event Management).
-  bool enable_system_log_export = 6;
+  reserved 6;
+  reserved "enable_system_log_export";
 }
 
 // PluginOktaCredentialsInfo contains information about the Okta credentials.
@@ -7042,6 +7042,9 @@ message PluginOktaSyncSettings {
   // that has not been yet updated and during the next update the value will be set to "org" if
   // AppID is empty or "saml_app" if not.
   string user_sync_source = 11;
+
+  // EnableSystemLogExport enables the Teleport Identity Security SIEM integration for Okta.
+  bool enable_system_log_export = 12;
 }
 
 // Defines a set of discord channel IDs
