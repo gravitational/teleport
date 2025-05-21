@@ -260,27 +260,6 @@ func (c *ConnProxy) Run() error {
 		}
 	})
 
-	// Run a goroutine to pick TDP messages up from a channel and send
-	// them to the server.
-	// errs.Go(func() error {
-	// 	defer closeOnce.Do(closeAll)
-
-	// 	for {
-	// 		select {
-	// 		case msg := <-c.messagesToServer:
-	// 			encoded, err := msg.Encode()
-	// 			if err != nil {
-	// 				return trace.Wrap(err)
-	// 			}
-	// 			if _, err := c.server.Write(encoded); err != nil {
-	// 				return trace.Wrap(err)
-	// 			}
-	// 		case <-ctx.Done():
-	// 			return ctx.Err()
-	// 		}
-	// 	}
-	// })
-
 	// Run a goroutine to read TDP messages coming from the client
 	// and pass them on to the Windows agent.
 	errs.Go(func() error {
