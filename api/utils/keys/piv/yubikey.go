@@ -644,8 +644,8 @@ func abandonableSign(ctx context.Context, signer crypto.Signer, promptTouch prom
 		return nil, trace.Wrap(ctx.Err())
 	case err := <-errC:
 		return nil, trace.Wrap(err)
-	case result := <-signResultCh:
-		return result.signature, trace.Wrap(result.err)
+	case signature := <-signatureC:
+		return signature, nil
 	}
 }
 
