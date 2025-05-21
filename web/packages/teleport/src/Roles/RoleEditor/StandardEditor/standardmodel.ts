@@ -977,13 +977,9 @@ export function mcpToolsToModel(
   conversionErrors: ConversionError[];
 } {
   const { tools, ...unsupported } = mcpPermissions;
-  const conversionErrors: ConversionError[] = [];
-  conversionErrors.push(
-    ...unsupportedFieldErrorsFromObject(pathPrefix, unsupported)
-  );
   return {
     model: tools || [],
-    conversionErrors,
+    conversionErrors: unsupportedFieldErrorsFromObject(pathPrefix, unsupported),
   };
 }
 
