@@ -77,6 +77,13 @@ export default tseslint.config(
         { allowInterfaces: 'with-single-extends' },
       ],
 
+      // Turn on the no-unused-imports rule. As it works by wrapping
+      // @typescript-eslint/no-unused-vars, we need to turn this one off, and
+      // instead use the wrapped one.
+      '@typescript-eslint/no-unused-vars': 'off',
+      'unused-imports/no-unused-imports': 'error',
+      'unused-imports/no-unused-vars': 'error',
+
       // <TODO> Enable these recommended typescript-eslint rules after fixing existing issues.
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-this-alias': 'off',
