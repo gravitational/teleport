@@ -1639,10 +1639,10 @@ kubernetes matchers are present`)
 				}
 			}
 			var cloudTrailLogs *types.AccessGraphAWSSyncCloudTrailLogs
-			if awsMatcher.SQSPolling != nil {
+			if awsMatcher.CloudTrailLogs != nil {
 				cloudTrailLogs = &types.AccessGraphAWSSyncCloudTrailLogs{
-					SQSQueue: awsMatcher.SQSPolling.QueueURL,
-					Region:   awsMatcher.SQSPolling.QueueRegion,
+					SQSQueue: awsMatcher.CloudTrailLogs.QueueURL,
+					Region:   awsMatcher.CloudTrailLogs.QueueRegion,
 				}
 			}
 
