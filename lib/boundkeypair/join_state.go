@@ -40,7 +40,8 @@ type JoinState struct {
 	// it was generated. A new bot instance may be created during the joining
 	// process if the previous instance expired. The
 	// `(bot_instance_id, recovery_sequence)` tuple is considered functionally
-	// unique to each issued join state for verification purposes;
+	// unique to each issued join state for verification purposes, and will
+	// remain unchanged until the next successful recovery.
 	BotInstanceID string `json:"bot_instance_id"`
 
 	// RecoverySequence is the recovery sequence number. This is incremented
@@ -49,7 +50,9 @@ type JoinState struct {
 	RecoverySequence uint32 `json:"recovery_sequence"`
 
 	// RecoveryLimit is the maximum number of recovery attempts allowed as of
-	// the time this join state was issued. This field is informational.
+	// the time this join state was issued. This field is informational, and is
+	// expected to be modified server-side to allow additional joins once the
+	// limit is reached.
 	RecoveryLimit uint32 `json:"recovery_limit"`
 
 	// RecoveryMode is the currently configured recovery mode set in
