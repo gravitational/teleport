@@ -23,20 +23,32 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/client"
 )
 
+// ExtenralErrorRetriever returns an external error that might have happened.
+//
+// MCP servers don't have knowledge of other processes that might fail during
+// their execution, such as authentication failures. This provider can be used
+// to give them the necessary context to provide more accurate user messages.
+type ExternalErrorRetriever interface {
+	// RetrieveError retrieves the error if any.
+	RetrieveError() error
+}
+
 // FormatErrorMessage formats the database MCP error messages.
 // format.
-func FormatErrorMessage(err error) error {
+func FormatErrorMessage(retreiver ExternalErrorRetriever, err error) error {
+	if retreiver != nil {
+		err = trace.NewAggregate(retreiver.RetrieveError(), err)
+	}
+
 	switch {
-	// TODO(gabrielcorado): having the database connection error to be the one
-	// from the middleware will make easier and more assertive to determine if
-	// it is a login/session expired error.
-	case strings.Contains(err.Error(), "connection reset by peer") ||
-		errors.Is(err, io.ErrClosedPipe) ||
-		client.IsErrorResolvableWithRelogin(err):
+	case client.IsErrorResolvableWithRelogin(err) || errors.Is(err, apiclient.ErrClientCredentialsHaveExpired):
 		return trace.BadParameter(ReloginRequiredErrorMessage)
+	case strings.Contains(err.Error(), "connection reset by peer") || errors.Is(err, io.ErrClosedPipe):
+		return trace.BadParameter(LocalProxyConnectionError)
 	}
 
 	return err
@@ -49,4 +61,10 @@ const (
 you must relogin (using "tsh login" on a terminal) before continue using this
 tool. After that, there is no need to update or relaunch the MCP client - just
 try using it again.`
+	// LocalProxyConnectionError is the message returned to the MCP client when
+	// the database client cannot connect to the local proxy.
+	LocalProxyConnectionError = `Teleport MCP server is having issue while
+establishing the database connection. You can verify the MCP logs for more
+details on what is causing this issue. After identifying and fixing the issue
+a restart on the MCP client might be necessary.`
 )

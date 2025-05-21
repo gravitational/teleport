@@ -27,6 +27,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -85,9 +86,10 @@ func TestFormatErrors(t *testing.T) {
 	require.NoError(t, err)
 
 	for name, tc := range map[string]struct {
-		databaseURI        string
-		databases          []*dbmcp.Database
-		expectErrorMessage require.ValueAssertionFunc
+		databaseURI            string
+		databases              []*dbmcp.Database
+		externalErrorRetriever dbmcp.ExternalErrorRetriever
+		expectErrorMessage     require.ValueAssertionFunc
 	}{
 		"database not found": {
 			databaseURI: "not-found",
@@ -96,6 +98,25 @@ func TestFormatErrors(t *testing.T) {
 			},
 		},
 		"local proxy rejects connection": {
+			databaseURI: dbName,
+			databases: []*dbmcp.Database{
+				&dbmcp.Database{
+					DB:                     db,
+					DatabaseUser:           "postgres",
+					DatabaseName:           "postgres",
+					Addr:                   listener.Addr().String(),
+					ExternalErrorRetriever: &mockErrorRetriever{err: client.ErrClientCredentialsHaveExpired},
+					LookupFunc: func(_ context.Context, _ string) (addrs []string, err error) {
+						return []string{"memory"}, nil
+					},
+					DialContextFunc: listener.DialContext,
+				},
+			},
+			expectErrorMessage: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+				require.Equal(t, dbmcp.LocalProxyConnectionError, i1)
+			},
+		},
+		"relogin error": {
 			databaseURI: dbName,
 			databases: []*dbmcp.Database{
 				&dbmcp.Database{
@@ -193,3 +214,11 @@ func (mr *mockRows) CommandTag() pgconn.CommandTag {
 }
 
 func (mr *mockRows) Close() {}
+
+type mockErrorRetriever struct {
+	err error
+}
+
+func (mr *mockErrorRetriever) RetrieveError() error {
+	return mr.err
+}

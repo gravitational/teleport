@@ -113,7 +113,7 @@ func (s *Server) RunQuery(ctx context.Context, request mcp.CallToolRequest) (*mc
 
 	db, err := s.getDatabase(uri)
 	if err != nil {
-		return s.wrapErrorResult(ctx, err)
+		return s.wrapErrorResult(ctx, nil, err)
 	}
 
 	// TODO(gabrielcorado): ensure the connection used is consistent for the
@@ -121,21 +121,21 @@ func (s *Server) RunQuery(ctx context.Context, request mcp.CallToolRequest) (*mc
 	// session/recording.
 	rows, err := db.pool.Query(ctx, sql)
 	if err != nil {
-		return s.wrapErrorResult(ctx, err)
+		return s.wrapErrorResult(ctx, db.ExternalErrorRetriever, err)
 	}
 
 	// Returned rows are being closed by this function.
 	result, err := buildQueryResult(rows)
 	if err != nil {
-		return s.wrapErrorResult(ctx, err)
+		return s.wrapErrorResult(ctx, db.ExternalErrorRetriever, err)
 	}
 
 	return mcp.NewToolResultText(result), nil
 }
 
-func (s *Server) wrapErrorResult(ctx context.Context, toolErr error) (*mcp.CallToolResult, error) {
+func (s *Server) wrapErrorResult(ctx context.Context, externalRetriever dbmcp.ExternalErrorRetriever, toolErr error) (*mcp.CallToolResult, error) {
 	s.logger.ErrorContext(ctx, "error while querying database", "error", toolErr)
-	out, err := json.Marshal(RunQueryResult{ErrorMessage: dbmcp.FormatErrorMessage(toolErr).Error()})
+	out, err := json.Marshal(RunQueryResult{ErrorMessage: dbmcp.FormatErrorMessage(externalRetriever, toolErr).Error()})
 	return mcp.NewToolResultError(string(out)), trace.Wrap(err)
 }
 

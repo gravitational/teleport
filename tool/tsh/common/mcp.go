@@ -186,10 +186,11 @@ func (c *mcpDBCommand) prepareDatabases(
 		}()
 
 		mcpDB := &dbmcp.Database{
-			DB:           db,
-			DatabaseUser: c.databaseUser,
-			DatabaseName: c.databaseName,
-			Addr:         listener.Addr().String(),
+			DB:                     db,
+			DatabaseUser:           c.databaseUser,
+			DatabaseName:           c.databaseName,
+			Addr:                   listener.Addr().String(),
+			ExternalErrorRetriever: cc,
 			// Since we're using in-memory listener we don't need to resolve the
 			// address.
 			LookupFunc: func(ctx context.Context, host string) (addrs []string, err error) {

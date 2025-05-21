@@ -71,6 +71,9 @@ type Database struct {
 	DatabaseUser string
 	// DatabaseName is the database name used on the connections.
 	DatabaseName string
+	// ExternalErrorRetriever used to retrieve any external error that might
+	// have happened while connecting/communicating with the database.
+	ExternalErrorRetriever ExternalErrorRetriever
 	// LookupFunc is the lookup function to resolve database address.
 	LookupFunc LookupFunc
 	// DialContextFunc is the dial function used to connect to the database.
