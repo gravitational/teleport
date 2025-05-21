@@ -58,6 +58,10 @@ type IDTokenClaims struct {
 	ProjectID string `json:"oidc.circleci.com/project-id"`
 }
 
+func (c *IDTokenClaims) GetSubject() string {
+	return c.Sub
+}
+
 // JoinAttrs returns the protobuf representation of the attested identity.
 // This is used for auditing and for evaluation of WorkloadIdentity rules and
 // templating.
