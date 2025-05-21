@@ -7,8 +7,10 @@ Teleport supports automatic reviews of role Access Requests. This
 feature enables teams to enforce a zero standing privilege policy, while
 still allowing users to receive temporary access without manual approval.
 
-Support for automatic reviews of resource Access Requests is currently in
-development.
+<Admonition type="note" title="resource access request support">
+  Automatic reviews is not currently supported with resource Access Requests.
+  This functionality will be enabled in a future Teleport release.
+</Admonition>
 
 ## How it works
 
@@ -85,6 +87,11 @@ traits via the Teleport Web UI.
 When adding user traits, you can enter any keys and values. The user trait form
 does not support wildcard or regular expressions.
 
+<Admonition type="tip" title="SSO users">
+  Automatic reviews are compatible with SSO users and the attributes provided
+  by the IdP.
+</Admonition>
+
 ## Step 3/4. Create Access Monitoring Rule
 
 Next, define the automatic review rule via the Teleport Web UI.
@@ -143,3 +150,5 @@ other than a role.
   [Access Monitoring Rules Reference](../../../reference/resources.mdx#access-monitoring-rule).
 - For configuration with Teleport Terraform Provider, refer to the
   [Terraform Resources Index](../../../reference/terraform-provider/resources/access_monitoring_rule.mdx)
+- For configuration options with SSO, refer to the
+  [Single Sign-On Guides](../sso/sso.mdx)
