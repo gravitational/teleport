@@ -22,7 +22,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -148,6 +150,117 @@ func TestAWS(t *testing.T) {
 		setCmdRunner(validateCmd),
 	)
 	require.NoError(t, err)
+}
+
+func TestAWSRolesAnywhereBasedAccess(t *testing.T) {
+	ctx := context.Background()
+
+	tmpHomePath := t.TempDir()
+
+	awsConfigFile := filepath.Join(tmpHomePath, "aws_config")
+	t.Setenv("AWS_CONFIG_FILE", awsConfigFile)
+
+	connector := mockConnector(t)
+	user, awsRole := makeUserWithAWSRole(t)
+	authProcess := testserver.MakeTestServer(
+		t,
+		testserver.WithBootstrap(connector, user, awsRole),
+	)
+
+	fakeAWSCredentials := `{"Version":1,"AccessKeyId":"id"}`
+	authProcess.GetAuthServer().OverrideAWSCredentialGeneration = func() string {
+		return fakeAWSCredentials
+	}
+
+	integrationName := "aws-app"
+	profileName := "aws-profile"
+	integration, err := types.NewIntegrationAWSRA(
+		types.Metadata{Name: integrationName},
+		&types.AWSRAIntegrationSpecV1{
+			TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+		},
+	)
+	require.NoError(t, err)
+	_, err = authProcess.GetAuthServer().CreateIntegration(ctx, integration)
+	require.NoError(t, err)
+
+	awsAppUsingRolesAnywhere, err := types.NewAppServerV3(types.Metadata{
+		Name: profileName,
+	}, types.AppServerSpecV3{
+		HostID: authProcess.GetID(),
+		App: &types.AppV3{Metadata: types.Metadata{
+			Name: profileName,
+		}, Spec: types.AppSpecV3{
+			URI:         constants.AWSConsoleURL,
+			Integration: integrationName,
+			AWS: &types.AppAWS{
+				RolesAnywhereProfile: &types.AppAWSRolesAnywhereProfile{
+					ProfileARN:            "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/12345678-1234-1234-1234-123456789012",
+					AcceptRoleSessionName: true,
+				},
+			},
+			PublicAddr: "example.com",
+		}},
+	})
+	require.NoError(t, err)
+
+	_, err = authProcess.GetAuthServer().UpsertApplicationServer(ctx, awsAppUsingRolesAnywhere)
+	require.NoError(t, err)
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := authProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Log into Teleport cluster.
+	err = Run(ctx, []string{
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, user, connector.GetName()))
+	require.NoError(t, err)
+
+	// Log into the "aws-profile" app.
+	err = Run(
+		ctx,
+		[]string{"apps", "login", "--insecure", "--aws-role", "some-aws-role", profileName},
+		setHomePath(tmpHomePath),
+	)
+	require.NoError(t, err)
+
+	// check if external files were set correctly
+	require.FileExists(t, awsConfigFile)
+
+	awsConfigContents, err := os.ReadFile(awsConfigFile)
+	require.NoError(t, err)
+
+	expectedProfileConfig := `; Do not edit. Section managed by Teleport. Generated for accessing aws-profile
+[profile aws-profile]
+credential_process=tsh apps config --format aws-credential-process aws-profile
+`
+	require.Equal(t, expectedProfileConfig, string(awsConfigContents))
+
+	// Running the tsh apps config command should return the credentials
+	appsConfigcommandOutput := &bytes.Buffer{}
+	err = Run(
+		ctx,
+		[]string{"apps", "config", "--format", "aws-credential-process", profileName},
+		setHomePath(tmpHomePath),
+		setCopyStdout(appsConfigcommandOutput),
+	)
+	require.NoError(t, err)
+	require.Equal(t, fakeAWSCredentials, appsConfigcommandOutput.String())
+
+	// Profile is removed after logout.
+	err = Run(
+		ctx,
+		[]string{"apps", "logout", "--insecure"},
+		setHomePath(tmpHomePath),
+	)
+	require.NoError(t, err)
+
+	awsConfigContents, err = os.ReadFile(awsConfigFile)
+	require.NoError(t, err)
+	require.Empty(t, awsConfigContents)
 }
 
 // TestAWSConsoleLogins given a AWS console application, execute a app login
