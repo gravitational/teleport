@@ -209,8 +209,8 @@ choices:
       to run into unforeseen edge-cases within the core implementation of the 
       Terraform provider.
     - Existing Terraform provider consists largely of generated code, whereas
-      this functionality will be largely hand-written. Mixing generated and 
-      hand-written code can make enforcing standards more difficult.
+      this functionality will be largely handwritten. Mixing generated and 
+      handwritten code can make enforcing standards more difficult.
     - Existing Terraform provider uses a very old version of the Terraform SDK
       which makes compatibility with other tools like Pulumi more challenging.
     - Existing Terraform provider has a large number of configuration
@@ -236,6 +236,14 @@ choices:
 
 Overall, the most appropriate approach seems to be introducing a single new
 Terraform provider for this functionality.
+
+### Building and Publishing
+
+As we have an existing Terraform provider and registry, we can leverage the
+existing build and release infrastructure.
+
+A new go module will be created for the new provider to avoid polluting the
+dependencies of the main module or the module of the existing provider.
 
 ## UX
 
@@ -351,6 +359,11 @@ Ephemeral resource outputs:
 - `secret_key`: the secret key to use when connecting to AWS.
 - `token`: the session token to use when connecting to AWS. Sometimes known as
   the "session token".
+
+### Documentation
+
+We can leverage the existing documentation generation tools to produce a
+reference for the new Terraform provider.
 
 ## Security Considerations
 
