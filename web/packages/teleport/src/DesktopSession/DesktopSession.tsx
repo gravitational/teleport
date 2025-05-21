@@ -33,8 +33,8 @@ import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 import { adaptWebSocketToTdpTransport } from 'teleport/lib/tdp';
 import { shouldShowMfaPrompt, useMfaEmitter } from 'teleport/lib/useMfa';
 import { getHostName } from 'teleport/services/api';
-import { useUser } from 'teleport/User/UserContext';
 import auth from 'teleport/services/auth';
+import { useUser } from 'teleport/User/UserContext';
 
 export function DesktopSession() {
   const ctx = useTeleport();

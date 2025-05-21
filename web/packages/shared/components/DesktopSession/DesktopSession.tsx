@@ -77,11 +77,11 @@ export interface DesktopSessionProps {
    */
   customConnectionState?(args: { retry(): void }): React.ReactElement;
   hasAnotherSession(): Promise<boolean>;
-  /** 
+  /**
    * Keyboard layout identifier for desired layout on remote session
    * Spec can be found here: https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
    */
-  keyboardLayout?: number
+  keyboardLayout?: number;
 }
 
 export function DesktopSession({
