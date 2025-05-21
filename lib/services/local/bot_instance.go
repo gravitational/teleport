@@ -104,41 +104,36 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, botName strin
 		service = b.service.WithPrefix(botName)
 	}
 
-	var listFn func() ([]*machineidv1.BotInstance, string, error)
 	if search == "" {
-		listFn = func() ([]*machineidv1.BotInstance, string, error) {
-			return service.ListResources(ctx, pageSize, lastKey)
-		}
-	} else {
-		listFn = func() ([]*machineidv1.BotInstance, string, error) {
-			return service.ListResourcesWithFilter(ctx, pageSize, lastKey, func(item *machineidv1.BotInstance) bool {
-				latestHeartbeats := []*machineidv1.BotInstanceStatusHeartbeat{}
-				if item.Status != nil && item.Status.LatestHeartbeats != nil {
-					latestHeartbeats = item.Status.LatestHeartbeats
-				}
-
-				heartbeat := item.Status.InitialHeartbeat // Use initial heartbeat as a fallback
-				if len(latestHeartbeats) > 0 {
-					heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
-				}
-
-				values := []string{
-					item.Spec.BotName,
-					item.Spec.InstanceId,
-				}
-
-				if heartbeat != nil {
-					values = append(values, heartbeat.Hostname, heartbeat.JoinMethod, heartbeat.Version, "v"+heartbeat.Version)
-				}
-
-				return slices.ContainsFunc(values, func(val string) bool {
-					return strings.Contains(strings.ToLower(val), strings.ToLower(search))
-				})
-			})
-		}
+		r, nextToken, err := service.ListResources(ctx, pageSize, lastKey)
+		return r, nextToken, trace.Wrap(err)
 	}
 
-	r, nextToken, err := listFn()
+	r, nextToken, err := service.ListResourcesWithFilter(ctx, pageSize, lastKey, func(item *machineidv1.BotInstance) bool {
+		latestHeartbeats := []*machineidv1.BotInstanceStatusHeartbeat{}
+		if item.Status != nil && item.Status.LatestHeartbeats != nil {
+			latestHeartbeats = item.Status.LatestHeartbeats
+		}
+
+		heartbeat := item.Status.InitialHeartbeat // Use initial heartbeat as a fallback
+		if len(latestHeartbeats) > 0 {
+			heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
+		}
+
+		values := []string{
+			item.Spec.BotName,
+			item.Spec.InstanceId,
+		}
+
+		if heartbeat != nil {
+			values = append(values, heartbeat.Hostname, heartbeat.JoinMethod, heartbeat.Version, "v"+heartbeat.Version)
+		}
+
+		return slices.ContainsFunc(values, func(val string) bool {
+			return strings.Contains(strings.ToLower(val), strings.ToLower(search))
+		})
+	})
+
 	return r, nextToken, trace.Wrap(err)
 }
 
