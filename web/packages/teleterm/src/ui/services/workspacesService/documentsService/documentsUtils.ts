@@ -41,11 +41,7 @@ import {
   routing,
 } from 'teleterm/ui/uri';
 
-import {
-  Document,
-  DocumentGateway,
-  isDocumentTshNodeWithServerId,
-} from './types';
+import { Document, DocumentGateway } from './types';
 
 /**
  * getResourceUri returns the URI of the cluster resource that is the subject of the document.
@@ -66,9 +62,7 @@ export function getResourceUri(
     case 'doc.gateway_kube':
       return document.targetUri;
     case 'doc.terminal_tsh_node':
-      return isDocumentTshNodeWithServerId(document)
-        ? document.serverUri
-        : undefined;
+      return document.serverUri;
     case 'doc.access_requests':
       return document.clusterUri;
     case 'doc.terminal_shell':
@@ -176,12 +170,10 @@ export function getStaticNameAndIcon(
         Icon: Kubernetes,
       };
     case 'doc.terminal_tsh_node':
-      return isDocumentTshNodeWithServerId(document)
-        ? {
-            name: document.title,
-            Icon: Server,
-          }
-        : undefined;
+      return {
+        name: document.title,
+        Icon: Server,
+      };
     case 'doc.access_requests':
       return {
         name: document.title,

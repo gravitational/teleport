@@ -23,7 +23,6 @@ import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import {
   Document,
   DocumentOrigin,
-  isDocumentTshNodeWithLoginHost,
   WorkspacesService,
 } from 'teleterm/ui/services/workspacesService';
 import * as uri from 'teleterm/ui/uri';
@@ -311,11 +310,6 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
           }
           // process tsh connections
           case 'doc.terminal_tsh_node': {
-            // DocumentTshNodeWithLoginHost is still in the process of resolving the hostname and
-            // doesn't have serverUri, so let's not create a connection for it.
-            if (isDocumentTshNodeWithLoginHost(doc)) {
-              break;
-            }
             const tshConn = draft.connections.find(
               getServerConnectionByDocument(doc)
             );

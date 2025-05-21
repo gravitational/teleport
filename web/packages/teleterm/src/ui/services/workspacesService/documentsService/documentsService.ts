@@ -49,7 +49,6 @@ import {
   DocumentOrigin,
   DocumentPtySession,
   DocumentTshNode,
-  DocumentTshNodeWithServerId,
   DocumentVnetDiagReport,
   DocumentVnetInfo,
   WebSessionRequest,
@@ -112,7 +111,7 @@ export class DocumentsService {
   createTshNodeDocument(
     serverUri: ServerUri,
     params: { origin: DocumentOrigin }
-  ): DocumentTshNodeWithServerId {
+  ): DocumentTshNode {
     const { params: routingParams } = routing.parseServerUri(serverUri);
     const uri = routing.getDocUri({ docId: unique() });
 
