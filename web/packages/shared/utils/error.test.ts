@@ -97,6 +97,8 @@ describe('ensureError', () => {
       expect(error).toBeInstanceOf(expectedInstance);
       expect(error.message).toBe(expectedMessage);
       expect(error.name).toBe(expectedName);
+      // Non-Error instances should have the original input attached as .cause.
+      expect(error.cause).toBe(input instanceof Error ? undefined : input);
     }
   );
 });

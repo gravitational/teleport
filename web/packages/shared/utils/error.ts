@@ -20,31 +20,35 @@
  * Converts any unknown input into an Error instance.
  * Preserves message and name if available.
  */
-export function ensureError(err: unknown): Error {
-  if (err instanceof Error) {
-    return err;
+export function ensureError(input: unknown): Error {
+  if (input instanceof Error) {
+    return input;
   }
 
-  if (err === null || err === undefined) {
-    return new Error();
+  if (input === null || input === undefined) {
+    return new Error('', { cause: input });
   }
 
-  if (typeof err === 'object') {
-    let message: string;
-    if ('message' in err) {
-      message = String(err.message);
-    } else {
-      message = JSON.stringify(err);
+  if (typeof input !== 'object') {
+    return new Error(String(input), { cause: input });
+  }
+
+  let message = '';
+  if ('message' in input) {
+    message = String(input.message);
+  } else {
+    try {
+      message = JSON.stringify(input);
+    } catch {
+      message = '[Unable to stringify the thrown value]';
     }
-
-    const error = new Error(message);
-    if ('name' in err && typeof err.name === 'string') {
-      error.name = err.name;
-    }
-    return error;
   }
 
-  return new Error(String(err));
+  const error = new Error(message, { cause: input });
+  if ('name' in input && typeof input.name === 'string') {
+    error.name = input.name;
+  }
+  return error;
 }
 
 /** Extracts an error message or returns a default one. */
