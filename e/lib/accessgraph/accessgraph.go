@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	_ "google.golang.org/grpc/health"
@@ -17,7 +18,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
-	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -36,6 +36,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
+
+type eventStream grpc.BidiStreamingClient[accessgraphv1.EventsStreamV2Request, accessgraphv1.EventsStreamV2Response]
+type auditLogStream grpc.BidiStreamingClient[accessgraphv1.AuditLogStreamRequest, accessgraphv1.AuditLogStreamResponse]
 
 // initializeAndWatchAccessGraph initializes the access graph service and watches the auth server for events.
 // This function acquires a lock on the backend to ensure that only one instance of auth server is sending
@@ -76,50 +79,15 @@ func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config
 			// Close the connection when the function returns.
 			defer accessGraphConn.Close()
 			client := accessgraphv1.NewAccessGraphServiceClient(accessGraphConn)
-
-			stream, err := client.EventsStreamV2(ctx)
+			eventStream, err := client.EventsStreamV2(ctx)
 			if err != nil {
-				log.ErrorContext(ctx, "Failed to get access graph service stream", "error", err)
+				log.ErrorContext(ctx, "Failed to get access graph service events stream", "error", err)
 				return trace.Wrap(err)
 			}
 
-			header, err := stream.Header()
-			if err != nil {
-				log.ErrorContext(ctx, "Failed to get access graph service stream header", "error", err)
-				return trace.Wrap(err)
-			}
-			const (
-				supportedResourcesKey = "supported-kinds"
-			)
-			supportedKinds := header.Get(supportedResourcesKey)
-			if len(supportedKinds) == 0 {
-				return trace.BadParameter("access graph service did not return supported kinds")
-			}
-
-			newCtx, cancel := context.WithCancel(ctx)
-			defer cancel()
-
-			go func() {
-				defer cancel()
-
-				for {
-					obj, err := stream.Recv()
-					if err != nil {
-						if errors.Is(err, context.Canceled) {
-							log.InfoContext(ctx, "access graph service connection was closed", "error", err)
-						} else {
-							log.ErrorContext(ctx, "Failed to receive message from access graph service", "error", err)
-						}
-						return
-					}
-
-					processTAGMessage(ctx, obj, authServer, log)
-				}
-			}()
-
+			ctx, cancel := context.WithCancel(ctx)
 			// Start a goroutine to watch the access graph service connection state.
-			// If the connection is closed, cancel the context to stop the event watcher
-			// before it tries to send any events to the access graph service.
+			// If the connection is closed, cancel the context to stop all stream processing.
 			go func() {
 				defer cancel()
 				if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
@@ -127,121 +95,146 @@ func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config
 				}
 			}()
 
-			eventWatcherSender := newTagEventWatcher(newCtx, stream)
-
-			var (
-				// we use two watchers to watch the auth server for events.
-				// one subscribes to the Cache service in order to watch for events
-				// that are supported by the cache such as: kube servers, app servers, users, roles...
-				// the other subscribes to the Services service in order to watch for events
-				// that aren't supported by the cache such as: devices, private keys, authorized keys...
-				// noOpWatcher is used to terminate the watcher if the context is canceled. This is used to
-				// avoid locks when connection is terminating.
-				// The watcher will be replaced with the real watcher if access graph service supports the associated kinds.
-				servicesWatcher    types.Watcher = &noOpWatcher{ctx}
-				cacheWatcher       types.Watcher = &noOpWatcher{ctx}
-				supportedResources []string
-			)
-
-			if svcWatchKinds := supportedKindsToWatcherKinds(supportedKinds, servicesWatcherKind); len(svcWatchKinds) > 0 {
-				servicesWatcher, err = authServer.Services.NewWatcher(
-					eventWatcherSender.Context(),
-					types.Watch{
-						Kinds:               svcWatchKinds,
-						AllowPartialSuccess: true,
-					},
-				)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				defer servicesWatcher.Close()
-				servicesSupportedResources, err := waitForInit(servicesWatcher)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				supportedResources = append(supportedResources, servicesSupportedResources...)
+			g, egCtx := errgroup.WithContext(ctx)
+			g.Go(func() error {
+				return processEventStream(egCtx, log, eventStream, authServer)
+			})
+			if config.AuditLog.Enabled {
+				g.Go(func() error {
+					return initiateAndProcessAuditLogStream(egCtx, log, client, authServer, config.AuditLog)
+				})
 			}
-
-			if cacheWatchKinds := supportedKindsToWatcherKinds(supportedKinds, cacheWatcherKind); len(cacheWatchKinds) > 0 {
-				cacheWatcher, err = authServer.Cache.NewWatcher(
-					eventWatcherSender.Context(),
-					types.Watch{
-						Kinds:               cacheWatchKinds,
-						AllowPartialSuccess: true,
-					},
-				)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				defer cacheWatcher.Close()
-				cacheSupportedResources, err := waitForInit(cacheWatcher)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				supportedResources = append(supportedResources, cacheSupportedResources...)
-			}
-
-			missingWatchKinds(ctx, log, supportedKinds, supportedResources)
-			errc := make(chan error, 1)
-			go func() {
-				// Start watching the auth server for events.
-				// Subscribe for new events before sending all resources.
-				// Otherwise, we might miss some events.
-				errc <- forwardEventsWatch(cacheWatcher, servicesWatcher, eventWatcherSender)
-			}()
-
-			log.DebugContext(ctx, "Sending teleport resources to access graph service")
-			// Send all teleport resources to the access graph service.
-			if err := sendTeleportResources(ctx, stream, authServer, supportedKinds); err != nil {
-				log.ErrorContext(ctx, "Failed to send teleport resources to access graph service", "error", err)
+			err = g.Wait()
+			if err != nil {
+				log.ErrorContext(ctx, "Failed to run access graph service", "error", err)
 				return trace.Wrap(err)
 			}
-
-			log.DebugContext(ctx, "Done sending teleport resources to access graph service")
-
-			for attemptsLeft := 3; ; {
-				accessGraphSettings, err := authServer.GetAccessGraphSettings(ctx)
-				if err == nil {
-					if accessGraphSettings.Status == nil {
-						accessGraphSettings.Status = &clusterconfigv1.AccessGraphSettingsStatus{}
-					}
-
-					accessGraphSettings.Status.InitialSyncComplete = true
-					_, err = authServer.UpdateAccessGraphSettings(ctx, accessGraphSettings)
-					if err == nil {
-						break
-					}
-				}
-
-				attemptsLeft--
-				if attemptsLeft == 0 {
-					return trace.Wrap(err)
-				}
-
-				select {
-				case <-time.After(time.Second):
-				case <-ctx.Done():
-					return nil
-				}
-			}
-
-			// Marks as ready and send delayed events.
-			if err := eventWatcherSender.markReady(); err != nil {
-				return trace.Wrap(err)
-			}
-
-			err = <-errc
-			if errors.Is(err, context.Canceled) {
-				log.InfoContext(ctx, "access graph service connection was closed", "error", err)
-				return trace.Wrap(err)
-			} else if err != nil {
-				log.ErrorContext(ctx, "Failed to start watching access graph service", "error", err)
-				return trace.Wrap(err)
-			}
-
 			return nil
 		})
 	return trace.Wrap(err)
+}
+
+func processEventStream(ctx context.Context, log *slog.Logger, stream eventStream, authServer *auth.Server) error {
+	header, err := stream.Header()
+	if err != nil {
+		log.ErrorContext(ctx, "Failed to get access graph service stream header", "error", err)
+		return trace.Wrap(err)
+	}
+	const supportedResourcesKey = "supported-kinds"
+
+	supportedKinds := header.Get(supportedResourcesKey)
+	if len(supportedKinds) == 0 {
+		return trace.BadParameter("access graph service did not return supported kinds")
+	}
+
+	newCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	go func() {
+		defer cancel()
+
+		for {
+			obj, err := stream.Recv()
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					log.InfoContext(ctx, "access graph service connection was closed", "error", err)
+				} else {
+					log.ErrorContext(ctx, "Failed to receive message from access graph service", "error", err)
+				}
+				return
+			}
+
+			processTAGMessage(ctx, obj, authServer, log)
+		}
+	}()
+
+	eventWatcherSender := newTagEventWatcher(newCtx, stream)
+
+	var (
+		// we use two watchers to watch the auth server for events.
+		// one subscribes to the Cache service in order to watch for events
+		// that are supported by the cache such as: kube servers, app servers, users, roles...
+		// the other subscribes to the Services service in order to watch for events
+		// that aren't supported by the cache such as: devices, private keys, authorized keys...
+		// noOpWatcher is used to terminate the watcher if the context is canceled. This is used to
+		// avoid locks when connection is terminating.
+		// The watcher will be replaced with the real watcher if access graph service supports the associated kinds.
+		servicesWatcher    types.Watcher = &noOpWatcher{ctx}
+		cacheWatcher       types.Watcher = &noOpWatcher{ctx}
+		supportedResources []string
+	)
+
+	if svcWatchKinds := supportedKindsToWatcherKinds(supportedKinds, servicesWatcherKind); len(svcWatchKinds) > 0 {
+		servicesWatcher, err := authServer.Services.NewWatcher(
+			eventWatcherSender.Context(),
+			types.Watch{
+				Kinds:               svcWatchKinds,
+				AllowPartialSuccess: true,
+			},
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer servicesWatcher.Close()
+		servicesSupportedResources, err := waitForInit(servicesWatcher)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		supportedResources = append(supportedResources, servicesSupportedResources...)
+	}
+
+	if cacheWatchKinds := supportedKindsToWatcherKinds(supportedKinds, cacheWatcherKind); len(cacheWatchKinds) > 0 {
+		cacheWatcher, err = authServer.Cache.NewWatcher(
+			eventWatcherSender.Context(),
+			types.Watch{
+				Kinds:               cacheWatchKinds,
+				AllowPartialSuccess: true,
+			},
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer cacheWatcher.Close()
+		cacheSupportedResources, err := waitForInit(cacheWatcher)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		supportedResources = append(supportedResources, cacheSupportedResources...)
+	}
+
+	missingWatchKinds(ctx, log, supportedKinds, supportedResources)
+	errc := make(chan error, 1)
+	go func() {
+		// Start watching the auth server for events.
+		// Subscribe for new events before sending all resources.
+		// Otherwise, we might miss some events.
+		errc <- forwardEventsWatch(cacheWatcher, servicesWatcher, eventWatcherSender)
+	}()
+
+	log.DebugContext(ctx, "Sending teleport resources to access graph service")
+	// Send all teleport resources to the access graph service.
+	if err := sendTeleportResources(ctx, stream, authServer, supportedKinds); err != nil {
+		log.ErrorContext(ctx, "Failed to send teleport resources to access graph service", "error", err)
+		return trace.Wrap(err)
+	}
+
+	log.DebugContext(ctx, "Done sending teleport resources to access graph service")
+
+	// Marks as ready and send delayed events.
+	if err := eventWatcherSender.markReady(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = <-errc
+	if errors.Is(err, context.Canceled) {
+		log.InfoContext(ctx, "access graph service connection was closed", "error", err)
+		return trace.Wrap(err)
+	} else if err != nil {
+		log.ErrorContext(ctx, "Failed to start watching access graph service", "error", err)
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 type eventSender interface {

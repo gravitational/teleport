@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -26,6 +27,16 @@ type ServiceClientConfig struct {
 	// Insecure is true if the access graph GRPC connection should be insecure.
 	// Do not use in production.
 	Insecure bool
+	// AuditLog contains configuration for processing audit log events.
+	AuditLog AuditLogConfig
+}
+
+// AuditLogConfig specifies the audit log event export setup.
+type AuditLogConfig struct {
+	// Enabled indicates if Audit Log event exporting is enabled.
+	Enabled bool
+	// StartDate is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
+	StartDate time.Time
 }
 
 type ClientCredentialsGetter = func() (*tls.Certificate, error)

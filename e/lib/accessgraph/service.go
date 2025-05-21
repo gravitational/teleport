@@ -225,6 +225,7 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 			Addr:     accessGraphAddr,
 			CA:       cfg.AccessGraph.CA,
 			Insecure: cfg.AccessGraph.Insecure,
+			AuditLog: AuditLogConfig(cfg.AccessGraph.AuditLog),
 		}
 
 		// TODO(jakule): Very excessive retrying, but we need to make sure that
