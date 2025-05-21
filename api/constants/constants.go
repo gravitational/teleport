@@ -148,25 +148,38 @@ const (
 	// SSHRSAType is the string which specifies an "ssh-rsa" formatted keypair
 	SSHRSAType = "ssh-rsa"
 
-	// OktaAssignmentStatusPending is represents a pending status for an Okta assignment.
+	// OktaAssignmentStatusPending represents a pending status for an Okta assignment.
 	OktaAssignmentStatusPending = "pending"
 
-	// OktaAssignmentStatusProcessing is represents an Okta assignment which is currently being acted on.
+	// OktaAssignmentStatusProcessing represents an Okta assignment which is currently being acted on.
 	OktaAssignmentStatusProcessing = "processing"
 
-	// OktaAssignmentStatusSuccessful is represents a successfully applied Okta assignment.
+	// OktaAssignmentStatusSuccessful represents a successfully applied Okta assignment.
 	OktaAssignmentStatusSuccessful = "successful"
 
-	// OktaAssignmentStatusFailed is represents an Okta assignment which failed to apply. It will be retried.
+	// OktaAssignmentAccessListRemovalPendingOktaCleanup indicates that the user has been removed
+	// from the Access List, but the corresponding cleanup action—removal from
+	// the associated Okta group—has not yet been executed.
+	//
+	// This status represents a transitional state where internal access control
+	// has been updated (i.e., the user was removed from the Access List), but the
+	// change is not yet reflected in the user assignments state. This prevents
+	// importing-recreating Okta assigns in teleport  during asynchronous Okta ACL sync.
+	// when the ongoing Remove user from Access List operation is in progress.
+	// Once the user assignments are evaluator successfully processes the Access List
+	// membership changes, the associated assignment will be deleted.
+	OktaAssignmentAccessListRemovalPendingOktaCleanup = "acl_removal_pending_okta_cleanup"
+
+	// OktaAssignmentStatusFailed represents an Okta assignment which failed to apply. It will be retried.
 	OktaAssignmentStatusFailed = "failed"
 
-	// OktaAssignmentStatusPending is represents a unknown status for an Okta assignment.
+	// OktaAssignmentStatusUnknown represents a unknown status for an Okta assignment.
 	OktaAssignmentStatusUnknown = "unknown"
 
 	// OktaAssignmentTargetApplication is an application target of an Okta assignment.
 	OktaAssignmentTargetApplication = "application"
 
-	// OktaAssignmentActionTargetGroup is a group target of an Okta assignment.
+	// OktaAssignmentTargetGroup is a group target of an Okta assignment.
 	OktaAssignmentTargetGroup = "group"
 
 	// OktaAssignmentTargetUnknown is an unknown target of an Okta assignment.

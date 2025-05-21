@@ -286,6 +286,8 @@ func (o *OktaAssignmentV1) GetStatus() string {
 		return constants.OktaAssignmentStatusSuccessful
 	case OktaAssignmentSpecV1_FAILED:
 		return constants.OktaAssignmentStatusFailed
+	case OktaAssignmentSpecV1_ACL_REMOVAL_PENDING_OKTA_CLEANUP:
+		return constants.OktaAssignmentAccessListRemovalPendingOktaCleanup
 	default:
 		return constants.OktaAssignmentStatusUnknown
 	}
