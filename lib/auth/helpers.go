@@ -532,7 +532,6 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		Provisioner:             p.AuthServer.Services.Provisioner,
 		Restrictions:            p.AuthServer.Services.Restrictions,
 		SAMLIdPServiceProviders: p.AuthServer.Services.SAMLIdPServiceProviders,
-		SAMLIdPSession:          p.AuthServer.Services.Identity,
 		SecReports:              p.AuthServer.Services.SecReports,
 		SnowflakeSession:        p.AuthServer.Services.Identity,
 		SPIFFEFederations:       p.AuthServer.Services.SPIFFEFederations,

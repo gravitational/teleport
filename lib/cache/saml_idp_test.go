@@ -18,12 +18,7 @@ package cache
 
 import (
 	"context"
-	"strconv"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -60,45 +55,4 @@ func TestSAMLIdPServiceProviders(t *testing.T) {
 		update:    p.samlIDPServiceProviders.UpdateSAMLIdPServiceProvider,
 		deleteAll: p.samlIDPServiceProviders.DeleteAllSAMLIdPServiceProviders,
 	})
-}
-
-func TestSAMLIdPSessions(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	for i := 0; i < 31; i++ {
-		err := p.samlIdPSessionsS.UpsertSAMLIdPSession(t.Context(), &types.WebSessionV2{
-			Kind:    types.KindWebSession,
-			SubKind: types.KindSAMLIdPSession,
-			Version: types.V2,
-			Metadata: types.Metadata{
-				Name: "saml-session" + strconv.Itoa(i+1),
-			},
-			Spec: types.WebSessionSpecV2{
-				User: "fish",
-			},
-		})
-		require.NoError(t, err)
-	}
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		for i := 0; i < 31; i++ {
-			session, err := p.cache.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{SessionID: "saml-session" + strconv.Itoa(i+1)})
-			assert.NoError(t, err)
-			assert.NotNil(t, session)
-		}
-	}, 15*time.Second, 100*time.Millisecond)
-
-	require.NoError(t, p.samlIdPSessionsS.DeleteAllSAMLIdPSessions(ctx))
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		for i := 0; i < 31; i++ {
-			session, err := p.cache.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{SessionID: "saml-session" + strconv.Itoa(i+1)})
-			assert.Error(t, err)
-			assert.Nil(t, session)
-		}
-	}, 15*time.Second, 100*time.Millisecond)
 }
