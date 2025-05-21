@@ -43,7 +43,15 @@ Teleport's web UI will show latency measurements during remote desktop sessions
 which indicate both the latency between the user and the Teleport proxy as well
 as the latency between the Teleport proxy and the target host.
 
-#### TODO(zmb3)
+#### Machine & Workload Identity - Sigstore attestation
+
+Machine & Workload Identity will support attesting Sigstore signatures of workloads
+running on Docker, Podman and Kubernetes. This will allow the issuance of credentials
+to be restricted to workloads with container images produced by legitimate CI/CD systems.
+
+#### Azure DevOps joining
+
+Teleport will support secretless authentication for Bots running within Azure DevOps pipelines.
 
 ### 18.0.0
 
