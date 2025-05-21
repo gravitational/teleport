@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { ButtonText, Flex, H2, Link } from 'design';
+import { Box, ButtonText, Flex, H2, Link } from 'design';
 import { Trash } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
@@ -44,7 +44,7 @@ export const EditorHeader = ({
   }
 
   return (
-    <>
+    <Box>
       <Flex alignItems="center" mb={3} justifyContent="space-between" flex="1">
         <H2>{header}</H2>
         {requiresEnrollingPlugins && (
@@ -80,7 +80,7 @@ export const EditorHeader = ({
           onDelete={() => onDelete(rule)}
         />
       )}
-    </>
+    </Box>
   );
 };
 

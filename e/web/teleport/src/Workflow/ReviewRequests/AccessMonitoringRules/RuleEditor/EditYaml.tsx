@@ -1,4 +1,4 @@
-import { Box, Flex } from 'design';
+import { Flex } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 import { State as Attempt } from 'shared/hooks/useAttemptNext';
 
@@ -64,8 +64,8 @@ export const EditYaml = ({
   }
 
   return (
-    <Box data-testid="yaml">
-      <Flex height="400px" my={5}>
+    <Flex data-testid="yaml" flex="1" flexDirection="column">
+      <Flex height="400px" my={5} flex="1" flexDirection="column">
         <TextEditor
           readOnly={false}
           data={[{ content: yamlEditor.content, type: 'yaml' }]}
@@ -79,6 +79,6 @@ export const EditYaml = ({
         disabled={attempt.status === 'processing' || !yamlEditor.isDirty}
         isEditing={isEditing}
       />
-    </Box>
+    </Flex>
   );
 };

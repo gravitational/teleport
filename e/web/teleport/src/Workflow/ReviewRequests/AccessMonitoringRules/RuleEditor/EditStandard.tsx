@@ -302,7 +302,7 @@ export const EditStandard = ({
               )}
               <Box>
                 <Text bold mb={2}>
-                  Recipients
+                  Notification Routing
                 </Text>
                 {editor === AccessMonitoringRuleType.Review && (
                   <FieldCheckbox
