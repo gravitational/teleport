@@ -161,9 +161,7 @@ linters:
               desc: use "crypto" or "x/crypto" instead
         oidc:
           deny:
-            - pkg: github.com/coreos/go-oidc$
-              desc: 'github.com/zitadel/oidc/v3 should be used instead'
-            - pkg: github.com/coreos/go-oidc/v3$
+            - pkg: github.com/coreos/go-oidc
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
             - pkg: github.com/zitadel/oidc$
               desc: 'github.com/zitadel/oidc/v3 should be used instead'

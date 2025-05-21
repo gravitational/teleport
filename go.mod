@@ -197,7 +197,6 @@ require (
 	github.com/sigstore/sigstore v1.9.4
 	github.com/sigstore/sigstore-go v0.7.1
 	github.com/sijms/go-ora/v2 v2.8.24
-	github.com/sirupsen/logrus v1.9.3
 	github.com/snowflakedb/gosnowflake v1.14.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spiffe/aws-spiffe-workload-helper v0.0.1-rc.8
@@ -519,6 +518,7 @@ require (
 	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07 // indirect
 	github.com/sigstore/rekor v1.3.9 // indirect
 	github.com/sigstore/timestamp-authority v1.2.5 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sony/gobreaker v0.5.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
