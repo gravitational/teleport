@@ -69,6 +69,8 @@ import (
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	scopedrolev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopedrole/v1"
+	scopedtokenv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopedtoken/v1"
 	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
@@ -105,6 +107,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
+	"github.com/gravitational/teleport/lib/auth/scopes/accesscontrol"
+	"github.com/gravitational/teleport/lib/auth/scopes/provisioning"
 	"github.com/gravitational/teleport/lib/auth/secreports/secreportsv1"
 	"github.com/gravitational/teleport/lib/auth/stableunixusers"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
@@ -5435,6 +5439,22 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		server,
 		stableUNIXUsersServiceServer,
 	)
+
+	scopedAccessControl, err := accesscontrol.New(accesscontrol.Config{
+		Authorizer: cfg.Authorizer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating scoped access control service")
+	}
+	scopedrolev1.RegisterScopedRoleServiceServer(server, scopedAccessControl)
+
+	scopedProvisioning, err := provisioning.New(provisioning.Config{
+		Authorizer: cfg.Authorizer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating scoped provisioning service")
+	}
+	scopedtokenv1.RegisterScopedTokenServiceServer(server, scopedProvisioning)
 
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
