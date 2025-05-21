@@ -514,7 +514,7 @@ func (a *App) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map
 
 	user, err := a.apiClient.GetUser(ctx, req.GetUser(), false)
 	if err != nil {
-		log.WarnContext(ctx, "Missing permissions to apply user traits to login roles, please add user.read to the associated role", "error", err)
+		log.Warnf("Missing permissions to apply user traits to login roles, please add user.read to the associated role: %v", err)
 		for _, role := range req.GetRoles() {
 			currentRole, err := a.apiClient.GetRole(ctx, role)
 			if err != nil {
