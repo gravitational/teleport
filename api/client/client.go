@@ -1551,6 +1551,7 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 // Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
 // SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	resp, err := c.grpc.ListSAMLIdPSessions(
 		ctx,
 		&proto.ListSAMLIdPSessionsRequest{
@@ -1598,6 +1599,7 @@ func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 // Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
 // SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	resp, err := c.grpc.CreateSAMLIdPSession(ctx, &proto.CreateSAMLIdPSessionRequest{
 		SessionID:   req.SessionID,
 		Username:    req.Username,
@@ -1626,6 +1628,7 @@ func (c *Client) GetSnowflakeSession(ctx context.Context, req types.GetSnowflake
 // Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
 // SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	resp, err := c.grpc.GetSAMLIdPSession(ctx, &proto.GetSAMLIdPSessionRequest{
 		SessionID: req.SessionID,
 	})
@@ -1657,6 +1660,7 @@ func (c *Client) DeleteSnowflakeSession(ctx context.Context, req types.DeleteSno
 // SAML IdP Sessions are directly tied to their parent web sessions instead. This endpoint
 // will be removed in v17.
 func (c *Client) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.DeleteSAMLIdPSession(ctx, &proto.DeleteSAMLIdPSessionRequest{
 		SessionID: req.SessionID,
 	})
@@ -1679,6 +1683,7 @@ func (c *Client) DeleteAllSnowflakeSessions(ctx context.Context) error {
 // Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
 // SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) DeleteAllSAMLIdPSessions(ctx context.Context) error {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.DeleteAllSAMLIdPSessions(ctx, &emptypb.Empty{})
 	return trace.Wrap(err)
 }
@@ -1696,6 +1701,7 @@ func (c *Client) DeleteUserSAMLIdPSessions(ctx context.Context, username string)
 	req := &proto.DeleteUserSAMLIdPSessionsRequest{
 		Username: username,
 	}
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.DeleteUserSAMLIdPSessions(ctx, req)
 	return trace.Wrap(err)
 }
@@ -2769,6 +2775,7 @@ func (c *Client) ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClien
 func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	resp, err := c.ClusterConfigClient().GetClusterNetworkingConfig(ctx, &clusterconfigpb.GetClusterNetworkingConfigRequest{})
 	if err != nil && trace.IsNotImplemented(err) {
+		//nolint:staticcheck // this rpc is used as a fallback
 		resp, err = c.grpc.GetClusterNetworkingConfig(ctx, &emptypb.Empty{})
 	}
 	return resp, trace.Wrap(err)
@@ -2777,17 +2784,20 @@ func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterN
 // SetClusterNetworkingConfig sets cluster networking configuration.
 // Deprecated: Use UpdateClusterNetworkingConfig or UpsertClusterNetworkingConfig instead.
 func (c *Client) SetClusterNetworkingConfig(ctx context.Context, netConfig *types.ClusterNetworkingConfigV2) error {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.SetClusterNetworkingConfig(ctx, netConfig)
 	return trace.Wrap(err)
 }
 
 // setClusterNetworkingConfig sets cluster networking configuration.
 func (c *Client) setClusterNetworkingConfig(ctx context.Context, netConfig *types.ClusterNetworkingConfigV2) (types.ClusterNetworkingConfig, error) {
+	//nolint:staticcheck // this rpc is used as a fallback
 	_, err := c.grpc.SetClusterNetworkingConfig(ctx, netConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	//nolint:staticcheck // this rpc is used as a fallback
 	cfg, err := c.grpc.GetClusterNetworkingConfig(ctx, &emptypb.Empty{})
 	return cfg, trace.Wrap(err)
 }
@@ -2830,6 +2840,7 @@ func (c *Client) UpsertClusterNetworkingConfig(ctx context.Context, cfg types.Cl
 func (c *Client) ResetClusterNetworkingConfig(ctx context.Context) error {
 	_, err := c.ClusterConfigClient().ResetClusterNetworkingConfig(ctx, &clusterconfigpb.ResetClusterNetworkingConfigRequest{})
 	if err != nil && trace.IsNotImplemented(err) {
+		//nolint:staticcheck // this rpc is used as a fallback
 		_, err := c.grpc.ResetClusterNetworkingConfig(ctx, &emptypb.Empty{})
 		return trace.Wrap(err)
 	}
@@ -2841,6 +2852,7 @@ func (c *Client) ResetClusterNetworkingConfig(ctx context.Context) error {
 func (c *Client) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	resp, err := c.ClusterConfigClient().GetSessionRecordingConfig(ctx, &clusterconfigpb.GetSessionRecordingConfigRequest{})
 	if err != nil && trace.IsNotImplemented(err) {
+		//nolint:staticcheck // this rpc is used as a fallback
 		resp, err = c.grpc.GetSessionRecordingConfig(ctx, &emptypb.Empty{})
 	}
 
@@ -2855,6 +2867,7 @@ func (c *Client) SetSessionRecordingConfig(ctx context.Context, recConfig types.
 		return trace.BadParameter("invalid type %T", recConfig)
 	}
 
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.SetSessionRecordingConfig(ctx, recConfigV2)
 	return trace.Wrap(err)
 }
@@ -2866,10 +2879,12 @@ func (c *Client) setSessionRecordingConfig(ctx context.Context, recConfig types.
 		return nil, trace.BadParameter("invalid type %T", recConfig)
 	}
 
+	//nolint:staticcheck // this rpc is used as a fallback
 	if _, err := c.grpc.SetSessionRecordingConfig(ctx, recConfigV2); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	//nolint:staticcheck // this rpc is used as a fallback
 	cfg, err := c.grpc.GetSessionRecordingConfig(ctx, &emptypb.Empty{})
 	return cfg, trace.Wrap(err)
 }
@@ -2878,6 +2893,7 @@ func (c *Client) setSessionRecordingConfig(ctx context.Context, recConfig types.
 func (c *Client) ResetSessionRecordingConfig(ctx context.Context) error {
 	_, err := c.ClusterConfigClient().ResetSessionRecordingConfig(ctx, &clusterconfigpb.ResetSessionRecordingConfigRequest{})
 	if err != nil && trace.IsNotImplemented(err) {
+		//nolint:staticcheck // this rpc is used as a fallback
 		_, err := c.grpc.ResetSessionRecordingConfig(ctx, &emptypb.Empty{})
 		return trace.Wrap(err)
 	}
@@ -2922,6 +2938,7 @@ func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 	pref, err := c.ClusterConfigClient().GetAuthPreference(ctx, &clusterconfigpb.GetAuthPreferenceRequest{})
 	// TODO(tross) DELETE IN v18.0.0
 	if err != nil && trace.IsNotImplemented(err) {
+		//nolint:staticcheck // this rpc is used as a fallback
 		pref, err = c.grpc.GetAuthPreference(ctx, &emptypb.Empty{})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2940,6 +2957,7 @@ func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPrefe
 		return trace.BadParameter("invalid type %T", authPref)
 	}
 
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.SetAuthPreference(ctx, authPrefV2)
 	return trace.Wrap(err)
 }
@@ -2947,11 +2965,13 @@ func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPrefe
 // setAuthPreference sets cluster auth preference via the legacy mechanism.
 // TODO(tross) DELETE IN v18.0.0
 func (c *Client) setAuthPreference(ctx context.Context, authPref *types.AuthPreferenceV2) (types.AuthPreference, error) {
+	//nolint:staticcheck // this rpc is used as a fallback
 	_, err := c.grpc.SetAuthPreference(ctx, authPref)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	//nolint:staticcheck // this rpc is used as a fallback
 	pref, err := c.grpc.GetAuthPreference(ctx, &emptypb.Empty{})
 	return pref, trace.Wrap(err)
 }
@@ -2961,6 +2981,7 @@ func (c *Client) ResetAuthPreference(ctx context.Context) error {
 	_, err := c.ClusterConfigClient().ResetAuthPreference(ctx, &clusterconfigpb.ResetAuthPreferenceRequest{})
 	// TODO(tross) DELETE IN v18.0.0
 	if err != nil && trace.IsNotImplemented(err) {
+		//nolint:staticcheck // this rpc is used as a fallback
 		_, err := c.grpc.ResetAuthPreference(ctx, &emptypb.Empty{})
 		return trace.Wrap(err)
 	}
