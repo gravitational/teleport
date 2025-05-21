@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 	mssql "github.com/microsoft/go-mssqldb"
+	"github.com/microsoft/go-mssqldb/msdsn"
 )
 
 // procIDToName maps procID to the special stored procedure name
@@ -110,8 +111,12 @@ func toRPCRequest(p Packet) (*RPCRequest, error) {
 	}
 
 	tds := mssql.NewTdsBuffer(data[int(r.Size())-r.Len():], r.Len())
-	ti := mssql.ReadTypeInfo(tds)
-	val := ti.Reader(&ti, tds)
+	typeId, err := tds.ReadByte()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ti := mssql.ReadTypeInfo(tds, typeId, nil, msdsn.EncodeParameters{GuidConversion: false})
+	val := ti.Reader(&ti, tds, nil)
 
 	return &RPCRequest{
 		Packet:     p,
