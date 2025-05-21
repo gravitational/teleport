@@ -159,6 +159,10 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 						},
 					},
 				},
+				Omitted: []*autoupdatev1pb.AutoUpdateAgentReportSpecOmitted{
+					{Reason: omissionReasonUpdaterPinned, Count: 1},
+					{Reason: omissionReasonUpdaterDisabled, Count: 1},
+				},
 			},
 		},
 		{
@@ -262,7 +266,10 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 
 			report, err := auth.generateAgentVersionReport(ctx)
 			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(tt.expected, report.GetSpec(), protocmp.Transform()))
+			require.Empty(t, cmp.Diff(
+				tt.expected, report.GetSpec(),
+				protocmp.Transform(),
+				protocmp.SortRepeatedFields(&autoupdatev1pb.AutoUpdateAgentReportSpec{}, "omitted")))
 		})
 	}
 }
