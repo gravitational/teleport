@@ -267,6 +267,7 @@ message AutoUpdateAgentReportSpec {
   // timestamp is when the report was generated.
   google.protobuf.Timestamp timestamp = 1;
   map<string, AutoUpdateAgentReportSpecGroup> groups = 2;
+  repeated AutoUpdateAgentReportSpecOmitted omitted = 3;
 }
 
 // AutoupdateAgentReportSpecGroup is the report for a specific update group.
@@ -278,4 +279,11 @@ message AutoUpdateAgentReportSpecGroup {
 // (update group, version) combination.
 message AutoUpdateAgentReportSpecGroupVersion {
   int32 count = 1;
+}
+
+// AutoUpdateAgentReportSpecOmitted carries information about agents that
+// were omitted from the report. Only intended for free-form, human consumption.
+message AutoUpdateAgentReportSpecOmitted {
+  int64 count = 1;
+  string reason = 2;
 }

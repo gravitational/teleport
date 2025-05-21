@@ -31,9 +31,20 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 )
 
+const (
+	omissionReasonUpdaterDisabled   = "updater is disabled"
+	omissionReasonUpdaterPinned     = "updater is pinning a specific version"
+	omissionReasonUpdaterUnreadable = "agent cannot read updater status"
+	omissionReasonUpdaterUnknown    = "unknown updater status"
+	omissionReasonUpdaterV1         = "managed updates v1 updater does not support agent reports"
+	omissionReasonUpdaterTooOld     = "updater version does not support agent reports"
+	omissionReasonNoUpdater         = "agent has no updater"
+)
+
 type instanceReport struct {
 	data      map[string]instanceGroupReport
 	timestamp time.Time
+	omissions map[string]int
 }
 
 func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
@@ -54,14 +65,24 @@ func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
 
 	hello := handle.Hello()
 
+	switch hello.ExternalUpgrader {
+	case "":
+		ir.omissions[omissionReasonNoUpdater] += 1
+		return
+	case types.UpgraderKindSystemdUnit:
+		ir.omissions[omissionReasonUpdaterV1] += 1
+		return
+	}
+
 	// If the machine has no updater, we skip it
 	if hello.ExternalUpgrader == "" {
 		return
 	}
 
-	// Reject instance not advertising
+	// Reject instance not advertising updater info
 	updaterInfo := hello.GetUpdaterInfo()
 	if updaterInfo == nil {
+		ir.omissions[omissionReasonUpdaterTooOld] += 1
 		return
 	}
 
@@ -69,12 +90,25 @@ func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
 	// They might be running too old versions.
 	updateGroup := updaterInfo.UpdateGroup
 	if updateGroup == "" {
+		ir.omissions[omissionReasonUpdaterTooOld] += 1
 		return
 	}
 
 	// We skip instances whose updater status is not OK.
 	status := updaterInfo.UpdaterStatus
-	if status != types.UpdaterStatus_UPDATER_STATUS_OK {
+	switch status {
+	case types.UpdaterStatus_UPDATER_STATUS_OK:
+	case types.UpdaterStatus_UPDATER_STATUS_DISABLED:
+		ir.omissions[omissionReasonUpdaterDisabled] += 1
+		return
+	case types.UpdaterStatus_UPDATER_STATUS_PINNED:
+		ir.omissions[omissionReasonUpdaterPinned] += 1
+		return
+	case types.UpdaterStatus_UPDATER_STATUS_UNREADABLE:
+		ir.omissions[omissionReasonUpdaterUnreadable] += 1
+		return
+	default:
+		ir.omissions[omissionReasonUpdaterUnknown] += 1
 		return
 	}
 
@@ -109,13 +143,18 @@ func (a *Server) generateAgentVersionReport(ctx context.Context) (*autoupdatev1p
 	now := a.clock.Now()
 
 	a.logger.DebugContext(ctx, "Collecting agent versions from inventory")
-	rawreport := instanceReport{timestamp: now, data: make(map[string]instanceGroupReport)}
+	rawreport := instanceReport{
+		timestamp: now,
+		data:      make(map[string]instanceGroupReport),
+		omissions: make(map[string]int),
+	}
 	a.inventory.AllHandles(rawreport.collectInstance)
 
 	a.logger.DebugContext(ctx, "Building the agent version report")
 	spec := &autoupdatev1pb.AutoUpdateAgentReportSpec{
 		Timestamp: timestamppb.New(a.clock.Now()),
 		Groups:    make(map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroup, len(rawreport.data)),
+		Omitted:   make([]*autoupdatev1pb.AutoUpdateAgentReportSpecOmitted, 0, len(rawreport.omissions)),
 	}
 
 	// TODO(hugoShaka): gracefully handle too many groups or versions (sort and report only the largest ones).
@@ -131,6 +170,13 @@ func (a *Server) generateAgentVersionReport(ctx context.Context) (*autoupdatev1p
 		spec.Groups[groupName] = &autoupdatev1pb.AutoUpdateAgentReportSpecGroup{
 			Versions: versions,
 		}
+	}
+
+	for reason, count := range rawreport.omissions {
+		spec.Omitted = append(spec.Omitted, &autoupdatev1pb.AutoUpdateAgentReportSpecOmitted{
+			Reason: reason,
+			Count:  int64(count),
+		})
 	}
 
 	report, err := autoupdate.NewAutoUpdateAgentReport(spec, a.ServerID)
