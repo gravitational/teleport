@@ -35,20 +35,20 @@ import (
 type LDAPConfig struct {
 	// Addr is the LDAP server address in the form host:port.
 	// Standard port is 636 for LDAPS.
-	Addr string //nolint:unused // False-positive
+	Addr string
 	// Domain is an Active Directory domain name, like "example.com".
-	Domain string //nolint:unused // False-positive
+	Domain string
 	// Username is an LDAP username, like "EXAMPLE\Administrator", where
 	// "EXAMPLE" is the NetBIOS version of Domain.
-	Username string //nolint:unused // False-positive
+	Username string
 	// SID is the SID for the user specified by Username.
-	SID string //nolint:unused // False-positive
+	SID string
 	// InsecureSkipVerify decides whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
-	InsecureSkipVerify bool //nolint:unused // False-positive
+	InsecureSkipVerify bool
 	// ServerName is the name of the LDAP server for TLS.
-	ServerName string //nolint:unused // False-positive
+	ServerName string
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
-	CA *x509.Certificate //nolint:unused // False-positive
+	CA *x509.Certificate
 }
 
 // Check verifies this LDAPConfig
@@ -100,11 +100,15 @@ const searchPageSize = 1000
 // is closed. Callers should check for trace.ConnectionProblem errors
 // and provide a new client with [SetClient].
 type LDAPClient struct {
-	// Cfg is the LDAPConfig
-	Cfg LDAPConfig
-
 	mu     sync.Mutex
 	client ldap.Client
+}
+
+// NewLDAPClient returns new LDAPClient. Parameter client may be nil.
+func NewLDAPClient(client ldap.Client) *LDAPClient {
+	return &LDAPClient{
+		client: client,
+	}
 }
 
 // SetClient sets the underlying ldap.Client

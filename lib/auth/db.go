@@ -28,6 +28,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -158,7 +159,7 @@ func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		// Pass through ExtKeyUsage (which we need for Smartcard Logon usage)
 		// and SubjectAltName (which we need for otherName SAN, not supported
 		// out of the box in crypto/x509) extensions only.
-		certReq.ExtraExtensions = filterExtensions(csr.Extensions, oidExtKeyUsage, oidSubjectAltName)
+		certReq.ExtraExtensions = filterExtensions(a.CloseContext(), a.logger, csr.Extensions, oidExtKeyUsage, oidSubjectAltName, oidADUserMapping)
 		certReq.KeyUsage = x509.KeyUsageDigitalSignature
 		// CRL is required for Windows smartcard certs.
 		certReq.CRLDistributionPoints = []string{req.CRLEndpoint}
@@ -396,13 +397,19 @@ func getSnowflakeJWTParams(accountName, userName string, publicKey []byte) (stri
 	return subject, issuer
 }
 
-func filterExtensions(extensions []pkix.Extension, oids ...asn1.ObjectIdentifier) []pkix.Extension {
+func filterExtensions(ctx context.Context, logger *slog.Logger, extensions []pkix.Extension, oids ...asn1.ObjectIdentifier) []pkix.Extension {
 	filtered := make([]pkix.Extension, 0, len(oids))
 	for _, e := range extensions {
+		matched := false
 		for _, id := range oids {
 			if e.Id.Equal(id) {
-				filtered = append(filtered, e)
+				matched = true
 			}
+		}
+		if matched {
+			filtered = append(filtered, e)
+		} else {
+			logger.WarnContext(ctx, "filtering out unexpected certificate extension; this may indicate Teleport bug", "oid", e.Id.String(), "value", e.Value, "critical", e.Critical)
 		}
 	}
 	return filtered
@@ -412,6 +419,7 @@ func filterExtensions(extensions []pkix.Extension, oids ...asn1.ObjectIdentifier
 var (
 	oidExtKeyUsage    = asn1.ObjectIdentifier{2, 5, 29, 37}
 	oidSubjectAltName = asn1.ObjectIdentifier{2, 5, 29, 17}
+	oidADUserMapping  = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 25, 2}
 
 	oidExtKeyUsageServerAuth       = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 1}
 	oidExtKeyUsageClientAuth       = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 2}

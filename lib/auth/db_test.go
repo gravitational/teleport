@@ -22,6 +22,8 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -223,4 +225,44 @@ func mustVerifyCert(t *testing.T, rootPEM, leafPEM []byte, keyUsages ...x509.Ext
 	// Verify if the generated certificate can be verified with the correct CA.
 	_, err = leafCert.Verify(opts)
 	require.NoError(t, err)
+}
+
+func TestFilterExtensions(t *testing.T) {
+	oidA := asn1.ObjectIdentifier{1, 2, 3, 4}
+	oidB := asn1.ObjectIdentifier{1, 2, 3, 5}
+	extA := pkix.Extension{Id: oidA, Value: []byte("a")}
+	extB := pkix.Extension{Id: oidB, Value: []byte("b")}
+
+	tests := []struct {
+		name        string
+		input       []pkix.Extension
+		allowedOIDs []asn1.ObjectIdentifier
+		expected    []pkix.Extension
+	}{
+		{
+			name:        "keeps allowed extension",
+			input:       []pkix.Extension{extA},
+			allowedOIDs: []asn1.ObjectIdentifier{oidA},
+			expected:    []pkix.Extension{extA},
+		},
+		{
+			name:        "filters disallowed extension",
+			input:       []pkix.Extension{extA},
+			allowedOIDs: []asn1.ObjectIdentifier{oidB},
+			expected:    []pkix.Extension{},
+		},
+		{
+			name:        "keeps only allowed extension",
+			input:       []pkix.Extension{extA, extB},
+			allowedOIDs: []asn1.ObjectIdentifier{oidA},
+			expected:    []pkix.Extension{extA},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := filterExtensions(context.Background(), slog.Default(), tt.input, tt.allowedOIDs...)
+			require.Equal(t, tt.expected, got)
+		})
+	}
 }
