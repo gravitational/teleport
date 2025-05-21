@@ -25,8 +25,7 @@ import init, {
   init_wasm_log,
 } from 'shared/libs/ironrdp/pkg/ironrdp';
 import Logger from 'shared/libs/logger';
-import { isAbortError } from 'shared/utils/abortError';
-import { ensureError } from 'shared/utils/error';
+import { ensureError, isAbortError } from 'shared/utils/error';
 
 import Codec, {
   FileType,
