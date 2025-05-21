@@ -86,11 +86,13 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/azuredevops"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/cache"
@@ -656,6 +658,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if as.azureDevopsIDTokenValidator == nil {
+		as.azureDevopsIDTokenValidator = azuredevops.NewIDTokenValidator()
+	}
 	if as.circleCITokenValidate == nil {
 		as.circleCITokenValidate = func(
 			ctx context.Context, organizationID, token string,
@@ -1090,6 +1095,11 @@ type Server struct {
 	// the auth server. It can be overridden for the purpose of tests.
 	gitlabIDTokenValidator gitlabIDTokenValidator
 
+	// azureDevopsIDTokenValidator allows ID tokens from Azure DevOps to be
+	// validated by the auth server. It can be overridden for the purpose of
+	// tests.
+	azureDevopsIDTokenValidator azureDevopsIDTokenValidator
+
 	// tpmValidator allows TPMs to be validated by the auth server. It can be
 	// overridden for the purpose of tests.
 	tpmValidator func(
@@ -1165,6 +1175,10 @@ type Server struct {
 	// GithubUserAndTeamsOverride overrides the user and teams that would
 	// normally be fetched from the GitHub API. Used for testing.
 	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
+
+	// sigstorePolicyEvaluator checks workload signatures and attestations
+	// against Sigstore policies.
+	sigstorePolicyEvaluator workloadidentityv1.SigstorePolicyEvaluator
 
 	// logger is the logger used by the auth server.
 	logger *slog.Logger
@@ -7951,4 +7965,25 @@ func DefaultDNSNamesForRole(role types.SystemRole) []string {
 		}
 	}
 	return nil
+}
+
+// SetSigstorePolicyEvaluator sets the SigstorePolicyEvaluator. It's called from
+// the enterprise auth plugin.
+func (s *Server) SetSigstorePolicyEvaluator(eval workloadidentityv1.SigstorePolicyEvaluator) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.sigstorePolicyEvaluator = eval
+}
+
+// GetSigstorePolicyEvaluator returns the configured SigstorePolicyEvaluator. If
+// none is configured, the Community Edition implementation will be returned.
+func (s *Server) GetSigstorePolicyEvaluator() workloadidentityv1.SigstorePolicyEvaluator {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	if e := s.sigstorePolicyEvaluator; e != nil {
+		return e
+	}
+	return workloadidentityv1.OSSSigstorePolicyEvaluator{}
 }
