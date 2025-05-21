@@ -23,6 +23,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"runtime/debug"
 
 	"github.com/gravitational/trace"
 
@@ -42,7 +43,7 @@ func NewEngine(ec common.EngineConfig) common.Engine {
 		Connector: &connector{
 			DBAuth: ec.Auth,
 
-			kerberos: kerberos.NewClientProvider(ec.AuthClient, ec.DataDir),
+			kerberos: kerberos.NewClientProvider(ec.AuthClient, ec.DataDir, ec.Log),
 		},
 	}
 }
@@ -132,7 +133,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, clientErrCh chan<- error, sessionCtx *common.Session) {
 	defer func() {
 		if r := recover(); r != nil {
-			e.Log.ErrorContext(e.Context, "Recovered while handling DB connection", "recover", r)
+			e.Log.WarnContext(e.Context, "Recovered while handling DB connection", "problem", r, "stack", debug.Stack())
 			err := trace.BadParameter("failed to handle client connection")
 			e.SendError(err)
 		}
@@ -167,7 +168,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 			sqlPacket, err := e.toSQLPacket(initialPacketHeader, p, &chunkData)
 			switch {
 			case err != nil:
-				e.Log.ErrorContext(e.Context, "Failed to parse SQLServer packet.", "error", err)
+				e.Log.WarnContext(e.Context, "Failed to parse SQLServer packet.", "error", err)
 				e.emitMalformedPacket(e.Context, sessionCtx, p)
 			default:
 				e.auditPacket(e.Context, sessionCtx, sqlPacket)

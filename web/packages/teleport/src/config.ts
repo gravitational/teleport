@@ -825,8 +825,7 @@ const cfg = {
     return generatePath(cfg.api.connectionDiagnostic, { clusterId });
   },
 
-  getMfaRequiredUrl() {
-    const clusterId = cfg.proxyCluster;
+  getMfaRequiredUrl(clusterId: string) {
     return generatePath(cfg.api.mfaRequired, { clusterId });
   },
 

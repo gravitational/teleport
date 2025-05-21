@@ -460,19 +460,20 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			return err
 		}
 		if m, ok := msg.(tdp.Ping); ok {
-			// Upon receiving a ping message, we make a connection
-			// to the host and send the same message back to the proxy.
-			// The proxy will then compute the round trip time.
-			if !disableDesktopPing {
-				conn, err := net.Dial("tcp", c.cfg.Addr)
-				if err == nil {
-					conn.Close()
+			go func() {
+				// Upon receiving a ping message, we make a connection
+				// to the host and send the same message back to the proxy.
+				// The proxy will then compute the round trip time.
+				if !disableDesktopPing {
+					conn, err := net.Dial("tcp", c.cfg.Addr)
+					if err == nil {
+						conn.Close()
+					}
 				}
-			}
-			if err := c.cfg.Conn.WriteMessage(m); err != nil {
-				c.cfg.Logger.WarnContext(context.Background(), "Failed writing TDP ping message", "error", err)
-				return err
-			}
+				if err := c.cfg.Conn.WriteMessage(m); err != nil {
+					c.cfg.Logger.WarnContext(context.Background(), "Failed writing TDP ping message", "error", err)
+				}
+			}()
 			continue
 		}
 

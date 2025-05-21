@@ -832,6 +832,16 @@ type AccessGraph struct {
 	CA string `yaml:"ca"`
 	// Insecure is true if the AccessGraph service should not verify the CA.
 	Insecure bool `yaml:"insecure"`
+	// AuditLog contains audit log export details.
+	AuditLog AuditLogConfig `yaml:"audit_log"`
+}
+
+// AuditLogConfig specifies the audit log event export setup.
+type AuditLogConfig struct {
+	// Enabled indicates if Audit Log event exporting is enabled.
+	Enabled bool `yaml:"enabled"`
+	// StartDate is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
+	StartDate time.Time `yaml:"start_date"`
 }
 
 // Opsgenie represents the configuration for the Opsgenie plugin.
@@ -1935,6 +1945,10 @@ type DatabaseAD struct {
 	LDAPCert string `yaml:"ldap_cert,omitempty"`
 	// KDCHostName is the host name for a KDC for x509 Authentication.
 	KDCHostName string `yaml:"kdc_host_name,omitempty"`
+	// LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+	LDAPServiceAccountName string `yaml:"ldap_service_account_name,omitempty"`
+	// LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+	LDAPServiceAccountSID string `yaml:"ldap_service_account_sid,omitempty"`
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.

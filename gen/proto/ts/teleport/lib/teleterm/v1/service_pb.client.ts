@@ -24,6 +24,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { TerminalService } from "./service_pb";
+import type { SetSharedDirectoryForDesktopSessionResponse } from "./service_pb";
+import type { SetSharedDirectoryForDesktopSessionRequest } from "./service_pb";
 import type { ConnectToDesktopResponse } from "./service_pb";
 import type { ConnectToDesktopRequest } from "./service_pb";
 import type { GetAppResponse } from "./service_pb";
@@ -419,6 +421,17 @@ export interface ITerminalServiceClient {
      * @generated from protobuf rpc: ConnectToDesktop(stream teleport.lib.teleterm.v1.ConnectToDesktopRequest) returns (stream teleport.lib.teleterm.v1.ConnectToDesktopResponse);
      */
     connectToDesktop(options?: RpcOptions): DuplexStreamingCall<ConnectToDesktopRequest, ConnectToDesktopResponse>;
+    /**
+     * SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
+     * If there is no active desktop session associated with the specified desktop_uri and login,
+     * the RPC returns an error.
+     *
+     * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+     * It only registers file system handlers for processing file system-related TDP events.
+     *
+     * @generated from protobuf rpc: SetSharedDirectoryForDesktopSession(teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse);
+     */
+    setSharedDirectoryForDesktopSession(input: SetSharedDirectoryForDesktopSessionRequest, options?: RpcOptions): UnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>;
 }
 /**
  * TerminalService is used by the Electron app to communicate with the tsh daemon.
@@ -867,5 +880,19 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
     connectToDesktop(options?: RpcOptions): DuplexStreamingCall<ConnectToDesktopRequest, ConnectToDesktopResponse> {
         const method = this.methods[42], opt = this._transport.mergeOptions(options);
         return stackIntercept<ConnectToDesktopRequest, ConnectToDesktopResponse>("duplex", this._transport, method, opt);
+    }
+    /**
+     * SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
+     * If there is no active desktop session associated with the specified desktop_uri and login,
+     * the RPC returns an error.
+     *
+     * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+     * It only registers file system handlers for processing file system-related TDP events.
+     *
+     * @generated from protobuf rpc: SetSharedDirectoryForDesktopSession(teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse);
+     */
+    setSharedDirectoryForDesktopSession(input: SetSharedDirectoryForDesktopSessionRequest, options?: RpcOptions): UnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse> {
+        const method = this.methods[43], opt = this._transport.mergeOptions(options);
+        return stackIntercept<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>("unary", this._transport, method, opt, input);
     }
 }

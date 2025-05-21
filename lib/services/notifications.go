@@ -31,18 +31,14 @@ import (
 type Notifications interface {
 	ListUserNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.Notification, string, error)
 	ListGlobalNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.GlobalNotification, string, error)
-	DeleteAllUserNotifications(ctx context.Context) error
-	DeleteAllGlobalNotifications(ctx context.Context) error
 	CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error)
 	UpsertUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error)
 	DeleteUserNotification(ctx context.Context, username string, notificationId string) error
-	DeleteAllUserNotificationsForUser(ctx context.Context, username string) error
 	CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error)
 	UpsertGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error)
 	DeleteGlobalNotification(ctx context.Context, notificationId string) error
 	UpsertUserNotificationState(ctx context.Context, username string, state *notificationsv1.UserNotificationState) (*notificationsv1.UserNotificationState, error)
 	DeleteUserNotificationState(ctx context.Context, username string, notificationId string) error
-	DeleteAllUserNotificationStatesForUser(ctx context.Context, username string) error
 	ListUserNotificationStates(ctx context.Context, username string, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error)
 	ListNotificationStatesForAllUsers(ctx context.Context, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error)
 	UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (*notificationsv1.UserLastSeenNotification, error)

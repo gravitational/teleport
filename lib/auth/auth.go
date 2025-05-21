@@ -1461,6 +1461,7 @@ const (
 	upgradeWindowCheckKey
 	roleCountKey
 	accessListReminderNotificationsKey
+	autoUpdateAgentReportKey
 )
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1549,6 +1550,12 @@ func (a *Server) runPeriodicOperations() {
 			Duration:      10 * time.Minute,
 			FirstDuration: retryutils.HalfJitter(10 * time.Second),
 			Jitter:        retryutils.HalfJitter,
+		})
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           autoUpdateAgentReportKey,
+			Duration:      time.Minute,
+			FirstDuration: retryutils.FullJitter(time.Minute),
+			// No jitter here, this is intentional and required for accurate tracking across auths.
 		})
 	}
 
@@ -1674,6 +1681,8 @@ func (a *Server) runPeriodicOperations() {
 				go a.tallyRoles(a.closeCtx)
 			case accessListReminderNotificationsKey:
 				go a.CreateAccessListReminderNotifications(a.closeCtx)
+			case autoUpdateAgentReportKey:
+				go a.reportAgentVersions(a.closeCtx)
 			}
 		}
 	}
@@ -7755,7 +7764,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 
 	// Add JWT keys if necessary.
 	switch caID.Type {
-	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA:
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA:
 		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx, jwtCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -7808,6 +7817,8 @@ func jwtCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.SPIFFECAJWT
 	case types.OktaCA:
 		return cryptosuites.OktaCAJWT
+	case types.BoundKeypairCA:
+		return cryptosuites.BoundKeypairCAJWT
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }

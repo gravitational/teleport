@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/terraform
 
-go 1.24.2
+go 1.24.3
 
 // TF provider dependencies
 require (
@@ -100,6 +100,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/rds v1.95.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.54.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.27.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.17.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.35.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.59.0 // indirect
@@ -149,7 +150,7 @@ require (
 	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/ebitengine/purego v0.8.2 // indirect
+	github.com/ebitengine/purego v0.8.3 // indirect
 	github.com/elimity-com/scim v0.0.0-20240320110924-172bf2aee9c8 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.3 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.32.4 // indirect
@@ -200,6 +201,7 @@ require (
 	github.com/google/gnostic-models v0.6.9 // indirect
 	github.com/google/go-attestation v0.5.1 // indirect
 	github.com/google/go-containerregistry v0.20.3 // indirect
+	github.com/google/go-github/v70 v70.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/go-tpm v0.9.4 // indirect
 	github.com/google/go-tpm-tools v0.4.5 // indirect

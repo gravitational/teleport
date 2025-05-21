@@ -24,7 +24,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"log/slog"
-	"net"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -456,20 +455,15 @@ func readClientScreenSpec(ws *websocket.Conn) (*tdp.ClientScreenSpec, error) {
 // desktopPinger measures latency between proxy and the desktop by sending tdp.Ping messages
 // Windows Desktop Service and measuring the time it takes to receive message with the same UUID back.
 type desktopPinger struct {
-	wds net.Conn
-	ch  <-chan tdp.Ping
+	proxy *tdp.ConnProxy
+	ch    <-chan tdp.Ping
 }
 
 func (d desktopPinger) Ping(ctx context.Context) error {
 	ping := tdp.Ping{
 		UUID: uuid.New(),
 	}
-	buf, err := ping.Encode()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = d.wds.Write(buf)
-	if err != nil {
+	if err := d.proxy.SendToServer(ping); err != nil {
 		return trace.Wrap(err)
 	}
 	for {
@@ -487,7 +481,7 @@ func (d desktopPinger) Ping(ctx context.Context) error {
 // proxyWebsocketConn does a bidrectional copy between the websocket
 // connection to the browser (ws) and the mTLS connection to Windows
 // Desktop Serivce (wds)
-func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, log *slog.Logger, version string) error {
+func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, log *slog.Logger, version string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		cancel()
@@ -509,12 +503,14 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, l
 
 	tdpConnProxy := tdp.NewConnProxy(&WebsocketIO{Conn: ws}, wds, func(_ *tdp.Conn, msg tdp.Message) (tdp.Message, error) {
 		if ping, ok := msg.(tdp.Ping); ok {
-			pings <- ping
+			if !latencySupported {
+				return nil, trace.BadParameter("received unexpected Ping message from server (this is a bug)")
+			}
+			select {
+			case pings <- ping:
+			case <-ctx.Done():
+			}
 			return nil, nil
-		}
-
-		if ls, ok := msg.(tdp.LatencyStats); ok {
-			log.DebugContext(ctx, "sending latency stats", "client", ls.ClientLatency, "server", ls.ServerLatency)
 		}
 		return msg, nil
 	}, func(_ *tdp.Conn, msg tdp.Message) (tdp.Message, error) {
@@ -530,13 +526,14 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, l
 
 	if latencySupported {
 		pinger := desktopPinger{
-			wds: wds,
-			ch:  pings,
+			proxy: tdpConnProxy,
+			ch:    pings,
 		}
 
 		go monitorLatency(ctx, clockwork.NewRealClock(), ws, pinger,
 			latency.ReporterFunc(func(ctx context.Context, stats latency.Statistics) error {
-				return trace.Wrap(tdpConnProxy.SendToClient(ctx, tdp.LatencyStats{
+				log.DebugContext(ctx, "sending latency stats", "client", stats.Client, "server", stats.Server)
+				return trace.Wrap(tdpConnProxy.SendToClient(tdp.LatencyStats{
 					ClientLatency: uint32(stats.Client),
 					ServerLatency: uint32(stats.Server),
 				}))
@@ -545,7 +542,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, l
 
 	}
 
-	return trace.Wrap(tdpConnProxy.Run(ctx))
+	return trace.Wrap(tdpConnProxy.Run())
 }
 
 // handleProxyWebsocketConnErr handles the error returned by proxyWebsocketConn by

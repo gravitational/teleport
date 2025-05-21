@@ -515,6 +515,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.AccessGraph.CA = fc.AccessGraph.CA
 		// TODO(tigrato): change this behavior when we drop support for plain text connections
 		cfg.AccessGraph.Insecure = fc.AccessGraph.Insecure
+		cfg.AccessGraph.AuditLog = servicecfg.AuditLogConfig(fc.AccessGraph.AuditLog)
 	}
 
 	applyString(fc.NodeName, &cfg.Hostname)
@@ -1819,12 +1820,14 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				InstanceID: database.GCP.InstanceID,
 			},
 			AD: servicecfg.DatabaseAD{
-				KeytabFile:  database.AD.KeytabFile,
-				Krb5File:    database.AD.Krb5File,
-				Domain:      database.AD.Domain,
-				SPN:         database.AD.SPN,
-				LDAPCert:    database.AD.LDAPCert,
-				KDCHostName: database.AD.KDCHostName,
+				KeytabFile:             database.AD.KeytabFile,
+				Krb5File:               database.AD.Krb5File,
+				Domain:                 database.AD.Domain,
+				SPN:                    database.AD.SPN,
+				LDAPCert:               database.AD.LDAPCert,
+				KDCHostName:            database.AD.KDCHostName,
+				LDAPServiceAccountName: database.AD.LDAPServiceAccountName,
+				LDAPServiceAccountSID:  database.AD.LDAPServiceAccountSID,
 			},
 			Azure: servicecfg.DatabaseAzure{
 				ResourceID:    database.Azure.ResourceID,
