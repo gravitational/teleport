@@ -34,10 +34,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestSQSPollEvents(t *testing.T) {
@@ -102,7 +103,7 @@ func TestSQSPollEvents(t *testing.T) {
 	publish("bucket2", "messageID2", "key2", "key3")
 	publish("bucket3", "messageID3", "key4")
 	var messages [][]byte
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		select {
 		case <-ctx.Done():
 			cancel()
@@ -113,6 +114,8 @@ func TestSQSPollEvents(t *testing.T) {
 			messages = append(messages, msg.payload)
 		}
 	}
+
+	require.Len(t, messages, 3)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		assert.ElementsMatch(t, []string{"messageID1", "messageID2", "messageID3"}, fakeSQSQueue.getDeletedMessages())
