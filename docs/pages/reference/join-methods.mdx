@@ -116,6 +116,7 @@ service account, or cloud account ID.
 Delegated join methods are:
 - [`iam`](#aws-iam-role-iam)
 - [`azure`](#azure-managed-identity-azure)
+- [`azure_devops`](#azure-devops-azure_devops)
 - [`gcp`](#gcp-service-account-gcp)
 - [`ec2`](#aws-ec2-identity-document-ec2)
 - [`github`](#github-actions-github)
@@ -150,6 +151,7 @@ temporary workloads such as CI/CD pipelines or containerized environments.
 Non-renewable join methods are:
 - [`iam`](#aws-iam-role-iam)
 - [`azure`](#azure-managed-identity-azure)
+- [`azure_devops`](#azure-devops-azure_devops)
 - [`gcp`](#gcp-service-account-gcp)
 - [`github`](#github-actions-github)
 - [`circleci`](#circleci-circleci)
@@ -310,6 +312,16 @@ behind a layer 7 load balancer or reverse proxy is available in Teleport 13.0+.
 - [Joining Services via Azure Managed Identity](../enroll-resources/agents/azure.mdx).
 - [Deploying Machine ID on Azure](../enroll-resources/machine-id/deployment/azure.mdx)
 </Admonition>
+
+### Azure Devops: `azure_devops`
+
+The Azure DevOps is available to any Teleport process running in an Azure DevOps
+pipeline. This join method is typically used with
+[Machine & Workload Identity](../enroll-resources/machine-id/introduction.mdx)
+to access Teleport-protected resources in Azure DevOps pipelines without the
+use of long-lived secrets.
+
+(!docs/pages/includes/provision-token/azure-devops-spec.mdx!)
 
 ### GCP service account: `gcp`
 
