@@ -212,7 +212,7 @@ choices:
       this functionality will be largely hand-written. Mixing generated and 
       hand-written code can make enforcing standards more difficult.
     - Existing Terraform provider uses a very old version of the Terraform SDK
-      which makes compatability with other tools like Pulumi more challenging.
+      which makes compatibility with other tools like Pulumi more challenging.
     - Existing Terraform provider has a large number of configuration
       parameters which would not be compatible with this functionality, this
       poses a risk of creating a poor configuration UX.
@@ -220,7 +220,7 @@ choices:
   - Positives:
     - No inherited tech debt from existing provider & can leverage latest
       versions of the Terraform SDK.
-    - Separation of hand-written and generated code.
+    - Separation of handwritten and generated code.
   - Negatives:
     - Additional build and release infrastructure to maintain.
     - Additional codebase to maintain.
@@ -228,7 +228,7 @@ choices:
   - Positives:
     - No inherited tech debt from existing provider & can leverage latest
       versions of the Terraform SDK.
-    - Separation of hand-written and generated code.
+    - Separation of handwritten and generated code.
     - Separation of variants would allow for smaller binary sizes.
   - Negatives:
     - Much more build and release infrastructure to maintain. This would need 
