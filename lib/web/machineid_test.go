@@ -630,7 +630,7 @@ func TestListBotInstancesWithSearchTermFilter(t *testing.T) {
 		},
 		{
 			name:       "match on join method",
-			searchTerm: "ubernete",
+			searchTerm: "uber",
 			heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
 				JoinMethod: "kubernetes",
 			},
