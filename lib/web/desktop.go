@@ -500,6 +500,11 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, l
 		return trace.Wrap(err)
 	}
 
+	keyboardLayoutSupported, err := utils.MinVerWithoutPreRelease(version, "18.0.0")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	pings := make(chan tdp.Ping)
 
 	tdpConnProxy := tdp.NewConnProxy(&WebsocketIO{Conn: ws}, wds, func(_ *tdp.Conn, msg tdp.Message) (tdp.Message, error) {
@@ -511,6 +516,15 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, l
 		if ls, ok := msg.(tdp.LatencyStats); ok {
 			log.DebugContext(ctx, "sending latency stats", "client", ls.ClientLatency, "server", ls.ServerLatency)
 		}
+		return msg, nil
+	}, func(_ *tdp.Conn, msg tdp.Message) (tdp.Message, error) {
+		if _, ok := msg.(tdp.ClientKeyboardLayout); ok {
+			if !keyboardLayoutSupported {
+				log.DebugContext(ctx, "keyboard layout message not supported before version 18.0.0")
+				return nil, nil
+			}
+		}
+
 		return msg, nil
 	})
 

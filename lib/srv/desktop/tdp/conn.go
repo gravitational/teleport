@@ -171,11 +171,13 @@ func IsFatalErr(err error) bool {
 
 // NewConnProxy creates a bidirectional proxy to copy messages between the client and server connection.
 // It accepts an optional serverInterceptor to intercept received messages.
-func NewConnProxy(client, server io.ReadWriteCloser, serverInterceptor ServerInterceptor) *ConnProxy {
+func NewConnProxy(client, server io.ReadWriteCloser, serverInterceptor ServerInterceptor, clientInterceptor ClientInterceptor) *ConnProxy {
 	return &ConnProxy{
 		client:            client,
 		server:            server,
 		serverInterceptor: serverInterceptor,
+		clientInterceptor: clientInterceptor,
+		messagesToServer:  make(chan Message),
 		messagesToClient:  make(chan Message),
 	}
 }
@@ -190,12 +192,18 @@ type ConnProxy struct {
 	// If the returned message is non-nil, it is forwarded to the client.
 	// If an error is returned, the stream is canceled.
 	serverInterceptor ServerInterceptor
+	// clientInterceptor intercepts messages received from the client.
+	clientInterceptor ClientInterceptor
+	messagesToServer  chan Message
 	messagesToClient  chan Message
 }
 
 // ServerInterceptor intercepts messages received from the server.
 // If a message returned from the interceptor is nil, it's not sent to the client.
 type ServerInterceptor func(serverTdpConn *Conn, message Message) (Message, error)
+
+// ClientInterceptor intercepts messages received from the client.
+type ClientInterceptor func(clientTdpConn *Conn, message Message) (Message, error)
 
 // SendToClient sends a message to the client and blocks until the operation completes.
 func (c *ConnProxy) SendToClient(ctx context.Context, message Message) error {
@@ -312,12 +320,72 @@ func (c *ConnProxy) Run(ctx context.Context) error {
 		}
 	})
 
+	// Run a goroutine to pick TDP messages up from a channel and send
+	// them to the server.
+	errs.Go(func() error {
+		defer closeOnce.Do(closeAll)
+
+		for {
+			select {
+			case msg := <-c.messagesToServer:
+				encoded, err := msg.Encode()
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if _, err := c.server.Write(encoded); err != nil {
+					return trace.Wrap(err)
+				}
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	})
+
 	// Run a goroutine to read TDP messages coming from the client
 	// and pass them on to the Windows agent.
 	errs.Go(func() error {
 		defer closeOnce.Do(closeAll)
-		_, err := io.Copy(c.server, c.client)
-		return trace.Wrap(err, "sending TDP message to desktop agent")
+
+		clientTDPConn := NewConn(c.client)
+		defer clientTDPConn.Close()
+
+		for {
+			msg, err := clientTDPConn.ReadMessage()
+			if utils.IsOKNetworkError(err) {
+				return trace.Wrap(err)
+			}
+			if err != nil {
+				isFatal := IsFatalErr(err)
+				severity := SeverityError
+				if !isFatal {
+					severity = SeverityWarning
+				}
+				sendErr := sendTDPAlert(err, severity)
+
+				if !isFatal && sendErr == nil {
+					continue
+				}
+
+				if sendErr != nil {
+					err = sendErr
+				}
+				return trace.Wrap(err)
+			}
+
+			if c.clientInterceptor != nil {
+				msg, err = c.clientInterceptor(clientTDPConn, msg)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+			}
+			if msg != nil {
+				select {
+				case c.messagesToServer <- msg:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+		}
 	})
 
 	// Wait for all goroutines to finish
