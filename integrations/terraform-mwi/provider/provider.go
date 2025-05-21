@@ -21,6 +21,12 @@ var (
 	_ provider.ProviderWithEphemeralResources = &Provider{}
 )
 
+func New() func() provider.Provider {
+	return func() provider.Provider {
+		return &Provider{}
+	}
+}
+
 type Provider struct {
 }
 
