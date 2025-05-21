@@ -35,6 +35,7 @@ const (
 	autoUpdateConfigPrefix       = "auto_update_config"
 	autoUpdateVersionPrefix      = "auto_update_version"
 	autoUpdateAgentRolloutPrefix = "auto_update_agent_rollout"
+	autoUpdateAgentReportPrefix  = "auto_update_agent_report"
 )
 
 // AutoUpdateService is responsible for managing AutoUpdateConfig and AutoUpdateVersion singleton resources.
@@ -96,7 +97,7 @@ func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 		generic.ServiceConfig[*autoupdate.AutoUpdateAgentReport]{
 			Backend:       b,
 			ResourceKind:  types.KindAutoUpdateAgentRollout,
-			BackendPrefix: backend.NewKey(autoUpdateAgentRolloutPrefix),
+			BackendPrefix: backend.NewKey(autoUpdateAgentReportPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateAgentReport],
 			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateAgentReport],
 		})
