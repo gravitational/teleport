@@ -847,7 +847,6 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		login:                          scx.Identity.Login,
 		stopC:                          make(chan struct{}),
 		startTime:                      startTime,
-		emitter:                        scx.srv,
 		serverCtx:                      scx.srv.Context(),
 		access:                         &access,
 		scx:                            scx,
@@ -860,6 +859,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 	}
 
 	sess.io.OnWriteError = sess.onWriteError
+	sess.emitter = newEmitter(sess, scx)
 
 	go func() {
 		if _, open := <-sess.io.TerminateNotifier(); open {
@@ -1508,6 +1508,17 @@ func (s *session) startTerminal(ctx context.Context, scx *ServerContext) error {
 	}
 
 	return nil
+}
+
+// newEmitter creates a new [apievents.Emitter] to be used as the emitter
+// of the passed in session.
+func newEmitter(s *session, ctx *ServerContext) apievents.Emitter {
+	if s.registry.Srv.Component() == teleport.ComponentNode &&
+		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+		return events.NewDiscardEmitter()
+	}
+
+	return ctx.srv
 }
 
 // newRecorder creates a new [events.SessionPreparerRecorder] to be used as the recorder
