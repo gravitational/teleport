@@ -1,5 +1,14 @@
 # Changelog
 
+## 15.5.1 (05/21/25)
+
+* Expose the Teleport service cache health via Prometheus metrics. [#54904](https://github.com/gravitational/teleport/pull/54904)
+* Updated Go to 1.23.9. [#54898](https://github.com/gravitational/teleport/pull/54898)
+* Fixed Proxy cache initialization errors in clusters with large amounts of open web sessions. [#54783](https://github.com/gravitational/teleport/pull/54783)
+* Fixed malformed users breaking Teleport web UI's "Users" page. [#54683](https://github.com/gravitational/teleport/pull/54683)
+* Added full support for FIPS agent installations to teleport-update. [#54611](https://github.com/gravitational/teleport/pull/54611)
+* Fixed a possible moderator/observer terminal freeze when joining a Kubernetes moderated session. [#54524](https://github.com/gravitational/teleport/pull/54524)
+
 ## 15.5.0 (04/28/25)
 
 ### Automatic Updates
