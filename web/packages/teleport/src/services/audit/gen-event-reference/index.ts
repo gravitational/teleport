@@ -1,7 +1,8 @@
-import { default as fs } from 'node:fs';
+import fs from 'node:fs';
 
-import { events } from '../../../Audit/fixtures/index.ts';
-import { makeEvent } from '../makeEvent.ts';
+import { events } from 'teleport/Audit/fixtures';
+
+import { formatters } from '../makeEvent';
 import {
   createReferencePage,
   eventsWithoutExamples,
@@ -41,7 +42,7 @@ if (process.argv.length !== 3) {
 
 console.log('Writing an audit event reference page to ', process.argv[2]);
 
-const noExampleEvents = eventsWithoutExamples(events, makeEvent);
+const noExampleEvents = eventsWithoutExamples(events, formatters);
 noExampleEvents.forEach(e => {
   console.error(
     `Warning: adding an entry for ${e.code} (${e.raw.event}) with no example. Add a test fixture to web/packages/teleport/src/Audit/fixtures/index.ts`

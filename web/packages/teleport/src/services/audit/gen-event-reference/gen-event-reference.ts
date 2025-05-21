@@ -1,6 +1,11 @@
+import { Event, Formatters } from '../types';
+
 // eventsWithoutExamples returns an array of event objects based on the
 // elements in formatters that do not have corresponding examples in fixtures.
-export function eventsWithoutExamples(fixtures, formatters) {
+export function eventsWithoutExamples(
+  fixtures: Event[],
+  formatters: Formatters
+) {
   const fixtureMap = new Map();
   let result = [];
   fixtures.forEach(f => {
@@ -23,7 +28,7 @@ export function eventsWithoutExamples(fixtures, formatters) {
 
 // codeDesc returns the description of the given event, depending on whether the
 // description is a function or a string.
-function codeDesc(event) {
+function codeDesc(event: Event) {
   if (typeof event.codeDesc == 'function') {
     return event.codeDesc({ code: event.code, event: event.raw.event });
   }
@@ -32,7 +37,7 @@ function codeDesc(event) {
 
 // removeUnknowns removes any event fixtures in the fixtures array that do not
 // have a formatter.
-export function removeUnknowns(fixtures, formatters) {
+export function removeUnknowns(fixtures: Event[], formatters: Formatters) {
   let result = [];
   fixtures.forEach(r => {
     const formatter = formatters[r.code];
@@ -51,7 +56,7 @@ export function removeUnknowns(fixtures, formatters) {
 // events with full examples include additional fields in the raw object. If
 // there is an example available for the event, we include the example,
 // formatted as JSON. Otherwise, we print only the event code and type.
-export function exampleOrAttributes(event) {
+export function exampleOrAttributes(event: Event) {
   if (Object.keys(event.raw).length > 1) {
     return `Example:
 
@@ -67,7 +72,7 @@ Event: \`${event.raw.event}\``;
 // createEventSection takes a JSON document that defines an audit event test
 // fixture and returns a string that contains an H2-level section to describe
 // the event.
-export function createEventSection(event) {
+export function createEventSection(event: Event) {
   return `## ${event.raw.event}
 
 ${codeDesc(event) + '\n'}
@@ -82,7 +87,7 @@ ${exampleOrAttributes(event)}
 //
 // See web/packages/teleport/src/Audit/fixtures/index.ts for the structure of an
 // audit event test fixture.
-export function createMultipleEventsSection(events) {
+export function createMultipleEventsSection(events: Event[]) {
   return events.reduce(
     (accum, event) => {
       return (
