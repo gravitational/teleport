@@ -57,7 +57,7 @@ const DefaultIssuerHost = "token.actions.githubusercontent.com"
 // See the following for the structure:
 // https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#understanding-the-oidc-token
 type IDTokenClaims struct {
-	oidc.Claims
+	oidc.TokenClaims
 	// Sub also known as Subject is a string that roughly uniquely indentifies
 	// the workload. The format of this varies depending on the type of
 	// github action run.

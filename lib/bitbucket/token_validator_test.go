@@ -30,7 +30,10 @@ import (
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
+	gocmp "github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	"github.com/gravitational/teleport/lib/cryptosuites"
 )
@@ -270,7 +273,9 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				tt.token,
 			)
 			tt.assertError(t, err)
-			require.Equal(t, tt.want, claims)
+			require.Empty(t,
+				gocmp.Diff(claims, tt.want, cmpopts.IgnoreTypes(oidc.TokenClaims{})),
+			)
 		})
 	}
 }

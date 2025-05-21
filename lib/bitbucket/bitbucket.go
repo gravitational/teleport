@@ -28,7 +28,7 @@ import (
 // See the following for the structure:
 // https://support.atlassian.com/bitbucket-cloud/docs/integrate-pipelines-with-resource-servers-using-oidc/
 type IDTokenClaims struct {
-	oidc.Claims
+	oidc.TokenClaims
 
 	// Sub provides some information about the Bitbucket Pipelines run that
 	// generated this token. Format: {RepositoryUUID}:{StepUUID}

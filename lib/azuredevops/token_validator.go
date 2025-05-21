@@ -23,16 +23,11 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/oidc"
 )
-
-// providerTimeout is the maximum time allowed to fetch provider metadata before
-// giving up.
-const providerTimeout = 15 * time.Second
 
 // audience is the static value that Azure DevOps uses for the `aud` claim in
 // issued ID Tokens. Unfortunately, this cannot be changed.
@@ -78,7 +73,7 @@ func (id *IDTokenValidator) Validate(
 		organizationID, id.overrideDiscoveryHost, id.insecureDiscovery,
 	)
 
-	claims, err := oidc.ValidateToken[*IDTokenClaims](ctx, issuer, organizationID, token)
+	claims, err := oidc.ValidateToken[*IDTokenClaims](ctx, issuer, audience, token)
 	if err != nil {
 		return nil, trace.Wrap(err, "validating token")
 	}

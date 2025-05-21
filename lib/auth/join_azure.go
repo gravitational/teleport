@@ -88,7 +88,7 @@ type attestedData struct {
 }
 
 type accessTokenClaims struct {
-	oidc.Claims
+	oidc.TokenClaims
 	jwtClaims jwt.Claims
 	TenantID  string `json:"tid"`
 	Version   string `json:"ver"`

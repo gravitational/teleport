@@ -54,6 +54,10 @@ type IDTokenClaims struct {
 	RunPhase string `json:"terraform_run_phase"`
 }
 
+func (c *IDTokenClaims) GetSubject() string {
+	return c.Sub
+}
+
 // JoinAttrs returns the protobuf representation of the attested identity.
 // This is used for auditing and for evaluation of WorkloadIdentity rules and
 // templating.

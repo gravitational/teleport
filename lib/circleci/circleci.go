@@ -47,7 +47,7 @@ func issuerURL(template, organizationID string) string {
 // ID token.
 // See https://circleci.com/docs/openid-connect-tokens/
 type IDTokenClaims struct {
-	oidc.Claims
+	oidc.TokenClaims
 
 	// Sub identifies who is running the CircleCI job and where.
 	// In the format of: `org/ORGANIZATION_ID/project/PROJECT_ID/user/USER_ID`

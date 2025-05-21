@@ -58,7 +58,7 @@ import (
 // See the following for the structure:
 // https://docs.gitlab.com/ee/ci/secrets/id_token_authentication.html#id-tokens
 type IDTokenClaims struct {
-	oidc.Claims
+	oidc.TokenClaims
 	// Sub roughly uniquely identifies the workload. Example:
 	// `project_path:mygroup/my-project:ref_type:branch:ref:main`
 	// project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}

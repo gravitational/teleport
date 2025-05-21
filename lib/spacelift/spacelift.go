@@ -28,7 +28,7 @@ import (
 // See the following for the structure:
 // https://docs.spacelift.io/integrations/cloud-providers/oidc/#standard-claims
 type IDTokenClaims struct {
-	oidc.Claims
+	oidc.TokenClaims
 
 	// Sub provides some information about the Spacelift run that generated this
 	// token.
