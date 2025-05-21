@@ -355,3 +355,20 @@ Ephemeral resource outputs:
 ## Security Considerations
 
 ### Sensitive data in Terraform state
+
+When using data sources, the output values are stored in the Terraform state. 
+This allows them to be generated in the plan stage and reused for the apply 
+stage.
+
+Unfortunately, this means that sensitive data (e.g credentials) will be stored
+in the Terraform state.
+
+For the most part, security-savvy customers will leverage some form of 
+encryption-at-rest for their Terraform state. However, this is not always the
+case, especially in simpler environments.
+
+We will already be offering a more secure variant in the form of ephemeral
+resources (which are not persisted into the state), so we should document
+clearly the potential risks of leveraging the data source variant and if using
+the data source variant is absolutely necessary, we should recommend that the
+customer encrypt their Terraform state.
