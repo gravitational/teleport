@@ -68,10 +68,6 @@ func validateBoundKeypairTokenSpec(spec *types.ProvisionTokenSpecV2BoundKeypair)
 		return trace.BadParameter("spec.recovery: field is required")
 	}
 
-	if spec.Recovery.Mode != boundkeypair.RecoveryModeInsecure {
-		return trace.NotImplemented("spec.bound_keypair.recovery.mode currently must be %s", boundkeypair.RecoveryModeInsecure)
-	}
-
 	return nil
 }
 
@@ -126,6 +122,8 @@ func (a *Server) UpsertBoundKeypairToken(ctx context.Context, token types.Provis
 	// TODO: Follow up with proper checking for a preexisting resource so
 	// generated fields are handled properly, i.e. initial secret generation.
 
+	// Implementation note: checkAndSetDefaults() impl for this token type is
+	// called at insertion time as part of `tokenToItem()`
 	return trace.Wrap(a.UpsertToken(ctx, token))
 }
 
@@ -212,8 +210,9 @@ func (a *Server) issueBoundKeypairChallenge(
 type boundKeypairStatusMutator func(*types.ProvisionTokenSpecV2BoundKeypair, *types.ProvisionTokenStatusV2BoundKeypair) error
 
 // mutateStatusConsumeJoin consumes a "hard" join on the backend, incrementing
-// the join counter. This verifies that the backend join count has not changed,
-// and that total join count is at least the value when the mutator was created.
+// the recovery counter. This verifies that the backend recovery count has not
+// changed, and that total join count is at least the value when the mutator was
+// created.
 func mutateStatusConsumeJoin(mode boundkeypair.RecoveryMode, expectRecoveryCount uint32, expectMinRecoveryLimit uint32) boundKeypairStatusMutator {
 	now := time.Now()
 
@@ -228,11 +227,6 @@ func mutateStatusConsumeJoin(mode boundkeypair.RecoveryMode, expectRecoveryCount
 		// for collision with potentially increased values.
 		if spec.Recovery.Limit < expectMinRecoveryLimit {
 			return trace.AccessDenied("unexpected backend state")
-		}
-
-		if mode == boundkeypair.RecoveryModeStandard {
-			// TODO: to be removed in a future PR
-			return trace.NotImplemented("only unlimited rejoining is currently supported")
 		}
 
 		status.RecoveryCount += 1
@@ -333,9 +327,14 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 	hasIncomingBotInstance := req.JoinRequest.BotInstanceID != ""
 	hasJoinsRemaining := status.RecoveryCount < spec.Recovery.Limit
 
+	recoveryMode, err := boundkeypair.ParseRecoveryMode(spec.Recovery.Mode)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing recovery mode")
+	}
+
 	// Join state is required after the initial join (first recovery), so long
 	// as the mode is not insecure.
-	joinStateRequired := status.RecoveryCount > 0 && spec.Recovery.Mode != boundkeypair.RecoveryModeInsecure
+	joinStateRequired := status.RecoveryCount > 0 && recoveryMode != boundkeypair.RecoveryModeInsecure
 	hasIncomingJoinState := len(req.PreviousJoinState) > 0
 
 	// if set, the bound bot instance will be updated in the backend
@@ -364,6 +363,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			return nil, trace.AccessDenied("previous join state is required but was not provided")
 		}
 
+		a.logger.DebugContext(ctx, "join state verification required, verifying")
 		joinState, err = boundkeypair.VerifyJoinState(
 			ca,
 			string(req.PreviousJoinState),
@@ -374,13 +374,19 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			},
 		)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			// TODO: Once we have token-specific locking, generate a lock; this
+			// indicates the keypair may have been compromised.
+			// TODO: Audit log event for this.
+			a.logger.ErrorContext(ctx, "bound keypair join state verification failed", "error", err)
+			return nil, trace.AccessDenied("join state verification failed")
 		}
 
 		// Now that we've verified it, make sure the previous bot instance ID is
 		// passed along to generateCerts. This will only be used if a new bot
 		// instance is generated.
 		req.JoinRequest.PreviousBotInstanceID = joinState.BotInstanceID
+
+		a.logger.DebugContext(ctx, "join state verified successfully", "join_state", joinState)
 
 		// Note: we don't verify join state if it isn't expected. This is partly
 		// to ensure server-side recovery will work if join state desyncs - a
@@ -400,7 +406,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			return nil, trace.BadParameter("an initial public key is required")
 		}
 
-		if spec.Recovery.Mode == string(boundkeypair.RecoveryModeStandard) && !hasJoinsRemaining {
+		if recoveryMode == boundkeypair.RecoveryModeStandard && !hasJoinsRemaining {
 			return nil, trace.AccessDenied("no joins remaining")
 		}
 
@@ -416,7 +422,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		mutators = append(
 			mutators,
 			mutateStatusBoundPublicKey(spec.Onboarding.InitialPublicKey, ""),
-			mutateStatusConsumeJoin(boundkeypair.RecoveryMode(spec.Recovery.Mode), status.RecoveryCount, spec.Recovery.Limit),
+			mutateStatusConsumeJoin(recoveryMode, status.RecoveryCount, spec.Recovery.Limit),
 		)
 
 		expectNewBotInstance = true
@@ -448,7 +454,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 	case hasBoundPublicKey && hasBoundBotInstance && !hasIncomingBotInstance:
 		// Hard rejoin case, the client identity expired and a new bot instance
 		// is required. Consumes a rejoin.
-		if spec.Recovery.Mode == string(boundkeypair.RecoveryModeStandard) && !hasJoinsRemaining {
+		if recoveryMode == boundkeypair.RecoveryModeStandard && !hasJoinsRemaining {
 			// Recovery limit only applies in "standard" mode.
 			return nil, trace.AccessDenied("no rejoins remaining")
 		}
@@ -463,7 +469,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 
 		mutators = append(
 			mutators,
-			mutateStatusConsumeJoin(boundkeypair.RecoveryMode(spec.Recovery.Mode), status.RecoveryCount, spec.Recovery.Limit),
+			mutateStatusConsumeJoin(recoveryMode, status.RecoveryCount, spec.Recovery.Limit),
 		)
 
 		expectNewBotInstance = true
@@ -485,11 +491,6 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		return nil, trace.NotImplemented("key rotation not yet supported")
 	}
 
-	// TODO: We should pass along the previous bot instance ID - if any - based
-	// on the join state, once that is implemented. It will need to be passed
-	// either via extended claims, or by a new protected field in the join
-	// request like the current bot instance ID, i.e. cleared when set by an
-	// untrusted source.
 	certs, botInstanceID, err := a.generateCertsBot(
 		ctx,
 		ptv2,

@@ -20,14 +20,14 @@ import (
 	"crypto"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
-	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/go-jose/go-jose/v3"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
+	libjwt "github.com/gravitational/teleport/lib/jwt"
 )
 
 // JoinState is a signed JWT stored on joining clients alongside their usual
