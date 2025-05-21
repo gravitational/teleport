@@ -439,7 +439,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	}
 
 	defer func() {
-		if handle.goodbye.GetDeleteResources() {
+		if handle.Goodbye().GetDeleteResources() {
 			c.doResourceCleanup(handle)
 		}
 
@@ -1050,7 +1050,7 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 }
 
 func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m *proto.UpstreamInventoryAgentMetadata) {
-	handle.SetAgentMetadata(m)
+	handle.setAgentMetadata(m)
 
 	svcs := make([]string, 0, len(handle.Hello().Services))
 	for _, svc := range handle.Hello().Services {

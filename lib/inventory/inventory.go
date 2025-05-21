@@ -685,9 +685,8 @@ type upstreamHandle struct {
 	hello            *proto.UpstreamInventoryHello
 	registrationTime time.Time
 
-	agentInfoLock sync.Mutex
-	agentMetadata *proto.UpstreamInventoryAgentMetadata
-	goodbye       *proto.UpstreamInventoryGoodbye
+	agentMetadata atomic.Pointer[proto.UpstreamInventoryAgentMetadata]
+	goodbye       atomic.Pointer[proto.UpstreamInventoryGoodbye]
 
 	pingC chan pingRequest
 
@@ -789,16 +788,12 @@ func (h *upstreamHandle) Ping(ctx context.Context, id uint64) (d time.Duration, 
 // Goodbye gets the cached upstream goodbye. Returns nil if downstream never sent a Goodbye.
 // This is used to identify if the instance is terminating or being soft-reloaded.
 func (h *upstreamHandle) Goodbye() *proto.UpstreamInventoryGoodbye {
-	h.agentInfoLock.Lock()
-	defer h.agentInfoLock.Unlock()
-	return h.goodbye
+	return h.goodbye.Load()
 }
 
 // setGoodbye sets the goodbye for the current handler.
 func (h *upstreamHandle) setGoodbye(goodbye *proto.UpstreamInventoryGoodbye) {
-	h.agentInfoLock.Lock()
-	defer h.agentInfoLock.Unlock()
-	h.goodbye = goodbye
+	h.goodbye.Store(goodbye)
 }
 
 func (h *upstreamHandle) Hello() *proto.UpstreamInventoryHello {
@@ -812,16 +807,12 @@ func (h *upstreamHandle) RegistrationTime() time.Time {
 
 // AgentMetadata returns the Agent's metadata (eg os, glibc version, install methods, teleport version).
 func (h *upstreamHandle) AgentMetadata() *proto.UpstreamInventoryAgentMetadata {
-	h.agentInfoLock.Lock()
-	defer h.agentInfoLock.Unlock()
-	return h.agentMetadata
+	return h.agentMetadata.Load()
 }
 
-// SetAgentMetadata sets the agent metadata for the current handler.
-func (h *upstreamHandle) SetAgentMetadata(agentMD *proto.UpstreamInventoryAgentMetadata) {
-	h.agentInfoLock.Lock()
-	defer h.agentInfoLock.Unlock()
-	h.agentMetadata = agentMD
+// setAgentMetadata sets the agent metadata for the current handler.
+func (h *upstreamHandle) setAgentMetadata(agentMD *proto.UpstreamInventoryAgentMetadata) {
+	h.agentMetadata.Store(agentMD)
 }
 
 // HasService is a helper for checking if a given service is associated with this
