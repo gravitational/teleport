@@ -56,6 +56,7 @@ type clientApplicationService struct {
 }
 
 type clientApplicationServiceConfig struct {
+	localResolver         *localFQDNResolver
 	localAppProvider      *localAppProvider
 	localOSConfigProvider *LocalOSConfigProvider
 }
@@ -99,15 +100,10 @@ func (s *clientApplicationService) Ping(ctx context.Context, req *vnetv1.PingReq
 	return &vnetv1.PingResponse{}, nil
 }
 
-// ResolveAppInfo implements [vnetv1.ClientApplicationServiceServer.ResolveAppInfo].
-func (s *clientApplicationService) ResolveAppInfo(ctx context.Context, req *vnetv1.ResolveAppInfoRequest) (*vnetv1.ResolveAppInfoResponse, error) {
-	appInfo, err := s.cfg.localAppProvider.ResolveAppInfo(ctx, req.GetFqdn())
-	if err != nil {
-		return nil, trace.Wrap(err, "resolving app info")
-	}
-	return &vnetv1.ResolveAppInfoResponse{
-		AppInfo: appInfo,
-	}, nil
+// ResolveFQDN implements [vnetv1.ClientApplicationServiceServer.ResolveFQDN].
+func (s *clientApplicationService) ResolveFQDN(ctx context.Context, req *vnetv1.ResolveFQDNRequest) (*vnetv1.ResolveFQDNResponse, error) {
+	resp, err := s.cfg.localResolver.ResolveFQDN(ctx, req.GetFqdn())
+	return resp, trace.Wrap(err, "resolving FQDN")
 }
 
 // ReissueAppCert implements [vnetv1.ClientApplicationServiceServer.ReissueAppCert].
