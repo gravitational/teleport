@@ -109,7 +109,7 @@ describe('isAbortError', () => {
     ['ApiError', newApiAbortError],
     ['gRPC Error', newGrpcAbortError],
   ])('for error type %s', (_, ErrorType) => {
-    it('is abort error', async () => {
+    it('is abort error', () => {
       expect(isAbortError(ErrorType())).toBe(true);
     });
   });
