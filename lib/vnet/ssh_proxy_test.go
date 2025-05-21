@@ -18,6 +18,8 @@ package vnet
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"net"
@@ -29,7 +31,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/test/bufconn"
 
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -317,7 +318,7 @@ func handleEchoChannel(newChan ssh.NewChannel) {
 }
 
 func sshServerConfig(t *testing.T) *ssh.ServerConfig {
-	serverKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	_, serverKey, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 	hostSigner, err := ssh.NewSignerFromSigner(serverKey)
 	require.NoError(t, err)
@@ -332,7 +333,7 @@ func sshServerConfig(t *testing.T) *ssh.ServerConfig {
 }
 
 func sshClientConfig(t *testing.T) *ssh.ClientConfig {
-	clientKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	_, clientKey, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 	clientSigner, err := ssh.NewSignerFromSigner(clientKey)
 	require.NoError(t, err)
