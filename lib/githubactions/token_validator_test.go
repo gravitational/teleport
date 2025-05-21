@@ -493,7 +493,9 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.wantResult, result)
+			require.Empty(t,
+				cmp.Diff(result, tt.wantResult, cmpopts.IgnoreTypes(oidc.TokenClaims{})),
+			)
 		})
 	}
 }

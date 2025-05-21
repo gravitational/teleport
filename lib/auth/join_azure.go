@@ -39,13 +39,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
-	liboidc "github.com/gravitational/teleport/lib/oidc"
-
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	liboidc "github.com/gravitational/teleport/lib/oidc"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -89,9 +88,9 @@ type attestedData struct {
 
 type accessTokenClaims struct {
 	oidc.TokenClaims
-	jwtClaims jwt.Claims
-	TenantID  string `json:"tid"`
-	Version   string `json:"ver"`
+	jwt.Claims
+	TenantID string `json:"tid"`
+	Version  string `json:"ver"`
 
 	// Azure JWT tokens include two optional claims that can be used to validate
 	// the subscription and resource group of a joining node. These claims hold
@@ -260,7 +259,7 @@ func verifyVMIdentity(
 		Time:     requestStart,
 	}
 
-	if err := tokenClaims.jwtClaims.Validate(expectedClaims); err != nil {
+	if err := tokenClaims.Validate(expectedClaims); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -283,7 +282,7 @@ func verifyVMIdentity(
 
 	tokenCredential := azure.NewStaticCredential(azcore.AccessToken{
 		Token:     accessToken,
-		ExpiresOn: tokenClaims.jwtClaims.Expiry.Time(),
+		ExpiresOn: tokenClaims.Expiry.Time(),
 	})
 	vmClient, err := cfg.getVMClient(subscriptionID, tokenCredential)
 	if err != nil {
