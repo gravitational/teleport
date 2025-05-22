@@ -63,6 +63,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -5341,7 +5342,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 			a.logger.DebugContext(ctx, "Failed to encode access request annotations", "error", err)
 		}
 	}
-
+	resourceNames, err := accessrequest.GetResourceNames(ctx, a.Services, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
@@ -5353,6 +5357,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		},
 		Roles:                req.GetRoles(),
 		RequestedResourceIDs: apievents.ResourceIDs(req.GetRequestedResourceIDs()),
+		ResourceNames:        resourceNames,
 		RequestID:            req.GetName(),
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),
