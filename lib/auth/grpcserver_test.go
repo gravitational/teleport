@@ -4498,7 +4498,7 @@ func TestSAMLValidation(t *testing.T) {
 	const minimalEntityDescriptor = `
 <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="http://example.com">
   <md:IDPSSODescriptor>
-    <md:SingleSignOnService Location="http://example.com" />
+    <md:SingleSignOnService Location="https://example.com" />
   </md:IDPSSODescriptor>
 </md:EntityDescriptor>`
 

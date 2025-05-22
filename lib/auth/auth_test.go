@@ -1448,7 +1448,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	saml, err := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "a",
 		Issuer:                   "b",
-		SSO:                      "c",
+		SSO:                      "https://example.com",
 		AttributesToRoles: []types.AttributeMapping{
 			{
 				Name:  "dummy",
