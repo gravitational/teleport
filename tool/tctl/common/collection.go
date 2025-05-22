@@ -1644,6 +1644,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		settingsDatadogIncidentManagement = "datadog_incident_management"
 		settingsEmailAccessPlugin         = "email_access_plugin"
 		settingsAWSIdentityCenter         = "aws_ic"
+		settingsNetIQ                     = "net_iq"
 	)
 	type unknownPluginType struct {
 		Spec struct {
@@ -1712,8 +1713,10 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_ServiceNow{}
 		case settingsGitlab:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Gitlab{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_Gitlab{}
 		case settingsEntraID:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_EntraId{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_EntraId{}
 		case settingsDatadogIncidentManagement:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Datadog{}
 		case settingsEmailAccessPlugin:
@@ -1721,6 +1724,10 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		case settingsAWSIdentityCenter:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_AwsIc{}
 			p.PluginV1.Status.Details = &types.PluginStatusV1_AwsIc{}
+		case settingsNetIQ:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_NetIq{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_NetIq{}
+
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)
 		}
