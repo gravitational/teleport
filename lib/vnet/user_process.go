@@ -84,15 +84,25 @@ type ClusterClient interface {
 func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*UserProcess, error) {
 	clock := clockwork.NewRealClock()
 	clusterConfigCache := NewClusterConfigCache(clock)
-	appProvider := newLocalAppProvider(&localAppProviderConfig{
+	leafClusterCache, err := newLeafClusterCache(clock)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	localResolver := newLocalFQDNResolver(&localFQDNResolverConfig{
 		clientApplication:  clientApplication,
 		clusterConfigCache: clusterConfigCache,
+		leafClusterCache:   leafClusterCache,
+	})
+	appProvider := newLocalAppProvider(&localAppProviderConfig{
+		clientApplication: clientApplication,
 	})
 	osConfigProvider := NewLocalOSConfigProvider(&LocalOSConfigProviderConfig{
 		clientApplication:  clientApplication,
 		clusterConfigCache: clusterConfigCache,
+		leafClusterCache:   leafClusterCache,
 	})
 	clientApplicationService := newClientApplicationService(&clientApplicationServiceConfig{
+		localResolver:         localResolver,
 		localAppProvider:      appProvider,
 		localOSConfigProvider: osConfigProvider,
 	})

@@ -5364,6 +5364,14 @@ message SAMLConnectorSpecV2 {
   // ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED
   // is treated as NO.
   SAMLForceAuthn ForceAuthn = 18 [(gogoproto.jsontag) = "force_authn,omitempty"];
+  // PreferredRequestBinding is a preferred SAML request binding method.
+  // Value must be either "http-post" or "http-redirect".
+  // In general, the SAML identity provider lists request binding methods it supports.
+  // And the SAML service provider uses one of the IdP supported request binding method that it prefers.
+  // But we never honored request binding value provided by the IdP and always used http-redirect
+  // binding as a default. Setting up PreferredRequestBinding value lets us preserve existing
+  // auth connector behavior and only use http-post binding if it is explicitly configured.
+  string PreferredRequestBinding = 19 [(gogoproto.jsontag) = "preferred_request_binding,omitempty"];
 }
 
 // SAMLConnectorMFASettings contains SAML MFA settings.
@@ -5416,6 +5424,7 @@ message SAMLAuthRequest {
   bool CheckUser = 4 [(gogoproto.jsontag) = "check_user"];
 
   // RedirectURL will be used by browser.
+  // Value only set if the PreferredRequestBinding "http-redirect".
   string RedirectURL = 5 [(gogoproto.jsontag) = "redirect_url"];
 
   // PublicKey is an optional public key, users want these
@@ -5482,6 +5491,12 @@ message SAMLAuthRequest {
   teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
   // TlsAttestationStatement is an attestation statement for the given TLS public key.
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
+  // PostForm is the HTML form value that contains the SAML authentication request data.
+  // Value is only set if the PreferredRequestBinding in the SAMLConnectorSpecV2
+  // is "http-post". In any other case, RedirectURL field will be populated.
+  bytes PostForm = 23 [(gogoproto.jsontag) = "post_form,omitempty"];
+  // ClientVersion is the version of tsh or Proxy that is sending the SAMLAuthRequest request.
+  string ClientVersion = 24 [(gogoproto.jsontag) = "client_version,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -6808,6 +6823,10 @@ message PluginSpecV1 {
     PluginNetIQSettings net_iq = 19;
     // Settings for the GitHub plugin.
     PluginGithubSettings github = 20;
+
+    // Note: If you add a new settings type, please also update the custom JSON for oneof filed
+    // in the `tctl get/edit plugin` plugin command. You can find it in:
+    // https://github.com/gravitational/teleport/blob/master/tool/tctl/common/collection.go
   }
 
   // generation contains a unique ID that should:
@@ -6963,8 +6982,8 @@ message PluginOktaSettings {
   // CredentialsInfo contains information about the Okta credentials.
   PluginOktaCredentialsInfo credentials_info = 5;
 
-  // EnableSiemIntegration enables SIEM (Security Information and Event Management).
-  bool enable_system_log_export = 6;
+  reserved 6;
+  reserved "enable_system_log_export";
 }
 
 // PluginOktaCredentialsInfo contains information about the Okta credentials.
@@ -7042,6 +7061,9 @@ message PluginOktaSyncSettings {
   // that has not been yet updated and during the next update the value will be set to "org" if
   // AppID is empty or "saml_app" if not.
   string user_sync_source = 11;
+
+  // EnableSystemLogExport enables the Teleport Identity Security SIEM integration for Okta.
+  bool enable_system_log_export = 12;
 }
 
 // Defines a set of discord channel IDs
@@ -7447,6 +7469,10 @@ message PluginStatusV1 {
     PluginAWSICStatusV1 aws_ic = 8;
     // NetIQ holds status details for the NetIQ plugin.
     PluginNetIQStatusV1 net_iq = 9;
+
+    // Note: If you add a new settings type, please also update the custom JSON for oneof filed
+    // in the `tctl get/edit plugin` plugin command. You can find it in:
+    // https://github.com/gravitational/teleport/blob/master/tool/tctl/common/collection.go
   }
 
   // last_raw_error variable stores the most recent raw error message received from an API or service.
