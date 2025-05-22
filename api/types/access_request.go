@@ -131,6 +131,10 @@ type AccessRequest interface {
 	GetDryRun() bool
 	// SetDryRun sets the dry run flag on the request.
 	SetDryRun(bool)
+	// GetLongTerm returns true if this request is for long-term access.
+	GetLongTerm() bool
+	// SetLongTerm sets the long-term flag on the request.
+	SetLongTerm(bool)
 	// Copy returns a copy of the access request resource.
 	Copy() AccessRequest
 }
@@ -512,6 +516,16 @@ func (r *AccessRequestV3) SetMaxDuration(t time.Time) {
 // SetDryRun sets the dry run flag on the request.
 func (r *AccessRequestV3) SetDryRun(dryRun bool) {
 	r.Spec.DryRun = dryRun
+}
+
+// GetLongTerm returns true if this request is for long-term access.
+func (r *AccessRequestV3) GetLongTerm() bool {
+	return r.Spec.LongTerm
+}
+
+// SetLongTerm sets the long-term flag on the request.
+func (r *AccessRequestV3) SetLongTerm(longTerm bool) {
+	r.Spec.LongTerm = longTerm
 }
 
 // Copy returns a copy of the access request resource.
