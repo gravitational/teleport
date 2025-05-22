@@ -205,7 +205,6 @@ require (
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
 	github.com/vulcand/predicate v1.2.0 // replaced
 	github.com/yusufpapurcu/wmi v1.2.4
-	github.com/zeebo/assert v1.3.0
 	github.com/zitadel/oidc/v3 v3.38.1
 	gitlab.com/gitlab-org/api/client-go v0.127.0
 	go.etcd.io/etcd/api/v3 v3.5.21
