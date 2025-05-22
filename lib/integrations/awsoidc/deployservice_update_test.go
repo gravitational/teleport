@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -161,7 +160,7 @@ func TestUpdateDeployServices(t *testing.T) {
 
 	clusterName := "my-cluster"
 	integrationName := "my-integration"
-	ownershipTags := tags.DefaultResourceCreationTags(clusterName, integrationName)
+	ownershipTags := defaultResourceCreationTags(clusterName, integrationName)
 	semVer := teleport.SemVer()
 	semVer.PreRelease = ""
 	teleportVersion := semVer.String()

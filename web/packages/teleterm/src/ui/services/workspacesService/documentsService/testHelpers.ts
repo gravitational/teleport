@@ -102,8 +102,8 @@ export function makeDocumentPtySession(
 }
 
 export function makeDocumentTshNode(
-  props?: Partial<types.DocumentTshNodeWithServerId>
-): types.DocumentTshNodeWithServerId {
+  props?: Partial<types.DocumentTshNode>
+): types.DocumentTshNode {
   return {
     kind: 'doc.terminal_tsh_node',
     uri: '/docs/terminal_tsh_node',
@@ -114,6 +114,7 @@ export function makeDocumentTshNode(
     leafClusterId: '',
     origin: 'connection_list',
     serverId: '1234abcd-1234-abcd-1234-abcd1234abcd',
+    login: 'alice',
     ...props,
   };
 }

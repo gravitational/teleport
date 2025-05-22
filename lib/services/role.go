@@ -2577,6 +2577,7 @@ func (l kubernetesClusterLabelMatcher) getKubeLabelMatchers(role types.Role, typ
 // AccessCheckable is the subset of types.Resource required for the RBAC checks.
 type AccessCheckable interface {
 	GetKind() string
+	GetSubKind() string
 	GetName() string
 	GetMetadata() types.Metadata
 	GetLabel(key string) (value string, ok bool)
@@ -2594,7 +2595,10 @@ func resourceRequiresLabelMatching(r AccessCheckable) bool {
 	switch r.GetKind() {
 	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
 		return false
+	case types.KindApp, types.KindAppServer:
+		return r.GetSubKind() != types.KindIdentityCenterAccount
 	}
+
 	return true
 }
 

@@ -38,6 +38,7 @@ type LocalOSConfigProvider struct {
 type LocalOSConfigProviderConfig struct {
 	clientApplication  ClientApplication
 	clusterConfigCache *ClusterConfigCache
+	leafClusterCache   *leafClusterCache
 }
 
 // NewLocalOSConfigProvider returns a new LocalOSConfigProvider.
@@ -89,7 +90,7 @@ func (p *LocalOSConfigProvider) targetOSConfigurationForProfile(ctx context.Cont
 	targetOSConfig.DnsZones = rootClusterConfig.DNSZones
 	targetOSConfig.Ipv4CidrRanges = []string{rootClusterConfig.IPv4CIDRRange}
 
-	leafClusterNames, err := getLeafClusters(ctx, rootClusterClient)
+	leafClusterNames, err := p.cfg.leafClusterCache.getLeafClusters(ctx, rootClusterClient)
 	if err != nil {
 		log.WarnContext(ctx,
 			"Failed to list leaf clusters, profile may be expired, not configuring VNet for leaf clusters of this cluster",
@@ -115,23 +116,4 @@ func (p *LocalOSConfigProvider) targetOSConfigurationForProfile(ctx context.Cont
 		targetOSConfig.Ipv4CidrRanges = append(targetOSConfig.Ipv4CidrRanges, leafClusterConfig.IPv4CIDRRange)
 	}
 	return targetOSConfig
-}
-
-// TODO(nklaassen): cache the list of leaf clusters for each root cluster, no
-// need to refetch them all the time and the list doesn't change very often.
-func getLeafClusters(ctx context.Context, rootClient ClusterClient) ([]string, error) {
-	var leafClusters []string
-	nextPage := ""
-	for {
-		remoteClusters, nextPage, err := rootClient.CurrentCluster().ListRemoteClusters(ctx, 0, nextPage)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for _, rc := range remoteClusters {
-			leafClusters = append(leafClusters, rc.GetName())
-		}
-		if nextPage == "" {
-			return leafClusters, nil
-		}
-	}
 }

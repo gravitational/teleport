@@ -313,6 +313,7 @@ func Test_PluginOktaSyncSettings_SyncEnabledGetters(t *testing.T) {
 		require.False(t, syncSettings.GetEnableAppGroupSync())
 		require.False(t, syncSettings.GetEnableAccessListSync())
 		require.False(t, syncSettings.GetEnableBidirectionalSync())
+		require.False(t, syncSettings.GetEnableSystemLogExport())
 	})
 
 	t.Run("on empty settings", func(t *testing.T) {
@@ -322,6 +323,7 @@ func Test_PluginOktaSyncSettings_SyncEnabledGetters(t *testing.T) {
 		require.False(t, syncSettings.GetEnableAppGroupSync())
 		require.False(t, syncSettings.GetEnableAccessListSync())
 		require.False(t, syncSettings.GetEnableBidirectionalSync())
+		require.False(t, syncSettings.GetEnableSystemLogExport())
 	})
 
 	t.Run("on user sync enabled", func(t *testing.T) {
@@ -333,6 +335,7 @@ func Test_PluginOktaSyncSettings_SyncEnabledGetters(t *testing.T) {
 		require.True(t, syncSettings.GetEnableAppGroupSync()) // true by default
 		require.False(t, syncSettings.GetEnableAccessListSync())
 		require.False(t, syncSettings.GetEnableBidirectionalSync())
+		require.False(t, syncSettings.GetEnableSystemLogExport())
 	})
 
 	t.Run("on user sync enabled with disabled app and group sync", func(t *testing.T) {
@@ -356,17 +359,20 @@ func Test_PluginOktaSyncSettings_SyncEnabledGetters(t *testing.T) {
 		require.False(t, syncSettings.GetEnableAppGroupSync())
 		require.True(t, syncSettings.GetEnableAccessListSync())
 		require.True(t, syncSettings.GetEnableBidirectionalSync()) // true by default
+		require.False(t, syncSettings.GetEnableSystemLogExport())
 	})
 
 	t.Run("on access list sync enabled with bidirectional sync disabled", func(t *testing.T) {
 		syncSettings := &PluginOktaSyncSettings{
 			SyncAccessLists:          true,
 			DisableBidirectionalSync: true,
+			EnableSystemLogExport:    true,
 		}
 
 		require.False(t, syncSettings.GetEnableUserSync())
 		require.False(t, syncSettings.GetEnableAppGroupSync())
 		require.True(t, syncSettings.GetEnableAccessListSync())
 		require.False(t, syncSettings.GetEnableBidirectionalSync())
+		require.True(t, syncSettings.GetEnableSystemLogExport())
 	})
 }
