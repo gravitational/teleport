@@ -110,11 +110,7 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, botName strin
 	}
 
 	r, nextToken, err := service.ListResourcesWithFilter(ctx, pageSize, lastKey, func(item *machineidv1.BotInstance) bool {
-		latestHeartbeats := []*machineidv1.BotInstanceStatusHeartbeat{}
-		if item.Status != nil && item.Status.LatestHeartbeats != nil {
-			latestHeartbeats = item.Status.LatestHeartbeats
-		}
-
+		latestHeartbeats := item.GetStatus().GetLatestHeartbeats()
 		heartbeat := item.Status.InitialHeartbeat // Use initial heartbeat as a fallback
 		if len(latestHeartbeats) > 0 {
 			heartbeat = latestHeartbeats[len(latestHeartbeats)-1]

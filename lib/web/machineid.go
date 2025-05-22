@@ -288,11 +288,7 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 	}
 
 	uiInstances := tslices.Map(instances.BotInstances, func(instance *machineidv1.BotInstance) BotInstance {
-		latestHeartbeats := []*machineidv1.BotInstanceStatusHeartbeat{}
-		if instance.Status != nil && instance.Status.LatestHeartbeats != nil {
-			latestHeartbeats = instance.Status.LatestHeartbeats
-		}
-
+		latestHeartbeats := instance.GetStatus().GetLatestHeartbeats()
 		heartbeat := instance.Status.InitialHeartbeat // Use initial heartbeat as a fallback
 		if len(latestHeartbeats) > 0 {
 			heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
