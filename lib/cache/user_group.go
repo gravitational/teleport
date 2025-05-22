@@ -45,15 +45,16 @@ func newUserGroupCollection(u services.UserGroups, w types.WatchKind) (*collecti
 			var startKey string
 			var groups []types.UserGroup
 			for {
-				resp, startKey, err := u.ListUserGroups(ctx, 0, startKey)
+				resp, next, err := u.ListUserGroups(ctx, 0, startKey)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 
 				groups = append(groups, resp...)
-				if startKey == "" {
+				if next == "" {
 					break
 				}
+				startKey = next
 			}
 			return groups, nil
 		},
