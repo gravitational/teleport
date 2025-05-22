@@ -83,7 +83,7 @@ func (a *Server) registerUsingOracleMethod(
 	}
 
 	if tokenReq.Role == types.RoleBot {
-		certs, err := a.generateCertsBot(
+		certs, _, err := a.generateCertsBot(
 			ctx,
 			provisionToken,
 			tokenReq,

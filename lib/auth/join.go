@@ -234,7 +234,8 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		if err := a.checkEC2JoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM, types.JoinMethodOracle:
+	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM,
+		types.JoinMethodOracle, types.JoinMethodBoundKeypair:
 		// Some join methods require use of a specific RPC - reject those here.
 		// This would generally be a developer error - but can be triggered if
 		// the user has configured the wrong join method on the client-side.
@@ -334,7 +335,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	// With all elements of the token validated, we can now generate & return
 	// certificates.
 	if req.Role == types.RoleBot {
-		certs, err = a.generateCertsBot(
+		certs, _, err = a.generateCertsBot(
 			ctx,
 			provisionToken,
 			req,
@@ -353,7 +354,7 @@ func (a *Server) generateCertsBot(
 	req *types.RegisterUsingTokenRequest,
 	rawJoinClaims any,
 	attrs *workloadidentityv1pb.JoinAttrs,
-) (*proto.Certs, error) {
+) (*proto.Certs, string, error) {
 	// bots use this endpoint but get a user cert
 	// botResourceName must be set, enforced in CheckAndSetDefaults
 	botName := provisionToken.GetBotName()
@@ -361,7 +362,7 @@ func (a *Server) generateCertsBot(
 
 	// Check this is a join method for bots we support.
 	if !slices.Contains(machineidv1.SupportedJoinMethods, joinMethod) {
-		return nil, trace.BadParameter(
+		return nil, "", trace.BadParameter(
 			"unsupported join method %q for bot", joinMethod,
 		)
 	}
@@ -456,7 +457,7 @@ func (a *Server) generateCertsBot(
 		attrs,
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 	joinEvent.BotInstanceID = botInstanceID
 
@@ -474,7 +475,7 @@ func (a *Server) generateCertsBot(
 	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit bot join event.")
 	}
-	return certs, nil
+	return certs, botInstanceID, nil
 }
 
 func (a *Server) generateCerts(
