@@ -2693,12 +2693,7 @@ func (f *Forwarder) kubeResourceDeniedAccessMsg(user, verb string, resource apiR
 	kind := strings.Split(resource.resourceKind, "/")[0]
 
 	apiGroup := resource.apiGroup
-	teleportType, ok := defaultRBACResources.getTeleportResourceKindFromAPIResource(resource)
-	// If the resource is not in the default resources list, it is a custom resource
-	// controlled by a CRD. In this case, we use the namespace to restrict access to.
-	if !ok {
-		teleportType = types.KindKubeNamespace
-	}
+	teleportType := resource.resourceKind
 
 	switch {
 	case resource.namespace != "" && resource.resourceName != "":
