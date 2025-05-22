@@ -76,6 +76,7 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 			types.PluginTypeEntraID:           entraIDInstanceFactory,
 			types.PluginTypeDatadog:           datadogInstanceFactory,
 			types.PluginTypeAWSIdentityCenter: withLeaderLock(awsIdentityCenterInstanceFactory),
+			types.PluginTypeGithub:            githubInstanceFactory,
 			types.PluginTypeMSTeams:           msTeamsInstanceFactory,
 			types.PluginTypeEmail:             emailInstanceFactory,
 			types.PluginTypeNetIQ:             netIQInstanceFactory,

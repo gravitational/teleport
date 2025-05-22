@@ -1,17 +1,21 @@
 package web
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/accessgraph/github"
 	"github.com/gravitational/teleport/e/lib/accessgraph/gitlab"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/web/ui"
@@ -107,6 +111,7 @@ var defaultPluginDescriptors map[types.PluginType]pluginDescriptor = map[types.P
 	types.PluginTypeServiceNow:        pluginInstallerFn(installServiceNowPlugin),
 	types.PluginTypeSlack:             slackDescriptor{},
 	types.PluginTypeGitlab:            pluginInstallerFn(installGitlabPlugin),
+	types.PluginTypeGithub:            pluginInstallerFn(installGithubPlugin),
 	types.PluginTypeEntraID:           entraIDPluginDescriptor{},
 	types.PluginTypeDatadog:           pluginInstallerFn(installDatadogPlugin),
 	types.PluginTypeAWSIdentityCenter: awsICPluginDescriptor{},
@@ -240,6 +245,100 @@ func installOpsgeniePlugin(ctx context.Context, sessCtx *web.SessionContext, w h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return ui, nil
+}
+
+func installGithubPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	const (
+		// multipartFormBufSize is a buffer size for ParseMultipartForm
+		multipartFormBufSize = 8192
+	)
+
+	if err := r.ParseMultipartForm(multipartFormBufSize); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var prvKey bytes.Buffer
+	file, _, err := r.FormFile("privateKey")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer file.Close()
+	if _, err := io.Copy(&prvKey, file); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if prvKey.Len() == 0 {
+		return nil, trace.BadParameter("empty private key")
+	}
+
+	organizationName := r.FormValue("organizationName")
+	if organizationName == "" {
+		return nil, trace.BadParameter("missing Organization name")
+	}
+
+	clientID := r.FormValue("clientID")
+	if clientID == "" {
+		return nil, trace.BadParameter("missing Client ID")
+	}
+
+	startDate := r.FormValue("startDate")
+	if startDate == "" {
+		return nil, trace.BadParameter("missing Start date")
+	}
+	t, err := time.ParseInLocation(time.RFC3339, startDate, time.UTC)
+	if err != nil {
+		return nil, trace.BadParameter("invalid Start date format: %v", err)
+	}
+
+	if err := github.GithubInstanceConnectionTest(ctx, github.GithubConfig{
+		ClientID:           clientID,
+		PrivateKey:         prvKey.Bytes(),
+		Organization:       organizationName,
+		BootstrapStartDate: t,
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req := &pluginspb.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			SubKind: types.PluginSubkindAccessGraph,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					types.TeleportNamespace + "/hosted-plugin": "true",
+				},
+				Name: organizationName,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Github{
+					Github: &types.PluginGithubSettings{
+						ApiEndpoint:      "", /* TODO: set the API endpoint */
+						ClientId:         clientID,
+						OrganizationName: organizationName,
+						StartDate:        t,
+					},
+				},
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Name:   types.PluginTypeGithub + "-" + organizationName + "-private-key",
+					Labels: map[string]string{},
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_PrivateKey{
+					PrivateKey: prvKey.Bytes(),
+				},
+			},
+		},
+	}
+
+	ui, err := installPlugin(ctx, sessCtx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return ui, nil
 }
 

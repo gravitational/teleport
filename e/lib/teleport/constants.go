@@ -36,6 +36,9 @@ const (
 	// ComponentGitlab is the Gitlab service component.
 	ComponentGitlab = "gitlab"
 
+	// ComponentGithub is the Github service component.
+	ComponentGithub = "github"
+
 	// ComponentEntraID is the Entra ID service component.
 	ComponentEntraID = "entra-id"
 
