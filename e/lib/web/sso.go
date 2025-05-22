@@ -1,8 +1,11 @@
 package web
 
 import (
+	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -14,12 +17,15 @@ import (
 	saml2 "github.com/russellhaering/gosaml2"
 	"golang.org/x/oauth2"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/saml"
 	"github.com/gravitational/teleport/lib/web"
+	"github.com/gravitational/teleport/lib/web/app"
 )
 
 func (p *Plugin) oidcLoginWeb(w http.ResponseWriter, r *http.Request, params httprouter.Params) string {
@@ -224,20 +230,22 @@ func (p *Plugin) oidcCallback(w http.ResponseWriter, r *http.Request, params htt
 	return redirectURL.String()
 }
 
-func (p *Plugin) samlSSO(w http.ResponseWriter, r *http.Request, params httprouter.Params) string {
+func (p *Plugin) samlSSO(w http.ResponseWriter, r *http.Request, params httprouter.Params) (resp interface{}, err error) {
 	logger := p.Logger.With("auth", "saml")
 	logger.DebugContext(r.Context(), "Web login start")
 
 	req, err := web.ParseSSORequestParams(r)
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to extract SSO parameters from request", "error", err)
-		return client.LoginFailedRedirectURL
+		metaRedirect(r.Context(), w, client.LoginFailedRedirectURL, logger)
+		return
 	}
 
 	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to parse request remote address", "error", err)
-		return client.LoginFailedRedirectURL
+		metaRedirect(r.Context(), w, client.LoginFailedRedirectURL, logger)
+		return
 	}
 
 	proxyClient := p.h.GetProxyClient()
@@ -248,15 +256,27 @@ func (p *Plugin) samlSSO(w http.ResponseWriter, r *http.Request, params httprout
 		ClientRedirectURL: req.ClientRedirectURL,
 		ClientLoginIP:     remoteAddr,
 		ClientUserAgent:   r.UserAgent(),
+		ClientVersion:     teleport.Version,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error creating auth request", "error", err)
 		// TODO(camh): Consider redirecting to license expired URL for license expiry
 		// errors so we can present a nicer error to the user.
-		return client.LoginFailedRedirectURL
+		metaRedirect(r.Context(), w, client.LoginFailedRedirectURL, logger)
+		return
+	}
+	if len(response.PostForm) > 0 {
+		if err := saml.WriteSAMLPostRequestWithHeaders(w, response.PostForm); err != nil {
+			metaRedirect(r.Context(), w, client.LoginFailedRedirectURL, logger)
+		}
+		return
 	}
 
-	return response.RedirectURL
+	if !web.IsValidRedirectURL(response.RedirectURL) {
+		response.RedirectURL = client.LoginFailedRedirectURL
+	}
+	metaRedirect(r.Context(), w, response.RedirectURL, logger)
+	return
 }
 
 func (p *Plugin) samlSSOConsole(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
@@ -294,6 +314,7 @@ func (p *Plugin) samlSSOConsole(w http.ResponseWriter, r *http.Request, params h
 		TlsAttestationStatement: req.TLSAttestationStatement.ToProto(),
 		ClientLoginIP:           remoteAddr,
 		ClientUserAgent:         r.UserAgent(),
+		ClientVersion:           req.ClientVersion,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to create SAML auth request", "error", err)
@@ -305,10 +326,16 @@ func (p *Plugin) samlSSOConsole(w http.ResponseWriter, r *http.Request, params h
 		if strings.Contains(err.Error(), auth.InvalidClientRedirectErrorMessage) {
 			return nil, trace.AccessDenied("%s", web.SSOLoginFailureInvalidRedirect)
 		}
+		if errors.Is(err, &eauth.ErrNoHTTPPostBinding) {
+			return nil, trace.Wrap(err)
+		}
 		return nil, trace.AccessDenied("%s", web.SSOLoginFailureMessage)
 	}
 
-	return &client.SSOLoginConsoleResponse{RedirectURL: response.RedirectURL}, nil
+	return &client.SSOLoginConsoleResponse{
+		RedirectURL: response.RedirectURL,
+		PostForm:    base64.StdEncoding.EncodeToString(response.PostForm),
+	}, nil
 }
 
 func (p *Plugin) samlACSHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) string {
@@ -436,4 +463,10 @@ func (p *Plugin) samlSLOHandle(w http.ResponseWriter, r *http.Request, params ht
 	}
 
 	return client.DefaultLoginURL
+}
+
+func metaRedirect(ctx context.Context, w http.ResponseWriter, redirectURI string, logger *slog.Logger) {
+	if err := app.MetaRedirect(w, redirectURI); err != nil {
+		logger.WarnContext(ctx, "Failed to issue a redirect", "error", err)
+	}
 }

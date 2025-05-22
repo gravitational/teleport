@@ -251,7 +251,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	// SAML 2.0 callback handlers
 	h.POST("/webapi/saml/acs", h.WithMetaRedirect(p.samlACSHandle))
 	h.POST("/webapi/saml/acs/:connector", h.WithMetaRedirect(p.samlACSHandle))
-	h.GET("/webapi/saml/sso", h.WithMetaRedirect(p.samlSSO))
+	h.GET("/webapi/saml/sso", h.WithHighLimiter(p.samlSSO))
 	h.POST("/webapi/saml/login/console", h.WithLimiter(p.samlSSOConsole))
 
 	h.POST("/webapi/saml/slo", h.WithMetaRedirect(p.samlSLOHandle))

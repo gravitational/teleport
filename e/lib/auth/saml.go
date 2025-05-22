@@ -124,8 +124,12 @@ type samlProviderKey struct {
 	forMFA bool
 }
 
-// ErrSAMLNoRoles results from not mapping any roles from SAML claims.
-var ErrSAMLNoRoles = trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
+var (
+	// ErrSAMLNoRoles results from not mapping any roles from SAML claims.
+	ErrSAMLNoRoles = trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
+	// ErrNoHTTPPostBinding is the error returned when client does not support SAML http-post binding request.
+	ErrNoHTTPPostBinding = trace.CompareFailedError{Message: "client does not support http-post binding request"}
+)
 
 // CreateSAMLAuthRequest creates a SAML AuthnRequest.
 func (sas *SAMLAuthService) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
@@ -166,19 +170,31 @@ func (sas *SAMLAuthService) createSAMLAuthRequest(ctx context.Context, req types
 
 	req.ID = attr.Value
 
-	// Workaround for Ping: Ping expects `SigAlg` and `Signature` query
-	// parameters when "Enforce Signed Authn Request" is enabled, but gosaml2
-	// only provides these parameters when binding == BindingHttpRedirect.
-	// Luckily, BuildAuthURLRedirect sets this and is otherwise identical to
-	// the standard BuildAuthURLFromDocument.
-	if connector.GetProvider() == teleport.Ping {
-		req.RedirectURL, err = provider.BuildAuthURLRedirect("", doc)
-	} else {
-		req.RedirectURL, err = provider.BuildAuthURLFromDocument("", doc)
-	}
-
-	if err != nil {
-		return nil, trace.Wrap(err)
+	switch connector.GetPreferredRequestBinding() {
+	case types.SAMLRequestHTTPPostBinding:
+		if forMFA {
+			// SSO MFA does not support http-post form request yet.
+			// It will continue using http-redirect as a default.
+			req.RedirectURL, err = buildRedirectBindingURL(connector.GetProvider(), provider, doc)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			break
+		}
+		// Newer tsh and proxy that supports http-post binding request sends
+		// non-empty ClientVersion value.
+		if req.ClientVersion == "" {
+			return nil, &ErrNoHTTPPostBinding
+		}
+		req.PostForm, err = provider.BuildAuthBodyPostFromDocument("", doc)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		req.RedirectURL, err = buildRedirectBindingURL(connector.GetProvider(), provider, doc)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	err = sas.auth.Services.CreateSAMLAuthRequest(ctx, req, defaults.SAMLAuthRequestTTL)
@@ -186,6 +202,20 @@ func (sas *SAMLAuthService) createSAMLAuthRequest(ctx context.Context, req types
 		return nil, trace.Wrap(err)
 	}
 	return &req, nil
+}
+
+func buildRedirectBindingURL(providerName string, provider *saml2.SAMLServiceProvider, doc *etree.Document) (redirectURL string, err error) {
+	// Workaround for Ping: Ping expects `SigAlg` and `Signature` query
+	// parameters when "Enforce Signed Authn Request" is enabled, but gosaml2
+	// only provides these parameters when binding == BindingHttpRedirect.
+	// Luckily, BuildAuthURLRedirect sets this and is otherwise identical to
+	// the standard BuildAuthURLFromDocument.
+	if providerName == teleport.Ping {
+		redirectURL, err = provider.BuildAuthURLRedirect("", doc)
+		return
+	}
+	redirectURL, err = provider.BuildAuthURLFromDocument("", doc)
+	return
 }
 
 func (sas *SAMLAuthService) getSAMLConnectorAndProviderByID(ctx context.Context, connectorID string, forMFA bool) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {

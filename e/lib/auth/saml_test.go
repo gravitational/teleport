@@ -758,7 +758,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 			Issuer:                   "test",
 			Audience:                 "test",
 			ServiceProviderIssuer:    "test",
-			SSO:                      "test",
+			SSO:                      "https://example.com",
 			Cert:                     string(tlsCert),
 			AssertionConsumerService: "test",
 			AttributesToRoles: []types.AttributeMapping{{
@@ -781,14 +781,14 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 	expectedConnector := &types.SAMLConnectorV2{Kind: "saml", Version: "v2", Metadata: types.Metadata{Name: "zzz", Namespace: apidefaults.Namespace}, Spec: *request.ConnectorSpec}
 	require.Equal(t, expectedConnector, connector)
 
-	require.Equal(t, "test", provider.IdentityProviderSSOURL)
+	require.Equal(t, "https://example.com", provider.IdentityProviderSSOURL)
 	require.Equal(t, "test", provider.IdentityProviderIssuer)
 	require.Equal(t, "test", provider.AssertionConsumerServiceURL)
 	require.Equal(t, "test", provider.ServiceProviderIssuer)
 
 	conn, err := types.NewSAMLConnector("foo", types.SAMLConnectorSpecV2{
 		Issuer:                   "test",
-		SSO:                      "test",
+		SSO:                      "https://example.com",
 		Cert:                     string(tlsCert),
 		AssertionConsumerService: "test",
 		AttributesToRoles: []types.AttributeMapping{{
@@ -1250,7 +1250,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 
 	conn, err := types.NewSAMLConnector("foo", types.SAMLConnectorSpecV2{
 		Issuer:                   "test",
-		SSO:                      "test",
+		SSO:                      "https://example.com",
 		Cert:                     fixtures.TLSCACertPEM,
 		AssertionConsumerService: "test",
 		AttributesToRoles: []types.AttributeMapping{{
@@ -1269,7 +1269,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 		Issuer:                   "test",
 		Audience:                 "test",
 		ServiceProviderIssuer:    "test",
-		SSO:                      "test",
+		SSO:                      "https://example.com",
 		Cert:                     fixtures.TLSCACertPEM,
 		AssertionConsumerService: "test",
 		AttributesToRoles: []types.AttributeMapping{{
@@ -1391,7 +1391,7 @@ func TestSAMLAuthCompat(t *testing.T) {
 	// Create a fake SAML IdP that will authorize a fake user.
 	idp := NewFakeSAMLIdP(t, srv.Clock())
 
-	conn, err := types.NewSAMLConnector("example", types.SAMLConnectorSpecV2{
+	connector, err := types.NewSAMLConnector("example", types.SAMLConnectorSpecV2{
 		SSO:                      idp.SSOURL.String(),
 		Issuer:                   idp.MetadataURL.String(),
 		Cert:                     idp.CertPEM,
@@ -1404,7 +1404,17 @@ func TestSAMLAuthCompat(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = srv.Auth().CreateSAMLConnector(context.Background(), conn)
+	_, err = srv.Auth().CreateSAMLConnector(context.Background(), connector)
+	require.NoError(t, err)
+
+	postBindingConnector := newConnector(t,
+		"postBindingConnector",
+		idp.SSOURL.String(),
+		idp.MetadataURL.String(),
+		idp.CertPEM,
+		types.SAMLRequestHTTPPostBinding,
+	)
+	_, err = srv.Auth().CreateSAMLConnector(context.Background(), postBindingConnector)
 	require.NoError(t, err)
 
 	proxyClient, err := srv.NewClient(auth.TestBuiltin(types.RoleProxy))
@@ -1423,46 +1433,81 @@ func TestSAMLAuthCompat(t *testing.T) {
 
 	for _, tc := range []struct {
 		desc                         string
+		connectorName                string
 		pubKey, sshPubKey, tlsPubKey []byte
 		expectSSHSubjectKey          ssh.PublicKey
 		expectTLSSubjectKey          crypto.PublicKey
+		clientVersion                string
+		wantErr                      bool
+		assertErr                    require.ErrorAssertionFunc
 	}{
 		{
-			desc: "no keys",
+			desc:          "no keys",
+			connectorName: connector.GetName(),
+			assertErr:     require.NoError,
 		},
 		{
 			desc:                "single key",
+			connectorName:       connector.GetName(),
 			pubKey:              sshPubBytes,
 			expectSSHSubjectKey: sshPub,
 			expectTLSSubjectKey: sshKey.Public(),
+			assertErr:           require.NoError,
 		},
 		{
 			desc:                "split keys",
+			connectorName:       connector.GetName(),
 			sshPubKey:           sshPubBytes,
 			tlsPubKey:           tlsPubBytes,
 			expectSSHSubjectKey: sshPub,
 			expectTLSSubjectKey: tlsKey.Public(),
+			assertErr:           require.NoError,
 		},
 		{
 			desc:                "only ssh",
+			connectorName:       connector.GetName(),
 			sshPubKey:           sshPubBytes,
 			expectSSHSubjectKey: sshPub,
+			assertErr:           require.NoError,
 		},
 		{
 			desc:                "only tls",
+			connectorName:       connector.GetName(),
 			tlsPubKey:           tlsPubBytes,
 			expectTLSSubjectKey: tlsKey.Public(),
+			assertErr:           require.NoError,
+		},
+		{
+			desc:                "empty ClientVersion succeeds on default or http-redirect binding request",
+			connectorName:       connector.GetName(),
+			tlsPubKey:           tlsPubBytes,
+			expectTLSSubjectKey: tlsKey.Public(),
+			clientVersion:       "",
+			assertErr:           require.NoError,
+		},
+		{
+			desc:                "empty ClientVersion fails for http-post binding request",
+			connectorName:       postBindingConnector.GetName(),
+			tlsPubKey:           tlsPubBytes,
+			expectTLSSubjectKey: tlsKey.Public(),
+			wantErr:             true,
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, &ErrNoHTTPPostBinding)
+			},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			req, err := proxyClient.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
-				ConnectorID:  conn.GetName(),
+				ConnectorID:  tc.connectorName,
 				PublicKey:    tc.pubKey,
 				SshPublicKey: tc.sshPubKey,
 				TlsPublicKey: tc.tlsPubKey,
 				CertTTL:      time.Hour,
 			})
-			require.NoError(t, err)
+			tc.assertErr(t, err)
+			if tc.wantErr {
+				return
+			}
 
 			// Simulate the proxy redirecting to the SAML IdP and getting a
 			// response back, so we can ask auth to validate it and check the
@@ -1470,7 +1515,7 @@ func TestSAMLAuthCompat(t *testing.T) {
 			samlResponse, err := idp.ServeSSO(req.RedirectURL)
 			require.NoError(t, err)
 
-			resp, err := proxyClient.ValidateSAMLResponse(ctx, samlResponse, conn.GetName(), "")
+			resp, err := proxyClient.ValidateSAMLResponse(ctx, samlResponse, tc.connectorName, "")
 			require.NoError(t, err, "validating SAML auth callback")
 
 			// The proxy should get back the keys exactly as it sent them. Older
@@ -1510,7 +1555,7 @@ func TestSAMLLicense(t *testing.T) {
 
 	conn, err := types.NewSAMLConnector("foo", types.SAMLConnectorSpecV2{
 		Issuer:                   "test",
-		SSO:                      "test",
+		SSO:                      "https://example.com",
 		Cert:                     fixtures.TLSCACertPEM,
 		AssertionConsumerService: "test",
 		AttributesToRoles: []types.AttributeMapping{{
@@ -1677,6 +1722,97 @@ func TestServer_ValidateSAMLResponse_MFA(t *testing.T) {
 
 			if tt.checkResponse != nil {
 				tt.checkResponse(t, response)
+			}
+		})
+	}
+}
+func newConnector(t *testing.T, name, ssoURL, issuer, cert, preferredBinding string) types.SAMLConnector {
+	t.Helper()
+	c, err := types.NewSAMLConnector(name, types.SAMLConnectorSpecV2{
+		SSO:                      ssoURL,
+		Issuer:                   issuer,
+		Cert:                     cert,
+		AssertionConsumerService: "https://teleport.example.com/webapi/saml/acs",
+		AttributesToRoles: []types.AttributeMapping{{
+			Name:  "groups",
+			Value: "devs",
+			Roles: []string{"access"},
+		}},
+		PreferredRequestBinding: preferredBinding,
+	})
+	require.NoError(t, err)
+	return c
+}
+
+func TestSAMLPreferredBinding(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.SAML: {Enabled: true},
+		}},
+	})
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t, ValidLicense{}, func(cfg *auth.TestTLSServerConfig) {
+		authPlugin, err := NewPlugin(Config{License: ValidLicense{}})
+		require.NoError(t, err)
+		reg := plugin.NewRegistry()
+		reg.Add(authPlugin)
+		cfg.APIConfig.PluginRegistry = reg
+	})
+	_, err := auth.CreateRole(ctx, srv.Auth(), "access", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	const (
+		ssoURL = "https://example.com"
+		issuer = "https://example.com/issuer"
+	)
+
+	defaultConnector := newConnector(t, "defaultConnector", ssoURL, issuer, fixtures.TLSCACertPEM, "")
+	_, err = srv.Auth().CreateSAMLConnector(ctx, defaultConnector)
+	require.NoError(t, err)
+
+	redirectBindingConnector := newConnector(t, "redirectBindingConnector", ssoURL, issuer, fixtures.TLSCACertPEM, types.SAMLRequestHTTPRedirectBinding)
+	_, err = srv.Auth().CreateSAMLConnector(ctx, redirectBindingConnector)
+	require.NoError(t, err)
+
+	postBindingConnector := newConnector(t, "postBindingConnector", ssoURL, issuer, fixtures.TLSCACertPEM, types.SAMLRequestHTTPPostBinding)
+	_, err = srv.Auth().CreateSAMLConnector(ctx, postBindingConnector)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		connectorName    string
+		needsRedirectURL bool
+	}{
+		{
+			name:             "default",
+			connectorName:    defaultConnector.GetName(),
+			needsRedirectURL: true,
+		},
+		{
+			name:             "with http-redirect",
+			connectorName:    redirectBindingConnector.GetName(),
+			needsRedirectURL: true,
+		},
+		{
+			name:             "with http-post",
+			connectorName:    postBindingConnector.GetName(),
+			needsRedirectURL: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := srv.Auth().CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
+				ConnectorID:   tt.connectorName,
+				Type:          constants.SAML,
+				ClientVersion: "18.0.0",
+			})
+			require.NoError(t, err)
+			if tt.needsRedirectURL {
+				require.NotEmpty(t, resp.RedirectURL)
+			} else {
+				require.NotEmpty(t, resp.PostForm)
 			}
 		})
 	}

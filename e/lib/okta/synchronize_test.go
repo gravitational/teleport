@@ -633,7 +633,7 @@ const entityDescriptor = `
 		</ds:KeyInfo>
 	</md:KeyDescriptor>
 	<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
-	<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="http://example.com/saml/acs/example"/>
+	<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://example.com/saml/acs/example"/>
 	</md:IDPSSODescriptor>
 </md:EntityDescriptor>`
 
