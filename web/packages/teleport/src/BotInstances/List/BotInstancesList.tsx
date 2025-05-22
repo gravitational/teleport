@@ -57,7 +57,9 @@ export function BotInstancesList({
     activeAtDisplay: x.active_at_latest
       ? `${formatDistanceToNowStrict(parseISO(x.active_at_latest))} ago`
       : '-',
-    activeAtLocal: format(parseISO(x.active_at_latest), 'PP, p z'),
+    activeAtLocal: x.active_at_latest
+      ? format(parseISO(x.active_at_latest), 'PP, p z')
+      : '-',
   }));
 
   return (

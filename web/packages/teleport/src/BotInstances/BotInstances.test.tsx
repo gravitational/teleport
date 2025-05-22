@@ -114,6 +114,10 @@ describe('BotInstances', () => {
             join_method_latest: 'test-join-method',
             version_latest: '1.0.0-dev-a12b3c',
           },
+          {
+            bot_name: 'test-bot-2',
+            instance_id: '3c3aae3e-de25-4824-a8e9-5a531862f19a',
+          },
         ],
         next_page_token: '',
       })
