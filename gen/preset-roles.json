@@ -1,7 +1,7 @@
 {
   "access": {
     "kind": "role",
-    "version": "v8",
+    "version": "v7",
     "metadata": {
       "name": "access",
       "description": "Access cluster resources",
@@ -25,6 +25,11 @@
         "desktop_directory_sharing": true,
         "pin_source_ip": false,
         "ssh_file_copy": true,
+        "idp": {
+          "saml": {
+            "enabled": true
+          }
+        },
         "create_desktop_user": false,
         "create_db_user": false,
         "ssh_port_forwarding": {
@@ -122,8 +127,7 @@
             "name": "*",
             "verbs": [
               "*"
-            ],
-            "api_group": "*"
+            ]
           }
         ],
         "gcp_service_accounts": [
@@ -148,7 +152,7 @@
   },
   "auditor": {
     "kind": "role",
-    "version": "v8",
+    "version": "v7",
     "metadata": {
       "name": "auditor",
       "description": "Review cluster events and replay sessions",
@@ -172,6 +176,11 @@
         "desktop_directory_sharing": true,
         "pin_source_ip": false,
         "ssh_file_copy": true,
+        "idp": {
+          "saml": {
+            "enabled": true
+          }
+        },
         "create_desktop_user": false,
         "create_db_user": false
       },
@@ -267,7 +276,7 @@
   },
   "editor": {
     "kind": "role",
-    "version": "v8",
+    "version": "v7",
     "metadata": {
       "name": "editor",
       "description": "Edit cluster configuration",
@@ -291,6 +300,11 @@
         "desktop_directory_sharing": true,
         "pin_source_ip": false,
         "ssh_file_copy": true,
+        "idp": {
+          "saml": {
+            "enabled": true
+          }
+        },
         "create_desktop_user": false,
         "create_db_user": false,
         "ssh_port_forwarding": {
