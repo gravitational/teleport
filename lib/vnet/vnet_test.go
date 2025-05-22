@@ -80,8 +80,9 @@ type testPack struct {
 }
 
 type testPackConfig struct {
-	clock       *clockwork.FakeClock
-	appProvider appProvider
+	clock        *clockwork.FakeClock
+	fqdnResolver fqdnResolver
+	appProvider  appProvider
 }
 
 func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPack {
@@ -134,7 +135,11 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 
 	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
 
-	tcpHandlerResolver := newTCPAppResolver(cfg.appProvider, cfg.clock)
+	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
+		fqdnResolver: cfg.fqdnResolver,
+		appProvider:  cfg.appProvider,
+		clock:        cfg.clock,
+	})
 
 	// Create the VNet and connect it to the other side of the TUN.
 	ns, err := newNetworkStack(&networkStackConfig{
@@ -446,6 +451,7 @@ func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResour
 			},
 			Spec: types.AppSpecV3{
 				PublicAddr: app.publicAddr,
+				URI:        "tcp://" + app.publicAddr,
 			},
 		}
 
@@ -582,11 +588,17 @@ func TestDialFakeApp(t *testing.T) {
 	}, dialOpts, reissueClientCert, clock)
 
 	clusterConfigCache := NewClusterConfigCache(clock)
+	leafClusterCache, err := newLeafClusterCache(clock)
+	require.NoError(t, err)
 	p := newTestPack(t, ctx, testPackConfig{
 		clock: clock,
-		appProvider: newLocalAppProvider(&localAppProviderConfig{
+		fqdnResolver: newLocalFQDNResolver(&localFQDNResolverConfig{
 			clientApplication:  clientApp,
 			clusterConfigCache: clusterConfigCache,
+			leafClusterCache:   leafClusterCache,
+		}),
+		appProvider: newLocalAppProvider(&localAppProviderConfig{
+			clientApplication: clientApp,
 		}),
 	})
 
@@ -711,6 +723,9 @@ func TestDialFakeApp(t *testing.T) {
 		for i := 0; i < 3; i++ {
 			t.Run(fmt.Sprint(i), func(t *testing.T) {
 				for _, tc := range validTestCases {
+					if tc.expectRouteToApp.URI == "" && tc.expectRouteToApp.PublicAddr != "" {
+						tc.expectRouteToApp.URI = "tcp://" + tc.expectRouteToApp.PublicAddr
+					}
 					t.Run(tc.app, func(t *testing.T) {
 						t.Parallel()
 
@@ -778,6 +793,23 @@ func TestDialFakeApp(t *testing.T) {
 		}), "no certs are supposed to be requested for target port %d in app %s", port, app)
 		require.Equal(t, uint32(1), clientApp.onInvalidLocalPortCallCount.Load(), "unexpected number of calls to OnInvalidLocalPort")
 	})
+
+	t.Run("ssh", func(t *testing.T) {
+		for _, node := range []string{
+			"node.root1.example.com",
+			"node.leaf1.example.com.root1.example.com",
+		} {
+			t.Run(node, func(t *testing.T) {
+				t.Parallel()
+				// SSH access isn't fully implemented yet, at this point the DNS
+				// lookup for *.<cluster-name> should succeed but a dial should fail.
+				_, err := p.lookupHost(ctx, node)
+				require.NoError(t, err)
+				_, err = p.dialHost(ctx, node, 22)
+				require.Error(t, err)
+			})
+		}
+	})
 }
 
 func testEchoConnection(t *testing.T, conn net.Conn) {
@@ -830,11 +862,17 @@ func TestOnNewConnection(t *testing.T) {
 	invalidAppName := "not.an.app.example.com."
 
 	clusterConfigCache := NewClusterConfigCache(clock)
+	leafClusterCache, err := newLeafClusterCache(clock)
+	require.NoError(t, err)
 	p := newTestPack(t, ctx, testPackConfig{
 		clock: clock,
-		appProvider: newLocalAppProvider(&localAppProviderConfig{
+		fqdnResolver: newLocalFQDNResolver(&localFQDNResolverConfig{
 			clientApplication:  clientApp,
 			clusterConfigCache: clusterConfigCache,
+			leafClusterCache:   leafClusterCache,
+		}),
+		appProvider: newLocalAppProvider(&localAppProviderConfig{
+			clientApplication: clientApp,
 		}),
 	})
 
@@ -842,7 +880,7 @@ func TestOnNewConnection(t *testing.T) {
 	// called.
 	lookupCtx, lookupCtxCancel := context.WithTimeout(ctx, 200*time.Millisecond)
 	defer lookupCtxCancel()
-	_, err := p.lookupHost(lookupCtx, invalidAppName)
+	_, err = p.lookupHost(lookupCtx, invalidAppName)
 	require.Error(t, err, "Expected lookup of an invalid app to fail")
 	require.Equal(t, uint32(0), clientApp.onNewConnectionCallCount.Load())
 
@@ -911,11 +949,18 @@ func testRemoteAppProvider(t *testing.T, alg cryptosuites.Algorithm) {
 		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)
 	clusterConfigCache := NewClusterConfigCache(clock)
-	appProvider := newLocalAppProvider(&localAppProviderConfig{
+	leafClusterCache, err := newLeafClusterCache(clock)
+	require.NoError(t, err)
+	localResolver := newLocalFQDNResolver(&localFQDNResolverConfig{
 		clientApplication:  clientApp,
 		clusterConfigCache: clusterConfigCache,
+		leafClusterCache:   leafClusterCache,
+	})
+	appProvider := newLocalAppProvider(&localAppProviderConfig{
+		clientApplication: clientApp,
 	})
 	svc := newClientApplicationService(&clientApplicationServiceConfig{
+		localResolver:         localResolver,
 		localAppProvider:      appProvider,
 		localOSConfigProvider: nil, // OS config is not needed for this test.
 	})
@@ -946,8 +991,9 @@ func testRemoteAppProvider(t *testing.T, alg cryptosuites.Algorithm) {
 	remoteAppProvider := newRemoteAppProvider(clt)
 
 	p := newTestPack(t, ctx, testPackConfig{
-		clock:       clock,
-		appProvider: remoteAppProvider,
+		fqdnResolver: clt,
+		appProvider:  remoteAppProvider,
+		clock:        clock,
 	})
 
 	for _, app := range []string{

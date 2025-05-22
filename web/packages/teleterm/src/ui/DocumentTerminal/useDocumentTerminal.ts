@@ -16,12 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 
 import { useAsync } from 'shared/hooks/useAsync';
 import { runOnce } from 'shared/utils/highbar';
 
-import Logger from 'teleterm/logger';
 import type { Shell } from 'teleterm/mainProcess/shell';
 import {
   PtyCommand,
@@ -29,25 +28,19 @@ import {
   WindowsPty,
 } from 'teleterm/services/pty';
 import * as tshdGateway from 'teleterm/services/tshd/gateway';
-import type * as tsh from 'teleterm/services/tshd/types';
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { ClustersService } from 'teleterm/ui/services/clusters';
-import { AmbiguousHostnameError } from 'teleterm/ui/services/resources';
 import {
   canDocChangeShell,
   DocumentsService,
-  isDocumentTshNodeWithLoginHost,
 } from 'teleterm/ui/services/workspacesService';
 import type * as types from 'teleterm/ui/services/workspacesService';
 import { IAppContext } from 'teleterm/ui/types';
 import { routing } from 'teleterm/ui/uri';
-import type * as uri from 'teleterm/ui/uri';
-import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export function useDocumentTerminal(doc: types.DocumentTerminal) {
-  const logger = useRef(new Logger('useDocumentTerminal'));
   const ctx = useAppContext();
   const { documentsService } = useWorkspaceContext();
   const [attempt, runAttempt] = useAsync(async () => {
@@ -71,9 +64,8 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
     }
 
     try {
-      return await initializePtyProcess(
+      return await setUpPtyProcess(
         ctx,
-        logger.current,
         documentsService,
         docWithDefaultShell || doc
       );
@@ -102,115 +94,6 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
   }, [attempt]);
 
   return { attempt, initializePtyProcess: runAttempt };
-}
-
-async function initializePtyProcess(
-  ctx: IAppContext,
-  logger: Logger,
-  documentsService: DocumentsService,
-  doc: types.DocumentTerminal
-) {
-  // DELETE IN 14.0.0
-  //
-  // Logging in to an arbitrary host was removed in 13.0 together with the command bar.
-  // However, there's a slight chance that some users upgrading from 12.x to 13.0 still have
-  // documents with loginHost in the app state (e.g. if the doc failed to connect to the server).
-  // Let's just remove this in 14.0.0 instead to make sure those users can safely upgrade the app.
-  if (isDocumentTshNodeWithLoginHost(doc)) {
-    doc = await resolveLoginHost(ctx, logger, documentsService, doc);
-  }
-
-  return setUpPtyProcess(ctx, documentsService, doc);
-}
-
-/**
- * resolveLoginHost tries to split loginHost from the doc into a login and a host and then resolve
- * the host to a server UUID by asking the cluster for an SSH server with a matching hostname.
- *
- * It also updates the doc in DocumentsService. It's important for this function to return the
- * updated doc so that setUpPtyProcess can use the resolved server UUID – startTerminalSession is
- * called only once, it won't be re-run after the doc gets updated.
- */
-async function resolveLoginHost(
-  ctx: IAppContext,
-  logger: Logger,
-  documentsService: DocumentsService,
-  doc: types.DocumentTshNodeWithLoginHost
-): Promise<types.DocumentTshNodeWithServerId> {
-  let login: string | undefined, host: string;
-  const parts = doc.loginHost.split('@');
-  const clusterUri = routing.getClusterUri({
-    rootClusterId: doc.rootClusterId,
-    leafClusterId: doc.leafClusterId,
-  });
-
-  if (parts.length > 1) {
-    host = parts.pop();
-    // If someone enters `foo@bar@baz` as an input here, `parts` will have more than two elements.
-    // `foo@bar` is probably not a valid login, but we don't want to lose that input here.
-    //
-    // In any case, we're just repeating what `tsh ssh` is doing with inputs like these - it treats
-    // the last part as the host and all the text before it as the login.
-    login = parts.join('@');
-  } else {
-    // If someone enters just `host` as an input, we still want to execute `tsh ssh host`. It might
-    // be that the username of the current OS user matches one of the usernames available on the
-    // host in which case providing the username directly is not necessary.
-    host = parts[0];
-  }
-
-  let server: tsh.Server | undefined;
-  let serverUri: uri.ServerUri, serverHostname: string;
-
-  try {
-    // TODO(ravicious): Handle finding a server by more than just a name.
-    // Basically we have to replicate tsh ssh behavior here.
-    server = await retryWithRelogin(ctx, clusterUri, () =>
-      ctx.resourcesService.getServerByHostname(clusterUri, host)
-    );
-  } catch (error) {
-    // TODO(ravicious): Handle ambiguous host name. See `onSSH` in `tool/tsh/tsh.go`.
-    if (error instanceof AmbiguousHostnameError) {
-      // Log the ambiguity of the hostname but continue anyway. This will pass the ambiguous
-      // hostname to tsh ssh and show an appropriate error in the new tab.
-      logger.error(error.message);
-    } else {
-      throw error;
-    }
-  }
-
-  if (server) {
-    serverUri = server.uri;
-    serverHostname = server.hostname;
-  } else {
-    // If we can't find a server by the given hostname, we still want to create a document to
-    // handle the error further down the line. It also lets the user connect to a host by its UUID.
-    serverUri = routing.getServerUri({
-      rootClusterId: doc.rootClusterId,
-      leafClusterId: doc.leafClusterId,
-      serverId: host,
-    });
-    serverHostname = host;
-  }
-
-  const title = login ? `${login}@${serverHostname}` : serverHostname;
-
-  const docFieldsToUpdate = {
-    loginHost: undefined,
-    serverId: routing.parseServerUri(serverUri).params.serverId,
-    serverUri,
-    login,
-    title,
-  };
-
-  // Returning the updated doc as described in the JSDoc for this function.
-  const updatedDoc = {
-    ...doc,
-    ...docFieldsToUpdate,
-  };
-
-  documentsService.update(doc.uri, docFieldsToUpdate);
-  return updatedDoc;
 }
 
 async function setUpPtyProcess(
@@ -269,7 +152,7 @@ async function setUpPtyProcess(
       accessThrough: 'proxy_service',
     });
   }
-  if (doc.kind === 'doc.terminal_tsh_kube' || doc.kind === 'doc.gateway_kube') {
+  if (doc.kind === 'doc.gateway_kube') {
     ctx.usageService.captureProtocolUse({
       uri: clusterUri,
       // Other gateways send one protocol use event per gateway being created, but here we're
@@ -388,12 +271,6 @@ function createCmd(
   clusterName: string
 ): PtyCommand {
   if (doc.kind === 'doc.terminal_tsh_node') {
-    if (isDocumentTshNodeWithLoginHost(doc)) {
-      throw new Error(
-        'Cannot create a PTY for doc.terminal_tsh_node without serverId'
-      );
-    }
-
     return {
       kind: 'pty.tsh-login',
       proxyHost,
@@ -402,16 +279,6 @@ function createCmd(
       serverId: doc.serverId,
       rootClusterId: doc.rootClusterId,
       leafClusterId: doc.leafClusterId,
-    };
-  }
-
-  // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
-  if (doc.kind === 'doc.terminal_tsh_kube') {
-    return {
-      ...doc,
-      proxyHost,
-      clusterName,
-      kind: 'pty.tsh-kube-login',
     };
   }
 

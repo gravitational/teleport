@@ -1552,6 +1552,7 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 // Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
 // SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	resp, err := c.grpc.ListSAMLIdPSessions(
 		ctx,
 		&proto.ListSAMLIdPSessionsRequest{
@@ -1599,6 +1600,7 @@ func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 // Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
 // SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	resp, err := c.grpc.CreateSAMLIdPSession(ctx, &proto.CreateSAMLIdPSessionRequest{
 		SessionID:   req.SessionID,
 		Username:    req.Username,
@@ -1627,6 +1629,7 @@ func (c *Client) GetSnowflakeSession(ctx context.Context, req types.GetSnowflake
 // Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
 // SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	resp, err := c.grpc.GetSAMLIdPSession(ctx, &proto.GetSAMLIdPSessionRequest{
 		SessionID: req.SessionID,
 	})
@@ -1658,6 +1661,7 @@ func (c *Client) DeleteSnowflakeSession(ctx context.Context, req types.DeleteSno
 // SAML IdP Sessions are directly tied to their parent web sessions instead. This endpoint
 // will be removed in v17.
 func (c *Client) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.DeleteSAMLIdPSession(ctx, &proto.DeleteSAMLIdPSessionRequest{
 		SessionID: req.SessionID,
 	})
@@ -1680,6 +1684,7 @@ func (c *Client) DeleteAllSnowflakeSessions(ctx context.Context) error {
 // Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
 // SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) DeleteAllSAMLIdPSessions(ctx context.Context) error {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.DeleteAllSAMLIdPSessions(ctx, &emptypb.Empty{})
 	return trace.Wrap(err)
 }
@@ -1697,6 +1702,7 @@ func (c *Client) DeleteUserSAMLIdPSessions(ctx context.Context, username string)
 	req := &proto.DeleteUserSAMLIdPSessionsRequest{
 		Username: username,
 	}
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.DeleteUserSAMLIdPSessions(ctx, req)
 	return trace.Wrap(err)
 }
@@ -2616,7 +2622,7 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 // SearchUnstructuredEvents allows searching for events with a full pagination support
 // and returns events in an unstructured format (json like).
 // This method is used by the Teleport event-handler plugin to receive events
-// from the auth server wihout having to support the Protobuf event schema.
+// from the auth server without having to support the Protobuf event schema.
 func (c *Client) SearchUnstructuredEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]*auditlogpb.EventUnstructured, string, error) {
 	request := &auditlogpb.GetUnstructuredEventsRequest{
 		Namespace:  namespace,
@@ -2769,28 +2775,7 @@ func (c *Client) ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClien
 // GetClusterNetworkingConfig gets cluster networking configuration.
 func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	resp, err := c.ClusterConfigClient().GetClusterNetworkingConfig(ctx, &clusterconfigpb.GetClusterNetworkingConfigRequest{})
-	if err != nil && trace.IsNotImplemented(err) {
-		resp, err = c.grpc.GetClusterNetworkingConfig(ctx, &emptypb.Empty{})
-	}
 	return resp, trace.Wrap(err)
-}
-
-// SetClusterNetworkingConfig sets cluster networking configuration.
-// Deprecated: Use UpdateClusterNetworkingConfig or UpsertClusterNetworkingConfig instead.
-func (c *Client) SetClusterNetworkingConfig(ctx context.Context, netConfig *types.ClusterNetworkingConfigV2) error {
-	_, err := c.grpc.SetClusterNetworkingConfig(ctx, netConfig)
-	return trace.Wrap(err)
-}
-
-// setClusterNetworkingConfig sets cluster networking configuration.
-func (c *Client) setClusterNetworkingConfig(ctx context.Context, netConfig *types.ClusterNetworkingConfigV2) (types.ClusterNetworkingConfig, error) {
-	_, err := c.grpc.SetClusterNetworkingConfig(ctx, netConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cfg, err := c.grpc.GetClusterNetworkingConfig(ctx, &emptypb.Empty{})
-	return cfg, trace.Wrap(err)
 }
 
 // UpdateClusterNetworkingConfig updates an existing cluster networking configuration.
@@ -2801,12 +2786,6 @@ func (c *Client) UpdateClusterNetworkingConfig(ctx context.Context, cfg types.Cl
 	}
 
 	updated, err := c.ClusterConfigClient().UpdateClusterNetworkingConfig(ctx, &clusterconfigpb.UpdateClusterNetworkingConfigRequest{ClusterNetworkConfig: v2})
-	// TODO(tross) DELETE IN v18.0.0
-	if trace.IsNotImplemented(err) {
-		cnc, err := c.setClusterNetworkingConfig(ctx, v2)
-		return cnc, trace.Wrap(err)
-	}
-
 	return updated, trace.Wrap(err)
 }
 
@@ -2818,71 +2797,24 @@ func (c *Client) UpsertClusterNetworkingConfig(ctx context.Context, cfg types.Cl
 	}
 
 	updated, err := c.ClusterConfigClient().UpsertClusterNetworkingConfig(ctx, &clusterconfigpb.UpsertClusterNetworkingConfigRequest{ClusterNetworkConfig: v2})
-	// TODO(tross) DELETE IN v18.0.0
-	if trace.IsNotImplemented(err) {
-		cnc, err := c.setClusterNetworkingConfig(ctx, v2)
-		return cnc, trace.Wrap(err)
-	}
-
 	return updated, trace.Wrap(err)
 }
 
 // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
 func (c *Client) ResetClusterNetworkingConfig(ctx context.Context) error {
 	_, err := c.ClusterConfigClient().ResetClusterNetworkingConfig(ctx, &clusterconfigpb.ResetClusterNetworkingConfigRequest{})
-	if err != nil && trace.IsNotImplemented(err) {
-		_, err := c.grpc.ResetClusterNetworkingConfig(ctx, &emptypb.Empty{})
-		return trace.Wrap(err)
-	}
-
 	return trace.Wrap(err)
 }
 
 // GetSessionRecordingConfig gets session recording configuration.
 func (c *Client) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
 	resp, err := c.ClusterConfigClient().GetSessionRecordingConfig(ctx, &clusterconfigpb.GetSessionRecordingConfigRequest{})
-	if err != nil && trace.IsNotImplemented(err) {
-		resp, err = c.grpc.GetSessionRecordingConfig(ctx, &emptypb.Empty{})
-	}
-
 	return resp, trace.Wrap(err)
-}
-
-// SetSessionRecordingConfig sets session recording configuration.
-// Deprecated: Use UpdateSessionRecordingConfig or UpsertSessionRecordingConfig instead.
-func (c *Client) SetSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) error {
-	recConfigV2, ok := recConfig.(*types.SessionRecordingConfigV2)
-	if !ok {
-		return trace.BadParameter("invalid type %T", recConfig)
-	}
-
-	_, err := c.grpc.SetSessionRecordingConfig(ctx, recConfigV2)
-	return trace.Wrap(err)
-}
-
-// setSessionRecordingConfig sets session recording configuration.
-func (c *Client) setSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
-	recConfigV2, ok := recConfig.(*types.SessionRecordingConfigV2)
-	if !ok {
-		return nil, trace.BadParameter("invalid type %T", recConfig)
-	}
-
-	if _, err := c.grpc.SetSessionRecordingConfig(ctx, recConfigV2); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cfg, err := c.grpc.GetSessionRecordingConfig(ctx, &emptypb.Empty{})
-	return cfg, trace.Wrap(err)
 }
 
 // ResetSessionRecordingConfig resets session recording configuration to defaults.
 func (c *Client) ResetSessionRecordingConfig(ctx context.Context) error {
 	_, err := c.ClusterConfigClient().ResetSessionRecordingConfig(ctx, &clusterconfigpb.ResetSessionRecordingConfigRequest{})
-	if err != nil && trace.IsNotImplemented(err) {
-		_, err := c.grpc.ResetSessionRecordingConfig(ctx, &emptypb.Empty{})
-		return trace.Wrap(err)
-	}
-
 	return trace.Wrap(err)
 }
 
@@ -2894,11 +2826,6 @@ func (c *Client) UpdateSessionRecordingConfig(ctx context.Context, cfg types.Ses
 	}
 
 	updated, err := c.ClusterConfigClient().UpdateSessionRecordingConfig(ctx, &clusterconfigpb.UpdateSessionRecordingConfigRequest{SessionRecordingConfig: v2})
-	// TODO(tross) DELETE IN v18.0.0
-	if trace.IsNotImplemented(err) {
-		cfg, err = c.setSessionRecordingConfig(ctx, v2)
-		return cfg, trace.Wrap(err)
-	}
 	return updated, trace.Wrap(err)
 }
 
@@ -2910,61 +2837,18 @@ func (c *Client) UpsertSessionRecordingConfig(ctx context.Context, cfg types.Ses
 	}
 
 	updated, err := c.ClusterConfigClient().UpsertSessionRecordingConfig(ctx, &clusterconfigpb.UpsertSessionRecordingConfigRequest{SessionRecordingConfig: v2})
-	// TODO(tross) DELETE IN v18.0.0
-	if trace.IsNotImplemented(err) {
-		cfg, err = c.setSessionRecordingConfig(ctx, v2)
-		return cfg, trace.Wrap(err)
-	}
 	return updated, trace.Wrap(err)
 }
 
 // GetAuthPreference gets the active cluster auth preference.
 func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	pref, err := c.ClusterConfigClient().GetAuthPreference(ctx, &clusterconfigpb.GetAuthPreferenceRequest{})
-	// TODO(tross) DELETE IN v18.0.0
-	if err != nil && trace.IsNotImplemented(err) {
-		pref, err = c.grpc.GetAuthPreference(ctx, &emptypb.Empty{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return pref, trace.Wrap(err)
-}
-
-// SetAuthPreference sets cluster auth preference via the legacy mechanism.
-// Deprecated: Use UpdateAuthPreference or UpsertAuthPreference instead.
-// TODO(tross) DELETE IN v18.0.0
-func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPreference) error {
-	authPrefV2, ok := authPref.(*types.AuthPreferenceV2)
-	if !ok {
-		return trace.BadParameter("invalid type %T", authPref)
-	}
-
-	_, err := c.grpc.SetAuthPreference(ctx, authPrefV2)
-	return trace.Wrap(err)
-}
-
-// setAuthPreference sets cluster auth preference via the legacy mechanism.
-// TODO(tross) DELETE IN v18.0.0
-func (c *Client) setAuthPreference(ctx context.Context, authPref *types.AuthPreferenceV2) (types.AuthPreference, error) {
-	_, err := c.grpc.SetAuthPreference(ctx, authPref)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	pref, err := c.grpc.GetAuthPreference(ctx, &emptypb.Empty{})
 	return pref, trace.Wrap(err)
 }
 
 // ResetAuthPreference resets cluster auth preference to defaults.
 func (c *Client) ResetAuthPreference(ctx context.Context) error {
 	_, err := c.ClusterConfigClient().ResetAuthPreference(ctx, &clusterconfigpb.ResetAuthPreferenceRequest{})
-	// TODO(tross) DELETE IN v18.0.0
-	if err != nil && trace.IsNotImplemented(err) {
-		_, err := c.grpc.ResetAuthPreference(ctx, &emptypb.Empty{})
-		return trace.Wrap(err)
-	}
 	return trace.Wrap(err)
 }
 
@@ -2976,11 +2860,6 @@ func (c *Client) UpdateAuthPreference(ctx context.Context, p types.AuthPreferenc
 	}
 
 	updated, err := c.ClusterConfigClient().UpdateAuthPreference(ctx, &clusterconfigpb.UpdateAuthPreferenceRequest{AuthPreference: v2})
-	// TODO(tross) DELETE IN v18.0.0
-	if trace.IsNotImplemented(err) {
-		pref, err := c.setAuthPreference(ctx, v2)
-		return pref, trace.Wrap(err)
-	}
 	return updated, trace.Wrap(err)
 }
 
@@ -2992,11 +2871,6 @@ func (c *Client) UpsertAuthPreference(ctx context.Context, p types.AuthPreferenc
 	}
 
 	updated, err := c.ClusterConfigClient().UpsertAuthPreference(ctx, &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: v2})
-	// TODO(tross) DELETE IN v18.0.0
-	if trace.IsNotImplemented(err) {
-		pref, err := c.setAuthPreference(ctx, v2)
-		return pref, trace.Wrap(err)
-	}
 	return updated, trace.Wrap(err)
 }
 
@@ -4925,6 +4799,16 @@ func (c *Client) GenerateAWSOIDCToken(ctx context.Context, integration string) (
 	}
 
 	return resp.GetToken(), nil
+}
+
+// GenerateAWSRACredentials generates a set of AWS Credentials using the AWS IAM Roles Anywhere Integration.
+func (c *Client) GenerateAWSRACredentials(ctx context.Context, req *integrationpb.GenerateAWSRACredentialsRequest) (*integrationpb.GenerateAWSRACredentialsResponse, error) {
+	resp, err := c.integrationsClient().GenerateAWSRACredentials(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, nil
 }
 
 // GenerateAzureOIDCToken generates a token to be used when executing an Azure OIDC Integration action.

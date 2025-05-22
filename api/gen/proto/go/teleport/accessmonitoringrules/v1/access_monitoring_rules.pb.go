@@ -284,7 +284,7 @@ type AutomaticReview struct {
 	// the rule. Set this value to `builtin` to monitor the rule with Teleport.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
 	// decision specifies the proposed state of the access review. This can be
-	// either 'approved' or 'denied'.
+	// either 'APPROVED' or 'DENIED'.
 	Decision      string `protobuf:"bytes,2,opt,name=decision,proto3" json:"decision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

@@ -144,7 +144,7 @@ export function DesktopSession({
       setTdpConnectionStatus({
         status: 'disconnected',
         fromTdpError: error instanceof TdpError,
-        message: error.message || error.toString(),
+        message: error.message,
       });
       initialTdpConnectionSucceeded.current = false;
     },
@@ -183,7 +183,7 @@ export function DesktopSession({
       error => {
         setTdpConnectionStatus({
           status: 'disconnected',
-          message: error?.message || error?.toString(),
+          message: error?.message,
         });
         initialTdpConnectionSucceeded.current = false;
       },

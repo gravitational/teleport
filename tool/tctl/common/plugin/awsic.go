@@ -51,6 +51,10 @@ type awsICArgs struct {
 	groupNameFilters     []string
 	accountNameFilters   []string
 	accountIDFilters     []string
+
+	excludeGroupNameFilters   []string
+	excludeAccountNameFilters []string
+	excludeAccountIDFilters   []string
 }
 
 func (a *awsICArgs) validate(ctx context.Context, log *slog.Logger) error {
@@ -106,17 +110,23 @@ func (a *awsICArgs) validateSCIMBaseURL(ctx context.Context, log *slog.Logger) e
 }
 
 func (a *awsICArgs) parseGroupFilters() (icfilters.Filters, error) {
-	var filters []*types.AWSICResourceFilter
+	filters := make([]*types.AWSICResourceFilter, 0, len(a.groupNameFilters)+len(a.excludeGroupNameFilters))
 	for _, n := range a.groupNameFilters {
 		filters = append(filters, &types.AWSICResourceFilter{
 			Include: &types.AWSICResourceFilter_NameRegex{NameRegex: n},
+		})
+	}
+	for _, n := range a.excludeGroupNameFilters {
+		filters = append(filters, &types.AWSICResourceFilter{
+			Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: n},
 		})
 	}
 	return icfilters.New(filters)
 }
 
 func (a *awsICArgs) parseAccountFilters() (icfilters.Filters, error) {
-	var filters []*types.AWSICResourceFilter
+	filtersCap := len(a.accountNameFilters) + len(a.excludeAccountNameFilters) + len(a.accountIDFilters) + len(a.excludeAccountIDFilters)
+	filters := make([]*types.AWSICResourceFilter, 0, filtersCap)
 	for _, n := range a.accountNameFilters {
 		filters = append(filters, &types.AWSICResourceFilter{
 			Include: &types.AWSICResourceFilter_NameRegex{NameRegex: n},
@@ -129,11 +139,23 @@ func (a *awsICArgs) parseAccountFilters() (icfilters.Filters, error) {
 		})
 	}
 
+	for _, n := range a.excludeAccountNameFilters {
+		filters = append(filters, &types.AWSICResourceFilter{
+			Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: n},
+		})
+	}
+
+	for _, id := range a.excludeAccountIDFilters {
+		filters = append(filters, &types.AWSICResourceFilter{
+			Exclude: &types.AWSICResourceFilter_ExcludeId{ExcludeId: id},
+		})
+	}
+
 	return icfilters.New(filters)
 }
 
 func (a *awsICArgs) parseUserFilters() ([]*types.AWSICUserSyncFilter, error) {
-	var result []*types.AWSICUserSyncFilter
+	result := make([]*types.AWSICUserSyncFilter, 0, len(a.userOrigins)+len(a.userLabels))
 
 	if len(a.userOrigins) > 0 {
 		result = make([]*types.AWSICUserSyncFilter, 0, len(a.userOrigins))
@@ -198,6 +220,13 @@ func (p *PluginsCommand) initInstallAWSIC(parent *kingpin.CmdClause) {
 		StringsVar(&p.install.awsIC.accountNameFilters)
 	cmd.Flag("account-id", "Add AWS Account to account import list by ID. All AWS accounts will be imported if no items are added to account import list.").
 		StringsVar(&p.install.awsIC.accountIDFilters)
+
+	cmd.Flag("exclude-group-name", "Exclude AWS group from import list by name. Can be a glob or a regular expression (enclosed in ^$).").
+		StringsVar(&p.install.awsIC.excludeGroupNameFilters)
+	cmd.Flag("exclude-account-name", "Exclude AWS account from import list by name. Can be a glob or a regular expression (enclosed in ^$).").
+		StringsVar(&p.install.awsIC.excludeAccountNameFilters)
+	cmd.Flag("exclude-account-id", "Exclude AWS account from import list by ID.").
+		StringsVar(&p.install.awsIC.excludeAccountIDFilters)
 }
 
 // InstallAWSIC installs AWS Identity Center plugin.

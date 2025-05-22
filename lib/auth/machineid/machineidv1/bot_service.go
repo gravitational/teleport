@@ -47,6 +47,7 @@ import (
 // lib/tbot/config
 var SupportedJoinMethods = []types.JoinMethod{
 	types.JoinMethodAzure,
+	types.JoinMethodAzureDevops,
 	types.JoinMethodCircleCI,
 	types.JoinMethodGCP,
 	types.JoinMethodGitHub,
