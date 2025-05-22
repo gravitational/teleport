@@ -6283,7 +6283,7 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 	}
 }
 
-func TestCheckAccessToSAMLIdPV2(t *testing.T) {
+func TestCheckAccessToSAMLIdP(t *testing.T) {
 	createRole := func(t *testing.T, name, version string, spec types.RoleSpecV6) *types.RoleV6 {
 		t.Helper()
 		return &types.RoleV6{
@@ -6671,7 +6671,7 @@ func TestCheckAccessToSAMLIdPV2(t *testing.T) {
 			})
 			require.NoError(t, err)
 			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
-			tc.errAssertionFunc(t, accessChecker.CheckAccessToSAMLIdPV2(sp, authPref, tc.state))
+			tc.errAssertionFunc(t, accessChecker.CheckAccessToSAMLIdP(sp, authPref, tc.state))
 		})
 	}
 }
