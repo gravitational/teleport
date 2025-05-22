@@ -1,0 +1,171 @@
+package github
+
+import (
+	"fmt"
+	"strconv"
+
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
+
+	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+)
+
+func reconcileResults(old *pollResults, new *pollResults) (upsert, delete *accessgraphv1alpha.GithubResourceList) {
+	upsert, delete = &accessgraphv1alpha.GithubResourceList{}, &accessgraphv1alpha.GithubResourceList{}
+
+	if old == nil {
+		old = &pollResults{}
+	}
+	if new == nil {
+		new = &pollResults{}
+	}
+
+	for _, results := range []*reconcileIntermediateResult{
+		reconcileTokens(old.tokens, new.tokens),
+		reconcileRoleAssignment(old.roleAssignments, new.roleAssignments),
+		reconcileRepositories(old.repos, new.repos),
+		reconcileRoles(old.roles, new.roles),
+	} {
+		upsert.Resources = append(upsert.Resources, results.upsert.Resources...)
+		delete.Resources = append(delete.Resources, results.delete.Resources...)
+	}
+
+	return upsert, delete
+}
+
+type reconcileIntermediateResult struct {
+	upsert, delete *accessgraphv1alpha.GithubResourceList
+}
+
+func reconcileRoles(old []*accessgraphv1alpha.GithubRoleV1, new []*accessgraphv1alpha.GithubRoleV1) *reconcileIntermediateResult {
+	upsert, delete := &accessgraphv1alpha.GithubResourceList{}, &accessgraphv1alpha.GithubResourceList{}
+
+	toAdd, toRemove := reconcile(old, new, func(group *accessgraphv1alpha.GithubRoleV1) string {
+		return group.GetName()
+	})
+
+	for _, group := range toAdd {
+		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.GithubResource{
+			Resource: &accessgraphv1alpha.GithubResource_Role{
+				Role: group,
+			},
+		})
+	}
+	for _, group := range toRemove {
+		delete.Resources = append(delete.Resources, &accessgraphv1alpha.GithubResource{
+			Resource: &accessgraphv1alpha.GithubResource_Role{
+				Role: group,
+			},
+		})
+	}
+	return &reconcileIntermediateResult{upsert, delete}
+}
+
+func reconcileTokens(
+	old []*accessgraphv1alpha.GithubTokenV1,
+	new []*accessgraphv1alpha.GithubTokenV1,
+) *reconcileIntermediateResult {
+	upsert, delete := &accessgraphv1alpha.GithubResourceList{}, &accessgraphv1alpha.GithubResourceList{}
+
+	toAdd, toRemove := reconcile(old, new, func(token *accessgraphv1alpha.GithubTokenV1) string {
+		return strconv.FormatInt(token.GetId(), 10)
+	})
+	for _, token := range toAdd {
+		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.GithubResource{
+			Resource: &accessgraphv1alpha.GithubResource_Token{
+				Token: token,
+			},
+		})
+	}
+	for _, token := range toRemove {
+		delete.Resources = append(delete.Resources, &accessgraphv1alpha.GithubResource{
+			Resource: &accessgraphv1alpha.GithubResource_Token{
+				Token: token,
+			},
+		})
+	}
+	return &reconcileIntermediateResult{upsert, delete}
+}
+
+func reconcileRepositories(
+	old []*accessgraphv1alpha.GithubRepositoryV1,
+	new []*accessgraphv1alpha.GithubRepositoryV1,
+) *reconcileIntermediateResult {
+	upsert, delete := &accessgraphv1alpha.GithubResourceList{}, &accessgraphv1alpha.GithubResourceList{}
+
+	toAdd, toRemove := reconcile(old, new, func(project *accessgraphv1alpha.GithubRepositoryV1) string {
+		return project.GetName()
+	})
+	for _, project := range toAdd {
+		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.GithubResource{
+			Resource: &accessgraphv1alpha.GithubResource_Repository{
+				Repository: project,
+			},
+		})
+	}
+	for _, project := range toRemove {
+		delete.Resources = append(delete.Resources, &accessgraphv1alpha.GithubResource{
+			Resource: &accessgraphv1alpha.GithubResource_Repository{
+				Repository: project,
+			},
+		})
+	}
+	return &reconcileIntermediateResult{upsert, delete}
+}
+
+func reconcileRoleAssignment(
+	old []*accessgraphv1alpha.GithubRoleAssignmentV1,
+	new []*accessgraphv1alpha.GithubRoleAssignmentV1,
+) *reconcileIntermediateResult {
+	upsert, delete := &accessgraphv1alpha.GithubResourceList{}, &accessgraphv1alpha.GithubResourceList{}
+
+	toAdd, toRemove := reconcile(old, new, func(policy *accessgraphv1alpha.GithubRoleAssignmentV1) string {
+		return fmt.Sprintf("%x;%x;%v", policy.GetUser(), policy.GetRoleId(), policy.GetOwner())
+	})
+	for _, member := range toAdd {
+		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.GithubResource{
+			Resource: &accessgraphv1alpha.GithubResource_RoleAssignment{
+				RoleAssignment: member,
+			},
+		})
+	}
+	for _, member := range toRemove {
+		delete.Resources = append(delete.Resources, &accessgraphv1alpha.GithubResource{
+			Resource: &accessgraphv1alpha.GithubResource_RoleAssignment{
+				RoleAssignment: member,
+			},
+		})
+	}
+	return &reconcileIntermediateResult{upsert, delete}
+}
+
+func reconcile[T protoreflect.ProtoMessage](old []T, new []T, key func(T) string) (upsert, delete []T) {
+	if len(old) == 0 {
+		return new, nil
+	}
+	if len(new) == 0 {
+		return nil, old
+	}
+
+	oldMap := make(map[string]T, len(old))
+	for _, item := range old {
+		oldMap[key(item)] = item
+	}
+
+	newMap := make(map[string]T, len(new))
+	for _, item := range new {
+		newMap[key(item)] = item
+	}
+
+	for _, item := range new {
+		if oldItem, ok := oldMap[key(item)]; !ok || !proto.Equal(oldItem, item) {
+			upsert = append(upsert, item)
+		}
+	}
+	for _, item := range old {
+		if _, ok := newMap[key(item)]; !ok {
+			delete = append(delete, item)
+		}
+	}
+	return upsert, delete
+}
