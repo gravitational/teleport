@@ -75,4 +75,4 @@ export type AwsMatcher = {
   ssm?: { documentName: string };
 };
 
-type Labels = Record<string, string[]>;
+export type Labels = Record<string, string[]>;

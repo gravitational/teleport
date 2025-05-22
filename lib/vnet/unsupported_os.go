@@ -44,4 +44,5 @@ var (
 	_ = newOSConfigurator
 	_ = (*osConfigurator).runOSConfigurationLoop
 	_ = runCommand
+	_ = newNetworkStackConfig
 )
