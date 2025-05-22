@@ -18,8 +18,7 @@ import {
 } from 'design/Icon';
 
 import { AccessListManagement } from 'e-teleport/AccessListManagement';
-import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
-import { CreateAccessList } from 'e-teleport/AccessListManagement/CreateAccessList';
+import { CreateAccessListWithProvider } from 'e-teleport/AccessListManagement/CreateAccessList';
 import { AccessMonitoring } from 'e-teleport/AccessMonitoring';
 import { Account as AccountE } from 'e-teleport/Account';
 import { AuthConnectors } from 'e-teleport/AuthConnectors';
@@ -277,11 +276,7 @@ class FeatureNewAccessList implements TeleportFeature {
     title: NavTitle.NewAccessList,
     path: cfg.routes.accessListNew,
     exact: true,
-    component: () => (
-      <AccessListManagementContextProvider>
-        <CreateAccessList />
-      </AccessListManagementContextProvider>
-    ),
+    component: CreateAccessListWithProvider,
   };
 
   // Hide if this is a self-hosted dashboard tenant
@@ -333,7 +328,7 @@ class FeatureIntegrations extends OSS.FeatureIntegrations {
     // Enterprise version includes the enterprise only
     //  "plugin" resource along with the base
     // "integration" resource.
-    component: () => <Integrations />,
+    component: Integrations,
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -351,7 +346,7 @@ class FeatureIntegrationEnroll extends OSS.FeatureIntegrationEnroll {
     ...super.getRoute(),
     // Enterprise version includes creating both plugin
     // and integration resources.
-    component: () => <IntegrationEnroll />,
+    component: IntegrationEnroll,
   };
 
   hasAccess(flags: FeatureFlags) {

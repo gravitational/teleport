@@ -16,7 +16,10 @@ import { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import {
+  AccessListManagementContextProvider,
+  useAccessListManagementContext,
+} from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import cfg from 'e-teleport/config';
 import {
   AccessListMemberKind,
@@ -51,6 +54,12 @@ import { Members, MembersSection } from './MemberSection';
 import { Owners, OwnersSection } from './OwnerSection';
 import { convertAccessListsToUserOptions } from './Shared';
 import { Spec, SpecSection } from './SpecSection';
+
+export const CreateAccessListWithProvider = () => (
+  <AccessListManagementContextProvider>
+    <CreateAccessList />
+  </AccessListManagementContextProvider>
+);
 
 export function CreateAccessList() {
   const [featureLimitReached, setFeatureLimitReached] = useState(false);
