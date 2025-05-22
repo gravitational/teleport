@@ -13,6 +13,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -202,6 +203,10 @@ func (p *Plugin) getAccessGraphUsingHTTPWithAuth(w http.ResponseWriter, r *http.
 		requiredVerb); err != nil {
 		return nil, trace.WrapWithMessage(err, "not allowed to read the access graph")
 	}
+
+	// Set the username header to the authenticated user.
+	r.Header.Set(teleport.XTeleportUsernameHeader, webCtx.GetUser())
+
 	respRec := httplib.NewResponseStatusRecorder(w)
 	rsp, err := p.getAccessGraphUsingHTTPUnauthenticated(respRec, r, params)
 

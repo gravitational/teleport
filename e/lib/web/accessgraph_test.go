@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -35,12 +36,15 @@ func TestGetAccessGraph(t *testing.T) {
 		},
 	})
 
+	const teleportUsername = "foo"
+
 	tests := []struct {
-		name             string
-		features         string
-		validation       func(*testing.T, *webSuite)
-		assertQueryError require.ErrorAssertionFunc
-		grantAccessToTag bool
+		name                             string
+		features                         string
+		validation                       func(*testing.T, *webSuite)
+		accessGraphHTTPHandlerValidation func(*testing.T, *http.Request)
+		assertQueryError                 require.ErrorAssertionFunc
+		grantAccessToTag                 bool
 	}{
 		{
 			name: "server doesn't support HTTP: user without access graph access",
@@ -52,6 +56,9 @@ func TestGetAccessGraph(t *testing.T) {
 				require.Equal(t, 0, int(s.accessGraphGrpcQuery.Load()))
 				require.Equal(t, 0, int(s.accessGraphHTTPFile.Load()))
 				require.Equal(t, 0, int(s.accessGraphHTTPQuery.Load()))
+			},
+			accessGraphHTTPHandlerValidation: func(t *testing.T, req *http.Request) {
+				assert.Fail(t, "unexpected HTTP request to access graph handler")
 			},
 			assertQueryError: require.Error,
 		},
@@ -67,6 +74,9 @@ func TestGetAccessGraph(t *testing.T) {
 				require.Equal(t, 0, int(s.accessGraphHTTPQuery.Load()))
 			},
 			assertQueryError: require.NoError,
+			accessGraphHTTPHandlerValidation: func(t *testing.T, req *http.Request) {
+				assert.Fail(t, "unexpected HTTP request to access graph handler")
+			},
 			grantAccessToTag: true,
 		},
 		{
@@ -82,6 +92,9 @@ func TestGetAccessGraph(t *testing.T) {
 				require.Equal(t, 0, int(s.accessGraphHTTPQuery.Load()))
 			},
 			assertQueryError: require.Error,
+			accessGraphHTTPHandlerValidation: func(t *testing.T, req *http.Request) {
+				assert.Fail(t, "unexpected HTTP request to access graph handler")
+			},
 		},
 		{
 			name:     "server supports HTTP: authenticated requests with proper role",
@@ -97,13 +110,16 @@ func TestGetAccessGraph(t *testing.T) {
 			},
 			assertQueryError: require.NoError,
 			grantAccessToTag: true,
+			accessGraphHTTPHandlerValidation: func(t *testing.T, req *http.Request) {
+				assert.Equal(t, teleportUsername, req.Header.Get(teleport.XTeleportUsernameHeader))
+			},
 		},
 	}
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			s := newWebSuite(t, withAccessGraphFeatures(test.features))
+			s := newWebSuite(t, withAccessGraphFeatures(test.features), withAccessGraphValidation(test.accessGraphHTTPHandlerValidation))
 			var opts []webSuiteOpts
 			if test.grantAccessToTag {
 				opts = append(opts, withExtraRules(types.Rule{
@@ -111,7 +127,7 @@ func TestGetAccessGraph(t *testing.T) {
 					Verbs:     []string{types.ActionRead},
 				}))
 			}
-			webPack := s.newAuthWebPack(t, "foo", opts...)
+			webPack := s.newAuthWebPack(t, teleportUsername, opts...)
 
 			endpoint := webPack.clt.Endpoint("enterprise", "accessgraph", "static", "features.json")
 			_, err := webPack.clt.Get(s.ctx, endpoint, url.Values{})

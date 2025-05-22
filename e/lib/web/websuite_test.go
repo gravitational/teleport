@@ -57,21 +57,22 @@ import (
 // copied from teleport/lib/web/apiserver_test.go and stripped down to just what
 // is needed for the test cases in this package.
 type webSuite struct {
-	ctx                   context.Context
-	cancel                context.CancelFunc
-	user                  string
-	webServer             *httptest.Server
-	webServerURL          *url.URL
-	testAuthServer        *auth.TestServer
-	webPlugin             *Plugin
-	authPlugin            *eauth.Plugin
-	proxyClient           *authclient.Client
-	clock                 clockwork.Clock
-	accessGraphGrpcFile   *atomic.Int32
-	accessGraphGrpcQuery  *atomic.Int32
-	accessGraphHTTPFile   *atomic.Int32
-	accessGraphHTTPQuery  *atomic.Int32
-	identitycenterService identitycenterService
+	ctx                       context.Context
+	cancel                    context.CancelFunc
+	user                      string
+	webServer                 *httptest.Server
+	webServerURL              *url.URL
+	testAuthServer            *auth.TestServer
+	webPlugin                 *Plugin
+	authPlugin                *eauth.Plugin
+	proxyClient               *authclient.Client
+	clock                     clockwork.Clock
+	accessGraphGrpcFile       *atomic.Int32
+	accessGraphGrpcQuery      *atomic.Int32
+	accessGraphHTTPFile       *atomic.Int32
+	accessGraphHTTPQuery      *atomic.Int32
+	identitycenterService     identitycenterService
+	accessGraphHTTPValidation func(*testing.T, *http.Request)
 }
 
 type identitycenterService struct {
@@ -120,6 +121,7 @@ type webSuiteOptions struct {
 	runWhileLockedRetryInterval time.Duration
 	clock                       clockwork.Clock
 	roundTripper                http.RoundTripper
+	accessGraphHTTPValidation   func(*testing.T, *http.Request)
 }
 
 func withAccessGraphFeatures(features string) webSuiteOption {
@@ -146,6 +148,12 @@ func withRoundTripper(tr http.RoundTripper) webSuiteOption {
 	}
 }
 
+func withAccessGraphValidation(f func(*testing.T, *http.Request)) webSuiteOption {
+	return func(o *webSuiteOptions) {
+		o.accessGraphHTTPValidation = f
+	}
+}
+
 func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	var options webSuiteOptions
 	for _, v := range opts {
@@ -161,10 +169,11 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &webSuite{
-		clock:  options.clock,
-		user:   u.Username,
-		ctx:    ctx,
-		cancel: cancel,
+		clock:                     options.clock,
+		user:                      u.Username,
+		ctx:                       ctx,
+		cancel:                    cancel,
+		accessGraphHTTPValidation: options.accessGraphHTTPValidation,
 	}
 
 	pluginRegistry := plugin.NewRegistry()
@@ -581,11 +590,17 @@ func accessGraphFakeHTTPServer(t *testing.T, suite *webSuite) *httptest.Server {
 	mux.HandleFunc("/query", func(w http.ResponseWriter, r *http.Request) {
 		suite.accessGraphHTTPQuery.Add(1)
 		w.WriteHeader(http.StatusOK)
+		if suite.accessGraphHTTPValidation != nil {
+			suite.accessGraphHTTPValidation(t, r)
+		}
 		w.Write([]byte("fake access graph response"))
 	})
 	// Create a REST API endpoint as TAG/Teleport handles /query and /static endpoint differently.
 	mux.HandleFunc("/graph/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
+		if suite.accessGraphHTTPValidation != nil {
+			suite.accessGraphHTTPValidation(t, r)
+		}
 		w.Write([]byte("fake access graph response"))
 	})
 
