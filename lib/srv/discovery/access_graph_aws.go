@@ -285,6 +285,11 @@ func newAccessGraphClient(ctx context.Context, getCert func() (*tls.Certificate,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Set the maximum message size to 50MB because we wan't to forward the raw
+	// gzip compressed S3 object to the access graph service.
+	// AWS splits the files uncompressed into 50MB chunks, so we need to be able
+	// to send the whole file in one go. Usually the files are smaller than
+	// 10MB compressed, but we want to be able to send the whole file in one go.
 	const maxMessageSize = 50 * 1024 * 1024 // 50MB
 	opts = append(opts,
 		opt,
@@ -687,28 +692,13 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 		return trace.Wrap(err)
 	}
 
-	tagAWSConfig, err := stream.Recv()
-	if err != nil {
-		s.Log.ErrorContext(ctx, "Failed to get aws cloud trail config", "error", err)
-		return trace.Wrap(err)
+	if err := s.receiveTAGConfigFromStream(ctx, stream); err != nil {
+		return trace.Wrap(err, "failed to receive access graph config")
 	}
 
-	if tagAWSConfig.GetCloudTrailConfig() == nil {
-		return trace.BadParameter("access graph service did not return cloud trail config")
+	if err := s.receiveTAGResumeFromStream(ctx, stream); err != nil {
+		return trace.Wrap(err, "failed to receive access graph resume")
 	}
-
-	s.Log.InfoContext(ctx, "Access graph service cloud trail config", "config", tagAWSConfig.GetCloudTrailConfig())
-
-	resumeState, err := stream.Recv()
-	if err != nil {
-		s.Log.ErrorContext(ctx, "Failed to get aws cloud trail resume state", "error", err)
-		return trace.Wrap(err)
-	}
-
-	if resumeState.GetResumeState() == nil {
-		return trace.BadParameter("access graph service did not return cloud trail resume state")
-	}
-	s.Log.InfoContext(ctx, "Access graph service cloud trail resume state", "resume_state", resumeState.GetResumeState())
 
 	// Start a goroutine to watch the access graph service connection state.
 	// If the connection is closed, cancel the context to stop the event watcher
@@ -721,10 +711,6 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 			s.Log.InfoContext(ctx, "Access graph service connection was closed")
 		}
 	}()
-
-	// Configure the poll interval
-	tickerInterval := 10 * time.Second
-	s.Log.InfoContext(ctx, "Access graph service poll interval", "poll_interval", tickerInterval)
 
 	filePayload := make(chan payloadChannelMessage, 1)
 	type mapPayload struct {
@@ -837,6 +823,36 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 	}
 }
 
+// receiveTAGConfigFromStream receives the TAG config from the stream.
+func (s *Server) receiveTAGConfigFromStream(ctx context.Context, stream accessgraphv1alpha.AccessGraphService_AWSCloudTrailStreamClient) error {
+	tagAWSConfig, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err, " failed to receive config")
+	}
+
+	if tagAWSConfig.GetCloudTrailConfig() == nil {
+		return trace.BadParameter("access graph service did not return cloud trail config")
+	}
+
+	s.Log.InfoContext(ctx, "Access graph service cloud trail config", "config", tagAWSConfig.GetCloudTrailConfig())
+	return nil
+}
+
+// receiveTAGConfigFromStream receives the TAG config from the stream.
+func (s *Server) receiveTAGResumeFromStream(ctx context.Context, stream accessgraphv1alpha.AccessGraphService_AWSCloudTrailStreamClient) error {
+	tagAWSResume, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err, " failed to receive resume state")
+	}
+
+	if tagAWSResume.GetResumeState() == nil {
+		return trace.BadParameter("access graph service did not return resume state")
+	}
+
+	s.Log.InfoContext(ctx, "Access graph service resume state", "resume_state", tagAWSResume.GetResumeState())
+	return nil
+}
+
 func consumeTillErr(stream accessgraphv1alpha.AccessGraphService_AWSCloudTrailStreamClient) error {
 	for {
 		_, err := stream.Recv()
@@ -856,8 +872,8 @@ func getOptions(matcher *types.AccessGraphAWSSync) []awsconfig.OptionsFn {
 	return opts
 }
 
-func (a *Server) getAccountId(ctx context.Context, matcher *types.AccessGraphAWSSync) (string, error) {
-	awsCfg, err := a.AWSConfigProvider.GetConfig(
+func (s *Server) getAccountId(ctx context.Context, matcher *types.AccessGraphAWSSync) (string, error) {
+	awsCfg, err := s.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because groups are global */
 		getOptions(matcher)...,
@@ -881,15 +897,15 @@ type payloadChannelMessage struct {
 	accountID string
 }
 
-func (a *Server) pollEventsFromSQSFiles(ctx context.Context, accountID string, matcher *types.AccessGraphAWSSync, eventsC chan<- payloadChannelMessage) error {
-	awsCfg, err := a.AWSConfigProvider.GetConfig(ctx, matcher.CloudTrailLogs.Region, getOptions(matcher)...)
+func (s *Server) pollEventsFromSQSFiles(ctx context.Context, accountID string, matcher *types.AccessGraphAWSSync, eventsC chan<- payloadChannelMessage) error {
+	awsCfg, err := s.AWSConfigProvider.GetConfig(ctx, matcher.CloudTrailLogs.Region, getOptions(matcher)...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	sqsClient := sqs.NewFromConfig(awsCfg)
 	s3Client := s3.NewFromConfig(awsCfg)
 
-	return a.pollEventsFromSQSFilesImpl(ctx, accountID, sqsClient, s3Client, matcher.CloudTrailLogs, eventsC)
+	return s.pollEventsFromSQSFilesImpl(ctx, accountID, sqsClient, s3Client, matcher.CloudTrailLogs, eventsC)
 }
 
 type sqsClient interface {
@@ -900,7 +916,7 @@ type s3Client interface {
 	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
 }
 
-func (a *Server) pollEventsFromSQSFilesImpl(ctx context.Context,
+func (s *Server) pollEventsFromSQSFilesImpl(ctx context.Context,
 	accountID string,
 	sqsClient sqsClient,
 	s3Client s3Client,
@@ -911,7 +927,7 @@ func (a *Server) pollEventsFromSQSFilesImpl(ctx context.Context,
 	errG, ctx := errgroup.WithContext(ctx)
 	for i := 0; i < 10; i++ {
 		errG.Go(
-			a.processMessagesWorker(
+			s.processMessagesWorker(
 				ctx,
 				matcher,
 				sqsClient,
@@ -925,7 +941,7 @@ func (a *Server) pollEventsFromSQSFilesImpl(ctx context.Context,
 	return errG.Wait()
 }
 
-func (a *Server) processMessagesWorker(
+func (s *Server) processMessagesWorker(
 	ctx context.Context,
 	matcher *types.AccessGraphAWSSyncCloudTrailLogs,
 	sqsClient sqsClient,
@@ -947,7 +963,7 @@ func (a *Server) processMessagesWorker(
 			default:
 				resp, err := sqsClient.ReceiveMessage(ctx, input)
 				if err != nil {
-					a.Log.ErrorContext(ctx, "Failed to receive message from SQS", "error", err)
+					s.Log.ErrorContext(ctx, "Failed to receive message from SQS", "error", err)
 					continue
 				}
 				if len(resp.Messages) == 0 {
@@ -959,8 +975,8 @@ func (a *Server) processMessagesWorker(
 						defer func() {
 							<-parallelDownloads
 						}()
-						if err := a.processSingleMessage(ctx, message, s3Client, eventsC, accountID); err != nil {
-							a.Log.ErrorContext(ctx, "Failed to process SQS message", "error", err, "message_payload", aws.ToString(message.Body), "message_id", aws.ToString(message.MessageId))
+						if err := s.processSingleMessage(ctx, message, s3Client, eventsC, accountID); err != nil {
+							s.Log.ErrorContext(ctx, "Failed to process SQS message", "error", err, "message_payload", aws.ToString(message.Body), "message_id", aws.ToString(message.MessageId))
 							return
 						}
 						if message.ReceiptHandle != nil {
@@ -971,10 +987,10 @@ func (a *Server) processMessagesWorker(
 									ReceiptHandle: message.ReceiptHandle,
 								})
 							if err != nil {
-								a.Log.WarnContext(ctx, "Failed to delete message from sqs", "error", err, "message_id", aws.ToString(message.MessageId))
+								s.Log.WarnContext(ctx, "Failed to delete message from sqs", "error", err, "message_id", aws.ToString(message.MessageId))
 							}
 						} else {
-							a.Log.ErrorContext(ctx, "Skipping message deletion as ReceiptHandle is nil", "message_id", aws.ToString(message.MessageId))
+							s.Log.ErrorContext(ctx, "Skipping message deletion as ReceiptHandle is nil", "message_id", aws.ToString(message.MessageId))
 						}
 					}(message)
 				}
@@ -984,7 +1000,7 @@ func (a *Server) processMessagesWorker(
 	}
 }
 
-func (a *Server) processSingleMessage(
+func (s *Server) processSingleMessage(
 	ctx context.Context,
 	msg sqstypes.Message,
 	s3Client s3Client,
@@ -995,19 +1011,19 @@ func (a *Server) processSingleMessage(
 	body := aws.ToString(msg.Body)
 
 	if err := json.Unmarshal([]byte(body), &sqsEvent); err != nil {
-		a.Log.ErrorContext(ctx, "Failed to unmarshal SQS message", "error", err, "message_payload", body, "message_id", aws.ToString(msg.MessageId))
+		s.Log.ErrorContext(ctx, "Failed to unmarshal SQS message", "error", err, "message_payload", body, "message_id", aws.ToString(msg.MessageId))
 		return nil
 	}
 
 	if len(sqsEvent.S3ObjectKey) == 0 {
-		a.Log.ErrorContext(ctx, "SQS message does not contain S3 object key", "message_payload", body, "message_id", aws.ToString(msg.MessageId))
+		s.Log.ErrorContext(ctx, "SQS message does not contain S3 object key", "message_payload", body, "message_id", aws.ToString(msg.MessageId))
 		return nil
 	}
 
 	var payloads [][]byte
 	for _, objectKey := range sqsEvent.S3ObjectKey {
 		if len(objectKey) == 0 {
-			a.Log.ErrorContext(ctx, "SQS message contains empty S3 object key", "message_payload", body, "message_id", aws.ToString(msg.MessageId))
+			s.Log.ErrorContext(ctx, "SQS message contains empty S3 object key", "message_payload", body, "message_id", aws.ToString(msg.MessageId))
 			continue
 		}
 
@@ -1015,7 +1031,7 @@ func (a *Server) processSingleMessage(
 		// because the SQS message will be requeued after.
 		payload, err := downloadCloudTrailFile(ctx, s3Client, sqsEvent.S3Bucket, objectKey)
 		if err != nil {
-			a.Log.ErrorContext(ctx, "Failed to download and parse S3 object", "error", err, "message_payload", body, "nessage_id", aws.ToString(msg.MessageId))
+			s.Log.ErrorContext(ctx, "Failed to download and parse S3 object", "error", err, "message_payload", body, "nessage_id", aws.ToString(msg.MessageId))
 			return trace.Wrap(err)
 		}
 
