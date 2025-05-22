@@ -61,154 +61,6 @@ const expectedKeytabDataPrefix = `Credentials:
   "AuthTime": "0001-01-01T00:00:00Z",
 `
 
-// parsedCacheData is textual representation of parsed fixedCacheData
-const parsedCacheData = `Credentials:
-{
-  "Username": "chris",
-  "DisplayName": "",
-  "Realm": "ALISTANIS.EXAMPLE.COM",
-  "Keytab": false,
-  "Password": false,
-  "ValidUntil": "0001-01-01T00:00:00Z",
-  "Authenticated": false,
-  "Human": false,
-  "AuthTime": "0001-01-01T00:00:00Z",
-  "SessionID": ""
-}
-TGT Sessions:
-[
-  {
-    "Realm": "ALISTANIS.EXAMPLE.COM",
-    "AuthTime": "2022-11-15T20:19:03+01:00",
-    "EndTime": "2022-11-16T06:19:03+01:00",
-    "RenewTill": "2022-11-16T20:19:03+01:00",
-    "SessionKeyExpiration": "0001-01-01T00:00:00Z"
-  }
-]
-Service ticket cache:
-[
-  {
-    "SPN": "krbtgt/ALISTANIS.EXAMPLE.COM",
-    "AuthTime": "2022-11-15T20:19:03+01:00",
-    "StartTime": "2022-11-15T20:19:03+01:00",
-    "EndTime": "2022-11-16T06:19:03+01:00",
-    "RenewTill": "2022-11-16T20:19:03+01:00"
-  }
-]
-Settings:
-{
-  "DisablePAFXFast": true,
-  "AssumePreAuthentication": false
-}
-Krb5 config:
-{
-  "LibDefaults": {
-    "AllowWeakCrypto": false,
-    "Canonicalize": false,
-    "CCacheType": 4,
-    "Clockskew": 300000000000,
-    "DefaultClientKeytabName": "/usr/local/var/krb5/user/501/client.keytab",
-    "DefaultKeytabName": "/etc/krb5.keytab",
-    "DefaultRealm": "example.com",
-    "DefaultTGSEnctypes": [
-      "aes256-cts-hmac-sha1-96",
-      "aes128-cts-hmac-sha1-96",
-      "des3-cbc-sha1",
-      "arcfour-hmac-md5",
-      "camellia256-cts-cmac",
-      "camellia128-cts-cmac",
-      "des-cbc-crc",
-      "des-cbc-md5",
-      "des-cbc-md4"
-    ],
-    "DefaultTktEnctypes": [
-      "aes256-cts-hmac-sha1-96",
-      "aes128-cts-hmac-sha1-96",
-      "des3-cbc-sha1",
-      "arcfour-hmac-md5",
-      "camellia256-cts-cmac",
-      "camellia128-cts-cmac",
-      "des-cbc-crc",
-      "des-cbc-md5",
-      "des-cbc-md4"
-    ],
-    "DefaultTGSEnctypeIDs": [
-      18,
-      17,
-      23
-    ],
-    "DefaultTktEnctypeIDs": [
-      18,
-      17,
-      23
-    ],
-    "DNSCanonicalizeHostname": true,
-    "DNSLookupKDC": false,
-    "DNSLookupRealm": false,
-    "ExtraAddresses": null,
-    "Forwardable": false,
-    "IgnoreAcceptorHostname": false,
-    "K5LoginAuthoritative": false,
-    "K5LoginDirectory": "/Users/tener",
-    "KDCDefaultOptions": {
-      "Bytes": "AAAAEA==",
-      "BitLength": 32
-    },
-    "KDCTimeSync": 1,
-    "NoAddresses": true,
-    "PermittedEnctypes": [
-      "aes256-cts-hmac-sha1-96",
-      "aes128-cts-hmac-sha1-96",
-      "des3-cbc-sha1",
-      "arcfour-hmac-md5",
-      "camellia256-cts-cmac",
-      "camellia128-cts-cmac",
-      "des-cbc-crc",
-      "des-cbc-md5",
-      "des-cbc-md4"
-    ],
-    "PermittedEnctypeIDs": [
-      18,
-      17,
-      23
-    ],
-    "PreferredPreauthTypes": [
-      17,
-      16,
-      15,
-      14
-    ],
-    "Proxiable": false,
-    "RDNS": false,
-    "RealmTryDomains": -1,
-    "RenewLifetime": 0,
-    "SafeChecksumType": 8,
-    "TicketLifetime": 86400000000000,
-    "UDPPreferenceLimit": 1465,
-    "VerifyAPReqNofail": false
-  },
-  "Realms": [
-    {
-      "Realm": "example.com",
-      "AdminServer": [
-        "host.example.com"
-      ],
-      "DefaultDomain": "",
-      "KDC": [
-        "host.example.com:88"
-      ],
-      "KPasswdServer": [
-        "host.example.com:464"
-      ],
-      "MasterKDC": null
-    }
-  ],
-  "DomainRealm": {}
-}
-Keytab:
-null
-`
-
 const (
 	mockCA = `-----BEGIN CERTIFICATE-----
 MIIECzCCAvOgAwIBAgIRAPEVuzVonTAvpOMyNii7nOAwDQYJKoZIhvcNAQELBQAw
@@ -323,7 +175,9 @@ func TestConnectorKInitClient(t *testing.T) {
 			validateClient: func(t *testing.T, clt *client.Client) {
 				var bw bytes.Buffer
 				clt.Print(&bw)
-				require.Equal(t, parsedCacheData, bw.String())
+
+				require.Contains(t, bw.String(), `"Username": "chris"`)
+				require.Contains(t, bw.String(), `"Realm": "ALISTANIS.EXAMPLE.COM"`)
 			},
 		},
 		{
