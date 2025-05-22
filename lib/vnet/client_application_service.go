@@ -56,9 +56,9 @@ type clientApplicationService struct {
 }
 
 type clientApplicationServiceConfig struct {
-	localResolver         *localFQDNResolver
-	localAppProvider      *localAppProvider
+	fqdnResolver          *fqdnResolver
 	localOSConfigProvider *LocalOSConfigProvider
+	clientApplication     ClientApplication
 }
 
 func newClientApplicationService(cfg *clientApplicationServiceConfig) *clientApplicationService {
@@ -102,7 +102,7 @@ func (s *clientApplicationService) Ping(ctx context.Context, req *vnetv1.PingReq
 
 // ResolveFQDN implements [vnetv1.ClientApplicationServiceServer.ResolveFQDN].
 func (s *clientApplicationService) ResolveFQDN(ctx context.Context, req *vnetv1.ResolveFQDNRequest) (*vnetv1.ResolveFQDNResponse, error) {
-	resp, err := s.cfg.localResolver.ResolveFQDN(ctx, req.GetFqdn())
+	resp, err := s.cfg.fqdnResolver.ResolveFQDN(ctx, req.GetFqdn())
 	return resp, trace.Wrap(err, "resolving FQDN")
 }
 
@@ -118,7 +118,7 @@ func (s *clientApplicationService) ReissueAppCert(ctx context.Context, req *vnet
 	if err := checkAppKey(appKey); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := s.cfg.localAppProvider.ReissueAppCert(ctx, appInfo, uint16(req.GetTargetPort()))
+	cert, err := s.cfg.clientApplication.ReissueAppCert(ctx, appInfo, uint16(req.GetTargetPort()))
 	if err != nil {
 		return nil, trace.Wrap(err, "reissuing app certificate")
 	}
@@ -190,7 +190,7 @@ func (s *clientApplicationService) getSignerForApp(appKey *vnetv1.AppKey, target
 // OnNewConnection gets called whenever a new connection is about to be
 // established through VNet for observability.
 func (s *clientApplicationService) OnNewConnection(ctx context.Context, req *vnetv1.OnNewConnectionRequest) (*vnetv1.OnNewConnectionResponse, error) {
-	if err := s.cfg.localAppProvider.OnNewConnection(ctx, req.GetAppKey()); err != nil {
+	if err := s.cfg.clientApplication.OnNewConnection(ctx, req.GetAppKey()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &vnetv1.OnNewConnectionResponse{}, nil
@@ -200,7 +200,7 @@ func (s *clientApplicationService) OnNewConnection(ctx context.Context, req *vne
 // to a multi-port TCP app because the provided port does not match any of the
 // TCP ports in the app spec.
 func (s *clientApplicationService) OnInvalidLocalPort(ctx context.Context, req *vnetv1.OnInvalidLocalPortRequest) (*vnetv1.OnInvalidLocalPortResponse, error) {
-	s.cfg.localAppProvider.OnInvalidLocalPort(ctx, req.GetAppInfo(), uint16(req.GetTargetPort()))
+	s.cfg.clientApplication.OnInvalidLocalPort(ctx, req.GetAppInfo(), uint16(req.GetTargetPort()))
 	return &vnetv1.OnInvalidLocalPortResponse{}, nil
 }
 
