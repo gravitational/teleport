@@ -239,6 +239,7 @@ func (s *KubeMockServer) setup() {
 	s.router.GET("/apis/rbac.authorization.k8s.io/:ver/clusterroles", s.withWriter(s.listClusterRoles))
 	s.router.GET("/apis/rbac.authorization.k8s.io/:ver/clusterroles/:name", s.withWriter(s.getClusterRole))
 	s.router.DELETE("/apis/rbac.authorization.k8s.io/:ver/clusterroles/:name", s.withWriter(s.deleteClusterRole))
+	s.router.GET("/apis/rbac.authorization.k8s.io/:ver", s.withWriter(s.discoveryEndpoint))
 
 	s.router.GET("/api/:ver/namespaces/:namespace/pods", s.withWriter(s.listPods))
 	s.router.GET("/api/:ver/pods", s.withWriter(s.listPods))
