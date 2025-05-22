@@ -240,10 +240,6 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 			tt.verifyParams.Clock = clock
 			_, err := VerifyJoinState(ca, signedState, tt.verifyParams)
 			tt.assertError(t, err)
-
-			if tt.assertSuccess != nil {
-				// TODO?
-			}
 		})
 	}
 }

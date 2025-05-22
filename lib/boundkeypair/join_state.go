@@ -143,12 +143,12 @@ func verifyJoinStateInner(key crypto.PublicKey, parsed *jwt.JSONWebToken, params
 	}
 
 	const leeway time.Duration = time.Minute
-	if err := document.Claims.Validate(jwt.Expected{
+	if err := document.Claims.ValidateWithLeeway(jwt.Expected{
 		Issuer:   params.ClusterName,
 		Audience: jwt.Audience{params.ClusterName},
 		Subject:  params.Token.Spec.BotName,
 		Time:     params.Clock.Now(),
-	}); err != nil {
+	}, leeway); err != nil {
 		return nil, trace.Wrap(err, "validating join state claims")
 	}
 

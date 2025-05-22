@@ -449,7 +449,7 @@ func (s *JoinServiceGRPCServer) registerUsingBoundKeypair(srv proto.JoinService_
 			Certs: &proto.RegisterUsingBoundKeypairCertificates{
 				Certs:     regResponse.Certs,
 				PublicKey: regResponse.BoundPublicKey,
-				JoinState: []byte(regResponse.JoinState),
+				JoinState: regResponse.JoinState,
 			},
 		},
 	}))

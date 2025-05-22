@@ -1038,7 +1038,7 @@ func registerUsingBoundKeypairMethod(
 		Certs:      regResponse.Certs,
 		BoundKeypair: &BoundKeypairRegisterResult{
 			BoundPublicKey: regResponse.BoundPublicKey,
-			JoinState:      []byte(regResponse.JoinState),
+			JoinState:      regResponse.JoinState,
 		},
 	}, nil
 }
