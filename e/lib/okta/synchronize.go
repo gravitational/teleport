@@ -604,15 +604,11 @@ func (s *Service) fetchOktaUsers(ctx context.Context) (map[string]types.User, ty
 			return nil, syncSource, trace.Errorf("user sync source = %q, but Okta SAML app ID is empty", s.userSyncSource)
 		}
 		s.logger.DebugContext(ctx, "Fetching app users", "app_id", s.oktaSAMLAppID)
-		convertUser := func(oktaUser *okta.AppUser) (types.User, error) {
-			return ConvertAppUser(oktaUser, s.clock, s.ssoConnectorID, s.orgURL)
-		}
-		oktaUsers, err := fetchOktaAppUsers(ctx, s.client, s.oktaSAMLAppID, convertUser, s.logger)
+		oktaUsers, err := fetchOktaAppUsers(ctx, s.client, s.oktaSAMLAppID, s.convertAppUser, s.logger)
 		return oktaUsers, syncSource, trace.Wrap(err, "fetching Okta SAML app users")
 	case types.OktaUserSyncSourceOrg:
 		s.logger.DebugContext(ctx, "Fetching org users")
-		convertUser := makeUserConverter(s.clock, s.ssoConnectorID, s.orgURL)
-		oktaUsers, err := fetchOktaUsers(ctx, s.client, convertUser, s.logger)
+		oktaUsers, err := fetchOktaOrgUsers(ctx, s.client, s.convertOrgUser, s.logger)
 		return oktaUsers, syncSource, trace.Wrap(err, "fetching all Okta org users")
 	default:
 		return nil, syncSource, trace.BadParameter("unknown user sync source %q", syncSource)

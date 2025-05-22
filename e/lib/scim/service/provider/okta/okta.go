@@ -14,13 +14,13 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/lib/okta"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
+	oktaconvert "github.com/gravitational/teleport/e/lib/okta/convert"
 	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
@@ -69,18 +69,21 @@ func New(config common.Config, pluginV1 *types.PluginV1, resourceType string) (c
 	}
 }
 
-func (s *oktaShim) syncSettings() *types.PluginOktaSyncSettings {
-	oktaSettings := s.plugin.Spec.GetOkta()
-	if oktaSettings == nil {
-		return nil
-	}
+func (s *oktaShim) oktaOrgURL() string {
+	return s.plugin.Spec.GetOkta().OrgUrl
+}
 
-	return oktaSettings.SyncSettings
+func (s *oktaShim) syncSettings() types.PluginOktaSyncSettings {
+	syncSettings := s.plugin.Spec.GetOkta().GetSyncSettings()
+	if syncSettings == nil {
+		return types.PluginOktaSyncSettings{}
+	}
+	return *syncSettings
 }
 
 // AccessListPredicate checks if the access list is "owned" by this okta.
 func (s *oktaShim) AccessListPredicate(_ context.Context, accessList *accesslist.AccessList) bool {
-	return okta.MatchByLabels[*accesslist.AccessList](s.plugin.Spec.GetOkta().OrgUrl)(accessList)
+	return okta.MatchByLabels[*accesslist.AccessList](s.oktaOrgURL())(accessList)
 }
 
 // UserPredicate checks if the user is "owned" by this okta.
@@ -92,7 +95,7 @@ func (s *oktaShim) UserPredicate(ctx context.Context, user types.User) bool {
 		// waiting for SAML user expiration.
 		return true
 	}
-	return okta.MatchByLabels[types.User](s.plugin.Spec.GetOkta().OrgUrl)(user)
+	return okta.MatchByLabels[types.User](s.oktaOrgURL())(user)
 }
 
 func (s *oktaShim) userCreatedByOktaConnector(user types.User) bool {
@@ -100,7 +103,7 @@ func (s *oktaShim) userCreatedByOktaConnector(user types.User) bool {
 	if userConnector == nil || userConnector.ID == "" {
 		return false
 	}
-	pluginConnectorID := s.plugin.Spec.GetOkta().SyncSettings.SsoConnectorId
+	pluginConnectorID := s.syncSettings().SsoConnectorId
 	if pluginConnectorID == "" {
 		return false
 	}
@@ -144,7 +147,7 @@ func (s *oktaShim) UserToResource(_ context.Context, user types.User) (*scimpb.R
 
 // ResourceToUser converts an Okta SCIM resource to a Teleport user
 func (s *oktaShim) ResourceToUser(ctx context.Context, res *scimpb.Resource) (types.User, error) {
-	if !s.plugin.Spec.GetOkta().SyncSettings.SyncUsers {
+	if !s.syncSettings().SyncUsers {
 		// Note: User traits can differ between SCIM user and user created
 		// by Okta sync service due to different okta user/app user attributes
 		// mapping.
@@ -163,9 +166,13 @@ func (s *oktaShim) ResourceToUser(ctx context.Context, res *scimpb.Resource) (ty
 
 	s.Logger.InfoContext(ctx, "Attempting to fetch user", "external_id", res.ExternalId, "username", oktaUser.UserName)
 
-	teleportUser, err := s.getOktaUser(ctx, res.ExternalId, s.plugin.Spec.GetOkta())
+	teleportUser, err := s.getOktaUser(ctx, res.ExternalId)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching Okta user from API")
+	}
+
+	if err := s.evaluateSAMLConnector(ctx, teleportUser); err != nil {
+		return nil, trace.Wrap(err, "setting user %q roles and traits from connector", teleportUser.GetName())
 	}
 
 	return teleportUser, nil
@@ -197,7 +204,7 @@ func (s *oktaShim) GetResourceLabels() map[string]string {
 	return map[string]string{
 		types.OriginLabel:                  types.OriginOkta,
 		types.TeleportInternalResourceType: types.SystemResource,
-		eteleport.OktaOrgURLLabel:          s.plugin.Spec.GetOkta().OrgUrl,
+		eteleport.OktaOrgURLLabel:          s.oktaOrgURL(),
 	}
 }
 
@@ -238,7 +245,7 @@ func (s *oktaShim) evaluateSAMLConnector(ctx context.Context, user types.User) e
 	for _, v := range groups {
 		groupsList = append(groupsList, v.Profile.Name)
 	}
-	connectorID := s.plugin.Spec.GetOkta().SyncSettings.SsoConnectorId
+	connectorID := s.syncSettings().SsoConnectorId
 	connector, err := s.IdentityService.GetSAMLConnector(ctx, connectorID, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -251,12 +258,11 @@ func (s *oktaShim) evaluateSAMLConnector(ctx context.Context, user types.User) e
 // user is created in the cluster. Our implementation ensures that there are no
 // outstanding SCIM locks on that user
 func (s *oktaShim) OnCreatedUser(ctx context.Context, createdUser types.User, res *scimpb.Resource) error {
-	oktaSettings := s.plugin.Spec.GetOkta()
 	log := s.Logger.With("user", createdUser.GetName())
 	log.InfoContext(ctx, "Ensuring newly-created user has no SCIM locks")
 
 	err := okta.UnlockUser(ctx, createdUser, []string{okta.LockReasonDeactivated},
-		oktaSettings.OrgUrl, s.LocksService)
+		s.oktaOrgURL(), s.LocksService)
 	if err != nil {
 		// This is probably not enough of a reason to fail the provisioning, but
 		// it should be logged
@@ -274,7 +280,6 @@ type oktaUserResource struct {
 // OnUpdatingUser handles a user update request. Okta piggybacks user activation
 // and deactivation into "update" messages
 func (s *oktaShim) OnUpdatingUser(ctx context.Context, teleportUser types.User, res *scimpb.Resource) (types.User, bool, error) {
-	oktaSettings := s.plugin.Spec.GetOkta()
 	log := s.Logger.With("user", teleportUser.GetName())
 
 	var oktaUser oktaUserResource
@@ -296,7 +301,7 @@ func (s *oktaShim) OnUpdatingUser(ctx context.Context, teleportUser types.User, 
 		if (*oktaUser.Active) == true {
 			log.DebugContext(ctx, "Okta activating user - unlocking")
 			err := okta.UnlockUser(ctx, teleportUser, []string{okta.LockReasonDeactivated},
-				oktaSettings.OrgUrl, s.LocksService)
+				s.oktaOrgURL(), s.LocksService)
 			if err != nil {
 				return nil, false, trace.Wrap(err)
 			}
@@ -310,7 +315,7 @@ func (s *oktaShim) OnUpdatingUser(ctx context.Context, teleportUser types.User, 
 			User:     teleportUser,
 			Reason:   okta.LockReasonDeactivated,
 			Message:  "User deactivated by Okta",
-			OrgURL:   oktaSettings.OrgUrl,
+			OrgURL:   s.oktaOrgURL(),
 			Clock:    s.Clock,
 			LocksSvc: s.LocksService,
 			Logger:   s.Logger,
@@ -325,28 +330,6 @@ func (s *oktaShim) OnUpdatingUser(ctx context.Context, teleportUser types.User, 
 		}
 		return teleportUser, false, nil
 	}
-
-	if !s.plugin.Spec.GetOkta().SyncSettings.SyncUsers {
-		// If periodic user sync is disabled, we don't care about keeping
-		// user in data in sync between SCIM user and user create by Okta
-		// sync service and threat user model from SCIM push as a single
-		// source of truth.
-		// Note that user traits can differ between SCIM user and user created
-		// by Okta sync service due to different okta user/app user attributes
-		// mapping.
-		user, err := s.createUserFromResource(ctx, res)
-		return user, true, trace.Wrap(err)
-	}
-
-	// Otherwise, Okta is actually trying to update our user. Because Okta's
-	// user and appuser profile schemes are so wildly customizable, and the
-	// mapping from an appuser profile to the structured SCIM data is not well
-	// known, reconciling the SCIM data with the teleport user traits is almost
-	// impossible.
-	//
-	// To sidestep the whole mess, we use this SCIM request as a trigger to poll
-	// the Okta API for the target user's data as a flat list of attributes and
-	// update as per the Okta sync service
 
 	newUser, err := s.ResourceToUser(ctx, res)
 	if err != nil {
@@ -366,39 +349,31 @@ func (s *oktaShim) createUserFromResource(ctx context.Context, res *scimpb.Resou
 	if res == nil {
 		return nil, trace.BadParameter("Resource may not be empty")
 	}
-	pluginSettings := s.plugin.Spec.GetOkta().SyncSettings
 	if res.Attributes == nil {
 		return nil, trace.BadParameter("Missing resource attributes")
 	}
-	scimAttribs := res.GetAttributes().AsMap()
 	username := res.Id
 	if username == "" {
+		attrs := res.GetAttributes().AsMap()
 		var err error
-		username, err = getAttr(scimAttribs, "userName")
+		username, err = getAttr(attrs, "userName")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	user, err := types.NewUser(username)
+
+	user, err := oktaconvert.NewTeleportUser(oktaconvert.NewTeleportUserArgs{
+		Clock:             s.Clock,
+		SAMLConnectorName: s.syncSettings().SsoConnectorId,
+		OktaOrgURL:        s.oktaOrgURL(),
+		OktaLogin:         username,
+		OktaID:            res.GetExternalId(),
+		IgnoreOktaStatus:  true,
+		OktaProfile:       make(map[string]any, 0),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user.SetStaticLabels(map[string]string{
-		types.OriginLabel:         types.OriginOkta,
-		eteleport.OktaOrgURLLabel: s.plugin.Spec.GetOkta().OrgUrl,
-		eteleport.OktaUserIDLabel: res.GetExternalId(),
-	})
-	user.SetCreatedBy(types.CreatedBy{
-		User: types.UserRef{
-			Name: teleport.UserSystem,
-		},
-		Time: s.Clock.Now(),
-		Connector: &types.ConnectorRef{
-			ID:       pluginSettings.SsoConnectorId,
-			Type:     constants.SAML,
-			Identity: res.GetExternalId(),
-		},
-	})
 
 	user.SetRevision(res.GetMeta().GetVersion())
 
@@ -423,25 +398,24 @@ func getAttr(attrs map[string]any, key string) (string, error) {
 }
 
 // getOktaUser fetches an appuser profile from the Okta Org API
-func (s *oktaShim) getOktaUser(ctx context.Context, userID string, oktaSettings *types.PluginOktaSettings) (types.User, error) {
+func (s *oktaShim) getOktaUser(ctx context.Context, userID string) (types.User, error) {
 	c, err := s.oktaClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	appUser, _, err := c.Application.GetApplicationUser(ctx, oktaSettings.SyncSettings.AppId, userID, nil)
+	appUser, _, err := c.Application.GetApplicationUser(ctx, s.syncSettings().AppId, userID, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	newUser, err := okta.ConvertAppUser(appUser, s.Clock,
-		oktaSettings.SyncSettings.SsoConnectorId,
-		oktaSettings.OrgUrl)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return newUser, nil
+	u, err := oktaconvert.ConvertOktaAppUser(oktaconvert.ConvertOktaUserArgs[*oktasdk.AppUser]{
+		Clock:             s.Clock,
+		SAMLConnectorName: s.syncSettings().SsoConnectorId,
+		OktaOrgURL:        s.oktaOrgURL(),
+		OktaSDKUser:       appUser,
+	})
+	return u, trace.Wrap(err)
 }
 
 // lookupGroup looks up the Okta group ID for a given display name. For a given
@@ -536,7 +510,7 @@ func (s *oktaShim) oktaClient(ctx context.Context) (*oktasdk.Client, error) {
 	oktaOpts := append(
 		oktaAuthProvider.GetAuthOptions(),
 		oktasdk.WithCache(false),
-		oktasdk.WithOrgUrl(s.plugin.Spec.GetOkta().OrgUrl),
+		oktasdk.WithOrgUrl(s.oktaOrgURL()),
 		oktasdk.WithRequestTimeout(okta.RequestTimeoutSeconds),
 		oktasdk.WithRateLimitMaxRetries(math.MaxInt32),
 		oktasdk.WithScopes(oktaOAuthScopes),
@@ -556,12 +530,8 @@ func (s *oktaShim) oktaClient(ctx context.Context) (*oktasdk.Client, error) {
 }
 
 func (s *oktaShim) defaultOwners() []accesslist.Owner {
-	settings := s.syncSettings()
-	if settings == nil {
-		return nil
-	}
-	result := make([]accesslist.Owner, len(settings.DefaultOwners))
-	for i, owner := range settings.DefaultOwners {
+	result := make([]accesslist.Owner, len(s.syncSettings().DefaultOwners))
+	for i, owner := range s.syncSettings().DefaultOwners {
 		result[i] = accesslist.Owner{
 			Name: owner,
 		}

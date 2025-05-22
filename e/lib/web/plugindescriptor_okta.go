@@ -113,12 +113,12 @@ func validateOktaPluginUpdateInputs(params *ui.OktaPluginUpdate) (*oktav1.Update
 
 	return &oktav1.UpdateIntegrationRequest{
 		ApiCredentials:          oktaAPICreds,
-		EnableAccessListSync:    params.EnableAccessListSync,
-		EnableAppGroupSync:      params.EnableAppGroupSync,
-		EnableUserSync:          params.EnableUserSync,
-		EnableBidirectionalSync: params.EnableBidirectionalSync,
-		AccessListSettings:      accessListSettings,
 		ScimToken:               params.SCIMToken,
+		EnableUserSync:          params.EnableUserSync,
+		EnableAppGroupSync:      params.EnableAppGroupSync,
+		EnableAccessListSync:    params.EnableAccessListSync,
+		AccessListSettings:      accessListSettings,
+		EnableBidirectionalSync: params.EnableBidirectionalSync,
 	}, nil
 }
 
@@ -176,19 +176,19 @@ func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plu
 	oktaAPICreds := getOktaCredsFromParams(params)
 	authOktaClient := oktav1.NewOktaServiceClient(args.sessCtx.GetClientConnection())
 	resp, err := authOktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		ReuseConnector:       params.reuseConnector,
+		SsoMetadataUrl:       params.metadataURL,
 		OktaOrganizationUrl:  params.oktaOrgURL,
 		ApiCredentials:       oktaAPICreds,
 		ScimToken:            params.scimBearerToken,
-		EnableAccessListSync: params.enableAccessListSync,
 		EnableUserSync:       params.enableUserSync,
 		EnableAppGroupSync:   params.enableAppGroupsSync,
+		EnableAccessListSync: params.enableAccessListSync,
 		AccessListSettings: &oktav1.AccessListSettings{
 			GroupFilters: params.groupFilters,
 			AppFilters:   params.appFilters,
 			DefaultOwner: params.defaultOwners,
 		},
-		ReuseConnector:          params.reuseConnector,
-		SsoMetadataUrl:          params.metadataURL,
 		EnableBidirectionalSync: params.enableBidirectionalSync,
 	})
 	if err != nil {

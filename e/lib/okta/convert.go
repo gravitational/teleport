@@ -4,26 +4,21 @@ import (
 	"crypto"
 	"fmt"
 	"math/big"
-	"slices"
-	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/mitchellh/mapstructure"
-	"github.com/okta/okta-sdk-golang/v2/okta"
+	oktasdk "github.com/okta/okta-sdk-golang/v2/okta"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/trait"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
+	oktaconvert "github.com/gravitational/teleport/e/lib/okta/convert"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // oktaGroupToUserGroup converts an Okta group object to a types.UserGroup object.
-func (s *Service) oktaGroupToUserGroup(oktaGroup *okta.Group, appIDs []string) (types.UserGroup, error) {
+func (s *Service) oktaGroupToUserGroup(oktaGroup *oktasdk.Group, appIDs []string) (types.UserGroup, error) {
 	if err := isGroupValid(oktaGroup); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -73,7 +68,7 @@ type oktaApplicationEmbedLink struct {
 
 // oktaAppToApps converts an Okta app object to types.Application objects. This will convert
 // multiple appLinks in an Okta object into multiple applications.
-func (s *Service) oktaAppToApps(oktaApplication *okta.Application, groupIDs []string) ([]*types.AppV3, error) {
+func (s *Service) oktaAppToApps(oktaApplication *oktasdk.Application, groupIDs []string) ([]*types.AppV3, error) {
 	appIdentifier := fmt.Sprintf("%s (%s)", oktaApplication.Id, oktaApplication.Label)
 
 	// Filter out Okta apps if they're not the kind we want to display to users.
@@ -178,7 +173,7 @@ func shortenedEncodedID(hashedID []byte, length int) string {
 }
 
 // isGroupValid will return an error if the group shouldn't be synced with the list of user groups.
-func isGroupValid(oktaGroup *okta.Group) error {
+func isGroupValid(oktaGroup *oktasdk.Group) error {
 	if oktaGroup.Profile == nil {
 		return trace.BadParameter("the okta group %s has no profile", oktaGroup.Id)
 	}
@@ -191,7 +186,7 @@ func isGroupValid(oktaGroup *okta.Group) error {
 }
 
 // isAppValid will return an error if the application shouldn't be synced with the app catalog.
-func isAppValid(app *okta.Application) error {
+func isAppValid(app *oktasdk.Application) error {
 	appIdentifier := fmt.Sprintf("%s (%s)", app.Id, app.Label)
 
 	// If the application isn't active, then we'll filter it out.
@@ -206,7 +201,7 @@ func isAppValid(app *okta.Application) error {
 	return nil
 }
 
-func isHiddenApp(app *okta.Application) bool {
+func isHiddenApp(app *oktasdk.Application) bool {
 	return app.Visibility != nil && app.Visibility.Hide != nil && app.Visibility.Hide.Web != nil && *app.Visibility.Hide.Web
 }
 
@@ -221,165 +216,22 @@ func base36Encode(data []byte) string {
 	return hashInt.Text(36)
 }
 
-type oktaUserProfile struct {
-	Login  string                 `mapstructure:"login"`
-	Fields map[string]interface{} `mapstructure:",remain"`
-}
-
-func (p *oktaUserProfile) AsTraits() trait.Traits {
-	traits := trait.Traits{}
-	for k, v := range p.Fields {
-		switch value := v.(type) {
-		case string:
-			if trimmed := strings.TrimSpace(value); trimmed != "" {
-				traits[eteleport.OktaTraitPrefix+k] = []string{trimmed}
-			}
-		case []string:
-			if trimmed := removeEmpty(value); len(trimmed) > 0 {
-				traits[eteleport.OktaTraitPrefix+k] = trimmed
-			}
-		}
-	}
-	return traits
-}
-
-func removeEmpty(src []string) []string {
-	return slices.DeleteFunc(src, func(s string) bool { return len(strings.TrimSpace(s)) == 0 })
-}
-
-func parseOktaUserProfile(attributes map[string]any) (*oktaUserProfile, error) {
-	var profile oktaUserProfile
-	err := mapstructure.Decode(&attributes, &profile)
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing okta user profile")
-	}
-	return &profile, nil
-}
-
-type OktaUserArgs struct {
-	Login             string
-	OrgURL            string
-	OktaUserID        string
-	OktaUserStatus    string
-	SAMLConnectorName string
-	Clock             clockwork.Clock
-}
-
-func (args *OktaUserArgs) CheckAndSetDefaults() error {
-	if args.Login == "" {
-		return trace.BadParameter("missing Login")
-	}
-
-	if args.OrgURL == "" {
-		return trace.BadParameter("missing OrgURL")
-	}
-
-	if args.OktaUserID == "" {
-		return trace.BadParameter("missing OktaUserID")
-	}
-
-	if args.OktaUserStatus == "" {
-		return trace.BadParameter("missing OktaUserStatus")
-	}
-
-	if args.SAMLConnectorName == "" {
-		return trace.BadParameter("missing SAMLConnectorName")
-	}
-
-	if args.Clock == nil {
-		args.Clock = clockwork.NewRealClock()
-	}
-
-	return nil
-}
-
-// NewOktaUser creates a Teleport user resource with the appropriate labels and
-// properties to mark the user as belonging to an Okta organization.
-func NewOktaUser(args OktaUserArgs) (types.User, error) {
-	if err := args.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err, "creating okta user")
-	}
-
-	newUser, err := types.NewUser(args.Login)
-	if err != nil {
-		return nil, trace.Wrap(err, "processing okta user %s", args.Login)
-	}
-
-	newUser.SetStaticLabels(map[string]string{
-		types.OriginLabel:             types.OriginOkta,
-		eteleport.OktaOrgURLLabel:     args.OrgURL,
-		eteleport.OktaUserIDLabel:     args.OktaUserID,
-		eteleport.OktaUserStatusLabel: args.OktaUserStatus,
+func (s *Service) convertAppUser(appUser *oktasdk.AppUser) (types.User, error) {
+	u, err := oktaconvert.ConvertOktaAppUser(oktaconvert.ConvertOktaUserArgs[*oktasdk.AppUser]{
+		Clock:             s.clock,
+		SAMLConnectorName: s.ssoConnectorID,
+		OktaOrgURL:        s.orgURL,
+		OktaSDKUser:       appUser,
 	})
-	newUser.AddRole(teleport.SystemOktaRequesterRoleName)
+	return u, trace.Wrap(err)
+}
 
-	newUser.SetCreatedBy(types.CreatedBy{
-		User: types.UserRef{
-			Name: teleport.UserSystem,
-		},
-		Time: args.Clock.Now(),
-		Connector: &types.ConnectorRef{
-			ID:       args.SAMLConnectorName,
-			Type:     constants.SAML,
-			Identity: args.OktaUserID,
-		},
+func (s *Service) convertOrgUser(orgUser *oktasdk.User) (types.User, error) {
+	u, err := oktaconvert.ConvertOktaOrgUser(oktaconvert.ConvertOktaUserArgs[*oktasdk.User]{
+		Clock:             s.clock,
+		SAMLConnectorName: s.ssoConnectorID,
+		OktaOrgURL:        s.orgURL,
+		OktaSDKUser:       orgUser,
 	})
-
-	return newUser, nil
-}
-
-// ConvertAppUser converts an Okta AppUser profile into a Teleport user.
-func ConvertAppUser(user *okta.AppUser, clock clockwork.Clock, ssoConnectorID string, srcURL string) (types.User, error) {
-	attributes, ok := user.Profile.(map[string]any)
-	if !ok {
-		return nil, trace.BadParameter("invalid type for user profile: %T", user.Profile)
-	}
-	return convertUser(user.Credentials.UserName, user.Id, user.Status, attributes, clock, ssoConnectorID, srcURL)
-}
-
-// convertUser creates a Teleport user from a collection of attributes derived
-// from an Okta User or AppUser profile.
-// If the supplied login is empty, convertUser will use the `login` attribute
-// to derive the Teleport username.
-func convertUser(login string, oktaUserID string, oktaUserStatus string, attributes map[string]any, clock clockwork.Clock, ssoConnectorID string, srcURL string) (types.User, error) {
-	profile, err := parseOktaUserProfile(attributes)
-	if err != nil {
-		return nil, trace.Wrap(err, "decoding Okta user profile")
-	}
-
-	if login == "" {
-		login = profile.Login
-	}
-
-	newUser, err := NewOktaUser(OktaUserArgs{
-		Login:             login,
-		OrgURL:            srcURL,
-		OktaUserID:        oktaUserID,
-		OktaUserStatus:    oktaUserStatus,
-		SAMLConnectorName: ssoConnectorID,
-		Clock:             clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "processing okta user %s", login)
-	}
-
-	newUser.SetTraits(profile.AsTraits())
-
-	return newUser, nil
-}
-
-func makeUserConverter(clock clockwork.Clock, ssoConnectorID string, srcURL string) userConverter {
-	return func(oktaUser *okta.User) (types.User, error) {
-		if oktaUser == nil {
-			return nil, trace.BadParameter("oktaUser must not be nil")
-		}
-
-		if oktaUser.Profile == nil {
-			return nil, trace.BadParameter("missing okta user profile")
-		}
-
-		return convertUser("", oktaUser.Id, oktaUser.Status,
-			map[string]any(*oktaUser.Profile), clock,
-			ssoConnectorID, srcURL)
-	}
+	return u, trace.Wrap(err)
 }

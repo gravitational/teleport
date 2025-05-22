@@ -93,13 +93,13 @@ type ReconcilerAccessPoint interface {
 	DeleteUser(ctx context.Context, user string) error
 }
 
-// userConverter is a function that can convert an Okta user into a Teleport
+// orgUserConverter is a function that can convert an Okta user into a Teleport
 // user.
-type userConverter func(*okta.User) (types.User, error)
+type orgUserConverter func(*okta.User) (types.User, error)
 
-// fetchOktaUsers fetches users from the upstream okta service and creates
+// fetchOktaOrgUsers fetches users from the upstream okta service and creates
 // candidate Teleport user equivalents for them.
-func fetchOktaUsers(ctx context.Context, oktaClient oktaapi.Interface, convertUser userConverter, log *slog.Logger) (map[string]types.User, error) {
+func fetchOktaOrgUsers(ctx context.Context, oktaClient oktaapi.Interface, convertUser orgUserConverter, log *slog.Logger) (map[string]types.User, error) {
 	result := map[string]types.User{}
 	err := oktaClient.IterateUsers(ctx, func(ou *okta.User) error {
 		log := log.With("okta_user_id", ou.Id)

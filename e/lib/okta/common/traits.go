@@ -1,11 +1,9 @@
 package common
 
 import (
-	"sort"
+	"slices"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -37,6 +35,7 @@ func SetUserRolesAndTraits(user types.User, groups []string, connector traitsMap
 	}
 
 	traits := user.GetTraits()
+
 	if traits == nil {
 		traits = make(map[string][]string)
 	}
@@ -46,10 +45,12 @@ func SetUserRolesAndTraits(user types.User, groups []string, connector traitsMap
 	if fondGroupMapping {
 		traits[oktaGroupsTrait] = groups
 	}
-
 	user.SetTraits(traits)
-	_, roles := services.TraitsToRoles(mapping, traits)
-	userRoles := apiutils.Deduplicate(append([]string{teleport.SystemOktaRequesterRoleName}, roles...))
-	sort.Strings(userRoles)
-	user.SetRoles(userRoles)
+
+	roles := user.GetRoles()
+	_, rolesFromTraits := services.TraitsToRoles(mapping, traits)
+	roles = append(roles, rolesFromTraits...)
+	slices.Sort(roles)
+	roles = slices.Compact(roles)
+	user.SetRoles(roles)
 }
