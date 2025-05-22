@@ -282,6 +282,8 @@ github.com/aws/aws-sdk-go-v2/service/organizations v1.34.3 h1:Er5y2CAfS0ddI6+/7b
 github.com/aws/aws-sdk-go-v2/service/organizations v1.34.3/go.mod h1:hrfV1T+dtQ8AGlImCftiCAYZCTvn2hNVEcA9gPXui8E=
 github.com/aws/aws-sdk-go-v2/service/rds v1.89.0 h1:4x0WbBa+i/AS0AFlj7yvx3n+GuK3XR58J6t61pW6h8U=
 github.com/aws/aws-sdk-go-v2/service/rds v1.89.0/go.mod h1:WB+SVZKu1IBpsy3GrpR2EBnqB6A05Bd0r4RDLRqMbdk=
+github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.16.3 h1:lkhEdncFpqtpLZIflmYVhCfGZOKnaR1KpnjL/YqFmNA=
+github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.16.3/go.mod h1:kxbZGLQug7gz4qtj75ScD7HAozL94trZRYXF2kT6gNg=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.66.2 h1:p9TNFL8bFUMd+38YIpTAXpoxyz0MxC7FlbFEH4P4E1U=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.66.2/go.mod h1:fNjyo0Coen9QTwQLWeV6WO2Nytwiu+cCcWaTdKCAqqE=
 github.com/aws/aws-sdk-go-v2/service/sns v1.33.3 h1:coZW/SqpINT0VWG8vRWWY9TWUof8TDdxublw2Xur0Zc=

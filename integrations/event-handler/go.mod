@@ -88,6 +88,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kms v1.37.18 // indirect
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.34.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/rds v1.89.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.16.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.55.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.24.15 // indirect
