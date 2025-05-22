@@ -381,9 +381,7 @@ func testSigner(t *testing.T) ([]byte, jose.Signer) {
 	return jwksData, signer
 }
 
-//nolint:govet // there's some weird json struct tag overlap here
 type claims struct {
-	jwt.Claims
 	IDTokenClaims
 	Subject string `json:"sub"`
 }
@@ -409,14 +407,14 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 			claims: claims{
 				IDTokenClaims: IDTokenClaims{
 					Repository: "123",
+					TokenClaims: oidc.TokenClaims{
+						Audience:   oidc.Audience{clusterName},
+						IssuedAt:   oidc.FromTime(now.Add(-1 * time.Minute)),
+						NotBefore:  oidc.FromTime(now.Add(-1 * time.Minute)),
+						Expiration: oidc.FromTime(now.Add(10 * time.Minute)),
+					},
 				},
 				Subject: "foo",
-				Claims: jwt.Claims{
-					Audience:  jwt.Audience{clusterName},
-					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
-					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
-					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
-				},
 			},
 			wantResult: &IDTokenClaims{
 				Sub:        "foo",
@@ -429,14 +427,14 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 			claims: claims{
 				IDTokenClaims: IDTokenClaims{
 					Repository: "123",
+					TokenClaims: oidc.TokenClaims{
+						Audience:   oidc.Audience{clusterName},
+						IssuedAt:   oidc.FromTime(now.Add(-1 * time.Minute)),
+						NotBefore:  oidc.FromTime(now.Add(-1 * time.Minute)),
+						Expiration: oidc.FromTime(now.Add(10 * time.Minute)),
+					},
 				},
 				Subject: "foo",
-				Claims: jwt.Claims{
-					Audience:  jwt.Audience{clusterName},
-					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
-					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
-					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
-				},
 			},
 			wantResult: &IDTokenClaims{
 				Sub:        "foo",
@@ -450,14 +448,14 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 			claims: claims{
 				IDTokenClaims: IDTokenClaims{
 					Repository: "123",
+					TokenClaims: oidc.TokenClaims{
+						Audience:   oidc.Audience{clusterName},
+						IssuedAt:   oidc.FromTime(now.Add(-2 * time.Minute)),
+						NotBefore:  oidc.FromTime(now.Add(-2 * time.Minute)),
+						Expiration: oidc.FromTime(now.Add(-1 * time.Minute)),
+					},
 				},
 				Subject: "foo",
-				Claims: jwt.Claims{
-					Audience:  jwt.Audience{clusterName},
-					IssuedAt:  jwt.NewNumericDate(now.Add(-2 * time.Minute)),
-					NotBefore: jwt.NewNumericDate(now.Add(-2 * time.Minute)),
-					Expiry:    jwt.NewNumericDate(now.Add(-1 * time.Minute)),
-				},
 			},
 			wantErr: "token is expired",
 		},
@@ -467,14 +465,14 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 			claims: claims{
 				IDTokenClaims: IDTokenClaims{
 					Repository: "123",
+					TokenClaims: oidc.TokenClaims{
+						Audience:   oidc.Audience{clusterName},
+						IssuedAt:   oidc.FromTime(now.Add(2 * time.Minute)),
+						NotBefore:  oidc.FromTime(now.Add(2 * time.Minute)),
+						Expiration: oidc.FromTime(now.Add(4 * time.Minute)),
+					},
 				},
 				Subject: "foo",
-				Claims: jwt.Claims{
-					Audience:  jwt.Audience{clusterName},
-					IssuedAt:  jwt.NewNumericDate(now.Add(2 * time.Minute)),
-					NotBefore: jwt.NewNumericDate(now.Add(2 * time.Minute)),
-					Expiry:    jwt.NewNumericDate(now.Add(4 * time.Minute)),
-				},
 			},
 			wantErr: "token not valid yet",
 		},

@@ -88,7 +88,6 @@ type attestedData struct {
 
 type accessTokenClaims struct {
 	oidc.TokenClaims
-	jwt.Claims
 	TenantID string `json:"tid"`
 	Version  string `json:"ver"`
 
@@ -106,6 +105,18 @@ type accessTokenClaims struct {
 
 	ManangedIdentityResourceID string `json:"xms_mirid"`
 	AzureResourceID            string `json:"xms_az_rid"`
+}
+
+func (c *accessTokenClaims) AsJWTClaims() jwt.Claims {
+	return jwt.Claims{
+		Issuer:    c.Issuer,
+		Subject:   c.Subject,
+		Audience:  jwt.Audience(c.Audience),
+		Expiry:    jwt.NewNumericDate(c.Expiration.AsTime()),
+		NotBefore: jwt.NewNumericDate(c.NotBefore.AsTime()),
+		IssuedAt:  jwt.NewNumericDate(c.IssuedAt.AsTime()),
+		ID:        c.JWTID,
+	}
 }
 
 type azureVerifyTokenFunc func(ctx context.Context, rawIDToken string) (*accessTokenClaims, error)
@@ -259,7 +270,7 @@ func verifyVMIdentity(
 		Time:     requestStart,
 	}
 
-	if err := tokenClaims.Validate(expectedClaims); err != nil {
+	if err := tokenClaims.AsJWTClaims().Validate(expectedClaims); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -282,7 +293,7 @@ func verifyVMIdentity(
 
 	tokenCredential := azure.NewStaticCredential(azcore.AccessToken{
 		Token:     accessToken,
-		ExpiresOn: tokenClaims.Expiry.Time(),
+		ExpiresOn: tokenClaims.GetExpiration(),
 	})
 	vmClient, err := cfg.getVMClient(subscriptionID, tokenCredential)
 	if err != nil {
