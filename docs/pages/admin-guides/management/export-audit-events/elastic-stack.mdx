@@ -9,9 +9,13 @@ historical analysis, detect unusual behavior, and form a better understanding of
 how users interact with your Teleport cluster.
 
 In this guide, we will show you how to configure Teleport's Event Handler plugin
-to send your Teleport audit events to the Elastic Stack. In this setup, the
-Event Handler plugin forwards audit events from Teleport to Logstash, which
-stores them in Elasticsearch for visualization and alerting in Kibana. 
+to send your Teleport audit events to the Elastic Stack. 
+
+## How it works
+
+In this setup, the Event Handler plugin forwards audit events from Teleport to
+Logstash, which stores them in Elasticsearch for visualization and alerting in
+Kibana. 
 
 ## Prerequisites
 
