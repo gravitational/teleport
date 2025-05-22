@@ -17,7 +17,8 @@
  */
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
+import { useHistory, useLocation } from 'react-router';
 
 import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
@@ -40,17 +41,18 @@ import { listBotInstances } from 'teleport/services/bot/bot';
 import { BotInstancesList } from './List/BotInstancesList';
 
 export function BotInstances() {
-  const [pageTokens, setPageTokens] = useState<readonly string[]>(['']);
-  const [searchTerm, setSearchTerm] = useState('');
-
-  const currentPageToken = pageTokens[0];
+  const history = useHistory();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const pageToken = queryParams.get('page') ?? '';
+  const searchTerm = queryParams.get('search') ?? '';
 
   const { isPending, isFetching, isSuccess, isError, error, data } = useQuery({
-    queryKey: ['bot_instances', 'list', searchTerm, currentPageToken],
+    queryKey: ['bot_instances', 'list', searchTerm, pageToken],
     queryFn: () =>
       listBotInstances({
         pageSize: 20,
-        pageToken: currentPageToken,
+        pageToken,
         searchTerm,
       }),
     placeholderData: keepPreviousData,
@@ -58,19 +60,31 @@ export function BotInstances() {
   });
 
   const hasNextPage = !!data?.next_page_token;
-  const hasPrevPage = pageTokens.length > 1;
+  const hasPrevPage = !!pageToken;
 
   const handleFetchNext = useCallback(() => {
-    setPageTokens([data?.next_page_token ?? '', ...pageTokens]);
-  }, [data?.next_page_token, pageTokens]);
+    const search = new URLSearchParams(location.search);
+    search.set('page', data?.next_page_token ?? '');
+
+    history.push({
+      pathname: `${location.pathname}`,
+      search: search.toString(),
+    });
+  }, [data?.next_page_token, history, location.pathname, location.search]);
 
   const handleFetchPrev = useCallback(() => {
-    setPageTokens(pageTokens.slice(1));
-  }, [pageTokens]);
+    history.goBack();
+  }, [history]);
 
   const handleSearchChange = useCallback((term: string) => {
-    setPageTokens(['']);
-    setSearchTerm(term);
+    const search = new URLSearchParams(location.search);
+    search.set('search', term);
+    search.set('page', '');
+
+    history.push({
+      pathname: `${location.pathname}`,
+      search: search.toString(),
+    });
   }, []);
 
   return (
