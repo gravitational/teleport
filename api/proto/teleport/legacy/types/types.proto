@@ -8061,6 +8061,18 @@ message OktaAssignmentSpecV1 {
     SUCCESSFUL = 3;
     // FAILED indicates the action was not applied successfully. It will be retried.
     FAILED = 4;
+    // ACL_REMOVAL_PENDING_OKTA_CLEANUP indicates that the user has been removed
+    // from the Access List, but the corresponding cleanup action—removal from
+    // the associated Okta group—has not yet been executed.
+    //
+    // This status represents a transitional state where internal access control
+    // has been updated (i.e., the user was removed from the Access List), but the
+    // change is not yet reflected in the user assignments state. This prevents
+    // importing-recreating Okta assigns in teleport  during asynchronous Okta ACL sync.
+    // when the ongoing Remove user from Access List operation is in progress.
+    // Once the user assignments are evaluator successfully processes the Access List
+    // membership changes, the associated assignment will be deleted.
+    ACL_REMOVAL_PENDING_OKTA_CLEANUP = 5;
   }
 
   // LastTransition is an optional field that notes when the last state transition
