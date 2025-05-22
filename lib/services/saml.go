@@ -133,6 +133,9 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 	if sc.GetSSO() == "" {
 		return trace.BadParameter("no SSO set either explicitly or via entity_descriptor spec")
 	}
+	if err := validateAssertionConsumerServicesEndpoint(sc.GetSSO()); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if sc.GetSigningKeyPair() == nil {
 		keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
