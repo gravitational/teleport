@@ -209,9 +209,12 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 		HTTPTransport: options.roundTripper,
 	})
 	require.NoError(t, err)
-	err = pluginRegistry.Add(authPlugin)
-	require.NoError(t, err)
-	s.authPlugin = authPlugin
+
+	if options.customPlugin == nil ||
+		(options.customPlugin != nil && options.customPlugin.GetName() != authPlugin.GetName()) {
+		require.NoError(t, pluginRegistry.Add(authPlugin))
+		s.authPlugin = authPlugin
+	}
 
 	if options.customPlugin != nil {
 		err = pluginRegistry.Add(options.customPlugin)

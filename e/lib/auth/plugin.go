@@ -24,7 +24,7 @@ import (
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
-	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/secreports/secreportsv1"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -515,6 +516,7 @@ func (p *Plugin) registerAccessGraphService(ctx context.Context, authServer *aut
 
 func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC grpc.ServiceRegistrar) error {
 	if p.AccessMonitoring == nil || !p.AccessMonitoring.Enabled {
+		secreportsv1pb.RegisterSecReportsServiceServer(serviceGRPC, secreportsv1.NotImplementedService{})
 		return nil
 	}
 	logger.InfoContext(ctx, "Access Monitoring Enabled")
@@ -574,7 +576,7 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 		return trace.Wrap(err)
 	}
 
-	secreportsv1.RegisterSecReportsServiceServer(serviceGRPC, secReportsSvc)
+	secreportsv1pb.RegisterSecReportsServiceServer(serviceGRPC, secReportsSvc)
 	return nil
 }
 

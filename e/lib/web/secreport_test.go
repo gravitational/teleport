@@ -187,7 +187,7 @@ type mockPlugin struct {
 	service pb.SecReportsServiceServer
 }
 
-func (l mockPlugin) GetName() string                                    { return "mockPlugin" }
+func (l mockPlugin) GetName() string                                    { return "auth.enterprise" }
 func (l mockPlugin) RegisterProxyWebHandlers(handler interface{}) error { return nil }
 func (l mockPlugin) RegisterAuthWebHandlers(service interface{}) error  { return nil }
 func (l mockPlugin) RegisterAuthServices(ctx context.Context, server any, getClientCert getCertFunc) error {
