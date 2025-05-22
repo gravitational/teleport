@@ -1,5 +1,13 @@
 # Changelog
 
+## 16.5.10 (05/22/25)
+
+* Disabled the "another session is active" prompt when per-session MFA is enabled, since MFA already enforces user confirmation when starting a desktop session. [#54927](https://github.com/gravitational/teleport/pull/54927)
+* Hardware Key Agent now validates known keys by checking active or expired login session. [#54908](https://github.com/gravitational/teleport/pull/54908)
+* Exposed the Teleport service cache health via Prometheus metrics. [#54903](https://github.com/gravitational/teleport/pull/54903)
+* Updated Go to 1.23.9. [#54897](https://github.com/gravitational/teleport/pull/54897)
+
+
 ## 16.5.9 (05/15/25)
 
 * Terraform: Fixed Access List resource import. [#54803](https://github.com/gravitational/teleport/pull/54803)
