@@ -163,6 +163,8 @@ func (a *App) run(ctx context.Context) error {
 		if err := a.accessMonitoringRules.InitAccessMonitoringRulesCache(ctx); err != nil {
 			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
 		}
+	} else {
+		logger.Get(ctx).Warn("Failed to watch access_monitoring_rule events. Allow access_monitoring_rule read permissions in the plugin role.")
 	}
 
 	a.job.SetReady(ok)
