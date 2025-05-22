@@ -21,6 +21,7 @@ import {
   BotType,
   BotUiFlow,
   FlatBot,
+  GetBotInstanceResponse,
   GitHubRepoRule,
   ListBotInstancesResponse,
   ProvisionTokenSpecV2GitHub,
@@ -113,6 +114,24 @@ export function parseListBotInstancesResponse(
   }
 
   return data.bot_instances.every(x => typeof x === 'object' || x !== null);
+}
+
+export function parseGetBotInstanceResponse(
+  data: unknown
+): data is GetBotInstanceResponse {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+
+  if (!('bot_instance' in data && 'yaml' in data)) {
+    return false;
+  }
+
+  if (typeof data.bot_instance !== 'object' || data.bot_instance === null) {
+    return false;
+  }
+
+  return true;
 }
 
 export function getBotType(labels: Map<string, string>): BotType {

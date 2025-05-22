@@ -20,6 +20,7 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 import {
   makeBot,
+  parseGetBotInstanceResponse,
   parseListBotInstancesResponse,
   toApiGitHubTokenSpec,
 } from 'teleport/services/bot/consts';
@@ -135,6 +136,24 @@ export async function listBotInstances(
 
   if (!parseListBotInstancesResponse(data)) {
     throw new Error('failed to parse list bot instances response');
+  }
+
+  return data;
+}
+
+export async function getBotInstance(
+  variables: {
+    botName: string;
+    instanceId: string;
+  },
+  signal?: AbortSignal
+) {
+  const path = cfg.getBotInstanceUrl(variables.botName, variables.instanceId);
+
+  const data = await api.get(path, signal);
+
+  if (!parseGetBotInstanceResponse(data)) {
+    throw new Error('failed to parse get bot instance response');
   }
 
   return data;

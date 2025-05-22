@@ -63,7 +63,12 @@ export function CopyButton({
   return (
     <Box mr={mr} ml={ml}>
       <HoverTooltip tipContent={copiedText}>
-        <ButtonIcon setRef={copyAnchorEl} size={0} onClick={handleCopy}>
+        <ButtonIcon
+          setRef={copyAnchorEl}
+          size={0}
+          onClick={handleCopy}
+          aria-label="copy"
+        >
           {copiedText === copySuccess ? (
             <Check size="small" />
           ) : (

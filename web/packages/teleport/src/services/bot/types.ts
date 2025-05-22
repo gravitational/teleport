@@ -67,6 +67,15 @@ export type BotInstanceSummary = {
   active_at_latest?: string;
 };
 
+export type GetBotInstanceResponse = {
+  bot_instance?: {
+    spec?: {
+      instance_id?: string;
+    } | null;
+  } | null;
+  yaml?: string;
+};
+
 export type BotList = {
   bots: FlatBot[];
 };

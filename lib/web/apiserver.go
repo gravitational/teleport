@@ -1146,6 +1146,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Delete Machine ID bot
 	h.DELETE("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.deleteBot))
 
+	// GET Machine ID instance for a bot by id
+	h.GET("/webapi/sites/:site/machine-id/bot/:name/bot-instance/:id", h.WithClusterAuth(h.getBotInstance))
 	// GET Machine ID bot instances (paged)
 	h.GET("/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstances))
 
