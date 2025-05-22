@@ -2586,7 +2586,7 @@ type AccessCheckable interface {
 
 var rbacLogger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentRBAC)
 
-// resourceRequiresLabelMatching decides if a resource requires lapel matching
+// resourceRequiresLabelMatching decides if a resource requires label matching
 // when making RBAC access decisions.
 func resourceRequiresLabelMatching(r AccessCheckable) bool {
 	// Some resources do not need label matching when assessing whether the user
