@@ -4361,10 +4361,12 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
+						APIGroup:  types.Wildcard,
 					},
 					{
-						Kind: types.KindKubeNamespace,
-						Name: types.Wildcard,
+						Kind:     types.KindKubeNamespace,
+						Name:     types.Wildcard,
+						APIGroup: types.Wildcard,
 					},
 				},
 			},
@@ -4455,7 +4457,6 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 	pack := proxy.authPack(t, user, roleWithFullAccess(user))
 
 	for _, tc := range tt {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes", "resources")
 			params := url.Values{}
@@ -6886,6 +6887,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -6911,6 +6913,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				},
 			},

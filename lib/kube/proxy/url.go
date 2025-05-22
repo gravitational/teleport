@@ -249,6 +249,7 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (*types
 		Namespace: apiResource.namespace,
 		Name:      apiResource.resourceName,
 		Verbs:     []string{verb},
+		APIGroup:  apiResource.apiGroup,
 	}, apiResource, nil
 }
 
