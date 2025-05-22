@@ -156,9 +156,9 @@ func (s *Service) authorize(r *http.Request, sp types.SAMLIdPServiceProvider) (*
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// CheckAccessToSAMLIdPV2 checks for session MFA and a role option
+	// CheckAccessToSAMLIdP checks for session MFA and a role option
 	// that enables access to IdP (legacy SAML IdP RBAC).
-	if err := authCtx.Checker.CheckAccessToSAMLIdPV2(sp, authPref, accessState); err != nil {
+	if err := authCtx.Checker.CheckAccessToSAMLIdP(sp, authPref, accessState); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
