@@ -204,7 +204,7 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 			}
 		}
 		if preferredRequestBinding == types.SAMLRequestHTTPPostBinding {
-			slog.WarnContext(context.Background(), "SSO MFA does not support http-post binding request and will use the default http-redirect binding request",
+			log.Warn("SSO MFA does not support http-post binding request and will use the default http-redirect binding request",
 				teleport.ComponentKey, teleport.ComponentSAML,
 				"preferred_request_binding", preferredRequestBinding,
 			)
