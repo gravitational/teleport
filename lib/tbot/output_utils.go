@@ -288,7 +288,7 @@ type identityConfigurator = func(req *proto.UserCertsRequest)
 // certs.
 func generateIdentity(
 	ctx context.Context,
-	client *authclient.Client,
+	client Client,
 	currentIdentity *identity.Identity,
 	roles []string,
 	ttl time.Duration,

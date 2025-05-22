@@ -34,7 +34,6 @@ import (
 
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -53,7 +52,7 @@ const (
 // SVIDs to a destination. It produces an output compatible with the
 // `spiffe-helper` tool.
 type SPIFFESVIDOutputService struct {
-	botAuthClient  *authclient.Client
+	botAuthClient  Client
 	botCfg         *config.BotConfig
 	cfg            *config.SPIFFESVIDOutput
 	getBotIdentity getBotIdentityFn
@@ -76,8 +75,8 @@ func (s *SPIFFESVIDOutputService) OneShot(ctx context.Context) error {
 	bundleSet, err := workloadidentity.FetchInitialBundleSet(
 		ctx,
 		s.log,
-		s.botAuthClient.SPIFFEFederationServiceClient(),
-		s.botAuthClient.TrustClient(),
+		s.botAuthClient,
+		s.botAuthClient,
 		s.cfg.IncludeFederatedTrustBundles,
 		s.getBotIdentity().ClusterName,
 	)
@@ -197,7 +196,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
 	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
+	impersonatedClient, err := temporaryClient(ctx, s.log, s.botCfg, facade, s.resolver)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -311,7 +310,7 @@ func (s *SPIFFESVIDOutputService) render(
 
 func generateJWTSVIDs(
 	ctx context.Context,
-	clt *authclient.Client,
+	clt Client,
 	svid config.SVIDRequest,
 	reqs []config.JWTSVID,
 	ttl time.Duration,
@@ -340,7 +339,7 @@ func generateJWTSVIDs(
 		return nil, nil
 	}
 
-	jwtRes, err := clt.WorkloadIdentityServiceClient().SignJWTSVIDs(ctx, &machineidv1pb.SignJWTSVIDsRequest{
+	jwtRes, err := clt.SignJWTSVIDs(ctx, &machineidv1pb.SignJWTSVIDsRequest{
 		Svids: jwtReqs,
 	})
 	if err != nil {
@@ -363,7 +362,7 @@ func generateJWTSVIDs(
 // call.
 func generateSVID(
 	ctx context.Context,
-	clt *authclient.Client,
+	clt Client,
 	reqs []config.SVIDRequest,
 	ttl time.Duration,
 ) (*machineidv1pb.SignX509SVIDsResponse, crypto.Signer, error) {
@@ -395,7 +394,7 @@ func generateSVID(
 		})
 	}
 
-	res, err := clt.WorkloadIdentityServiceClient().SignX509SVIDs(ctx,
+	res, err := clt.SignX509SVIDs(ctx,
 		&machineidv1pb.SignX509SVIDsRequest{
 			Svids: svids,
 		},

@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
-	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -272,11 +271,9 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		log: b.log.With(
 			teleport.ComponentKey, teleport.Component(componentTBot, "heartbeat"),
 		),
-		heartbeatSubmitter: machineidv1pb.NewBotInstanceServiceClient(
-			b.botIdentitySvc.GetClient().GetConnection(),
-		),
-		interval:   time.Minute * 30,
-		retryLimit: 5,
+		heartbeatSubmitter: b.botIdentitySvc.GetClient(),
+		interval:           time.Minute * 30,
+		retryLimit:         5,
 	})
 
 	services = append(services, &caRotationService{
@@ -298,8 +295,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 
 		var err error
 		trustBundleCache, err = workloadidentity.NewTrustBundleCache(workloadidentity.TrustBundleCacheConfig{
-			FederationClient: b.botIdentitySvc.GetClient().SPIFFEFederationServiceClient(),
-			TrustClient:      b.botIdentitySvc.GetClient().TrustClient(),
+			FederationClient: b.botIdentitySvc.GetClient(),
+			TrustClient:      b.botIdentitySvc.GetClient(),
 			EventsClient:     b.botIdentitySvc.GetClient(),
 			ClusterName:      b.botIdentitySvc.GetIdentity().ClusterName,
 			Logger: b.log.With(
@@ -320,7 +317,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 
 		var err error
 		crlCache, err = workloadidentity.NewCRLCache(workloadidentity.CRLCacheConfig{
-			RevocationsClient: b.botIdentitySvc.GetClient().WorkloadIdentityRevocationServiceClient(),
+			RevocationsClient: b.botIdentitySvc.GetClient(),
 			Logger: b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "crl-cache"),
 			),
@@ -770,6 +767,26 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 	return nil
 }
 
+func temporaryClient(
+	ctx context.Context,
+	log *slog.Logger,
+	cfg *config.BotConfig,
+	facade *identity.Facade,
+	resolver reversetunnelclient.Resolver,
+) (Client, error) {
+	client, err := clientForFacade(
+		ctx,
+		log,
+		cfg,
+		facade,
+		resolver,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &fallableClient{client: client}, nil
+}
+
 // clientForFacade creates a new auth client from the given
 // facade. Note that depending on the connection address given, this may
 // attempt to connect via the proxy and therefore requires both SSH and TLS
@@ -779,7 +796,7 @@ func clientForFacade(
 	log *slog.Logger,
 	cfg *config.BotConfig,
 	facade *identity.Facade,
-	resolver reversetunnelclient.Resolver) (_ *authclient.Client, err error) {
+	resolver reversetunnelclient.Resolver) (_ *client.Client, err error) {
 	ctx, span := tracer.Start(ctx, "clientForFacade")
 	defer func() { apitracing.EndSpan(span, err) }()
 
@@ -826,11 +843,14 @@ func clientForFacade(
 	}
 
 	c, err := authclient.Connect(ctx, authClientConfig)
-	return c, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c.APIClient, nil
 }
 
 type authPingCache struct {
-	client *authclient.Client
+	client Client
 	log    *slog.Logger
 
 	mu          sync.RWMutex

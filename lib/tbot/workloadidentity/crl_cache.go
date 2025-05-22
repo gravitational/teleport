@@ -27,9 +27,14 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
+
+type RevocationsServiceClient interface {
+	StreamSignedCRL(ctx context.Context, in *workloadidentityv1pb.StreamSignedCRLRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[workloadidentityv1pb.StreamSignedCRLResponse], error)
+}
 
 // CRLSet is a collection of CRLs.
 type CRLSet struct {
@@ -69,7 +74,7 @@ func (b *CRLSet) Stale() <-chan struct{} {
 // CRLCache streams CRLs from the revocations service and caches them. It
 // provides a mechanism to inform consumers when a new CRL is available.
 type CRLCache struct {
-	revocationsClient workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
+	revocationsClient RevocationsServiceClient
 	logger            *slog.Logger
 
 	mu     sync.Mutex
@@ -80,7 +85,7 @@ type CRLCache struct {
 
 // CRLCacheConfig is the configuration for a CRLCache.
 type CRLCacheConfig struct {
-	RevocationsClient workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
+	RevocationsClient RevocationsServiceClient
 	Logger            *slog.Logger
 }
 
@@ -220,7 +225,7 @@ func (m *CRLCache) GetCRLSet(
 // cache for long-running services.
 func FetchCRLSet(
 	ctx context.Context,
-	revocationsClient workloadidentityv1pb.WorkloadIdentityRevocationServiceClient,
+	revocationsClient RevocationsServiceClient,
 ) (*CRLSet, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

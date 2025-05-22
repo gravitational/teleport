@@ -47,7 +47,6 @@ import (
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config/openssh"
@@ -96,7 +95,7 @@ type SSHMultiplexerService struct {
 	// botAuthClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
-	botAuthClient     *authclient.Client
+	botAuthClient     Client
 	botCfg            *config.BotConfig
 	cfg               *config.SSHMultiplexerService
 	getBotIdentity    getBotIdentityFn
@@ -150,7 +149,7 @@ func writeIfChanged(ctx context.Context, dest bot.Destination, log *slog.Logger,
 func (s *SSHMultiplexerService) writeArtifacts(
 	ctx context.Context,
 	proxyHost string,
-	authClient *authclient.Client,
+	authClient Client,
 ) error {
 	dest := s.cfg.Destination.(*config.DestinationDirectory)
 
@@ -218,7 +217,7 @@ func (s *SSHMultiplexerService) writeArtifacts(
 }
 
 func (s *SSHMultiplexerService) setup(ctx context.Context) (
-	_ *authclient.Client,
+	_ Client,
 	_ *cyclingHostDialClient,
 	proxyHost string,
 	_ *libclient.TSHConfig,
@@ -329,7 +328,7 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 		ALPNConnUpgradeRequired: connUpgradeRequired,
 	})
 
-	authClient, err := clientForFacade(
+	authClient, err := temporaryClient(
 		ctx, s.log, s.botCfg, s.identity, s.resolver,
 	)
 	if err != nil {
@@ -389,7 +388,7 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 }
 
 func (s *SSHMultiplexerService) identityRenewalLoop(
-	ctx context.Context, proxyHost string, authClient *authclient.Client,
+	ctx context.Context, proxyHost string, authClient Client,
 ) error {
 	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
 	defer unsubscribe()
@@ -556,7 +555,7 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 func (s *SSHMultiplexerService) handleConn(
 	ctx context.Context,
 	tshConfig *libclient.TSHConfig,
-	authClient *authclient.Client,
+	authClient Client,
 	hostDialer *cyclingHostDialClient,
 	proxyHost string,
 	downstream net.Conn,
@@ -675,7 +674,7 @@ func (s *SSHMultiplexerService) handleConn(
 		host = cleanTargetHost(host, proxyHost, clusterName)
 		target = net.JoinHostPort(host, port)
 	} else {
-		node, err := resolveTargetHostWithClient(ctx, authClient.APIClient, expanded.Search, expanded.Query)
+		node, err := resolveTargetHostWithClient(ctx, authClient, expanded.Search, expanded.Query)
 		if err != nil {
 			return trace.Wrap(err, "resolving target host")
 		}

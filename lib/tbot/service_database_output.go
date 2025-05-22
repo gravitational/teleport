@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -39,7 +38,7 @@ import (
 // DatabaseOutputService generates the artifacts necessary to connect to a
 // database using Teleport.
 type DatabaseOutputService struct {
-	botAuthClient     *authclient.Client
+	botAuthClient     Client
 	botCfg            *config.BotConfig
 	cfg               *config.DatabaseOutput
 	getBotIdentity    getBotIdentityFn
@@ -115,7 +114,7 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
 	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
+	impersonatedClient, err := temporaryClient(ctx, s.log, s.botCfg, facade, s.resolver)
 	if err != nil {
 		return trace.Wrap(err)
 	}

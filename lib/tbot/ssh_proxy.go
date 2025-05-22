@@ -215,13 +215,13 @@ func resolveTargetHost(ctx context.Context, cfg client.Config, search, query str
 	}
 	defer apiClient.Close()
 
-	return resolveTargetHostWithClient(ctx, apiClient, search, query)
+	return resolveTargetHostWithClient(ctx, &fallableClient{client: apiClient}, search, query)
 }
 
 // resolveTargetHostWithClient resolves the target host using the provided
 // client and search and query parameters.
 func resolveTargetHostWithClient(
-	ctx context.Context, clt *client.Client, search, query string,
+	ctx context.Context, clt Client, search, query string,
 ) (types.Server, error) {
 	resp, err := clt.ResolveSSHTarget(ctx, &proto.ResolveSSHTargetRequest{
 		SearchKeywords:      libclient.ParseSearchKeywords(search, ','),

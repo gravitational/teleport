@@ -43,7 +43,6 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -75,7 +74,7 @@ type WorkloadIdentityAPIService struct {
 	crlCache         *workloadidentity.CRLCache
 
 	// client holds the impersonated client for the service
-	client           *authclient.Client
+	client           Client
 	attestor         *workloadattest.Attestor
 	localTrustDomain spiffeid.TrustDomain
 }
@@ -99,7 +98,7 @@ func (s *WorkloadIdentityAPIService) setup(ctx context.Context) (err error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	client, err := clientForFacade(
+	client, err := temporaryClient(
 		ctx, s.log, s.botCfg, facade, s.resolver,
 	)
 	if err != nil {
