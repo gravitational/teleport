@@ -230,7 +230,8 @@ func (s *Service) listSecurityReports(ctx context.Context, req *pb.ListReportsRe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var reps []*pb.Report
+
+	reps := make([]*pb.Report, 0, len(items))
 	for _, v := range items {
 		reps = append(reps, conv.ToProtoReport(v))
 	}
@@ -277,4 +278,31 @@ func (s *Service) deleteSecurityReport(ctx context.Context, req *pb.DeleteReport
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// ListReportStates list the security report states.
+func (s *Service) ListReportStates(ctx context.Context, req *pb.ListReportStatesRequest) (*pb.ListReportStatesResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindSecurityReportState, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	items, nextToken, err := s.storage.ListSecurityReportsStates(ctx, int(req.GetPageSize()), req.GetPageToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	states := make([]*pb.ReportState, 0, len(items))
+	for _, v := range items {
+		states = append(states, conv.ToProtoReportState(v))
+	}
+	resp := &pb.ListReportStatesResponse{
+		ReportStates:  states,
+		NextPageToken: nextToken,
+	}
+	return resp, nil
 }

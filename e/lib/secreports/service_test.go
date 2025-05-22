@@ -2,11 +2,14 @@ package secreports
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -14,12 +17,15 @@ import (
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/secreports"
+	conv "github.com/gravitational/teleport/api/types/secreports/convert/v1"
 	"github.com/gravitational/teleport/e/lib/secreports/limiter"
 	"github.com/gravitational/teleport/e/lib/secreports/query"
 	"github.com/gravitational/teleport/e/lib/secreports/reports"
 	"github.com/gravitational/teleport/e/lib/secreports/scheduler"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -27,6 +33,144 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 )
+
+func TestListReportStates(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.AccessMonitoring: {Enabled: true, Limit: int32(100)},
+			},
+		},
+	})
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	m, err := memory.New(memory.Config{
+		Clock:   clock,
+		Context: ctx,
+	})
+	require.NoError(t, err)
+
+	store, err := local.NewSecReportsService(m, clock)
+	require.NoError(t, err)
+
+	expected := make([]*secreports.ReportState, 0, 5)
+	for i := 0; i < 5; i++ {
+		rs := &secreports.ReportState{
+			ResourceHeader: header.ResourceHeader{
+				Kind: types.KindSecurityReportState,
+				Metadata: header.Metadata{
+					Name: "report_" + strconv.Itoa(i),
+				},
+			},
+			Spec: secreports.ReportStateSpec{
+				Status: "test",
+			},
+		}
+		expected = append(expected, rs)
+		require.NoError(t, store.UpsertSecurityReportsState(t.Context(), rs))
+	}
+
+	mockAthena := &athenaMock{
+		runQueryFunc: func(ctx context.Context, queryTest string, days int) (*query.RunQueryResponse, error) {
+			return &query.RunQueryResponse{
+				ResultID: "1234",
+			}, nil
+		},
+		getQueryResult: func(ctx context.Context, queryID, nextToken string, maxResults int32) (*query.GetQueryResultResponse, error) {
+			return &query.GetQueryResultResponse{
+				QueryID: "1234",
+			}, nil
+		},
+	}
+
+	tests := []struct {
+		name       string
+		authorizer authz.Authorizer
+		assertion  func(t *testing.T, states []*pb.ReportState, err error)
+	}{
+		{
+			name: "proxy allowed to list",
+			authorizer: &mockAuthorizer{
+				checker: &mockChecker{
+					rules: []types.Rule{
+						{
+							Resources: []string{types.KindSecurityReportState},
+							Verbs:     []string{types.VerbRead, types.VerbList},
+						},
+					},
+					roles: []string{string(types.RoleProxy)},
+				},
+			},
+			assertion: func(t *testing.T, states []*pb.ReportState, err error) {
+				assert.NoError(t, err)
+				actual, err := conv.FromProtoReportStates(states)
+				require.NoError(t, err)
+
+				require.Empty(t, cmp.Diff(expected, actual,
+					cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+					cmpopts.SortSlices(func(a, b secreports.ReportState) bool { return a.GetName() < b.GetName() }),
+				))
+			},
+		},
+		{
+			name: "users cannot list",
+			authorizer: &mockAuthorizer{
+				checker: &mockChecker{
+					rules: []types.Rule{
+						{
+							Resources: []string{types.KindSecurityReport},
+							Verbs:     []string{types.VerbRead, types.VerbList},
+						},
+					},
+				},
+			},
+			assertion: func(t *testing.T, states []*pb.ReportState, err error) {
+				assert.Empty(t, states)
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+
+			svc := Service{
+				backend:    m,
+				log:        utils.NewSlogLoggerForTests(),
+				authorizer: test.authorizer,
+				semaphore:  &mockSemaphore{},
+				clock:      clock,
+				storage:    store,
+				athena:     mockAthena,
+				emitter:    &mockEmitter{},
+				reportStore: &mockReportStore{
+					m: map[string]*pb.ReportResult{},
+				},
+				ParentCtx:          context.Background(),
+				userQueriesLimiter: limiter.NewUserQuery(defaultMaxParallelUserQueries),
+			}
+
+			var states []*pb.ReportState
+			var startKey string
+			for {
+				resp, err := svc.ListReportStates(ctx, &pb.ListReportStatesRequest{PageSize: 2, PageToken: startKey})
+				if err != nil {
+					test.assertion(t, states, err)
+					return
+				}
+
+				states = append(states, resp.ReportStates...)
+				if resp.GetNextPageToken() == "" {
+					break
+				}
+				startKey = resp.GetNextPageToken()
+			}
+
+			test.assertion(t, states, nil)
+		})
+	}
+}
 
 func TestService(t *testing.T) {
 	maxLimit := 7
