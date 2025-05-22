@@ -61,6 +61,4 @@ require (
 
 require gopkg.in/yaml.v2 v2.4.0
 
-require gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
-
 replace github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
