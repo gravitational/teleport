@@ -68,13 +68,13 @@ export function BotInstancesList({
   const rowConfig = useMemo(
     () => ({
       onClick: onItemSelected,
-      getStyle: () =>({ cursor: 'pointer' }),
+      getStyle: () => ({ cursor: 'pointer' }),
     }),
     [onItemSelected]
   );
 
   return (
-    <Table
+    <Table<(typeof tableData)[number]>
       data={tableData}
       fetching={{
         fetchStatus,
