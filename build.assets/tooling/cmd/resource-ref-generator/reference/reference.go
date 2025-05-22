@@ -90,7 +90,7 @@ type GeneratorConfig struct {
 // not, returns the first error it encounters.
 func (c GeneratorConfig) UnmarshalYAML(value *yaml.Node) error {
 	if err := value.Decode(&c); err != nil {
-		return fmt.Errorf("parsing the configuration file as YAML: %w\n", err)
+		return fmt.Errorf("parsing the configuration file as YAML: %w", err)
 	}
 
 	switch {
