@@ -159,6 +159,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Magnifier} text="Magnifier" />
     <IconBox IconCmpt={Icon.MagnifyingMinus} text="MagnifyingMinus" />
     <IconBox IconCmpt={Icon.MagnifyingPlus} text="MagnifyingPlus" />
+    <IconBox IconCmpt={Icon.McpIcon} text="McpIcon" />
     <IconBox IconCmpt={Icon.Memory} text="Memory" />
     <IconBox IconCmpt={Icon.Minus} text="Minus" />
     <IconBox IconCmpt={Icon.MinusCircle} text="MinusCircle" />

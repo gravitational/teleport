@@ -148,6 +148,7 @@ export { Logout } from './Icons/Logout';
 export { Magnifier } from './Icons/Magnifier';
 export { MagnifyingMinus } from './Icons/MagnifyingMinus';
 export { MagnifyingPlus } from './Icons/MagnifyingPlus';
+export { McpIcon } from './Icons/McpIcon';
 export { Memory } from './Icons/Memory';
 export { Minus } from './Icons/Minus';
 export { MinusCircle } from './Icons/MinusCircle';
