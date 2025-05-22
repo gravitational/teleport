@@ -390,8 +390,9 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 
 		// Note: we don't verify join state if it isn't expected. This is partly
 		// to ensure server-side recovery will work if join state desyncs - a
-		// cluster admin can reset the recovery counter to zero and start over
-		// with a fresh join state, with no client intervention.
+		// cluster admin can change the recovery mode to insecure or reset the
+		// recovery counter to zero and start over with a fresh join state, with
+		// no client intervention.
 	}
 
 	switch {
@@ -407,7 +408,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		}
 
 		if recoveryMode == boundkeypair.RecoveryModeStandard && !hasJoinsRemaining {
-			return nil, trace.AccessDenied("no joins remaining")
+			return nil, trace.AccessDenied("no recovery attempts remaining")
 		}
 
 		if err := a.issueBoundKeypairChallenge(
