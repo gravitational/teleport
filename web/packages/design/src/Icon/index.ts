@@ -47,7 +47,6 @@ export { ArrowsIn } from './Icons/ArrowsIn';
 export { ArrowsOut } from './Icons/ArrowsOut';
 export { BellRinging } from './Icons/BellRinging';
 export { BookOpenText } from './Icons/BookOpenText';
-export { BotInstances } from './Icons/BotInstances';
 export { Bots } from './Icons/Bots';
 export { Broadcast } from './Icons/Broadcast';
 export { BroadcastSlash } from './Icons/BroadcastSlash';

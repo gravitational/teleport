@@ -58,7 +58,6 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.ArrowsOut} text="ArrowsOut" />
     <IconBox IconCmpt={Icon.BellRinging} text="BellRinging" />
     <IconBox IconCmpt={Icon.BookOpenText} text="BookOpenText" />
-    <IconBox IconCmpt={Icon.BotInstances} text="BotInstances" />
     <IconBox IconCmpt={Icon.Bots} text="Bots" />
     <IconBox IconCmpt={Icon.Broadcast} text="Broadcast" />
     <IconBox IconCmpt={Icon.BroadcastSlash} text="BroadcastSlash" />
