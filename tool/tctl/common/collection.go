@@ -1697,6 +1697,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Openai{}
 		case settingsOkta:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Okta{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_Okta{}
 		case settingsJamf:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Jamf{}
 		case settingsPagerDuty:
