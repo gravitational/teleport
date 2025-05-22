@@ -1,6 +1,6 @@
 ---
 authors: Noah Stride (noah@goteleport.com)
-state: draft
+state: implemented (v17.5.0)
 ---
 <!--- cslint:disable -->
 # RFD 211 - Azure DevOps Joining
