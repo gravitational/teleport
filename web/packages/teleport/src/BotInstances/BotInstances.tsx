@@ -36,7 +36,9 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout/Layout';
+import cfg from 'teleport/config';
 import { listBotInstances } from 'teleport/services/bot/bot';
+import { BotInstanceSummary } from 'teleport/services/bot/types';
 
 import { BotInstancesList } from './List/BotInstancesList';
 
@@ -87,6 +89,18 @@ export function BotInstances() {
     });
   }, []);
 
+  const onItemSelected = useCallback(
+    (item: BotInstanceSummary) => {
+      history.push(
+        cfg.getBotInstanceDetailsRoute({
+          botName: item.bot_name,
+          instanceId: item.instance_id,
+        })
+      );
+    },
+    [history]
+  );
+
   return (
     <FeatureBox>
       <FeatureHeader justifyContent="space-between">
@@ -112,6 +126,7 @@ export function BotInstances() {
           onFetchPrev={hasPrevPage ? handleFetchPrev : undefined}
           onSearchChange={handleSearchChange}
           searchTerm={searchTerm}
+          onItemSelected={onItemSelected}
         />
       ) : undefined}
     </FeatureBox>

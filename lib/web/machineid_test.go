@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -721,4 +722,54 @@ func TestListBotInstancesWithSearchTermFilter(t *testing.T) {
 			assert.Equal(t, "00000000-0000-0000-0000-000000000000", instances.BotInstances[0].InstanceId)
 		})
 	}
+}
+
+func TestGetBotInstance(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+
+	botName := "test-bot"
+	instanceId := uuid.New().String()
+
+	_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+		Kind:    types.KindBotInstance,
+		Version: types.V1,
+		Spec: &machineidv1.BotInstanceSpec{
+			BotName:    botName,
+			InstanceId: instanceId,
+		},
+		Status: &machineidv1.BotInstanceStatus{},
+	})
+	require.NoError(t, err)
+
+	endpoint := pack.clt.Endpoint(
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot",
+		botName,
+		"bot-instance",
+		instanceId,
+	)
+	response, err := pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
+
+	var resp GetBotInstanceResponse
+	require.NoError(t, json.Unmarshal(response.Bytes(), &resp), "invalid response received")
+
+	require.Empty(t, cmp.Diff(resp.BotInstance, machineidv1.BotInstance{
+		Kind:    types.KindBotInstance,
+		Version: types.V1,
+		Spec: &machineidv1.BotInstanceSpec{
+			BotName:    botName,
+			InstanceId: instanceId,
+		},
+		Status: &machineidv1.BotInstanceStatus{},
+	}, protocmp.Transform(), protocmp.IgnoreFields(&machineidv1.BotInstance{}, "metadata")))
+	assert.Equal(t, resp.Yaml, fmt.Sprintf("kind: bot_instance\nmetadata:\n  name: %[1]s\n  revision: %[2]s\nspec:\n  bot_name: test-bot\n  instance_id: %[1]s\nstatus: {}\nversion: v1\n", instanceId, resp.BotInstance.Metadata.Revision))
 }

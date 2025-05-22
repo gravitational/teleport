@@ -19,6 +19,7 @@
 import format from 'date-fns/format';
 import formatDistanceToNowStrict from 'date-fns/formatDistanceToNowStrict';
 import parseISO from 'date-fns/parseISO';
+import { useMemo } from 'react';
 import styled from 'styled-components';
 
 import { Info } from 'design/Alert/Alert';
@@ -44,10 +45,12 @@ export function BotInstancesList({
   onFetchPrev,
   searchTerm,
   onSearchChange,
+  onItemSelected,
 }: {
   data: BotInstanceSummary[];
   searchTerm: string;
   onSearchChange: (term: string) => void;
+  onItemSelected: (item: BotInstanceSummary) => void;
 } & Omit<FetchingConfig, 'onFetchMore'>) {
   const tableData = data.map(x => ({
     ...x,
@@ -61,6 +64,14 @@ export function BotInstancesList({
       ? format(parseISO(x.active_at_latest), 'PP, p z')
       : '-',
   }));
+
+  const rowConfig = useMemo(
+    () => ({
+      onClick: onItemSelected,
+      getStyle: () =>({ cursor: 'pointer' }),
+    }),
+    [onItemSelected]
+  );
 
   return (
     <Table
@@ -84,6 +95,7 @@ export function BotInstancesList({
           />
         ),
       }}
+      row={rowConfig}
       columns={[
         {
           key: 'bot_name',
