@@ -177,6 +177,45 @@ spec:
                 description: BotName is the name of the bot this token grants access
                   to, if any
                 type: string
+              bound_keypair:
+                description: BoundKeypair allows the configuration of options specific
+                  to the "bound_keypair" join method.
+                nullable: true
+                properties:
+                  onboarding:
+                    description: Onboarding contains parameters related to initial
+                      onboarding and keypair registration.
+                    nullable: true
+                    properties:
+                      initial_public_key:
+                        type: string
+                      must_register_before:
+                        format: date-time
+                        type: string
+                      registration_secret:
+                        type: string
+                    type: object
+                  recovery:
+                    description: Recovery contains parameters related to recovery
+                      after identity expiration.
+                    nullable: true
+                    properties:
+                      limit:
+                        format: int32
+                        type: integer
+                      mode:
+                        type: string
+                    type: object
+                  rotate_after:
+                    description: RotateAfter is an optional timestamp that forces
+                      clients to perform a keypair rotation on the next join or recovery
+                      attempt after the given date. If `LastRotatedAt` is unset or
+                      before this timestamp, a rotation will be requested. It is recommended
+                      to set this value to the current timestamp if a rotation should
+                      be triggered on the next join attempt.
+                    format: date-time
+                    type: string
+                type: object
               circleci:
                 description: CircleCI allows the configuration of options specific
                   to the "circleci" join method.
