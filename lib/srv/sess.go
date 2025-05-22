@@ -1515,7 +1515,7 @@ func (s *session) startTerminal(ctx context.Context, scx *ServerContext) error {
 func newEmitter(s *session, ctx *ServerContext) apievents.Emitter {
 	if s.registry.Srv.Component() == teleport.ComponentNode &&
 		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
-		return events.NewDiscardEmitter()
+		return newBlockingEmitter(ctx.srv, getBlockedProxyRecordingEvents())
 	}
 
 	return ctx.srv
@@ -2441,4 +2441,49 @@ func eventsMapFromSSHAccessPermit(permit *decisionpb.SSHAccessPermit) map[string
 	}
 
 	return eventsMap
+}
+
+var blockedProxyRecordingEvents map[string]struct{}
+
+func getBlockedProxyRecordingEvents() map[string]struct{} {
+	if blockedProxyRecordingEvents != nil {
+		return blockedProxyRecordingEvents
+	}
+
+	// these are the events that would be duplicated in proxy recording mode
+	// if both the proxy and the node were allowed to emit them
+	blockedProxyRecordingEvents = map[string]struct{}{
+		events.SessionStartEvent: {},
+		events.SessionEndEvent:   {},
+		events.SessionJoinEvent:  {},
+		events.SessionLeaveEvent: {},
+	}
+
+	return blockedProxyRecordingEvents
+}
+
+// blockingEmitter wraps an [apievents.Emitter] with a blocklist to prevent certain events from firing
+type blockingEmitter struct {
+	blockList map[string]struct{}
+	emitter   apievents.Emitter
+}
+
+func newBlockingEmitter(emitter apievents.Emitter, blockList map[string]struct{}) blockingEmitter {
+	if blockList == nil {
+		blockList = make(map[string]struct{})
+	}
+
+	return blockingEmitter{
+		blockList: blockList,
+		emitter:   emitter,
+	}
+}
+
+// EmitAuditEvent checks if the event is blocked before calling the underlying [apievents.Emitter]
+func (e blockingEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	if _, ok := e.blockList[event.GetType()]; ok {
+		return nil
+	}
+
+	return trace.Wrap(e.emitter.EmitAuditEvent(ctx, event))
 }
