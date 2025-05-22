@@ -16,6 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useCallback, useState } from 'react';
+
 import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
 import { Indicator } from 'design/Indicator/Indicator';
@@ -32,14 +35,43 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout/Layout';
+import { listBotInstances } from 'teleport/services/bot/bot';
 
-import { useListBotInstances } from './hooks';
 import { BotInstancesList } from './List/BotInstancesList';
 
 export function BotInstances() {
-  const { data, error, isSuccess, isError, isLoading } = useListBotInstances(
-    {}
-  );
+  const [pageTokens, setPageTokens] = useState<readonly string[]>(['']);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const currentPageToken = pageTokens[0];
+
+  const { isPending, isFetching, isSuccess, isError, error, data } = useQuery({
+    queryKey: ['bot_instances', 'list', searchTerm, currentPageToken],
+    queryFn: () =>
+      listBotInstances({
+        pageSize: 20,
+        pageToken: currentPageToken,
+        searchTerm,
+      }),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000, // Cached pages are valid for 30 seconds
+  });
+
+  const hasNextPage = !!data?.next_page_token;
+  const hasPrevPage = pageTokens.length > 1;
+
+  const handleFetchNext = useCallback(() => {
+    setPageTokens([data?.next_page_token ?? '', ...pageTokens]);
+  }, [data?.next_page_token, pageTokens]);
+
+  const handleFetchPrev = useCallback(() => {
+    setPageTokens(pageTokens.slice(1));
+  }, [pageTokens]);
+
+  const handleSearchChange = useCallback((term: string) => {
+    setPageTokens(['']);
+    setSearchTerm(term);
+  }, []);
 
   return (
     <FeatureBox>
@@ -48,7 +80,7 @@ export function BotInstances() {
         <InfoGuideButton config={{ guide: <InfoGuide /> }} />
       </FeatureHeader>
 
-      {isLoading ? (
+      {isPending ? (
         <Box data-testid="loading" textAlign="center" m={10}>
           <Indicator />
         </Box>
@@ -58,7 +90,16 @@ export function BotInstances() {
         <Alert kind="danger">{`Error: ${error.message}`}</Alert>
       ) : undefined}
 
-      {isSuccess ? <BotInstancesList data={data.instances} /> : undefined}
+      {isSuccess ? (
+        <BotInstancesList
+          data={data.bot_instances}
+          fetchStatus={isFetching ? 'loading' : ''}
+          onFetchNext={hasNextPage ? handleFetchNext : undefined}
+          onFetchPrev={hasPrevPage ? handleFetchPrev : undefined}
+          onSearchChange={handleSearchChange}
+          searchTerm={searchTerm}
+        />
+      ) : undefined}
     </FeatureBox>
   );
 }

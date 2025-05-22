@@ -29,18 +29,27 @@ import {
   screen,
   testQueryClient,
   userEvent,
+  waitFor,
   waitForElementToBeRemoved,
 } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
-import { BotInstanceSummary } from 'teleport/services/bot/types';
+import { listBotInstances } from 'teleport/services/bot/bot';
 import {
   listBotInstancesError,
   listBotInstancesSuccess,
 } from 'teleport/test/helpers/botInstances';
 
 import { BotInstances } from './BotInstances';
-import { semverExpand } from './List/BotInstancesList';
+
+jest.mock('teleport/services/bot/bot', () => {
+  const actual = jest.requireActual('teleport/services/bot/bot');
+  return {
+    listBotInstances: jest.fn((...all) => {
+      return actual.listBotInstances(...all);
+    }),
+  };
+});
 
 const server = setupServer();
 
@@ -55,6 +64,7 @@ afterEach(async () => {
   await testQueryClient.resetQueries();
 
   jest.useRealTimers();
+  jest.clearAllMocks();
 });
 
 afterAll(() => server.close());
@@ -122,268 +132,131 @@ describe('BotInstances', () => {
   });
 
   it('Allows paging', async () => {
-    const instances = Array.from({ length: 21 }, (_, i): BotInstanceSummary => {
-      const num = i.toString().padStart(2, '0');
-      return {
-        bot_name: `test-bot-${num}`,
-        instance_id: `000000${num}-0000-4000-0000-000000000000`,
-        active_at_latest: `2025-05-19T07:32:${num}Z`,
-        host_name_latest: 'test-hostname',
-        join_method_latest: 'test-join-method',
-        version_latest: `1.0.${num}-dev-a12b3c`,
-      };
-    });
-
-    server.use(
-      listBotInstancesSuccess({
-        bot_instances: instances,
-        next_page_token: '',
-      })
+    jest.mocked(listBotInstances).mockImplementation(
+      ({ pageToken }) =>
+        new Promise(resolve => {
+          resolve({
+            bot_instances: [
+              {
+                bot_name: `test-bot`,
+                instance_id: `00000000-0000-4000-0000-000000000000`,
+                active_at_latest: `2025-05-19T07:32:00Z`,
+                host_name_latest: 'test-hostname',
+                join_method_latest: 'test-join-method',
+                version_latest: `1.0.0-dev-a12b3c`,
+              },
+            ],
+            next_page_token: pageToken + '.next',
+          });
+        })
     );
+
+    expect(listBotInstances).toHaveBeenCalledTimes(0);
 
     render(<BotInstances />, { wrapper: Wrapper });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
-    expect(
-      screen.getAllByText(
-        (_, element) => element?.textContent === 'Showing 1 - 20 of 21'
-      ).length > 0
-    ).toBeTruthy();
+    const [nextButton] = screen.getAllByTitle('Next page');
 
-    expect(screen.getByText('test-bot-00')).toBeInTheDocument();
-    expect(screen.getByText('test-bot-19')).toBeInTheDocument();
+    expect(listBotInstances).toHaveBeenCalledTimes(1);
+    expect(listBotInstances).toHaveBeenLastCalledWith({
+      pageSize: 20,
+      pageToken: '',
+      searchTerm: '',
+    });
 
-    const nextButtons = screen.getAllByTitle('Next page');
-    fireEvent.click(nextButtons[0]);
+    await waitFor(() => expect(nextButton).toBeEnabled());
+    fireEvent.click(nextButton);
 
-    expect(
-      screen.getAllByText(
-        (_, element) => element?.textContent === 'Showing 21 - 21 of 21'
-      ).length > 0
-    ).toBeTruthy();
+    expect(listBotInstances).toHaveBeenCalledTimes(2);
+    expect(listBotInstances).toHaveBeenLastCalledWith({
+      pageSize: 20,
+      pageToken: '.next',
+      searchTerm: '',
+    });
 
-    expect(screen.getByText('test-bot-20')).toBeInTheDocument();
+    await waitFor(() => expect(nextButton).toBeEnabled());
+    fireEvent.click(nextButton);
 
-    const prevButtons = screen.getAllByTitle('Previous page');
-    fireEvent.click(prevButtons[0]);
+    expect(listBotInstances).toHaveBeenCalledTimes(3);
+    expect(listBotInstances).toHaveBeenLastCalledWith({
+      pageSize: 20,
+      pageToken: '.next.next',
+      searchTerm: '',
+    });
 
-    expect(screen.getByText('test-bot-00')).toBeInTheDocument();
-    expect(screen.getByText('test-bot-19')).toBeInTheDocument();
+    const [prevButton] = screen.getAllByTitle('Previous page');
+
+    await waitFor(() => expect(prevButton).toBeEnabled());
+    fireEvent.click(prevButton);
+
+    // This page's data will have been cached
+    expect(listBotInstances).toHaveBeenCalledTimes(3);
+
+    await waitFor(() => expect(prevButton).toBeEnabled());
+    fireEvent.click(prevButton);
+
+    // This page's data will have been cached
+    expect(listBotInstances).toHaveBeenCalledTimes(3);
   });
 
-  describe('Allows sorting', () => {
-    it.each`
-      name             | dataPrefix            | header
-      ${'bot name'}    | ${'test-bot'}         | ${'Bot'}
-      ${'join method'} | ${'test-join-method'} | ${'Method'}
-      ${'hostname'}    | ${'test-hostname'}    | ${'Version (tbot)'}
-    `('by $name', async ({ dataPrefix, header }) => {
-      const instances = Array.from(
-        { length: 3 },
-        (_, i): BotInstanceSummary => {
-          const num = i.toString().padStart(2, '0');
-          return {
-            bot_name: `test-bot-${num}`,
-            instance_id: `000000${num}-0000-4000-0000-000000000000`,
-            active_at_latest: `2025-05-19T07:32:${num}Z`,
-            host_name_latest: `test-hostname-${num}`,
-            join_method_latest: `test-join-method-${num}`,
-            version_latest: `1.0.${num}-dev-a12b3c`,
-          };
-        }
-      );
-
-      server.use(
-        listBotInstancesSuccess({
-          bot_instances: instances,
-          next_page_token: '',
+  it('Allows filtering (search)', async () => {
+    jest.mocked(listBotInstances).mockImplementation(
+      ({ pageToken }) =>
+        new Promise(resolve => {
+          resolve({
+            bot_instances: [
+              {
+                bot_name: `test-bot`,
+                instance_id: `00000000-0000-4000-0000-000000000000`,
+                active_at_latest: `2025-05-19T07:32:00Z`,
+                host_name_latest: 'test-hostname',
+                join_method_latest: 'test-join-method',
+                version_latest: `1.0.0-dev-a12b3c`,
+              },
+            ],
+            next_page_token: pageToken + '.next',
+          });
         })
-      );
+    );
 
-      render(<BotInstances />, { wrapper: Wrapper });
+    expect(listBotInstances).toHaveBeenCalledTimes(0);
 
-      await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+    render(<BotInstances />, { wrapper: Wrapper });
 
-      let row1 = screen.getByText(`${dataPrefix}-00`);
-      let row2 = screen.getByText(`${dataPrefix}-01`);
-      let row3 = screen.getByText(`${dataPrefix}-02`);
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
-      expect(row1.compareDocumentPosition(row2)).toBe(
-        Node.DOCUMENT_POSITION_FOLLOWING
-      );
-      expect(row2.compareDocumentPosition(row3)).toBe(
-        Node.DOCUMENT_POSITION_FOLLOWING
-      );
-
-      fireEvent.click(screen.getByText(header));
-
-      row1 = screen.getByText(`${dataPrefix}-00`);
-      row2 = screen.getByText(`${dataPrefix}-01`);
-      row3 = screen.getByText(`${dataPrefix}-02`);
-
-      expect(row1.compareDocumentPosition(row2)).toBe(
-        Node.DOCUMENT_POSITION_PRECEDING
-      );
-      expect(row2.compareDocumentPosition(row3)).toBe(
-        Node.DOCUMENT_POSITION_PRECEDING
-      );
+    expect(listBotInstances).toHaveBeenCalledTimes(1);
+    expect(listBotInstances).toHaveBeenLastCalledWith({
+      pageSize: 20,
+      pageToken: '',
+      searchTerm: '',
     });
 
-    it('by version (semver)', async () => {
-      const instances = Array.from(
-        { length: 3 },
-        (_, i): BotInstanceSummary => {
-          const num = i.toString().padStart(2, '0');
-          return {
-            bot_name: `test-bot-${num}`,
-            instance_id: `000000${num}-0000-4000-0000-000000000000`,
-            active_at_latest: `2025-05-19T07:32:${num}Z`,
-            host_name_latest: `test-hostname-${num}`,
-            join_method_latest: `test-join-method-${num}`,
-            version_latest: `1.0.${num}-dev-a12b3c`,
-          };
-        }
-      );
+    const [nextButton] = screen.getAllByTitle('Next page');
+    await waitFor(() => expect(nextButton).toBeEnabled());
+    fireEvent.click(nextButton);
 
-      server.use(
-        listBotInstancesSuccess({
-          bot_instances: instances,
-          next_page_token: '',
-        })
-      );
-
-      render(<BotInstances />, { wrapper: Wrapper });
-
-      await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
-
-      let row1 = screen.getByText('v1.0.00-dev-a12b3c');
-      let row2 = screen.getByText('v1.0.01-dev-a12b3c');
-      let row3 = screen.getByText('v1.0.02-dev-a12b3c');
-
-      expect(row1.compareDocumentPosition(row2)).toBe(
-        Node.DOCUMENT_POSITION_FOLLOWING
-      );
-      expect(row2.compareDocumentPosition(row3)).toBe(
-        Node.DOCUMENT_POSITION_FOLLOWING
-      );
-
-      fireEvent.click(screen.getByText('Version (tbot)'));
-
-      row1 = screen.getByText('v1.0.00-dev-a12b3c');
-      row2 = screen.getByText('v1.0.01-dev-a12b3c');
-      row3 = screen.getByText('v1.0.02-dev-a12b3c');
-
-      expect(row1.compareDocumentPosition(row2)).toBe(
-        Node.DOCUMENT_POSITION_PRECEDING
-      );
-      expect(row2.compareDocumentPosition(row3)).toBe(
-        Node.DOCUMENT_POSITION_PRECEDING
-      );
+    expect(listBotInstances).toHaveBeenCalledTimes(2);
+    expect(listBotInstances).toHaveBeenLastCalledWith({
+      pageSize: 20,
+      pageToken: '.next',
+      searchTerm: '',
     });
 
-    it('by last active', async () => {
-      const instances = Array.from(
-        { length: 3 },
-        (_, i): BotInstanceSummary => {
-          const num = i.toString().padStart(2, '0');
-          return {
-            bot_name: `test-bot-${num}`,
-            instance_id: `000000${num}-0000-4000-0000-000000000000`,
-            active_at_latest: `2025-05-19T07:${32 + i}:00Z`,
-            host_name_latest: `test-hostname-${num}`,
-            join_method_latest: `test-join-method-${num}`,
-            version_latest: `1.0.${num}-dev-a12b3c`,
-          };
-        }
-      );
+    jest.useRealTimers(); // Required as userEvent.type() uses setTimeout internally
 
-      server.use(
-        listBotInstancesSuccess({
-          bot_instances: instances,
-          next_page_token: '',
-        })
-      );
+    const search = screen.getByPlaceholderText('Search...');
+    await waitFor(() => expect(search).toBeEnabled());
+    await userEvent.type(search, 'test-search-term');
+    await userEvent.type(search, '{enter}');
 
-      render(<BotInstances />, { wrapper: Wrapper });
-
-      await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
-
-      let row1 = screen.getByText('28 minutes ago');
-      let row2 = screen.getByText('27 minutes ago');
-      let row3 = screen.getByText('26 minutes ago');
-
-      expect(row1.compareDocumentPosition(row2)).toBe(
-        Node.DOCUMENT_POSITION_FOLLOWING
-      );
-      expect(row2.compareDocumentPosition(row3)).toBe(
-        Node.DOCUMENT_POSITION_FOLLOWING
-      );
-
-      fireEvent.click(screen.getByText('Version (tbot)'));
-
-      row1 = screen.getByText('28 minutes ago');
-      row2 = screen.getByText('27 minutes ago');
-      row3 = screen.getByText('26 minutes ago');
-
-      expect(row1.compareDocumentPosition(row2)).toBe(
-        Node.DOCUMENT_POSITION_PRECEDING
-      );
-      expect(row2.compareDocumentPosition(row3)).toBe(
-        Node.DOCUMENT_POSITION_PRECEDING
-      );
-    });
-  });
-
-  describe('Allows filtering (search)', () => {
-    it.each`
-      name             | query                                     | elementText
-      ${'bot name'}    | ${'test-bot-01'}                          | ${'test-bot-01'}
-      ${'instance id'} | ${'00000020-0000-4000-0000-000000000000'} | ${'0000002'}
-      ${'last active'} | ${'27 minutes'}                           | ${'27 minutes ago'}
-      ${'hostname'}    | ${'test-hostname-01'}                     | ${'test-hostname-01'}
-      ${'join method'} | ${'test-join-method-02'}                  | ${'test-join-method-02'}
-      ${'version'}     | ${'1.0.01'}                               | ${'v1.0.01-dev-a12b3c'}
-    `('by $name', async ({ query, elementText }) => {
-      const instances = Array.from(
-        { length: 3 },
-        (_, i): BotInstanceSummary => {
-          const num = i.toString().padStart(2, '0');
-          return {
-            bot_name: `test-bot-${num}`,
-            instance_id: `00000${num}0-0000-4000-0000-000000000000`,
-            active_at_latest: `2025-05-19T07:${32 + i}:00Z`,
-            host_name_latest: `test-hostname-${num}`,
-            join_method_latest: `test-join-method-${num}`,
-            version_latest: `1.0.${num}-dev-a12b3c`,
-          };
-        }
-      );
-
-      server.use(
-        listBotInstancesSuccess({
-          bot_instances: instances,
-          next_page_token: '',
-        })
-      );
-
-      render(<BotInstances />, { wrapper: Wrapper });
-
-      await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
-
-      jest.useRealTimers(); // Required as userEvent.type() uses setTimeout internally
-
-      const search = screen.getByPlaceholderText('Search...');
-      await userEvent.type(search, query);
-      await userEvent.type(search, '{enter}');
-
-      expect(screen.getByText(elementText)).toBeInTheDocument();
-
-      expect(
-        screen.getAllByText(
-          (_, element) => element?.textContent === 'Showing 1 - 1 of 1'
-        ).length > 0
-      ).toBeTruthy();
+    expect(listBotInstances).toHaveBeenCalledTimes(3);
+    expect(listBotInstances).toHaveBeenLastCalledWith({
+      pageSize: 20,
+      pageToken: '', // Search should reset to the first page
+      searchTerm: 'test-search-term',
     });
   });
 });
@@ -401,17 +274,3 @@ function Wrapper({ children }: PropsWithChildren) {
     </MemoryRouter>
   );
 }
-
-describe('semverExpand', () => {
-  it.each`
-    input                 | expected
-    ${''}                 | ${'000000.000000.000000-Z+Z'}
-    ${'1'}                | ${'000001.000000.000000-Z+Z'}
-    ${'1.1'}              | ${'000001.000001.000000-Z+Z'}
-    ${'1.1.1'}            | ${'000001.000001.000001-Z+Z'}
-    ${'1.1.1-dev'}        | ${'000001.000001.000001-dev+Z'}
-    ${'1.1.1-dev+a1b2c3'} | ${'000001.000001.000001-dev+a1b2c3'}
-  `('$input', ({ input, expected }) => {
-    expect(semverExpand(input)).toBe(expected);
-  });
-});

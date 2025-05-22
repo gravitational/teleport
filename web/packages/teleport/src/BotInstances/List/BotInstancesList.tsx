@@ -23,12 +23,14 @@ import styled from 'styled-components';
 
 import { Info } from 'design/Alert/Alert';
 import { Cell, LabelCell } from 'design/DataTable/Cells';
+import Table from 'design/DataTable/Table';
+import { FetchingConfig } from 'design/DataTable/types';
 import Flex from 'design/Flex';
 import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
+import { SearchPanel } from 'shared/components/Search';
 import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 
-import { ClientSearcheableTableWithQueryParamSupport } from 'teleport/components/ClientSearcheableTableWithQueryParamSupport/ClientSearcheableTableWithQueryParamSupport';
 import { BotInstanceSummary } from 'teleport/services/bot/types';
 
 const MonoText = styled(Text)`
@@ -37,16 +39,20 @@ const MonoText = styled(Text)`
 
 export function BotInstancesList({
   data,
-  pageSize = 20,
+  fetchStatus,
+  onFetchNext,
+  onFetchPrev,
+  searchTerm,
+  onSearchChange,
 }: {
   data: BotInstanceSummary[];
-  pageSize?: number;
-}) {
+  searchTerm: string;
+  onSearchChange: (term: string) => void;
+} & Omit<FetchingConfig, 'onFetchMore'>) {
   const tableData = data.map(x => ({
     ...x,
     hostnameDisplay: x.host_name_latest ?? '-',
-    shortInstanceId: x.instance_id.substring(0, 7),
-    versionSortBy: x.version_latest ? semverExpand(x.version_latest) : 'Z',
+    instanceIdDisplay: x.instance_id.substring(0, 7),
     versionDisplay: x.version_latest ? `v${x.version_latest}` : '-',
     activeAtDisplay: x.active_at_latest
       ? `${formatDistanceToNowStrict(parseISO(x.active_at_latest))} ago`
@@ -55,26 +61,41 @@ export function BotInstancesList({
   }));
 
   return (
-    <ClientSearcheableTableWithQueryParamSupport
+    <Table
       data={tableData}
+      fetching={{
+        fetchStatus,
+        onFetchNext,
+        onFetchPrev,
+        disableLoadingIndicator: true,
+      }}
+      serversideProps={{
+        sort: undefined,
+        setSort: () => undefined,
+        serversideSearchPanel: (
+          <SearchPanel
+            updateSearch={onSearchChange}
+            updateQuery={null}
+            hideAdvancedSearch={true}
+            filter={{ search: searchTerm }}
+            disableSearch={fetchStatus !== ''}
+          />
+        ),
+      }}
       columns={[
         {
           key: 'bot_name',
           headerText: 'Bot',
-          isSortable: true,
+          isSortable: false,
         },
         {
-          key: 'instance_id',
-          isNonRender: true,
-        },
-        {
-          key: 'shortInstanceId',
+          key: 'instanceIdDisplay',
           headerText: 'ID',
           isSortable: false,
-          render: ({ instance_id, shortInstanceId }) => (
+          render: ({ instance_id, instanceIdDisplay }) => (
             <Cell>
               <Flex inline alignItems={'center'} gap={1} mr={0}>
-                <MonoText>{shortInstanceId}</MonoText>
+                <MonoText>{instanceIdDisplay}</MonoText>
                 <CopyButton name={instance_id} />
               </Flex>
             </Cell>
@@ -83,7 +104,7 @@ export function BotInstancesList({
         {
           key: 'join_method_latest',
           headerText: 'Method',
-          isSortable: true,
+          isSortable: false,
           render: ({ join_method_latest }) =>
             join_method_latest ? (
               <LabelCell data={[join_method_latest]} />
@@ -94,19 +115,17 @@ export function BotInstancesList({
         {
           key: 'hostnameDisplay',
           headerText: 'Hostname',
-          isSortable: true,
+          isSortable: false,
         },
         {
           key: 'versionDisplay',
           headerText: 'Version (tbot)',
-          isSortable: true,
-          altSortKey: 'versionSortBy',
+          isSortable: false,
         },
         {
           key: 'activeAtDisplay',
           headerText: 'Last heartbeat',
-          isSortable: true,
-          altSortKey: 'active_at_latest',
+          isSortable: false,
           render: ({ activeAtDisplay, activeAtLocal }) => (
             <Cell>
               <Flex>
@@ -125,26 +144,6 @@ export function BotInstancesList({
           have expired.
         </Info>
       }
-      pagination={{ pageSize }}
     />
   );
-}
-
-export function semverExpand(version: string) {
-  const [major, minor, patchAndRelease] = version.split('.');
-  if (!major) {
-    return '000000.000000.000000-Z+Z';
-  }
-  if (!minor) {
-    return `${major.padStart(6, '0')}.000000.000000-Z+Z`;
-  }
-  if (!patchAndRelease) {
-    return `${major.padStart(6, '0')}.${minor.padStart(6, '0')}.000000-Z+Z`;
-  }
-  const [patch, releaseAndBuild = ''] = patchAndRelease.split('-');
-  if (!patch) {
-    return `major.padStart(6, '0').${minor.padStart(6, '0')}.000000-Z+Z`;
-  }
-  const [release, build] = releaseAndBuild.split('+');
-  return `${major.padStart(6, '0')}.${minor.padStart(6, '0')}.${patch.padStart(6, '0')}-${release || 'Z'}+${build || 'Z'}`;
 }

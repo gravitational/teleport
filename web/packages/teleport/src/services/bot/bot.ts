@@ -109,47 +109,34 @@ export function deleteBot(flags: FeatureFlags, name: string) {
   return api.delete(cfg.getBotUrlWithName(name));
 }
 
-const MAX_INSTANCES = 500_000;
-const INSTANCES_PAGE_SIZE = 100;
-export async function listAllBotInstances(
+export async function listBotInstances(
   variables: {
+    pageToken: string;
+    pageSize: number;
+    searchTerm?: string;
     botName?: string;
   },
   signal?: AbortSignal
 ) {
-  const { botName } = variables;
+  const { pageToken, pageSize, searchTerm, botName } = variables;
 
   const path = cfg.listBotInstancesUrl();
   const qs = new URLSearchParams();
 
-  const instances: ListBotInstancesResponse['bot_instances'] = [];
-  let nextPageToken = '';
-
-  while (true) {
-    if (instances.length >= MAX_INSTANCES) {
-      return { instances, partial: true };
-    }
-    qs.set('page_size', INSTANCES_PAGE_SIZE.toFixed());
-
-    if (botName) {
-      qs.set('bot_name', botName);
-    }
-
-    if (nextPageToken) {
-      qs.set('page_token', nextPageToken);
-    }
-
-    const data = await api.get(`${path}?${qs.toString()}`, signal);
-
-    if (!parseListBotInstancesResponse(data)) {
-      throw new Error('failed to parse list bot instances response');
-    }
-
-    instances.push(...data.bot_instances);
-    nextPageToken = data.next_page_token ?? '';
-
-    if (!nextPageToken) {
-      return { instances, partial: false };
-    }
+  qs.set('page_size', pageSize.toFixed());
+  qs.set('page_token', pageToken);
+  if (searchTerm) {
+    qs.set('search', searchTerm);
   }
+  if (botName) {
+    qs.set('bot_name', botName);
+  }
+
+  const data = await api.get(`${path}?${qs.toString()}`, signal);
+
+  if (!parseListBotInstancesResponse(data)) {
+    throw new Error('failed to parse list bot instances response');
+  }
+
+  return data;
 }
