@@ -141,6 +141,8 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	require.Empty(t, cache.Get())
 }
 
+// TestConflictingRules verifies that when there are multiple matching rules
+// with conflicting review decisions, the `DENIED` rule will take precedence.
 func TestConflictingRules(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	t.Cleanup(cancel)
@@ -148,12 +150,14 @@ func TestConflictingRules(t *testing.T) {
 	testReqID := uuid.New().String()
 	withSecretsFalse := false
 	requesterUserName := "requester"
+	approvedRule := newApprovedRule("approved-rule", "true")
+	deniedRule := newDeniedRule("denied-rule", "true")
 
 	// Configure both an approved and denied rule.
 	cache := accessmonitoring.NewCache()
 	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{
-		newApprovedRule("approved-rule", "true"),
-		newDeniedRule("denied-rule", "true"),
+		approvedRule,
+		deniedRule,
 	})
 
 	requester, err := types.NewUser(requesterUserName)
@@ -162,6 +166,18 @@ func TestConflictingRules(t *testing.T) {
 	client := &mockClient{}
 	client.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
 		Return(requester, nil)
+
+	review, err := newAccessReview(
+		requesterUserName,
+		deniedRule.GetMetadata().GetName(),
+		deniedRule.GetSpec().GetAutomaticReview().GetDecision())
+	require.NoError(t, err)
+	review.Created = time.Time{}
+
+	client.On("SubmitAccessReview", mock.Anything, types.AccessReviewSubmission{
+		RequestID: testReqID,
+		Review:    review,
+	}).Return(mock.Anything, nil)
 
 	handler, err := NewHandler(Config{
 		HandlerName: handlerName,
@@ -177,8 +193,7 @@ func TestConflictingRules(t *testing.T) {
 		Type:     types.OpPut,
 		Resource: req,
 	}
-	require.ErrorContains(t, handler.HandleAccessRequest(ctx, event),
-		"conflicting access review rule")
+	require.NoError(t, handler.HandleAccessRequest(ctx, event))
 }
 
 func TestResourceRequest(t *testing.T) {
