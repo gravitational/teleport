@@ -3104,6 +3104,31 @@ service AuthService {
   // DeleteAllSnowflakeSessions removes all Snowflake web sessions.
   rpc DeleteAllSnowflakeSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
 
+  // CreateSAMLIdPSession creates web session with sub kind saml_idp used by the SAML IdP.
+  rpc CreateSAMLIdPSession(CreateSAMLIdPSessionRequest) returns (CreateSAMLIdPSessionResponse) {
+    option deprecated = true;
+  }
+  // GetSAMLIdPSession returns a SAML IdP session with sub kind saml_idp.
+  rpc GetSAMLIdPSession(GetSAMLIdPSessionRequest) returns (GetSAMLIdPSessionResponse) {
+    option deprecated = true;
+  }
+  // ListSAMLIdPSessions gets all SAML IdP sessions.
+  rpc ListSAMLIdPSessions(ListSAMLIdPSessionsRequest) returns (ListSAMLIdPSessionsResponse) {
+    option deprecated = true;
+  }
+  // DeleteSAMLIdPSession removes a SAML IdP session.
+  rpc DeleteSAMLIdPSession(DeleteSAMLIdPSessionRequest) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
+  // DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+  rpc DeleteAllSAMLIdPSessions(google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
+  // DeleteUserSAMLIdPSessions deletes all user’s SAML IdP sessions.
+  rpc DeleteUserSAMLIdPSessions(DeleteUserSAMLIdPSessionsRequest) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
+
   // GetWebSession gets a web session.
   rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);
   // GetWebSessions gets all web sessions.
