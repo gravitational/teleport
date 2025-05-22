@@ -33,7 +33,6 @@ import {
   CreateBotRequest,
   EditBotRequest,
   FlatBot,
-  ListBotInstancesResponse,
 } from './types';
 
 export function createBot(config: CreateBotRequest): Promise<void> {
