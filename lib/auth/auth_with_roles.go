@@ -1972,7 +1972,7 @@ func (r *resourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 			return r.CheckAccess(rr, state)
 		}
 	case types.SAMLIdPServiceProvider:
-		return r.CheckAccessToSAMLIdPV2(rr,
+		return r.CheckAccessToSAMLIdP(rr,
 			nil, /* cluster auth preference will be checked during connection */
 			state,
 		)
@@ -6992,7 +6992,7 @@ func (a *ServerWithRoles) checkAccessToSAMLIdPServiceProvider(ctx context.Contex
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return a.context.Checker.CheckAccessToSAMLIdPV2(
+	return a.context.Checker.CheckAccessToSAMLIdP(
 		sp,
 		authPref,
 		// TODO(sshah): remove MFAVerified once the Web UI supports

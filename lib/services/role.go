@@ -1557,10 +1557,10 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 	return utils.StringsSliceFromSet(accounts), nil
 }
 
-// checkAccessToSAMLIdP checks access to the SAML IdP based on
+// checkAccessToSAMLIdPLegacy checks access to the SAML IdP based on
 // IDP enabled/disabled in role option and MFA. The IDP option is enforced
 // in Teleport role version v7 and below.
-func checkAccessToSAMLIdP(state AccessState, role types.Role) error {
+func checkAccessToSAMLIdPLegacy(state AccessState, role types.Role) error {
 	ctx := context.Background()
 
 	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
@@ -1589,13 +1589,13 @@ func checkAccessToSAMLIdP(state AccessState, role types.Role) error {
 	return nil
 }
 
-// CheckAccessToSAMLIdPV2 checks access to SAML service provider resource.
+// CheckAccessToSAMLIdP checks access to SAML service provider resource.
 // For Teleport role version v7 and below (legacy SAML IdP RBAC), only MFA
 // and IDP role option is checked.
 // For Teleport role version v8 and above (non-legacy SAML IdP RBAC),
 // labels, MFA and Device Trust is checked.
 // IDP option in the auth preference is checked in both the cases.
-func (set RoleSet) CheckAccessToSAMLIdPV2(r AccessCheckable, traits wrappers.Traits, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
+func (set RoleSet) CheckAccessToSAMLIdP(r AccessCheckable, traits wrappers.Traits, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
 	if authPref != nil {
 		if !authPref.IsSAMLIdPEnabled() {
 			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
@@ -1613,7 +1613,7 @@ func (set RoleSet) CheckAccessToSAMLIdPV2(r AccessCheckable, traits wrappers.Tra
 			v8RoleSet = append(v8RoleSet, role)
 			continue
 		}
-		if err := checkAccessToSAMLIdP(state, role); err != nil {
+		if err := checkAccessToSAMLIdPLegacy(state, role); err != nil {
 			return trace.Wrap(err)
 		}
 	}
