@@ -100,6 +100,10 @@ func IssueJoinState(signer crypto.Signer, params *JoinStateParams) (string, erro
 			Issuer:    params.ClusterName,
 			Audience:  jwt.Audience{params.ClusterName},
 			Subject:   params.Token.Spec.BotName,
+
+			// Note: These documents aren't meant to expire, so no expiration is
+			// included. We may opt to trust (or not) a given document during
+			// verification based on its `iat` in the future.
 		},
 		BotInstanceID:    status.BoundBotInstanceID,
 		RecoverySequence: status.RecoveryCount,
@@ -142,6 +146,11 @@ func verifyJoinStateInner(key crypto.PublicKey, parsed *jwt.JSONWebToken, params
 		return nil, trace.Wrap(err)
 	}
 
+	// Note: We don't verify expiry here, only `iat` and `nbf`. These documents
+	// are meant to remain "valid" indefinitely and we decide to trust them (or
+	// not) at verification time.
+	// There are no time-based recovery restrictions yet, but we may opt to add
+	// some in the future based on the verified `iat` value of this JWT.
 	const leeway time.Duration = time.Minute
 	if err := document.Claims.ValidateWithLeeway(jwt.Expected{
 		Issuer:   params.ClusterName,
