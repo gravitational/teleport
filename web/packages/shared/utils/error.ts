@@ -64,7 +64,7 @@ export function isAbortError(err: any): boolean {
   // handles Web UI abort error
   if (
     (err instanceof DOMException && err.name === 'AbortError') ||
-    (err.cause && isAbortError(err.cause))
+    (err?.cause && isAbortError(err.cause))
   ) {
     return true;
   }
