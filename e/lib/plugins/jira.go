@@ -42,8 +42,7 @@ func jiraInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(tross): convert logger library to use slog
-	appCtx := logger.WithLogger(deps.lifetime, nil)
+	appCtx := logger.WithLogger(deps.lifetime, deps.logger)
 	return func() error {
 		err := app.Run(appCtx)
 		return trace.Wrap(err)

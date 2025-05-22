@@ -491,9 +491,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		disableOktaAppGroupSync: config.SyncSettings.DisableSyncAppGroups,
 		serviceStatus:           serviceStatus,
 	}
-	// TODO(tross) pass in config.Logger once this supports slog. Until then
-	// it will create a logger if the passed in logger is nil.
-	s.tlsConfig = app.CopyAndConfigureTLS(nil, s.accessPoint, config.TLSConfig)
+	s.tlsConfig = app.CopyAndConfigureTLS(s.logger, s.accessPoint, config.TLSConfig)
 
 	if userSyncEnabled {
 		config.Logger.InfoContext(ctx, "User sync is enabled")
