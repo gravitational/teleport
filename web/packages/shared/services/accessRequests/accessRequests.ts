@@ -27,6 +27,32 @@ export type RequestState =
   | 'PROMOTED'
   | '';
 
+/**
+ * LongTermResourceGrouping contains information about how resources can be grouped
+ * for long-term Access Requests.
+ */
+export interface LongTermResourceGrouping {
+  /**
+   * canProceed represents the validity of the long-term request. If all requested
+   * resources cannot be grouped together, this will be false.
+   */
+  canProceed: boolean;
+  /**
+   * validationMessage is a user-friendly message explaining any grouping error if `canProceed` is false
+   */
+  validationMessage?: string;
+  /**
+   * OptimalGrouping contains requested resources that form the largest possible group
+   * that can be requested together for long-term access. If empty, none of the
+   * requested resources are possible to grant long-term access to.
+   */
+  optimalGrouping: ResourceId[];
+  /**
+   * GroupedByAccessList maps applicable Access Lists by ID to the resources they can grant
+   */
+  groupedByAccessList: { [key: string]: ResourceId[] };
+}
+
 export interface AccessRequest {
   id: string;
   state: RequestState;
@@ -51,6 +77,8 @@ export interface AccessRequest {
   promotedAccessListTitle?: string;
   assumeStartTime?: Date;
   assumeStartTimeDuration?: string;
+  longTerm?: boolean;
+  longTermResourceGrouping?: LongTermResourceGrouping;
 }
 
 export interface AccessRequestReview {
