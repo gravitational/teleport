@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -36,8 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/sshutils"
-
-	"github.com/go-jose/go-jose/v3/jwt"
 )
 
 type mockBoundKeypairValidator struct {
