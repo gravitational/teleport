@@ -34,8 +34,9 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types/common"
 	eastypes "github.com/gravitational/teleport/api/types/externalauditstorage"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	awsutil "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -44,6 +45,8 @@ const (
 	defaultObjectLockRetentionYears = 4
 	// glueDatabaseDescription is the description of the glue database created by bootstrapping.
 	glueDatabaseDescription = "Teleport External Audit Storage events database for Athena"
+	// defaultTagsOrigin is the teleport.dev/origin label value set on the resources created in AWS.
+	defaultTagsOrigin = common.OriginIntegrationAWSOIDC
 )
 
 // BootstrapInfraParams are the input parameters for [BootstrapInfra].
@@ -117,7 +120,7 @@ func BootstrapInfra(ctx context.Context, params BootstrapInfraParams) error {
 		return trace.Wrap(err)
 	}
 
-	ownershipTags := tags.DefaultResourceCreationTags(params.ClusterName, params.IntegrationName)
+	ownershipTags := tags.DefaultResourceCreationTags(params.ClusterName, params.IntegrationName, defaultTagsOrigin)
 	s3OwnershipTags := ownershipTags.ToS3Tags()
 
 	if err := createLTSBucket(ctx, params.S3, ltsBucket, params.Region, s3OwnershipTags); err != nil {
