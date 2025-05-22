@@ -74,7 +74,6 @@ func TestStdioHelpers(t *testing.T) {
 	clientMessageReader, err := NewStdioMessageReader(StdioMessageReaderConfig{
 		ParentContext:    context.Background(),
 		SourceReadCloser: readFromClient,
-		ReadRequest:      true,
 		OnNotification: func(ctx context.Context, notification *JSONRPCNotification) error {
 			atomic.AddInt32(&readClientNotifications, 1)
 			return trace.Wrap(serverMessageWriter.WriteMessage(ctx, notification))
@@ -88,14 +87,13 @@ func TestStdioHelpers(t *testing.T) {
 	require.NoError(t, err)
 	clientMessageReaderClosed := make(chan struct{})
 	go func() {
-		clientMessageReader.Start(ctx)
+		clientMessageReader.Run(ctx)
 		close(clientMessageReaderClosed)
 	}()
 
 	serverMessageReader, err := NewStdioMessageReader(StdioMessageReaderConfig{
 		ParentContext:    context.Background(),
 		SourceReadCloser: readFromServer,
-		ReadResponse:     true,
 		OnNotification: func(ctx context.Context, notification *JSONRPCNotification) error {
 			atomic.AddInt32(&readServerNotifications, 1)
 			return trace.Wrap(clientMessageWriter.WriteMessage(ctx, notification))
@@ -110,7 +108,7 @@ func TestStdioHelpers(t *testing.T) {
 	serverMessageReaderClosed := make(chan struct{})
 	serverMessageReaderCtx, serverMessageReaderCtxCancel := context.WithCancel(ctx)
 	go func() {
-		serverMessageReader.Start(serverMessageReaderCtx)
+		serverMessageReader.Run(serverMessageReaderCtx)
 		close(serverMessageReaderClosed)
 	}()
 

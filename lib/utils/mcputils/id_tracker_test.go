@@ -28,18 +28,19 @@ import (
 )
 
 func TestIDTracker(t *testing.T) {
-	tracker := NewIDTracker(5)
+	tracker, err := NewIDTracker(5)
+	require.NoError(t, err)
 	require.Empty(t, tracker.Len())
 
 	t.Run("request missing ID not tracked", func(t *testing.T) {
-		tracker.Push(&JSONRPCRequest{
+		tracker.PushRequest(&JSONRPCRequest{
 			Method: "bad",
 		})
 		require.Empty(t, tracker.Len())
 	})
 
 	t.Run("request tracked", func(t *testing.T) {
-		tracker.Push(&JSONRPCRequest{
+		tracker.PushRequest(&JSONRPCRequest{
 			ID:     0,
 			Method: mcp.MethodToolsList,
 		})
@@ -50,9 +51,7 @@ func TestIDTracker(t *testing.T) {
 		unknownIDs := []mcp.RequestId{5, "0", nil}
 		for id := range slices.Values(unknownIDs) {
 			t.Run(fmt.Sprintf("%T", id), func(t *testing.T) {
-				_, ok := tracker.Pop(&JSONRPCResponse{
-					ID: id,
-				})
+				_, ok := tracker.PopByID(id)
 				require.False(t, ok)
 				require.Equal(t, 1, tracker.Len())
 			})
@@ -60,9 +59,7 @@ func TestIDTracker(t *testing.T) {
 	})
 
 	t.Run("pop tracked id", func(t *testing.T) {
-		method, ok := tracker.Pop(&JSONRPCResponse{
-			ID: 0,
-		})
+		method, ok := tracker.PopByID(0)
 		require.True(t, ok)
 		require.Equal(t, mcp.MethodToolsList, method)
 		require.Empty(t, tracker.Len())
@@ -70,19 +67,39 @@ func TestIDTracker(t *testing.T) {
 
 	t.Run("track last 5", func(t *testing.T) {
 		for i := range 20 {
-			tracker.Push(&JSONRPCRequest{
+			tracker.PushRequest(&JSONRPCRequest{
 				ID:     i + 1,
 				Method: mcp.MethodToolsCall,
 			})
 			require.LessOrEqual(t, tracker.Len(), 10)
 		}
 		for i := range 5 {
-			method, ok := tracker.Pop(&JSONRPCResponse{
-				ID: 20 - i,
-			})
+			method, ok := tracker.PopByID(20 - i)
 			require.True(t, ok)
 			require.Equal(t, mcp.MethodToolsCall, method)
 		}
 		require.Empty(t, tracker.Len())
 	})
+}
+
+func BenchmarkIDTracker(b *testing.B) {
+	idTracker, err := NewIDTracker(100)
+	require.NoError(b, err)
+
+	for i := 0; i < 100; i++ {
+		idTracker.PushRequest(&JSONRPCRequest{
+			ID:     i,
+			Method: mcp.MethodToolsList,
+		})
+	}
+
+	// cpu: Apple M3 Pro
+	// BenchmarkIDTracker-12    	12267649	        81.85 ns/op
+	for b.Loop() {
+		idTracker.PushRequest(&JSONRPCRequest{
+			ID:     2000,
+			Method: mcp.MethodToolsList,
+		})
+		idTracker.PopByID(2000)
+	}
 }

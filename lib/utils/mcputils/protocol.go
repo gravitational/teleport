@@ -89,6 +89,12 @@ type baseJSONRPCMessage struct {
 func (m *baseJSONRPCMessage) isNotification() bool {
 	return m.ID == nil
 }
+func (m *baseJSONRPCMessage) isRequest() bool {
+	return m.ID != nil && m.Method != ""
+}
+func (m *baseJSONRPCMessage) isResponse() bool {
+	return m.ID != nil && (m.Result != nil || m.Error != nil)
+}
 
 func (m *baseJSONRPCMessage) makeNotification() *JSONRPCNotification {
 	return &JSONRPCNotification{

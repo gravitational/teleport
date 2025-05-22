@@ -46,7 +46,9 @@ func TestJSONRPCNotification(t *testing.T) {
 
 	var base baseJSONRPCMessage
 	require.NoError(t, json.Unmarshal(inputJSON, &base))
-	require.True(t, base.isNotification())
+	assert.True(t, base.isNotification())
+	assert.False(t, base.isRequest())
+	assert.False(t, base.isResponse())
 
 	m := base.makeNotification()
 	require.NotNil(t, m)
@@ -72,7 +74,9 @@ func TestJSONRPCRequest(t *testing.T) {
 }`)
 	var base baseJSONRPCMessage
 	require.NoError(t, json.Unmarshal(inputJSON, &base))
-	require.False(t, base.isNotification())
+	assert.False(t, base.isNotification())
+	assert.True(t, base.isRequest())
+	assert.False(t, base.isResponse())
 
 	m := base.makeRequest()
 	require.NotNil(t, m)
@@ -113,7 +117,9 @@ func TestJSONRPCResponse(t *testing.T) {
 }`)
 	var base baseJSONRPCMessage
 	require.NoError(t, json.Unmarshal(inputJSON, &base))
-	require.False(t, base.isNotification())
+	assert.False(t, base.isNotification())
+	assert.False(t, base.isRequest())
+	assert.True(t, base.isResponse())
 
 	m := base.makeResponse()
 	require.NotNil(t, m)

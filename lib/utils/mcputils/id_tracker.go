@@ -19,70 +19,60 @@
 package mcputils
 
 import (
-	"container/list"
 	"sync"
 
+	"github.com/gravitational/trace"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // IDTracker tracks message information like method based on ID. IDTracker
-// internally uses a linked list to keep track the last X messages to avoid
-// growing infinitely.
+// internally uses an LRU cache to keep track the last X messages to avoid
+// growing infinitely. IDTracker is safe for concurrent use.
 type IDTracker struct {
-	list   *list.List
-	mu     sync.Mutex
-	maxLen int
-}
-
-type idTrackerItem struct {
-	id     mcp.RequestId
-	method mcp.MCPMethod
+	mu       sync.Mutex
+	lruCache *simplelru.LRU[any, mcp.MCPMethod]
 }
 
 // NewIDTracker creates a new IDTracker with provided maximum size.
-func NewIDTracker(maxLen int) *IDTracker {
-	return &IDTracker{
-		list:   list.New(),
-		maxLen: maxLen,
+func NewIDTracker(size int) (*IDTracker, error) {
+	lruCache, err := simplelru.NewLRU[any, mcp.MCPMethod](size, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	return &IDTracker{
+		lruCache: lruCache,
+	}, nil
 }
 
-// Push tracks a request.
-func (t *IDTracker) Push(msg *JSONRPCRequest) {
+// PushRequest tracks a request.
+func (t *IDTracker) PushRequest(msg *JSONRPCRequest) {
 	if msg == nil || msg.ID == nil || msg.Method == "" {
 		return
 	}
-
 	t.mu.Lock()
 	defer t.mu.Unlock()
-
-	t.list.PushBack(idTrackerItem{
-		id:     msg.ID,
-		method: msg.Method,
-	})
-	for t.list.Len() > t.maxLen {
-		t.list.Remove(t.list.Front())
-	}
+	t.lruCache.Add(msg.ID, msg.Method)
 }
 
-// Pop retrieves the tracked information and remove it from the tracker.
-func (t *IDTracker) Pop(msg *JSONRPCResponse) (mcp.MCPMethod, bool) {
-	if msg == nil || msg.ID == nil {
+// PopByID retrieves the tracked information and remove it from the tracker.
+func (t *IDTracker) PopByID(id mcp.RequestId) (mcp.MCPMethod, bool) {
+	if id == nil {
 		return "", false
 	}
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	for e := t.list.Front(); e != nil; e = e.Next() {
-		if item, ok := e.Value.(idTrackerItem); ok && item.id == msg.ID {
-			t.list.Remove(e)
-			return item.method, true
-		}
+
+	retrieved, ok := t.lruCache.Get(id)
+	if !ok {
+		return "", false
 	}
-	return "", false
+	t.lruCache.Remove(id)
+	return retrieved, true
 }
 
 // Len returns the size of the tracker list.
 func (t *IDTracker) Len() int {
-	return t.list.Len()
+	return t.lruCache.Len()
 }
