@@ -75,6 +75,7 @@ func newResourceFilterer(kind, group, verb string, isClusterWideResource bool, c
 // wildcardFilter is a filter that matches all pods.
 var wildcardFilter = types.KubernetesResource{
 	Kind:      types.Wildcard,
+	APIGroup:  types.Wildcard,
 	Namespace: types.Wildcard,
 	Name:      types.Wildcard,
 	Verbs:     []string{types.Wildcard},
@@ -84,6 +85,7 @@ var wildcardFilter = types.KubernetesResource{
 func containsWildcard(resources []types.KubernetesResource) bool {
 	for _, r := range resources {
 		if r.Kind == wildcardFilter.Kind &&
+			r.APIGroup == wildcardFilter.APIGroup &&
 			r.Name == wildcardFilter.Name &&
 			r.Namespace == wildcardFilter.Namespace &&
 			len(r.Verbs) == 1 && r.Verbs[0] == wildcardFilter.Verbs[0] {
