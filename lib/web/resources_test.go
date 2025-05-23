@@ -219,7 +219,7 @@ spec:
       '*': '*'
     kubernetes_resources:
     - api_group: '*'
-      kind: pod
+      kind: pods
       name: '*'
       namespace: '*'
     logins:
@@ -254,7 +254,7 @@ version: v8
 			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, APIGroup: types.Wildcard,
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, APIGroup: types.Wildcard,
 				},
 			},
 		},

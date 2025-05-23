@@ -238,6 +238,9 @@ const (
 	// KindKubeReplicaSet is a Kubernetes Replicaset resource type.
 	KindKubeReplicaSet = "replicaset"
 
+	// KindKubeReplicationController is a Kubernetes ReplicationController resource type.
+	KindKubeReplicationController = "replicationcontroller"
+
 	// KindKubeStatefulset is a Kubernetes Statefulset resource type.
 	KindKubeStatefulset = "statefulset"
 
@@ -1415,6 +1418,64 @@ var KubernetesResourcesKinds = []string{
 	KindKubeIngress,
 }
 
+// KubernetesResourcesV7KindGroups maps the legacy Teleport kube kinds
+// to their kubernetes group.
+// Used for validation in role >=v8 to check whether an older value has
+// been accidentally used.
+var KubernetesResourcesV7KindGroups = map[string]string{
+	KindKubePod:                       "",
+	KindKubeSecret:                    "",
+	KindKubeConfigmap:                 "",
+	KindKubeNamespace:                 "",
+	KindKubeService:                   "",
+	KindKubeServiceAccount:            "",
+	KindKubeNode:                      "",
+	KindKubePersistentVolume:          "",
+	KindKubePersistentVolumeClaim:     "",
+	KindKubeDeployment:                "apps",
+	KindKubeReplicaSet:                "apps",
+	KindKubeStatefulset:               "apps",
+	KindKubeDaemonSet:                 "apps",
+	KindKubeClusterRole:               "rbac.authorization.k8s.io",
+	KindKubeRole:                      "rbac.authorization.k8s.io",
+	KindKubeClusterRoleBinding:        "rbac.authorization.k8s.io",
+	KindKubeRoleBinding:               "rbac.authorization.k8s.io",
+	KindKubeCronjob:                   "batch",
+	KindKubeJob:                       "batch",
+	KindKubeCertificateSigningRequest: "certificates.k8s.io",
+	KindKubeIngress:                   "networking.k8s.io",
+}
+
+// KubernetesResourcesKindsPlurals maps the legacy Teleport kube kinds
+// to their kubernetes name.
+// Used to upgrade roles <=v7 as well as to support existing access request
+// format.
+// TODO(@creack): Remove this, find a better way to handle the mapping.
+var KubernetesResourcesKindsPlurals = map[string]string{
+	KindKubePod:                       "pods",
+	KindKubeSecret:                    "secrets",
+	KindKubeConfigmap:                 "configmaps",
+	KindKubeNamespace:                 "namespaces",
+	KindKubeService:                   "services",
+	KindKubeServiceAccount:            "serviceaccounts",
+	KindKubeNode:                      "nodes",
+	KindKubePersistentVolume:          "persistentvolumes",
+	KindKubePersistentVolumeClaim:     "persistentvolumeclaims",
+	KindKubeDeployment:                "deployments",
+	KindKubeReplicaSet:                "replicasets",
+	KindKubeReplicationController:     "replicationcontrollers",
+	KindKubeStatefulset:               "statefulsets",
+	KindKubeDaemonSet:                 "daemonsets",
+	KindKubeClusterRole:               "clusterroles",
+	KindKubeRole:                      "roles",
+	KindKubeClusterRoleBinding:        "clusterrolebindings",
+	KindKubeRoleBinding:               "rolebindings",
+	KindKubeCronjob:                   "cronjobs",
+	KindKubeJob:                       "jobs",
+	KindKubeCertificateSigningRequest: "certificatesigningrequests",
+	KindKubeIngress:                   "ingresses",
+}
+
 const (
 	// KubeVerbGet is the Kubernetes verb for "get".
 	KubeVerbGet = "get"
@@ -1460,6 +1521,7 @@ var KubernetesVerbs = []string{
 
 // KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
 // that are not namespaced.
+// TODO(@creack): Remove in favor of proper lookup.
 var KubernetesClusterWideResourceKinds = []string{
 	KindKubeNamespace,
 	KindKubeNode,
@@ -1467,6 +1529,80 @@ var KubernetesClusterWideResourceKinds = []string{
 	KindKubeClusterRole,
 	KindKubeClusterRoleBinding,
 	KindKubeCertificateSigningRequest,
+}
+
+// KubernetesNamespacedResourceKinds is the list of known Kubernetes resource kinds
+// that are namespaced.
+// Generated from `kubectl api-resources --namespaced=true -o name --sort-by=name` (kind k8s v1.32.2).
+// (added .core to core resources.)
+// The format is "<plural>.<apigroup>".
+//
+// NOTE: As role >= v8 supports custom resources, we can't know from a static list
+// if an arbitrary resource is namespaced or not, so we maintain a list of
+// of known namespaced ones to help with validation.
+// This means that if there is a match, we know we expect a namespace, but if there is
+// not a match, we don't know that it doesn't.
+//
+// TODO(@creack): Remove in favor of a dynamic lookup.
+var KubernetesNamespacedResourceKinds = []string{
+	"bindings",
+	"configmaps",
+	"controllerrevisions.apps",
+	"cronjobs.batch",
+	"csistoragecapacities.storage.k8s.io",
+	"daemonsets.apps",
+	"deployments.apps",
+	"endpoints",
+	"endpointslices.discovery.k8s.io",
+	"events.events.k8s.io",
+	"events",
+	"horizontalpodautoscalers.autoscaling",
+	"ingresses.networking.k8s.io",
+	"jobs.batch",
+	"leases.coordination.k8s.io",
+	"limitranges",
+	"localsubjectaccessreviews.authorization.k8s.io",
+	"networkpolicies.networking.k8s.io",
+	"persistentvolumeclaims",
+	"poddisruptionbudgets.policy",
+	"pods",
+	"podtemplates",
+	"replicasets.apps",
+	"replicationcontrollers",
+	"resourcequotas",
+	"rolebindings.rbac.authorization.k8s.io",
+	"roles.rbac.authorization.k8s.io",
+	"secrets",
+	"serviceaccounts",
+	"services",
+	"statefulsets.apps",
+}
+
+// List of "" (core / legacy) resources.
+//
+// Used to validate the api_group field.
+//
+// Generated with:
+//
+//	(kubectl api-resources --api-group "" --output=name --namespaced=true && kubectl api-resources --api-group "" --output=name --namespaced=false) | sort
+var KubernetesCoreResourceKinds = map[string]struct{}{
+	"bindings":               {},
+	"componentstatuses":      {},
+	"configmaps":             {},
+	"endpoints":              {},
+	"events":                 {},
+	"limitranges":            {},
+	"namespaces":             {},
+	"nodes":                  {},
+	"persistentvolumeclaims": {},
+	"persistentvolumes":      {},
+	"pods":                   {},
+	"podtemplates":           {},
+	"replicationcontrollers": {},
+	"resourcequotas":         {},
+	"secrets":                {},
+	"serviceaccounts":        {},
+	"services":               {},
 }
 
 const (

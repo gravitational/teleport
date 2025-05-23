@@ -2941,7 +2941,7 @@ func TestValidate_WithAllowRequestKubernetesResources(t *testing.T) {
 					"*": {"*"},
 				},
 				KubernetesResources: []types.KubernetesResource{
-					{Kind: types.KindNamespace, Namespace: "*", Name: "*", Verbs: []string{"*"}, APIGroup: "*"},
+					{Kind: "namespaces", Namespace: "*", Name: "*", Verbs: []string{"*"}, APIGroup: "*"},
 				},
 			},
 		},
@@ -2951,7 +2951,7 @@ func TestValidate_WithAllowRequestKubernetesResources(t *testing.T) {
 					"*": {"*"},
 				},
 				KubernetesResources: []types.KubernetesResource{
-					{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{"*"}, APIGroup: "*"},
+					{Kind: "pods", Namespace: "*", Name: "*", Verbs: []string{"*"}, APIGroup: "*"},
 				},
 			},
 		},
@@ -2961,7 +2961,7 @@ func TestValidate_WithAllowRequestKubernetesResources(t *testing.T) {
 					"*": {"*"},
 				},
 				KubernetesResources: []types.KubernetesResource{
-					{Kind: types.KindKubeDeployment, Namespace: "*", Name: "*", Verbs: []string{"*"}, APIGroup: "*"},
+					{Kind: "deployments", Namespace: "*", Name: "*", Verbs: []string{"*"}, APIGroup: "*"},
 				},
 			},
 		},
