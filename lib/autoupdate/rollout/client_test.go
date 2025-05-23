@@ -144,7 +144,7 @@ func (n *testifyMockClient) ListAutoUpdateAgentReports(ctx context.Context, page
 	return result, "", args.Error(1)
 }
 
-func (n *testifyMockClient) checkIfEmpty(t *testing.T) {
+func (n *testifyMockClient) checkIfCallsWereDone(t *testing.T) {
 	n.AssertNumberOfCalls(t, "GetAutoUpdateConfig", len(n.stubs.configAnswers))
 	n.AssertNumberOfCalls(t, "GetAutoUpdateVersion", len(n.stubs.versionAnswers))
 	n.AssertNumberOfCalls(t, "GetAutoUpdateAgentRollout", len(n.stubs.rolloutAnswers))
