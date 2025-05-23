@@ -584,6 +584,36 @@ func NewPresetWildcardWorkloadIdentityIssuerRole() types.Role {
 	return role
 }
 
+// NewPresetAccessPluginRole returns a new pre-defined role for self-hosted
+// access request plugins.
+func NewPresetAccessPluginRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetAccessPluginRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Access plugin",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindAccessRequest, RO()),
+					types.NewRule(types.KindAccessPluginData, RW()),
+					types.NewRule(types.KindAccessMonitoringRule, RO()),
+					types.NewRule(types.KindAccessList, RO()),
+					types.NewRule(types.KindRole, RO()),
+					types.NewRule(types.KindUser, RO()),
+				},
+			},
+		},
+	}
+	return role
+}
+
 // SystemOktaAccessRoleName is the name of the system role that allows
 // access to Okta resources. This will be used by the Okta requester role to
 // search for Okta resources.
