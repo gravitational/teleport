@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package windows
+package winpki
 
 import (
 	"cmp"
@@ -156,8 +156,6 @@ type AuthInterface interface {
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
 	// GenerateWindowsDesktopCert generates a windows remote desktop certificate
 	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
-	// GetCertAuthority returns a types.CertAuthority interface
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	// GetClusterName returns a types.ClusterName interface
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
@@ -180,8 +178,6 @@ type GenerateCredentialsRequest struct {
 	// specified by Username. If specified (!= ""), it is
 	// encoded in the certificate per https://go.microsoft.com/fwlink/?linkid=2189925.
 	ActiveDirectorySID string
-	// AuthClient is the windows AuthInterface
-	AuthClient AuthInterface
 	// CAType is the certificate authority type used to generate the certificate.
 	// This is used to proper generate the CRL LDAP path.
 	CAType types.CertAuthType
@@ -204,12 +200,12 @@ type GenerateCredentialsRequest struct {
 // the regular Teleport user certificate, to meet the requirements of Active
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
-func GenerateWindowsDesktopCredentials(ctx context.Context, req *GenerateCredentialsRequest) (certDER, keyDER []byte, err error) {
+func GenerateWindowsDesktopCredentials(ctx context.Context, auth AuthInterface, req *GenerateCredentialsRequest) (certDER, keyDER []byte, err error) {
 	certReq, err := getCertRequest(req)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	genResp, err := req.AuthClient.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{
+	genResp, err := auth.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{
 		CSR: certReq.csrPEM,
 		// LDAP URI pointing at the CRL created with updateCRL.
 		//
@@ -239,12 +235,12 @@ func GenerateWindowsDesktopCredentials(ctx context.Context, req *GenerateCredent
 // the regular Teleport user certificate, to meet the requirements of Active
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
-func generateDatabaseCredentials(ctx context.Context, req *GenerateCredentialsRequest) (certDER, keyDER []byte, caCerts [][]byte, err error) {
+func generateDatabaseCredentials(ctx context.Context, auth AuthInterface, req *GenerateCredentialsRequest) (certDER, keyDER []byte, caCerts [][]byte, err error) {
 	certReq, err := getCertRequest(req)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
-	genResp, err := req.AuthClient.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
+	genResp, err := auth.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
 		CSR: certReq.csrPEM,
 		// LDAP URI pointing at the CRL created with updateCRL.
 		//
@@ -271,8 +267,8 @@ func generateDatabaseCredentials(ctx context.Context, req *GenerateCredentialsRe
 }
 
 // DatabaseCredentials returns certificate and private key bytes encoded in PEM format for use with `kinit`.
-func DatabaseCredentials(ctx context.Context, req *GenerateCredentialsRequest) (certPEM, keyPEM []byte, caCerts [][]byte, err error) {
-	certDER, keyDER, caCerts, err := generateDatabaseCredentials(ctx, req)
+func DatabaseCredentials(ctx context.Context, auth AuthInterface, req *GenerateCredentialsRequest) (certPEM, keyPEM []byte, caCerts [][]byte, err error) {
+	certDER, keyDER, caCerts, err := generateDatabaseCredentials(ctx, auth, req)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
