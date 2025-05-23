@@ -33,6 +33,7 @@ import {
   UnifiedResourcesPinning,
   useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
+import { buildPredicateExpression } from 'shared/components/UnifiedResources/shared/predicateExpression';
 import {
   getResourceId,
   openStatusInfoPanel,
@@ -187,7 +188,7 @@ export function ClusterResources({
           clusterId,
           {
             search: params.search,
-            query: params.query,
+            query: buildPredicateExpression(params.statuses, params.query),
             pinnedOnly: params.pinnedOnly,
             sort: params.sort,
             kinds: params.kinds,
@@ -213,6 +214,7 @@ export function ClusterResources({
         params.search,
         params.sort,
         params.includedResourceMode,
+        params.statuses,
         teleCtx.resourceService,
       ]
     ),
