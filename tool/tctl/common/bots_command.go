@@ -581,7 +581,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 	}
 
 	if c.format == teleport.JSON {
-		// Wrap resource type so the correct protojson marshalling is used for
+		// Wrap resource type so the correct protojson marshaling is used for
 		// timestamp fields.
 		wrappedInstances := make([]types.Resource, 0, len(instances))
 		for _, instance := range instances {
