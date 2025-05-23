@@ -31,12 +31,12 @@ import (
 // growing infinitely. IDTracker is safe for concurrent use.
 type IDTracker struct {
 	mu       sync.Mutex
-	lruCache *simplelru.LRU[any, mcp.MCPMethod]
+	lruCache *simplelru.LRU[mcp.RequestId, mcp.MCPMethod]
 }
 
 // NewIDTracker creates a new IDTracker with provided maximum size.
 func NewIDTracker(size int) (*IDTracker, error) {
-	lruCache, err := simplelru.NewLRU[any, mcp.MCPMethod](size, nil)
+	lruCache, err := simplelru.NewLRU[mcp.RequestId, mcp.MCPMethod](size, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -45,14 +45,16 @@ func NewIDTracker(size int) (*IDTracker, error) {
 	}, nil
 }
 
-// PushRequest tracks a request.
-func (t *IDTracker) PushRequest(msg *JSONRPCRequest) {
+// PushRequest tracks a request. Returns true if the request has been added to
+// cache.
+func (t *IDTracker) PushRequest(msg *JSONRPCRequest) bool {
 	if msg == nil || msg.ID == nil || msg.Method == "" {
-		return
+		return false
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.lruCache.Add(msg.ID, msg.Method)
+	return true
 }
 
 // PopByID retrieves the tracked information and remove it from the tracker.
@@ -72,7 +74,7 @@ func (t *IDTracker) PopByID(id mcp.RequestId) (mcp.MCPMethod, bool) {
 	return retrieved, true
 }
 
-// Len returns the size of the tracker list.
+// Len returns the size of the tracker cache.
 func (t *IDTracker) Len() int {
 	return t.lruCache.Len()
 }

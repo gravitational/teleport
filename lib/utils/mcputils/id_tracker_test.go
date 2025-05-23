@@ -33,17 +33,17 @@ func TestIDTracker(t *testing.T) {
 	require.Empty(t, tracker.Len())
 
 	t.Run("request missing ID not tracked", func(t *testing.T) {
-		tracker.PushRequest(&JSONRPCRequest{
+		require.False(t, tracker.PushRequest(&JSONRPCRequest{
 			Method: "bad",
-		})
+		}))
 		require.Empty(t, tracker.Len())
 	})
 
 	t.Run("request tracked", func(t *testing.T) {
-		tracker.PushRequest(&JSONRPCRequest{
+		require.True(t, tracker.PushRequest(&JSONRPCRequest{
 			ID:     0,
 			Method: mcp.MethodToolsList,
-		})
+		}))
 		require.Equal(t, 1, tracker.Len())
 	})
 

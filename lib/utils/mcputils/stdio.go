@@ -140,7 +140,7 @@ func (c *StdioMessageReaderConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("one of OnRequest or OnResponse must be set")
 	}
 	if c.ParentContext == nil {
-		return trace.BadParameter("missing parameter CloseContext")
+		return trace.BadParameter("missing parameter ParentContext")
 	}
 	if c.Logger == nil {
 		c.Logger = slog.With(teleport.ComponentKey, "mcp")

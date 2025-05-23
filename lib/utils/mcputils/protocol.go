@@ -70,7 +70,8 @@ func (p JSONRPCParams) GetName() (string, bool) {
 // protocol.
 //
 // Note that json.RawMessage is used to keep the original content when
-// marshaling it again. Same applies to other types in this file.
+// marshaling it again. json.RawMessage can also be easily unmarshalled to user
+// defined types when needed. Same applies to other types in this file.
 type baseJSONRPCMessage struct {
 	// JSONRPC specifies the version of JSONRPC.
 	JSONRPC string `json:"jsonrpc"`
