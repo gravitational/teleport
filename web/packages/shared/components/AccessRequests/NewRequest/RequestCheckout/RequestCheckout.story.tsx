@@ -199,6 +199,7 @@ const baseProps: RequestCheckoutWithSliderProps = {
   fetchResourceRequestRolesAttempt: { status: '' },
   isResourceRequest: false,
   requireReason: true,
+  reasonPrompts: [],
   selectedReviewers: [
     {
       value: 'george washington',
