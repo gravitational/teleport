@@ -523,14 +523,14 @@ func (o *PluginOktaSyncSettings) GetEnableAppGroupSync() bool {
 }
 
 func (o *PluginOktaSyncSettings) GetEnableAccessListSync() bool {
-	if o == nil {
+	if !o.GetEnableAppGroupSync() {
 		return false
 	}
 	return o.SyncAccessLists
 }
 
 func (o *PluginOktaSyncSettings) GetEnableBidirectionalSync() bool {
-	if !o.GetEnableAccessListSync() {
+	if !o.GetEnableAppGroupSync() {
 		return false
 	}
 	return !o.DisableBidirectionalSync
