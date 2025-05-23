@@ -2060,17 +2060,17 @@ func validateRequestKubeResources(roleVersion string, kubeResources []RequestKub
 			if kubeResource.Kind == "" {
 				return trace.BadParameter("request.kubernetes_resource kind is required in role version %q", roleVersion)
 			}
-			// Only allow empty string for known core resources.
-			if kubeResource.APIGroup == "" {
-				if _, ok := KubernetesCoreResourceKinds[kubeResource.Kind]; !ok {
-					return trace.BadParameter("request.kubernetes_resource api_group is required for resource %q in role version %q", kubeResource.Kind, roleVersion)
-				}
-			}
 			// If we have a kind that match a role v7 one, check the api group.
 			if slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) {
 				// If the api group is a wildcard or match v7, then it is mostly definitely a mistake, reject the role.
 				if kubeResource.APIGroup == Wildcard || kubeResource.APIGroup == KubernetesResourcesV7KindGroups[kubeResource.Kind] {
 					return trace.BadParameter("request.kubernetes_resource kind %q is invalid. Please use plural name for role version %q", kubeResource.Kind, roleVersion)
+				}
+			}
+			// Only allow empty string for known core resources.
+			if kubeResource.APIGroup == "" {
+				if _, ok := KubernetesCoreResourceKinds[kubeResource.Kind]; !ok {
+					return trace.BadParameter("request.kubernetes_resource api_group is required for resource %q in role version %q", kubeResource.Kind, roleVersion)
 				}
 			}
 		case V7:
