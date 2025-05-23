@@ -115,6 +115,7 @@ func toRPCRequest(p Packet) (*RPCRequest, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// pass nil for crypto parameter, we are dealing with unencrypted data here.
 	ti := mssql.ReadTypeInfo(tds, typeId, nil, msdsn.EncodeParameters{GuidConversion: false})
 	val := ti.Reader(&ti, tds, nil)
 
