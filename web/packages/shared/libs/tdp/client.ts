@@ -129,6 +129,8 @@ type RemoveListenerFn = () => void;
 // To prevent multiple initializations, we track the initialization status in a global variable.
 let wasmReady: Promise<void> | undefined;
 
+const US_INTERNATIONAL_KEYBOARD_LAYOUT = 0x00020409;
+
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
@@ -157,7 +159,10 @@ export class TdpClient extends EventEmitter<EventMap> {
    * set the internal screen size when it receives the screen spec from the server
    * (see PlayerClient.handleClientScreenSpec).
    */
-  async connect(spec?: ClientScreenSpec) {
+  async connect(
+    keyboardLayout: number = US_INTERNATIONAL_KEYBOARD_LAYOUT,
+    spec?: ClientScreenSpec
+  ) {
     this.transportAbortController = new AbortController();
     if (!wasmReady) {
       wasmReady = this.initWasm();
@@ -177,6 +182,8 @@ export class TdpClient extends EventEmitter<EventMap> {
     if (spec) {
       this.sendClientScreenSpec(spec);
     }
+
+    this.sendClientKeyboardLayout(keyboardLayout);
 
     let processingError: Error | undefined;
     let connectionError: Error | undefined;
@@ -695,6 +702,10 @@ export class TdpClient extends EventEmitter<EventMap> {
       `requesting screen spec from client ${spec.width} x ${spec.height}`
     );
     this.send(this.codec.encodeClientScreenSpec(spec));
+  }
+
+  sendClientKeyboardLayout(keyboardLayout: number) {
+    this.send(this.codec.encodeClientKeyboardLayout(keyboardLayout));
   }
 
   sendMouseMove(x: number, y: number) {

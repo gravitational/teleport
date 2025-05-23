@@ -153,6 +153,8 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 			}, nil
 		}
 		return msg, nil
+	}, func(clientTdpConn *tdp.Conn, message tdp.Message) (tdp.Message, error) {
+		return message, nil
 	})
 
 	return trace.Wrap(tdpConnProxy.Run())
