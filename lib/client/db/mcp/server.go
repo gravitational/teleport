@@ -37,7 +37,9 @@ var listDatabasesTool = mcp.NewTool(listDatabasesToolName,
 	mcp.WithDescription("List database resources available to be used with Teleport tools."),
 )
 
-// RootServer database access root MCP server.
+// RootServer database access root MCP server. It includes common MCP tools and
+// resources across different databases and serves as a root server where
+// database-specific MCP servers register their tools.
 type RootServer struct {
 	*mcpserver.MCPServer
 

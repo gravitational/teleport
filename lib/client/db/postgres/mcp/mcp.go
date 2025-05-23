@@ -50,13 +50,14 @@ type database struct {
 	pool *pgxpool.Pool
 }
 
-// Server PostgreSQL MCP server.
+// Server handles PostgreSQL-specific MCP tools requests.
 type Server struct {
 	logger    *slog.Logger
 	databases map[string]*database
 }
 
-// NewServer initializes a PostgreSQL MCP server.
+// NewServer initializes a PostgreSQL MCP server, creating the database
+// configurations and registering Server tools into the root server.
 func NewServer(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, error) {
 	s := &Server{logger: cfg.Logger, databases: make(map[string]*database)}
 
