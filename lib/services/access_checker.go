@@ -508,11 +508,26 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 	}
 	var err error
 	rolesAllowed, rolesDenied := a.RoleSet.GetKubeResources(cluster, a.info.Traits)
+
+	// If we have a legacy 'namespace' in the allowedResourceIDs, we need to add the new 'namespaces' one.
+	// The old one will get mapped to wildcard later.
+	allowedResourceIDs := slices.Clone(a.info.AllowedResourceIDs)
+	for _, elem := range a.info.AllowedResourceIDs {
+		if elem.Kind == types.KindKubeNamespace {
+			allowedResourceIDs = append(allowedResourceIDs, types.ResourceID{
+				ClusterName:     elem.ClusterName,
+				Kind:            "namespaces",
+				SubResourceName: elem.SubResourceName,
+				Name:            elem.Name,
+			})
+		}
+	}
+
 	// Allways append the denied resources from the roles. This is because
 	// the denied resources from the roles take precedence over the allowed
 	// resources from the certificate.
 	denied = rolesDenied
-	for _, r := range a.info.AllowedResourceIDs {
+	for _, r := range allowedResourceIDs {
 		if r.Name != cluster.GetName() || r.ClusterName != a.localCluster {
 			continue
 		}
@@ -520,7 +535,8 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 		case slices.Contains(types.KubernetesResourcesKinds, r.Kind):
 			namespace := ""
 			name := ""
-			if slices.Contains(types.KubernetesClusterWideResourceKinds, r.Kind) {
+			// TODO(@creack): Make sure this gets handled in the AccessRequest PR.
+			if slices.Contains(types.V7KubernetesClusterWideResourceKinds, r.Kind) {
 				// Cluster wide resources do not have a namespace.
 				name = r.SubResourceName
 			} else {
@@ -539,6 +555,13 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 			kind := types.KubernetesResourcesKindsPlurals[r.Kind]
 			if kind == "" {
 				kind = r.Kind
+			}
+			// NOTE: The 'namespace' behavior changed, to maintain backwards compatibility,
+			// map the legacy value to wildcard.
+			if r.Kind == types.KindKubeNamespace {
+				kind = types.Wildcard
+				namespace = name
+				name = types.Wildcard
 			}
 			r := types.KubernetesResource{
 				Kind:      kind,

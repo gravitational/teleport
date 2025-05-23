@@ -555,7 +555,7 @@ func TestListKubernetesResources(t *testing.T) {
 						Kind:    types.KindKubeClusterRole,
 						Version: "v1",
 						Metadata: types.Metadata{
-							Name:      "nginx-1",
+							Name:      "cr-nginx-1",
 							Namespace: "default",
 						},
 						Spec: types.KubernetesResourceSpecV1{},
@@ -564,7 +564,7 @@ func TestListKubernetesResources(t *testing.T) {
 						Kind:    types.KindKubeClusterRole,
 						Version: "v1",
 						Metadata: types.Metadata{
-							Name:      "nginx-2",
+							Name:      "cr-nginx-2",
 							Namespace: "default",
 						},
 						Spec: types.KubernetesResourceSpecV1{},
@@ -573,7 +573,7 @@ func TestListKubernetesResources(t *testing.T) {
 						Kind:    types.KindKubeClusterRole,
 						Version: "v1",
 						Metadata: types.Metadata{
-							Name:      "test",
+							Name:      "cr-test",
 							Namespace: "default",
 						},
 						Spec: types.KubernetesResourceSpecV1{},

@@ -2351,7 +2351,8 @@ func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName
 				kind = resourceID.Kind
 			}
 			switch {
-			case slices.Contains(types.KubernetesClusterWideResourceKinds, resourceID.Kind):
+			// TODO(@creack): Make sure this is handled in the AccessRequest PR.
+			case slices.Contains(types.V7KubernetesClusterWideResourceKinds, resourceID.Kind):
 				kubernetesResources = append(kubernetesResources, types.KubernetesResource{
 					Kind: kind,
 					Name: resourceID.SubResourceName,

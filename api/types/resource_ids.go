@@ -52,7 +52,7 @@ func (id *ResourceID) validateK8sSubResource() error {
 	if id.SubResourceName == "" {
 		return trace.BadParameter("resource of kind %q must include a subresource name", id.Kind)
 	}
-	isResourceNamespaceScoped := slices.Contains(KubernetesClusterWideResourceKinds, id.Kind)
+	isResourceNamespaceScoped := slices.Contains(V7KubernetesClusterWideResourceKinds, id.Kind)
 	switch split := strings.Split(id.SubResourceName, "/"); {
 	case isResourceNamespaceScoped && len(split) != 1:
 		return trace.BadParameter("subresource %q must follow the following format: <name>", id.SubResourceName)
@@ -97,7 +97,7 @@ func ResourceIDFromString(raw string) (ResourceID, error) {
 	}
 	switch {
 	case slices.Contains(KubernetesResourcesKinds, resourceID.Kind):
-		isResourceNamespaceScoped := slices.Contains(KubernetesClusterWideResourceKinds, resourceID.Kind)
+		isResourceNamespaceScoped := slices.Contains(V7KubernetesClusterWideResourceKinds, resourceID.Kind)
 		// Kubernetes forbids slashes "/" in Namespaces and Pod names, so it's safe to
 		// explode the resourceID.Name and extract the last two entries as namespace
 		// and name.

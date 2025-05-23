@@ -147,7 +147,7 @@ func Test_filterBuffer(t *testing.T) {
 	}
 	for _, tt := range tests {
 		for _, r := range types.KubernetesResourcesKinds {
-			if slices.Contains(types.KubernetesClusterWideResourceKinds, r) {
+			if slices.Contains(types.V7KubernetesClusterWideResourceKinds, r) {
 				continue
 			}
 			r := r

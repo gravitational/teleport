@@ -479,14 +479,48 @@ func (r *RoleV6) convertDenyKubernetesResourcesBetweenRoleVersions(resources []K
 		return resources
 	default:
 		v7resources := slices.Clone(resources)
+		var extraResources []KubernetesResource
 		for i, r := range v7resources {
+			// "namespace" kind used to mean "namespaces" and all resources in the namespace.
+			// It is now represented by 'namespaces' for the resource itself and wildcard for
+			// all resources in the namespace.
+			if r.Kind == KindKubeNamespace {
+				r.Kind = Wildcard
+				r.Namespace = r.Name
+				r.Name = Wildcard
+				r.APIGroup = Wildcard
+				v7resources[i] = r
+				extraResources = append(extraResources, KubernetesResource{
+					Kind:  "namespaces",
+					Name:  r.Namespace,
+					Verbs: r.Verbs,
+				})
+				continue
+			}
+			// The namespace field was ignored in v7 for global resources.
+			if r.Namespace != "" && slices.Contains(V7KubernetesClusterWideResourceKinds, r.Kind) {
+				r.Namespace = ""
+			}
 			if k, ok := KubernetesResourcesKindsPlurals[r.Kind]; ok { // Can be empty if the kind is a wildcard.
 				r.Kind = k
 			}
 			r.APIGroup = Wildcard
 			v7resources[i] = r
+			if r.Kind == Wildcard { // If we have a wildcard, inject the clusterwide resources.
+				for _, elem := range V7KubernetesClusterWideResourceKinds {
+					if elem == KindKubeNamespace { // Namespace is handled separately.
+						continue
+					}
+					extraResources = append(extraResources, KubernetesResource{
+						Kind:     KubernetesResourcesKindsPlurals[elem],
+						Name:     r.Name,
+						Verbs:    r.Verbs,
+						APIGroup: Wildcard,
+					})
+				}
+			}
 		}
-		return v7resources
+		return append(v7resources, extraResources...)
 	}
 }
 
@@ -495,6 +529,12 @@ func (r *RoleV6) convertDenyKubernetesResourcesBetweenRoleVersions(resources []K
 // when using an older role version.
 //
 // For roles v8, it returns the list as it is.
+//
+// For roles v7, if we have a Wildcard kind, add the v7 cluster-wide resources to maintain
+// the existing behavior as in Teleport <=v17, those resources ignored the namespace value
+// of the rbac entry. Earlier roles didn't support wildcard so it is not a concern.
+//
+// For roles v7, if we have a "namespace" kind, map it to a wildcard + namespaces kind.
 //
 // For roles <=v7, it sets the APIGroup to wildcard for all resources and maps the legacy
 // teleport Kinds to k8s plurals.
@@ -507,18 +547,9 @@ func (r *RoleV6) convertDenyKubernetesResourcesBetweenRoleVersions(resources []K
 // and append the other supported resources - KubernetesResourcesKinds - for Role v8.
 func (r *RoleV6) convertAllowKubernetesResourcesBetweenRoleVersions(resources []KubernetesResource) []KubernetesResource {
 	switch r.Version {
-	case V8:
-		return resources
-	case V7:
-		v7resources := slices.Clone(resources)
-		for i, r := range v7resources {
-			if k, ok := KubernetesResourcesKindsPlurals[r.Kind]; ok { // Can be empty if the kind is a wildcard.
-				r.Kind = k
-			}
-			r.APIGroup = Wildcard
-			v7resources[i] = r
-		}
-		return v7resources
+	case V7, V8:
+		// V7 and v8 uses the same logic for allow and deny.
+		return r.convertDenyKubernetesResourcesBetweenRoleVersions(resources)
 	// Teleport does not support role versions < v3.
 	case V6, V5, V4, V3:
 		switch {
@@ -1961,7 +1992,7 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 			if kubeResource.Kind != Wildcard && !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) {
 				return trace.BadParameter("KubernetesResource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
 			}
-			if kubeResource.Namespace == "" && !slices.Contains(KubernetesClusterWideResourceKinds, kubeResource.Kind) {
+			if kubeResource.Namespace == "" && !slices.Contains(V7KubernetesClusterWideResourceKinds, kubeResource.Kind) {
 				return trace.BadParameter("KubernetesResource must include Namespace")
 			}
 		case V8:
