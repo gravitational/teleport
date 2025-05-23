@@ -7081,6 +7081,11 @@ message PluginOktaSyncSettings {
 
   // EnableSystemLogExport enables the Teleport Identity Security SIEM integration for Okta.
   bool enable_system_log_export = 12;
+
+  // DisableAssignDefaultRoles prevents the builtin okta-requester role from being assigned to all
+  // synchronized users. This is allows for a more advanced RBAC setup where not all
+  // Okta-originated users are allowed request all Okta-originated resources.
+  bool disable_assign_default_roles = 13;
 }
 
 // Defines a set of discord channel IDs
