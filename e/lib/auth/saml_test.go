@@ -750,7 +750,6 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		ID:               "ABC",
 		ConnectorID:      "zzz",
 		CheckUser:        false,
-		PublicKey:        nil,
 		CertTTL:          0,
 		CreateWebSession: false,
 		SSOTestFlow:      true,
@@ -1447,15 +1446,7 @@ func TestSAMLAuthCompat(t *testing.T) {
 			assertErr:     require.NoError,
 		},
 		{
-			desc:                "single key",
-			connectorName:       connector.GetName(),
-			pubKey:              sshPubBytes,
-			expectSSHSubjectKey: sshPub,
-			expectTLSSubjectKey: sshKey.Public(),
-			assertErr:           require.NoError,
-		},
-		{
-			desc:                "split keys",
+			desc:                "both keys",
 			connectorName:       connector.GetName(),
 			sshPubKey:           sshPubBytes,
 			tlsPubKey:           tlsPubBytes,
@@ -1499,7 +1490,6 @@ func TestSAMLAuthCompat(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			req, err := proxyClient.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
 				ConnectorID:  tc.connectorName,
-				PublicKey:    tc.pubKey,
 				SshPublicKey: tc.sshPubKey,
 				TlsPublicKey: tc.tlsPubKey,
 				CertTTL:      time.Hour,
@@ -1518,10 +1508,7 @@ func TestSAMLAuthCompat(t *testing.T) {
 			resp, err := proxyClient.ValidateSAMLResponse(ctx, samlResponse, tc.connectorName, "")
 			require.NoError(t, err, "validating SAML auth callback")
 
-			// The proxy should get back the keys exactly as it sent them. Older
-			// proxies won't look for the new split keys, and they do check for
-			// the old single key to tell if this was a console or web request.
-			require.Equal(t, tc.pubKey, resp.Req.PublicKey) //nolint:staticcheck // SA1019. Checking deprecated field expected by older clients.
+			// The proxy should get back the keys exactly as it sent them.
 			require.Equal(t, tc.sshPubKey, resp.Req.SSHPubKey)
 			require.Equal(t, tc.tlsPubKey, resp.Req.TLSPubKey)
 

@@ -688,31 +688,18 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	}
 
 	// If a public key was provided, sign it and return a certificate.
-	sshPubKey, tlsPubKey, err := authclient.UserPublicKeys(
-		req.PublicKey, //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		req.SshPublicKey,
-		req.TlsPublicKey,
-	)
-	if err != nil {
-		return nil, req.ClientLoginIP, trace.Wrap(err)
-	}
-	if len(sshPubKey) > 0 || len(tlsPubKey) > 0 {
-		sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
-			hardwarekey.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-			hardwarekey.AttestationStatementFromProto(req.SshAttestationStatement),
-			hardwarekey.AttestationStatementFromProto(req.TlsAttestationStatement),
-		)
+	if len(req.SshPublicKey) > 0 || len(req.TlsPublicKey) > 0 {
 		sshCert, tlsCert, err := oas.auth.CreateSessionCerts(ctx, &auth.SessionCertsRequest{
 			UserState:               userState,
 			SessionTTL:              params.SessionTTL,
-			SSHPubKey:               sshPubKey,
-			TLSPubKey:               tlsPubKey,
+			SSHPubKey:               req.SshPublicKey,
+			TLSPubKey:               req.TlsPublicKey,
 			Compatibility:           req.Compatibility,
 			RouteToCluster:          req.RouteToCluster,
 			KubernetesCluster:       req.KubernetesCluster,
 			LoginIP:                 req.ClientLoginIP,
-			SSHAttestationStatement: sshAttestationStatement,
-			TLSAttestationStatement: tlsAttestationStatement,
+			SSHAttestationStatement: hardwarekey.AttestationStatementFromProto(req.SshAttestationStatement),
+			TLSAttestationStatement: hardwarekey.AttestationStatementFromProto(req.TlsAttestationStatement),
 		})
 		if err != nil {
 			return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to create session certificate.")
@@ -872,7 +859,6 @@ func (oas *OIDCAuthService) retrieveIDTokenClaims(ctx context.Context, connector
 func OIDCAuthRequestFromProto(req *types.OIDCAuthRequest) authclient.OIDCAuthRequest {
 	return authclient.OIDCAuthRequest{
 		ConnectorID:       req.ConnectorID,
-		PublicKey:         req.PublicKey, //nolint:staticcheck // SA1019. Returning deprecated field that may be expected by older clients.
 		SSHPubKey:         req.SshPublicKey,
 		TLSPubKey:         req.TlsPublicKey,
 		CSRFToken:         req.CSRFToken,
