@@ -108,11 +108,47 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	routeToApp, err = reloadRouteToAppFromKeyring(app, routeToApp, key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := printAppCommand(cf, tc, app, routeToApp); err != nil {
 		return trace.Wrap(err)
 	}
 
+	if err := writeFilesForExternalApps(routeToApp); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
+}
+
+func reloadRouteToAppFromKeyring(app types.Application, routeToApp proto.RouteToApp, key *client.KeyRing) (proto.RouteToApp, error) {
+	// AWS Access ugin Roles Anywhere integration receive the credentials in the certificate.
+	// For all other apps, the routeToApp is already correct.
+	if app.GetAWSRolesAnywhereProfileARN() == "" {
+		return routeToApp, nil
+	}
+
+	// AWS Apps using AWS Roles Anywhere for granting access receive the AWS Credentials in the certificate.
+	appCerts, err := key.AppTLSCertificates()
+	if err != nil {
+		return routeToApp, trace.Wrap(err)
+	}
+
+	for _, cert := range appCerts {
+		tlsID, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		if err != nil {
+			return routeToApp, trace.Wrap(err)
+		}
+
+		if tlsID.RouteToApp.Name == routeToApp.Name {
+			return tlscaRouteToAppToProto(tlsID.RouteToApp), nil
+		}
+	}
+
+	return routeToApp, nil
 }
 
 func appLogin(
@@ -140,6 +176,14 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 
 	switch {
 	case app.IsAWSConsole():
+		if routeToApp.AWSCredentialProcessCredentials != "" {
+			return awsNamedProfileLoginTemplate.Execute(output, map[string]string{
+				"awsAppName": app.GetName(),
+				"awsCmd":     "s3 ls",
+				"awsRoleARN": routeToApp.AWSRoleARN,
+			})
+		}
+
 		return awsLoginTemplate.Execute(output, map[string]string{
 			"awsAppName": app.GetName(),
 			"awsCmd":     "s3 ls",
@@ -271,6 +315,20 @@ Or start a local proxy:
   tsh proxy aws --app {{.awsAppName}}
 `))
 
+// awsNamedProfileLoginTemplate is the message that gets printed to a user upon successful login
+// into an AWS Console application which provides AWS credentials in the `credential_process` schema.
+// Used for named profiles, where the profile name is the same as the app name.
+var awsNamedProfileLoginTemplate = template.Must(template.New("").Parse(
+	`Logged into AWS app "{{.awsAppName}}".
+
+Your IAM role:
+  {{.awsRoleARN}}
+
+Example AWS CLI commands:
+  aws --profile {{.awsAppName}} {{.awsCmd}}
+  AWS_PROFILE={{.awsAppName}} aws {{.awsCmd}}
+`))
+
 // azureLoginTemplate is the message that gets printed to a user upon successful login
 // into an Azure application.
 var azureLoginTemplate = template.Must(template.New("").Parse(
@@ -342,12 +400,23 @@ func onAppLogout(cf *CLIConf) error {
 				"error", err,
 				"profile", profile.AppLocalCAPath(tc.SiteName, app.Name))
 		}
+
+		if err := removeExternalFilesForApp(app); err != nil {
+			logger.WarnContext(cf.Context, "Failed to clean up app external files",
+				"error", err,
+				"app", cf.AppName)
+		}
 	}
 
 	if cf.AppName == "" {
 		// Try to delete any dangling files even if the app sessions are expired.
 		if err := tc.LogoutAllApps(); err != nil {
 			return trace.Wrap(err)
+		}
+
+		if err := removeExternalFilesForAllApps(); err != nil {
+			logger.WarnContext(cf.Context, "Failed to clean up apps external files",
+				"error", err)
 		}
 	}
 
@@ -378,13 +447,14 @@ func onAppConfig(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	routeToApp := proto.RouteToApp{
-		Name:              app.Name,
-		PublicAddr:        app.PublicAddr,
-		ClusterName:       app.ClusterName,
-		AWSRoleARN:        app.AWSRoleARN,
-		AzureIdentity:     app.AzureIdentity,
-		GCPServiceAccount: app.GCPServiceAccount,
-		URI:               app.GetURI(),
+		Name:                            app.Name,
+		PublicAddr:                      app.PublicAddr,
+		ClusterName:                     app.ClusterName,
+		AWSCredentialProcessCredentials: app.AWSCredentialProcessCredentials,
+		AWSRoleARN:                      app.AWSRoleARN,
+		AzureIdentity:                   app.AzureIdentity,
+		GCPServiceAccount:               app.GCPServiceAccount,
+		URI:                             app.GetURI(),
 	}
 	conf, err := formatAppConfig(tc, profile, routeToApp, cf.Format)
 	if err != nil {
@@ -409,6 +479,9 @@ const (
 	appFormatJSON = "json"
 	// appFormatYAML prints app URI, CA cert path, cert path, key path, and curl command in YAML format.
 	appFormatYAML = "yaml"
+	// appFormatAWSCredentialProcessOutput prints the credentials for accessing AWS Console using the `credential_process` schema.
+	// See https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sourcing-external.html
+	appFormatAWSCredentialProcessOutput = "aws-credential-process"
 )
 
 func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, routeToApp proto.RouteToApp, format string) (string, error) {
@@ -447,6 +520,8 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 		return keyPath, nil
 	case appFormatCURL:
 		return curlCmd, nil
+	case appFormatAWSCredentialProcessOutput:
+		return routeToApp.AWSCredentialProcessCredentials, nil
 	case appFormatJSON, appFormatYAML:
 		appConfig := &appConfigInfo{
 			Name:              routeToApp.Name,
@@ -704,12 +779,13 @@ func pickActiveApp(cf *CLIConf, activeRoutes []tlsca.RouteToApp) (proto.RouteToA
 
 func tlscaRouteToAppToProto(route tlsca.RouteToApp) proto.RouteToApp {
 	return proto.RouteToApp{
-		Name:              route.Name,
-		PublicAddr:        route.PublicAddr,
-		ClusterName:       route.ClusterName,
-		AWSRoleARN:        route.AWSRoleARN,
-		AzureIdentity:     route.AzureIdentity,
-		GCPServiceAccount: route.GCPServiceAccount,
-		URI:               route.URI,
+		Name:                            route.Name,
+		PublicAddr:                      route.PublicAddr,
+		ClusterName:                     route.ClusterName,
+		AWSRoleARN:                      route.AWSRoleARN,
+		AWSCredentialProcessCredentials: route.AWSCredentialProcessCredentials,
+		AzureIdentity:                   route.AzureIdentity,
+		GCPServiceAccount:               route.GCPServiceAccount,
+		URI:                             route.URI,
 	}
 }
