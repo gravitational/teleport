@@ -325,7 +325,7 @@ func TestTryReconcile(t *testing.T) {
 			require.NoError(t, reconciler.tryReconcile(ctx))
 			// Test validation: Checking that the mock client is now empty
 
-			client.checkIfEmpty(t)
+			client.checkIfCallsWereDone(t)
 		})
 	}
 }
@@ -399,7 +399,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		require.NoError(t, reconciler.reconcile(ctx))
 
 		// Test validation: check that all the expected calls were received
-		client.checkIfEmpty(t)
+		client.checkIfCallsWereDone(t)
 	})
 
 	t.Run("reconciliation succeeds on first try, should exit", func(t *testing.T) {
@@ -423,7 +423,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		require.NoError(t, reconciler.reconcile(ctx))
 
 		// Test validation: check that all the expected calls were received
-		client.checkIfEmpty(t)
+		client.checkIfCallsWereDone(t)
 	})
 
 	t.Run("reconciliation faces conflict on first try, should retry and see that there's nothing left to do", func(t *testing.T) {
@@ -449,7 +449,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		require.NoError(t, reconciler.reconcile(ctx))
 
 		// Test validation: check that all the expected calls were received
-		client.checkIfEmpty(t)
+		client.checkIfCallsWereDone(t)
 	})
 
 	t.Run("reconciliation faces conflict on first try, should retry and update a second time", func(t *testing.T) {
@@ -491,7 +491,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		require.NoError(t, reconciler.reconcile(ctx))
 
 		// Test validation: check that all the expected calls were received
-		client.checkIfEmpty(t)
+		client.checkIfCallsWereDone(t)
 	})
 
 	t.Run("reconciliation faces missing rollout on first try, should retry and create the rollout", func(t *testing.T) {
@@ -531,7 +531,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		require.NoError(t, reconciler.reconcile(ctx))
 
 		// Test validation: check that all the expected calls were received
-		client.checkIfEmpty(t)
+		client.checkIfCallsWereDone(t)
 	})
 
 	t.Run("reconciliation meets a hard unexpected failure on first try, should exit in error", func(t *testing.T) {
@@ -557,7 +557,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		require.ErrorContains(t, reconciler.reconcile(ctx), "the DB fell on the floor")
 
 		// Test validation: check that all the expected calls were received
-		client.checkIfEmpty(t)
+		client.checkIfCallsWereDone(t)
 	})
 
 	t.Run("reconciliation faces conflict on first try, should retry but context is expired so it bails out", func(t *testing.T) {
@@ -589,7 +589,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		require.ErrorIs(t, reconciler.reconcile(cancelableCtx), context.Canceled)
 
 		// Test validation: check that all the expected calls were received
-		client.checkIfEmpty(t)
+		client.checkIfCallsWereDone(t)
 	})
 }
 
@@ -981,7 +981,7 @@ func TestDefaultConfigGroup(t *testing.T) {
 			tt.expectError(t, err)
 			require.Equal(t, tt.expectedResult, result)
 			// Test validation: the mock client should be empty.
-			clt.checkIfEmpty(t)
+			clt.checkIfCallsWereDone(t)
 		})
 	}
 }
