@@ -1092,19 +1092,19 @@ type AutoUpdateAgentRolloutStatusGroup struct {
 	// In halt-on-error strategy, if a group is active and initial_count is set, the group will only transition
 	// to the done state if:
 	// - the ratio up_to_date_count/present_count is above 0.9 (at least 90% of the nodes are running the desired version)
-	InitialCount int64 `protobuf:"varint,10,opt,name=initial_count,json=initialCount,proto3" json:"initial_count,omitempty"`
+	InitialCount uint64 `protobuf:"varint,10,opt,name=initial_count,json=initialCount,proto3" json:"initial_count,omitempty"`
 	// present_count represents the nodes currently connected to the cluster according to autoupdate_agent_reports.
 	// In halt-on-error strategy, if a group is active and initial_count is set, the group will only transition
 	// to the done state if:
 	// - the ratio present_count/initial_count is above 0.9 (no more than 10% of the nodes dropped during update)
 	// - the ratio up_to_date_count/present_count is above 0.9 (at least 90% of the nodes are running the desired version)
-	PresentCount int64 `protobuf:"varint,11,opt,name=present_count,json=presentCount,proto3" json:"present_count,omitempty"`
+	PresentCount uint64 `protobuf:"varint,11,opt,name=present_count,json=presentCount,proto3" json:"present_count,omitempty"`
 	// up_to_date_count represents the nodes currently connected and running the target_version according to
 	// autoupdate_agent_reports.
 	// In halt-on-error strategy, if a group is active and initial_count is set, the group will only transition
 	// to the done state if:
 	// - the ratio present_count/initial_count is above 0.9 (no more than 10% of the nodes dropped during update)
-	UpToDateCount int64 `protobuf:"varint,12,opt,name=up_to_date_count,json=upToDateCount,proto3" json:"up_to_date_count,omitempty"`
+	UpToDateCount uint64 `protobuf:"varint,12,opt,name=up_to_date_count,json=upToDateCount,proto3" json:"up_to_date_count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1195,21 +1195,21 @@ func (x *AutoUpdateAgentRolloutStatusGroup) GetConfigWaitHours() int32 {
 	return 0
 }
 
-func (x *AutoUpdateAgentRolloutStatusGroup) GetInitialCount() int64 {
+func (x *AutoUpdateAgentRolloutStatusGroup) GetInitialCount() uint64 {
 	if x != nil {
 		return x.InitialCount
 	}
 	return 0
 }
 
-func (x *AutoUpdateAgentRolloutStatusGroup) GetPresentCount() int64 {
+func (x *AutoUpdateAgentRolloutStatusGroup) GetPresentCount() uint64 {
 	if x != nil {
 		return x.PresentCount
 	}
 	return 0
 }
 
-func (x *AutoUpdateAgentRolloutStatusGroup) GetUpToDateCount() int64 {
+func (x *AutoUpdateAgentRolloutStatusGroup) GetUpToDateCount() uint64 {
 	if x != nil {
 		return x.UpToDateCount
 	}
@@ -1582,9 +1582,9 @@ const file_teleport_autoupdate_v1_autoupdate_proto_rawDesc = "" +
 	"\x11config_start_hour\x18\a \x01(\x05R\x0fconfigStartHour\x12*\n" +
 	"\x11config_wait_hours\x18\t \x01(\x05R\x0fconfigWaitHours\x12#\n" +
 	"\rinitial_count\x18\n" +
-	" \x01(\x03R\finitialCount\x12#\n" +
-	"\rpresent_count\x18\v \x01(\x03R\fpresentCount\x12'\n" +
-	"\x10up_to_date_count\x18\f \x01(\x03R\rupToDateCountJ\x04\b\b\x10\tR\x10config_wait_days\"\xe1\x01\n" +
+	" \x01(\x04R\finitialCount\x12#\n" +
+	"\rpresent_count\x18\v \x01(\x04R\fpresentCount\x12'\n" +
+	"\x10up_to_date_count\x18\f \x01(\x04R\rupToDateCountJ\x04\b\b\x10\tR\x10config_wait_days\"\xe1\x01\n" +
 	"\x15AutoUpdateAgentReport\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
