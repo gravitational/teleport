@@ -2682,11 +2682,18 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 									Optional:    true,
 								},
 								"kubernetes_resources": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"kind": {
-										Description: "kind specifies the Kubernetes Resource type.",
-										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-									}}),
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"api_group": {
+											Description: "APIGroup specifies the Kubernetes Resource API group.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"kind": {
+											Description: "kind specifies the Kubernetes Resource type.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
 									Description: "kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind \"kube_cluster\" or any of its subresources like \"namespaces\". This field can be defined such that it prevents a user from requesting \"kube_cluster\" and enforce requesting any of its subresources.",
 									Optional:    true,
 								},
@@ -3172,11 +3179,18 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 									Optional:    true,
 								},
 								"kubernetes_resources": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"kind": {
-										Description: "kind specifies the Kubernetes Resource type.",
-										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-									}}),
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"api_group": {
+											Description: "APIGroup specifies the Kubernetes Resource API group.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"kind": {
+											Description: "kind specifies the Kubernetes Resource type.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
 									Description: "kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind \"kube_cluster\" or any of its subresources like \"namespaces\". This field can be defined such that it prevents a user from requesting \"kube_cluster\" and enforce requesting any of its subresources.",
 									Optional:    true,
 								},
@@ -25662,6 +25676,23 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																						}
 																					}
 																				}
+																				{
+																					a, ok := tf.Attrs["api_group"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources.APIGroup"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						} else {
+																							var t string
+																							if !v.Null && !v.Unknown {
+																								t = string(v.Value)
+																							}
+																							obj.APIGroup = t
+																						}
+																					}
+																				}
 																			}
 																			obj.KubernetesResources[k] = t
 																		}
@@ -27704,6 +27735,23 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																								t = string(v.Value)
 																							}
 																							obj.Kind = t
+																						}
+																					}
+																				}
+																				{
+																					a, ok := tf.Attrs["api_group"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources.APIGroup"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						} else {
+																							var t string
+																							if !v.Null && !v.Unknown {
+																								t = string(v.Value)
+																							}
+																							obj.APIGroup = t
 																						}
 																					}
 																				}
@@ -31447,6 +31495,28 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 																					tf.Attrs["kind"] = v
 																				}
 																			}
+																			{
+																				t, ok := tf.AttrTypes["api_group"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources.APIGroup"})
+																				} else {
+																					v, ok := tf.Attrs["api_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																					if !ok {
+																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																						if err != nil {
+																							diags.Append(attrWriteGeneralError{"RoleV6.Spec.Allow.Request.kubernetes_resources.APIGroup", err})
+																						}
+																						v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						}
+																						v.Null = string(obj.APIGroup) == ""
+																					}
+																					v.Value = string(obj.APIGroup)
+																					v.Unknown = false
+																					tf.Attrs["api_group"] = v
+																				}
+																			}
 																		}
 																		v.Unknown = false
 																		c.Elems[k] = v
@@ -35005,6 +35075,28 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 																					v.Value = string(obj.Kind)
 																					v.Unknown = false
 																					tf.Attrs["kind"] = v
+																				}
+																			}
+																			{
+																				t, ok := tf.AttrTypes["api_group"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources.APIGroup"})
+																				} else {
+																					v, ok := tf.Attrs["api_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																					if !ok {
+																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																						if err != nil {
+																							diags.Append(attrWriteGeneralError{"RoleV6.Spec.Deny.Request.kubernetes_resources.APIGroup", err})
+																						}
+																						v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						}
+																						v.Null = string(obj.APIGroup) == ""
+																					}
+																					v.Value = string(obj.APIGroup)
+																					v.Unknown = false
+																					tf.Attrs["api_group"] = v
 																				}
 																			}
 																		}

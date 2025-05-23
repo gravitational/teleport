@@ -1487,7 +1487,7 @@ func (s *session) patchAndWaitForPodEphemeralContainer(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	podClient := clientSet.CoreV1().Pods(authCtx.kubeResource.Namespace)
+	podClient := clientSet.CoreV1().Pods(authCtx.metaResource.requestedResource.namespace)
 	result, err := podClient.Patch(ctx,
 		waitingCont.Spec.PodName,
 		apimachinerytypes.StrategicMergePatchType,

@@ -30,7 +30,7 @@
 //
 //   - When reading in a scope value from an external source (user input, identity provider, etc) check it with [StrongValidate].
 //   - When reading in a scope value from a trusted source (control-plane, backend, etc) check it with [WeakValidate].
-//   - When constructing a scope from component strings (e.g. during string interpolation), call [ValidateSegment] on each segment in addition to calling [StrongValidate] on the final scope.
+//   - When constructing a scope from component strings (e.g. during string interpolation), call [StrongValidateSegment] on each segment in addition to calling [StrongValidate] on the final scope.
 //   - If you have a resource at a given scope and want to filter for applicable policies/permissions, use [ResourceScope].
 //   - If you have a policy/permission at a given scope and want to filter for subject resources, use [PolicyScope].
 //   - Avoid using [Compare] and the associated [Relationship] type directly in access-control logic.

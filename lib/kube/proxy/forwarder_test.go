@@ -758,8 +758,8 @@ func TestAuthenticate(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Empty(t, cmp.Diff(gotCtx, tt.wantCtx,
-				cmp.AllowUnexported(authContext{}, teleportClusterClient{}, apiResource{}),
-				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "Context", "recordingConfig", "disconnectExpiredCert", "kubeCluster", "apiResource"),
+				cmp.AllowUnexported(authContext{}, teleportClusterClient{}, metaResource{}, apiResource{}),
+				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "Context", "recordingConfig", "disconnectExpiredCert", "kubeCluster"),
 			))
 
 			// validate authCtx.key() to make sure it includes certExpires timestamp.

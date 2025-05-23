@@ -2612,7 +2612,7 @@ func TestKubeCredentialsLock(t *testing.T) {
 				KubeUsers:        []string{alice.GetName()},
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+						Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, APIGroup: types.Wildcard,
 					},
 				},
 			},

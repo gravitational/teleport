@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 )
 
@@ -132,6 +134,9 @@ type collections struct {
 	discoveryConfigs                   *collection[*discoveryconfig.DiscoveryConfig, discoveryConfigIndex]
 	provisioningStates                 *collection[*provisioningv1.PrincipalState, principalStateIndex]
 	identityCenterPrincipalAssignments *collection[*identitycenterv1.PrincipalAssignment, identityCenterPrincipalAssignmentIndex]
+	auditQueries                       *collection[*secreports.AuditQuery, auditQueryIndex]
+	secReports                         *collection[*secreports.Report, securityReportIndex]
+	secReportsStates                   *collection[*secreports.ReportState, securityReportStateIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -149,7 +154,7 @@ func isKnownUncollectedKind(kind string) bool {
 // setupCollections ensures that the appropriate [collection] is
 // initialized for all provided [types.WatcKind]s. An error is
 // returned if a [types.WatchKind] has no associated [collection].
-func setupCollections(c Config, legacyCollections map[resourceKind]legacyCollection) (*collections, error) {
+func setupCollections(c Config) (*collections, error) {
 	out := &collections{
 		byKind: make(map[resourceKind]collectionHandler, 1),
 	}
@@ -702,14 +707,78 @@ func setupCollections(c Config, legacyCollections map[resourceKind]legacyCollect
 
 			out.identityCenterPrincipalAssignments = collect
 			out.byKind[resourceKind] = out.identityCenterPrincipalAssignments
+		case types.KindAuditQuery:
+			collect, err := newAuditQueryCollection(c.SecReports, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.auditQueries = collect
+			out.byKind[resourceKind] = out.auditQueries
+		case types.KindSecurityReport:
+			collect, err := newSecurityReportCollection(c.SecReports, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.secReports = collect
+			out.byKind[resourceKind] = out.secReports
+		case types.KindSecurityReportState:
+			collect, err := newSecurityReportStateCollection(c.SecReports, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.secReportsStates = collect
+			out.byKind[resourceKind] = out.secReportsStates
 		default:
-			_, legacyOk := legacyCollections[resourceKind]
-			if _, ok := out.byKind[resourceKind]; !ok && !legacyOk {
+			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 			}
 		}
-
 	}
 
 	return out, nil
+}
+
+func resourceKindFromWatchKind(wk types.WatchKind) resourceKind {
+	switch wk.Kind {
+	case types.KindWebSession:
+		// Web sessions use subkind to differentiate between
+		// the types of sessions
+		return resourceKind{
+			kind:    wk.Kind,
+			subkind: wk.SubKind,
+		}
+	}
+	return resourceKind{
+		kind: wk.Kind,
+	}
+}
+
+func resourceKindFromResource(res types.Resource) resourceKind {
+	switch res.GetKind() {
+	case types.KindWebSession:
+		// Web sessions use subkind to differentiate between
+		// the types of sessions
+		return resourceKind{
+			kind:    res.GetKind(),
+			subkind: res.GetSubKind(),
+		}
+	}
+	return resourceKind{
+		kind: res.GetKind(),
+	}
+}
+
+type resourceKind struct {
+	kind    string
+	subkind string
+}
+
+func (r resourceKind) String() string {
+	if r.subkind == "" {
+		return r.kind
+	}
+	return fmt.Sprintf("%s/%s", r.kind, r.subkind)
 }

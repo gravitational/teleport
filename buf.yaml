@@ -52,6 +52,7 @@ lint:
     COMMENT_SERVICE:
       - proto/prehog
     FIELD_LOWER_SNAKE_CASE:
+      - api/proto/teleport/legacy/client/proto/inventory.proto
       - api/proto/teleport/legacy/types/device.proto
     PACKAGE_DIRECTORY_MATCH:
       - api/proto/teleport/legacy/client/proto/joinservice.proto
@@ -74,7 +75,6 @@ lint:
       - api/proto/teleport/workloadidentity/v1/revocation_service.proto
       - proto/accessgraph/v1alpha/access_graph_service.proto
       - proto/teleport/lib/teleterm/v1/service.proto
-  disallow_comment_ignores: true
 
 breaking:
   use:

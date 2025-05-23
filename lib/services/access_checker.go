@@ -92,17 +92,11 @@ type AccessChecker interface {
 	// CheckGCPServiceAccounts returns a list of GCP service accounts the user is allowed to assume.
 	CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error)
 
-	// CheckAccessToSAMLIdP checks access to the SAML IdP.
-	//
-	//nolint:revive // Because we want this to be IdP.
-	// TODO(sshah): Delete after enterprise changes is merged to use v2.
-	CheckAccessToSAMLIdP(readonly.AuthPreference, AccessState) error
-
-	// CheckAccessToSAMLIdPV2 checks access to SAML IdP service provider resource.
+	// CheckAccessToSAMLIdP checks access to SAML IdP service provider resource.
 	// It checks for both the legacy RBAC (role v7 and below) that checks for IDP
 	// role option and MFA, as well as non-legacy RBAC (role v8 and above) that checks
 	// for labels, MFA and Device Trust.
-	CheckAccessToSAMLIdPV2(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error
+	CheckAccessToSAMLIdP(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error
 
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
@@ -494,16 +488,16 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 	return trace.Wrap(a.RoleSet.checkAccess(r, a.info.Traits, state, matchers...))
 }
 
-// CheckAccessToSAMLIdPV2 checks access to SAML IdP service provider resource.
+// CheckAccessToSAMLIdP checks access to SAML IdP service provider resource.
 // It checks for both the legacy RBAC (role v7 and below) that checks for IDP
 // role option and MFA, as well as non-legacy RBAC (role v8 and above) that checks
 // for labels, MFA and Device Trust.
-func (a *accessChecker) CheckAccessToSAMLIdPV2(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
+func (a *accessChecker) CheckAccessToSAMLIdP(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
 	if err := a.checkAllowedResources(r); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(a.RoleSet.CheckAccessToSAMLIdPV2(r, a.info.Traits, authPref, state, matchers...))
+	return trace.Wrap(a.RoleSet.CheckAccessToSAMLIdP(r, a.info.Traits, authPref, state, matchers...))
 }
 
 // GetKubeResources returns the allowed and denied Kubernetes Resources configured
@@ -540,10 +534,18 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 				name = splitted[1]
 			}
 
+			// TODO(@creack): Find a better way. For now this only enables support for existing access requests.
+			// It doesnt support CRDs.
+			kind := types.KubernetesResourcesKindsPlurals[r.Kind]
+			if kind == "" {
+				kind = r.Kind
+			}
 			r := types.KubernetesResource{
-				Kind:      r.Kind,
+				Kind:      kind,
 				Namespace: namespace,
 				Name:      name,
+				// TODO(@creack): Add support for CRDs in AccessRequests.
+				APIGroup: types.Wildcard,
 			}
 			// matchKubernetesResource checks if the Kubernetes Resource matches the tuple
 			// (kind, namespace, kame) from the allowed/denied list and does not match the resource
@@ -560,7 +562,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 			return rolesAllowed, rolesDenied
 		}
 	}
-	return
+	return allowed, denied
 }
 
 // matchKubernetesResource checks if the Kubernetes Resource does not match any
