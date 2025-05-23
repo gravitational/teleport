@@ -56,11 +56,19 @@ func buildCredentialsInfo(creds []*types.PluginStaticCredentialsV1) *types.Plugi
 	return &out
 }
 
+type createOktaClientOption func(*oktaapi.Config)
+
+func withOAuthScopes(scopes []string) createOktaClientOption {
+	return func(cfg *oktaapi.Config) {
+		cfg.Scopes = scopes
+	}
+}
+
 // createOktaClient creates Okta client from the request payload or saved credentials. The
 // credentials from the request payload have higher priority than the stored plugin credentials. If
 // the client can't be created from the request and plugin are nil then createOktaClient will make
 // an attempt to fetch the plugin from the backend.
-func (s *Service) createOktaClient(ctx context.Context, req requestWithCredentials, plugin *types.PluginV1) (oktaapi.Interface, error) {
+func (s *Service) createOktaClient(ctx context.Context, req requestWithCredentials, plugin *types.PluginV1, opts ...createOktaClientOption) (oktaapi.Interface, error) {
 	var orgURL string
 	var selectedCreds oktaplugin.SelectedOktaCredentials
 	switch {
@@ -110,7 +118,7 @@ func (s *Service) createOktaClient(ctx context.Context, req requestWithCredentia
 		return nil, trace.BadParameter("Okta API credentials not found in plugin static credentials")
 	}
 
-	oktaClient, err := s.apiClientProviderFn(ctx, oktaapi.Config{
+	cfg := oktaapi.Config{
 		TestHTTPClient: &http.Client{
 			Transport: s.roundTripper,
 			Timeout:   defaults.HTTPRequestTimeout,
@@ -118,7 +126,13 @@ func (s *Service) createOktaClient(ctx context.Context, req requestWithCredentia
 		OrgUrl:       orgURL,
 		AuthProvider: authProvider,
 		Log:          s.logger,
-	})
+	}
+
+	for _, o := range opts {
+		o(&cfg)
+	}
+
+	oktaClient, err := s.apiClientProviderFn(ctx, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating Okta client")
 	}

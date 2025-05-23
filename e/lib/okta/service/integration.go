@@ -48,7 +48,7 @@ func (s *Service) ValidateClientCredentials(ctx context.Context, req *oktapb.Val
 // request and plugin can be nil - they are used to create the Okta client as defined in
 // [Service.createOktaClient].
 func (s *Service) validateClientCredentials(ctx context.Context, req requestWithCredentials, plugin *types.PluginV1, oauthScopes []string) error {
-	oktaClient, err := s.createOktaClient(ctx, req, plugin)
+	oktaClient, err := s.createOktaClient(ctx, req, plugin, withOAuthScopes(oauthScopes))
 	if err != nil {
 		return trace.BadParameter("okta credential verification failed: %v", err)
 	}

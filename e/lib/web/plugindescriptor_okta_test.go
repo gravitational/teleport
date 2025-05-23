@@ -223,12 +223,13 @@ func TestOktaPluginUpdate(t *testing.T) {
 	// Set up an existing Okta plugin
 	createPluginEndpoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 	form := url.Values{
-		"type":                 {"okta"},
-		"name":                 {"okta"},
-		"metadataURL":          {fmt.Sprintf("%s/app/%s/sso/saml/metadata", oktaTestOrg, oktaAppID)},
-		"enableUserSync":       {"false"},
-		"enableAppGroupsSync":  {"false"},
-		"enableAccessListSync": {"false"},
+		"type":                  {"okta"},
+		"name":                  {"okta"},
+		"metadataURL":           {fmt.Sprintf("%s/app/%s/sso/saml/metadata", oktaTestOrg, oktaAppID)},
+		"enableUserSync":        {"false"},
+		"enableAppGroupsSync":   {"false"},
+		"enableAccessListSync":  {"false"},
+		"enableSystemLogExport": {"false"},
 	}
 
 	// Minimal install – no SCIM token, filters, etc.
@@ -247,6 +248,7 @@ func TestOktaPluginUpdate(t *testing.T) {
 		EnableAppGroupSync:      false,
 		EnableAccessListSync:    false,
 		EnableBidirectionalSync: false,
+		EnableSystemLogExport:   false,
 		CredentialInfo: &ui.OktaCredentialInfo{
 			HasConfiguredOauthCredentials: false,
 			HasConfiguredSCIMToken:        false,
@@ -303,10 +305,11 @@ func TestOktaPluginUpdate(t *testing.T) {
 	updateReq := ui.PluginUpdateRequest{
 		Plugin: types.PluginTypeOkta,
 		Okta: &ui.OktaPluginUpdate{
-			ClientID:             mockClientID,
-			EnableUserSync:       true,
-			EnableAppGroupSync:   false,
-			EnableAccessListSync: false,
+			ClientID:              mockClientID,
+			EnableUserSync:        true,
+			EnableAppGroupSync:    false,
+			EnableAccessListSync:  false,
+			EnableSystemLogExport: true,
 		},
 	}
 	updatePluginEndpoint := webPack.clt.Endpoint("enterprise", "plugin")
@@ -320,12 +323,13 @@ func TestOktaPluginUpdate(t *testing.T) {
 	require.Equal(t, "okta", updated.Name)
 
 	expectedOktaSpec = &ui.OktaPluginSpec{
-		OktaOrgURL:           oktaTestOrg,
-		OktaAppID:            oktaAppID,
-		TeleportSSOConnector: common.OktaSSOConnectorName,
-		EnableUserSync:       true,
-		EnableAppGroupSync:   false,
-		EnableAccessListSync: false,
+		OktaOrgURL:            oktaTestOrg,
+		OktaAppID:             oktaAppID,
+		TeleportSSOConnector:  common.OktaSSOConnectorName,
+		EnableUserSync:        true,
+		EnableAppGroupSync:    false,
+		EnableAccessListSync:  false,
+		EnableSystemLogExport: true,
 		CredentialInfo: &ui.OktaCredentialInfo{
 			HasConfiguredOauthCredentials: true,
 		},
@@ -346,6 +350,7 @@ func TestOktaPluginUpdate(t *testing.T) {
 			SyncAccessLists:          false,
 			DisableSyncAppGroups:     true,
 			DisableBidirectionalSync: true,
+			EnableSystemLogExport:    true,
 			SsoConnectorId:           common.OktaSSOConnectorName,
 			UserSyncSource:           string(types.OktaUserSyncSourceSamlApp),
 		},
