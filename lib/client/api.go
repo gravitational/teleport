@@ -4229,8 +4229,13 @@ func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, connectorType s
 		}
 		defer rd.Close()
 
-		ssoCeremony := sso.NewCLICeremony(rd, tc.ssoLoginInitFn(keyRing, connectorID, connectorType))
+		if connectorType == constants.SAML {
+			ssoCeremony := sso.NewCLISAMLCeremony(rd, tc.samlSSOLoginInitFn(keyRing, connectorID, connectorType))
+			resp, err := ssoCeremony.Run(ctx)
+			return resp, trace.Wrap(err)
 
+		}
+		ssoCeremony := sso.NewCLICeremony(rd, tc.ssoLoginInitFn(keyRing, connectorID, connectorType))
 		resp, err := ssoCeremony.Run(ctx)
 		return resp, trace.Wrap(err)
 	}

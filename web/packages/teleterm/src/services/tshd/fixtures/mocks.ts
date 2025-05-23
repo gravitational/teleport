@@ -43,12 +43,6 @@ export class MockTshClient implements TshdClient {
       roles: [],
       applicableRoles: [],
     });
-  getServers = () =>
-    new MockedUnaryCall({
-      agents: [],
-      totalCount: 0,
-      startKey: '',
-    });
   assumeRole = () => new MockedUnaryCall({});
   deleteAccessRequest = () => new MockedUnaryCall({});
   getAccessRequests = () =>

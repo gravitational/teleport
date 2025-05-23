@@ -1552,6 +1552,7 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 // Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
 // SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	resp, err := c.grpc.ListSAMLIdPSessions(
 		ctx,
 		&proto.ListSAMLIdPSessionsRequest{
@@ -1599,6 +1600,7 @@ func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 // Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
 // SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	resp, err := c.grpc.CreateSAMLIdPSession(ctx, &proto.CreateSAMLIdPSessionRequest{
 		SessionID:   req.SessionID,
 		Username:    req.Username,
@@ -1627,6 +1629,7 @@ func (c *Client) GetSnowflakeSession(ctx context.Context, req types.GetSnowflake
 // Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
 // SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	resp, err := c.grpc.GetSAMLIdPSession(ctx, &proto.GetSAMLIdPSessionRequest{
 		SessionID: req.SessionID,
 	})
@@ -1658,6 +1661,7 @@ func (c *Client) DeleteSnowflakeSession(ctx context.Context, req types.DeleteSno
 // SAML IdP Sessions are directly tied to their parent web sessions instead. This endpoint
 // will be removed in v17.
 func (c *Client) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.DeleteSAMLIdPSession(ctx, &proto.DeleteSAMLIdPSessionRequest{
 		SessionID: req.SessionID,
 	})
@@ -1680,6 +1684,7 @@ func (c *Client) DeleteAllSnowflakeSessions(ctx context.Context) error {
 // Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
 // SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) DeleteAllSAMLIdPSessions(ctx context.Context) error {
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.DeleteAllSAMLIdPSessions(ctx, &emptypb.Empty{})
 	return trace.Wrap(err)
 }
@@ -1697,6 +1702,7 @@ func (c *Client) DeleteUserSAMLIdPSessions(ctx context.Context, username string)
 	req := &proto.DeleteUserSAMLIdPSessionsRequest{
 		Username: username,
 	}
+	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
 	_, err := c.grpc.DeleteUserSAMLIdPSessions(ctx, req)
 	return trace.Wrap(err)
 }
@@ -2769,17 +2775,7 @@ func (c *Client) ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClien
 // GetClusterNetworkingConfig gets cluster networking configuration.
 func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	resp, err := c.ClusterConfigClient().GetClusterNetworkingConfig(ctx, &clusterconfigpb.GetClusterNetworkingConfigRequest{})
-	if err != nil && trace.IsNotImplemented(err) {
-		resp, err = c.grpc.GetClusterNetworkingConfig(ctx, &emptypb.Empty{})
-	}
 	return resp, trace.Wrap(err)
-}
-
-// SetClusterNetworkingConfig sets cluster networking configuration.
-// Deprecated: Use UpdateClusterNetworkingConfig or UpsertClusterNetworkingConfig instead.
-func (c *Client) SetClusterNetworkingConfig(ctx context.Context, netConfig *types.ClusterNetworkingConfigV2) error {
-	_, err := c.grpc.SetClusterNetworkingConfig(ctx, netConfig)
-	return trace.Wrap(err)
 }
 
 // UpdateClusterNetworkingConfig updates an existing cluster networking configuration.
