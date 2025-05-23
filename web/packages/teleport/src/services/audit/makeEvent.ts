@@ -2219,7 +2219,7 @@ export const formatters: Formatters = {
   [eventCodes.MCP_SESSION_REQUEST_FAILURE]: {
     type: 'mcp.session.request',
     desc: 'MCP Session Request Failure',
-    format: ({ user, app_name, message}) => {
+    format: ({ user, app_name, message }) => {
       if (message.params?.name) {
         return `User [${user}] was denied access to an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
       }

@@ -1932,51 +1932,51 @@ export type RawEvents = {
     }
   >;
   [eventCodes.MCP_SESSION_START]: RawEvent<
-      typeof eventCodes.MCP_SESSION_START,
-      {
-        sid: string;
-        app_name: string;
-      }
+    typeof eventCodes.MCP_SESSION_START,
+    {
+      sid: string;
+      app_name: string;
+    }
   >;
   [eventCodes.MCP_SESSION_END]: RawEvent<
-      typeof eventCodes.MCP_SESSION_END,
-      {
-        sid: string;
-        app_name: string;
-      }
+    typeof eventCodes.MCP_SESSION_END,
+    {
+      sid: string;
+      app_name: string;
+    }
   >;
   [eventCodes.MCP_SESSION_REQUEST]: RawEvent<
-      typeof eventCodes.MCP_SESSION_REQUEST,
-      {
-        app_name: string;
-        message: {
-          method: string;
-          params?: {
-            name?: string;
-          };
-        }
-      }
+    typeof eventCodes.MCP_SESSION_REQUEST,
+    {
+      app_name: string;
+      message: {
+        method: string;
+        params?: {
+          name?: string;
+        };
+      };
+    }
   >;
   [eventCodes.MCP_SESSION_REQUEST_FAILURE]: RawEvent<
-      typeof eventCodes.MCP_SESSION_REQUEST_FAILURE,
-      {
-        app_name: string;
-        message: {
-          method: string;
-          params?: {
-            name?: string;
-          };
-        }
-      }
+    typeof eventCodes.MCP_SESSION_REQUEST_FAILURE,
+    {
+      app_name: string;
+      message: {
+        method: string;
+        params?: {
+          name?: string;
+        };
+      };
+    }
   >;
   [eventCodes.MCP_SESSION_NOTIFICATION]: RawEvent<
-      typeof eventCodes.MCP_SESSION_NOTIFICATION,
-      {
-        app_name: string;
-        message: {
-          method: string;
-        }
-      }
+    typeof eventCodes.MCP_SESSION_NOTIFICATION,
+    {
+      app_name: string;
+      message: {
+        method: string;
+      };
+    }
   >;
 };
 
