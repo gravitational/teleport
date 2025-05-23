@@ -25,7 +25,7 @@ import init, {
   init_wasm_log,
 } from 'shared/libs/ironrdp/pkg/ironrdp';
 import Logger from 'shared/libs/logger';
-import { isAbortError } from 'shared/utils/abortError';
+import { ensureError, isAbortError } from 'shared/utils/error';
 
 import Codec, {
   FileType,
@@ -80,6 +80,23 @@ export enum TdpClientEvent {
   LATENCY_STATS = 'latency stats',
 }
 
+type EventMap = {
+  [TdpClientEvent.TDP_CLIENT_SCREEN_SPEC]: [ClientScreenSpec];
+  [TdpClientEvent.TDP_PNG_FRAME]: [PngFrame];
+  [TdpClientEvent.TDP_BMP_FRAME]: [BitmapFrame];
+  [TdpClientEvent.TDP_CLIPBOARD_DATA]: [ClipboardData];
+  [TdpClientEvent.ERROR]: [Error];
+  [TdpClientEvent.TDP_WARNING]: [string];
+  [TdpClientEvent.CLIENT_WARNING]: [string];
+  [TdpClientEvent.TDP_INFO]: [string];
+  [TdpClientEvent.TRANSPORT_OPEN]: [void];
+  [TdpClientEvent.TRANSPORT_CLOSE]: [Error | undefined];
+  [TdpClientEvent.RESET]: [void];
+  [TdpClientEvent.POINTER]: [PointerData];
+  [TdpClientEvent.LATENCY_STATS]: [LatencyStats];
+  'terminal.webauthn': [string];
+};
+
 export enum LogType {
   OFF = 'OFF',
   ERROR = 'ERROR',
@@ -116,7 +133,7 @@ let wasmReady: Promise<void> | undefined;
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
-export class TdpClient extends EventEmitter {
+export class TdpClient extends EventEmitter<EventMap> {
   protected codec: Codec;
   protected transport: TdpTransport | undefined;
   private transportAbortController: AbortController | undefined;
@@ -152,7 +169,7 @@ export class TdpClient extends EventEmitter {
         this.transportAbortController.signal
       );
     } catch (error) {
-      this.emit(TdpClientEvent.ERROR, error);
+      this.emit(TdpClientEvent.ERROR, ensureError(error));
       return;
     }
 
@@ -175,7 +192,7 @@ export class TdpClient extends EventEmitter {
       subscribers.add(
         this.transport.onMessage(data => {
           void this.processMessage(data).catch(error => {
-            processingError = error;
+            processingError = ensureError(error);
             unsubscribe();
             // All errors are treated as fatal, close the connection.
             this.transportAbortController.abort();
@@ -199,7 +216,7 @@ export class TdpClient extends EventEmitter {
     } else if (connectionError && !isAbortError(connectionError)) {
       this.emit(TdpClientEvent.TRANSPORT_CLOSE, connectionError);
     } else {
-      this.emit(TdpClientEvent.TRANSPORT_CLOSE);
+      this.emit(TdpClientEvent.TRANSPORT_CLOSE, undefined);
     }
 
     this.logger.info('Transport is closed');

@@ -238,6 +238,9 @@ const (
 	// KindKubeReplicaSet is a Kubernetes Replicaset resource type.
 	KindKubeReplicaSet = "replicaset"
 
+	// KindKubeReplicationController is a Kubernetes ReplicationController resource type.
+	KindKubeReplicationController = "replicationcontroller"
+
 	// KindKubeStatefulset is a Kubernetes Statefulset resource type.
 	KindKubeStatefulset = "statefulset"
 
@@ -1415,6 +1418,64 @@ var KubernetesResourcesKinds = []string{
 	KindKubeIngress,
 }
 
+// KubernetesResourcesV7KindGroups maps the legacy Teleport kube kinds
+// to their kubernetes group.
+// Used for validation in role >=v8 to check whether an older value has
+// been accidentally used.
+var KubernetesResourcesV7KindGroups = map[string]string{
+	KindKubePod:                       "",
+	KindKubeSecret:                    "",
+	KindKubeConfigmap:                 "",
+	KindKubeNamespace:                 "",
+	KindKubeService:                   "",
+	KindKubeServiceAccount:            "",
+	KindKubeNode:                      "",
+	KindKubePersistentVolume:          "",
+	KindKubePersistentVolumeClaim:     "",
+	KindKubeDeployment:                "apps",
+	KindKubeReplicaSet:                "apps",
+	KindKubeStatefulset:               "apps",
+	KindKubeDaemonSet:                 "apps",
+	KindKubeClusterRole:               "rbac.authorization.k8s.io",
+	KindKubeRole:                      "rbac.authorization.k8s.io",
+	KindKubeClusterRoleBinding:        "rbac.authorization.k8s.io",
+	KindKubeRoleBinding:               "rbac.authorization.k8s.io",
+	KindKubeCronjob:                   "batch",
+	KindKubeJob:                       "batch",
+	KindKubeCertificateSigningRequest: "certificates.k8s.io",
+	KindKubeIngress:                   "networking.k8s.io",
+}
+
+// KubernetesResourcesKindsPlurals maps the legacy Teleport kube kinds
+// to their kubernetes name.
+// Used to upgrade roles <=v7 as well as to support existing access request
+// format.
+// TODO(@creack): Remove this, find a better way to handle the mapping.
+var KubernetesResourcesKindsPlurals = map[string]string{
+	KindKubePod:                       "pods",
+	KindKubeSecret:                    "secrets",
+	KindKubeConfigmap:                 "configmaps",
+	KindKubeNamespace:                 "namespaces",
+	KindKubeService:                   "services",
+	KindKubeServiceAccount:            "serviceaccounts",
+	KindKubeNode:                      "nodes",
+	KindKubePersistentVolume:          "persistentvolumes",
+	KindKubePersistentVolumeClaim:     "persistentvolumeclaims",
+	KindKubeDeployment:                "deployments",
+	KindKubeReplicaSet:                "replicasets",
+	KindKubeReplicationController:     "replicationcontrollers",
+	KindKubeStatefulset:               "statefulsets",
+	KindKubeDaemonSet:                 "daemonsets",
+	KindKubeClusterRole:               "clusterroles",
+	KindKubeRole:                      "roles",
+	KindKubeClusterRoleBinding:        "clusterrolebindings",
+	KindKubeRoleBinding:               "rolebindings",
+	KindKubeCronjob:                   "cronjobs",
+	KindKubeJob:                       "jobs",
+	KindKubeCertificateSigningRequest: "certificatesigningrequests",
+	KindKubeIngress:                   "ingresses",
+}
+
 const (
 	// KubeVerbGet is the Kubernetes verb for "get".
 	KubeVerbGet = "get"
@@ -1460,6 +1521,7 @@ var KubernetesVerbs = []string{
 
 // KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
 // that are not namespaced.
+// TODO(@creack): Remove in favor of proper lookup.
 var KubernetesClusterWideResourceKinds = []string{
 	KindKubeNamespace,
 	KindKubeNode,
@@ -1467,6 +1529,78 @@ var KubernetesClusterWideResourceKinds = []string{
 	KindKubeClusterRole,
 	KindKubeClusterRoleBinding,
 	KindKubeCertificateSigningRequest,
+}
+
+type groupKind = struct{ apiGroup, kind string }
+
+// KubernetesNamespacedResourceKinds is the list of known Kubernetes resource kinds
+// that are namespaced.
+// Generated from `kubectl api-resources --namespaced=true -o name --sort-by=name` (kind k8s v1.32.2).
+// (added .core to core resources.)
+// The format is "<plural>.<apigroup>".
+//
+// Only used in role >=v8 to attempt to validate the api_group field.
+// If we have a match, we know we need a namespaced value, if we don't
+// have a match, we don't know we don't. Best effort basis.
+var kubernetesNamespacedResourceKinds = map[groupKind]struct{}{
+	{"", "bindings"}:                                      {},
+	{"", "configmaps"}:                                    {},
+	{"apps", "controllerrevisions"}:                       {},
+	{"batch", "cronjobs"}:                                 {},
+	{"storage.k8s.io", "csistoragecapacities"}:            {},
+	{"apps", "daemonsets"}:                                {},
+	{"apps", "deployments"}:                               {},
+	{"", "endpoints"}:                                     {},
+	{"discovery.k8s.io", "endpointslices"}:                {},
+	{"events.k8s.io", "events"}:                           {},
+	{"", "events"}:                                        {},
+	{"autoscaling", "horizontalpodautoscalers"}:           {},
+	{"networking.k8s.io", "ingresses"}:                    {},
+	{"batch", "jobs"}:                                     {},
+	{"coordination.k8s.io", "leases"}:                     {},
+	{"", "limitranges"}:                                   {},
+	{"authorization.k8s.io", "localsubjectaccessreviews"}: {},
+	{"networking.k8s.io", "networkpolicies"}:              {},
+	{"", "persistentvolumeclaims"}:                        {},
+	{"policy", "poddisruptionbudgets"}:                    {},
+	{"", "pods"}:                                          {},
+	{"", "podtemplates"}:                                  {},
+	{"apps", "replicasets"}:                               {},
+	{"", "replicationcontrollers"}:                        {},
+	{"", "resourcequotas"}:                                {},
+	{"rbac.authorization.k8s.io", "rolebindings"}:         {},
+	{"rbac.authorization.k8s.io", "roles"}:                {},
+	{"", "secrets"}:                                       {},
+	{"", "serviceaccounts"}:                               {},
+	{"", "services"}:                                      {},
+	{"apps", "statefulsets"}:                              {},
+}
+
+// List of "" (core / legacy) resources.
+//
+// Used to validate the api_group field.
+//
+// Generated with:
+//
+//	(kubectl api-resources --api-group "" --output=name --namespaced=true && kubectl api-resources --api-group "" --output=name --namespaced=false) | sort
+var KubernetesCoreResourceKinds = map[string]struct{}{
+	"bindings":               {},
+	"componentstatuses":      {},
+	"configmaps":             {},
+	"endpoints":              {},
+	"events":                 {},
+	"limitranges":            {},
+	"namespaces":             {},
+	"nodes":                  {},
+	"persistentvolumeclaims": {},
+	"persistentvolumes":      {},
+	"pods":                   {},
+	"podtemplates":           {},
+	"replicationcontrollers": {},
+	"resourcequotas":         {},
+	"secrets":                {},
+	"serviceaccounts":        {},
+	"services":               {},
 }
 
 const (
