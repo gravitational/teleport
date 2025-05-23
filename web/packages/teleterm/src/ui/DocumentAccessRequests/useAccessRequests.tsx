@@ -104,6 +104,8 @@ export function makeUiAccessRequest(request: TshdAccessRequest) {
     suggestedReviewers: request.suggestedReviewers,
     thresholdNames: request.thresholdNames,
     resources: request.resources,
+    reasonMode: request.dryRunEnrichment?.reasonMode || 'optional',
+    reasonPrompts: request.dryRunEnrichment?.reasonPrompts || [],
   });
 }
 

@@ -71,9 +71,11 @@ type AccessRequest struct {
 	// approval).
 	RequestTtl *timestamppb.Timestamp `protobuf:"bytes,17,opt,name=request_ttl,json=requestTtl,proto3" json:"request_ttl,omitempty"`
 	// session_ttl indicates how long a certificate for a session should be valid for.
-	SessionTtl    *timestamppb.Timestamp `protobuf:"bytes,18,opt,name=session_ttl,json=sessionTtl,proto3" json:"session_ttl,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	SessionTtl *timestamppb.Timestamp `protobuf:"bytes,18,opt,name=session_ttl,json=sessionTtl,proto3" json:"session_ttl,omitempty"`
+	// dry_run_enrichment contains the extra info added in response to a dry run request.
+	DryRunEnrichment *AccessRequestDryRunEnrichment `protobuf:"bytes,19,opt,name=dry_run_enrichment,json=dryRunEnrichment,proto3" json:"dry_run_enrichment,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *AccessRequest) Reset() {
@@ -232,6 +234,69 @@ func (x *AccessRequest) GetSessionTtl() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *AccessRequest) GetDryRunEnrichment() *AccessRequestDryRunEnrichment {
+	if x != nil {
+		return x.DryRunEnrichment
+	}
+	return nil
+}
+
+// AccessRequestDryRunEnrichment contains the extra info added in a response to a dry run request.
+type AccessRequestDryRunEnrichment struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// reason_mode specifies the reason mode for this Access Request. It can be either "optional" or
+	// "required".
+	ReasonMode string `protobuf:"bytes,1,opt,name=reason_mode,json=reasonMode,proto3" json:"reason_mode,omitempty"`
+	// reason_prompts is a sorted and deduplicated list of reason prompts for this Access Request.
+	ReasonPrompts []string `protobuf:"bytes,2,rep,name=reason_prompts,json=reasonPrompts,proto3" json:"reason_prompts,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccessRequestDryRunEnrichment) Reset() {
+	*x = AccessRequestDryRunEnrichment{}
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccessRequestDryRunEnrichment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccessRequestDryRunEnrichment) ProtoMessage() {}
+
+func (x *AccessRequestDryRunEnrichment) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccessRequestDryRunEnrichment.ProtoReflect.Descriptor instead.
+func (*AccessRequestDryRunEnrichment) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_access_request_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *AccessRequestDryRunEnrichment) GetReasonMode() string {
+	if x != nil {
+		return x.ReasonMode
+	}
+	return ""
+}
+
+func (x *AccessRequestDryRunEnrichment) GetReasonPrompts() []string {
+	if x != nil {
+		return x.ReasonPrompts
+	}
+	return nil
+}
+
 type AccessRequestReview struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// author is the creator of the AccessRequestReview.
@@ -255,7 +320,7 @@ type AccessRequestReview struct {
 
 func (x *AccessRequestReview) Reset() {
 	*x = AccessRequestReview{}
-	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[1]
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -267,7 +332,7 @@ func (x *AccessRequestReview) String() string {
 func (*AccessRequestReview) ProtoMessage() {}
 
 func (x *AccessRequestReview) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[1]
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -280,7 +345,7 @@ func (x *AccessRequestReview) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessRequestReview.ProtoReflect.Descriptor instead.
 func (*AccessRequestReview) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_access_request_proto_rawDescGZIP(), []int{1}
+	return file_teleport_lib_teleterm_v1_access_request_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *AccessRequestReview) GetAuthor() string {
@@ -344,7 +409,7 @@ type ResourceID struct {
 
 func (x *ResourceID) Reset() {
 	*x = ResourceID{}
-	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[2]
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -356,7 +421,7 @@ func (x *ResourceID) String() string {
 func (*ResourceID) ProtoMessage() {}
 
 func (x *ResourceID) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[2]
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -369,7 +434,7 @@ func (x *ResourceID) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceID.ProtoReflect.Descriptor instead.
 func (*ResourceID) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_access_request_proto_rawDescGZIP(), []int{2}
+	return file_teleport_lib_teleterm_v1_access_request_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ResourceID) GetKind() string {
@@ -410,7 +475,7 @@ type ResourceDetails struct {
 
 func (x *ResourceDetails) Reset() {
 	*x = ResourceDetails{}
-	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[3]
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -422,7 +487,7 @@ func (x *ResourceDetails) String() string {
 func (*ResourceDetails) ProtoMessage() {}
 
 func (x *ResourceDetails) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[3]
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -435,7 +500,7 @@ func (x *ResourceDetails) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceDetails.ProtoReflect.Descriptor instead.
 func (*ResourceDetails) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_access_request_proto_rawDescGZIP(), []int{3}
+	return file_teleport_lib_teleterm_v1_access_request_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ResourceDetails) GetHostname() string {
@@ -462,7 +527,7 @@ type Resource struct {
 
 func (x *Resource) Reset() {
 	*x = Resource{}
-	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[4]
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -474,7 +539,7 @@ func (x *Resource) String() string {
 func (*Resource) ProtoMessage() {}
 
 func (x *Resource) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[4]
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -487,7 +552,7 @@ func (x *Resource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Resource.ProtoReflect.Descriptor instead.
 func (*Resource) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_access_request_proto_rawDescGZIP(), []int{4}
+	return file_teleport_lib_teleterm_v1_access_request_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Resource) GetId() *ResourceID {
@@ -508,7 +573,7 @@ var File_teleport_lib_teleterm_v1_access_request_proto protoreflect.FileDescript
 
 const file_teleport_lib_teleterm_v1_access_request_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/lib/teleterm/v1/access_request.proto\x12\x18teleport.lib.teleterm.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x85\a\n" +
+	"-teleport/lib/teleterm/v1/access_request.proto\x12\x18teleport.lib.teleterm.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xec\a\n" +
 	"\rAccessRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05state\x18\x02 \x01(\tR\x05state\x12%\n" +
@@ -530,7 +595,12 @@ const file_teleport_lib_teleterm_v1_access_request_proto_rawDesc = "" +
 	"\vrequest_ttl\x18\x11 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"requestTtl\x12;\n" +
 	"\vsession_ttl\x18\x12 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"sessionTtl\"\xac\x02\n" +
+	"sessionTtl\x12e\n" +
+	"\x12dry_run_enrichment\x18\x13 \x01(\v27.teleport.lib.teleterm.v1.AccessRequestDryRunEnrichmentR\x10dryRunEnrichment\"g\n" +
+	"\x1dAccessRequestDryRunEnrichment\x12\x1f\n" +
+	"\vreason_mode\x18\x01 \x01(\tR\n" +
+	"reasonMode\x12%\n" +
+	"\x0ereason_prompts\x18\x02 \x03(\tR\rreasonPrompts\"\xac\x02\n" +
 	"\x13AccessRequestReview\x12\x16\n" +
 	"\x06author\x18\x01 \x01(\tR\x06author\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x14\n" +
@@ -564,34 +634,36 @@ func file_teleport_lib_teleterm_v1_access_request_proto_rawDescGZIP() []byte {
 	return file_teleport_lib_teleterm_v1_access_request_proto_rawDescData
 }
 
-var file_teleport_lib_teleterm_v1_access_request_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_teleport_lib_teleterm_v1_access_request_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_lib_teleterm_v1_access_request_proto_goTypes = []any{
-	(*AccessRequest)(nil),         // 0: teleport.lib.teleterm.v1.AccessRequest
-	(*AccessRequestReview)(nil),   // 1: teleport.lib.teleterm.v1.AccessRequestReview
-	(*ResourceID)(nil),            // 2: teleport.lib.teleterm.v1.ResourceID
-	(*ResourceDetails)(nil),       // 3: teleport.lib.teleterm.v1.ResourceDetails
-	(*Resource)(nil),              // 4: teleport.lib.teleterm.v1.Resource
-	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
+	(*AccessRequest)(nil),                 // 0: teleport.lib.teleterm.v1.AccessRequest
+	(*AccessRequestDryRunEnrichment)(nil), // 1: teleport.lib.teleterm.v1.AccessRequestDryRunEnrichment
+	(*AccessRequestReview)(nil),           // 2: teleport.lib.teleterm.v1.AccessRequestReview
+	(*ResourceID)(nil),                    // 3: teleport.lib.teleterm.v1.ResourceID
+	(*ResourceDetails)(nil),               // 4: teleport.lib.teleterm.v1.ResourceDetails
+	(*Resource)(nil),                      // 5: teleport.lib.teleterm.v1.Resource
+	(*timestamppb.Timestamp)(nil),         // 6: google.protobuf.Timestamp
 }
 var file_teleport_lib_teleterm_v1_access_request_proto_depIdxs = []int32{
-	5,  // 0: teleport.lib.teleterm.v1.AccessRequest.created:type_name -> google.protobuf.Timestamp
-	5,  // 1: teleport.lib.teleterm.v1.AccessRequest.expires:type_name -> google.protobuf.Timestamp
-	1,  // 2: teleport.lib.teleterm.v1.AccessRequest.reviews:type_name -> teleport.lib.teleterm.v1.AccessRequestReview
-	2,  // 3: teleport.lib.teleterm.v1.AccessRequest.resource_ids:type_name -> teleport.lib.teleterm.v1.ResourceID
-	4,  // 4: teleport.lib.teleterm.v1.AccessRequest.resources:type_name -> teleport.lib.teleterm.v1.Resource
-	5,  // 5: teleport.lib.teleterm.v1.AccessRequest.assume_start_time:type_name -> google.protobuf.Timestamp
-	5,  // 6: teleport.lib.teleterm.v1.AccessRequest.max_duration:type_name -> google.protobuf.Timestamp
-	5,  // 7: teleport.lib.teleterm.v1.AccessRequest.request_ttl:type_name -> google.protobuf.Timestamp
-	5,  // 8: teleport.lib.teleterm.v1.AccessRequest.session_ttl:type_name -> google.protobuf.Timestamp
-	5,  // 9: teleport.lib.teleterm.v1.AccessRequestReview.created:type_name -> google.protobuf.Timestamp
-	5,  // 10: teleport.lib.teleterm.v1.AccessRequestReview.assume_start_time:type_name -> google.protobuf.Timestamp
-	2,  // 11: teleport.lib.teleterm.v1.Resource.id:type_name -> teleport.lib.teleterm.v1.ResourceID
-	3,  // 12: teleport.lib.teleterm.v1.Resource.details:type_name -> teleport.lib.teleterm.v1.ResourceDetails
-	13, // [13:13] is the sub-list for method output_type
-	13, // [13:13] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	6,  // 0: teleport.lib.teleterm.v1.AccessRequest.created:type_name -> google.protobuf.Timestamp
+	6,  // 1: teleport.lib.teleterm.v1.AccessRequest.expires:type_name -> google.protobuf.Timestamp
+	2,  // 2: teleport.lib.teleterm.v1.AccessRequest.reviews:type_name -> teleport.lib.teleterm.v1.AccessRequestReview
+	3,  // 3: teleport.lib.teleterm.v1.AccessRequest.resource_ids:type_name -> teleport.lib.teleterm.v1.ResourceID
+	5,  // 4: teleport.lib.teleterm.v1.AccessRequest.resources:type_name -> teleport.lib.teleterm.v1.Resource
+	6,  // 5: teleport.lib.teleterm.v1.AccessRequest.assume_start_time:type_name -> google.protobuf.Timestamp
+	6,  // 6: teleport.lib.teleterm.v1.AccessRequest.max_duration:type_name -> google.protobuf.Timestamp
+	6,  // 7: teleport.lib.teleterm.v1.AccessRequest.request_ttl:type_name -> google.protobuf.Timestamp
+	6,  // 8: teleport.lib.teleterm.v1.AccessRequest.session_ttl:type_name -> google.protobuf.Timestamp
+	1,  // 9: teleport.lib.teleterm.v1.AccessRequest.dry_run_enrichment:type_name -> teleport.lib.teleterm.v1.AccessRequestDryRunEnrichment
+	6,  // 10: teleport.lib.teleterm.v1.AccessRequestReview.created:type_name -> google.protobuf.Timestamp
+	6,  // 11: teleport.lib.teleterm.v1.AccessRequestReview.assume_start_time:type_name -> google.protobuf.Timestamp
+	3,  // 12: teleport.lib.teleterm.v1.Resource.id:type_name -> teleport.lib.teleterm.v1.ResourceID
+	4,  // 13: teleport.lib.teleterm.v1.Resource.details:type_name -> teleport.lib.teleterm.v1.ResourceDetails
+	14, // [14:14] is the sub-list for method output_type
+	14, // [14:14] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_access_request_proto_init() }
@@ -605,7 +677,7 @@ func file_teleport_lib_teleterm_v1_access_request_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_access_request_proto_rawDesc), len(file_teleport_lib_teleterm_v1_access_request_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
