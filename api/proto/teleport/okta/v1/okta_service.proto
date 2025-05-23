@@ -134,6 +134,10 @@ message CreateIntegrationRequest {
   // in turn will disable JIT Access Requests. Makes sense only when apps and groups sync is
   // enabled.
   bool enable_bidirectional_sync = 10;
+  // Enable Okta system log export.
+  bool enable_system_log_export = 11;
+  // Whether to assign the builtin okta-requester role to all Okta synced users.
+  bool disable_assign_default_roles = 12;
 }
 
 // UpdateIntegrationRequest is the request message for updating an existing Okta integration.
@@ -158,6 +162,10 @@ message UpdateIntegrationRequest {
   // in turn will disable JIT Access Requests. Makes sense only when apps and groups sync is
   // enabled.
   bool enable_bidirectional_sync = 10;
+  // Enable Okta system log export.
+  bool enable_system_log_export = 11;
+  // Whether to assign the builtin okta-requester role to all Okta synced users.
+  bool disable_assign_default_roles = 12;
 }
 
 // AccessListSettings contains the settings for access list synchronization.
