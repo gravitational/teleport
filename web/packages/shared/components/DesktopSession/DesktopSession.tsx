@@ -91,7 +91,7 @@ export function DesktopSession({
   desktop,
   hasAnotherSession,
   customConnectionState,
-  keyboardLayout = 0,
+  keyboardLayout = 0x00020409, // US International by default
 }: DesktopSessionProps) {
   const {
     directorySharingState,
