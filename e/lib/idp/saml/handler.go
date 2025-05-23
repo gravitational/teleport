@@ -14,6 +14,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -148,6 +149,8 @@ func (s *Service) authorize(r *http.Request, sp types.SAMLIdPServiceProvider) (*
 		// before the final assertion is signed.
 		accessState.MFAVerified = true
 	}
+	accessState.EnableDeviceVerification = true
+	accessState.DeviceVerified = dtauthz.IsTLSDeviceVerified(&identity.DeviceExtensions)
 
 	if err := authCtx.CheckAccessToKind(
 		types.KindSAMLIdPServiceProvider,

@@ -470,11 +470,13 @@ func TestIdPInitiatedSSOWithRBAC(t *testing.T) {
 	require.NoError(t, env.testServices.SPService.CreateSAMLIdPServiceProvider(ctx, sp1))
 
 	tests := []struct {
-		name             string
-		allow            types.RoleConditions
-		deny             types.RoleConditions
-		httpStatus       int
-		authAttemptEvent func(*apievents.SAMLIdPAuthAttempt)
+		name               string
+		allow              types.RoleConditions
+		deny               types.RoleConditions
+		options            types.RoleOptions
+		isDeviceAuthorized bool
+		httpStatus         int
+		authAttemptEvent   func(*apievents.SAMLIdPAuthAttempt)
 	}{
 		{
 			name:       "without app label",
@@ -527,6 +529,52 @@ func TestIdPInitiatedSSOWithRBAC(t *testing.T) {
 				require.Equal(t, sp1.GetEntityID(), event.ServiceProviderEntityID)
 			},
 		},
+		{
+			name: "with device trust required and no authorized device",
+			allow: types.RoleConditions{
+				AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindSAMLIdPServiceProvider},
+						Verbs:     services.RO(),
+					},
+				},
+			},
+			options: types.RoleOptions{
+				DeviceTrustMode: "required",
+			},
+			isDeviceAuthorized: false,
+			httpStatus:         http.StatusForbidden,
+			authAttemptEvent: func(event *apievents.SAMLIdPAuthAttempt) {
+				require.False(t, event.Success)
+				require.Equal(t, user.Username, event.User)
+				require.Contains(t, event.Error, "requires a trusted device")
+				require.Equal(t, sp1.GetEntityID(), event.ServiceProviderEntityID)
+			},
+		},
+		{
+			name: "with device trust required and authorized device",
+			allow: types.RoleConditions{
+				AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindSAMLIdPServiceProvider},
+						Verbs:     services.RO(),
+					},
+				},
+			},
+			options: types.RoleOptions{
+				DeviceTrustMode: "required",
+			},
+			isDeviceAuthorized: true,
+			httpStatus:         http.StatusOK,
+			authAttemptEvent: func(event *apievents.SAMLIdPAuthAttempt) {
+				require.True(t, event.Success)
+				require.Equal(t, user.Username, event.User)
+				require.Empty(t, event.Error)
+				require.Equal(t, sp1.GetEntityID(), event.ServiceProviderEntityID)
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -537,8 +585,16 @@ func TestIdPInitiatedSSOWithRBAC(t *testing.T) {
 			role.SetRules(types.Allow, test.allow.Rules)
 			role.SetRules(types.Deny, test.deny.Rules)
 			role.SetAppLabels(types.Allow, test.allow.AppLabels)
+			role.SetOptions(test.options)
 			_, err = env.testServices.AccessService.UpsertRole(ctx, role)
 			require.NoError(t, err)
+			if test.isDeviceAuthorized {
+				user.Identity.DeviceExtensions = tlsca.DeviceExtensions{
+					DeviceID:     "abc123",
+					AssetTag:     "abc123",
+					CredentialID: "abc123",
+				}
+			}
 
 			w := httptest.NewRecorder()
 			// try with Get
@@ -581,11 +637,13 @@ func TestSPInitiatedSSOWithRBAC(t *testing.T) {
 	require.NoError(t, env.testServices.SPService.CreateSAMLIdPServiceProvider(ctx, sp1))
 
 	tests := []struct {
-		name             string
-		allow            types.RoleConditions
-		deny             types.RoleConditions
-		httpStatus       int
-		authAttemptEvent func(*apievents.SAMLIdPAuthAttempt)
+		name               string
+		allow              types.RoleConditions
+		deny               types.RoleConditions
+		options            types.RoleOptions
+		isDeviceAuthorized bool
+		httpStatus         int
+		authAttemptEvent   func(*apievents.SAMLIdPAuthAttempt)
 	}{
 		{
 			name:       "without app label and saml_idp_service_provider resource read verb",
@@ -638,6 +696,52 @@ func TestSPInitiatedSSOWithRBAC(t *testing.T) {
 				require.Equal(t, sp1.GetEntityID(), event.ServiceProviderEntityID)
 			},
 		},
+		{
+			name: "with device trust required and no authorized device",
+			allow: types.RoleConditions{
+				AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindSAMLIdPServiceProvider},
+						Verbs:     services.RO(),
+					},
+				},
+			},
+			options: types.RoleOptions{
+				DeviceTrustMode: "required",
+			},
+			isDeviceAuthorized: false,
+			httpStatus:         http.StatusForbidden,
+			authAttemptEvent: func(event *apievents.SAMLIdPAuthAttempt) {
+				require.False(t, event.Success)
+				require.Equal(t, user.Username, event.User)
+				require.Contains(t, event.Error, "requires a trusted device")
+				require.Equal(t, sp1.GetEntityID(), event.ServiceProviderEntityID)
+			},
+		},
+		{
+			name: "with device trust required and authorized device",
+			allow: types.RoleConditions{
+				AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindSAMLIdPServiceProvider},
+						Verbs:     services.RO(),
+					},
+				},
+			},
+			options: types.RoleOptions{
+				DeviceTrustMode: "required",
+			},
+			isDeviceAuthorized: true,
+			httpStatus:         http.StatusOK,
+			authAttemptEvent: func(event *apievents.SAMLIdPAuthAttempt) {
+				require.True(t, event.Success)
+				require.Equal(t, user.Username, event.User)
+				require.Empty(t, event.Error)
+				require.Equal(t, sp1.GetEntityID(), event.ServiceProviderEntityID)
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -649,8 +753,16 @@ func TestSPInitiatedSSOWithRBAC(t *testing.T) {
 			role.SetRules(types.Allow, test.allow.Rules)
 			role.SetRules(types.Deny, test.deny.Rules)
 			role.SetAppLabels(types.Allow, test.allow.AppLabels)
+			role.SetOptions(test.options)
 			_, err = env.testServices.AccessService.UpsertRole(ctx, role)
 			require.NoError(t, err)
+			if test.isDeviceAuthorized {
+				user.Identity.DeviceExtensions = tlsca.DeviceExtensions{
+					DeviceID:     "abc123",
+					AssetTag:     "abc123",
+					CredentialID: "abc123",
+				}
+			}
 
 			authnRequest := saml.AuthnRequest{
 				ID:           "auth-id",
