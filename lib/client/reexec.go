@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -91,6 +92,9 @@ func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 		// The child process will write to the pipe when it has authenticated
 		// and is ready to be disowned.
 		_, err := cmd.disownSignal.Read(make([]byte, 1))
+		if errors.Is(err, io.EOF) {
+			err = nil
+		}
 		if err == nil {
 			disownReady <- nil
 		}
