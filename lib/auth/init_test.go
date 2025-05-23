@@ -215,9 +215,6 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 	setupInitConfig := func(t *testing.T, capOrigin string, fips, hsm bool) InitConfig {
 		cfg := setupConfig(t)
 		cfg.FIPS = fips
-		if hsm {
-			cfg.KeyStoreConfig = keystore.HSMTestConfig(t)
-		}
 		cfg.AuthPreference.SetOrigin(capOrigin)
 		if capOrigin != types.OriginDefaults {
 			cfg.AuthPreference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED)
