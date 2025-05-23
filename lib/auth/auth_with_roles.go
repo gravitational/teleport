@@ -7414,7 +7414,7 @@ func (a *ServerWithRoles) ListUserGroups(ctx context.Context, pageSize int, next
 		return filteredUserGroups, "", nil
 	}
 
-	return filteredUserGroups[:pageSize], backend.NextPaginationKey(filteredUserGroups[pageSize-1]), nil
+	return filteredUserGroups[:pageSize], filteredUserGroups[pageSize-1].GetName(), nil
 }
 
 // GetUserGroup returns the specified user group resources.
