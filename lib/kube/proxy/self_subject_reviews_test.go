@@ -261,11 +261,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 					},
 				},
 			},
-			// TODO(@creack): Reverse this back to true once we implement proper
-			// lookup to know if a resource is namespaced or not.
-			// Currently, as we rely on a hard-coded list, we can't grant access to unknown
-			// resources at the namespace level.
-			want: false,
+			want: true,
 		},
 		{
 			name: "user without namespace access to custom resource in namespace=namespace",

@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 
@@ -34,6 +35,34 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 )
 
+// metaResource wraps the various representations of a Kubernetes resource.
+type metaResource struct {
+	resourceDefinition *metav1.APIResource // Resource definition data from the schema.
+	requestedResource  apiResource         // User input, based on URL.
+	verb               string              // Verb of the user request.
+}
+
+func (mr *metaResource) isClusterWideResource() bool {
+	if mr == nil || mr.resourceDefinition == nil {
+		return false
+	}
+	return !mr.resourceDefinition.Namespaced
+}
+
+func (mr *metaResource) rbacResource() *types.KubernetesResource {
+	if mr == nil || mr.resourceDefinition == nil {
+		return nil
+	}
+	return &types.KubernetesResource{
+		Kind:      mr.resourceDefinition.Name,
+		Namespace: mr.requestedResource.namespace,
+		Name:      mr.requestedResource.resourceName,
+		Verbs:     []string{mr.verb},
+		APIGroup:  mr.requestedResource.apiGroup,
+	}
+}
+
+// apiResource represents the resource requested by the user.
 type apiResource struct {
 	apiGroup        string
 	apiGroupVersion string
@@ -164,95 +193,101 @@ type allowedResourcesKey struct {
 	resourceKind string
 }
 
-type rbacSupportedResources map[allowedResourcesKey]string
+type rbacSupportedResources map[allowedResourcesKey]metav1.APIResource
 
 // getResourceWithKey returns the teleport resource kind for a given resource key if
 // it exists, otherwise returns an empty string.
-func (r rbacSupportedResources) getResourceWithKey(k allowedResourcesKey) string {
-	if plural, ok := types.KubernetesResourcesKindsPlurals[r[k]]; ok {
-		return plural
+func (r rbacSupportedResources) getResource(apiGroup, resourceKind string) (metav1.APIResource, bool) {
+	k := allowedResourcesKey{
+		apiGroup:     apiGroup,
+		resourceKind: getResourceFromAPIResource(resourceKind),
 	}
-	return r[k]
+	out, ok := r[k]
+	return out, ok
 }
 
 func (r rbacSupportedResources) getTeleportResourceKindFromAPIResource(api apiResource) (string, bool) {
 	resource := getResourceFromAPIResource(api.resourceKind)
 	resourceType, ok := r[allowedResourcesKey{apiGroup: api.apiGroup, resourceKind: resource}]
-	return resourceType, ok
+	return resourceType.Kind, ok
 }
 
 // defaultRBACResources is a map of supported resources and their corresponding
 // teleport resource kind for the purpose of resource rbac.
 // TODO(@creack): Remove this (keep a form of it for maybedowngraderole).
 var defaultRBACResources = rbacSupportedResources{
-	{apiGroup: "", resourceKind: "pods"}:                                          types.KindKubePod,
-	{apiGroup: "", resourceKind: "secrets"}:                                       types.KindKubeSecret,
-	{apiGroup: "", resourceKind: "configmaps"}:                                    types.KindKubeConfigmap,
-	{apiGroup: "", resourceKind: "namespaces"}:                                    types.KindKubeNamespace,
-	{apiGroup: "", resourceKind: "services"}:                                      types.KindKubeService,
-	{apiGroup: "", resourceKind: "endpoints"}:                                     types.KindKubeService,
-	{apiGroup: "", resourceKind: "serviceaccounts"}:                               types.KindKubeServiceAccount,
-	{apiGroup: "", resourceKind: "nodes"}:                                         types.KindKubeNode,
-	{apiGroup: "", resourceKind: "persistentvolumes"}:                             types.KindKubePersistentVolume,
-	{apiGroup: "", resourceKind: "persistentvolumeclaims"}:                        types.KindKubePersistentVolumeClaim,
-	{apiGroup: "", resourceKind: "replicationcontrollers"}:                        types.KindKubeReplicationController,
-	{apiGroup: "apps", resourceKind: "deployments"}:                               types.KindKubeDeployment,
-	{apiGroup: "apps", resourceKind: "replicasets"}:                               types.KindKubeReplicaSet,
-	{apiGroup: "apps", resourceKind: "statefulsets"}:                              types.KindKubeStatefulset,
-	{apiGroup: "apps", resourceKind: "daemonsets"}:                                types.KindKubeDaemonSet,
-	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterroles"}:         types.KindKubeClusterRole,
-	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "roles"}:                types.KindKubeRole,
-	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterrolebindings"}:  types.KindKubeClusterRoleBinding,
-	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "rolebindings"}:         types.KindKubeRoleBinding,
-	{apiGroup: "batch", resourceKind: "cronjobs"}:                                 types.KindKubeCronjob,
-	{apiGroup: "batch", resourceKind: "jobs"}:                                     types.KindKubeJob,
-	{apiGroup: "certificates.k8s.io", resourceKind: "certificatesigningrequests"}: types.KindKubeCertificateSigningRequest,
-	{apiGroup: "networking.k8s.io", resourceKind: "ingresses"}:                    types.KindKubeIngress,
-	{apiGroup: "extensions", resourceKind: "deployments"}:                         types.KindKubeDeployment,
-	{apiGroup: "extensions", resourceKind: "replicasets"}:                         types.KindKubeReplicaSet,
-	{apiGroup: "extensions", resourceKind: "daemonsets"}:                          types.KindKubeDaemonSet,
-	{apiGroup: "extensions", resourceKind: "ingresses"}:                           types.KindKubeIngress,
+	{apiGroup: "", resourceKind: "pods"}:                                          {Name: "pods", Kind: types.KindKubePod, Group: "", Namespaced: true},
+	{apiGroup: "", resourceKind: "secrets"}:                                       {Name: "secrets", Kind: types.KindKubeSecret, Group: "", Namespaced: true},
+	{apiGroup: "", resourceKind: "configmaps"}:                                    {Name: "configmaps", Kind: types.KindKubeConfigmap, Group: "", Namespaced: true},
+	{apiGroup: "", resourceKind: "namespaces"}:                                    {Name: "namespaces", Kind: types.KindKubeNamespace, Group: "", Namespaced: true},
+	{apiGroup: "", resourceKind: "services"}:                                      {Name: "services", Kind: types.KindKubeService, Group: "", Namespaced: true},
+	{apiGroup: "", resourceKind: "endpoints"}:                                     {Name: "endpoints", Kind: types.KindKubeService, Group: "", Namespaced: true},
+	{apiGroup: "", resourceKind: "serviceaccounts"}:                               {Name: "serviceaccounts", Kind: types.KindKubeServiceAccount, Group: "", Namespaced: true},
+	{apiGroup: "", resourceKind: "nodes"}:                                         {Name: "nodes", Kind: types.KindKubeNode, Group: "", Namespaced: false},
+	{apiGroup: "", resourceKind: "persistentvolumes"}:                             {Name: "persistentvolumes", Kind: types.KindKubePersistentVolume, Group: "", Namespaced: false},
+	{apiGroup: "", resourceKind: "persistentvolumeclaims"}:                        {Name: "persistentvolumeclaims", Kind: types.KindKubePersistentVolumeClaim, Group: "", Namespaced: true},
+	{apiGroup: "", resourceKind: "replicationcontrollers"}:                        {Name: "replicationcontrollers", Kind: types.KindKubeReplicationController, Group: "", Namespaced: true},
+	{apiGroup: "apps", resourceKind: "deployments"}:                               {Name: "deployments", Kind: types.KindKubeDeployment, Group: "apps", Namespaced: true},
+	{apiGroup: "apps", resourceKind: "replicasets"}:                               {Name: "replicasets", Kind: types.KindKubeReplicaSet, Group: "apps", Namespaced: true},
+	{apiGroup: "apps", resourceKind: "statefulsets"}:                              {Name: "statefulsets", Kind: types.KindKubeStatefulset, Group: "apps", Namespaced: true},
+	{apiGroup: "apps", resourceKind: "daemonsets"}:                                {Name: "daemonsets", Kind: types.KindKubeDaemonSet, Group: "apps", Namespaced: true},
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterroles"}:         {Name: "clusterroles", Kind: types.KindKubeClusterRole, Group: "rbac.authorization.k8s.io", Namespaced: false},
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "roles"}:                {Name: "roles", Kind: types.KindKubeRole, Group: "rbac.authorization.k8s.io", Namespaced: true},
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterrolebindings"}:  {Name: "clusterrolebindings", Kind: types.KindKubeClusterRoleBinding, Group: "rbac.authorization.k8s.io", Namespaced: false},
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "rolebindings"}:         {Name: "rolebindings", Kind: types.KindKubeRoleBinding, Group: "rbac.authorization.k8s.io", Namespaced: true},
+	{apiGroup: "batch", resourceKind: "cronjobs"}:                                 {Name: "cronjobs", Kind: types.KindKubeCronjob, Group: "batch", Namespaced: true},
+	{apiGroup: "batch", resourceKind: "jobs"}:                                     {Name: "jobs", Kind: types.KindKubeJob, Group: "batch", Namespaced: true},
+	{apiGroup: "certificates.k8s.io", resourceKind: "certificatesigningrequests"}: {Name: "certificatesigningrequests", Kind: types.KindKubeCertificateSigningRequest, Group: "certificates.k8s.io", Namespaced: false},
+	{apiGroup: "networking.k8s.io", resourceKind: "ingresses"}:                    {Name: "ingresses", Kind: types.KindKubeIngress, Group: "networking.k8s.io", Namespaced: true},
+	{apiGroup: "extensions", resourceKind: "deployments"}:                         {Name: "deployments", Kind: types.KindKubeDeployment, Group: "extensions", Namespaced: true},
+	{apiGroup: "extensions", resourceKind: "replicasets"}:                         {Name: "replicasets", Kind: types.KindKubeReplicaSet, Group: "extensions", Namespaced: true},
+	{apiGroup: "extensions", resourceKind: "daemonsets"}:                          {Name: "daemonsets", Kind: types.KindKubeDaemonSet, Group: "extensions", Namespaced: true},
+	{apiGroup: "extensions", resourceKind: "ingresses"}:                           {Name: "ingresses", Kind: types.KindKubeIngress, Group: "extensions", Namespaced: true},
 }
 
 // getResourceFromRequest returns a KubernetesResource if the user tried to access
 // a specific endpoint that Teleport support resource filtering. Otherwise, returns nil.
-func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (*types.KubernetesResource, apiResource, error) {
+func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaResource, error) {
 	apiResource := parseResourcePath(req.URL.Path)
-	verb := apiResource.getVerb(req)
+
+	out := metaResource{
+		requestedResource: apiResource,
+		verb:              apiResource.getVerb(req),
+	}
 	if kubeDetails == nil {
-		return nil, apiResource, nil
+		return out, nil
 	}
 
 	codecFactory, rbacSupportedTypes, err := kubeDetails.getClusterSupportedResources()
 	if err != nil {
-		return nil, apiResource, trace.Wrap(err)
+		return out, trace.Wrap(err)
 	}
 
-	resourceType, ok := rbacSupportedTypes.getTeleportResourceKindFromAPIResource(apiResource)
-	switch {
-	case !ok:
-		// if the resource is not supported, return nil.
-		return nil, apiResource, nil
-	case apiResource.resourceName == "" && verb != types.KubeVerbCreate:
+	resource, ok := rbacSupportedTypes.getResource(apiResource.apiGroup, apiResource.resourceKind)
+	if !ok {
+		// TODO(@creack): Change this behavior, unsupported resource should be rejected.
+		// If the resource is not supported, return nil.
+		return out, nil
+	}
+
+	if apiResource.resourceName == "" && out.verb != types.KubeVerbCreate {
 		// if the resource is supported but the resource name is not present and not a create request,
 		// return nil because it's a list request.
-		return nil, apiResource, nil
-
-	case apiResource.resourceName == "" && verb == types.KubeVerbCreate:
-		// If the request is a create request, extract the resource name from the request body.
-		var err error
-		if apiResource.resourceName, err = extractResourceNameFromPostRequest(req, codecFactory, kubeDetails.getObjectGVK(apiResource)); err != nil {
-			return nil, apiResource, trace.Wrap(err)
-		}
+		return out, nil
 	}
 
-	return &types.KubernetesResource{
-		Kind:      resourceType,
-		Namespace: apiResource.namespace,
-		Name:      apiResource.resourceName,
-		Verbs:     []string{verb},
-		APIGroup:  apiResource.apiGroup,
-	}, apiResource, nil
+	if apiResource.resourceName == "" && out.verb == types.KubeVerbCreate {
+		// If the request is a create request, extract the resource name from the request body.
+		resourceName, err := extractResourceNameFromPostRequest(req, codecFactory, kubeDetails.getObjectGVK(apiResource))
+		if err != nil {
+			return out, trace.Wrap(err)
+		}
+		apiResource.resourceName = resourceName
+		out.requestedResource = apiResource
+	}
+	out.resourceDefinition = &resource
+
+	return out, nil
 }
 
 // extractResourceNameFromPostRequest extracts the resource name from a POST body.

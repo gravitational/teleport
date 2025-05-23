@@ -173,8 +173,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		}
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			o.GetAPIVersion(),
 			slices.ToPointers(list.Items),
 			deleteOptions,
@@ -218,8 +218,8 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		}
 		items, err := deleteResources(
 			params,
-			sess.apiResource.resourceKind,
-			sess.apiResource.apiGroup,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			apiVersion,
 			objs,
 			deleteOptions,
@@ -317,6 +317,7 @@ func deleteResources[T kubeObjectInterface](
 			),
 			services.NewKubernetesResourceMatcher(
 				getKubeResource(kind, group, types.KubeVerbDeleteCollection, item),
+				params.authCtx.metaResource.isClusterWideResource(),
 			),
 		)
 		// no match was found, we ignore the request.
