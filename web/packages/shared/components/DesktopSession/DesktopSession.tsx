@@ -34,6 +34,7 @@ import {
   CanvasRenderer,
   CanvasRendererRef,
 } from 'shared/components/CanvasRenderer';
+import { Latency } from 'shared/components/LatencyDiagnostic';
 import {
   Attempt,
   makeEmptyAttempt,
@@ -61,7 +62,9 @@ import useDesktopSession, {
 
 export interface DesktopSessionProps {
   client: TdpClient;
+  /** Username for display purposes. */
   username: string;
+  /** Desktop name for display purposes. */
   desktop: string;
   aclAttempt: Attempt<{
     clipboardSharingEnabled: boolean;
@@ -141,7 +144,7 @@ export function DesktopSession({
       setTdpConnectionStatus({
         status: 'disconnected',
         fromTdpError: error instanceof TdpError,
-        message: error.message || error.toString(),
+        message: error.message,
       });
       initialTdpConnectionSucceeded.current = false;
     },
@@ -180,7 +183,7 @@ export function DesktopSession({
       error => {
         setTdpConnectionStatus({
           status: 'disconnected',
-          message: error?.message || error?.toString(),
+          message: error?.message,
         });
         initialTdpConnectionSucceeded.current = false;
       },
@@ -217,6 +220,17 @@ export function DesktopSession({
   );
   useListener(client.onReset, canvasRendererRef.current?.clear);
   useListener(client.onScreenSpec, canvasRendererRef.current?.setResolution);
+
+  const [latencyStats, setLatencyStats] = useState<Latency | undefined>();
+  useListener(
+    client.onLatencyStats,
+    useCallback(stats => {
+      setLatencyStats({
+        client: stats.client,
+        server: stats.server,
+      });
+    }, [])
+  );
 
   const shouldConnect =
     aclAttempt.status === 'success' &&
@@ -358,6 +372,7 @@ export function DesktopSession({
         onCtrlAltDel={handleCtrlAltDel}
         alerts={alerts}
         onRemoveAlert={onRemoveAlert}
+        latency={latencyStats}
       />
 
       {/* The UI states below (except the loading indicator) take up space.*/}

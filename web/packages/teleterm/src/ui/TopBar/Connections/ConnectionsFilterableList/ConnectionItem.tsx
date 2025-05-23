@@ -166,6 +166,8 @@ function getKindName(connection: ExtendedTrackedConnection): string {
       return 'SSH';
     case 'connection.kube':
       return 'KUBE';
+    case 'connection.desktop':
+      return 'DESKTOP';
     default:
       return 'UNKNOWN';
   }

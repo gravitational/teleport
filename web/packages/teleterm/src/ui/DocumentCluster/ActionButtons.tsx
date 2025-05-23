@@ -28,6 +28,7 @@ import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
 import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
+import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 import {
   MenuInputType,
@@ -50,6 +51,7 @@ import {
   connectToDatabase,
   connectToKube,
   connectToServer,
+  connectToWindowsDesktop,
   setUpAppGateway,
 } from 'teleterm/ui/services/workspacesService';
 import { IAppContext } from 'teleterm/ui/types';
@@ -403,5 +405,41 @@ export function AccessRequestButton(props: {
     >
       {props.requestStarted ? '+ Add to request' : '+ Request access'}
     </ButtonBorder>
+  );
+}
+
+export function ConnectWindowsDesktopActionButton(props: {
+  windowsDesktop: WindowsDesktop;
+}): React.JSX.Element {
+  const appContext = useAppContext();
+
+  function connect(login: string): void {
+    const { uri } = props.windowsDesktop;
+    void connectToWindowsDesktop(
+      appContext,
+      { uri, login },
+      { origin: 'resource_table' }
+    );
+  }
+
+  return (
+    <MenuLogin
+      textTransform="none"
+      width="195px"
+      getLoginItems={() =>
+        props.windowsDesktop.logins.map(l => ({ login: l, url: '' }))
+      }
+      onSelect={(_, user) => {
+        connect(user);
+      }}
+      transformOrigin={{
+        vertical: 'top',
+        horizontal: 'right',
+      }}
+      anchorOrigin={{
+        vertical: 'bottom',
+        horizontal: 'right',
+      }}
+    />
   );
 }
