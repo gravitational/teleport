@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"iter"
 	"slices"
 	"strings"
 	"time"
@@ -42,6 +43,16 @@ type SessionRecordingConfig interface {
 
 	// SetProxyChecksHostKeys sets if the proxy will check host keys.
 	SetProxyChecksHostKeys(bool)
+
+	// GetEncrypted gets if session recordings should be encrypted or not.
+	GetEncrypted() bool
+
+	// GetStatus gets the status for session recording config
+	GetStatus() SessionRecordingConfigStatus
+
+	// SetEncryptionKeys sets the encryption keys for the session recording config.
+	// It returns true if there was a change applied and false otherwise.
+	SetEncryptionKeys(iter.Seq[*AgeEncryptionKey]) bool
 
 	// Clone returns a copy of the resource.
 	Clone() SessionRecordingConfig
@@ -161,6 +172,50 @@ func (c *SessionRecordingConfigV2) GetProxyChecksHostKeys() bool {
 // SetProxyChecksHostKeys sets if the proxy will check host keys.
 func (c *SessionRecordingConfigV2) SetProxyChecksHostKeys(t bool) {
 	c.Spec.ProxyChecksHostKeys = NewBoolOption(t)
+}
+
+// GetEncrypted gets if session recordings should be encrypted or not.
+func (c *SessionRecordingConfigV2) GetEncrypted() bool {
+	encryption := c.Spec.Encryption
+	if encryption == nil {
+		return false
+	}
+
+	return encryption.Enabled
+}
+
+// GetStatus gets if session recordings should be encrypted or not.
+func (c *SessionRecordingConfigV2) GetStatus() SessionRecordingConfigStatus {
+	return c.Status
+}
+
+// SetEncryptionKeys sets the cluster's session recording status.
+func (c *SessionRecordingConfigV2) SetEncryptionKeys(keys iter.Seq[*AgeEncryptionKey]) bool {
+	existingKeys := make(map[string]struct{})
+	for _, key := range c.GetStatus().EncryptionKeys {
+		existingKeys[string(key.PublicKey)] = struct{}{}
+	}
+
+	var keysChanged bool
+	var newKeys []*AgeEncryptionKey
+	addedKeys := make(map[string]struct{})
+	for key := range keys {
+		if _, exists := existingKeys[string(key.PublicKey)]; !exists {
+			keysChanged = true
+		}
+
+		if _, added := addedKeys[string(key.PublicKey)]; !added {
+			addedKeys[string(key.PublicKey)] = struct{}{}
+			newKeys = append(newKeys, key)
+		}
+
+	}
+
+	c.Status = SessionRecordingConfigStatus{
+		EncryptionKeys: newKeys,
+	}
+
+	return keysChanged || len(existingKeys) != len(addedKeys)
 }
 
 // Clone returns a copy of the resource.
