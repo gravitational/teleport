@@ -41,7 +41,7 @@ type ForkAuthenticateParams struct {
 
 type forkAuthCmd struct {
 	*exec.Cmd
-	disownSignal io.ReadCloser
+	disownSignal *os.File
 }
 
 // RunForkAuthenticate re-execs the current executable and waits for any of
@@ -63,14 +63,12 @@ func buildForkAuthenticateCommand(params ForkAuthenticateParams) (*forkAuthCmd, 
 		return nil, trace.Wrap(err)
 	}
 	cmd := exec.Command(executable)
-	// Prevent unfinished IO from blocking the child's exit.
-	cmd.WaitDelay = 3 * time.Second
 	// Set up disown signal.
 	signalR, signalW, err := os.Pipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signalFd := addSignalFdToChild(cmd, signalW)
+	signalFd := configureReexecForOS(cmd, signalW)
 
 	cmd.Args = append(cmd.Args, params.GetArgs(signalFd)...)
 	cmd.Stdin = params.Stdin
@@ -84,17 +82,34 @@ func buildForkAuthenticateCommand(params ForkAuthenticateParams) (*forkAuthCmd, 
 }
 
 func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	defer cmd.disownSignal.Close()
 	disownReady := make(chan error, 1)
 	go func() {
-		// The child process will close the pipe when it has authenticated
+		// The child process will write to the pipe when it has authenticated
 		// and is ready to be disowned.
 		_, err := cmd.disownSignal.Read(make([]byte, 1))
-		disownReady <- err
+		if err == nil {
+			disownReady <- nil
+		}
+		// Error was likely caused by the child process exiting. Wait for Wait() to
+		// return the exit status if possible.
+		select {
+		case <-runCtx.Done():
+		case <-time.After(3 * time.Second):
+			disownReady <- err
+		}
 	}()
 
 	if err := cmd.Start(); err != nil {
 		return trace.Wrap(err)
+	}
+	for _, file := range cmd.ExtraFiles {
+		if err := file.Close(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	childFinished := make(chan error, 1)
 	go func() {
@@ -106,10 +121,10 @@ func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 		return trace.Wrap(err)
 	case err := <-disownReady:
 		return trace.Wrap(err)
-	case <-ctx.Done():
+	case <-runCtx.Done():
 		if err := cmd.Process.Kill(); err != nil {
 			return trace.Wrap(err)
 		}
-		return trace.Wrap(ctx.Err())
+		return trace.Wrap(runCtx.Err())
 	}
 }

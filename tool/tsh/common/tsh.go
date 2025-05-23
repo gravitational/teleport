@@ -630,8 +630,6 @@ type CLIConf struct {
 	// forkSignalFd is the file descriptor for the child process to signal the
 	// parent when re-execing.
 	forkSignalFd uint64
-	// rawArgs are the raw arguments passed to Run().
-	rawArgs []string
 }
 
 // Stdout returns the stdout writer.
@@ -795,7 +793,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		TracingProvider:    tracing.NoopProvider(),
 		DTAuthnRunCeremony: dtauthn.NewCeremony().Run,
 		DTAutoEnroll:       dtenroll.AutoEnroll,
-		rawArgs:            args,
 	}
 
 	// run early to enable debug logging if env var is set.
@@ -1397,6 +1394,32 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			)
 			return trace.BadParameter("recursive alias %q; correct alias definition and try again", aliasCommand)
 		}
+	}
+
+	// Handle fork after authentication.
+	if cf.ForkAfterAuthentication && cf.forkSignalFd == 0 {
+		if len(cf.RemoteCommand) == 0 {
+			return trace.BadParameter("fork after authentication not allowed for interactive sessions")
+		}
+		forkParams := client.ForkAuthenticateParams{
+			GetArgs: func(signalFd uint64) []string {
+				return append([]string{
+					// --fork-signal-fd goes immediately after `tsh`.
+					"--fork-signal-fd", strconv.FormatUint(signalFd, 10),
+				}, args...)
+			},
+			Stdin:  cf.Stdin(),
+			Stdout: cf.Stdout(),
+			Stderr: cf.Stderr(),
+		}
+		if err := client.RunForkAuthenticate(cf.Context, forkParams); err != nil {
+			var execErr *exec.ExitError
+			if errors.As(trace.Unwrap(err), &execErr) {
+				err = &common.ExitCodeError{Code: execErr.ExitCode()}
+			}
+			return trace.Wrap(err)
+		}
+		return nil
 	}
 
 	// Remove HTTPS:// in proxy parameter as https is automatically added
@@ -4016,29 +4039,9 @@ func onResolve(cf *CLIConf) error {
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) error {
 	// Handle fork after authentication.
-	if cf.ForkAfterAuthentication && cf.forkSignalFd == 0 {
-		if len(cf.RemoteCommand) == 0 {
-			return trace.BadParameter("fork after authentication not allowed for interactive sessions")
-		}
-		forkParams := client.ForkAuthenticateParams{
-			GetArgs: func(signalFd uint64) []string {
-				return append([]string{
-					// --fork-signal-fd goes immediately after `tsh`.
-					"--fork-signal-fd", strconv.FormatUint(signalFd, 10),
-				}, cf.rawArgs...)
-			},
-			Stdin:  cf.Stdin(),
-			Stdout: cf.Stdout(),
-			Stderr: cf.Stderr(),
-		}
-		if err := client.RunForkAuthenticate(cf.Context, forkParams); err != nil {
-			var execErr *exec.ExitError
-			if errors.As(trace.Unwrap(err), &execErr) {
-				err = &common.ExitCodeError{Code: execErr.ExitCode()}
-			}
-			return trace.Wrap(err)
-		}
-		return nil
+	var disownSignal *os.File
+	if cf.forkSignalFd != 0 {
+		disownSignal = newSignalFile(cf.forkSignalFd)
 	}
 
 	// If "tsh ssh -V" is invoked, tsh is in OpenSSH compatibility mode, show
@@ -4086,21 +4089,21 @@ func onSSH(cf *CLIConf) error {
 				opts = append(opts, client.WithLocalCommandExecutor(runLocalCommand))
 			}
 
-			if cf.forkSignalFd != 0 {
+			if disownSignal != nil {
 				opts = append(opts, client.WithForkAfterAuthentication(func() error {
-					errors := make([]error, 0, 3)
-					if stdin, ok := tc.Stdin.(io.ReadCloser); ok {
-						errors = append(errors, stdin.Close())
+					// Replace stdin with /dev/null to prevent further reads without
+					// having to actually close stdin.
+					devNull, err := os.Open(os.DevNull)
+					if err != nil {
+						return trace.Wrap(err)
 					}
-					disownSignal := os.NewFile(uintptr(cf.forkSignalFd), "disown")
+					tc.Stdin = devNull
 					// Write to unblock the parent.
-					_, err := disownSignal.Write([]byte{0x00})
-					errors = append(errors, err)
-					if err == nil {
-						errors = append(errors, disownSignal.Close())
+					_, err = disownSignal.Write([]byte{0x00})
+					if err != nil {
+						return trace.Wrap(err)
 					}
-
-					return trace.NewAggregate(errors...)
+					return trace.Wrap(disownSignal.Close())
 				}))
 			}
 

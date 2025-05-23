@@ -21,16 +21,25 @@ package client
 import (
 	"os"
 	"os/exec"
+	"syscall"
+
+	"github.com/gravitational/trace"
 )
 
 // getExecutable gets the path to the executable that should be used for re-exec.
 func getExecutable() (string, error) {
-	return "/proc/self/exe", nil
+	executable, err := os.Readlink("/proc/self/exe")
+	return executable, trace.Wrap(err)
 }
 
-// addSignalFdToChild adds a file for the child process to inherit and returns
-// the file descriptor of the file for the child.
-func addSignalFdToChild(cmd *exec.Cmd, signal *os.File) uint64 {
-	cmd.ExtraFiles = append(cmd.ExtraFiles, signal)
-	return uint64(len(cmd.ExtraFiles) + 2)
+// configureReexecForOS adds a file for the child process to inherit and adds
+// OS-specific attributes. It returns the file descriptor that should be reported
+// to the child.
+func configureReexecForOS(cmd *exec.Cmd, signal *os.File) uint64 {
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setsid:    true,
+		Pdeathsig: syscall.SIGQUIT,
+	}
+	cmd.ExtraFiles = []*os.File{signal}
+	return 3
 }

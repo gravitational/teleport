@@ -14,31 +14,18 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build darwin
+//go:build unix
 
-package client
+package common
 
 import (
 	"os"
-	"os/exec"
 	"syscall"
-
-	"github.com/gravitational/trace"
 )
 
-// getExecutable gets the path to the executable that should be used for re-exec.
-func getExecutable() (string, error) {
-	executable, err := os.Executable()
-	return executable, trace.Wrap(err)
-}
-
-// configureReexecForOS adds a file for the child process to inherit and adds
-// OS-specific attributes. It returns the file descriptor that should be reported
-// to the child.
-func configureReexecForOS(cmd *exec.Cmd, signal *os.File) uint64 {
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setsid: true,
-	}
-	cmd.ExtraFiles = []*os.File{signal}
-	return 3
+// newSignalFile creates a signaling file for --fork-after-authentication from
+// a file descriptor.
+func newSignalFile(fd uint64) *os.File {
+	syscall.CloseOnExec(int(fd))
+	return os.NewFile(uintptr(fd), "disown")
 }

@@ -21,22 +21,26 @@ package client
 import (
 	"os"
 	"os/exec"
+	"runtime"
 	"syscall"
+
+	"github.com/gravitational/trace"
 )
 
 // getExecutable gets the path to the executable that should be used for re-exec.
 func getExecutable() (string, error) {
-	return os.Executable()
+	executable, err := os.Executable()
+	return executable, trace.Wrap(err)
 }
 
-// addSignalFdToChild adds a file for the child process to inherit and returns
-// the file descriptor of the file for the child.
-func addSignalFdToChild(cmd *exec.Cmd, signal *os.File) uint64 {
-	if cmd.SysProcAttr == nil {
-		cmd.SysProcAttr = &syscall.SysProcAttr{}
+// configureReexecForOS adds a file for the child process to inherit and adds
+// OS-specific attributes. It returns the file descriptor that should be reported
+// to the child.
+func configureReexecForOS(cmd *exec.Cmd, signal *os.File) uint64 {
+	// Prevent handle from being closed when signal is garbage collected.
+	runtime.SetFinalizer(signal, nil)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		AdditionalInheritedHandles: []syscall.Handle{syscall.Handle(signal.Fd())},
 	}
-	cmd.SysProcAttr.AdditionalInheritedHandles = append(
-		cmd.SysProcAttr.AdditionalInheritedHandles, syscall.Handle(signal.Fd()),
-	)
 	return uint64(signal.Fd())
 }
