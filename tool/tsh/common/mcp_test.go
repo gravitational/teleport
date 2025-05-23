@@ -85,7 +85,7 @@ func TestMCPDBCommand(t *testing.T) {
 	executionCh := make(chan error)
 	go func() {
 		executionCh <- Run(ctx, []string{
-			"mcp", "db", "--insecure", "--db-user=postgres", "--db-name=postgres",
+			"mcp", "db", "start", "--insecure", "--db-user=postgres", "--db-name=postgres",
 		}, setHomePath(tmpHomePath), func(c *CLIConf) error {
 			c.overrideStdin = stdin
 			c.OverrideStdout = stdout

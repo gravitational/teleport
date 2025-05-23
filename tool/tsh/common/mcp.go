@@ -35,18 +35,19 @@ import (
 )
 
 type mcpCommands struct {
-	db *mcpDBCommand
+	dbStart *mcpDBStartCommand
 }
 
 func newMCPCommands(app *kingpin.Application) *mcpCommands {
 	mcp := app.Command("mcp", "View and control proxied MCP servers.")
+	db := mcp.Command("db", "Database access for MCP servers.")
 	return &mcpCommands{
-		db: newMCPDBCommand(mcp),
+		dbStart: newMCPDBCommand(db),
 	}
 }
 
-// mcpDBCommand implements `tsh mcp db` command.
-type mcpDBCommand struct {
+// mcpDBStartCommand implements `tsh mcp db start` command.
+type mcpDBStartCommand struct {
 	*kingpin.CmdClause
 
 	databaseUser        string
@@ -55,9 +56,9 @@ type mcpDBCommand struct {
 	predicateExpression string
 }
 
-func newMCPDBCommand(parent *kingpin.CmdClause) *mcpDBCommand {
-	cmd := &mcpDBCommand{
-		CmdClause: parent.Command("db", "Start a local MCP server for database access"),
+func newMCPDBCommand(parent *kingpin.CmdClause) *mcpDBStartCommand {
+	cmd := &mcpDBStartCommand{
+		CmdClause: parent.Command("start", "Start a local MCP server for database access"),
 	}
 
 	cmd.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cmd.databaseUser)
@@ -67,7 +68,7 @@ func newMCPDBCommand(parent *kingpin.CmdClause) *mcpDBCommand {
 	return cmd
 }
 
-func (c *mcpDBCommand) run(cf *CLIConf) error {
+func (c *mcpDBStartCommand) run(cf *CLIConf) error {
 	logger, err := initLogger(cf, utils.LoggingForMCP, parseLoggingOptsFromEnvAndArgv(cf))
 	if err != nil {
 		return trace.Wrap(err)
@@ -132,7 +133,7 @@ type closeLocalProxyFunc func() error
 
 // prepareDatabases based on the available MCP servers, initialize the database
 // local proxy and generate the MCP database.
-func (c *mcpDBCommand) prepareDatabases(
+func (c *mcpDBStartCommand) prepareDatabases(
 	ctx context.Context,
 	registry dbmcp.Registry,
 	dbs []types.Database,
@@ -214,7 +215,7 @@ func (c *mcpDBCommand) prepareDatabases(
 	}, nil
 }
 
-func (c *mcpDBCommand) getDatabases(ctx context.Context, tc *client.TeleportClient, sc *sharedDatabaseExecClient) ([]types.Database, error) {
+func (c *mcpDBStartCommand) getDatabases(ctx context.Context, tc *client.TeleportClient, sc *sharedDatabaseExecClient) ([]types.Database, error) {
 	dbsList, err := sc.listDatabasesWithFilter(ctx, tc.ResourceFilter(types.KindDatabaseServer))
 	return dbsList, trace.Wrap(err)
 }

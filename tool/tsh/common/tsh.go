@@ -1752,8 +1752,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.clone.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
-	case mcpCmd.db.FullCommand():
-		err = mcpCmd.db.run(&cf)
+	case mcpCmd.dbStart.FullCommand():
+		err = mcpCmd.dbStart.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
