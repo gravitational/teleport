@@ -20,6 +20,7 @@ import * as reactQuery from '@tanstack/react-query';
 import {
   type DataTag,
   type DefaultError,
+  type QueryFunction,
   type UseQueryOptions,
   type UseQueryResult,
 } from '@tanstack/react-query';
@@ -40,7 +41,12 @@ export interface WrappedQuery<
 > {
   createQueryKey: (variables?: TVariables) => DataTag<string[], TData, TError>;
   queryKey: DataTag<string[], TData, TError>;
+  queryFn: (variables: TVariables) => QueryFunction<TData>;
   useQuery: QueryHook<TData, TVariables, TError>;
+  createQuery: (variables?: TVariables) => {
+    queryKey: DataTag<string[], TData, TError>;
+    queryFn: QueryFunction<TData>;
+  };
 }
 
 type SignalOnlyQueryFn<TData> = (signal: AbortSignal) => Promise<TData>;
@@ -221,7 +227,7 @@ export function createQueryHook<
   queryKey: string[],
   queryFn: QueryFn<TData, TVariables>
 ): WrappedQuery<TData, TVariables, TError> {
-  return {
+  const wrapped: WrappedQuery<TData, TVariables, TError> = {
     queryKey: queryKey as DataTag<string[], TData, TError>,
     createQueryKey(variables?: TVariables) {
       const key = [...queryKey];
@@ -232,6 +238,16 @@ export function createQueryHook<
 
       return key as DataTag<string[], TData, TError>;
     },
+    createQuery: function createQuery(variables?: TVariables) {
+      return {
+        queryKey: wrapped.createQueryKey(variables),
+        queryFn: wrapped.queryFn(variables),
+      };
+    },
+    queryFn:
+      variables =>
+      ({ signal }) =>
+        callQueryFn(queryFn, variables, signal),
     useQuery: function wrappedQuery(
       variables?: TVariables,
       options?: Omit<UseQueryOptions<TData, TError>, 'queryKey' | 'queryFn'>
@@ -243,12 +259,13 @@ export function createQueryHook<
       }
 
       return reactQuery.useQuery({
-        queryKey: key,
-        queryFn: ({ signal }) => callQueryFn(queryFn, variables, signal),
+        ...wrapped.createQuery(variables),
         ...options,
       });
     },
   };
+
+  return wrapped;
 }
 
 function isSignalOnlyQueryFn<TData = unknown, TVariables = void>(
