@@ -116,6 +116,7 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	accessList.SetSubKind(msg.GetHeader().GetSubKind())
 
 	if status := fromStatusProto(msg); status != nil {
 		accessList.Status = *status
