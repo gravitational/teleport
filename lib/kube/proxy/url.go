@@ -51,7 +51,7 @@ func parseResourcePath(p string) apiResource {
 	// Let's try to parse this. Here be dragons!
 	//
 	// URLs have a prefix that defines an "API group":
-	// - /api/v1/ - the special "core" API group (e.g. pods, secrets, etc. belong here)
+	// - /api/v1/ - the special "" API group (e.g. pods, secrets, etc. belong here)
 	// - /apis/{group}/{version} - the other properly named groups (e.g. apps/v1 or rbac.authorization.k8s.io/v1beta1)
 	//
 	// After the prefix, we have the resource info:
@@ -82,7 +82,7 @@ func parseResourcePath(p string) apiResource {
 	switch {
 	// Core API group has a "special" URL prefix /api/v1/.
 	case len(parts) >= 3 && parts[1] == "api" && parts[2] == "v1":
-		r.apiGroup = "core"
+		r.apiGroup = ""
 		r.apiGroupVersion = parts[2]
 		parts = parts[3:]
 	// Other API groups have URL prefix /apis/{group}/{version}.
@@ -169,8 +169,8 @@ type rbacSupportedResources map[allowedResourcesKey]string
 // getResourceWithKey returns the teleport resource kind for a given resource key if
 // it exists, otherwise returns an empty string.
 func (r rbacSupportedResources) getResourceWithKey(k allowedResourcesKey) string {
-	if k.apiGroup == "" {
-		k.apiGroup = "core"
+	if plural, ok := types.KubernetesResourcesKindsPlurals[r[k]]; ok {
+		return plural
 	}
 	return r[k]
 }
@@ -183,17 +183,19 @@ func (r rbacSupportedResources) getTeleportResourceKindFromAPIResource(api apiRe
 
 // defaultRBACResources is a map of supported resources and their corresponding
 // teleport resource kind for the purpose of resource rbac.
+// TODO(@creack): Remove this (keep a form of it for maybedowngraderole).
 var defaultRBACResources = rbacSupportedResources{
-	{apiGroup: "core", resourceKind: "pods"}:                                      types.KindKubePod,
-	{apiGroup: "core", resourceKind: "secrets"}:                                   types.KindKubeSecret,
-	{apiGroup: "core", resourceKind: "configmaps"}:                                types.KindKubeConfigmap,
-	{apiGroup: "core", resourceKind: "namespaces"}:                                types.KindKubeNamespace,
-	{apiGroup: "core", resourceKind: "services"}:                                  types.KindKubeService,
-	{apiGroup: "core", resourceKind: "endpoints"}:                                 types.KindKubeService,
-	{apiGroup: "core", resourceKind: "serviceaccounts"}:                           types.KindKubeServiceAccount,
-	{apiGroup: "core", resourceKind: "nodes"}:                                     types.KindKubeNode,
-	{apiGroup: "core", resourceKind: "persistentvolumes"}:                         types.KindKubePersistentVolume,
-	{apiGroup: "core", resourceKind: "persistentvolumeclaims"}:                    types.KindKubePersistentVolumeClaim,
+	{apiGroup: "", resourceKind: "pods"}:                                          types.KindKubePod,
+	{apiGroup: "", resourceKind: "secrets"}:                                       types.KindKubeSecret,
+	{apiGroup: "", resourceKind: "configmaps"}:                                    types.KindKubeConfigmap,
+	{apiGroup: "", resourceKind: "namespaces"}:                                    types.KindKubeNamespace,
+	{apiGroup: "", resourceKind: "services"}:                                      types.KindKubeService,
+	{apiGroup: "", resourceKind: "endpoints"}:                                     types.KindKubeService,
+	{apiGroup: "", resourceKind: "serviceaccounts"}:                               types.KindKubeServiceAccount,
+	{apiGroup: "", resourceKind: "nodes"}:                                         types.KindKubeNode,
+	{apiGroup: "", resourceKind: "persistentvolumes"}:                             types.KindKubePersistentVolume,
+	{apiGroup: "", resourceKind: "persistentvolumeclaims"}:                        types.KindKubePersistentVolumeClaim,
+	{apiGroup: "", resourceKind: "replicationcontrollers"}:                        types.KindKubeReplicationController,
 	{apiGroup: "apps", resourceKind: "deployments"}:                               types.KindKubeDeployment,
 	{apiGroup: "apps", resourceKind: "replicasets"}:                               types.KindKubeReplicaSet,
 	{apiGroup: "apps", resourceKind: "statefulsets"}:                              types.KindKubeStatefulset,

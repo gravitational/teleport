@@ -2091,9 +2091,6 @@ var minSupportedRoleV8Version = semver.New(utils.VersionBeforeAlpha("18.0.0"))
 // the client version passed through the gRPC metadata is below the version
 // specified in minSupportedRoleV8Version.
 //
-// TODO(@creack): Downgrade role appropriately when introducing role v8 semantics changes.
-// Currently, only downgrades the version as there is no logic change.
-//
 // TODO(@creack): Delete in v19.0.0.
 func maybeDowngradeRoleVersionToV7(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
 	switch role.GetVersion() {
@@ -2122,6 +2119,8 @@ func maybeDowngradeRoleVersionToV7(role *types.RoleV6, clientVersion *semver.Ver
 	}
 	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
 
+	role = maybeDowngradeRoleK8sAPIGroupToV7(role)
+
 	return role
 }
 
@@ -2140,6 +2139,104 @@ func downgradeSAMLIdPRBAC(downgradedRole *types.RoleV6) *types.RoleV6 {
 	downgradedRole.SetOptions(options)
 
 	return downgradedRole
+}
+
+func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
+	downgrade := func(resources []types.KubernetesResource) ([]types.KubernetesResource, bool) {
+		var out []types.KubernetesResource
+		for _, elem := range resources {
+			// If group is '*', simply remove it as the behavior in v7 would be the same.
+			if elem.APIGroup == types.Wildcard {
+				elem.APIGroup = ""
+			}
+			// If we have a wildcard kind, keep it.
+			if elem.Kind == types.Wildcard && elem.APIGroup == "" {
+				out = append(out, elem)
+				continue
+			}
+			// If Kind is known in v7 and group is known, remove it.
+			if v, ok := defaultRBACResources[allowedResourcesKey{elem.APIGroup, elem.Kind}]; ok {
+				elem.APIGroup = ""
+				elem.Kind = v
+				out = append(out, elem)
+				continue
+			}
+
+			// If we reach this point, we are dealing with a resource we don't know about.
+			// As <=v17 granted too much access for unknown resource, we deny everything.
+			role.Spec.Allow.KubernetesResources = nil
+			role.Spec.Deny.KubernetesLabels = types.Labels{
+				types.Wildcard: {types.Wildcard},
+			}
+			role.Spec.Deny.KubernetesResources = []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			}
+			return nil, false
+		}
+		return out, true
+	}
+
+	var ok bool
+	role.Spec.Allow.KubernetesResources, ok = downgrade(role.Spec.Allow.KubernetesResources)
+	if !ok {
+		return role
+	}
+	role.Spec.Deny.KubernetesResources, _ = downgrade(role.Spec.Deny.KubernetesResources)
+
+	return role
+}
+
+// allowedResourcesKey is a key used to identify a resource in the allowedResources map.
+type allowedResourcesKey struct {
+	apiGroup     string
+	resourceKind string
+}
+
+// TODO(@creack): Delete in v19.0.0.
+// Only used in the maybeDowngradeRoleVersionToV7 function above.
+// Must be synced with the defaultRBACResources map in lib/kube/proxy/url.go.
+var defaultRBACResources = map[allowedResourcesKey]string{
+	{apiGroup: "", resourceKind: "pods"}:                                          types.KindKubePod,
+	{apiGroup: "", resourceKind: "secrets"}:                                       types.KindKubeSecret,
+	{apiGroup: "", resourceKind: "configmaps"}:                                    types.KindKubeConfigmap,
+	{apiGroup: "", resourceKind: "namespaces"}:                                    types.KindKubeNamespace,
+	{apiGroup: "", resourceKind: "services"}:                                      types.KindKubeService,
+	{apiGroup: "", resourceKind: "endpoints"}:                                     types.KindKubeService,
+	{apiGroup: "", resourceKind: "serviceaccounts"}:                               types.KindKubeServiceAccount,
+	{apiGroup: "", resourceKind: "nodes"}:                                         types.KindKubeNode,
+	{apiGroup: "", resourceKind: "persistentvolumes"}:                             types.KindKubePersistentVolume,
+	{apiGroup: "", resourceKind: "persistentvolumeclaims"}:                        types.KindKubePersistentVolumeClaim,
+	{apiGroup: "", resourceKind: "replicationcontrollers"}:                        types.KindKubeReplicationController,
+	{apiGroup: "apps", resourceKind: "deployments"}:                               types.KindKubeDeployment,
+	{apiGroup: "apps", resourceKind: "replicasets"}:                               types.KindKubeReplicaSet,
+	{apiGroup: "apps", resourceKind: "statefulsets"}:                              types.KindKubeStatefulset,
+	{apiGroup: "apps", resourceKind: "daemonsets"}:                                types.KindKubeDaemonSet,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterroles"}:         types.KindKubeClusterRole,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "roles"}:                types.KindKubeRole,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterrolebindings"}:  types.KindKubeClusterRoleBinding,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "rolebindings"}:         types.KindKubeRoleBinding,
+	{apiGroup: "batch", resourceKind: "cronjobs"}:                                 types.KindKubeCronjob,
+	{apiGroup: "batch", resourceKind: "jobs"}:                                     types.KindKubeJob,
+	{apiGroup: "certificates.k8s.io", resourceKind: "certificatesigningrequests"}: types.KindKubeCertificateSigningRequest,
+	{apiGroup: "networking.k8s.io", resourceKind: "ingresses"}:                    types.KindKubeIngress,
+	{apiGroup: "extensions", resourceKind: "deployments"}:                         types.KindKubeDeployment,
+	{apiGroup: "extensions", resourceKind: "replicasets"}:                         types.KindKubeReplicaSet,
+	{apiGroup: "extensions", resourceKind: "daemonsets"}:                          types.KindKubeDaemonSet,
+	{apiGroup: "extensions", resourceKind: "ingresses"}:                           types.KindKubeIngress,
+}
+
+// TODO(@creack): Delete in v19.0.0.
+func init() {
+	// Populate the map with empty group to match v7 kind.
+	for k, v := range defaultRBACResources {
+		k.apiGroup = ""
+		defaultRBACResources[k] = v
+	}
 }
 
 var minSupportedSSHPortForwardingVersion = semver.Version{Major: 17, Minor: 1, Patch: 0}
