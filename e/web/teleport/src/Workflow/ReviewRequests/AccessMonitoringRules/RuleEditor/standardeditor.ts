@@ -140,7 +140,7 @@ function ruleToReviewsEditor(
   // We use destructuring to strip fields from objects and assert that nothing
   // has been left. Therefore, we don't want Lint to warn us that we didn't use
   // some of the fields.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, unused-imports/no-unused-vars
   const { kind, version, metadata, spec, ...unsupported } = rule;
   if (unsupported) {
     configurableFields.errors.push(...unsupportedFieldErrors(unsupported));
@@ -153,7 +153,7 @@ function ruleToReviewsEditor(
   }
 
   const {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars, unused-imports/no-unused-vars
     subjects,
     condition,
     desired_state,
@@ -245,7 +245,7 @@ function ruleToNotificationsEditor(
   // We use destructuring to strip fields from objects and assert that nothing
   // has been left. Therefore, we don't want Lint to warn us that we didn't use
   // some of the fields.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, unused-imports/no-unused-vars
   const { kind, version, metadata, spec, ...unsupported } = rule;
   if (unsupported) {
     configurableFields.errors.push(...unsupportedFieldErrors(unsupported));
@@ -258,7 +258,7 @@ function ruleToNotificationsEditor(
   }
 
   const {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars, unused-imports/no-unused-vars
     subjects,
     condition,
     notification,
