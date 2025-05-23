@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/crewjam/saml"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/html"
@@ -59,7 +58,6 @@ type TClient struct {
 	services.Trust
 	services.SAMLIdPServiceProviders
 	services.UsersService
-	services.SAMLIdPSession
 	services.RoleGetter
 	samlidppb.SAMLIdPServiceServer
 	types.Events
@@ -77,25 +75,6 @@ func (t TClient) GetRole(ctx context.Context, name string) (types.Role, error) {
 // GetDomainName returns "test-cluster" string as domain name
 func (t TClient) GetDomainName(ctx context.Context) (string, error) {
 	return "test-cluster", nil
-}
-
-// CreateSAMLIdPSession creates SAML IdP session from WebSession.
-func (t TClient) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
-	session, err := types.NewWebSession(req.SessionID, types.KindSAMLIdPSession,
-		types.WebSessionSpecV2{
-			User:        req.Username,
-			Expires:     req.SAMLSession.ExpireTime,
-			SAMLSession: req.SAMLSession,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := t.UpsertSAMLIdPSession(ctx, session); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return session, nil
 }
 
 // NewTEnv creates new SAML IdP test environment.
@@ -135,7 +114,6 @@ func NewTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 		Trust:                   caService,
 		SAMLIdPServiceProviders: spService,
 		UsersService:            userService,
-		SAMLIdPSession:          userService,
 		RoleGetter:              accessService,
 		Events:                  eventService,
 		Access:                  accessService,

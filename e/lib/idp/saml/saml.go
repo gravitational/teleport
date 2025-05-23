@@ -81,15 +81,10 @@ func (c *Config) Check() error {
 type IdPAuthClient interface {
 	services.AuthorityGetter
 	services.SAMLIdPServiceProviders
-	services.SAMLIdPSession
 	services.RoleGetter
 
 	// SAMLIdPClient is the client for the SAML IdP specific utility functions.
 	SAMLIdPClient() samlidppb.SAMLIdPServiceClient
-
-	// CreateSAMLIdPSession creates a SAML IdP. SAML IdP sessions represent
-	// sessions created by the SAML identity provider.
-	CreateSAMLIdPSession(context.Context, types.CreateSAMLIdPSessionRequest) (types.WebSession, error)
 
 	// GetDomainName returns auth server cluster name
 	GetDomainName(ctx context.Context) (string, error)
@@ -109,9 +104,6 @@ type IdPAccessPoint interface {
 
 	// ListSAMLIdPServiceProviders returns a paginated list of all SAML IdP service provider resources.
 	ListSAMLIdPServiceProviders(context.Context, int, string) ([]types.SAMLIdPServiceProvider, string, error)
-
-	// GetSAMLIdPSession gets a SAML IdP session.
-	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
 }
 
 // Service is the SAML identity provider service.
