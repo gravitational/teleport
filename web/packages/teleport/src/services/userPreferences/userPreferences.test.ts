@@ -71,8 +71,8 @@ test('should convert the user preferences back to the old format when updating',
 
   const actualUserPreferences: UserPreferences = {
     theme: Theme.LIGHT,
+    keyboardLayout: 0,
     clusterPreferences: {
-      keyboardLayout: 0,
       pinnedResources: { resourceIds: ['resource1', 'resource2'] },
     },
     sideNavDrawerMode: SideNavDrawerMode.COLLAPSED,
