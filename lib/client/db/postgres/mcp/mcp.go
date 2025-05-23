@@ -62,7 +62,7 @@ func NewServer(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, e
 
 	for _, db := range cfg.Databases {
 		if db.DatabaseUser == "" || db.DatabaseName == "" {
-			return nil, trace.BadParameter("must specify the username or database name used to connect to the database")
+			return nil, trace.BadParameter("must specify the username and database name used to connect to the database")
 		}
 
 		connCfg, err := buildConnConfig(db)
@@ -85,7 +85,7 @@ func NewServer(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, e
 	return s, nil
 }
 
-// Stop implements dbmcp.Server.
+// Close implements dbmcp.Server.
 func (s *Server) Close(context.Context) error {
 	for _, db := range s.databases {
 		db.pool.Close()
@@ -108,8 +108,15 @@ type RunQueryResult struct {
 
 // RunQuery tool function used to execute queries on databases.
 func (s *Server) RunQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	uri := request.Params.Arguments[queryToolDatabaseParam].(string)
-	sql := request.Params.Arguments[queryToolQueryParam].(string)
+	uri, err := request.RequireString(queryToolDatabaseParam)
+	if err != nil {
+		return s.wrapErrorResult(ctx, nil, trace.Wrap(err))
+	}
+
+	sql, err := request.RequireString(queryToolQueryParam)
+	if err != nil {
+		return s.wrapErrorResult(ctx, nil, trace.Wrap(err))
+	}
 
 	db, err := s.getDatabase(uri)
 	if err != nil {

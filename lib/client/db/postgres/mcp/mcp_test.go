@@ -101,11 +101,10 @@ func TestFormatErrors(t *testing.T) {
 			databaseURI: dbName,
 			databases: []*dbmcp.Database{
 				&dbmcp.Database{
-					DB:                     db,
-					DatabaseUser:           "postgres",
-					DatabaseName:           "postgres",
-					Addr:                   listener.Addr().String(),
-					ExternalErrorRetriever: &mockErrorRetriever{err: client.ErrClientCredentialsHaveExpired},
+					DB:           db,
+					DatabaseUser: "postgres",
+					DatabaseName: "postgres",
+					Addr:         listener.Addr().String(),
 					LookupFunc: func(_ context.Context, _ string) (addrs []string, err error) {
 						return []string{"memory"}, nil
 					},
@@ -120,10 +119,11 @@ func TestFormatErrors(t *testing.T) {
 			databaseURI: dbName,
 			databases: []*dbmcp.Database{
 				&dbmcp.Database{
-					DB:           db,
-					DatabaseUser: "postgres",
-					DatabaseName: "postgres",
-					Addr:         listener.Addr().String(),
+					DB:                     db,
+					DatabaseUser:           "postgres",
+					DatabaseName:           "postgres",
+					Addr:                   listener.Addr().String(),
+					ExternalErrorRetriever: &mockErrorRetriever{err: client.ErrClientCredentialsHaveExpired},
 					LookupFunc: func(_ context.Context, _ string) (addrs []string, err error) {
 						return []string{"memory"}, nil
 					},
