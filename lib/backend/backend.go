@@ -334,14 +334,6 @@ type KeyedItem interface {
 	GetName() string
 }
 
-// NextPaginationKey returns the next pagination key.
-// For items that implement HostID, the next key will also
-// have the HostID part.
-func NextPaginationKey(ki KeyedItem) string {
-	key := GetPaginationKey(ki)
-	return string(nextKey(Key(key)))
-}
-
 // GetPaginationKey returns the pagination key given item.
 // For items that implement HostID, the next key will also
 // have the HostID part.
