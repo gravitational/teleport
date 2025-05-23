@@ -61,6 +61,13 @@ the cluster. The `tsh` profile is created when a user runs `tsh login`.
 a Teleport configuration file is present. If you are using your `tsh` profile to
 authenticate `tctl`, you must ensure that one of these conditions is true:
 
+- `TELEPORT_CONFIG_FILE` is blank
+- No file exists at `/etc/teleport.yaml`
+
+Otherwise `tctl` will attempt to connect to a Teleport cluster on the machine,
+which could result in the error,
+`ERROR: open /var/lib/teleport/host_uuid: permission denied`.
+
   </TabItem>
   <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 
