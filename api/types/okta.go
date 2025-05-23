@@ -536,6 +536,13 @@ func (o *PluginOktaSyncSettings) GetEnableBidirectionalSync() bool {
 	return !o.DisableBidirectionalSync
 }
 
+func (o *PluginOktaSyncSettings) GetAssignDefaultRoles() bool {
+	if o == nil {
+		return false
+	}
+	return !o.DisableAssignDefaultRoles
+}
+
 type OktaUserSyncSource string
 
 // IsUnknown returns true if user sync source is empty or explicitly set to "unknown".
