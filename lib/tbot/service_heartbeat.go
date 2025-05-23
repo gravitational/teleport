@@ -83,12 +83,15 @@ func (s *heartbeatService) heartbeat(ctx context.Context, isStartup bool) error 
 
 func (s *heartbeatService) OneShot(ctx context.Context) error {
 	err := s.heartbeat(ctx, true)
-	// Ignore not implemented as this is likely confusing.
-	// TODO(noah): Remove NotImplemented check at V18 assuming V17 first major
-	// with heartbeating.
-	if err != nil && !trace.IsNotImplemented(err) {
-		return trace.Wrap(err)
+
+	if trace.IsNotImplemented(err) {
+		// Ignore not implemented as this is likely confusing.
+		// TODO(noah): Remove NotImplemented check at V18 assuming V17 first major
+		// with heartbeating.
+		return nil
 	}
+
+	s.log.ErrorContext(ctx, "Failed to submit heartbeat", "error", err)
 	return nil
 }
 

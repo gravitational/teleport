@@ -28,7 +28,6 @@ import (
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -38,7 +37,7 @@ import (
 // WorkloadIdentityJWTService is a service that retrieves JWT workload identity
 // credentials for WorkloadIdentity resources.
 type WorkloadIdentityJWTService struct {
-	botAuthClient  *authclient.Client
+	botAuthClient  Client
 	botCfg         *config.BotConfig
 	cfg            *config.WorkloadIdentityJWTService
 	getBotIdentity getBotIdentityFn
@@ -167,7 +166,7 @@ func (s *WorkloadIdentityJWTService) requestJWTSVID(
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
 	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
+	impersonatedClient, err := temporaryClient(ctx, s.log, s.botCfg, facade, s.resolver)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

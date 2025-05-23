@@ -31,7 +31,6 @@ import (
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -42,7 +41,7 @@ import (
 )
 
 type SSHHostOutputService struct {
-	botAuthClient     *authclient.Client
+	botAuthClient     Client
 	botCfg            *config.BotConfig
 	cfg               *config.SSHHostOutput
 	getBotIdentity    getBotIdentityFn
@@ -122,7 +121,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
 	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
+	impersonatedClient, err := temporaryClient(ctx, s.log, s.botCfg, facade, s.resolver)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -142,7 +141,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	}
 	// For now, we'll reuse the bot's regular TTL, and hostID and nodeName are
 	// left unset.
-	res, err := impersonatedClient.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+	res, err := impersonatedClient.GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
 		Key:         privKey.MarshalSSHPublicKey(),
 		HostId:      "",
 		NodeName:    "",
