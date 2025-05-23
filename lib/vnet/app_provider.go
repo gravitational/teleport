@@ -29,14 +29,13 @@ import (
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
-// remoteAppProvider implements [appProvider] in the VNet admin process when the
-// client application is available remotely over gRPC.
-type remoteAppProvider struct {
+// appProvider implements methods related to TCP app access.
+type appProvider struct {
 	clt *clientApplicationServiceClient
 }
 
-func newRemoteAppProvider(clt *clientApplicationServiceClient) *remoteAppProvider {
-	return &remoteAppProvider{
+func newAppProvider(clt *clientApplicationServiceClient) *appProvider {
+	return &appProvider{
 		clt: clt,
 	}
 }
@@ -44,7 +43,7 @@ func newRemoteAppProvider(clt *clientApplicationServiceClient) *remoteAppProvide
 // ReissueAppCert issues a new cert for the target app. Signatures made with the
 // returned [tls.Certificate] happen over gRPC as the key never leaves the
 // client application process.
-func (p *remoteAppProvider) ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) (tls.Certificate, error) {
+func (p *appProvider) ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) (tls.Certificate, error) {
 	cert, err := p.clt.ReissueAppCert(ctx, appInfo, targetPort)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "reissuing certificate for app %s", appInfo.GetAppKey().GetName())
@@ -60,7 +59,7 @@ func (p *remoteAppProvider) ReissueAppCert(ctx context.Context, appInfo *vnetv1.
 	return tlsCert, nil
 }
 
-func (p *remoteAppProvider) newAppCertSigner(cert []byte, appKey *vnetv1.AppKey, targetPort uint16) (*rpcAppCertSigner, error) {
+func (p *appProvider) newAppCertSigner(cert []byte, appKey *vnetv1.AppKey, targetPort uint16) (*rpcAppCertSigner, error) {
 	x509Cert, err := x509.ParseCertificate(cert)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing x509 certificate")
@@ -116,7 +115,7 @@ func (s *rpcAppCertSigner) Sign(rand io.Reader, digest []byte, opts crypto.Signe
 }
 
 // OnNewConnection reports a new TCP connection to the target app.
-func (p *remoteAppProvider) OnNewConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
+func (p *appProvider) OnNewConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
 	if err := p.clt.OnNewConnection(ctx, appKey); err != nil {
 		return trace.Wrap(err)
 	}
@@ -125,7 +124,7 @@ func (p *remoteAppProvider) OnNewConnection(ctx context.Context, appKey *vnetv1.
 
 // OnInvalidLocalPort reports a failed connection to an invalid local port for
 // the target app.
-func (p *remoteAppProvider) OnInvalidLocalPort(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) {
+func (p *appProvider) OnInvalidLocalPort(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) {
 	if err := p.clt.OnInvalidLocalPort(ctx, appInfo, targetPort); err != nil {
 		log.ErrorContext(ctx, "Could not notify client application about invalid local port",
 			"error", err,
