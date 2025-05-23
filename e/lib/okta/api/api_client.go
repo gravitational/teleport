@@ -2,6 +2,7 @@ package oktaapi
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
@@ -35,6 +36,10 @@ type APIClient interface {
 	CloneRequestExecutor() *okta.RequestExecutor
 	ListGroupUsers(ctx context.Context, groupId string, qp *query.Params) ([]*okta.User, *okta.Response, error)
 	AddUserToGroup(ctx context.Context, groupId string, userId string) (*okta.Response, error)
+	ListLogEvents(ctx context.Context, qp *query.Params) ([]*okta.LogEvent, *okta.Response, error)
+	ListApiTokens(ctx context.Context, qp *query.Params) ([]*ApiToken, *okta.Response, error)
+	ListUsersWithRoleAssignments(ctx context.Context) (*RoleAssignedUsers, *okta.Response, error)
+	ListAssignedRolesForUser(ctx context.Context, userId string) ([]*okta.Role, *okta.Response, error)
 }
 
 // NewAPIClient creates APIClient from the provided upstream Okta SDK client.
@@ -145,4 +150,79 @@ func (o *apiClient) CreateApplication(ctx context.Context, body okta.App, qp *qu
 // GetApplication fetches the data for a single application, by ID
 func (o *apiClient) GetApplication(ctx context.Context, appId string, appInstance okta.App, qp *query.Params) (okta.App, *okta.Response, error) {
 	return o.client.Application.GetApplication(ctx, appId, appInstance, qp)
+}
+
+// ListLogEvents will return the list of log events.
+func (o *apiClient) ListLogEvents(ctx context.Context, qp *query.Params) ([]*okta.LogEvent, *okta.Response, error) {
+	logs, resp, err := o.client.LogEvent.GetLogs(ctx, qp)
+	return logs, resp, trace.Wrap(err)
+}
+
+func (o *apiClient) ListApiTokens(ctx context.Context, qp *query.Params) ([]*ApiToken, *okta.Response, error) {
+	rq := o.client.CloneRequestExecutor()
+	url := "/api/v1/api-tokens"
+	if qp != nil {
+		url = url + qp.String()
+	}
+
+	req, err := rq.WithAccept("application/json").WithContentType("application/json").NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var tokens []*ApiToken
+
+	resp, err := rq.Do(ctx, req, &tokens)
+	if err != nil {
+		return nil, resp, trace.Wrap(err)
+	}
+
+	return tokens, resp, nil
+}
+
+// ApiToken An API token for an Okta User. This token is NOT scoped any further and can be used for any API the user has permissions to call.
+type ApiToken struct {
+	ClientName  *string    `json:"clientName,omitempty"`
+	Created     *time.Time `json:"created,omitempty"`
+	ExpiresAt   *time.Time `json:"expiresAt,omitempty"`
+	Id          *string    `json:"id,omitempty"`
+	LastUpdated *time.Time `json:"lastUpdated,omitempty"`
+	Name        string     `json:"name"`
+	// A time duration specified as an [ISO-8601 duration](https://en.wikipedia.org/wiki/ISO_8601#Durations).
+	TokenWindow *string `json:"tokenWindow,omitempty"`
+	UserId      *string `json:"userId,omitempty"`
+}
+
+func (o *apiClient) ListUsersWithRoleAssignments(ctx context.Context) (*RoleAssignedUsers, *okta.Response, error) {
+	rq := o.client.CloneRequestExecutor()
+	url := "/api/v1/iam/assignees/users"
+	req, err := rq.WithAccept("application/json").WithContentType("application/json").NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var users RoleAssignedUsers
+
+	resp, err := rq.Do(ctx, req, &users)
+	if err != nil {
+		return nil, resp, trace.Wrap(err)
+	}
+
+	return &users, resp, nil
+}
+
+// RoleAssignedUsers struct for RoleAssignedUsers
+type RoleAssignedUsers struct {
+	Value []RoleAssignedUser `json:"value,omitempty"`
+}
+
+// RoleAssignedUser struct for RoleAssignedUser
+type RoleAssignedUser struct {
+	Id  *string `json:"id,omitempty"`
+	Orn *string `json:"orn,omitempty"`
+}
+
+func (o *apiClient) ListAssignedRolesForUser(ctx context.Context, userId string) ([]*okta.Role, *okta.Response, error) {
+	roles, rsp, err := o.client.User.ListAssignedRolesForUser(ctx, userId, nil)
+	return roles, rsp, trace.Wrap(err)
 }

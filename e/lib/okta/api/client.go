@@ -106,6 +106,14 @@ type Interface interface {
 	// headers used by underlying Okta client. Mainly used for retrieving SAML connector
 	// metadata.
 	DoHttp(ctx context.Context, method string, url *url.URL, accept []string) ([]byte, error)
+	// ListLogEvents will return a list of Okta log events.
+	ListLogEvents(ctx context.Context, qp *query.Params) ([]*okta.LogEvent, *okta.Response, error)
+	// ListApiTokens will return a list of Okta API tokens.
+	ListApiTokens(ctx context.Context, qp *query.Params) ([]*ApiToken, *okta.Response, error)
+	// ListUsersWithRoleAssignments will return a list of Okta users with role assignments.
+	ListUsersWithRoleAssignments(ctx context.Context) (*RoleAssignedUsers, *okta.Response, error)
+	// ListAssignedRolesForUser will return a list of Okta roles assigned to a user.
+	ListAssignedRolesForUser(ctx context.Context, userId string) ([]*okta.Role, *okta.Response, error)
 }
 
 type Config struct {
@@ -625,6 +633,24 @@ func (w *Client) oktaErrToTrace(_ context.Context, err error) error {
 		// If we don't have a more specific error to provide, just wrap the error and return it.
 		return trace.WithField(trace.BadParameter("%s", oktaErr.ErrorSummary), OktaErrorID, oktaErr.ErrorId)
 	}
+}
+
+func (w *Client) ListLogEvents(ctx context.Context, qp *query.Params) ([]*okta.LogEvent, *okta.Response, error) {
+	events, rsp, err := w.APIClient.ListLogEvents(ctx, qp)
+	return events, rsp, trace.Wrap(err)
+}
+func (w *Client) ListApiTokens(ctx context.Context, qp *query.Params) ([]*ApiToken, *okta.Response, error) {
+	tokens, rsp, err := w.APIClient.ListApiTokens(ctx, qp)
+	return tokens, rsp, trace.Wrap(err)
+}
+func (w *Client) ListUsersWithRoleAssignments(ctx context.Context) (*RoleAssignedUsers, *okta.Response, error) {
+	users, rsp, err := w.APIClient.ListUsersWithRoleAssignments(ctx)
+	return users, rsp, trace.Wrap(err)
+}
+
+func (w *Client) ListAssignedRolesForUser(ctx context.Context, userId string) ([]*okta.Role, *okta.Response, error) {
+	roles, rsp, err := w.APIClient.ListAssignedRolesForUser(ctx, userId)
+	return roles, rsp, trace.Wrap(err)
 }
 
 // TestCredentials validates the credentials used by the supplied client by

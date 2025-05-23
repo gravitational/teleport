@@ -22,6 +22,7 @@ type SyncSettings interface {
 	GetEnableAppGroupSync() bool
 	GetEnableAccessListSync() bool
 	GetEnableBidirectionalSync() bool
+	GetEnableSystemLogExport() bool
 }
 
 // IntegrationRequest is implemented by:

@@ -37,6 +37,14 @@ const (
 	ScopeGroupsManage = "okta.groups.manage"
 	// ScopeGroupsRead allows to read groups from Okta API.
 	ScopeGroupsRead = "okta.groups.read"
+	// ScopeOrgsRead allows to read organization information from Okta API.
+	ScopeOrgsRead = "okta.orgs.read"
+	// ScopeOktaLogsRead allows to read Okta logs from Okta API.
+	ScopeOktaLogsRead = "okta.logs.read"
+	// ScopeOktaAPITokensRead allows to read Okta API tokens from Okta API.
+	ScopeOktaAPITokensRead = "okta.apiTokens.read"
+	// ScopeRolesRead allows to read Okta roles from Okta API.
+	ScopeRolesRead = "okta.roles.read"
 )
 
 // getAuthorizedScopes fetches the access token and extracts the scopes configured on the Okta

@@ -22,6 +22,11 @@ var (
 		oktaapi.ScopeAppsManage,
 		oktaapi.ScopeGroupsManage,
 	)
+	siemScopes = []string{
+		oktaapi.ScopeOktaLogsRead,
+		oktaapi.ScopeOktaAPITokensRead,
+		oktaapi.ScopeRolesRead,
+	}
 )
 
 // GetReadOnlyOAuthScopes returns the minimal Okta client scopes for OAuth credentials required
@@ -34,15 +39,32 @@ func GetReadOnlyOAuthScopes() []string {
 	return readOAuthScopes[:]
 }
 
+// GetSIEMOAuthScopes returns the Okta client scopes for OAuth credentials required
+// for:
+//   - read-only logs
+//   - read-only API tokens
+//   - read-only roles
+func GetSIEMOAuthScopes() []string {
+	return siemScopes[:]
+}
+
 // GetOAuthScopesForSyncSettings determines Okta OAuth scopes required for the given sync level.
 // Consider using [GetOAuthScopesForIntegrationRequest] first.
 func GetOAuthScopesForSyncSettings(syncSettings SyncSettings) []string {
 	if syncSettings.GetEnableBidirectionalSync() {
-		return allOAuthScopes[:]
+		scopes := allOAuthScopes[:]
+		if syncSettings.GetEnableSystemLogExport() {
+			scopes = append(scopes, siemScopes...)
+		}
+		return scopes
 	}
 	// User sync is required for all other sync levels so it's enough to only check that.
 	if syncSettings.GetEnableUserSync() {
-		return readOAuthScopes[:]
+		scopes := readOAuthScopes[:]
+		if syncSettings.GetEnableSystemLogExport() {
+			scopes = append(scopes, siemScopes...)
+		}
+		return scopes
 	}
 	return nil
 }

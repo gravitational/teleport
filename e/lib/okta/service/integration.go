@@ -193,9 +193,10 @@ func newOktaPlugin(req *oktapb.CreateIntegrationRequest, connectorInfo *sso.SAML
 			SsoConnectorId:           connectorInfo.Connector.GetName(),
 			AppId:                    connectorInfo.OktaAppID,
 
-			GroupFilters:  req.GetAccessListSettings().GetGroupFilters(),
-			AppFilters:    req.GetAccessListSettings().GetAppFilters(),
-			DefaultOwners: req.GetAccessListSettings().GetDefaultOwner(),
+			GroupFilters:          req.GetAccessListSettings().GetGroupFilters(),
+			AppFilters:            req.GetAccessListSettings().GetAppFilters(),
+			DefaultOwners:         req.GetAccessListSettings().GetDefaultOwner(),
+			EnableSystemLogExport: req.GetEnableSystemLogExport(),
 		},
 	}
 

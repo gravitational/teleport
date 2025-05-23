@@ -61,6 +61,7 @@ const (
 	OktaErrCodeResourceNotFoundException     = "E0000007"
 	OktaErrCodeNotFoundException             = "E0000008"
 	OktaErrCodeInvalidTokenProvidedException = "E0000011"
+	OktaErrCodeRateLimitException            = "E0000047"
 )
 
 // OktaAPIValidationError is a validation error.

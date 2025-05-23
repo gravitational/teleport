@@ -5,6 +5,7 @@ import (
 	url "net/url"
 	"testing" //nolint:depguard // this a shared test package
 
+	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/okta/okta-sdk-golang/v2/okta/query"
 
@@ -205,4 +206,18 @@ func (c *Client) GetAuthorizedScopes(ctx context.Context) ([]string, error) {
 		return c.GetAuthorizedScopesFunc(c.t, ctx)
 	}
 	panic("Client.GetAuthorizedScopesFunc not implemented")
+}
+
+func (w *Client) ListLogEvents(ctx context.Context, qp *query.Params) ([]*okta.LogEvent, *okta.Response, error) {
+	return nil, nil, trace.NotImplemented("listLogEvents")
+}
+func (w *Client) ListApiTokens(ctx context.Context, qp *query.Params) ([]*oktaapi.ApiToken, *okta.Response, error) {
+	return nil, nil, trace.NotImplemented("listApiTokens")
+}
+func (w *Client) ListUsersWithRoleAssignments(ctx context.Context) (*oktaapi.RoleAssignedUsers, *okta.Response, error) {
+	return nil, nil, trace.NotImplemented("listUsersWithRoleAssignments")
+}
+
+func (w *Client) ListAssignedRolesForUser(ctx context.Context, userId string) ([]*okta.Role, *okta.Response, error) {
+	return nil, nil, trace.NotImplemented("listAssignedRolesForUser")
 }

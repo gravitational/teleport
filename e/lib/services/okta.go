@@ -231,6 +231,15 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		return trace.Wrap(err)
 	}
 
+	if settings.syncSettings.GetEnableSystemLogExport() {
+		oktaService.StartSystemLogExporter(ctx, okta.StartIntegrationOpts{
+			AccessGraphConfig:  process.Config.AccessGraph,
+			BootstrapStartDate: time.Now().UTC().Add(-10 * time.Hour * 24), // 10 days back
+			ClusterFeatures:    process.GetClusterFeatures,
+			GetCreds:           conn.ClientGetCertificate,
+		})
+	}
+
 	logger.InfoContext(process.ExitContext(), "Okta service has successfully started")
 
 	oktaService.Wait(ctx)

@@ -325,15 +325,17 @@ func Test_validateUpdateIntegrationRequest(t *testing.T) {
 				EnableAccessListSync:    true,
 				EnableAppGroupSync:      true,
 				EnableBidirectionalSync: true,
+				EnableSystemLogExport:   true,
 			},
 			plugin: &types.PluginV1{
 				Spec: types.PluginSpecV1{
 					Settings: &types.PluginSpecV1_Okta{
 						Okta: &types.PluginOktaSettings{
 							SyncSettings: &types.PluginOktaSyncSettings{
-								SyncUsers:            true,
-								DisableSyncAppGroups: false,
-								SyncAccessLists:      true,
+								SyncUsers:             true,
+								DisableSyncAppGroups:  false,
+								SyncAccessLists:       true,
+								EnableSystemLogExport: true,
 							},
 							CredentialsInfo: &types.PluginOktaCredentialsInfo{},
 						},

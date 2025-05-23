@@ -119,6 +119,7 @@ func validateOktaPluginUpdateInputs(params *ui.OktaPluginUpdate) (*oktav1.Update
 		EnableAccessListSync:    params.EnableAccessListSync,
 		AccessListSettings:      accessListSettings,
 		EnableBidirectionalSync: params.EnableBidirectionalSync,
+		EnableSystemLogExport:   params.EnableSystemLogExport,
 	}, nil
 }
 
@@ -190,6 +191,7 @@ func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plu
 			DefaultOwner: params.defaultOwners,
 		},
 		EnableBidirectionalSync: params.enableBidirectionalSync,
+		EnableSystemLogExport:   params.enableSystemLogExport,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -250,6 +252,9 @@ type oktaPluginInputs struct {
 	enableBidirectionalSync bool
 	metadataURL             string
 	reuseConnector          string
+	// enableSystemLogExport is used to determine if the audit logs export
+	// feature is enabled for the Okta plugin.
+	enableSystemLogExport bool
 }
 
 type validateOktaPluginInputsArgs struct {
@@ -346,6 +351,7 @@ func (args *validateOktaPluginInputsArgs) validateOktaConfig(ctx context.Context
 	out.reuseConnector = args.form.Get("reuseConnector")
 	// If access list sync is enabled, default to true
 	out.enableBidirectionalSync = orDefault(args.form, "enableBidirectionalSync", out.enableAccessListSync)
+	out.enableSystemLogExport = orDefault(args.form, "enableSystemLogExport", out.enableSystemLogExport)
 
 	// We only want to validate the config via live req to the Okta org
 	// if providing credentials or toggling sync options.

@@ -409,3 +409,17 @@ func (t *TestOktaClient) GetAppGroups(ctx context.Context, appID OktaAppID) ([]O
 func (t *TestOktaClient) GetAuthorizedScopes(ctx context.Context) ([]string, error) {
 	return oktaAPIScopes, nil
 }
+
+func (w *TestOktaClient) ListLogEvents(ctx context.Context, qp *query.Params) ([]*okta.LogEvent, *okta.Response, error) {
+	return nil, nil, trace.NotImplemented("listLogEvents")
+}
+func (w *TestOktaClient) ListApiTokens(ctx context.Context, qp *query.Params) ([]*ApiToken, *okta.Response, error) {
+	return nil, nil, trace.NotImplemented("listApiTokens")
+}
+func (w *TestOktaClient) ListUsersWithRoleAssignments(ctx context.Context) (*RoleAssignedUsers, *okta.Response, error) {
+	return nil, nil, trace.NotImplemented("listUsersWithRoleAssignments")
+}
+
+func (w *TestOktaClient) ListAssignedRolesForUser(ctx context.Context, userId string) ([]*okta.Role, *okta.Response, error) {
+	return nil, nil, trace.NotImplemented("listAssignedRolesForUser")
+}

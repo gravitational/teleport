@@ -508,3 +508,16 @@ func (m *mockOktaAPIClient) setRoundTripper(rt http.RoundTripper) {
 	defer m.mu.Unlock()
 	m.rt = rt
 }
+
+func (m *mockOktaAPIClient) ListLogEvents(ctx context.Context, qp *query.Params) ([]*okta.LogEvent, *okta.Response, error) {
+	return []*okta.LogEvent{}, &okta.Response{}, nil
+}
+func (m *mockOktaAPIClient) ListApiTokens(ctx context.Context, qp *query.Params) ([]*oktaapi.ApiToken, *okta.Response, error) {
+	return nil, nil, nil
+}
+func (m *mockOktaAPIClient) ListUsersWithRoleAssignments(ctx context.Context) (*oktaapi.RoleAssignedUsers, *okta.Response, error) {
+	return nil, nil, nil
+}
+func (m *mockOktaAPIClient) ListAssignedRolesForUser(ctx context.Context, userId string) ([]*okta.Role, *okta.Response, error) {
+	return nil, nil, nil
+}

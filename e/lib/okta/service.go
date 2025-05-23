@@ -16,10 +16,13 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/e/lib/accessgraph"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
+	oktaauditlogs "github.com/gravitational/teleport/e/lib/okta/audit_logs"
 	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/e/lib/okta/common/sso"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
@@ -28,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/app"
@@ -618,6 +622,42 @@ func (s *Service) Start(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+type StartIntegrationOpts struct {
+	AccessGraphConfig  servicecfg.AccessGraphConfig
+	BootstrapStartDate time.Time
+	ClusterFeatures    func() proto.Features
+	GetCreds           accessgraph.ClientCredentialsGetter
+}
+
+func (s *Service) StartSystemLogExporter(ctx context.Context, cfg StartIntegrationOpts) {
+	svc, err := oktaauditlogs.New(
+		ctx,
+		oktaauditlogs.Config{
+			Client:             s.client,
+			Clock:              s.clock,
+			Logger:             s.logger,
+			AccessGraphConfig:  cfg.AccessGraphConfig,
+			HostID:             s.hostID,
+			AccessPoint:        s.accessPoint,
+			GetCreds:           cfg.GetCreds,
+			ClusterFeatures:    cfg.ClusterFeatures,
+			BootstrapStartDate: cfg.BootstrapStartDate,
+		},
+	)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "Failed to start Okta SIEM integration", "error", err)
+		return
+	}
+	go func() {
+		err := svc.Run(ctx)
+		if err != nil {
+			s.logger.ErrorContext(ctx, "Okta SIEM integration failed", "error", err)
+			return
+		}
+		s.logger.InfoContext(ctx, "Okta SIEM integration stopped")
+	}()
 }
 
 // Wait will wait for the Okta service to complete.

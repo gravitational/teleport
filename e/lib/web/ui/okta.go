@@ -47,6 +47,8 @@ type OktaPluginSpec struct {
 	// EnableBidirectionalSync indicates whether changes made in Teleport
 	// should be synced back to Okta.
 	EnableBidirectionalSync bool `json:"enableBidirectionalSync,omitempty"`
+	// EnableSystemLogExport indicates whether the Teleport Identity Security SIEM integration for Okta should be enabled.
+	EnableSystemLogExport bool `json:"enableSystemLogExport,omitempty"`
 
 	// CredentialInfo holds information about configured credentials in the plugin.
 	CredentialInfo *OktaCredentialInfo `json:"credentialsInfo,omitempty"`

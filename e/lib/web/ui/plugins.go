@@ -320,6 +320,7 @@ func pluginSpec(p types.Plugin) PluginSpec {
 			EnableAccessListSync:    settings.Okta.SyncSettings.SyncAccessLists,
 			EnableBidirectionalSync: !settings.Okta.SyncSettings.DisableBidirectionalSync,
 			CredentialInfo:          toCredentialInfo(settings.Okta.CredentialsInfo),
+			EnableSystemLogExport:   settings.Okta.SyncSettings.EnableSystemLogExport,
 		}
 	case *types.PluginSpecV1_Msteams:
 		return &MsTeamsPluginSpec{
@@ -393,4 +394,6 @@ type OktaPluginUpdate struct {
 	AppFilters []string `json:"appFilters,omitempty"`
 	// GroupFilters is the list of filters for groups to sync.
 	GroupFilters []string `json:"groupFilters,omitempty"`
+	// EnableSystemLogExport indicates whether the Teleport Identity Security SIEM integration for Okta should be enabled.
+	EnableSystemLogExport bool `json:"enableSystemLogExport,omitempty"`
 }
