@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sync"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
@@ -39,6 +40,8 @@ var listDatabasesTool = mcp.NewTool(listDatabasesToolName,
 // RootServer database access root MCP server.
 type RootServer struct {
 	*mcpserver.MCPServer
+
+	mu                 sync.RWMutex
 	logger             *slog.Logger
 	availableDatabases map[string]*Database
 }
@@ -74,6 +77,9 @@ func (s *RootServer) ListDatabases(ctx context.Context, request mcp.CallToolRequ
 
 // GetDatabaseResource resource handler for databases.
 func (s *RootServer) GetDatabaseResource(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	db, ok := s.availableDatabases[request.Params.URI]
 	if !ok {
 		return nil, trace.NotFound("Database is %q not available as MCP resource", request.Params.URI)
@@ -93,6 +99,9 @@ func (s *RootServer) GetDatabaseResource(ctx context.Context, request mcp.ReadRe
 // TODO(gabrielcorado): support dynamically registering/deregistering databases
 // after the server starts.
 func (s *RootServer) RegisterDatabase(db *Database) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	uri := db.ResourceURI()
 	s.availableDatabases[uri] = db
 	s.AddResource(mcp.NewResource(uri, fmt.Sprintf("%s Datatabase", db.DB.GetName()), mcp.WithMIMEType(databaseResourceMIMEType)), s.GetDatabaseResource)
