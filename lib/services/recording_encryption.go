@@ -36,7 +36,11 @@ type RecordingEncryption interface {
 	GetRecordingEncryption(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error)
 }
 
-// RecordingEncryptionResolver resolves RecordingEncryption state on behalf of the auth server calling it.
+type EncryptedRecordingUploader interface {
+	UploadEncryptedRecording(ctx context.Context) (chan *recordingencryptionv1.UploadEncryptedRecordingRequest, chan error)
+}
+
+// RecordingEncryptionManager resolves RecordingEncryption state on behalf of the auth server calling it.
 type RecordingEncryptionResolver interface {
 	ResolveRecordingEncryption(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error)
 	GetDecryptionKey(ctx context.Context, publicKey [][]byte) (*types.EncryptionKeyPair, error)

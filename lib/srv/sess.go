@@ -1533,6 +1533,7 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder
 		ClusterName:  ctx.ClusterName,
 		RecordingCfg: ctx.SessionRecordingConfig,
 		SyncStreamer: ctx.srv,
+		Encrypter:    auth.NewEncryptionWrapper(ctx.SessionRecordingConfig),
 		DataDir:      ctx.srv.GetDataDir(),
 		Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 		// Session stream is using server context, not session context,
