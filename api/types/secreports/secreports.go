@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
-	"github.com/gravitational/teleport/api/utils"
 )
 
 // Report is security report.
@@ -34,6 +33,16 @@ type Report struct {
 	header.ResourceHeader
 	// Spec is the security report spec.
 	Spec ReportSpec `json:"spec" yaml:"spec"`
+}
+
+func (a *Report) Clone() *Report {
+	if a == nil {
+		return nil
+	}
+	return &Report{
+		ResourceHeader: *a.ResourceHeader.Clone(),
+		Spec:           *a.Spec.Clone(),
+	}
 }
 
 // ReportSpec is the security report spec.
@@ -50,12 +59,42 @@ type ReportSpec struct {
 	Version string `json:"version,omitempty" yaml:"version,omitempty"`
 }
 
+func (s *ReportSpec) Clone() *ReportSpec {
+	if s == nil {
+		return nil
+	}
+	var auditQueries []*AuditQuerySpec
+	if s.AuditQueries != nil {
+		auditQueries = make([]*AuditQuerySpec, 0, len(s.AuditQueries))
+		for _, auditQuery := range s.AuditQueries {
+			auditQueries = append(auditQueries, auditQuery.Clone())
+		}
+	}
+	return &ReportSpec{
+		Name:         s.Name,
+		Title:        s.Title,
+		Description:  s.Description,
+		AuditQueries: auditQueries,
+		Version:      s.Version,
+	}
+}
+
 // AuditQuery is the audit query resource.
 type AuditQuery struct {
 	// ResourceHeader is the resource header.
 	header.ResourceHeader
 	// Spec is the audit query specification.
 	Spec AuditQuerySpec `json:"spec" yaml:"spec"`
+}
+
+func (a *AuditQuery) Clone() *AuditQuery {
+	if a == nil {
+		return nil
+	}
+	return &AuditQuery{
+		ResourceHeader: *a.ResourceHeader.Clone(),
+		Spec:           *a.Spec.Clone(),
+	}
 }
 
 // AuditQuerySpec is the audit query specification.
@@ -70,6 +109,18 @@ type AuditQuerySpec struct {
 	Query string `json:"query,omitempty" yaml:"query,omitempty"`
 }
 
+func (s *AuditQuerySpec) Clone() *AuditQuerySpec {
+	if s == nil {
+		return nil
+	}
+	return &AuditQuerySpec{
+		Name:        s.Name,
+		Title:       s.Title,
+		Description: s.Description,
+		Query:       s.Query,
+	}
+}
+
 // CheckAndSetDefaults validates fields and populates empty fields with default values.
 func (a *AuditQuery) CheckAndSetDefaults() error {
 	a.SetKind(types.KindAuditQuery)
@@ -79,13 +130,6 @@ func (a *AuditQuery) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// Clone returns a copy of the query.
-func (a *AuditQuery) Clone() *AuditQuery {
-	var copy *AuditQuery
-	utils.StrictObjectToStruct(a, &copy)
-	return copy
 }
 
 // NewAuditQuery creates a new audit query.
@@ -123,13 +167,6 @@ func (a *Report) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Clone returns a copy of the report.
-func (a *Report) Clone() *Report {
-	var copy *Report
-	utils.StrictObjectToStruct(a, &copy)
-	return copy
-}
-
 // GetMetadata returns metadata. This is specifically for conforming to the Resource interface,
 // and should be removed when possible.
 func (a *Report) GetMetadata() types.Metadata {
@@ -162,12 +199,33 @@ type ReportState struct {
 	Spec ReportStateSpec `json:"spec,omitempty" yaml:"spec,omitempty"`
 }
 
+func (a *ReportState) Clone() *ReportState {
+	if a == nil {
+		return nil
+	}
+
+	return &ReportState{
+		ResourceHeader: *a.ResourceHeader.Clone(),
+		Spec:           *a.Spec.Clone(),
+	}
+}
+
 // ReportStateSpec is the security report state specification.
 type ReportStateSpec struct {
 	// Name is the Report name.
 	Status Status `json:"status,omitempty" yaml:"status,omitempty"`
 	// UpdatedAt is the time the report was updated.
 	UpdatedAt time.Time `json:"updated_at,omitempty" yaml:"updated_at,omitempty"`
+}
+
+func (s *ReportStateSpec) Clone() *ReportStateSpec {
+	if s == nil {
+		return nil
+	}
+	return &ReportStateSpec{
+		Status:    s.Status,
+		UpdatedAt: s.UpdatedAt,
+	}
 }
 
 // GetMetadata returns metadata. This is specifically for conforming to the Resource interface,
@@ -185,13 +243,6 @@ func (a *ReportState) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// Clone returns a copy of the report state.
-func (a *ReportState) Clone() *ReportState {
-	var copy *ReportState
-	utils.StrictObjectToStruct(a, &copy)
-	return copy
 }
 
 // NewReportState creates a new security report state.
