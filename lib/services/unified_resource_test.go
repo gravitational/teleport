@@ -521,7 +521,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 				app, err := types.NewAppServerV3(
 					types.Metadata{Name: name},
 					types.AppServerSpecV3{
-						HostID: "app1-host-id",
+						HostID: uuid.NewString(),
 						App:    newApp(t, name),
 					},
 				)
@@ -553,7 +553,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, name, "1")
+				kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, name, uuid.NewString())
 				if err != nil {
 					return err
 				}
@@ -610,7 +610,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 				win, err := types.NewWindowsDesktopV3(
 					name,
 					nil,
-					types.WindowsDesktopSpecV3{Addr: "localhost", HostID: "win1-host-id"},
+					types.WindowsDesktopSpecV3{Addr: "localhost", HostID: uuid.NewString()},
 				)
 				if err != nil {
 					return err
@@ -683,7 +683,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
+			// t.Parallel()
 
 			clt := newClient(t)
 

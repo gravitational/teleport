@@ -158,7 +158,7 @@ var unifiedResourceIndices = map[resourceIndex]func(types.ResourceWithLabels) st
 		if h, ok := r.(interface{ GetHostID() string }); ok {
 			return r.GetKind() + "/" + r.GetName() + "/" + h.GetHostID()
 		}
-		return r.GetKind() + "/" + r.GetName() + "/"
+		return r.GetKind() + "/" + r.GetName()
 	},
 }
 
@@ -221,13 +221,19 @@ func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, s
 			kindsMap[k] = struct{}{}
 		}
 
-		// TODO(gavin): Key range inclusivity flips in descending order, which will have to be handled.
-		// Just pretend this is always ascending order for now.
 		rangeFn := (*sortcache.SortCache[types.ResourceWithLabels, resourceIndex]).Ascend
 		if sortBy.IsDesc {
 			rangeFn = (*sortcache.SortCache[types.ResourceWithLabels, resourceIndex]).Descend
 		}
-		index := resourceIndexFromSortBy(sortBy)
+		var index resourceIndex
+		switch sortBy.Field {
+		case sortByName:
+			index = resourceNameIndex
+		case sortByKind:
+			index = resourceKindIndex
+		default:
+			index = resourceNameIndex
+		}
 
 		const defaultPageSize = 100
 		items := make([]iteratedItem, 0, defaultPageSize)
@@ -237,9 +243,9 @@ func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, s
 			err := c.read(ctx, func(cache *UnifiedResourceCache) error {
 				// range over all keys
 				for r := range rangeFn(cache.itemCache, index, start, "") {
-					key := cache.itemCache.KeyOf(resourceIdentifierIndex, r)
 					switch r.GetKind() {
 					case types.KindDatabaseServer:
+						key := cache.itemCache.KeyOf(resourceKindIndex, r)
 						healthStat := types.AggregateHealthStatus(func(yield func(types.TargetHealthStatus) bool) {
 							for r := range cache.itemCache.Ascend(resourceIdentifierIndex, key, sortcache.NextKey(key)) {
 								if r, ok := r.(types.DatabaseServer); ok {
@@ -255,12 +261,14 @@ func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, s
 						}
 					}
 					if len(kinds) == 0 || c.itemKindMatches(r, kindsMap) {
+						key := cache.itemCache.KeyOf(index, r)
 						items = append(items, iteratedItem{key: key, resource: r})
-					}
-
-					if len(items) >= defaultPageSize {
-						start = sortcache.NextKey(key)
-						return nil
+						if len(items) >= defaultPageSize {
+							if !sortBy.IsDesc {
+								start = sortcache.NextKey(key)
+							}
+							return nil
+						}
 					}
 				}
 				return nil
@@ -933,18 +941,6 @@ const (
 	sortByName string = "name"
 	sortByKind string = "kind"
 )
-
-// resourceIndexFromSortBy converts [types.SortBy] to a resource index.
-func resourceIndexFromSortBy(sortBy types.SortBy) resourceIndex {
-	switch sortBy.Field {
-	case sortByName:
-		return resourceNameIndex
-	case sortByKind:
-		return resourceKindIndex
-	default:
-		return resourceNameIndex
-	}
-}
 
 // MakePaginatedResource converts a resource into a paginated proto representation.
 func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requiresRequest bool) (*clientproto.PaginatedResource, error) {

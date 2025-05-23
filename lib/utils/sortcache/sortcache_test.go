@@ -481,7 +481,7 @@ func TestAdvancedBounds(t *testing.T) {
 
 	// verify fully open ascend
 	t.Run("open ascend includes all keys in order", func(t *testing.T) {
-		out := slices.Collect(cache.Ascend(Name, "", NextKey("")))
+		out := slices.Collect(cache.Ascend(Name, NextKey(""), ""))
 		require.Equal(t, []resource{
 			{"001", "app_server", ""},
 			{"001", "app_server", "111"},
