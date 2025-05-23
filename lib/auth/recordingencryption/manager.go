@@ -233,18 +233,14 @@ func (m *Manager) ResolveRecordingEncryption(ctx context.Context) (*recordingenc
 	return encryption, nil
 }
 
-func (m *Manager) searchActiveKeys(ctx context.Context, activeKeys []*recordingencryptionv1.WrappedKey, publicKey []byte) (*types.EncryptionKeyPair, error) {
-	for _, key := range activeKeys {
+func (m *Manager) searchKeys(ctx context.Context, keys []*recordingencryptionv1.WrappedKey, publicKey []byte) (*types.EncryptionKeyPair, error) {
+	for _, key := range keys {
 		if key.GetRecordingEncryptionPair() == nil {
 			continue
 		}
 
-		// TODO (eriktate): this is a bit of a hack to allow encryption to work while the public key isn't retrievable
-		// from the age header
-		if publicKey != nil {
-			if !slices.Equal(key.RecordingEncryptionPair.PublicKey, publicKey) {
-				continue
-			}
+		if !slices.Equal(key.RecordingEncryptionPair.PublicKey, publicKey) {
+			continue
 		}
 
 		decrypter, err := m.keyStore.GetDecrypter(ctx, key.KeyEncryptionPair)
@@ -268,7 +264,8 @@ func (m *Manager) searchActiveKeys(ctx context.Context, activeKeys []*recordinge
 }
 
 // FindDecryptionKey returns the first accessible decryption key that matches one of the given public keys.
-func (m *Manager) FindDecryptionKey(ctx context.Context, publicKeys ...[]byte) (*types.EncryptionKeyPair, error) {
+func (m *Manager) FindDecryptionKey(publicKeys ...[]byte) (*types.EncryptionKeyPair, error) {
+	ctx := context.Background()
 	encryption, err := m.GetRecordingEncryption(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -276,12 +273,8 @@ func (m *Manager) FindDecryptionKey(ctx context.Context, publicKeys ...[]byte) (
 
 	// TODO (eriktate): search rotated keys as well once rotation is implemented
 	activeKeys := encryption.GetSpec().GetActiveKeys()
-	if len(publicKeys) == 0 {
-		return m.searchActiveKeys(ctx, activeKeys, nil)
-	}
-
 	for _, publicKey := range publicKeys {
-		found, err := m.searchActiveKeys(ctx, activeKeys, publicKey)
+		found, err := m.searchKeys(ctx, activeKeys, publicKey)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				continue

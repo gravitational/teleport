@@ -9,6 +9,7 @@ import (
 	"filippo.io/age"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/events"
 )
 
@@ -16,22 +17,18 @@ type SessionRecordingConfigGetter interface {
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 }
 
-type DecryptionKeyGetter interface {
-	FindDecryptionKey(ctx context.Context, publicKeys ...[]byte) (*types.EncryptionKeyPair, error)
-}
-
 type EncryptedIO struct {
-	srcGetter           SessionRecordingConfigGetter
-	decryptionKeyGetter DecryptionKeyGetter
+	srcGetter SessionRecordingConfigGetter
+	keyFinder recordingencryption.DecryptionKeyFinder
 }
 
 var _ events.EncryptionWrapper = (*EncryptedIO)(nil)
 var _ events.DecryptionWrapper = (*EncryptedIO)(nil)
 
-func NewEncryptedIO(srcgetter SessionRecordingConfigGetter, decryptionKeyGetter DecryptionKeyGetter) *EncryptedIO {
+func NewEncryptedIO(srcgetter SessionRecordingConfigGetter, decryptionKeyGetter recordingencryption.DecryptionKeyFinder) *EncryptedIO {
 	return &EncryptedIO{
-		srcGetter:           srcgetter,
-		decryptionKeyGetter: decryptionKeyGetter,
+		srcGetter: srcgetter,
+		keyFinder: decryptionKeyGetter,
 	}
 }
 
@@ -52,20 +49,11 @@ func (e *EncryptedIO) WithEncryption(writer io.WriteCloser) (io.WriteCloser, err
 }
 
 func (e *EncryptedIO) WithDecryption(reader io.Reader) (io.Reader, error) {
-	if e.decryptionKeyGetter == nil {
+	if e.keyFinder == nil {
 		return reader, nil
 	}
-	ctx := context.TODO()
-	pair, err := e.decryptionKeyGetter.FindDecryptionKey(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	ident, err := age.ParseX25519Identity(string(pair.PrivateKey))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	ident := recordingencryption.NewRecordingIdentity(e.keyFinder)
 	r, err := age.Decrypt(reader, ident)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -93,7 +81,7 @@ func (s *EncryptionWrapper) WithEncryption(writer io.WriteCloser) (io.WriteClose
 
 	var recipients []age.Recipient
 	for _, key := range s.config.GetStatus().EncryptionKeys {
-		recipient, err := age.ParseX25519Recipient(string(key.PublicKey))
+		recipient, err := recordingencryption.ParseRecordingRecipient(string(key.PublicKey))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

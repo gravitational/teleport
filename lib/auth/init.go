@@ -90,7 +90,7 @@ type VersionStorage interface {
 type RecordingEncryptionManager interface {
 	services.RecordingEncryption
 	recordingencryption.RecordingEncryptionResolver
-	DecryptionKeyGetter
+	recordingencryption.DecryptionKeyFinder
 }
 
 // InitConfig is auth server init config
