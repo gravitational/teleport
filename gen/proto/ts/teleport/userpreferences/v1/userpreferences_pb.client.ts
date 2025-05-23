@@ -21,8 +21,6 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { UserPreferencesService } from "./userpreferences_pb";
-import type { GetKeyboardLayoutResponse } from "./userpreferences_pb";
-import type { GetKeyboardLayoutRequest } from "./userpreferences_pb";
 import type { Empty } from "../../../google/protobuf/empty_pb";
 import type { UpsertUserPreferencesRequest } from "./userpreferences_pb";
 import { stackIntercept } from "@protobuf-ts/runtime-rpc";
@@ -48,12 +46,6 @@ export interface IUserPreferencesServiceClient {
      * @generated from protobuf rpc: UpsertUserPreferences(teleport.userpreferences.v1.UpsertUserPreferencesRequest) returns (google.protobuf.Empty);
      */
     upsertUserPreferences(input: UpsertUserPreferencesRequest, options?: RpcOptions): UnaryCall<UpsertUserPreferencesRequest, Empty>;
-    /**
-     * GetKeyboardLayout returns the keyboard layout preference for the user.
-     *
-     * @generated from protobuf rpc: GetKeyboardLayout(teleport.userpreferences.v1.GetKeyboardLayoutRequest) returns (teleport.userpreferences.v1.GetKeyboardLayoutResponse);
-     */
-    getKeyboardLayout(input: GetKeyboardLayoutRequest, options?: RpcOptions): UnaryCall<GetKeyboardLayoutRequest, GetKeyboardLayoutResponse>;
 }
 /**
  * UserPreferencesService is a service that stores user settings.
@@ -83,14 +75,5 @@ export class UserPreferencesServiceClient implements IUserPreferencesServiceClie
     upsertUserPreferences(input: UpsertUserPreferencesRequest, options?: RpcOptions): UnaryCall<UpsertUserPreferencesRequest, Empty> {
         const method = this.methods[1], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpsertUserPreferencesRequest, Empty>("unary", this._transport, method, opt, input);
-    }
-    /**
-     * GetKeyboardLayout returns the keyboard layout preference for the user.
-     *
-     * @generated from protobuf rpc: GetKeyboardLayout(teleport.userpreferences.v1.GetKeyboardLayoutRequest) returns (teleport.userpreferences.v1.GetKeyboardLayoutResponse);
-     */
-    getKeyboardLayout(input: GetKeyboardLayoutRequest, options?: RpcOptions): UnaryCall<GetKeyboardLayoutRequest, GetKeyboardLayoutResponse> {
-        const method = this.methods[2], opt = this._transport.mergeOptions(options);
-        return stackIntercept<GetKeyboardLayoutRequest, GetKeyboardLayoutResponse>("unary", this._transport, method, opt, input);
     }
 }

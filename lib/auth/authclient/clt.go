@@ -1807,9 +1807,6 @@ type ClientI interface {
 	// UpsertUserPreferences creates or updates user preferences for a given username.
 	UpsertUserPreferences(ctx context.Context, req *userpreferencesv1.UpsertUserPreferencesRequest) error
 
-	// GetKeyboardLayout returns the keyboard layout preference for the user.
-	GetKeyboardLayout(ctx context.Context, in *userpreferencesv1.GetKeyboardLayoutRequest) (*userpreferencesv1.GetKeyboardLayoutResponse, error)
-
 	// ListAllAccessRequests is a helper for using the ListAccessRequests API's additional sort order/index features without
 	// mucking about with pagination. It also implements backwards-comatibility with older control planes that only
 	// support GetAccessRequests.

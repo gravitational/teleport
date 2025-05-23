@@ -114,30 +114,6 @@ export interface GetUserPreferencesResponse {
     preferences?: UserPreferences;
 }
 /**
- * GetKeyboardLayoutRequest is a request to get the user keyboard layout.
- *
- * @generated from protobuf message teleport.userpreferences.v1.GetKeyboardLayoutRequest
- */
-export interface GetKeyboardLayoutRequest {
-    /**
-     * @generated from protobuf field: string username = 1;
-     */
-    username: string;
-}
-/**
- * GetKeyboardLayoutResponse is a response to get the user keyboard layout.
- *
- * @generated from protobuf message teleport.userpreferences.v1.GetKeyboardLayoutResponse
- */
-export interface GetKeyboardLayoutResponse {
-    /**
-     * keyboard_layout is the code of keyboard layout preferred by the user.
-     *
-     * @generated from protobuf field: uint32 keyboard_layout = 1;
-     */
-    keyboardLayout: number;
-}
-/**
  * UpsertUserPreferencesRequest is a request to create or update the user preferences.
  *
  * @generated from protobuf message teleport.userpreferences.v1.UpsertUserPreferencesRequest
@@ -320,100 +296,6 @@ class GetUserPreferencesResponse$Type extends MessageType<GetUserPreferencesResp
  */
 export const GetUserPreferencesResponse = new GetUserPreferencesResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class GetKeyboardLayoutRequest$Type extends MessageType<GetKeyboardLayoutRequest> {
-    constructor() {
-        super("teleport.userpreferences.v1.GetKeyboardLayoutRequest", [
-            { no: 1, name: "username", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<GetKeyboardLayoutRequest>): GetKeyboardLayoutRequest {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.username = "";
-        if (value !== undefined)
-            reflectionMergePartial<GetKeyboardLayoutRequest>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetKeyboardLayoutRequest): GetKeyboardLayoutRequest {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string username */ 1:
-                    message.username = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: GetKeyboardLayoutRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string username = 1; */
-        if (message.username !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.username);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.userpreferences.v1.GetKeyboardLayoutRequest
- */
-export const GetKeyboardLayoutRequest = new GetKeyboardLayoutRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class GetKeyboardLayoutResponse$Type extends MessageType<GetKeyboardLayoutResponse> {
-    constructor() {
-        super("teleport.userpreferences.v1.GetKeyboardLayoutResponse", [
-            { no: 1, name: "keyboard_layout", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
-        ]);
-    }
-    create(value?: PartialMessage<GetKeyboardLayoutResponse>): GetKeyboardLayoutResponse {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.keyboardLayout = 0;
-        if (value !== undefined)
-            reflectionMergePartial<GetKeyboardLayoutResponse>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetKeyboardLayoutResponse): GetKeyboardLayoutResponse {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* uint32 keyboard_layout */ 1:
-                    message.keyboardLayout = reader.uint32();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: GetKeyboardLayoutResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* uint32 keyboard_layout = 1; */
-        if (message.keyboardLayout !== 0)
-            writer.tag(1, WireType.Varint).uint32(message.keyboardLayout);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.userpreferences.v1.GetKeyboardLayoutResponse
- */
-export const GetKeyboardLayoutResponse = new GetKeyboardLayoutResponse$Type();
-// @generated message type with reflection information, may provide speed optimized methods
 class UpsertUserPreferencesRequest$Type extends MessageType<UpsertUserPreferencesRequest> {
     constructor() {
         super("teleport.userpreferences.v1.UpsertUserPreferencesRequest", [
@@ -464,6 +346,5 @@ export const UpsertUserPreferencesRequest = new UpsertUserPreferencesRequest$Typ
  */
 export const UserPreferencesService = new ServiceType("teleport.userpreferences.v1.UserPreferencesService", [
     { name: "GetUserPreferences", options: {}, I: GetUserPreferencesRequest, O: GetUserPreferencesResponse },
-    { name: "UpsertUserPreferences", options: {}, I: UpsertUserPreferencesRequest, O: Empty },
-    { name: "GetKeyboardLayout", options: {}, I: GetKeyboardLayoutRequest, O: GetKeyboardLayoutResponse }
+    { name: "UpsertUserPreferences", options: {}, I: UpsertUserPreferencesRequest, O: Empty }
 ]);

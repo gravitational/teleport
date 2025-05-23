@@ -5195,15 +5195,6 @@ func (c *Client) UpsertWorkloadIdentity(ctx context.Context, r *workloadidentity
 	return resp, nil
 }
 
-// GetKeyboardLayout returns the user keyboard layout for a given user.
-func (c *Client) GetKeyboardLayout(ctx context.Context, in *userpreferencespb.GetKeyboardLayoutRequest) (*userpreferencespb.GetKeyboardLayoutResponse, error) {
-	resp, err := c.grpc.GetKeyboardLayout(ctx, in)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
-}
-
 // ResourceUsageClient returns an unadorned Resource Usage service client,
 // using the underlying Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,

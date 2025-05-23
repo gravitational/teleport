@@ -25,7 +25,6 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	userpreferences "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -88,25 +87,4 @@ func (a *Service) UpsertUserPreferences(ctx context.Context, req *userpreference
 	username := authCtx.User.GetName()
 
 	return &emptypb.Empty{}, trace.Wrap(a.backend.UpsertUserPreferences(ctx, username, req.Preferences))
-}
-
-// GetKeyboardLayout returns the keyboard layout preference for the user.
-func (a *Service) GetKeyboardLayout(ctx context.Context, req *userpreferences.GetKeyboardLayoutRequest) (*userpreferences.GetKeyboardLayoutResponse, error) {
-	authCtx, err := a.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if !authz.HasBuiltinRole(*authCtx, string(types.RoleWindowsDesktop)) {
-		return nil, trace.AccessDenied("Only Windows Desktop Service can get keyboard layout")
-	}
-
-	prefs, err := a.backend.GetUserPreferences(ctx, req.GetUsername())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &userpreferences.GetKeyboardLayoutResponse{
-		KeyboardLayout: prefs.KeyboardLayout,
-	}, nil
 }
