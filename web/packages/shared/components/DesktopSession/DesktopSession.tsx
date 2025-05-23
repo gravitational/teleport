@@ -60,6 +60,8 @@ import useDesktopSession, {
   isSharingDirectory,
 } from './useDesktopSession';
 
+const US_INTERNATIONAL_KEYBOARD_LAYOUT = 0x00020409;
+
 export interface DesktopSessionProps {
   client: TdpClient;
   /** Username for display purposes. */
@@ -91,7 +93,7 @@ export function DesktopSession({
   desktop,
   hasAnotherSession,
   customConnectionState,
-  keyboardLayout = 0x00020409, // US International by default
+  keyboardLayout = US_INTERNATIONAL_KEYBOARD_LAYOUT,
 }: DesktopSessionProps) {
   const {
     directorySharingState,
