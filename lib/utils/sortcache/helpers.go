@@ -40,3 +40,21 @@ func NextKey(key string) string {
 	// of the valid suffixes.
 	return key
 }
+
+func PrevKey(key string) string {
+	if len(key) == 0 {
+		return ""
+	}
+
+	end := []byte(key)
+	n := len(end)
+
+	for i := n - 1; i >= 0; i-- {
+		if end[i] > 0x00 {
+			end[i]--
+			end = end[:i+1]
+			return string(end)
+		}
+	}
+	return key
+}

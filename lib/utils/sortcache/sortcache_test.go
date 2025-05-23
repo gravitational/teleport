@@ -157,6 +157,9 @@ func TestOpenBounds(t *testing.T) {
 	}, out)
 
 	// verify open-ended ascend
+	val, ok := cache.Get(Name, "002/kube")
+	require.True(t, ok)
+	require.Equal(t, "002/kube", cache.KeyOf(Name, val))
 	out = slices.Collect(cache.Ascend(Name, "002/kube", ""))
 	require.Equal(t, []resource{
 		{"kube", "002"},

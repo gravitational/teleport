@@ -148,11 +148,11 @@ var unifiedResourceIndices = map[resourceIndex]func(types.ResourceWithLabels) st
 		// Note that HA resource servers will overlap on this index and the
 		// kind index, as will resources of the same name but different case.
 		// That's prior behavior and documented bugs that I'm not going to fix in this PR.
-		return strings.ToLower(key.name) + "/" + key.kind
+		return strings.ToLower(key.name) + "/" + key.kind + "/" + key.hostID
 	},
 	resourceKindIndex: func(r types.ResourceWithLabels) string {
 		key := getUnifiedResourcePseudoKey(r)
-		return strings.ToLower(key.kind) + "/" + key.name
+		return strings.ToLower(key.kind) + "/" + key.name + "/" + key.hostID
 	},
 	resourceIdentifierIndex: func(r types.ResourceWithLabels) string {
 		if h, ok := r.(interface{ GetHostID() string }); ok {
@@ -235,17 +235,24 @@ func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, s
 			index = resourceNameIndex
 		}
 
-		const defaultPageSize = 100
+		const defaultPageSize = 10
 		items := make([]iteratedItem, 0, defaultPageSize)
+		if !sortBy.IsDesc {
+			start = sortcache.PrevKey(start)
+		}
 		for {
 			items = items[:0]
 
+			if sortBy.IsDesc {
+				fmt.Printf("HERE: start=%v\n", start)
+				fmt.Println("HERE: leq: ", "hostname1/resource90/node/" <= "hostname1/resource90/node0")
+			}
 			err := c.read(ctx, func(cache *UnifiedResourceCache) error {
 				// range over all keys
 				for r := range rangeFn(cache.itemCache, index, start, "") {
 					switch r.GetKind() {
 					case types.KindDatabaseServer:
-						key := cache.itemCache.KeyOf(resourceKindIndex, r)
+						key := strings.Join(strings.Split(cache.itemCache.KeyOf(resourceKindIndex, r), "/")[:2], "/")
 						healthStat := types.AggregateHealthStatus(func(yield func(types.TargetHealthStatus) bool) {
 							for r := range cache.itemCache.Ascend(resourceIdentifierIndex, key, sortcache.NextKey(key)) {
 								if r, ok := r.(types.DatabaseServer); ok {
@@ -260,15 +267,12 @@ func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, s
 							status:         healthStat,
 						}
 					}
+					key := cache.itemCache.KeyOf(index, r)
 					if len(kinds) == 0 || c.itemKindMatches(r, kindsMap) {
-						key := cache.itemCache.KeyOf(index, r)
 						items = append(items, iteratedItem{key: key, resource: r})
-						if len(items) >= defaultPageSize {
-							if !sortBy.IsDesc {
-								start = sortcache.NextKey(key)
-							}
-							return nil
-						}
+					}
+					if len(items) >= defaultPageSize {
+						return nil
 					}
 				}
 				return nil
@@ -279,6 +283,9 @@ func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, s
 			}
 
 			for _, i := range items {
+				if sortBy.IsDesc {
+					fmt.Println("HERE: yielding: ", i.key)
+				}
 				if !yield(i, nil) {
 					return
 				}
@@ -287,6 +294,13 @@ func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, s
 
 			if len(items) < defaultPageSize {
 				return
+			}
+
+			key := items[len(items)-1].key
+			if sortBy.IsDesc {
+				start = sortcache.PrevKey(key)
+			} else {
+				start = sortcache.NextKey(key)
 			}
 		}
 	}

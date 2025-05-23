@@ -436,13 +436,16 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 	ctx := context.Background()
 
 	// TODO(gavin): revert this when done fixing iteration
-	const resourceCount = 1234
+	const resourceCount = 150
 	ids := make([]string, 0, resourceCount)
 	for i := range resourceCount {
 		ids = append(ids, "resource"+strconv.Itoa(i))
 	}
 
 	slices.Sort(ids)
+	for _, id := range ids {
+		fmt.Println(id)
+	}
 
 	type GetNamer interface {
 		GetName() string
@@ -728,8 +731,9 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 					for r, err := range test.iterateResources(w, true) {
 						require.NoError(t, err)
 
+						fmt.Println("HERE: count: ", count)
 						if r.GetName() != ids[count] {
-							t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
+							t.Fatalf("expected resource (count=%v) named %s, got %s", count, ids[count], r.GetName())
 						}
 						count--
 					}
