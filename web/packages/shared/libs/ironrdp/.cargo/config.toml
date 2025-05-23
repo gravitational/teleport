@@ -1,0 +1,2 @@
+[build]
+rustflags = ["-C", "target-feature=+simd128"]
