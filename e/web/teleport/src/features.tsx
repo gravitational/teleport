@@ -5,6 +5,7 @@ import {
   Chart,
   Code,
   Crown,
+  Detective,
   Download,
   Graph,
   Headset,
@@ -15,6 +16,7 @@ import {
   Plugs,
   Table,
   UserList,
+  Warning,
 } from 'design/Icon';
 
 import { AccessListManagement } from 'e-teleport/AccessListManagement';
@@ -486,6 +488,44 @@ class FeatureAccessGraphBrowse extends FeatureAccessGraph {
   };
 }
 
+class FeatureAccessGraphAlerts extends FeatureAccessGraph {
+  route = {
+    title: `Access Graph - ${NavTitle.AccessGraphAlerts}`,
+    path: cfg.routes.accessGraph.alerts,
+    exact: false,
+    component: AccessGraph,
+  };
+
+  navigationItem = {
+    title: NavTitle.AccessGraphAlerts,
+    icon: Warning,
+    getLink() {
+      return cfg.routes.accessGraph.alerts;
+    },
+    exact: false,
+    searchableTags: ['access graph', 'graph', 'tag', 'alerts'],
+  };
+}
+
+class FeatureAccessGraphInvestigate extends FeatureAccessGraph {
+  route = {
+    title: `Access Graph - ${NavTitle.AccessGraphInvestigate}`,
+    path: cfg.routes.accessGraph.investigate,
+    exact: false,
+    component: AccessGraph,
+  };
+
+  navigationItem = {
+    title: NavTitle.AccessGraphInvestigate,
+    icon: Detective,
+    getLink() {
+      return cfg.routes.accessGraph.investigate;
+    },
+    exact: false,
+    searchableTags: ['access graph', 'graph', 'tag', 'investigate'],
+  };
+}
+
 class FeatureAccessGraphCrownJewels extends FeatureAccessGraph {
   route = {
     title: `Access Graph - ${NavTitle.AccessGraphCrownJewels}`,
@@ -617,6 +657,8 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     // - Policy
     new FeatureAccessGraph(),
     new FeatureAccessGraphBrowse(),
+    new FeatureAccessGraphAlerts(),
+    new FeatureAccessGraphInvestigate(),
     new FeatureAccessGraphCrownJewels(),
     new FeatureAccessGraphGraphExplorer(),
     new FeatureAccessGraphSQLEditor(),

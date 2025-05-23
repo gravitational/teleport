@@ -13,6 +13,8 @@ const cfg = {
     accessGraph: {
       dashboard: '/web/accessgraph',
       browse: '/web/accessgraph/browse',
+      alerts: '/web/accessgraph/alerts',
+      investigate: '/web/accessgraph/investigate',
       crownJewels: '/web/accessgraph/crownjewels',
       graphExplorer: '/web/accessgraph/graph',
       sqlEditor: '/web/accessgraph/sql',
