@@ -17,6 +17,11 @@ import (
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 )
 
+// DefaultRolesAssignmentDisabledError is returned when default roles assignment is disabled during
+// the attempt to create SAML connector. In such case no groups to role mappings can be created and
+// at least one mapping is required to create the SAML connector.
+var DefaultRolesAssignmentDisabledError = trace.BadParameter("Default roles assignment can be disabled only if the Okta SSO connector is already configured in Teleport. Either allow the default roles assignment or create the SAML connector upfront.")
+
 func (s *Service) authorize(ctx context.Context, verb string) error {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -95,8 +100,10 @@ func (s *Service) GetApps(ctx context.Context, req *oktapb.GetAppsRequest) (*okt
 	}, nil
 }
 
-// CreateIntegration creates a new Okta integration.
-// Depending on the request, it may create a new SAML connector or reuse an existing one.
+// CreateIntegration creates a new Okta integration. Depending on the request, it may create a new
+// SAML connector or reuse an existing one. SAML connector can be created only when
+// DisableAssignDefaultRoles is set to false. Otherwise [DefaultRolesAssignmentDisabledError] is
+// returned.
 func (s *Service) CreateIntegration(ctx context.Context, req *oktapb.CreateIntegrationRequest) (*oktapb.CreateIntegrationResponse, error) {
 	if err := s.authorize(ctx, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
@@ -121,6 +128,9 @@ func (s *Service) createIntegration(ctx context.Context, req *oktapb.CreateInteg
 	samlConnectorName := getSAMLConnectorName(req)
 	samlConnector, err := s.getSAMLConnector(ctx, samlConnectorName)
 	if trace.IsNotFound(err) {
+		if req.GetDisableAssignDefaultRoles() {
+			return nil, DefaultRolesAssignmentDisabledError
+		}
 		// Make sure it's nil for validation.
 		samlConnector = nil
 	} else if err != nil {
@@ -185,13 +195,14 @@ func newOktaPlugin(req *oktapb.CreateIntegrationRequest, connectorInfo *sso.SAML
 		CredentialsInfo: credsInfo,
 		OrgUrl:          connectorInfo.OktaOrg,
 		SyncSettings: &types.PluginOktaSyncSettings{
-			SyncUsers:                req.GetEnableUserSync(),
-			UserSyncSource:           string(types.OktaUserSyncSourceSamlApp),
-			SyncAccessLists:          req.GetEnableAccessListSync(),
-			DisableSyncAppGroups:     !req.GetEnableAppGroupSync(),
-			DisableBidirectionalSync: !req.GetEnableBidirectionalSync(),
-			SsoConnectorId:           connectorInfo.Connector.GetName(),
-			AppId:                    connectorInfo.OktaAppID,
+			SyncUsers:                 req.GetEnableUserSync(),
+			UserSyncSource:            string(types.OktaUserSyncSourceSamlApp),
+			DisableAssignDefaultRoles: req.GetDisableAssignDefaultRoles(),
+			SyncAccessLists:           req.GetEnableAccessListSync(),
+			DisableSyncAppGroups:      !req.GetEnableAppGroupSync(),
+			DisableBidirectionalSync:  !req.GetEnableBidirectionalSync(),
+			SsoConnectorId:            connectorInfo.Connector.GetName(),
+			AppId:                     connectorInfo.OktaAppID,
 
 			GroupFilters:          req.GetAccessListSettings().GetGroupFilters(),
 			AppFilters:            req.GetAccessListSettings().GetAppFilters(),

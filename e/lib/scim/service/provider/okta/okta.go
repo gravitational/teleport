@@ -73,12 +73,12 @@ func (s *oktaShim) oktaOrgURL() string {
 	return s.plugin.Spec.GetOkta().OrgUrl
 }
 
-func (s *oktaShim) syncSettings() types.PluginOktaSyncSettings {
+func (s *oktaShim) syncSettings() *types.PluginOktaSyncSettings {
 	syncSettings := s.plugin.Spec.GetOkta().GetSyncSettings()
 	if syncSettings == nil {
-		return types.PluginOktaSyncSettings{}
+		return &types.PluginOktaSyncSettings{}
 	}
-	return *syncSettings
+	return syncSettings
 }
 
 // AccessListPredicate checks if the access list is "owned" by this okta.
@@ -147,7 +147,7 @@ func (s *oktaShim) UserToResource(_ context.Context, user types.User) (*scimpb.R
 
 // ResourceToUser converts an Okta SCIM resource to a Teleport user
 func (s *oktaShim) ResourceToUser(ctx context.Context, res *scimpb.Resource) (types.User, error) {
-	if !s.syncSettings().SyncUsers {
+	if !s.syncSettings().GetEnableUserSync() {
 		// Note: User traits can differ between SCIM user and user created
 		// by Okta sync service due to different okta user/app user attributes
 		// mapping.
@@ -363,13 +363,14 @@ func (s *oktaShim) createUserFromResource(ctx context.Context, res *scimpb.Resou
 	}
 
 	user, err := oktaconvert.NewTeleportUser(oktaconvert.NewTeleportUserArgs{
-		Clock:             s.Clock,
-		SAMLConnectorName: s.syncSettings().SsoConnectorId,
-		OktaOrgURL:        s.oktaOrgURL(),
-		OktaLogin:         username,
-		OktaID:            res.GetExternalId(),
-		IgnoreOktaStatus:  true,
-		OktaProfile:       make(map[string]any, 0),
+		Clock:              s.Clock,
+		SAMLConnectorName:  s.syncSettings().SsoConnectorId,
+		OktaOrgURL:         s.oktaOrgURL(),
+		OktaLogin:          username,
+		OktaID:             res.GetExternalId(),
+		IgnoreOktaStatus:   true,
+		OktaProfile:        make(map[string]any, 0),
+		AssignDefaultRoles: s.syncSettings().GetAssignDefaultRoles(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -410,10 +411,11 @@ func (s *oktaShim) getOktaUser(ctx context.Context, userID string) (types.User, 
 	}
 
 	u, err := oktaconvert.ConvertOktaAppUser(oktaconvert.ConvertOktaUserArgs[*oktasdk.AppUser]{
-		Clock:             s.Clock,
-		SAMLConnectorName: s.syncSettings().SsoConnectorId,
-		OktaOrgURL:        s.oktaOrgURL(),
-		OktaSDKUser:       appUser,
+		Clock:              s.Clock,
+		SAMLConnectorName:  s.syncSettings().SsoConnectorId,
+		OktaOrgURL:         s.oktaOrgURL(),
+		OktaSDKUser:        appUser,
+		AssignDefaultRoles: s.syncSettings().GetAssignDefaultRoles(),
 	})
 	return u, trace.Wrap(err)
 }

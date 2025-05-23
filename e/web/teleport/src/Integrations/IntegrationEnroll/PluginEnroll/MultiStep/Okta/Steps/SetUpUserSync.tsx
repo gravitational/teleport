@@ -87,6 +87,7 @@ export const UserSyncForm = ({
             okta: {
               enableUserSync: true,
               enableBidirectionalSync: bidirectionalSync,
+              assignDefaultRoles: !!plugin?.spec?.assignDefaultRoles,
               clientID: clientId?.trim()?.length ? clientId.trim() : undefined,
               enableAppGroupSync: !!plugin.spec?.enableAppGroupSync,
               enableAccessListSync: !!plugin.spec?.enableAccessListSync,

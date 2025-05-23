@@ -40,10 +40,11 @@ func Test_ConvertOktaOrgUser(t *testing.T) {
 
 	t.Run("default", func(t *testing.T) {
 		teleportUser, err := ConvertOktaOrgUser(ConvertOktaUserArgs[*okta.User]{
-			Clock:             clockwork.NewFakeClockAt(ctime),
-			SAMLConnectorName: "sso-connector",
-			OktaOrgURL:        oktaOrgURL,
-			OktaSDKUser:       oktaUser,
+			Clock:              clockwork.NewFakeClockAt(ctime),
+			SAMLConnectorName:  "sso-connector",
+			OktaOrgURL:         oktaOrgURL,
+			OktaSDKUser:        oktaUser,
+			AssignDefaultRoles: true,
 		})
 		require.NoError(t, err)
 		require.Equal(t, loginName, teleportUser.GetName())
@@ -71,6 +72,18 @@ func Test_ConvertOktaOrgUser(t *testing.T) {
 		// Expect that the creation date has been set
 		creator := teleportUser.GetCreatedBy()
 		require.Equal(t, ctime, creator.Time.UTC())
+	})
+
+	t.Run("DisableOktaRequesterRoleAssignment", func(t *testing.T) {
+		teleportUser, err := ConvertOktaOrgUser(ConvertOktaUserArgs[*okta.User]{
+			Clock:              clockwork.NewFakeClockAt(ctime),
+			SAMLConnectorName:  "sso-connector",
+			OktaOrgURL:         oktaOrgURL,
+			OktaSDKUser:        oktaUser,
+			AssignDefaultRoles: false,
+		})
+		require.NoError(t, err)
+		require.Empty(t, teleportUser.GetRoles())
 	})
 }
 
@@ -108,10 +121,11 @@ func TestAppUserConversion(t *testing.T) {
 
 	t.Run("default", func(t *testing.T) {
 		teleportUser, err := ConvertOktaAppUser(ConvertOktaUserArgs[*okta.AppUser]{
-			Clock:             clockwork.NewFakeClockAt(ctime),
-			SAMLConnectorName: okaSAMLConnector,
-			OktaOrgURL:        oktaOrgURL,
-			OktaSDKUser:       oktaAppUser,
+			Clock:              clockwork.NewFakeClockAt(ctime),
+			SAMLConnectorName:  okaSAMLConnector,
+			OktaOrgURL:         oktaOrgURL,
+			OktaSDKUser:        oktaAppUser,
+			AssignDefaultRoles: true,
 		})
 		require.NoError(t, err)
 		require.Equal(t, "uid+"+loginName, teleportUser.GetName())
@@ -139,5 +153,17 @@ func TestAppUserConversion(t *testing.T) {
 		// Expect that the creation date has been set
 		creator := teleportUser.GetCreatedBy()
 		require.Equal(t, ctime, creator.Time.UTC())
+	})
+
+	t.Run("DisableOktaRequesterRoleAssignment", func(t *testing.T) {
+		teleportUser, err := ConvertOktaAppUser(ConvertOktaUserArgs[*okta.AppUser]{
+			Clock:              clockwork.NewFakeClockAt(ctime),
+			SAMLConnectorName:  okaSAMLConnector,
+			OktaOrgURL:         oktaOrgURL,
+			OktaSDKUser:        oktaAppUser,
+			AssignDefaultRoles: false,
+		})
+		require.NoError(t, err)
+		require.Empty(t, teleportUser.GetRoles())
 	})
 }

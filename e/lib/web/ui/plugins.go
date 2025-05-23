@@ -316,6 +316,7 @@ func pluginSpec(p types.Plugin) PluginSpec {
 			TeleportSSOConnector:    settings.Okta.SyncSettings.SsoConnectorId,
 			DefaultOwners:           settings.Okta.SyncSettings.DefaultOwners,
 			EnableUserSync:          settings.Okta.SyncSettings.SyncUsers,
+			AssignDefaultRoles:      settings.Okta.SyncSettings.GetAssignDefaultRoles(),
 			EnableAppGroupSync:      !settings.Okta.SyncSettings.DisableSyncAppGroups,
 			EnableAccessListSync:    settings.Okta.SyncSettings.SyncAccessLists,
 			EnableBidirectionalSync: !settings.Okta.SyncSettings.DisableBidirectionalSync,
@@ -378,6 +379,9 @@ type PluginUpdateRequest struct {
 type OktaPluginUpdate struct {
 	// EnableUserSync indicates whether User Sync should be enabled/disabled.
 	EnableUserSync bool `json:"enableUserSync,omitempty"`
+	// AssignDefaultRoles indicates whether the builtin okta-requester role should be
+	// assigned to the synchronized users.
+	AssignDefaultRoles bool `json:"assignDefaultRoles,omitempty"`
 	// EnableAccessListSync indicates whether Access List Sync should be enabled/disabled.
 	EnableAccessListSync bool `json:"enableAccessListSync,omitempty"`
 	// EnableAppGroupSync indicates whether App/Group Sync should be enabled/disabled.

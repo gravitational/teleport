@@ -144,6 +144,7 @@ func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, mockClient *
 		req.EnableBidirectionalSync = true
 		req.EnableAppGroupSync = true
 		req.EnableUserSync = true
+		req.DisableAssignDefaultRoles = false
 		req.EnableAccessListSync = true
 	}
 

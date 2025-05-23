@@ -176,6 +176,7 @@ export const AppGroupSyncForm = ({
               enableAppGroupSync: true,
               enableAccessListSync: true,
               enableUserSync: true,
+              assignDefaultRoles: !!plugin?.spec?.assignDefaultRoles,
               defaultOwners: selectedOwners.map(o => o.label),
               enableBidirectionalSync: !!plugin?.spec?.enableBidirectionalSync,
               // Providing an empty array is equivalent to an asterisk

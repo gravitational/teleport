@@ -389,6 +389,7 @@ func TestPluginOktaStatusDetails(t *testing.T) {
 			TeleportSSOConnector:    common.OktaSSOConnectorName,
 			EnableAccessListSync:    true,
 			EnableUserSync:          true,
+			AssignDefaultRoles:      true,
 			EnableAppGroupSync:      true,
 			EnableBidirectionalSync: true,
 		},

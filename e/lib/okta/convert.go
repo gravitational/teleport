@@ -218,20 +218,22 @@ func base36Encode(data []byte) string {
 
 func (s *Service) convertAppUser(appUser *oktasdk.AppUser) (types.User, error) {
 	u, err := oktaconvert.ConvertOktaAppUser(oktaconvert.ConvertOktaUserArgs[*oktasdk.AppUser]{
-		Clock:             s.clock,
-		SAMLConnectorName: s.ssoConnectorID,
-		OktaOrgURL:        s.orgURL,
-		OktaSDKUser:       appUser,
+		Clock:              s.clock,
+		SAMLConnectorName:  s.ssoConnectorID,
+		OktaOrgURL:         s.orgURL,
+		OktaSDKUser:        appUser,
+		AssignDefaultRoles: s.assignDefaultRoles,
 	})
 	return u, trace.Wrap(err)
 }
 
 func (s *Service) convertOrgUser(orgUser *oktasdk.User) (types.User, error) {
 	u, err := oktaconvert.ConvertOktaOrgUser(oktaconvert.ConvertOktaUserArgs[*oktasdk.User]{
-		Clock:             s.clock,
-		SAMLConnectorName: s.ssoConnectorID,
-		OktaOrgURL:        s.orgURL,
-		OktaSDKUser:       orgUser,
+		Clock:              s.clock,
+		SAMLConnectorName:  s.ssoConnectorID,
+		OktaOrgURL:         s.orgURL,
+		OktaSDKUser:        orgUser,
+		AssignDefaultRoles: s.assignDefaultRoles,
 	})
 	return u, trace.Wrap(err)
 }

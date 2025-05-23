@@ -357,6 +357,9 @@ type Service struct {
 	// userSyncSource indicates the source of truth of the Okta users. It can be either
 	// connector SAML app or the whole Okta organization.
 	userSyncSource types.OktaUserSyncSource
+	// assignDefaultRoles controls whether the builtin "okta-requester" role should be
+	// assigned to the synchronized users.
+	assignDefaultRoles bool
 
 	// connectorService is the SAML connector service.
 	connectorService sso.SAMLConnectorService
@@ -492,6 +495,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		ssoConnectorID:          config.SyncSettings.SsoConnectorId,
 		oktaSAMLAppID:           config.SyncSettings.AppId,
 		userSyncSource:          config.SyncSettings.GetUserSyncSource(),
+		assignDefaultRoles:      config.SyncSettings.GetAssignDefaultRoles(),
 		disableOktaAppGroupSync: config.SyncSettings.DisableSyncAppGroups,
 		serviceStatus:           serviceStatus,
 	}

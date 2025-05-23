@@ -380,11 +380,12 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
 	start := time.Now()
 	_, err = oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-		ApiCredentials:          apiCredentials,
-		EnableUserSync:          true,
-		EnableAppGroupSync:      true,
-		EnableAccessListSync:    true,
-		EnableBidirectionalSync: true,
+		ApiCredentials:            apiCredentials,
+		EnableUserSync:            true,
+		DisableAssignDefaultRoles: false,
+		EnableAppGroupSync:        true,
+		EnableAccessListSync:      true,
+		EnableBidirectionalSync:   true,
 		AccessListSettings: &oktav1.AccessListSettings{
 			GroupFilters: []string{"group-*"},
 			AppFilters:   []string{"app-*"},

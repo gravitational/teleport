@@ -38,6 +38,9 @@ type OktaPluginSpec struct {
 	// EnableUserSync is a flag indicating whether User Sync is enabled for
 	// the plugin, regardless of whether it is currently running.
 	EnableUserSync bool `json:"enableUserSync,omitempty"`
+	// AssignDefaultRoles indicates whether the builtin okta-requester role should be
+	// assigned to the synchronized users.
+	AssignDefaultRoles bool `json:"assignDefaultRoles,omitempty"`
 	// EnableAccessListSync indicates whether Access List Sync is enabled for
 	// the plugin, regardless of whether it is currently running.
 	EnableAccessListSync bool `json:"enableAccessListSync,omitempty"`

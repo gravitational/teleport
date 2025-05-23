@@ -17,10 +17,11 @@ import (
 )
 
 type ConvertOktaUserArgs[T comparable] struct {
-	Clock             clockwork.Clock
-	SAMLConnectorName string
-	OktaOrgURL        string
-	OktaSDKUser       T
+	Clock              clockwork.Clock
+	SAMLConnectorName  string
+	OktaOrgURL         string
+	OktaSDKUser        T
+	AssignDefaultRoles bool
 }
 
 func (args *ConvertOktaUserArgs[T]) CheckAndSetDefaults() error {
@@ -55,13 +56,14 @@ func ConvertOktaAppUser(args ConvertOktaUserArgs[*oktasdk.AppUser]) (types.User,
 	}
 
 	u, err := NewTeleportUser(NewTeleportUserArgs{
-		Clock:             args.Clock,
-		SAMLConnectorName: args.SAMLConnectorName,
-		OktaOrgURL:        args.OktaOrgURL,
-		OktaLogin:         appUser.Credentials.UserName,
-		OktaID:            appUser.Id,
-		OktaStatus:        appUser.Status,
-		OktaProfile:       profile,
+		Clock:              args.Clock,
+		SAMLConnectorName:  args.SAMLConnectorName,
+		OktaOrgURL:         args.OktaOrgURL,
+		OktaLogin:          appUser.Credentials.UserName,
+		OktaID:             appUser.Id,
+		OktaStatus:         appUser.Status,
+		OktaProfile:        profile,
+		AssignDefaultRoles: args.AssignDefaultRoles,
 	})
 	return u, trace.Wrap(err)
 }
@@ -81,26 +83,28 @@ func ConvertOktaOrgUser(args ConvertOktaUserArgs[*oktasdk.User]) (types.User, er
 	profile := *orgUser.Profile
 
 	u, err := NewTeleportUser(NewTeleportUserArgs{
-		Clock:             args.Clock,
-		SAMLConnectorName: args.SAMLConnectorName,
-		OktaOrgURL:        args.OktaOrgURL,
-		OktaLogin:         "", // will be taken from the profile
-		OktaID:            orgUser.Id,
-		OktaStatus:        orgUser.Status,
-		OktaProfile:       profile,
+		Clock:              args.Clock,
+		SAMLConnectorName:  args.SAMLConnectorName,
+		OktaOrgURL:         args.OktaOrgURL,
+		OktaLogin:          "", // will be taken from the profile
+		OktaID:             orgUser.Id,
+		OktaStatus:         orgUser.Status,
+		OktaProfile:        profile,
+		AssignDefaultRoles: args.AssignDefaultRoles,
 	})
 	return u, trace.Wrap(err)
 }
 
 type NewTeleportUserArgs struct {
-	Clock             clockwork.Clock
-	SAMLConnectorName string
-	OktaOrgURL        string
-	OktaLogin         string
-	OktaID            string
-	OktaStatus        string
-	IgnoreOktaStatus  bool
-	OktaProfile       map[string]any
+	Clock              clockwork.Clock
+	SAMLConnectorName  string
+	OktaOrgURL         string
+	OktaLogin          string
+	OktaID             string
+	OktaStatus         string
+	IgnoreOktaStatus   bool
+	OktaProfile        map[string]any
+	AssignDefaultRoles bool
 }
 
 func (args *NewTeleportUserArgs) CheckAndSetDefaults() error {
@@ -159,7 +163,10 @@ func NewTeleportUser(args NewTeleportUserArgs) (types.User, error) {
 	}
 	newUser.SetStaticLabels(staticLabels)
 
-	newUser.AddRole(ossteleport.SystemOktaRequesterRoleName)
+	if args.AssignDefaultRoles {
+		newUser.AddRole(ossteleport.SystemOktaRequesterRoleName)
+	}
+
 	newUser.SetTraits(profile.AsTraits())
 
 	newUser.SetCreatedBy(types.CreatedBy{

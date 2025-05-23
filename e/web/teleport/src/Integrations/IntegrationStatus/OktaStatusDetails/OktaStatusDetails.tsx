@@ -229,6 +229,7 @@ const StatusDetails = ({
     enableAccessListSync: plugin.spec?.enableAccessListSync,
     enableAppGroupSync: plugin.spec?.enableAppGroupSync,
     enableUserSync: plugin.spec?.enableUserSync,
+    assignDefaultRoles: plugin.spec?.assignDefaultRoles,
     enableBidirectionalSync: plugin.spec?.enableBidirectionalSync,
     defaultOwners: plugin.spec?.defaultOwners ?? [],
     appFilters:

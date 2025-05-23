@@ -59,6 +59,7 @@ export const ScimForm = ({
             okta: {
               scimToken: scimToken.current,
               enableUserSync: !!plugin.spec?.enableUserSync,
+              assignDefaultRoles: !!plugin?.spec?.assignDefaultRoles,
               enableAccessListSync: !!plugin.spec?.enableAccessListSync,
               enableAppGroupSync: !!plugin.spec?.enableAppGroupSync,
               enableBidirectionalSync: !!plugin.spec?.enableBidirectionalSync,

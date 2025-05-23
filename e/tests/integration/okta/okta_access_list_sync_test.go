@@ -66,11 +66,12 @@ func TestAccessListSync(t *testing.T) {
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
 
 	_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-		ApiCredentials:       apiCredentials,
-		OktaOrganizationUrl:  oktaApiClient.GetOrgUrl(),
-		EnableUserSync:       true,
-		EnableAppGroupSync:   true,
-		EnableAccessListSync: true,
+		ApiCredentials:            apiCredentials,
+		OktaOrganizationUrl:       oktaApiClient.GetOrgUrl(),
+		EnableUserSync:            true,
+		DisableAssignDefaultRoles: false,
+		EnableAppGroupSync:        true,
+		EnableAccessListSync:      true,
 		AccessListSettings: &oktav1.AccessListSettings{
 			DefaultOwner: []string{"alice-admin"},
 			AppFilters:   []string{"my-soft-*"},
