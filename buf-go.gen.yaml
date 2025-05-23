@@ -15,6 +15,7 @@ inputs:
     paths:
       # excluded by buf-gogo.gen.yaml
       - api/proto/teleport/legacy/client/proto/event.proto
+      - api/proto/teleport/legacy/client/proto/inventory.proto
 
 plugins:
   - local:

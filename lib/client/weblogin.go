@@ -74,6 +74,8 @@ type SSOLoginConsoleReq struct {
 	KubernetesCluster string
 	// PKCEVerifier is used to verify a generated code challenge.
 	PKCEVerifier string
+	// ClientVersion specifies version of the client that is sending SSO request.
+	ClientVersion string `json:"client_version,omitempty"`
 }
 
 // CheckAndSetDefaults makes sure that the request is valid
@@ -90,9 +92,15 @@ func (r *SSOLoginConsoleReq) CheckAndSetDefaults() error {
 	return nil
 }
 
-// SSOLoginConsoleResponse is a response to SSO console request
+// SSOLoginConsoleResponse is a response to SSO console request.
+// Only one of the RedirectURL or PostForm field will contain a value.
+// If the preferred_request_binding field in SAMLConnectorSpecV2
+// is configured with "http-post" value, PostForm field will be populated.
+// In any other case, RedirectURL field will be populated.
 type SSOLoginConsoleResponse struct {
 	RedirectURL string `json:"redirect_url"`
+	// PostForm is an auto submittable HTML form.
+	PostForm string `json:"post_form"`
 }
 
 // MFAChallengeRequest is a request from the client for a MFA challenge from the
