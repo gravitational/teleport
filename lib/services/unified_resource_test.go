@@ -973,45 +973,10 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	err = clt.DeleteGitServer(ctx, gitServer.GetName())
 	require.NoError(t, err)
 
-	duplicatedServerNames := []string{
-		appServers[0].GetName(),
-		dbServers[0].GetName(),
-		desktops[0].GetName(),
-		kubeServers[0].GetName(),
-	}
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		res, err := w.GetUnifiedResources(ctx)
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.ElementsMatch(t, duplicatedServerNames, slices.Collect(types.ResourceNames(res)))
-	}, 5*time.Second, 100*time.Millisecond, "Timed out waiting for unified resources to be deleted except for HA servers")
-
-	// delete all remaining (db, kube, app, desktop) servers
-	for _, dbServer := range dbServers {
-		err = clt.DeleteDatabaseServer(ctx, "default", dbServer.Spec.HostID, dbServer.GetName())
-		require.NoError(t, err)
-	}
-	for _, appServer := range appServers {
-		err = clt.DeleteApplicationServer(ctx, "default", appServer.Spec.HostID, appServer.GetName())
-		require.NoError(t, err)
-	}
-	for _, desktop := range desktops {
-		err = clt.DeleteWindowsDesktop(ctx, desktop.Spec.HostID, desktop.GetName())
-		require.NoError(t, err)
-	}
-	for _, kubeServer := range kubeServers {
-		err = clt.DeleteKubernetesServer(ctx, kubeServer.Spec.HostID, kubeServer.GetName())
-		require.NoError(t, err)
-	}
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		res, err := w.GetUnifiedResources(ctx)
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.Empty(t, res)
-	}, 5*time.Second, 100*time.Millisecond, "Timed out waiting for unified resources to be deleted")
+	assert.Eventually(t, func() bool {
+		res, _ := w.GetUnifiedResources(ctx)
+		return len(res) == 0
+	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be deleted")
 }
 
 func newTestEntityDescriptor(entityID string) string {
