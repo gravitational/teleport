@@ -787,7 +787,7 @@ func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryC
 	// mapping for translation.
 	var metricServices []string
 	for _, service := range hello.Services {
-		if name, ok := icsServiceToMetricName[service]; ok {
+		if name, ok := icsServiceToMetricName[types.SystemRole(service)]; ok {
 			metricServices = append(metricServices, name)
 		}
 	}
@@ -811,12 +811,12 @@ func (g *GRPCServer) GetInventoryStatus(ctx context.Context, req *authpb.Invento
 		return nil, trail.ToGRPC(err)
 	}
 
-	rsp, err := auth.GetInventoryStatus(ctx, *req)
+	rsp, err := auth.GetInventoryStatus(ctx, req)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
-	return &rsp, nil
+	return rsp, nil
 }
 
 // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.

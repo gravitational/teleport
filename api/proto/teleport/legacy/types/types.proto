@@ -2828,6 +2828,18 @@ message PromotedAccessList {
   string Title = 2 [(gogoproto.jsontag) = "title"];
 }
 
+// AccessRequestDryRunEnrichment contains the extra info added in a response to a dry run request.
+message AccessRequestDryRunEnrichment {
+  // ReasonMode specifies the reason mode for this Access Request as defined in
+  // [AccessRequestConditionsReason].reason.
+  string ReasonMode = 1 [
+    (gogoproto.jsontag) = "reason_mode,omitempty",
+    (gogoproto.casttype) = "RequestReasonMode"
+  ];
+  // ReasonPrompts is a sorted and deduplicated list of reason prompts for this Access Request.
+  repeated string ReasonPrompts = 2 [(gogoproto.jsontag) = "reason_prompt,omitempty"];
+}
+
 // AccessReview is a review to be applied to an Access Request.
 message AccessReview {
   // Author is the teleport username of the review author.
@@ -3049,6 +3061,9 @@ message AccessRequestSpecV3 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expiry,omitempty"
   ];
+
+  // DryRunEnrichment contains the extra info added in response to a dry run request.
+  AccessRequestDryRunEnrichment DryRunEnrichment = 23 [(gogoproto.jsontag) = "dry_run_enrichment,omitempty"];
 }
 
 enum AccessRequestScope {
@@ -7066,6 +7081,11 @@ message PluginOktaSyncSettings {
 
   // EnableSystemLogExport enables the Teleport Identity Security SIEM integration for Okta.
   bool enable_system_log_export = 12;
+
+  // DisableAssignDefaultRoles prevents the builtin okta-requester role from being assigned to all
+  // synchronized users. This is allows for a more advanced RBAC setup where not all
+  // Okta-originated users are allowed request all Okta-originated resources.
+  bool disable_assign_default_roles = 13;
 }
 
 // Defines a set of discord channel IDs

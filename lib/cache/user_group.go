@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -88,6 +89,9 @@ func (c *Cache) ListUserGroups(ctx context.Context, pageSize int, nextKey string
 		group, nextKey, err := c.Config.UserGroups.ListUserGroups(ctx, pageSize, nextKey)
 		return group, nextKey, trace.Wrap(err)
 	}
+
+	// TODO(tross): DELETE IN V20.0.0
+	nextKey = strings.TrimPrefix(nextKey, "/")
 
 	// Adjust page size, so it can't be too large.
 	if pageSize <= 0 || pageSize > local.GroupMaxPageSize {
