@@ -483,7 +483,8 @@ export default class Codec {
     const view = new DataView(buffer);
     let offset = 0;
     view.setUint8(offset, MessageType.CLIENT_KEYBOARD_LAYOUT);
-    view.setUint32(++offset, 4); // length of uint32 keyboard layout
+    offset += BYTE_LEN;
+    view.setUint32(offset, 4); // length of uint32 keyboard layout
     offset += UINT_32_LEN;
     view.setUint32(offset, keyboardLayout);
     return buffer;
