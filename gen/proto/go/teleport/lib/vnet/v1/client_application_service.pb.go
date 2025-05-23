@@ -1773,6 +1773,258 @@ func (x *SignForUserTLSResponse) GetSignature() []byte {
 	return nil
 }
 
+// SessionSSHConfigRequest is a request for SessionSSHConfig.
+type SessionSSHConfigRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Profile is the profile in which the SSH server is found.
+	Profile string `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	// RootCluster is the cluster in which the SSH server is found.
+	RootCluster string `protobuf:"bytes,2,opt,name=root_cluster,json=rootCluster,proto3" json:"root_cluster,omitempty"`
+	// LeafCluster is the leaf cluster in which the SSH server is found.
+	// If empty, the SSH server is in the root cluster.
+	LeafCluster string `protobuf:"bytes,3,opt,name=leaf_cluster,json=leafCluster,proto3" json:"leaf_cluster,omitempty"`
+	// Address is the address of the SSH server.
+	Address string `protobuf:"bytes,4,opt,name=address,proto3" json:"address,omitempty"`
+	// User is the SSH user the session is for.
+	User          string `protobuf:"bytes,5,opt,name=user,proto3" json:"user,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SessionSSHConfigRequest) Reset() {
+	*x = SessionSSHConfigRequest{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SessionSSHConfigRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SessionSSHConfigRequest) ProtoMessage() {}
+
+func (x *SessionSSHConfigRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SessionSSHConfigRequest.ProtoReflect.Descriptor instead.
+func (*SessionSSHConfigRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *SessionSSHConfigRequest) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
+func (x *SessionSSHConfigRequest) GetRootCluster() string {
+	if x != nil {
+		return x.RootCluster
+	}
+	return ""
+}
+
+func (x *SessionSSHConfigRequest) GetLeafCluster() string {
+	if x != nil {
+		return x.LeafCluster
+	}
+	return ""
+}
+
+func (x *SessionSSHConfigRequest) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *SessionSSHConfigRequest) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
+}
+
+// SessionSSHConfigResponse is a response for SessionSSHConfig.
+type SessionSSHConfigResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// SessionId is an opaque identifier for the session, it should be passed to
+	// SignForSSHSession to issue signatures with the private key associated with
+	// the session.
+	SessionId string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	// Cert is the session SSH certificate in SSH wire format.
+	Cert []byte `protobuf:"bytes,2,opt,name=cert,proto3" json:"cert,omitempty"`
+	// TrustedCas is a list of trusted SSH certificate authorities in SSH wire
+	// format.
+	TrustedCas    [][]byte `protobuf:"bytes,3,rep,name=trusted_cas,json=trustedCas,proto3" json:"trusted_cas,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SessionSSHConfigResponse) Reset() {
+	*x = SessionSSHConfigResponse{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SessionSSHConfigResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SessionSSHConfigResponse) ProtoMessage() {}
+
+func (x *SessionSSHConfigResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SessionSSHConfigResponse.ProtoReflect.Descriptor instead.
+func (*SessionSSHConfigResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *SessionSSHConfigResponse) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *SessionSSHConfigResponse) GetCert() []byte {
+	if x != nil {
+		return x.Cert
+	}
+	return nil
+}
+
+func (x *SessionSSHConfigResponse) GetTrustedCas() [][]byte {
+	if x != nil {
+		return x.TrustedCas
+	}
+	return nil
+}
+
+// SignForSSHSessionRequest is a request for SignForSSHSession.
+type SignForSSHSessionRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// SessionId is an opaque identifier for the session returned from a previous
+	// call to SessionSSHConfig.
+	SessionId string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	// Sign holds signature request details.
+	Sign          *SignRequest `protobuf:"bytes,2,opt,name=sign,proto3" json:"sign,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignForSSHSessionRequest) Reset() {
+	*x = SignForSSHSessionRequest{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignForSSHSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignForSSHSessionRequest) ProtoMessage() {}
+
+func (x *SignForSSHSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignForSSHSessionRequest.ProtoReflect.Descriptor instead.
+func (*SignForSSHSessionRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *SignForSSHSessionRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *SignForSSHSessionRequest) GetSign() *SignRequest {
+	if x != nil {
+		return x.Sign
+	}
+	return nil
+}
+
+// SignForSSHSessionResponse is a response for SignForSSHSession.
+type SignForSSHSessionResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Signature is the signature.
+	Signature     []byte `protobuf:"bytes,1,opt,name=signature,proto3" json:"signature,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignForSSHSessionResponse) Reset() {
+	*x = SignForSSHSessionResponse{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignForSSHSessionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignForSSHSessionResponse) ProtoMessage() {}
+
+func (x *SignForSSHSessionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignForSSHSessionResponse.ProtoReflect.Descriptor instead.
+func (*SignForSSHSessionResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *SignForSSHSessionResponse) GetSignature() []byte {
+	if x != nil {
+		return x.Signature
+	}
+	return nil
+}
+
 var File_teleport_lib_vnet_v1_client_application_service_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
@@ -1865,11 +2117,29 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\aprofile\x18\x01 \x01(\tR\aprofile\x125\n" +
 	"\x04sign\x18\x02 \x01(\v2!.teleport.lib.vnet.v1.SignRequestR\x04sign\"6\n" +
 	"\x16SignForUserTLSResponse\x12\x1c\n" +
+	"\tsignature\x18\x01 \x01(\fR\tsignature\"\xa7\x01\n" +
+	"\x17SessionSSHConfigRequest\x12\x18\n" +
+	"\aprofile\x18\x01 \x01(\tR\aprofile\x12!\n" +
+	"\froot_cluster\x18\x02 \x01(\tR\vrootCluster\x12!\n" +
+	"\fleaf_cluster\x18\x03 \x01(\tR\vleafCluster\x12\x18\n" +
+	"\aaddress\x18\x04 \x01(\tR\aaddress\x12\x12\n" +
+	"\x04user\x18\x05 \x01(\tR\x04user\"n\n" +
+	"\x18SessionSSHConfigResponse\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x12\n" +
+	"\x04cert\x18\x02 \x01(\fR\x04cert\x12\x1f\n" +
+	"\vtrusted_cas\x18\x03 \x03(\fR\n" +
+	"trustedCas\"p\n" +
+	"\x18SignForSSHSessionRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x125\n" +
+	"\x04sign\x18\x02 \x01(\v2!.teleport.lib.vnet.v1.SignRequestR\x04sign\"9\n" +
+	"\x19SignForSSHSessionResponse\x12\x1c\n" +
 	"\tsignature\x18\x01 \x01(\fR\tsignature*<\n" +
 	"\x04Hash\x12\x14\n" +
 	"\x10HASH_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tHASH_NONE\x10\x01\x12\x0f\n" +
-	"\vHASH_SHA256\x10\x022\xe3\t\n" +
+	"\vHASH_SHA256\x10\x022\xcc\v\n" +
 	"\x18ClientApplicationService\x12z\n" +
 	"\x13AuthenticateProcess\x120.teleport.lib.vnet.v1.AuthenticateProcessRequest\x1a1.teleport.lib.vnet.v1.AuthenticateProcessResponse\x12\x83\x01\n" +
 	"\x16ReportNetworkStackInfo\x123.teleport.lib.vnet.v1.ReportNetworkStackInfoRequest\x1a4.teleport.lib.vnet.v1.ReportNetworkStackInfoResponse\x12M\n" +
@@ -1882,7 +2152,9 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\x12OnInvalidLocalPort\x12/.teleport.lib.vnet.v1.OnInvalidLocalPortRequest\x1a0.teleport.lib.vnet.v1.OnInvalidLocalPortResponse\x12\x89\x01\n" +
 	"\x18GetTargetOSConfiguration\x125.teleport.lib.vnet.v1.GetTargetOSConfigurationRequest\x1a6.teleport.lib.vnet.v1.GetTargetOSConfigurationResponse\x12b\n" +
 	"\vUserTLSCert\x12(.teleport.lib.vnet.v1.UserTLSCertRequest\x1a).teleport.lib.vnet.v1.UserTLSCertResponse\x12k\n" +
-	"\x0eSignForUserTLS\x12+.teleport.lib.vnet.v1.SignForUserTLSRequest\x1a,.teleport.lib.vnet.v1.SignForUserTLSResponseBLZJgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1;vnetv1b\x06proto3"
+	"\x0eSignForUserTLS\x12+.teleport.lib.vnet.v1.SignForUserTLSRequest\x1a,.teleport.lib.vnet.v1.SignForUserTLSResponse\x12q\n" +
+	"\x10SessionSSHConfig\x12-.teleport.lib.vnet.v1.SessionSSHConfigRequest\x1a..teleport.lib.vnet.v1.SessionSSHConfigResponse\x12t\n" +
+	"\x11SignForSSHSession\x12..teleport.lib.vnet.v1.SignForSSHSessionRequest\x1a/.teleport.lib.vnet.v1.SignForSSHSessionResponseBLZJgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1;vnetv1b\x06proto3"
 
 var (
 	file_teleport_lib_vnet_v1_client_application_service_proto_rawDescOnce sync.Once
@@ -1897,7 +2169,7 @@ func file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP() []
 }
 
 var file_teleport_lib_vnet_v1_client_application_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_teleport_lib_vnet_v1_client_application_service_proto_goTypes = []any{
 	(Hash)(0),                                // 0: teleport.lib.vnet.v1.Hash
 	(*AuthenticateProcessRequest)(nil),       // 1: teleport.lib.vnet.v1.AuthenticateProcessRequest
@@ -1931,7 +2203,11 @@ var file_teleport_lib_vnet_v1_client_application_service_proto_goTypes = []any{
 	(*UserTLSCertResponse)(nil),              // 29: teleport.lib.vnet.v1.UserTLSCertResponse
 	(*SignForUserTLSRequest)(nil),            // 30: teleport.lib.vnet.v1.SignForUserTLSRequest
 	(*SignForUserTLSResponse)(nil),           // 31: teleport.lib.vnet.v1.SignForUserTLSResponse
-	(*types.AppV3)(nil),                      // 32: types.AppV3
+	(*SessionSSHConfigRequest)(nil),          // 32: teleport.lib.vnet.v1.SessionSSHConfigRequest
+	(*SessionSSHConfigResponse)(nil),         // 33: teleport.lib.vnet.v1.SessionSSHConfigResponse
+	(*SignForSSHSessionRequest)(nil),         // 34: teleport.lib.vnet.v1.SignForSSHSessionRequest
+	(*SignForSSHSessionResponse)(nil),        // 35: teleport.lib.vnet.v1.SignForSSHSessionResponse
+	(*types.AppV3)(nil),                      // 36: types.AppV3
 }
 var file_teleport_lib_vnet_v1_client_application_service_proto_depIdxs = []int32{
 	4,  // 0: teleport.lib.vnet.v1.ReportNetworkStackInfoRequest.network_stack_info:type_name -> teleport.lib.vnet.v1.NetworkStackInfo
@@ -1940,7 +2216,7 @@ var file_teleport_lib_vnet_v1_client_application_service_proto_depIdxs = []int32
 	12, // 3: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_cluster:type_name -> teleport.lib.vnet.v1.MatchedCluster
 	13, // 4: teleport.lib.vnet.v1.MatchedTCPApp.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
 	14, // 5: teleport.lib.vnet.v1.AppInfo.app_key:type_name -> teleport.lib.vnet.v1.AppKey
-	32, // 6: teleport.lib.vnet.v1.AppInfo.app:type_name -> types.AppV3
+	36, // 6: teleport.lib.vnet.v1.AppInfo.app:type_name -> types.AppV3
 	15, // 7: teleport.lib.vnet.v1.AppInfo.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
 	13, // 8: teleport.lib.vnet.v1.ReissueAppCertRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
 	14, // 9: teleport.lib.vnet.v1.SignForAppRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
@@ -1951,33 +2227,38 @@ var file_teleport_lib_vnet_v1_client_application_service_proto_depIdxs = []int32
 	27, // 14: teleport.lib.vnet.v1.GetTargetOSConfigurationResponse.target_os_configuration:type_name -> teleport.lib.vnet.v1.TargetOSConfiguration
 	15, // 15: teleport.lib.vnet.v1.UserTLSCertResponse.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
 	19, // 16: teleport.lib.vnet.v1.SignForUserTLSRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
-	1,  // 17: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:input_type -> teleport.lib.vnet.v1.AuthenticateProcessRequest
-	3,  // 18: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:input_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoRequest
-	6,  // 19: teleport.lib.vnet.v1.ClientApplicationService.Ping:input_type -> teleport.lib.vnet.v1.PingRequest
-	8,  // 20: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:input_type -> teleport.lib.vnet.v1.ResolveFQDNRequest
-	16, // 21: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:input_type -> teleport.lib.vnet.v1.ReissueAppCertRequest
-	18, // 22: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:input_type -> teleport.lib.vnet.v1.SignForAppRequest
-	21, // 23: teleport.lib.vnet.v1.ClientApplicationService.OnNewConnection:input_type -> teleport.lib.vnet.v1.OnNewConnectionRequest
-	23, // 24: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:input_type -> teleport.lib.vnet.v1.OnInvalidLocalPortRequest
-	25, // 25: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:input_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationRequest
-	28, // 26: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:input_type -> teleport.lib.vnet.v1.UserTLSCertRequest
-	30, // 27: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:input_type -> teleport.lib.vnet.v1.SignForUserTLSRequest
-	2,  // 28: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:output_type -> teleport.lib.vnet.v1.AuthenticateProcessResponse
-	5,  // 29: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:output_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoResponse
-	7,  // 30: teleport.lib.vnet.v1.ClientApplicationService.Ping:output_type -> teleport.lib.vnet.v1.PingResponse
-	9,  // 31: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:output_type -> teleport.lib.vnet.v1.ResolveFQDNResponse
-	17, // 32: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:output_type -> teleport.lib.vnet.v1.ReissueAppCertResponse
-	20, // 33: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:output_type -> teleport.lib.vnet.v1.SignForAppResponse
-	22, // 34: teleport.lib.vnet.v1.ClientApplicationService.OnNewConnection:output_type -> teleport.lib.vnet.v1.OnNewConnectionResponse
-	24, // 35: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:output_type -> teleport.lib.vnet.v1.OnInvalidLocalPortResponse
-	26, // 36: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:output_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationResponse
-	29, // 37: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:output_type -> teleport.lib.vnet.v1.UserTLSCertResponse
-	31, // 38: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:output_type -> teleport.lib.vnet.v1.SignForUserTLSResponse
-	28, // [28:39] is the sub-list for method output_type
-	17, // [17:28] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	19, // 17: teleport.lib.vnet.v1.SignForSSHSessionRequest.sign:type_name -> teleport.lib.vnet.v1.SignRequest
+	1,  // 18: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:input_type -> teleport.lib.vnet.v1.AuthenticateProcessRequest
+	3,  // 19: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:input_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoRequest
+	6,  // 20: teleport.lib.vnet.v1.ClientApplicationService.Ping:input_type -> teleport.lib.vnet.v1.PingRequest
+	8,  // 21: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:input_type -> teleport.lib.vnet.v1.ResolveFQDNRequest
+	16, // 22: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:input_type -> teleport.lib.vnet.v1.ReissueAppCertRequest
+	18, // 23: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:input_type -> teleport.lib.vnet.v1.SignForAppRequest
+	21, // 24: teleport.lib.vnet.v1.ClientApplicationService.OnNewConnection:input_type -> teleport.lib.vnet.v1.OnNewConnectionRequest
+	23, // 25: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:input_type -> teleport.lib.vnet.v1.OnInvalidLocalPortRequest
+	25, // 26: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:input_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationRequest
+	28, // 27: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:input_type -> teleport.lib.vnet.v1.UserTLSCertRequest
+	30, // 28: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:input_type -> teleport.lib.vnet.v1.SignForUserTLSRequest
+	32, // 29: teleport.lib.vnet.v1.ClientApplicationService.SessionSSHConfig:input_type -> teleport.lib.vnet.v1.SessionSSHConfigRequest
+	34, // 30: teleport.lib.vnet.v1.ClientApplicationService.SignForSSHSession:input_type -> teleport.lib.vnet.v1.SignForSSHSessionRequest
+	2,  // 31: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:output_type -> teleport.lib.vnet.v1.AuthenticateProcessResponse
+	5,  // 32: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:output_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoResponse
+	7,  // 33: teleport.lib.vnet.v1.ClientApplicationService.Ping:output_type -> teleport.lib.vnet.v1.PingResponse
+	9,  // 34: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:output_type -> teleport.lib.vnet.v1.ResolveFQDNResponse
+	17, // 35: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:output_type -> teleport.lib.vnet.v1.ReissueAppCertResponse
+	20, // 36: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:output_type -> teleport.lib.vnet.v1.SignForAppResponse
+	22, // 37: teleport.lib.vnet.v1.ClientApplicationService.OnNewConnection:output_type -> teleport.lib.vnet.v1.OnNewConnectionResponse
+	24, // 38: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:output_type -> teleport.lib.vnet.v1.OnInvalidLocalPortResponse
+	26, // 39: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:output_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationResponse
+	29, // 40: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:output_type -> teleport.lib.vnet.v1.UserTLSCertResponse
+	31, // 41: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:output_type -> teleport.lib.vnet.v1.SignForUserTLSResponse
+	33, // 42: teleport.lib.vnet.v1.ClientApplicationService.SessionSSHConfig:output_type -> teleport.lib.vnet.v1.SessionSSHConfigResponse
+	35, // 43: teleport.lib.vnet.v1.ClientApplicationService.SignForSSHSession:output_type -> teleport.lib.vnet.v1.SignForSSHSessionResponse
+	31, // [31:44] is the sub-list for method output_type
+	18, // [18:31] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_vnet_v1_client_application_service_proto_init() }
@@ -1997,7 +2278,7 @@ func file_teleport_lib_vnet_v1_client_application_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc), len(file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   31,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

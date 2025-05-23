@@ -57,6 +57,11 @@ service ClientApplicationService {
   rpc UserTLSCert(UserTLSCertRequest) returns (UserTLSCertResponse);
   // SignForUserTLS signs a digest with the user TLS private key.
   rpc SignForUserTLS(SignForUserTLSRequest) returns (SignForUserTLSResponse);
+  // SessionSSHConfig returns the user SSH configuration for an SSH session.
+  rpc SessionSSHConfig(SessionSSHConfigRequest) returns (SessionSSHConfigResponse);
+  // SignForSSHSession signs a digest with the SSH private key associated with the
+  // session from a previous call to SessionSSHConfig.
+  rpc SignForSSHSession(SignForSSHSessionRequest) returns (SignForSSHSessionResponse);
 }
 
 // AuthenticateProcessRequest is a request for AuthenticateProcess.
@@ -326,6 +331,49 @@ message SignForUserTLSRequest {
 
 // SignForUserTLSResponse is a response for SignForUserTLS.
 message SignForUserTLSResponse {
+  // Signature is the signature.
+  bytes signature = 1;
+}
+
+// SessionSSHConfigRequest is a request for SessionSSHConfig.
+message SessionSSHConfigRequest {
+  // Profile is the profile in which the SSH server is found.
+  string profile = 1;
+  // RootCluster is the cluster in which the SSH server is found.
+  string root_cluster = 2;
+  // LeafCluster is the leaf cluster in which the SSH server is found.
+  // If empty, the SSH server is in the root cluster.
+  string leaf_cluster = 3;
+  // Address is the address of the SSH server.
+  string address = 4;
+  // User is the SSH user the session is for.
+  string user = 5;
+}
+
+// SessionSSHConfigResponse is a response for SessionSSHConfig.
+message SessionSSHConfigResponse {
+  // SessionId is an opaque identifier for the session, it should be passed to
+  // SignForSSHSession to issue signatures with the private key associated with
+  // the session.
+  string session_id = 1;
+  // Cert is the session SSH certificate in SSH wire format.
+  bytes cert = 2;
+  // TrustedCas is a list of trusted SSH certificate authorities in SSH wire
+  // format.
+  repeated bytes trusted_cas = 3;
+}
+
+// SignForSSHSessionRequest is a request for SignForSSHSession.
+message SignForSSHSessionRequest {
+  // SessionId is an opaque identifier for the session returned from a previous
+  // call to SessionSSHConfig.
+  string session_id = 1;
+  // Sign holds signature request details.
+  SignRequest sign = 2;
+}
+
+// SignForSSHSessionResponse is a response for SignForSSHSession.
+message SignForSSHSessionResponse {
   // Signature is the signature.
   bytes signature = 1;
 }

@@ -19,14 +19,17 @@ package vnet
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	"net"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // sshHandler handles incoming VNet SSH connections.
@@ -67,7 +70,8 @@ func (h *sshHandler) handleTCPConnectorWithTargetConn(
 	connector func() (net.Conn, error),
 	targetConn net.Conn,
 ) error {
-	hostCert, err := h.newHostCert(ctx)
+	target := h.cfg.target
+	hostCert, err := newHostCert(target.fqdn, h.cfg.sshProvider.hostCASigner)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -78,47 +82,111 @@ func (h *sshHandler) handleTCPConnectorWithTargetConn(
 	}
 	defer localConn.Close()
 
-	// For now we accept the incoming SSH connection but forwarding to the
-	// target is not implemented yet so we immediately close it.
+	var (
+		clientConn       *sshConn
+		clientConnErr    error
+		initiatedSSHConn bool
+	)
 	serverConfig := &ssh.ServerConfig{
+		// We attempt to initiate an SSH connection with the target server in
+		// PublicKeyCallback in order to fail the SSH authentication phase with
+		// the client if SSH authentication to the target fails. Otherwise, when
+		// connection to an SSH node the user is not allowed to access, they
+		// would just see an succesfull SSH handshake and then an immediately
+		// closed connection.
+		//
+		// TODO(nklaassen): if https://github.com/golang/go/issues/70795 ever
+		// gets implemented we should do this in VerifiedPublicKeyCallback
+		// instead.
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 			if !sshutils.KeysEqual(h.cfg.sshProvider.trustedUserPublicKey, key) {
-				return nil, trace.AccessDenied("SSH client public key is not trusted")
+				return nil, trace.AccessDenied("client public key is not trusted")
+			}
+			// Make sure to only initiate the SSH connection once in case
+			// PublicKeyCallback is called multiple times.
+			if initiatedSSHConn {
+				return nil, clientConnErr
+			}
+			initiatedSSHConn = true
+			clientConn, clientConnErr = h.initiateSSHConn(ctx, targetConn, conn.User())
+			if clientConnErr != nil {
+				// Attempt to send a friendlier errer message if we failed to
+				// initiate the SSH connection to the target by sending an auth
+				// banner message.
+				if utils.IsHandshakeFailedError(clientConnErr) {
+					// We don't have much real information about the error in
+					// this case, this is the same message tsh prints.
+					return nil, &ssh.BannerError{
+						Err:     clientConnErr,
+						Message: formatBannerMessage(fmt.Sprintf("access denied to %s connecting to %s", conn.User(), target.hostname)),
+					}
+				}
+				return nil, &ssh.BannerError{
+					Err:     clientConnErr,
+					Message: formatBannerMessage(trace.UserMessage(clientConnErr)),
+				}
 			}
 			return nil, nil
 		},
 	}
 	serverConfig.AddHostKey(hostCert)
-	serverConn, chans, reqs, err := ssh.NewServerConn(localConn, serverConfig)
+
+	serverConn, serverChans, serverReqs, err := ssh.NewServerConn(localConn, serverConfig)
 	if err != nil {
+		// Make sure to close the client conn if we already accepted it.
+		if clientConn != nil {
+			clientConn.Close()
+		}
 		return trace.Wrap(err, "accepting incoming SSH connection")
 	}
-	// Immediately close the connection but make sure to drain the channels.
-	serverConn.Close()
-	go ssh.DiscardRequests(reqs)
-	go func() {
-		for newChan := range chans {
-			_ = newChan.Reject(0, "")
-		}
-	}()
-	target := h.cfg.target
 	log.DebugContext(ctx, "Accepted incoming SSH connection",
 		"profile", target.profile,
 		"cluster", target.cluster,
-		"host", target.host,
+		"host", target.hostname,
 		"user", serverConn.User(),
 	)
-	return trace.NotImplemented("VNet SSH connection forwarding is not yet implemented")
+
+	// proxySSHConnection transparently proxies the SSH connection from the
+	// client to the target. It will handle closing the connections before it
+	// returns.
+	proxySSHConnection(ctx,
+		sshConn{
+			conn:  serverConn,
+			chans: serverChans,
+			reqs:  serverReqs,
+		},
+		*clientConn,
+	)
+	return nil
 }
 
-func (h *sshHandler) newHostCert(ctx context.Context) (ssh.Signer, error) {
+func (h *sshHandler) initiateSSHConn(ctx context.Context, targetConn net.Conn, user string) (*sshConn, error) {
+	target := h.cfg.target
+	clientConfig, err := h.cfg.sshProvider.sessionSSHConfig(ctx, target, user)
+	if err != nil {
+		return nil, trace.Wrap(err, "building SSH client config")
+	}
+	clientConn, clientChans, clientReqs, err := tracessh.NewClientConn(ctx, targetConn, target.addr, clientConfig)
+	if err != nil {
+		return nil, trace.Wrap(err, "initiating SSH connection to %s@%s", user, target.addr)
+	}
+	log.DebugContext(ctx, "Initiated SSH connection to target", "root_cluster", target.rootCluster,
+		"leaf_cluster", target.leafCluster, "host", target.addr)
+	return &sshConn{
+		conn:  clientConn,
+		chans: clientChans,
+		reqs:  clientReqs,
+	}, nil
+}
+
+func newHostCert(fqdn string, ca ssh.Signer) (ssh.Signer, error) {
 	// If the user typed "ssh host.com" or "ssh host.com." our DNS handler will
 	// only see the fully-qualified variant with the trailing "." but the SSH
 	// client treats them differently, we need both in the principals if we want
 	// the cert to be trusted in both cases.
 	validPrincipals := []string{
-		h.cfg.target.fqdn,
-		strings.TrimSuffix(h.cfg.target.fqdn, "."),
+		fqdn,
+		strings.TrimSuffix(fqdn, "."),
 	}
 	// We generate an ephemeral key for every connection, Ed25519 is fast and
 	// well supported.
@@ -141,9 +209,13 @@ func (h *sshHandler) newHostCert(ctx context.Context) (ssh.Signer, error) {
 		// host. The expiry doesn't matter.
 		ValidBefore: ssh.CertTimeInfinity,
 	}
-	if err := cert.SignCert(rand.Reader, h.cfg.sshProvider.hostCASigner); err != nil {
+	if err := cert.SignCert(rand.Reader, ca); err != nil {
 		return nil, trace.Wrap(err, "signing SSH host cert")
 	}
 	certSigner, err := ssh.NewCertSigner(cert, hostSigner)
 	return certSigner, trace.Wrap(err)
+}
+
+func formatBannerMessage(msg string) string {
+	return "VNet: " + msg + "\n"
 }

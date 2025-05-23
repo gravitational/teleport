@@ -17,16 +17,24 @@
 package vnet
 
 import (
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"sync"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/client/proto"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // clientApplicationService implements the gRPC
@@ -43,8 +51,8 @@ type clientApplicationService struct {
 	// ReportNetworkStackInfo.
 	networkStackInfo chan *vnetv1.NetworkStackInfo
 
-	// mu protects appSignerCache
-	mu sync.Mutex
+	// appSignerMu protects appSignerCache.
+	appSignerMu sync.Mutex
 	// appSignerCache caches the crypto.Signer for each certificate issued by
 	// ReissueAppCert so that SignForApp can later use that signer.
 	//
@@ -53,20 +61,35 @@ type clientApplicationService struct {
 	// ReissueAppCert, which will overwrite the signer for the app with a new
 	// one.
 	appSignerCache map[appKey]crypto.Signer
+
+	// sshSigners is a cache containing [crypto.Signer]s keyed by SSH session
+	// ID. This "session ID" is a concept only used here for retrieving a signer
+	// previously associated with the same session, it is not some Teleport
+	// session identifier.
+	sshSigners *utils.FnCache
 }
 
 type clientApplicationServiceConfig struct {
 	fqdnResolver          *fqdnResolver
 	localOSConfigProvider *LocalOSConfigProvider
 	clientApplication     ClientApplication
+	clock                 clockwork.Clock
 }
 
-func newClientApplicationService(cfg *clientApplicationServiceConfig) *clientApplicationService {
+func newClientApplicationService(cfg *clientApplicationServiceConfig) (*clientApplicationService, error) {
+	sshSigners, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:   time.Minute,
+		Clock: cfg.clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &clientApplicationService{
 		cfg:              cfg,
 		networkStackInfo: make(chan *vnetv1.NetworkStackInfo, 1),
 		appSignerCache:   make(map[appKey]crypto.Signer),
-	}
+		sshSigners:       sshSigners,
+	}, nil
 }
 
 // AuthenticateProcess implements [vnetv1.ClientApplicationServiceServer.AuthenticateProcess].
@@ -181,14 +204,14 @@ func sign(signer crypto.Signer, signReq *vnetv1.SignRequest) ([]byte, error) {
 }
 
 func (s *clientApplicationService) setSignerForApp(appKey *vnetv1.AppKey, targetPort uint16, signer crypto.Signer) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.appSignerMu.Lock()
+	defer s.appSignerMu.Unlock()
 	s.appSignerCache[newAppKey(appKey, targetPort)] = signer
 }
 
 func (s *clientApplicationService) getSignerForApp(appKey *vnetv1.AppKey, targetPort uint16) (crypto.Signer, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.appSignerMu.Lock()
+	defer s.appSignerMu.Unlock()
 	signer, ok := s.appSignerCache[newAppKey(appKey, targetPort)]
 	return signer, ok
 }
@@ -276,6 +299,105 @@ func (s *clientApplicationService) SignForUserTLS(ctx context.Context, req *vnet
 	return &vnetv1.SignForUserTLSResponse{
 		Signature: signature,
 	}, nil
+}
+
+// SessionSSHConfig returns user SSH configuration values for an SSH session.
+func (s *clientApplicationService) SessionSSHConfig(ctx context.Context, req *vnetv1.SessionSSHConfigRequest) (*vnetv1.SessionSSHConfigResponse, error) {
+	clusterClient, err := s.cfg.clientApplication.GetCachedClient(ctx, req.GetProfile(), req.GetLeafCluster())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// If req.LeafCluster is not empty the node is in the leaf cluster, else it
+	// is in the root cluster.
+	targetCluster := cmp.Or(req.GetLeafCluster(), req.GetRootCluster())
+	target := client.NodeDetails{
+		Addr:    req.GetAddress(),
+		Cluster: targetCluster,
+	}
+	keyRing, completedMFA, err := clusterClient.SessionSSHKeyRing(ctx, req.GetUser(), target)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting KeyRing for SSH session")
+	}
+	if !completedMFA && keyRing.Cert == nil && targetCluster == req.GetLeafCluster() {
+		// It's possible/likely the user doesn't have an SSH cert specifically
+		// for the leaf cluster. Luckily if MFA was not required, the root
+		// cluster cert should work.
+		log.DebugContext(ctx, "Leaf cluster KeyRing had no SSH cert, using root cluster KeyRing")
+		rootClusterClient, err := s.cfg.clientApplication.GetCachedClient(ctx, req.GetProfile(), "")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Set the target cluster to the root cluster and disable the MFA check
+		// so that SessionSSHKeyRing will just return the base root cluster
+		// keyring.
+		target.Cluster = req.GetRootCluster()
+		target.MFACheck = &proto.IsMFARequiredResponse{
+			Required:    false,
+			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		}
+		keyRing, _, err = rootClusterClient.SessionSSHKeyRing(ctx, req.GetUser(), target)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting root cluster KeyRing for SSH session")
+		}
+	}
+	if len(keyRing.Cert) == 0 {
+		return nil, trace.Errorf("user KeyRing has no SSH cert")
+	}
+	sshCert, _, _, _, err := ssh.ParseAuthorizedKey(keyRing.Cert)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing user SSH certificate")
+	}
+	var trustedCAs [][]byte
+	for _, trustedCert := range keyRing.TrustedCerts {
+		if trustedCert.ClusterName != targetCluster {
+			continue
+		}
+		for _, authorizedKey := range trustedCert.AuthorizedKeys {
+			trustedCA, _, _, _, err := ssh.ParseAuthorizedKey(authorizedKey)
+			if err != nil {
+				return nil, trace.Wrap(err, "parsing CA cert")
+			}
+			trustedCAs = append(trustedCAs, trustedCA.Marshal())
+		}
+	}
+	if len(trustedCAs) == 0 {
+		return nil, trace.Errorf("user KeyRing host no trusted SSH CAs for cluster %s", targetCluster)
+	}
+	sessionID := s.setSignerForSSHSession(keyRing.SSHPrivateKey)
+	return &vnetv1.SessionSSHConfigResponse{
+		SessionId:  sessionID,
+		Cert:       sshCert.Marshal(),
+		TrustedCas: trustedCAs,
+	}, nil
+}
+
+// SignForSSHSession signs a digest with the SSH private key associated with the
+// session from a previous call to SessionSSHConfig.
+func (s *clientApplicationService) SignForSSHSession(ctx context.Context, req *vnetv1.SignForSSHSessionRequest) (*vnetv1.SignForSSHSessionResponse, error) {
+	signer, err := s.getSignerForSSHSession(ctx, req.GetSessionId())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signature, err := sign(signer, req.GetSign())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &vnetv1.SignForSSHSessionResponse{
+		Signature: signature,
+	}, nil
+}
+
+func (s *clientApplicationService) setSignerForSSHSession(signer crypto.Signer) string {
+	sessionID := uuid.NewString()
+	s.sshSigners.Set(sessionID, signer)
+	return sessionID
+}
+
+func (s *clientApplicationService) getSignerForSSHSession(ctx context.Context, sessionID string) (crypto.Signer, error) {
+	signer, err := utils.FnCacheGet(ctx, s.sshSigners, sessionID, func(ctx context.Context) (crypto.Signer, error) {
+		return nil, trace.NotFound("session key expired")
+	})
+	return signer, trace.Wrap(err)
 }
 
 // checkAppKey checks that at least the app profile and name are set, which are

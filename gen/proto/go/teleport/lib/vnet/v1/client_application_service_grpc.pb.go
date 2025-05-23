@@ -46,6 +46,8 @@ const (
 	ClientApplicationService_GetTargetOSConfiguration_FullMethodName = "/teleport.lib.vnet.v1.ClientApplicationService/GetTargetOSConfiguration"
 	ClientApplicationService_UserTLSCert_FullMethodName              = "/teleport.lib.vnet.v1.ClientApplicationService/UserTLSCert"
 	ClientApplicationService_SignForUserTLS_FullMethodName           = "/teleport.lib.vnet.v1.ClientApplicationService/SignForUserTLS"
+	ClientApplicationService_SessionSSHConfig_FullMethodName         = "/teleport.lib.vnet.v1.ClientApplicationService/SessionSSHConfig"
+	ClientApplicationService_SignForSSHSession_FullMethodName        = "/teleport.lib.vnet.v1.ClientApplicationService/SignForSSHSession"
 )
 
 // ClientApplicationServiceClient is the client API for ClientApplicationService service.
@@ -87,6 +89,11 @@ type ClientApplicationServiceClient interface {
 	UserTLSCert(ctx context.Context, in *UserTLSCertRequest, opts ...grpc.CallOption) (*UserTLSCertResponse, error)
 	// SignForUserTLS signs a digest with the user TLS private key.
 	SignForUserTLS(ctx context.Context, in *SignForUserTLSRequest, opts ...grpc.CallOption) (*SignForUserTLSResponse, error)
+	// SessionSSHConfig returns the user SSH configuration for an SSH session.
+	SessionSSHConfig(ctx context.Context, in *SessionSSHConfigRequest, opts ...grpc.CallOption) (*SessionSSHConfigResponse, error)
+	// SignForSSHSession signs a digest with the SSH private key associated with the
+	// session from a previous call to SessionSSHConfig.
+	SignForSSHSession(ctx context.Context, in *SignForSSHSessionRequest, opts ...grpc.CallOption) (*SignForSSHSessionResponse, error)
 }
 
 type clientApplicationServiceClient struct {
@@ -207,6 +214,26 @@ func (c *clientApplicationServiceClient) SignForUserTLS(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *clientApplicationServiceClient) SessionSSHConfig(ctx context.Context, in *SessionSSHConfigRequest, opts ...grpc.CallOption) (*SessionSSHConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SessionSSHConfigResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_SessionSSHConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clientApplicationServiceClient) SignForSSHSession(ctx context.Context, in *SignForSSHSessionRequest, opts ...grpc.CallOption) (*SignForSSHSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SignForSSHSessionResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_SignForSSHSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClientApplicationServiceServer is the server API for ClientApplicationService service.
 // All implementations must embed UnimplementedClientApplicationServiceServer
 // for forward compatibility.
@@ -246,6 +273,11 @@ type ClientApplicationServiceServer interface {
 	UserTLSCert(context.Context, *UserTLSCertRequest) (*UserTLSCertResponse, error)
 	// SignForUserTLS signs a digest with the user TLS private key.
 	SignForUserTLS(context.Context, *SignForUserTLSRequest) (*SignForUserTLSResponse, error)
+	// SessionSSHConfig returns the user SSH configuration for an SSH session.
+	SessionSSHConfig(context.Context, *SessionSSHConfigRequest) (*SessionSSHConfigResponse, error)
+	// SignForSSHSession signs a digest with the SSH private key associated with the
+	// session from a previous call to SessionSSHConfig.
+	SignForSSHSession(context.Context, *SignForSSHSessionRequest) (*SignForSSHSessionResponse, error)
 	mustEmbedUnimplementedClientApplicationServiceServer()
 }
 
@@ -288,6 +320,12 @@ func (UnimplementedClientApplicationServiceServer) UserTLSCert(context.Context, 
 }
 func (UnimplementedClientApplicationServiceServer) SignForUserTLS(context.Context, *SignForUserTLSRequest) (*SignForUserTLSResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SignForUserTLS not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) SessionSSHConfig(context.Context, *SessionSSHConfigRequest) (*SessionSSHConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SessionSSHConfig not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) SignForSSHSession(context.Context, *SignForSSHSessionRequest) (*SignForSSHSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignForSSHSession not implemented")
 }
 func (UnimplementedClientApplicationServiceServer) mustEmbedUnimplementedClientApplicationServiceServer() {
 }
@@ -509,6 +547,42 @@ func _ClientApplicationService_SignForUserTLS_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClientApplicationService_SessionSSHConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SessionSSHConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).SessionSSHConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_SessionSSHConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).SessionSSHConfig(ctx, req.(*SessionSSHConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClientApplicationService_SignForSSHSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SignForSSHSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).SignForSSHSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_SignForSSHSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).SignForSSHSession(ctx, req.(*SignForSSHSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClientApplicationService_ServiceDesc is the grpc.ServiceDesc for ClientApplicationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -559,6 +633,14 @@ var ClientApplicationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SignForUserTLS",
 			Handler:    _ClientApplicationService_SignForUserTLS_Handler,
+		},
+		{
+			MethodName: "SessionSSHConfig",
+			Handler:    _ClientApplicationService_SessionSSHConfig_Handler,
+		},
+		{
+			MethodName: "SignForSSHSession",
+			Handler:    _ClientApplicationService_SignForSSHSession_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

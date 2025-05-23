@@ -28,6 +28,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 )
@@ -135,7 +136,7 @@ func (p *sshProvider) dialViaProxy(
 		return nil, trace.Wrap(err, "building proxy client")
 	}
 	// TODO(nklaassen): pass an SSH keyring to support proxy recording mode.
-	conn, _, err := pclt.DialHost(ctx, target.host, target.cluster, nil /*keyRing*/)
+	conn, _, err := pclt.DialHost(ctx, target.addr, target.cluster, nil /*keyRing*/)
 	if err != nil {
 		pclt.Close()
 		return nil, trace.Wrap(err, "dialing target via proxy")
@@ -181,27 +182,99 @@ func (p *sshProvider) userTLSConfig(
 	}, nil
 }
 
+func (p *sshProvider) sessionSSHConfig(
+	ctx context.Context,
+	target dialTarget,
+	user string,
+) (*ssh.ClientConfig, error) {
+	// TODO(nklaassen): cache session SSH configs so we don't have to regenerate
+	// every time.
+	resp, err := p.cfg.clt.SessionSSHConfig(ctx, target, user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshPub, err := ssh.ParsePublicKey(resp.GetCert())
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing session SSH cert")
+	}
+	sshCert, ok := sshPub.(*ssh.Certificate)
+	if !ok {
+		return nil, trace.BadParameter("expected ssh.Certificate, got %T", sshCert)
+	}
+	cryptoPub, ok := sshCert.Key.(ssh.CryptoPublicKey)
+	if !ok {
+		return nil, trace.BadParameter("expected SSH key to implement CryptoPublicKey, got %T", sshCert.Key)
+	}
+	sessionID := resp.GetSessionId()
+	signer := &rpcSigner{
+		pub: cryptoPub.CryptoPublicKey(),
+		sendRequest: func(req *vnetv1.SignRequest) ([]byte, error) {
+			return p.cfg.clt.SignForSSHSession(ctx, sessionID, req)
+		},
+	}
+	sshSigner, err := ssh.NewSignerFromSigner(signer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certSigner, err := ssh.NewCertSigner(sshCert, sshSigner)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	hostKeyCallback, err := buildHostKeyCallback(resp.GetTrustedCas(), p.cfg.clock)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &ssh.ClientConfig{
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(certSigner)},
+		User:            user,
+		HostKeyCallback: hostKeyCallback,
+	}, nil
+}
+
+func buildHostKeyCallback(trustedCAs [][]byte, clock clockwork.Clock) (ssh.HostKeyCallback, error) {
+	var caKeys []ssh.PublicKey
+	for _, trustedCA := range trustedCAs {
+		caKey, err := ssh.ParsePublicKey(trustedCA)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing trusted CA key")
+		}
+		caKeys = append(caKeys, caKey)
+	}
+	hostKeyCallback, err := sshutils.NewHostKeyCallback(sshutils.HostKeyCallbackConfig{
+		GetHostCheckers: func() ([]ssh.PublicKey, error) {
+			return caKeys, nil
+		},
+		Clock: clock,
+	})
+	return hostKeyCallback, trace.Wrap(err, "building host key callback")
+}
+
 type dialTarget struct {
-	fqdn    string
-	profile string
-	cluster string
-	host    string
+	fqdn        string
+	profile     string
+	rootCluster string
+	leafCluster string
+	cluster     string
+	hostname    string
+	addr        string
 }
 
 func computeDialTarget(matchedCluster *vnetv1.MatchedCluster, fqdn string) dialTarget {
-	targetProfile := matchedCluster.GetProfile()
 	targetCluster := matchedCluster.GetRootCluster()
 	targetHost := strings.TrimSuffix(fqdn, "."+matchedCluster.GetRootCluster()+".")
-	if leafCluster := matchedCluster.GetLeafCluster(); leafCluster != "" {
+	leafCluster := matchedCluster.GetLeafCluster()
+	if leafCluster != "" {
 		targetCluster = leafCluster
 		targetHost = strings.TrimSuffix(targetHost, "."+leafCluster)
 	}
-	targetHost = targetHost + ":0"
 	return dialTarget{
-		fqdn:    fqdn,
-		profile: targetProfile,
-		cluster: targetCluster,
-		host:    targetHost,
+		fqdn:        fqdn,
+		profile:     matchedCluster.GetProfile(),
+		rootCluster: matchedCluster.GetRootCluster(),
+		leafCluster: leafCluster,
+		cluster:     targetCluster,
+		hostname:    targetHost,
+		addr:        targetHost + ":0",
 	}
 }
 
