@@ -19,14 +19,18 @@
 package proxy
 
 import (
+	"embed"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/gravitational/teleport/api/types"
@@ -73,6 +77,35 @@ func TestParseResourcePath(t *testing.T) {
 			require.Empty(t, diff, "parsing path %q", tt.path)
 		})
 	}
+}
+
+//go:embed testing/kube_server/data
+var apiData embed.FS
+var apiDataRe = regexp.MustCompile(`^api(_?[^_]*)_v1\.json$`)
+
+func getRBACSupportedTypes(t *testing.T) rbacSupportedResources {
+	rbacSupportedTypes := rbacSupportedResources{}
+
+	entries, err := apiData.ReadDir("testing/kube_server/data")
+	require.NoError(t, err)
+	for _, elem := range entries {
+		matches := apiDataRe.FindStringSubmatch(elem.Name())
+		if matches == nil {
+			continue
+		}
+		buf, err := apiData.ReadFile("testing/kube_server/data/" + elem.Name())
+		require.NoError(t, err)
+
+		var resourceList metav1.APIResourceList
+		require.NoError(t, json.Unmarshal(buf, &resourceList))
+		gv, _ := schema.ParseGroupVersion(resourceList.GroupVersion)
+		for _, elem := range resourceList.APIResources {
+			elem.Group = gv.Group
+			elem.Version = gv.Version
+			rbacSupportedTypes[allowedResourcesKey{apiGroup: elem.Group, resourceKind: elem.Name}] = elem
+		}
+	}
+	return rbacSupportedTypes
 }
 
 func Test_getResourceFromRequest(t *testing.T) {
@@ -218,6 +251,7 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/apis/networking.k8s.io/v1/ingresses/foo", want: &types.KubernetesResource{Kind: "ingresses", Name: "foo", Verbs: []string{"get"}, APIGroup: "networking.k8s.io"}},
 	}
 
+	rbacSupportedTypes := getRBACSupportedTypes(t)
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
 			verb := http.MethodGet
@@ -226,7 +260,7 @@ func Test_getResourceFromRequest(t *testing.T) {
 			}
 			got, err := getResourceFromRequest(&http.Request{Method: verb, URL: &url.URL{Path: tt.path}, Body: tt.body}, &kubeDetails{
 				kubeCodecs:         &globalKubeCodecs,
-				rbacSupportedTypes: defaultRBACResources,
+				rbacSupportedTypes: rbacSupportedTypes,
 				gvkSupportedResources: map[gvkSupportedResourcesKey]*schema.GroupVersionKind{
 					{
 						apiGroup: "",
@@ -279,37 +313,4 @@ func Test_getResourceFromRequest(t *testing.T) {
 			require.Equal(t, tt.want, got.rbacResource(), "parsing path %q", tt.path)
 		})
 	}
-}
-
-// defaultRBACResources is a map of supported resources and their corresponding
-// teleport resource kind for the purpose of resource rbac.
-// TODO(@creack): Remove this (keep a form of it for maybedowngraderole).
-var defaultRBACResources = rbacSupportedResources{
-	{apiGroup: "", resourceKind: "pods"}:                                          {Name: "pods", Kind: types.KindKubePod, Group: "", Namespaced: true},
-	{apiGroup: "", resourceKind: "secrets"}:                                       {Name: "secrets", Kind: types.KindKubeSecret, Group: "", Namespaced: true},
-	{apiGroup: "", resourceKind: "configmaps"}:                                    {Name: "configmaps", Kind: types.KindKubeConfigmap, Group: "", Namespaced: true},
-	{apiGroup: "", resourceKind: "namespaces"}:                                    {Name: "namespaces", Kind: types.KindKubeNamespace, Group: "", Namespaced: true},
-	{apiGroup: "", resourceKind: "services"}:                                      {Name: "services", Kind: types.KindKubeService, Group: "", Namespaced: true},
-	{apiGroup: "", resourceKind: "endpoints"}:                                     {Name: "endpoints", Kind: types.KindKubeService, Group: "", Namespaced: true},
-	{apiGroup: "", resourceKind: "serviceaccounts"}:                               {Name: "serviceaccounts", Kind: types.KindKubeServiceAccount, Group: "", Namespaced: true},
-	{apiGroup: "", resourceKind: "nodes"}:                                         {Name: "nodes", Kind: types.KindKubeNode, Group: "", Namespaced: false},
-	{apiGroup: "", resourceKind: "persistentvolumes"}:                             {Name: "persistentvolumes", Kind: types.KindKubePersistentVolume, Group: "", Namespaced: false},
-	{apiGroup: "", resourceKind: "persistentvolumeclaims"}:                        {Name: "persistentvolumeclaims", Kind: types.KindKubePersistentVolumeClaim, Group: "", Namespaced: true},
-	{apiGroup: "", resourceKind: "replicationcontrollers"}:                        {Name: "replicationcontrollers", Kind: types.KindKubeReplicationController, Group: "", Namespaced: true},
-	{apiGroup: "apps", resourceKind: "deployments"}:                               {Name: "deployments", Kind: types.KindKubeDeployment, Group: "apps", Namespaced: true},
-	{apiGroup: "apps", resourceKind: "replicasets"}:                               {Name: "replicasets", Kind: types.KindKubeReplicaSet, Group: "apps", Namespaced: true},
-	{apiGroup: "apps", resourceKind: "statefulsets"}:                              {Name: "statefulsets", Kind: types.KindKubeStatefulset, Group: "apps", Namespaced: true},
-	{apiGroup: "apps", resourceKind: "daemonsets"}:                                {Name: "daemonsets", Kind: types.KindKubeDaemonSet, Group: "apps", Namespaced: true},
-	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterroles"}:         {Name: "clusterroles", Kind: types.KindKubeClusterRole, Group: "rbac.authorization.k8s.io", Namespaced: false},
-	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "roles"}:                {Name: "roles", Kind: types.KindKubeRole, Group: "rbac.authorization.k8s.io", Namespaced: true},
-	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterrolebindings"}:  {Name: "clusterrolebindings", Kind: types.KindKubeClusterRoleBinding, Group: "rbac.authorization.k8s.io", Namespaced: false},
-	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "rolebindings"}:         {Name: "rolebindings", Kind: types.KindKubeRoleBinding, Group: "rbac.authorization.k8s.io", Namespaced: true},
-	{apiGroup: "batch", resourceKind: "cronjobs"}:                                 {Name: "cronjobs", Kind: types.KindKubeCronjob, Group: "batch", Namespaced: true},
-	{apiGroup: "batch", resourceKind: "jobs"}:                                     {Name: "jobs", Kind: types.KindKubeJob, Group: "batch", Namespaced: true},
-	{apiGroup: "certificates.k8s.io", resourceKind: "certificatesigningrequests"}: {Name: "certificatesigningrequests", Kind: types.KindKubeCertificateSigningRequest, Group: "certificates.k8s.io", Namespaced: false},
-	{apiGroup: "networking.k8s.io", resourceKind: "ingresses"}:                    {Name: "ingresses", Kind: types.KindKubeIngress, Group: "networking.k8s.io", Namespaced: true},
-	{apiGroup: "extensions", resourceKind: "deployments"}:                         {Name: "deployments", Kind: types.KindKubeDeployment, Group: "extensions", Namespaced: true},
-	{apiGroup: "extensions", resourceKind: "replicasets"}:                         {Name: "replicasets", Kind: types.KindKubeReplicaSet, Group: "extensions", Namespaced: true},
-	{apiGroup: "extensions", resourceKind: "daemonsets"}:                          {Name: "daemonsets", Kind: types.KindKubeDaemonSet, Group: "extensions", Namespaced: true},
-	{apiGroup: "extensions", resourceKind: "ingresses"}:                           {Name: "ingresses", Kind: types.KindKubeIngress, Group: "extensions", Namespaced: true},
 }
