@@ -295,7 +295,7 @@ version: v2
 	}, item)
 }
 
-func TestGetRoles(t *testing.T) {
+func TestListRoles(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockListRoles = func(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
