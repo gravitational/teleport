@@ -37,6 +37,16 @@ function getParams(
   }`;
 }
 
+function getCtaEventUrl(event: CtaEvent | undefined) {
+  switch (event) {
+    case CtaEvent.CTA_IDENTITY_SECURITY:
+      return UPGRADE_POLICY_URL;
+
+    default:
+      return UPGRADE_IGS_URL;
+  }
+}
+
 export function getSalesURL(
   version: string,
   isEnterprise: boolean,
@@ -44,7 +54,7 @@ export function getSalesURL(
   url?: string
 ) {
   if (!url) {
-    url = isEnterprise ? UPGRADE_IGS_URL : UPGRADE_COMMUNITY_URL;
+    url = isEnterprise ? getCtaEventUrl(event) : UPGRADE_COMMUNITY_URL;
   }
   const params = getParams(version, isEnterprise, event);
   return `${url}?${params}`;
