@@ -914,11 +914,6 @@ type SAMLAuthResponse struct {
 type SAMLAuthRequest struct {
 	// ID is a unique request ID.
 	ID string `json:"id"`
-	// PublicKey is a public key the user wants as the subject of their SSH and TLS
-	// certificates. It must be in SSH authorized_keys format.
-	//
-	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
-	PublicKey []byte `json:"public_key,omitempty"`
 	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
 	// certificate. It must be in SSH authorized_keys format.
 	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`

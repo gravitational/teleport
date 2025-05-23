@@ -415,7 +415,6 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 func GithubAuthRequestFromProto(req *types.GithubAuthRequest) authclient.GithubAuthRequest {
 	return authclient.GithubAuthRequest{
 		ConnectorID:       req.ConnectorID,
-		PublicKey:         req.PublicKey, //nolint:staticcheck // SA1019. Setting deprecated field for older proxy clients.
 		SSHPubKey:         req.SshPublicKey,
 		TLSPubKey:         req.TlsPublicKey,
 		CSRFToken:         req.CSRFToken,

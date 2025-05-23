@@ -693,13 +693,7 @@ func TestGithubAuthCompat(t *testing.T) {
 			desc: "no keys",
 		},
 		{
-			desc:                "single key",
-			pubKey:              sshPubBytes,
-			expectSSHSubjectKey: sshPub,
-			expectTLSSubjectKey: sshKey.Public(),
-		},
-		{
-			desc:                "split keys",
+			desc:                "both keys",
 			sshPubKey:           sshPubBytes,
 			tlsPubKey:           tlsPubBytes,
 			expectSSHSubjectKey: sshPub,
@@ -722,7 +716,6 @@ func TestGithubAuthCompat(t *testing.T) {
 			req, err := proxyClient.CreateGithubAuthRequest(ctx, types.GithubAuthRequest{
 				ConnectorID:  connector.GetName(),
 				Type:         constants.Github,
-				PublicKey:    tc.pubKey,
 				SshPublicKey: tc.sshPubKey,
 				TlsPublicKey: tc.tlsPubKey,
 				CertTTL:      apidefaults.MinCertDuration,
@@ -737,10 +730,7 @@ func TestGithubAuthCompat(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			// The proxy should get back the keys exactly as it sent them. Older
-			// proxies won't look for the new split keys, and they do check for
-			// the old single key to tell if this was a console or web request.
-			require.Equal(t, tc.pubKey, resp.Req.PublicKey) //nolint:staticcheck // SA1019. Checking that deprecated field is set.
+			// The proxy should get back the keys exactly as it sent them.
 			require.Equal(t, tc.sshPubKey, resp.Req.SSHPubKey)
 			require.Equal(t, tc.tlsPubKey, resp.Req.TLSPubKey)
 
@@ -1098,11 +1088,13 @@ func TestGenerateUserCertsWithMFAVerification(t *testing.T) {
 			_, err = srv.Auth().UpsertAuthPreference(ctx, ap)
 			require.NoError(t, err)
 
-			_, pub, err := testauthority.New().GenerateKeyPair()
+			priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+			require.NoError(t, err)
+			pub, err := keys.MarshalPublicKey(priv.Public())
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				PublicKey:         pub,
+				TLSPublicKey:      pub,
 				Username:          tt.user.GetName(),
 				Expires:           authClock.Now().Add(defaultDuration),
 				KubernetesCluster: kubeClusterName,

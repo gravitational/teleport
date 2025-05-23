@@ -2823,13 +2823,7 @@ func TestGenerateCerts(t *testing.T) {
 			expectSSHCertPublicKey equalPublicKey
 		}{
 			{
-				desc:                   "legacy",
-				publicKey:              sshPubKey,
-				tlsPrivateKey:          sshPrivKey,
-				expectSSHCertPublicKey: sshEqualPub,
-			},
-			{
-				desc:                   "split",
+				desc:                   "both keys",
 				sshPublicKey:           sshPubKey,
 				tlsPublicKey:           tlsPubKey,
 				tlsPrivateKey:          tlsPrivKey,
@@ -2854,7 +2848,6 @@ func TestGenerateCerts(t *testing.T) {
 				t.Parallel()
 
 				certs, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
-					PublicKey:    tc.publicKey, //nolint:staticcheck // SA1019: testing the deprecated field.
 					SSHPublicKey: tc.sshPublicKey,
 					TLSPublicKey: tc.tlsPublicKey,
 					Username:     user2.GetName(),
