@@ -342,5 +342,5 @@ This message contains the keyboard layout used by the client. It is sent from th
 It is sent once at the beginning of the session.
 
 ```
-| messsage type (37) | keyboard_layout uint32 |
+| message type (37) | length uint32 | keyboard_layout uint32 |
 ```
