@@ -229,10 +229,16 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, isClusterWideResou
 				continue
 			}
 
-			// NOTE: Global resources will match if the namespace is empty or wildcard. If it is set to anything
-			// else, then it will not match.
-			if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil || ok {
-				return ok, trace.Wrap(err)
+			// NOTE: Global resources will match if the namespace is empty. If it is set to anything,
+			// then it will not match.
+			if resource.Namespace != "" {
+				if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil || ok {
+					return ok, trace.Wrap(err)
+				}
+			} else if input.Namespace == "" {
+				// Case of a global resource. Everything matches up to this point,
+				// the requested resource doesn't have a namespace and the reference one as well.
+				return true, nil
 			}
 		}
 	}
@@ -309,13 +315,18 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, isClusterWideRe
 			if input.Namespace == "" && isAllowOrFullDeny {
 				return isAllowOrFullDeny, nil
 			}
-			if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil {
-				return false, trace.Wrap(err)
-			} else if !ok {
+
+			if resource.Namespace != "" {
+				if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil {
+					return false, trace.Wrap(err)
+				} else if !ok {
+					continue
+				}
+			} else if input.Namespace != "" {
 				continue
 			}
-			if !isDeny || isDeny && resource.Name == types.Wildcard {
-				return !isDeny || isDeny && resource.Name == types.Wildcard, nil
+			if !isDeny || (isDeny && resource.Name == types.Wildcard) {
+				return !isDeny || (isDeny && resource.Name == types.Wildcard), nil
 			}
 		}
 	}
