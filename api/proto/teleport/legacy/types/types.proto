@@ -3137,6 +3137,8 @@ message AccessCapabilitiesRequest {
 message RequestKubernetesResource {
   // kind specifies the Kubernetes Resource type.
   string kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
+  // APIGroup specifies the Kubernetes Resource API group.
+  string APIGroup = 2 [(gogoproto.jsontag) = "api_group,omitempty"];
 }
 
 // ResourceID is a unique identifier for a teleport resource.
