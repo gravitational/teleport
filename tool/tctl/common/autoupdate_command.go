@@ -22,7 +22,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"os"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,6 +58,7 @@ type AutoUpdateCommand struct {
 	toolsDisableCmd      *kingpin.CmdClause
 	toolsStatusCmd       *kingpin.CmdClause
 	agentsStatusCmd      *kingpin.CmdClause
+	agentsReportCmd      *kingpin.CmdClause
 	agentsStartUpdateCmd *kingpin.CmdClause
 	agentsMarkDoneCmd    *kingpin.CmdClause
 	agentsRollbackCmd    *kingpin.CmdClause
@@ -65,6 +69,9 @@ type AutoUpdateCommand struct {
 	groups             []string
 
 	clear bool
+
+	// used for testing purposes
+	now func() time.Time
 
 	// stdout allows to switch standard output source for resource command. Used in tests.
 	stdout io.Writer
@@ -91,6 +98,7 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, ccf *tctlcfg.Gl
 
 	agentsCmd := autoUpdateCmd.Command("agents", "Manage agents auto update configuration.")
 	c.agentsStatusCmd = agentsCmd.Command("status", "Prints agents auto update status.")
+	c.agentsReportCmd = agentsCmd.Command("report", "Aggregates the agent autoupdate reports and displays agent count per version and per update group.")
 	c.agentsStartUpdateCmd = agentsCmd.Command("start-update", "Starts updating one or many groups.")
 	c.agentsStartUpdateCmd.Arg("groups", "Groups to start updating.").StringsVar(&c.groups)
 	c.agentsMarkDoneCmd = agentsCmd.Command("mark-done", "Marks one or many groups as done updating.")
@@ -100,6 +108,10 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, ccf *tctlcfg.Gl
 
 	if c.stdout == nil {
 		c.stdout = os.Stdout
+	}
+
+	if c.now == nil {
+		c.now = time.Now
 	}
 }
 
@@ -120,6 +132,8 @@ func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, clientFunc c
 		return true, trace.Wrap(err)
 	case cmd == c.agentsStatusCmd.FullCommand():
 		commandFunc = c.agentsStatusCommand
+	case cmd == c.agentsReportCmd.FullCommand():
+		commandFunc = c.agentsReportCommand
 	case cmd == c.agentsStartUpdateCmd.FullCommand():
 		commandFunc = c.agentsStartUpdateCommand
 	case cmd == c.agentsMarkDoneCmd.FullCommand():
@@ -201,6 +215,7 @@ type autoupdateClient interface {
 	TriggerAutoUpdateAgentGroup(ctx context.Context, groups []string, state autoupdatev1pb.AutoUpdateAgentGroupState) (*autoupdatev1pb.AutoUpdateAgentRollout, error)
 	ForceAutoUpdateAgentGroup(ctx context.Context, groups []string) (*autoupdatev1pb.AutoUpdateAgentRollout, error)
 	RollbackAutoUpdateAgentGroup(ctx context.Context, groups []string, allStartedGroups bool) (*autoupdatev1pb.AutoUpdateAgentRollout, error)
+	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdatev1pb.AutoUpdateAgentReport, string, error)
 }
 
 func (c *AutoUpdateCommand) agentsStatusCommand(ctx context.Context, client autoupdateClient) error {
@@ -208,6 +223,17 @@ func (c *AutoUpdateCommand) agentsStatusCommand(ctx context.Context, client auto
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
+
+	reports, err := getAllReports(ctx, client)
+	if err != nil && !trace.IsNotFound(err) {
+		fmt.Println(c.stdout, "WARNING: Failed to get agent version reports, progress tracking will not be displayed.")
+		if c.ccf.Debug {
+			fmt.Fprintf(c.stdout, "Received the following error: %s\n", err)
+		}
+		reports = nil
+	}
+
+	validReports := filterValidReports(reports, c.now())
 
 	sb := strings.Builder{}
 	if rollout.GetSpec() == nil {
@@ -236,24 +262,228 @@ func (c *AutoUpdateCommand) agentsStatusCommand(ctx context.Context, client auto
 	}
 
 	sb.WriteRune('\n')
-	rolloutGroupTable(rollout, &sb)
+	rolloutGroupTable(rollout, validReports, &sb)
 
 	fmt.Fprint(c.stdout, sb.String())
 	return nil
 }
 
-func rolloutGroupTable(rollout *autoupdatev1pb.AutoUpdateAgentRollout, writer io.Writer) {
-	if groups := rollout.GetStatus().GetGroups(); len(groups) > 0 {
+func (c *AutoUpdateCommand) agentsReportCommand(ctx context.Context, client autoupdateClient) error {
+	now := c.now()
+	reports, err := getAllReports(ctx, client)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err, "listing reports")
+		}
+
+		fmt.Fprintln(c.stdout, "No autoupdate_agent_report found.")
+		if c.ccf != nil && len(c.ccf.AuthServerAddr) > 0 && !strings.Contains(c.ccf.AuthServerAddr[0], "teleport.sh") {
+			fmt.Fprintln(c.stdout, "Managed Updates agent reports require enabling Managed Updates v2 by creating the autoupdate_version resource.")
+			fmt.Fprintln(c.stdout, "See: https://goteleport.com/docs/upgrading/agent-managed-updates/#configuring-managed-agent-updates")
+		}
+		return trace.Wrap(err)
+	}
+
+	if len(reports) == 0 {
+		return trace.BadParameter("no reports returned, but the server did not return a NotFoundError, this ia a bug")
+	}
+
+	validReports := filterValidReports(reports, now)
+
+	if len(validReports) == 0 {
+		fmt.Fprintf(c.stdout, "Read %d reports, but they are expired. If you just (re)deployed the Auth service, you might want to retry after 60 seconds.\n", len(reports))
+		return trace.CompareFailed("reports expired")
+	}
+
+	fmt.Fprintf(c.stdout, "%d autoupdate agent reports aggregated\n\n", len(validReports))
+
+	groupSet := make(map[string]any)
+	versionsSet := make(map[string]any)
+	for _, report := range validReports {
+		for groupName, group := range report.GetSpec().GetGroups() {
+			groupSet[groupName] = struct{}{}
+			for versionName, _ := range group.GetVersions() {
+				versionsSet[versionName] = struct{}{}
+			}
+		}
+	}
+
+	groupNames := slices.Collect(maps.Keys(groupSet))
+	versionNames := slices.Collect(maps.Keys(versionsSet))
+	slices.Sort(groupNames)
+	slices.Sort(versionNames)
+
+	if len(groupNames) == 0 || len(versionNames) == 0 {
+		fmt.Fprintln(c.stdout, "Reports contain no agents.")
+	} else {
+		t := asciitable.MakeTable(append([]string{"Agent Version"}, groupNames...))
+		for _, versionName := range versionNames {
+			row := make([]string, len(groupNames)+1)
+			row[0] = versionName
+			for j, groupName := range groupNames {
+				var count int
+				for _, report := range validReports {
+					count += int(report.GetSpec().GetGroups()[groupName].GetVersions()[versionName].GetCount())
+				}
+				row[j+1] = strconv.Itoa(count)
+			}
+			t.AddRow(row)
+		}
+
+		_, err = t.AsBuffer().WriteTo(c.stdout)
+	}
+
+	fmt.Fprint(c.stdout, c.omittedSummary(validReports))
+
+	return trace.Wrap(err)
+}
+
+func filterValidReports(reports []*autoupdatev1pb.AutoUpdateAgentReport, now time.Time) []*autoupdatev1pb.AutoUpdateAgentReport {
+	validReports := make([]*autoupdatev1pb.AutoUpdateAgentReport, 0, len(reports))
+	for _, report := range reports {
+		if now.Sub(report.GetSpec().GetTimestamp().AsTime()) <= time.Minute {
+			validReports = append(validReports, report)
+		}
+	}
+	return validReports
+}
+
+func (c *AutoUpdateCommand) omittedSummary(reports []*autoupdatev1pb.AutoUpdateAgentReport) string {
+	aggregated := make(map[string]int)
+	var totalOmitted int
+	for _, report := range reports {
+		for _, omitted := range report.GetSpec().GetOmitted() {
+			totalOmitted += int(omitted.GetCount())
+			aggregated[omitted.GetReason()] += int(omitted.GetCount())
+		}
+	}
+
+	if totalOmitted == 0 {
+		return ""
+	}
+
+	sb := strings.Builder{}
+	sb.WriteRune('\n')
+	sb.WriteString(fmt.Sprintf("%d agents were omitted from the reports:\n", totalOmitted))
+	for reason, count := range aggregated {
+		sb.WriteString(fmt.Sprintf("- %d omitted because: %s\n", count, reason))
+	}
+	return sb.String()
+}
+
+func getAllReports(ctx context.Context, client autoupdateClient) ([]*autoupdatev1pb.AutoUpdateAgentReport, error) {
+	const pageSize = 50
+	var pageToken string
+	reports := make([]*autoupdatev1pb.AutoUpdateAgentReport, 0, pageSize)
+	for {
+		page, nextToken, err := client.ListAutoUpdateAgentReports(ctx, pageSize, pageToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		reports = append(reports, page...)
+		if nextToken == "" {
+			return reports, nil
+		}
+		pageToken = nextToken
+	}
+}
+
+// aggregateByGroup iterates over all the reports and aggregates the counts by reported groups.
+// The function returns two maps:
+// - the number of agents belonging to each reported group
+// - the number of up-to-date agents belonging to each reported group
+func aggregateByGroup(
+	rollout *autoupdatev1pb.AutoUpdateAgentRollout,
+	reports []*autoupdatev1pb.AutoUpdateAgentReport,
+) (countByGroup, upToDateByGroup map[string]int) {
+	countByGroup = make(map[string]int)
+	upToDateByGroup = make(map[string]int)
+	targetVersion := rollout.GetSpec().GetTargetVersion()
+
+	for _, report := range reports {
+		for group, groupCount := range report.GetSpec().GetGroups() {
+			for version, versionCount := range groupCount.GetVersions() {
+				countByGroup[group] = countByGroup[group] + int(versionCount.GetCount())
+				if version == targetVersion {
+					upToDateByGroup[group] = upToDateByGroup[group] + int(versionCount.GetCount())
+				}
+			}
+		}
+	}
+	return countByGroup, upToDateByGroup
+}
+
+// countCatchAll counts the number of agents belonging to the last group which is acting like a catch-all.
+// The function returns two integers:
+// - the number of agents belonging to the last group
+// - the number of up-to-date agents belonging to the last group
+func countCatchAll(rollout *autoupdatev1pb.AutoUpdateAgentRollout, countByGroup, upToDateByGroup map[string]int) (int, int) {
+	if len(rollout.GetStatus().GetGroups()) == 0 {
+		return 0, 0
+	}
+
+	rolloutGroups := make([]string, 0, len(rollout.GetStatus().GetGroups()))
+	// We don't count the last group as it is the default one
+	for _, group := range rollout.GetStatus().GetGroups()[:len(rollout.GetStatus().GetGroups())-1] {
+		rolloutGroups = append(rolloutGroups, group.GetName())
+	}
+
+	var defaultGroupCount, upToDateDefaultGroupCount int
+
+	for group, count := range countByGroup {
+		if !slices.Contains(rolloutGroups, group) {
+			defaultGroupCount += count
+		}
+	}
+
+	for group, count := range upToDateByGroup {
+		if !slices.Contains(rolloutGroups, group) {
+			upToDateDefaultGroupCount += count
+		}
+	}
+
+	return defaultGroupCount, upToDateDefaultGroupCount
+}
+
+func rolloutGroupTable(rollout *autoupdatev1pb.AutoUpdateAgentRollout, reports []*autoupdatev1pb.AutoUpdateAgentReport, writer io.Writer) {
+	groups := rollout.GetStatus().GetGroups()
+	countByGroup, upToDateByGroup := aggregateByGroup(rollout, reports)
+	switch {
+	case len(groups) != 0 && len(reports) != 0:
+		headers := []string{"Group Name", "State", "Start Time", "State Reason", "Agent Count", "Up-to-date"}
+		table := asciitable.MakeTable(headers)
+		for i, group := range groups {
+			groupName := group.GetName()
+			groupCount := countByGroup[groupName]
+			groupUpToDate := upToDateByGroup[groupName]
+			if i == len(groups)-1 {
+				groupName = groupName + " (catch-all)"
+				groupCount, groupUpToDate = countCatchAll(rollout, countByGroup, upToDateByGroup)
+			}
+			table.AddRow([]string{
+				groupName,
+				userFriendlyState(group.GetState()),
+				formatTimeIfNotEmpty(group.GetStartTime().AsTime(), time.DateTime),
+				group.GetLastUpdateReason(),
+				strconv.Itoa(groupCount),
+				strconv.Itoa(groupUpToDate),
+			})
+		}
+		writer.Write(table.AsBuffer().Bytes())
+
+	case len(groups) != 0:
 		headers := []string{"Group Name", "State", "Start Time", "State Reason"}
 		table := asciitable.MakeTable(headers)
 		for _, group := range groups {
+			groupName := group.GetName()
 			table.AddRow([]string{
-				group.GetName(),
+				groupName,
 				userFriendlyState(group.GetState()),
 				formatTimeIfNotEmpty(group.GetStartTime().AsTime(), time.DateTime),
 				group.GetLastUpdateReason()})
 		}
 		writer.Write(table.AsBuffer().Bytes())
+	default:
 	}
 }
 
@@ -277,7 +507,7 @@ func (c *AutoUpdateCommand) agentsStartUpdateCommand(ctx context.Context, client
 	fmt.Fprintf(c.stdout, "Successfully started updating agents groups: %v.\n", groups)
 
 	fmt.Fprint(c.stdout, "New agent rollout status:\n\n")
-	rolloutGroupTable(rollout, c.stdout)
+	rolloutGroupTable(rollout, nil, c.stdout)
 	return nil
 }
 
@@ -301,7 +531,7 @@ func (c *AutoUpdateCommand) agentsMarkDoneCommand(ctx context.Context, client au
 	}
 
 	fmt.Fprint(c.stdout, "New agent rollout status:\n\n")
-	rolloutGroupTable(rollout, c.stdout)
+	rolloutGroupTable(rollout, nil, c.stdout)
 	return nil
 }
 
@@ -327,7 +557,7 @@ func (c *AutoUpdateCommand) agentsRollbackCommand(ctx context.Context, client au
 	}
 
 	fmt.Fprint(c.stdout, "New agent rollout status:\n\n")
-	rolloutGroupTable(rollout, c.stdout)
+	rolloutGroupTable(rollout, nil, c.stdout)
 	return nil
 }
 
