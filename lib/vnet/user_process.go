@@ -25,6 +25,7 @@ import (
 
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/client"
 )
 
 // ClientApplication is the common interface implemented by each VNet client
@@ -70,6 +71,7 @@ type ClusterClient interface {
 	CurrentCluster() authclient.ClientI
 	ClusterName() string
 	RootClusterName() string
+	SessionSSHKeyRing(ctx context.Context, user string, target client.NodeDetails) (keyRing *client.KeyRing, completedMFA bool, err error)
 }
 
 // RunUserProcess is the entry point called by all VNet client applications
@@ -101,11 +103,15 @@ func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*
 		clusterConfigCache: clusterConfigCache,
 		leafClusterCache:   leafClusterCache,
 	})
-	clientApplicationService := newClientApplicationService(&clientApplicationServiceConfig{
+	clientApplicationService, err := newClientApplicationService(&clientApplicationServiceConfig{
 		clientApplication:     clientApplication,
 		fqdnResolver:          fqdnResolver,
 		localOSConfigProvider: osConfigProvider,
+		clock:                 clock,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	userProcess := &UserProcess{
 		clientApplication:        clientApplication,
 		osConfigProvider:         osConfigProvider,
