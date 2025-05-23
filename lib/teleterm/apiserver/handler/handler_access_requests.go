@@ -200,6 +200,14 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		}
 	}
 
+	var dryRunEnrichment *api.AccessRequestDryRunEnrichment
+	if orig := req.GetDryRunEnrichment(); orig != nil {
+		dryRunEnrichment = &api.AccessRequestDryRunEnrichment{
+			ReasonMode:    string(orig.ReasonMode),
+			ReasonPrompts: orig.ReasonPrompts,
+		}
+	}
+
 	return &api.AccessRequest{
 		Id:                      req.GetName(),
 		State:                   req.GetState().String(),
@@ -219,6 +227,7 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		MaxDuration:             timestamppb.New(req.GetMaxDuration()),
 		RequestTtl:              timestamppb.New(req.Expiry()),
 		SessionTtl:              timestamppb.New(req.GetSessionTLL()),
+		DryRunEnrichment:        dryRunEnrichment,
 	}
 }
 

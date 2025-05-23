@@ -130,6 +130,32 @@ export interface AccessRequest {
      * @generated from protobuf field: google.protobuf.Timestamp session_ttl = 18;
      */
     sessionTtl?: Timestamp;
+    /**
+     * dry_run_enrichment contains the extra info added in response to a dry run request.
+     *
+     * @generated from protobuf field: teleport.lib.teleterm.v1.AccessRequestDryRunEnrichment dry_run_enrichment = 19;
+     */
+    dryRunEnrichment?: AccessRequestDryRunEnrichment;
+}
+/**
+ * AccessRequestDryRunEnrichment contains the extra info added in a response to a dry run request.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.AccessRequestDryRunEnrichment
+ */
+export interface AccessRequestDryRunEnrichment {
+    /**
+     * reason_mode specifies the reason mode for this Access Request. It can be either "optional" or
+     * "required".
+     *
+     * @generated from protobuf field: string reason_mode = 1;
+     */
+    reasonMode: string;
+    /**
+     * reason_prompts is a sorted and deduplicated list of reason prompts for this Access Request.
+     *
+     * @generated from protobuf field: repeated string reason_prompts = 2;
+     */
+    reasonPrompts: string[];
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.AccessRequestReview
@@ -246,7 +272,8 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
             { no: 15, name: "assume_start_time", kind: "message", T: () => Timestamp },
             { no: 16, name: "max_duration", kind: "message", T: () => Timestamp },
             { no: 17, name: "request_ttl", kind: "message", T: () => Timestamp },
-            { no: 18, name: "session_ttl", kind: "message", T: () => Timestamp }
+            { no: 18, name: "session_ttl", kind: "message", T: () => Timestamp },
+            { no: 19, name: "dry_run_enrichment", kind: "message", T: () => AccessRequestDryRunEnrichment }
         ]);
     }
     create(value?: PartialMessage<AccessRequest>): AccessRequest {
@@ -326,6 +353,9 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
                 case /* google.protobuf.Timestamp session_ttl */ 18:
                     message.sessionTtl = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.sessionTtl);
                     break;
+                case /* teleport.lib.teleterm.v1.AccessRequestDryRunEnrichment dry_run_enrichment */ 19:
+                    message.dryRunEnrichment = AccessRequestDryRunEnrichment.internalBinaryRead(reader, reader.uint32(), options, message.dryRunEnrichment);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -392,6 +422,9 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
         /* google.protobuf.Timestamp session_ttl = 18; */
         if (message.sessionTtl)
             Timestamp.internalBinaryWrite(message.sessionTtl, writer.tag(18, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.lib.teleterm.v1.AccessRequestDryRunEnrichment dry_run_enrichment = 19; */
+        if (message.dryRunEnrichment)
+            AccessRequestDryRunEnrichment.internalBinaryWrite(message.dryRunEnrichment, writer.tag(19, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -402,6 +435,61 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AccessRequest
  */
 export const AccessRequest = new AccessRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessRequestDryRunEnrichment$Type extends MessageType<AccessRequestDryRunEnrichment> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.AccessRequestDryRunEnrichment", [
+            { no: 1, name: "reason_mode", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "reason_prompts", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessRequestDryRunEnrichment>): AccessRequestDryRunEnrichment {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.reasonMode = "";
+        message.reasonPrompts = [];
+        if (value !== undefined)
+            reflectionMergePartial<AccessRequestDryRunEnrichment>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessRequestDryRunEnrichment): AccessRequestDryRunEnrichment {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string reason_mode */ 1:
+                    message.reasonMode = reader.string();
+                    break;
+                case /* repeated string reason_prompts */ 2:
+                    message.reasonPrompts.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessRequestDryRunEnrichment, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string reason_mode = 1; */
+        if (message.reasonMode !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.reasonMode);
+        /* repeated string reason_prompts = 2; */
+        for (let i = 0; i < message.reasonPrompts.length; i++)
+            writer.tag(2, WireType.LengthDelimited).string(message.reasonPrompts[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AccessRequestDryRunEnrichment
+ */
+export const AccessRequestDryRunEnrichment = new AccessRequestDryRunEnrichment$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class AccessRequestReview$Type extends MessageType<AccessRequestReview> {
     constructor() {
