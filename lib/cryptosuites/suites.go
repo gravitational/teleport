@@ -338,6 +338,14 @@ func GetCurrentSuiteFromPing(pinger Pinger) GetSuiteFunc {
 	})
 }
 
+// StaticAlgorithmSuite returns a [GetSuiteFunc] that always returns the given
+// static suite.
+func StaticAlgorithmSuite(suite types.SignatureAlgorithmSuite) GetSuiteFunc {
+	return func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
+		return suite, nil
+	}
+}
+
 // GetSuiteFunc is a function type that retrieves the current signature
 // algorithm suite configured in the cluster.
 type GetSuiteFunc func(context.Context) (types.SignatureAlgorithmSuite, error)
