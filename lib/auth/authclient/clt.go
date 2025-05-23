@@ -1656,7 +1656,7 @@ type ClientI interface {
 	GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error)
 
 	// GetInventoryStatus gets basic status info about instance inventory.
-	GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error)
+	GetInventoryStatus(ctx context.Context, req *proto.InventoryStatusRequest) (*proto.InventoryStatusSummary, error)
 
 	// PingInventory attempts to trigger a downstream ping against a connected instance.
 	PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error)
