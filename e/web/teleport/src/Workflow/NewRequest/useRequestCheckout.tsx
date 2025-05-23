@@ -49,6 +49,8 @@ export function useRequestCheckout({
     onStartTimeChange,
     onDryRunChange,
     reset: resetSpecifiableFields,
+    reasonMode,
+    reasonPrompts,
   } = useSpecifiableFields();
 
   // Format data suitable for table listing.
@@ -223,7 +225,10 @@ export function useRequestCheckout({
   return {
     createAttempt: createAttempt.attempt,
     fetchResourceRequestRolesAttempt: fetchResourceRequestRolesAttempt.attempt,
-    requireReason: ctx.storeUser.getAccessStrategy().type === 'reason',
+    requireReason:
+      ctx.storeUser.getAccessStrategy().type === 'reason' ||
+      reasonMode === 'required',
+    reasonPrompts,
     selectedReviewers,
     setSelectedReviewers,
     createRequest,

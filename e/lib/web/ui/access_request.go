@@ -49,6 +49,13 @@ type AccessRequest struct {
 	PromotedAccessListTitle string `json:"promotedAccessListTitle,omitempty"`
 	// AssumeStartTime is the time the requested roles can be assumed.
 	AssumeStartTime *time.Time `json:"assumeStartTime"`
+	// ReasonMode can be either "required" or "optional". Empty string is treated as
+	// "optional". If a role has the request reason mode set to "required", then reason is
+	// required for this access request.
+	ReasonMode string `json:"reasonMode"`
+	// ReasonPrompts is a sorted and deduplicated list of reason prompts for this Access
+	// Request.
+	ReasonPrompts []string `json:"reasonPrompts"`
 }
 
 // AccessRequestReview defines fields of a review applied to a request.
@@ -156,6 +163,13 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 		maxDuration = &reqMaxDuration
 	}
 
+	dryRunEnrichment := request.GetDryRunEnrichment()
+	if dryRunEnrichment == nil {
+		dryRunEnrichment = &types.AccessRequestDryRunEnrichment{
+			ReasonMode: types.RequestReasonModeOptional,
+		}
+	}
+
 	return &AccessRequest{
 		ID:                      request.GetMetadata().Name,
 		State:                   request.GetState().String(),
@@ -174,6 +188,8 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 		Resources:               resources,
 		PromotedAccessListTitle: request.GetPromotedAccessListTitle(),
 		AssumeStartTime:         request.GetAssumeStartTime(),
+		ReasonMode:              string(dryRunEnrichment.ReasonMode),
+		ReasonPrompts:           dryRunEnrichment.ReasonPrompts,
 	}, nil
 }
 

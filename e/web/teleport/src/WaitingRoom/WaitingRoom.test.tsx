@@ -289,6 +289,8 @@ const sampleRequest: AccessRequest = {
   thresholdNames: ['default'],
   resources: [],
   assumeStartTime: null,
+  reasonMode: 'optional',
+  reasonPrompts: [],
 };
 
 const sampleContext = (type = '') => ({

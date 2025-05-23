@@ -86,6 +86,8 @@ test('correct formatting of access request json response', async () => {
         details: { hostname: 'hostname' },
       },
     ],
+    reasonMode: 'optional',
+    reasonPrompts: [],
   });
 });
 
