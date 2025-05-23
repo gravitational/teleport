@@ -477,12 +477,15 @@ export default class Codec {
   }
 
   // encodeClientKeyboardLayout encodes a keyboard layout to use on the remote desktop.
-  // | messsage type (37) | keyboard_layout uint32 |
+  // | messsage type (37) | length uint32 | keyboard_layout uint32 |
   encodeClientKeyboardLayout(keyboardLayout: number): Message {
-    const buffer = new ArrayBuffer(BYTE_LEN + UINT_32_LEN);
+    const buffer = new ArrayBuffer(BYTE_LEN + UINT_32_LEN + UINT_32_LEN);
     const view = new DataView(buffer);
-    view.setUint8(0, MessageType.CLIENT_KEYBOARD_LAYOUT);
-    view.setUint32(1, keyboardLayout);
+    let offset = 0;
+    view.setUint8(offset, MessageType.CLIENT_KEYBOARD_LAYOUT);
+    view.setUint32(++offset, 4); // length of uint32 keyboard layout
+    offset += UINT_32_LEN;
+    view.setUint32(offset, keyboardLayout);
     return buffer;
   }
 
