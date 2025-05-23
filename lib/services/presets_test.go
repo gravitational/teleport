@@ -768,6 +768,47 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "access-plugin (default roles match preset rules)",
+			role: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V8,
+				Metadata: types.Metadata{
+					Name:        teleport.PresetAccessPluginRoleName,
+					Namespace:   apidefaults.Namespace,
+					Description: "Default access plugin role",
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+			},
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V8,
+				Metadata: types.Metadata{
+					Name:        teleport.PresetAccessPluginRoleName,
+					Namespace:   apidefaults.Namespace,
+					Description: "Default access plugin role",
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: []types.Rule{
+							// The missing resources got added as individual rules
+							types.NewRule(types.KindAccessRequest, RO()),
+							types.NewRule(types.KindAccessPluginData, RW()),
+							types.NewRule(types.KindAccessMonitoringRule, RO()),
+							types.NewRule(types.KindAccessList, RO()),
+							types.NewRule(types.KindRole, RO()),
+							types.NewRule(types.KindUser, RO()),
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {

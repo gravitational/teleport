@@ -602,7 +602,7 @@ func NewPresetAccessPluginRole() types.Role {
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAccessPluginRoleName,
 			Namespace:   apidefaults.Namespace,
-			Description: "Access plugin",
+			Description: "Default access plugin role",
 			Labels: map[string]string{
 				types.TeleportInternalResourceType: types.PresetResource,
 			},
@@ -840,6 +840,7 @@ var defaultAllowRulesMap = map[string][]types.Rule{
 	teleport.PresetEditorRoleName:            NewPresetEditorRole().GetRules(types.Allow),
 	teleport.PresetAccessRoleName:            NewPresetAccessRole().GetRules(types.Allow),
 	teleport.PresetTerraformProviderRoleName: NewPresetTerraformProviderRole().GetRules(types.Allow),
+	teleport.PresetAccessPluginRoleName:      NewPresetAccessPluginRole().GetRules(types.Allow),
 }
 
 // defaultAllowRules has the Allow rules that should be set as default when
