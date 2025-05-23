@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "17.4.6",
+      "version": "17.4.9",
       "major_version": "17",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -101,11 +101,6 @@
       "permanent": true
     },
     {
-      "source": "/admin-guides/management/guides/aws-iam-identity-center/",
-      "destination": "/admin-guides/management/guides/aws-iam-identity-center/guide/",
-      "permanent": true
-    },
-    {
       "source": "/reference/operator-resources/resources.teleport.dev_accesslists/",
       "destination": "/reference/operator-resources/resources-teleport-dev-accesslists/",
       "permanent": true
@@ -173,11 +168,6 @@
     {
       "source": "/reference/operator-resources/resources.teleport.dev_users/",
       "destination": "/reference/operator-resources/resources-teleport-dev-users/",
-      "permanent": true
-    },
-    {
-      "source": "/enroll-resources/workload-identity/workload-attestation/",
-      "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
       "permanent": true
     },
     {
@@ -251,11 +241,6 @@
       "permanent": true
     },
     {
-      "source": "/enterprise/sso/",
-      "destination": "/admin-guides/access-controls/sso/",
-      "permanent": true
-    },
-    {
       "source": "/access-controls/access-request-plugins/",
       "destination": "/admin-guides/access-controls/access-request-plugins/",
       "permanent": true
@@ -321,8 +306,8 @@
       "permanent": true
     },
     {
-      "source": "/enroll-resources/application-access/okta/okta/",
-      "destination": "/admin-guides/access-controls/okta/okta/",
+      "source": "/enroll-resources/application-access/okta/",
+      "destination": "/admin-guides/access-controls/okta/",
       "permanent": true
     },
     {
@@ -333,11 +318,6 @@
     {
       "source": "/enroll-resources/application-access/okta/user-sync/",
       "destination": "/admin-guides/access-controls/okta/user-sync/",
-      "permanent": true
-    },
-    {
-      "source": "/enroll-resources/application-access/okta/",
-      "destination": "/admin-guides/access-controls/okta/",
       "permanent": true
     },
     {
@@ -387,11 +367,6 @@
     },
     {
       "source": "/enroll-resources/agents/introduction/",
-      "destination": "/enroll-resources/agents/",
-      "permanent": true
-    },
-    {
-      "source": "/enroll-resources/agents/join-services-to-your-cluster/",
       "destination": "/enroll-resources/agents/",
       "permanent": true
     }

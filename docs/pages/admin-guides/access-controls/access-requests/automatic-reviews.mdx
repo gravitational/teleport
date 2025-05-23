@@ -54,14 +54,14 @@ spec:
 ```
 
 Create the role with:
-```sh
+```code
 $ tctl create demo-role.yaml
 ```
 
 ### Create the user
 
 Use the following command to create the user and assign the role:
-```sh
+```code
 $ tctl users add --roles=demo-access-request demo-access-requester
 ```
 
@@ -147,7 +147,7 @@ other than a role.
 ## Next Steps
 
 - For more configuration options with Access Monitoring Rules, refer to the
-  [Access Monitoring Rules Reference](../../../reference/resources.mdx#access-monitoring-rule).
+  [Access Monitoring Rules Reference](../../../reference/access-controls/access-monitoring-rules.mdx).
 - For configuration with Teleport Terraform Provider, refer to the
   [Terraform Resources Index](../../../reference/terraform-provider/resources/access_monitoring_rule.mdx)
 - For configuration options with SSO, refer to the

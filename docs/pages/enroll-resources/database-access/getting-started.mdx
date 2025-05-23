@@ -5,6 +5,8 @@ description: Getting started with Teleport database access and AWS Aurora Postgr
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="PostgreSQL Amazon Aurora" dbConfigure="with IAM authentication"!)
 
+## How it works
+
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Enroll RDS with a Self-Hosted Teleport Cluster](../../../img/database-access/guides/rds_selfhosted.png)
@@ -15,11 +17,13 @@ description: Getting started with Teleport database access and AWS Aurora Postgr
 
 </Tabs>
 
+(!docs/pages/includes/database-access/how-it-works/iam.mdx db="Amazon Aurora" cloud="AWS"!)
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- An AWS account with a PostgreSQL AWS Aurora database and permissions to create
+- An AWS account with a PostgreSQL Amazon Aurora database and permissions to create
   and attach IAM policies.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.

@@ -91,7 +91,6 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.5
 	github.com/charmbracelet/huh v0.7.0
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/coreos/go-oidc/v3 v3.14.1
 	github.com/coreos/go-semver v0.3.1
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/creack/pty v1.1.24
@@ -260,8 +259,6 @@ require (
 	sigs.k8s.io/yaml v1.4.0
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
-
-require github.com/zeebo/assert v1.3.0
 
 require (
 	cel.dev/expr v0.20.0 // indirect
@@ -600,7 +597,7 @@ replace (
 	github.com/gravitational/teleport/api => ./api
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
 	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-teleport.1
-	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20230331180905-0f76f1751cd3
+	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v1.8.1-teleport.2
 	github.com/opencontainers/selinux => github.com/gravitational/selinux v1.13.0-teleport
 	github.com/redis/go-redis/v9 => github.com/gravitational/redis/v9 v9.6.1-teleport.1
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.2

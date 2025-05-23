@@ -68,8 +68,8 @@ func (m *mockServerInfoAccessPoint) GetServerInfo(_ context.Context, name string
 	return si, nil
 }
 
-func (m *mockServerInfoAccessPoint) UpdateLabels(_ context.Context, req proto.InventoryUpdateLabelsRequest) error {
-	m.updatedLabels[req.ServerID] = req.Labels
+func (m *mockServerInfoAccessPoint) UpdateLabels(_ context.Context, req *proto.InventoryUpdateLabelsRequest) error {
+	m.updatedLabels[req.GetServerID()] = req.Labels
 	return nil
 }
 

@@ -117,7 +117,6 @@ require (
 	github.com/containerd/errdefs v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
-	github.com/coreos/go-oidc/v3 v3.14.1 // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/crewjam/httperr v0.2.0 // indirect
 	github.com/crewjam/saml v0.4.14 // indirect
@@ -387,7 +386,6 @@ replace (
 // replace statements from teleport
 replace (
 	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
-	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.1.1
 	github.com/crewjam/saml => github.com/gravitational/saml v0.4.15-teleport.2
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-teleport.1
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.9.1-teleport.4

@@ -700,41 +700,39 @@ func (a *ServerWithRoles) AssertSystemRole(ctx context.Context, req proto.System
 // RegisterInventoryControlStream handles the upstream half of the control stream handshake, then passes the control stream to
 // the auth server's main control logic. We also return the post-auth hello message back up to the grpcserver layer in order to
 // use it for metrics purposes.
-func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) (proto.UpstreamInventoryHello, error) {
-	// this value gets set further down
-	var hello proto.UpstreamInventoryHello
-
+func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) (*proto.UpstreamInventoryHello, error) {
 	// Ensure that caller is a teleport server
 	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
-		return hello, trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
+		return nil, trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
 	}
 
 	// wait for upstream hello
+	var hello *proto.UpstreamInventoryHello
 	select {
 	case msg := <-ics.Recv():
 		switch m := msg.(type) {
-		case proto.UpstreamInventoryHello:
+		case *proto.UpstreamInventoryHello:
 			hello = m
 		default:
-			return hello, trace.BadParameter("expected upstream hello, got: %T", m)
+			return nil, trace.BadParameter("expected upstream hello, got: %T", m)
 		}
 	case <-ics.Done():
-		return hello, trace.Wrap(ics.Error())
+		return nil, trace.Wrap(ics.Error())
 	case <-a.CloseContext().Done():
-		return hello, trace.Errorf("auth server shutdown")
+		return nil, trace.Errorf("auth server shutdown")
 	}
 
 	// verify that server is creating stream on behalf of itself.
-	if hello.ServerID != role.GetServerID() {
-		return hello, trace.AccessDenied("control streams do not support impersonation (%q -> %q)", role.GetServerID(), hello.ServerID)
+	if hello.GetServerID() != role.GetServerID() {
+		return nil, trace.AccessDenied("control streams do not support impersonation (%q -> %q)", role.GetServerID(), hello.GetServerID())
 	}
 
 	// in order to reduce sensitivity to downgrades/misconfigurations, we simply filter out
 	// services that are unrecognized or unauthorized, rather than rejecting hellos that claim them.
-	var filteredServices []types.SystemRole
-	for _, service := range hello.Services {
-		if !a.hasBuiltinRole(service) {
+	var filteredServices []string
+	for _, service := range hello.GetServices() {
+		if !a.hasBuiltinRole(types.SystemRole(service)) {
 			a.authServer.logger.WarnContext(a.CloseContext(), "Omitting unknown or unauthorized service for instance control stream",
 				"omitted_service", service,
 				"instance", role.GetServerID(),
@@ -749,14 +747,14 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 	return hello, a.authServer.RegisterInventoryControlStream(ics, hello)
 }
 
-func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
+func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req *proto.InventoryStatusRequest) (*proto.InventoryStatusSummary, error) {
 	if err := a.action(types.KindInstance, types.VerbList, types.VerbRead); err != nil {
-		return proto.InventoryStatusSummary{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if req.Connected {
 		if !a.hasBuiltinRole(types.RoleAdmin) {
-			return proto.InventoryStatusSummary{}, trace.AccessDenied("requires local tctl, try using 'tctl inventory ls' instead")
+			return nil, trace.AccessDenied("requires local tctl, try using 'tctl inventory ls' instead")
 		}
 	}
 	return a.authServer.GetInventoryStatus(ctx, req)
@@ -1972,7 +1970,7 @@ func (r *resourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 			return r.CheckAccess(rr, state)
 		}
 	case types.SAMLIdPServiceProvider:
-		return r.CheckAccessToSAMLIdPV2(rr,
+		return r.CheckAccessToSAMLIdP(rr,
 			nil, /* cluster auth preference will be checked during connection */
 			state,
 		)
@@ -6992,7 +6990,7 @@ func (a *ServerWithRoles) checkAccessToSAMLIdPServiceProvider(ctx context.Contex
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return a.context.Checker.CheckAccessToSAMLIdPV2(
+	return a.context.Checker.CheckAccessToSAMLIdP(
 		sp,
 		authPref,
 		// TODO(sshah): remove MFAVerified once the Web UI supports
@@ -7316,7 +7314,7 @@ func (a *ServerWithRoles) ListUserGroups(ctx context.Context, pageSize int, next
 		return filteredUserGroups, "", nil
 	}
 
-	return filteredUserGroups[:pageSize], backend.NextPaginationKey(filteredUserGroups[pageSize-1]), nil
+	return filteredUserGroups[:pageSize], filteredUserGroups[pageSize-1].GetName(), nil
 }
 
 // GetUserGroup returns the specified user group resources.

@@ -516,6 +516,24 @@ local browser to complete and SSO login. Run
 on the remote host. Note that the `--callback` URL must be able to resolve to the
 `--bind-addr` over HTTPS.
 
+### SAML SSO login with different binding methods
+
+- [ ] `http-redirect`. Verify SAML authentication request is sent in a URL. 
+  - [ ] Verify this is the default SAML request method.
+  - [ ] Verify this is applied with `preferred_request_binding: http-redirect` value in the SAML connector spec.
+  - [ ] Web UI SSO.
+  - [ ] Web UI SLO.
+  - [ ] tsh login SSO.
+  - [ ] Connect login SSO.
+  - [ ] SSO MFA.
+
+- [ ] `http-post`. Verify SAML authentication request is sent in an HTML form.
+  - [ ] Verify this is applied with `preferred_request_binding: http-post` value in the SSO connector spec.
+  - [ ] Web UI login SSO.
+  - [ ] tsh login SSO.
+  - [ ] Connect login SSO.
+  - [ ] SSO MFA should continue working with a default `http-redirect` request.
+
 ### Teleport Plugins
 
 - [ ] Test receiving a message via Teleport Slackbot
@@ -703,6 +721,7 @@ tsh ssh node-that-requires-device-trust
     - [ ] GitHub user
     - [ ] OIDC user
     - [ ] SAML user
+    - [ ] SAML service provider access configured via SAML IdP
 
     Confirm that it works by failing first. Most protocols can be tested using
     device_trust.mode="required". App Access and Desktop Access require a custom
@@ -1727,7 +1746,8 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
 Verify SAML IdP service provider resource management.
 
 ### Docs:
-- [ ] Verify SAML IdP guide instructions work.
+- [ ] Verify generic SAML IdP guide instructions work.
+- [ ] Verify all the screenshots are up-to-date.
 
 ### Manage Service Provider (SP)
 - [ ] `saml_idp_service_provider` resource can be created, updated and deleted with `tctl create/update/delete sp.yaml` command.
@@ -1736,6 +1756,19 @@ Verify SAML IdP service provider resource management.
     - [ ] Verify Entity descriptor is generated.
   - [ ] Verify attribute mapping configuration works.
   - [ ] Verify test attribute mapping command. `$ tctl idp saml test-attribute-mapping --users <usernames or name of file containing user spec> --sp <name of file containing user spec> --format <json/yaml/defaults to text>`
+
+### Login and RBAC
+- [ ] Verify that redirection to login page works.
+  - [ ] Check IdP initiated login.
+  - [ ] Check SP initiated login with http-redirect binding request.
+  - [ ] Check SP initiated login with http-post binding request.
+  - [ ] Check all the conditions above with device trust enabled/disabled.
+- [ ] Verify that redirection for session MFA works.
+  - [ ] Check IdP initiated login.
+  - [ ] Check SP initiated login with http-redirect binding request.
+  - [ ] Check SP initiated login with http-post binding request.
+- [ ] Verify that role version v7 and below enforces `role.options.idp.saml.enabled: true/false` and session MFA.
+- [ ] Verify that role version v8 and above enforces `app_labels` matchers, `saml_idp_service_provider` verbs, device trust and session MFA. 
 
 ### SAML service provider catalog
 - [ ] GCP Workforce Identity Federation

@@ -30,30 +30,27 @@ import (
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
-// localFQDNResolver implements [fqdnResolver] locally in the VNet user process.
-// The ResolveFQDN method gets exposed by [clientApplicationService] so that
-// [fqdnResolver] can also be implemented remotely by
-// [clientApplicationServiceClient].
-type localFQDNResolver struct {
-	cfg *localFQDNResolverConfig
+// fqdnResolver resolves fully-qualified domain names to possible VNet targets.
+type fqdnResolver struct {
+	cfg *fqdnResolverConfig
 }
 
-type localFQDNResolverConfig struct {
+type fqdnResolverConfig struct {
 	clientApplication  ClientApplication
 	clusterConfigCache *ClusterConfigCache
 	leafClusterCache   *leafClusterCache
 }
 
-func newLocalFQDNResolver(cfg *localFQDNResolverConfig) *localFQDNResolver {
-	return &localFQDNResolver{
+func newFQDNResolver(cfg *fqdnResolverConfig) *fqdnResolver {
+	return &fqdnResolver{
 		cfg: cfg,
 	}
 }
 
-// ResolveFQDN implements [fqdnResolver.ResolveFQDN] by resolving name queries
-// to possible VNet matches. It returns [errNoTCPHandler] if VNet should not
-// handle this address and DNS queries should be forwarded upstream.
-func (r *localFQDNResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.ResolveFQDNResponse, error) {
+// ResolveFQDN resolves queries for fully-qualified domain names to possible
+// VNet target matches. It returns [errNoTCPHandler] if VNet should not handle
+// this address and DNS queries should be forwarded upstream.
+func (r *fqdnResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.ResolveFQDNResponse, error) {
 	profileNames, err := r.cfg.clientApplication.ListProfiles()
 	if err != nil {
 		return nil, trace.Wrap(err, "listing profiles")
@@ -90,7 +87,7 @@ func (r *localFQDNResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnet
 
 var errNoMatch = errors.New("no match for queried FQDN")
 
-func (r *localFQDNResolver) tryResolveApp(ctx context.Context, profileNames []string, fqdn string) (*vnetv1.ResolveFQDNResponse, error) {
+func (r *fqdnResolver) tryResolveApp(ctx context.Context, profileNames []string, fqdn string) (*vnetv1.ResolveFQDNResponse, error) {
 	for _, profileName := range profileNames {
 		clusterClient, err := r.clusterClientForAppFQDN(ctx, profileName, fqdn)
 		if err != nil {
@@ -116,7 +113,7 @@ func (r *localFQDNResolver) tryResolveApp(ctx context.Context, profileNames []st
 	return nil, errNoMatch
 }
 
-func (r *localFQDNResolver) clusterClientForAppFQDN(ctx context.Context, profileName, fqdn string) (ClusterClient, error) {
+func (r *fqdnResolver) clusterClientForAppFQDN(ctx context.Context, profileName, fqdn string) (ClusterClient, error) {
 	rootClient, err := r.cfg.clientApplication.GetCachedClient(ctx, profileName, "")
 	if err != nil {
 		log.ErrorContext(ctx, "Failed to get root cluster client, apps in this cluster will not be resolved.", "profile", profileName, "error", err)
@@ -158,7 +155,7 @@ func (r *localFQDNResolver) clusterClientForAppFQDN(ctx context.Context, profile
 	return nil, errNoMatch
 }
 
-func (r *localFQDNResolver) resolveAppInfoForCluster(
+func (r *fqdnResolver) resolveAppInfoForCluster(
 	ctx context.Context,
 	clusterClient ClusterClient,
 	profileName, leafClusterName, fqdn string,
@@ -234,7 +231,7 @@ func (r *localFQDNResolver) resolveAppInfoForCluster(
 // fqdn matches that pattern for any logged-in cluster and if so returns a
 // match. We never actually query for whether or not a matching SSH node exists,
 // we just attempt to dial it when the client connects to the assigned IP.
-func (r *localFQDNResolver) tryResolveSSH(ctx context.Context, profileNames []string, fqdn string) (*vnetv1.ResolveFQDNResponse, error) {
+func (r *fqdnResolver) tryResolveSSH(ctx context.Context, profileNames []string, fqdn string) (*vnetv1.ResolveFQDNResponse, error) {
 	for _, profileName := range profileNames {
 		log := log.With("profile", profileName)
 		rootClient, err := r.cfg.clientApplication.GetCachedClient(ctx, profileName, "")
