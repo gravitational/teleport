@@ -463,17 +463,17 @@ func (r *RoleV6) GetKubeResources(rct RoleConditionType) []KubernetesResource {
 	if rct == Allow {
 		return r.convertAllowKubernetesResourcesBetweenRoleVersions(r.Spec.Allow.KubernetesResources)
 	}
-	return r.convertDenyKubernetesResourcesBetweenRoleVersions(r.Spec.Deny.KubernetesResources)
+	return r.convertKubernetesResourcesBetweenRoleVersions(r.Spec.Deny.KubernetesResources)
 }
 
-// convertDenyKubernetesResourcesBetweenRoleVersions converts Kubernetes resources between role versions.
+// convertKubernetesResourcesBetweenRoleVersions converts Kubernetes resources between role versions.
 // This is required to keep compatibility between role versions to avoid breaking changes
 // when using an older role version.
 //
 // For roles v8, it returns the list as it is.
 //
 // For roles <=v7, it maps the legacy teleport Kinds to k8s plurals and sets the APIGroup to wildcard.
-func (r *RoleV6) convertDenyKubernetesResourcesBetweenRoleVersions(resources []KubernetesResource) []KubernetesResource {
+func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []KubernetesResource) []KubernetesResource {
 	switch r.Version {
 	case V8:
 		return resources
@@ -524,7 +524,7 @@ func (r *RoleV6) convertDenyKubernetesResourcesBetweenRoleVersions(resources []K
 	}
 }
 
-// convertKubeResourcesBetweenRoleVersions converts Kubernetes resources between role versions.
+// convertAllowKubeResourcesBetweenRoleVersions converts Kubernetes resources between role versions.
 // This is required to keep compatibility between role versions to avoid breaking changes
 // when using an older role version.
 //
@@ -549,7 +549,7 @@ func (r *RoleV6) convertAllowKubernetesResourcesBetweenRoleVersions(resources []
 	switch r.Version {
 	case V7, V8:
 		// V7 and v8 uses the same logic for allow and deny.
-		return r.convertDenyKubernetesResourcesBetweenRoleVersions(resources)
+		return r.convertKubernetesResourcesBetweenRoleVersions(resources)
 	// Teleport does not support role versions < v3.
 	case V6, V5, V4, V3:
 		switch {
