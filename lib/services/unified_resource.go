@@ -145,11 +145,14 @@ var unifiedResourceIndices = map[resourceIndex]func(types.ResourceWithLabels) st
 		key := getUnifiedResourcePseudoKey(r)
 		// names should be stored as lowercase to keep items sorted as expected,
 		// regardless of case.
-		return strings.ToLower(key.name) + "/" + key.kind + "/" + key.hostID
+		// Note that HA resource servers will overlap on this index and the
+		// kind index, as will resources of the same name but different case.
+		// That's prior behavior and documented bugs that I'm not going to fix in this PR.
+		return strings.ToLower(key.name) + "/" + key.kind
 	},
 	resourceKindIndex: func(r types.ResourceWithLabels) string {
 		key := getUnifiedResourcePseudoKey(r)
-		return strings.ToLower(key.kind) + "/" + key.name + "/" + key.hostID
+		return strings.ToLower(key.kind) + "/" + key.name
 	},
 	resourceIdentifierIndex: func(r types.ResourceWithLabels) string {
 		if h, ok := r.(interface{ GetHostID() string }); ok {
@@ -233,53 +236,34 @@ func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, s
 
 			err := c.read(ctx, func(cache *UnifiedResourceCache) error {
 				// range over all keys
-				for {
-					var res types.ResourceWithLabels
-					// grab a single key (yes this is horrifically inefficient if you look inside the iterator implementation)
-					for r := range rangeFn(cache.itemCache, index, start, "") {
-						res = r
-						break
-					}
-					if res == nil {
-						return nil
-					}
-					var dbServer types.DatabaseServer
-					healthStat := types.AggregateHealthStatus(func(yield func(types.TargetHealthStatus) bool) {
-						// range over collection of current resource
-						name := cache.itemCache.KeyOf(index, res)
-						collectionStart, collectionEnd := name, sortcache.NextKey(name)
-						if sortBy.IsDesc {
-							collectionStart, collectionEnd = collectionEnd, collectionStart
-						}
-						for r := range rangeFn(cache.itemCache, index, collectionStart, collectionEnd) {
-							res = r
-							if r, ok := r.(types.DatabaseServer); ok {
-								dbServer = r
-								if !yield(types.TargetHealthStatus(r.GetTargetHealth().Status)) {
-									return
+				for r := range rangeFn(cache.itemCache, index, start, "") {
+					key := cache.itemCache.KeyOf(resourceIdentifierIndex, r)
+					switch r.GetKind() {
+					case types.KindDatabaseServer:
+						healthStat := types.AggregateHealthStatus(func(yield func(types.TargetHealthStatus) bool) {
+							for r := range cache.itemCache.Ascend(resourceIdentifierIndex, key, sortcache.NextKey(key)) {
+								if r, ok := r.(types.DatabaseServer); ok {
+									if !yield(types.TargetHealthStatus(r.GetTargetHealth().Status)) {
+										return
+									}
 								}
 							}
-							if !yield(types.TargetHealthStatusUnknown) {
-								return
-							}
+						})
+						r = &aggregatedDatabase{
+							DatabaseServer: r.(types.DatabaseServer),
+							status:         healthStat,
 						}
-					})
-					name := cache.itemCache.KeyOf(index, res)
-					start = sortcache.NextKey(name)
-					if dbServer != nil {
-						health := dbServer.GetTargetHealth()
-						health.Status = string(healthStat)
-						dbServer.SetTargetHealth(health)
 					}
-
-					if len(kinds) == 0 || c.itemKindMatches(res, kindsMap) {
-						items = append(items, iteratedItem{key: name, resource: res})
+					if len(kinds) == 0 || c.itemKindMatches(r, kindsMap) {
+						items = append(items, iteratedItem{key: key, resource: r})
 					}
 
 					if len(items) >= defaultPageSize {
+						start = sortcache.NextKey(key)
 						return nil
 					}
 				}
+				return nil
 			})
 			if err != nil {
 				yield(iteratedItem{}, err)
