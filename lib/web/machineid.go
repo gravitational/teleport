@@ -286,20 +286,20 @@ func (h *Handler) getBotInstance(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err, "error querying bot instance")
 	}
 
-	yaml, err := yaml.Marshal(instance)
+	yaml, err := yaml.Marshal(types.ProtoResource153ToLegacy(instance))
 	if err != nil {
 		return nil, trace.Wrap(err, "error stringifying to yaml")
 	}
 
 	return GetBotInstanceResponse{
 		BotInstance: instance,
-		Yaml:        string(yaml),
+		YAML:        string(yaml),
 	}, nil
 }
 
 type GetBotInstanceResponse struct {
 	BotInstance *machineidv1.BotInstance `json:"bot_instance"`
-	Yaml        string                   `json:"yaml"`
+	YAML        string                   `json:"yaml"`
 }
 
 // listBotInstances returns a list of bot instances for a given cluster site.
