@@ -26,19 +26,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
 	debugEnvVar = teleport.VerboseLogsEnvVar // "TELEPORT_DEBUG"
 	osLogEnvVar = "TELEPORT_OS_LOG"
-
-	// mcpLogFormat defines the log format of the MCP command.
-	mcpLogFormat = "json"
-	// mcpLogFormat defines to where the MCP command logs will be directed to.
-	// The stdout is exclusively used as the MCP server transport, leaving only
-	// stderr available.
-	mcpLogOutput = "stderr"
 )
 
 // initLogger initializes the logger.
@@ -46,7 +38,7 @@ const (
 // It is called twice, first soon after launching tsh before argv is parsed and then again after
 // kingpin parses argv. This makes it possible to debug early startup functionality, particularly
 // command aliases.
-func initLogger(cf *CLIConf, opts loggingOpts) error {
+func initLogger(cf *CLIConf, purpose utils.LoggingPurpose, opts loggingOpts) (*slog.Logger, error) {
 	cf.OSLog = opts.osLog
 	cf.Debug = opts.debug || opts.osLog
 
@@ -57,25 +49,7 @@ func initLogger(cf *CLIConf, opts loggingOpts) error {
 		level = slog.LevelDebug
 	}
 
-	return trace.Wrap(utils.InitLogger(utils.LoggingForCLI, level, initLoggerOpts...))
-}
-
-// initMCPLogger initializes a logger to be used on MCP servers.
-func initMCPLogger(cf *CLIConf) (*slog.Logger, error) {
-	opts := parseLoggingOptsFromEnvAndArgv(cf)
-	cf.OSLog = opts.osLog
-	cf.Debug = opts.debug || opts.osLog
-
-	level := slog.LevelInfo
-	if cf.Debug {
-		level = slog.LevelDebug
-	}
-
-	logger, _, err := logutils.Initialize(logutils.Config{
-		Severity: level.String(),
-		Format:   mcpLogFormat,
-		Output:   mcpLogOutput,
-	})
+	logger, err := utils.InitLogger(purpose, level, initLoggerOpts...)
 	return logger, trace.Wrap(err)
 }
 

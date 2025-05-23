@@ -790,7 +790,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// run early to enable debug logging if env var is set.
 	// this makes it possible to debug early startup functionality, particularly command aliases.
-	if err := initLogger(&cf, parseLoggingOptsFromEnv()); err != nil {
+	if _, err := initLogger(&cf, utils.LoggingForCLI, parseLoggingOptsFromEnv()); err != nil {
 		printInitLoggerError(err)
 	}
 
@@ -1437,7 +1437,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Enable debug logging if requested by --debug.
 	// If TELEPORT_DEBUG was set and --debug/--no-debug was not passed, debug logs were already
 	// enabled by a prior call to initLogger.
-	if err := initLogger(&cf, parseLoggingOptsFromEnvAndArgv(&cf)); err != nil {
+	if _, err := initLogger(&cf, utils.LoggingForCLI, parseLoggingOptsFromEnvAndArgv(&cf)); err != nil {
 		printInitLoggerError(err)
 	}
 

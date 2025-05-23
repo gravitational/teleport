@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/listener"
 )
 
@@ -67,7 +68,7 @@ func newMCPDBCommand(parent *kingpin.CmdClause) *mcpDBCommand {
 }
 
 func (c *mcpDBCommand) run(cf *CLIConf) error {
-	logger, err := initMCPLogger(cf)
+	logger, err := initLogger(cf, utils.LoggingForMCP, parseLoggingOptsFromEnvAndArgv(cf))
 	if err != nil {
 		return trace.Wrap(err)
 	}
