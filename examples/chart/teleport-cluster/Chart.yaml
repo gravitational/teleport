@@ -1,4 +1,4 @@
-.version: &version "18.0.0-dev.vapopov.41"
+.version: &version "18.0.0-dev.vapopov.42"
 
 name: teleport-cluster
 apiVersion: v2

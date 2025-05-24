@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.0.0-dev.vapopov.41"
+const Version = "18.0.0-dev.vapopov.42"
 
 const VersionMajor = 18
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "dev.vapopov.41"
+const VersionPreRelease = "dev.vapopov.42"
 const VersionMetadata = ""
