@@ -81,13 +81,73 @@ func withBotInstanceExpiry(expiry time.Time) func(*machineidv1.BotInstance) {
 	}
 }
 
+// withBotInstanceId sets the .Spec.InstanceId field of a bot instance to
+// the given value.
+func withBotInstanceId(value string) func(*machineidv1.BotInstance) {
+	return func(bi *machineidv1.BotInstance) {
+		if bi.Spec == nil {
+			bi.Spec = &machineidv1.BotInstanceSpec{}
+		}
+
+		bi.Spec.InstanceId = value
+	}
+}
+
+// withBotInstanceHeartbeatJoinMethod sets the .Status.InitialHeartbeat.JoinMethod
+// field of a bot instance to the given value.
+func withBotInstanceHeartbeatJoinMethod(value string) func(*machineidv1.BotInstance) {
+	return func(bi *machineidv1.BotInstance) {
+		if bi.Status == nil {
+			bi.Status = &machineidv1.BotInstanceStatus{}
+		}
+
+		if bi.Status.InitialHeartbeat == nil {
+			bi.Status.InitialHeartbeat = &machineidv1.BotInstanceStatusHeartbeat{}
+		}
+
+		bi.Status.InitialHeartbeat.JoinMethod = value
+	}
+}
+
+// withBotInstanceHeartbeatVersion sets the .Status.InitialHeartbeat.Version
+// field of a bot instance to the given value.
+func withBotInstanceHeartbeatVersion(value string) func(*machineidv1.BotInstance) {
+	return func(bi *machineidv1.BotInstance) {
+		if bi.Status == nil {
+			bi.Status = &machineidv1.BotInstanceStatus{}
+		}
+
+		if bi.Status.InitialHeartbeat == nil {
+			bi.Status.InitialHeartbeat = &machineidv1.BotInstanceStatusHeartbeat{}
+		}
+
+		bi.Status.InitialHeartbeat.Version = value
+	}
+}
+
+// withBotInstanceHeartbeatHostname sets the .Status.InitialHeartbeat.Hostname
+// field of a bot instance to the given value.
+func withBotInstanceHeartbeatHostname(value string) func(*machineidv1.BotInstance) {
+	return func(bi *machineidv1.BotInstance) {
+		if bi.Status == nil {
+			bi.Status = &machineidv1.BotInstanceStatus{}
+		}
+
+		if bi.Status.InitialHeartbeat == nil {
+			bi.Status.InitialHeartbeat = &machineidv1.BotInstanceStatusHeartbeat{}
+		}
+
+		bi.Status.InitialHeartbeat.Hostname = value
+	}
+}
+
 // createInstances creates new bot instances for the named bot with random UUIDs
 func createInstances(t *testing.T, ctx context.Context, service *BotInstanceService, botName string, count int) map[string]struct{} {
 	t.Helper()
 
 	ids := map[string]struct{}{}
 
-	for i := 0; i < count; i++ {
+	for range count {
 		bi := newBotInstance(botName)
 		_, err := service.CreateBotInstance(ctx, bi)
 		require.NoError(t, err)
@@ -99,7 +159,7 @@ func createInstances(t *testing.T, ctx context.Context, service *BotInstanceServ
 }
 
 // listInstances fetches all instances from the BotInstanceService matching the botName filter
-func listInstances(t *testing.T, ctx context.Context, service *BotInstanceService, botName string) []*machineidv1.BotInstance {
+func listInstances(t *testing.T, ctx context.Context, service *BotInstanceService, botName string, searchTerm string) []*machineidv1.BotInstance {
 	t.Helper()
 
 	var resources []*machineidv1.BotInstance
@@ -108,7 +168,7 @@ func listInstances(t *testing.T, ctx context.Context, service *BotInstanceServic
 	var err error
 
 	for {
-		bis, nextKey, err = service.ListBotInstances(ctx, botName, 0, nextKey)
+		bis, nextKey, err = service.ListBotInstances(ctx, botName, 0, nextKey, searchTerm)
 		require.NoError(t, err)
 
 		resources = append(resources, bis...)
@@ -138,7 +198,7 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 			name:        "non-nil metadata",
 			instance:    newBotInstance("foo", withBotInstanceInvalidMetadata()),
 			assertError: require.NoError,
-			assertValue: func(t require.TestingT, i interface{}, _ ...interface{}) {
+			assertValue: func(t require.TestingT, i any, _ ...any) {
 				bi, ok := i.(*machineidv1.BotInstance)
 				require.True(t, ok)
 
@@ -151,7 +211,7 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 			name:        "valid without expiry",
 			instance:    newBotInstance("foo"),
 			assertError: require.NoError,
-			assertValue: func(t require.TestingT, i interface{}, _ ...interface{}) {
+			assertValue: func(t require.TestingT, i any, _ ...any) {
 				bi, ok := i.(*machineidv1.BotInstance)
 				require.True(t, ok)
 
@@ -163,7 +223,7 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 			name:        "valid with expiry",
 			instance:    newBotInstance("foo", withBotInstanceExpiry(clock.Now().Add(time.Hour))),
 			assertError: require.NoError,
-			assertValue: func(t require.TestingT, i interface{}, _ ...interface{}) {
+			assertValue: func(t require.TestingT, i any, _ ...any) {
 				bi, ok := i.(*machineidv1.BotInstance)
 				require.True(t, ok)
 
@@ -247,7 +307,7 @@ func TestBotInstanceCRUD(t *testing.T) {
 	require.EqualExportedValues(t, patched, bi2)
 	require.Equal(t, bi.Metadata.Name, bi2.Metadata.Name)
 
-	resources := listInstances(t, ctx, service, "example")
+	resources := listInstances(t, ctx, service, "example", "")
 
 	require.Len(t, resources, 1, "must list only 1 bot instance")
 	require.EqualExportedValues(t, patched, resources[0])
@@ -273,7 +333,7 @@ func TestBotInstanceCRUD(t *testing.T) {
 	require.Error(t, service.DeleteBotInstance(ctx, bi.Spec.BotName, bi.Spec.InstanceId))
 }
 
-// TestBotInstanceList verifies list and filtering functionality for bot
+// TestBotInstanceList verifies list and filtering by bot functionality for bot
 // instances.
 func TestBotInstanceList(t *testing.T) {
 	t.Parallel()
@@ -294,14 +354,14 @@ func TestBotInstanceList(t *testing.T) {
 	bIds := createInstances(t, ctx, service, "b", 4)
 
 	// listing "a" should only return known "a" instances
-	aInstances := listInstances(t, ctx, service, "a")
+	aInstances := listInstances(t, ctx, service, "a", "")
 	require.Len(t, aInstances, 3)
 	for _, ins := range aInstances {
 		require.Contains(t, aIds, ins.Spec.InstanceId)
 	}
 
 	// listing "b" should only return known "b" instances
-	bInstances := listInstances(t, ctx, service, "b")
+	bInstances := listInstances(t, ctx, service, "b", "")
 	require.Len(t, bInstances, 4)
 	for _, ins := range bInstances {
 		require.Contains(t, bIds, ins.Spec.InstanceId)
@@ -316,9 +376,79 @@ func TestBotInstanceList(t *testing.T) {
 	}
 
 	// Listing an empty bot name ("") should return all instances.
-	allInstances := listInstances(t, ctx, service, "")
+	allInstances := listInstances(t, ctx, service, "", "")
 	require.Len(t, allInstances, 7)
 	for _, ins := range allInstances {
 		require.Contains(t, allIds, ins.Spec.InstanceId)
+	}
+}
+
+// TestBotInstanceListWithSearchFilter verifies list and filtering wit39db3c10-870c-4544-aeec-9fc2e961eca3h search
+// term functionality for bot instances.
+func TestBotInstanceListWithSearchFilter(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+
+	tcs := []struct {
+		name       string
+		searchTerm string
+		instance   *machineidv1.BotInstance
+	}{
+		{
+			name:       "match on bot name",
+			searchTerm: "nick",
+			instance:   newBotInstance("this-is-nicks-test-bot"),
+		},
+		{
+			name:       "match on instance id",
+			searchTerm: "cb2c352",
+			instance:   newBotInstance("test-bot", withBotInstanceId("cb2c3523-01f6-4258-966b-ace9f38f9862")),
+		},
+		{
+			name:       "match on join method",
+			searchTerm: "uber",
+			instance:   newBotInstance("test-bot", withBotInstanceHeartbeatJoinMethod("kubernetes")),
+		},
+		{
+			name:       "match on version",
+			searchTerm: "1.0.0",
+			instance:   newBotInstance("test-bot", withBotInstanceHeartbeatVersion("1.0.0-dev-a2g3hd")),
+		},
+		{
+			name:       "match on version (with v)",
+			searchTerm: "v1.0.0",
+			instance:   newBotInstance("test-bot", withBotInstanceHeartbeatVersion("1.0.0-dev-a2g3hd")),
+		},
+		{
+			name:       "match on hostname",
+			searchTerm: "tel-123",
+			instance:   newBotInstance("test-bot", withBotInstanceHeartbeatHostname("svr-eu-tel-123-a")),
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			mem, err := memory.New(memory.Config{
+				Context: ctx,
+				Clock:   clock,
+			})
+			require.NoError(t, err)
+
+			service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
+			require.NoError(t, err)
+
+			_, err = service.CreateBotInstance(ctx, tc.instance)
+			require.NoError(t, err)
+			_, err = service.CreateBotInstance(ctx, newBotInstance("bot-not-matched"))
+			require.NoError(t, err)
+
+			instances := listInstances(t, ctx, service, "", tc.searchTerm)
+
+			require.Len(t, instances, 1)
+			require.Equal(t, tc.instance.Spec.InstanceId, instances[0].Spec.InstanceId)
+		})
 	}
 }

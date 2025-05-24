@@ -18,6 +18,7 @@ package web
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -29,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	tslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 const (
@@ -258,4 +260,71 @@ func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter
 
 type updateBotRequest struct {
 	Roles []string `json:"roles"`
+}
+
+// listBotInstances returns a list of bot instances for a given cluster site.
+func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var pageSize int64 = 20
+	if r.URL.Query().Has("page_size") {
+		pageSize, err = strconv.ParseInt(r.URL.Query().Get("page_size"), 10, 32)
+		if err != nil {
+			return nil, trace.BadParameter("invalid page size")
+		}
+	}
+
+	instances, err := clt.BotInstanceServiceClient().ListBotInstances(r.Context(), &machineidv1.ListBotInstancesRequest{
+		FilterBotName:    r.URL.Query().Get("bot_name"),
+		PageSize:         int32(pageSize),
+		PageToken:        r.URL.Query().Get("page_token"),
+		FilterSearchTerm: r.URL.Query().Get("search"),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiInstances := tslices.Map(instances.BotInstances, func(instance *machineidv1.BotInstance) BotInstance {
+		latestHeartbeats := instance.GetStatus().GetLatestHeartbeats()
+		heartbeat := instance.Status.InitialHeartbeat // Use initial heartbeat as a fallback
+		if len(latestHeartbeats) > 0 {
+			heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
+		}
+
+		uiInstance := BotInstance{
+			InstanceId: instance.Spec.InstanceId,
+			BotName:    instance.Spec.BotName,
+		}
+
+		if heartbeat != nil {
+			uiInstance.JoinMethodLatest = heartbeat.JoinMethod
+			uiInstance.HostNameLatest = heartbeat.Hostname
+			uiInstance.VersionLatest = heartbeat.Version
+			uiInstance.ActiveAtLatest = heartbeat.RecordedAt.AsTime().Format(time.RFC3339)
+		}
+
+		return uiInstance
+	})
+
+	return ListBotInstancesResponse{
+		BotInstances:  uiInstances,
+		NextPageToken: instances.NextPageToken,
+	}, nil
+}
+
+type ListBotInstancesResponse struct {
+	BotInstances  []BotInstance `json:"bot_instances"`
+	NextPageToken string        `json:"next_page_token,omitempty"`
+}
+
+type BotInstance struct {
+	InstanceId       string `json:"instance_id"`
+	BotName          string `json:"bot_name"`
+	JoinMethodLatest string `json:"join_method_latest,omitempty"`
+	HostNameLatest   string `json:"host_name_latest,omitempty"`
+	VersionLatest    string `json:"version_latest,omitempty"`
+	ActiveAtLatest   string `json:"active_at_latest,omitempty"`
 }
