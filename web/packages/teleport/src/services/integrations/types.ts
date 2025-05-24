@@ -307,6 +307,8 @@ export type PluginOktaSpec = {
   enableAccessListSync?: boolean;
   // Whether App/Group Sync is enabled. Should match Access List sync.
   enableAppGroupSync?: boolean;
+  // Whether Audit Logs syncing to Identity Security is enabled. Should match Identity Security sync.
+  enableSystemLogExport?: boolean;
   // Information about currently configured credentials for the plugin
   credentialsInfo?: CredentialsInfo;
 };
