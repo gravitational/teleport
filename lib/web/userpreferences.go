@@ -86,6 +86,7 @@ type UserPreferencesResponse struct {
 	DiscoverResourcePreferences DiscoverResourcePreferencesResponse `json:"discoverResourcePreferences"`
 	AccessGraph                 AccessGraphPreferencesResponse      `json:"accessGraph,omitempty"`
 	SideNavDrawerMode           userpreferencesv1.SideNavDrawerMode `json:"sideNavDrawerMode"`
+	KeyboardLayout              uint32                              `json:"keyboardLayout"`
 }
 
 func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
@@ -148,7 +149,8 @@ func makePreferenceRequest(req UserPreferencesResponse) *userpreferencesv1.Upser
 	}
 	return &userpreferencesv1.UpsertUserPreferencesRequest{
 		Preferences: &userpreferencesv1.UserPreferences{
-			Theme: req.Theme,
+			KeyboardLayout: req.KeyboardLayout,
+			Theme:          req.Theme,
 			UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
 				DefaultTab:            req.UnifiedResourcePreferences.DefaultTab,
 				ViewMode:              req.UnifiedResourcePreferences.ViewMode,
@@ -211,6 +213,7 @@ func userPreferencesResponse(resp *userpreferencesv1.UserPreferences) *UserPrefe
 		AccessGraph:                 accessGraphPreferencesResponse(resp.AccessGraph),
 		SideNavDrawerMode:           resp.SideNavDrawerMode,
 		DiscoverResourcePreferences: discoverResourcePreferenceResponse(resp.DiscoverResourcePreferences),
+		KeyboardLayout:              resp.KeyboardLayout,
 	}
 
 	return jsonResp

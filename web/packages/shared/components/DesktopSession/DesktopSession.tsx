@@ -60,6 +60,8 @@ import useDesktopSession, {
   isSharingDirectory,
 } from './useDesktopSession';
 
+const US_INTERNATIONAL_KEYBOARD_LAYOUT = 0x00020409;
+
 export interface DesktopSessionProps {
   client: TdpClient;
   /** Username for display purposes. */
@@ -77,6 +79,11 @@ export interface DesktopSessionProps {
    */
   customConnectionState?(args: { retry(): void }): React.ReactElement;
   hasAnotherSession(): Promise<boolean>;
+  /**
+   * Keyboard layout identifier for desired layout on remote session
+   * Spec can be found here: https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
+   */
+  keyboardLayout?: number;
 }
 
 export function DesktopSession({
@@ -86,6 +93,7 @@ export function DesktopSession({
   desktop,
   hasAnotherSession,
   customConnectionState,
+  keyboardLayout = US_INTERNATIONAL_KEYBOARD_LAYOUT,
 }: DesktopSessionProps) {
   const {
     directorySharingState,
@@ -240,7 +248,7 @@ export function DesktopSession({
     if (!shouldConnect) {
       return;
     }
-    void client.connect(canvasRendererRef.current.getSize());
+    void client.connect(keyboardLayout, canvasRendererRef.current.getSize());
     return () => {
       client.shutdown();
     };
