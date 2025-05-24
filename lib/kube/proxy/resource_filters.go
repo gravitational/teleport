@@ -83,6 +83,7 @@ func newResourceFilterer(kind, group, verb string, isClusterWideResource bool, c
 // wildcardFilter is a filter that matches all pods.
 var wildcardFilter = types.KubernetesResource{
 	Kind:      types.Wildcard,
+	APIGroup:  types.Wildcard,
 	Namespace: types.Wildcard,
 	Name:      types.Wildcard,
 	Verbs:     []string{types.Wildcard},
@@ -90,12 +91,28 @@ var wildcardFilter = types.KubernetesResource{
 
 // containsWildcard returns true if the list of resources contains a wildcard filter.
 func containsWildcard(resources []types.KubernetesResource) bool {
+	hasGlobalWildcard := false
+	hasNamespaceWildcard := false
 	for _, r := range resources {
-		if r.Kind == wildcardFilter.Kind &&
+		if wc := r.Kind == wildcardFilter.Kind &&
+			r.APIGroup == wildcardFilter.APIGroup &&
 			r.Name == wildcardFilter.Name &&
-			r.Namespace == wildcardFilter.Namespace &&
-			len(r.Verbs) == 1 && r.Verbs[0] == wildcardFilter.Verbs[0] {
-			return true
+			r.Namespace == wildcardFilter.Namespace && // Namesapce is wildcard.
+			len(r.Verbs) == 1 && r.Verbs[0] == wildcardFilter.Verbs[0]; wc {
+			hasNamespaceWildcard = true
+			if hasGlobalWildcard {
+				return true
+			}
+		}
+		if wc := r.Kind == wildcardFilter.Kind &&
+			r.APIGroup == wildcardFilter.APIGroup &&
+			r.Name == wildcardFilter.Name &&
+			r.Namespace == "" && // Namespace is empty.
+			len(r.Verbs) == 1 && r.Verbs[0] == wildcardFilter.Verbs[0]; wc {
+			hasGlobalWildcard = true
+			if hasNamespaceWildcard {
+				return true
+			}
 		}
 	}
 	return false

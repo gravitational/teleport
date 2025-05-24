@@ -302,13 +302,16 @@ type Role interface {
 	Clone() Role
 }
 
+// DefaultRoleVersion for NewRole() and test helpers.
+// When incrementing the role version, make sure to update the
+// role version in the asset file used by the UI.
+// See: web/packages/teleport/src/Roles/templates/role.yaml
+const DefaultRoleVersion = V8
+
 // NewRole constructs new standard V8 role.
 // This creates a V8 role with V4+ RBAC semantics.
 func NewRole(name string, spec RoleSpecV6) (Role, error) {
-	// When incrementing the role version, make sure to update the
-	// role version in the asset file used by the UI.
-	// See: web/packages/teleport/src/Roles/templates/role.yaml
-	role, err := NewRoleWithVersion(name, V8, spec)
+	role, err := NewRoleWithVersion(name, DefaultRoleVersion, spec)
 	return role, trace.Wrap(err)
 }
 
@@ -1999,17 +2002,17 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 			fallthrough
 		case V7:
 			if kubeResource.APIGroup != "" {
-				return trace.BadParameter("Group %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.APIGroup, roleVersion, V8)
+				return trace.BadParameter("API Group %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.APIGroup, roleVersion, V8)
 			}
 			if kubeResource.Kind != Wildcard && !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) {
 				return trace.BadParameter("KubernetesResource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
 			}
 			if kubeResource.Namespace == "" && !slices.Contains(V7KubernetesClusterWideResourceKinds, kubeResource.Kind) {
-				return trace.BadParameter("KubernetesResource must include Namespace")
+				return trace.BadParameter("KubernetesResource kind %q must include Namespace", kubeResource.Kind)
 			}
 		case V8:
 			if kubeResource.Kind == "" {
-				return trace.BadParameter("KubernetesResource kind is required in role version %q", roleVersion)
+				return trace.BadParameter("KubernetesResource kind %q is required in role version %q", kubeResource.Kind, roleVersion)
 			}
 			// If we have a kind that match a role v7 one, check the api group.
 			if slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) {

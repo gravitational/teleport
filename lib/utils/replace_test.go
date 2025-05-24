@@ -233,7 +233,15 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 			resources: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
 					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Namespace: "",
 					Name:      types.Wildcard,
 					Verbs:     []string{types.Wildcard},
 				},
@@ -472,16 +480,18 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 		{
 			name: "list clusterrole with resource",
 			input: types.KubernetesResource{
-				Kind:  "clusterroles",
-				Name:  "clusterrole",
-				Verbs: []string{types.KubeVerbGet},
+				Kind:     "clusterroles",
+				APIGroup: "rbac.authorization.k8s.io",
+				Name:     "clusterrole",
+				Verbs:    []string{types.KubeVerbGet},
 			},
 			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
-					Kind:  "clusterroles",
-					Name:  "clusterrole",
-					Verbs: []string{types.Wildcard},
+					Kind:     "clusterroles",
+					APIGroup: "rbac.authorization.k8s.io",
+					Name:     "clusterrole",
+					Verbs:    []string{types.Wildcard},
 				},
 			},
 			assert:  require.NoError,
@@ -491,16 +501,18 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 		{
 			name: "list clusterrole with wildcard",
 			input: types.KubernetesResource{
-				Kind:  "clusterroles",
-				Name:  "clusterrole",
-				Verbs: []string{types.KubeVerbGet},
+				Kind:     "clusterroles",
+				APIGroup: "rbac.authorization.k8s.io",
+				Name:     "clusterrole",
+				Verbs:    []string{types.KubeVerbGet},
 			},
 			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
 					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
+					Namespace: "",
 					Verbs:     []string{types.Wildcard},
 				},
 			},
