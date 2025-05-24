@@ -293,8 +293,10 @@ func (c *Client) readClientKeyboardLayout() error {
 	}
 	k, ok := msg.(tdp.ClientKeyboardLayout)
 	if !ok {
-		c.cfg.Logger.DebugContext(context.Background(), "Expected ClientKeyboardLayout message, but received a different type; will process the received message.", "message_type", logutils.TypeAttr(msg))
-		c.handleTDPInput(msg)
+		c.cfg.Logger.DebugContext(context.Background(), "Client did not send keyboard layout")
+		if err := c.handleTDPInput(msg); err != nil {
+			return trace.Wrap(err)
+		}
 		return nil
 	}
 	c.cfg.Logger.DebugContext(context.Background(), "Got RDP keyboard layout", "keyboard_layout", k.KeyboardLayout)

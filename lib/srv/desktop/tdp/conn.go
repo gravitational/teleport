@@ -173,13 +173,12 @@ func IsFatalErr(err error) bool {
 }
 
 // NewConnProxy creates a bidirectional proxy to copy messages between the client and server connection.
-// It accepts an optional serverInterceptor to intercept received messages.
-func NewConnProxy(client, server io.ReadWriteCloser, serverInterceptor ServerInterceptor, clientInterceptor ClientInterceptor) *ConnProxy {
+// It accepts an optional interceptor to intercept server messages.
+func NewConnProxy(client, server io.ReadWriteCloser, serverInterceptor Interceptor) *ConnProxy {
 	return &ConnProxy{
 		client:            NewConn(client),
 		server:            NewConn(server),
 		serverInterceptor: serverInterceptor,
-		clientInterceptor: clientInterceptor,
 	}
 }
 
@@ -189,20 +188,15 @@ type ConnProxy struct {
 	client *Conn
 	// server is a connection to the server (Windows Desktop Service).
 	server *Conn
-	// serverInterceptor intercepts the incoming messages.
-	// If the returned message is non-nil, it is forwarded to the client.
-	// If an error is returned, the stream is canceled.
-	serverInterceptor ServerInterceptor
-	// clientInterceptor intercepts messages received from the client.
-	clientInterceptor ClientInterceptor
+	// serverInterceptor intercepts messages received from the serve.
+	serverInterceptor Interceptor
 }
 
-// ServerInterceptor intercepts messages received from the server.
-// If a message returned from the interceptor is nil, it's not sent to the client.
-type ServerInterceptor func(serverTdpConn *Conn, message Message) (Message, error)
-
-// ClientInterceptor intercepts messages received from the client.
-type ClientInterceptor func(clientTdpConn *Conn, message Message) (Message, error)
+// Interceptor intercepts messages on the connection. It should return
+// the [potentially modified] message in order to pass it on to the
+// other end of the connection, or nil to prevent the message from
+// being forwarded.
+type Interceptor func(conn *Conn, message Message) (Message, error)
 
 // SendToClient sends a message to the client and blocks until the operation completes.
 func (c *ConnProxy) SendToClient(message Message) error {
@@ -268,22 +262,12 @@ func (c *ConnProxy) Run() error {
 
 		for {
 			msg, err := c.client.ReadMessage()
-
 			if err := c.handleError(err); err != nil {
 				return err
 			}
 
-			if c.clientInterceptor != nil {
-				msg, err = c.clientInterceptor(c.server, msg)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-			}
-			if msg != nil {
-				err := c.SendToServer(msg)
-				if err != nil {
-					return trace.Wrap(err)
-				}
+			if err := c.SendToServer(msg); err != nil {
+				return trace.Wrap(err)
 			}
 		}
 	})

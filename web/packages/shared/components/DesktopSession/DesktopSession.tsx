@@ -60,8 +60,6 @@ import useDesktopSession, {
   isSharingDirectory,
 } from './useDesktopSession';
 
-const US_INTERNATIONAL_KEYBOARD_LAYOUT = 0x00020409;
-
 export interface DesktopSessionProps {
   client: TdpClient;
   /** Username for display purposes. */
@@ -93,7 +91,7 @@ export function DesktopSession({
   desktop,
   hasAnotherSession,
   customConnectionState,
-  keyboardLayout = US_INTERNATIONAL_KEYBOARD_LAYOUT,
+  keyboardLayout = 0,
 }: DesktopSessionProps) {
   const {
     directorySharingState,
@@ -252,7 +250,7 @@ export function DesktopSession({
     return () => {
       client.shutdown();
     };
-  }, [client, shouldConnect]);
+  }, [client, shouldConnect, keyboardLayout]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     keyboardHandler.current.handleKeyboardEvent({
