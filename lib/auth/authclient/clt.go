@@ -510,11 +510,6 @@ func (c *Client) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) e
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// UpsertSAMLIdPSession not implemented: can only be called locally.
-func (c *Client) UpsertSAMLIdPSession(_ context.Context, _ types.WebSession) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // ResumeAuditStream resumes existing audit stream.
 func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	return c.APIClient.ResumeAuditStream(ctx, string(sid), uploadID)
@@ -1531,7 +1526,6 @@ type ClientI interface {
 	services.AutoUpdateServiceGetter
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
-	services.SAMLIdPSession
 	services.Integrations
 	services.KubeWaitingContainer
 	services.Notifications
@@ -1616,10 +1610,6 @@ type ClientI interface {
 	// CreateSnowflakeSession creates a Snowflake web session. Snowflake web
 	// sessions represent Database Access Snowflake session the client holds.
 	CreateSnowflakeSession(context.Context, types.CreateSnowflakeSessionRequest) (types.WebSession, error)
-
-	// CreateSAMLIdPSession creates a SAML IdP. SAML IdP sessions represent
-	// sessions created by the SAML identity provider.
-	CreateSAMLIdPSession(context.Context, types.CreateSAMLIdPSessionRequest) (types.WebSession, error)
 
 	// GenerateDatabaseCert generates a client certificate used by a database
 	// service to authenticate with the database instance, or a server certificate

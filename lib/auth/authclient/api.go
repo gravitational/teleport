@@ -292,9 +292,6 @@ type ReadProxyAccessPoint interface {
 	// ListSAMLIdPServiceProviders returns a paginated list of all SAML IdP service provider resources.
 	ListSAMLIdPServiceProviders(context.Context, int, string) ([]types.SAMLIdPServiceProvider, string, error)
 
-	// GetSAMLIdPSession gets a SAML IdP session.
-	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
-
 	// ListUserGroups returns a paginated list of user group resources.
 	ListUserGroups(ctx context.Context, pageSize int, nextKey string) ([]types.UserGroup, string, error)
 
@@ -1013,9 +1010,6 @@ type Cache interface {
 
 	// GetSnowflakeSession gets a Snowflake web session.
 	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
-
-	// GetSAMLIdPSession gets a SAML IdP session.
-	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
 
 	// GetWebSession gets a web session for the given request
 	GetWebSession(context.Context, types.GetWebSessionRequest) (types.WebSession, error)

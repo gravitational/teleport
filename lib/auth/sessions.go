@@ -796,27 +796,3 @@ func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 
 	return session, nil
 }
-
-func (a *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
-	// TODO(mdwn): implement a module.Features() check.
-
-	if req.SAMLSession == nil {
-		return nil, trace.BadParameter("required SAML session is not populated")
-	}
-
-	// Create services.WebSession for this session.
-	session, err := types.NewWebSession(req.SessionID, types.KindSAMLIdPSession, types.WebSessionSpecV2{
-		User:        req.Username,
-		Expires:     req.SAMLSession.ExpireTime,
-		SAMLSession: req.SAMLSession,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = a.UpsertSAMLIdPSession(ctx, session); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	a.logger.DebugContext(ctx, "Generated SAML IdP web session", "user", req.Username)
-
-	return session, nil
-}
