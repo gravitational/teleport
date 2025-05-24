@@ -475,9 +475,9 @@ func TestMatchResourceByHealthStatus(t *testing.T) {
 			matchedNames:     []string{"db-server-0"},
 		},
 		{
-			name:             "unhealthy db status and message",
+			name:             "unhealthy db status",
 			resources:        dbServers,
-			filterExpression: `health.message == "failed to fizz the buzz" && health.status == "unhealthy"`,
+			filterExpression: `health.status == "unhealthy"`,
 			matchedNames:     []string{"db-server-1"},
 		},
 		{
@@ -495,7 +495,7 @@ func TestMatchResourceByHealthStatus(t *testing.T) {
 		{
 			name:             "server health is empty",
 			resources:        []types.ResourceWithLabels{server},
-			filterExpression: `!exists(health.status) && health.message == ""`,
+			filterExpression: `!exists(health.status)`,
 			matchedNames:     []string{"server"},
 		},
 	}
