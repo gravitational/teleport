@@ -10428,24 +10428,18 @@ func TestGithubAuthCompat(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
-		desc                         string
-		pubKey, sshPubKey, tlsPubKey []byte
-		expectLoginError             string
-		expectSSHSubjectKey          ssh.PublicKey
-		expectTLSSubjectKey          crypto.PublicKey
+		desc                 string
+		sshPubKey, tlsPubKey []byte
+		expectLoginError     string
+		expectSSHSubjectKey  ssh.PublicKey
+		expectTLSSubjectKey  crypto.PublicKey
 	}{
 		{
 			desc:             "no keys",
 			expectLoginError: "Failed to login",
 		},
 		{
-			desc:                "single key",
-			pubKey:              sshPubBytes,
-			expectSSHSubjectKey: sshPub,
-			expectTLSSubjectKey: sshKey.Public(),
-		},
-		{
-			desc:                "split keys",
+			desc:                "both keys",
 			sshPubKey:           sshPubBytes,
 			tlsPubKey:           tlsPubBytes,
 			expectSSHSubjectKey: sshPub,
@@ -10472,8 +10466,7 @@ func TestGithubAuthCompat(t *testing.T) {
 					RawQuery: url.Values{"secret_key": []string{secretKey.String()}}.Encode(),
 				}).String(),
 				ConnectorID: "github",
-				SSOUserPublicKeys: client.SSOUserPublicKeys{
-					PublicKey: tc.pubKey,
+				UserPublicKeys: client.UserPublicKeys{
 					SSHPubKey: tc.sshPubKey,
 					TLSPubKey: tc.tlsPubKey,
 				},
