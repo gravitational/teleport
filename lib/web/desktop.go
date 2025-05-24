@@ -516,7 +516,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 	}, func(_ *tdp.Conn, msg tdp.Message) (tdp.Message, error) {
 		if _, ok := msg.(tdp.ClientKeyboardLayout); ok {
 			if !keyboardLayoutSupported {
-				log.DebugContext(ctx, "keyboard layout message not supported before version 18.0.0")
+				log.DebugContext(ctx, "Client sent keyboard layout, but agent is too old process it", "agent_version", version)
 				return nil, nil
 			}
 		}

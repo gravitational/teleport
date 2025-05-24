@@ -252,7 +252,7 @@ export function DesktopSession({
     return () => {
       client.shutdown();
     };
-  }, [client, shouldConnect]);
+  }, [client, shouldConnect, keyboardLayout]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     keyboardHandler.current.handleKeyboardEvent({

@@ -319,7 +319,7 @@ export function Preferences({ setErrorMessage }: PreferencesProps) {
                 <br />
                 <br />
                 Note: To maintain keyboard layout settings your agents need to
-                be upgraded at v18.
+                be upgraded to Teleport 18.0.0 or later.
               </>
             }
             icon={<Icon.Keyboard />}
