@@ -600,7 +600,13 @@ func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionPartici
 	return ns.regularSession(ctx, chanReqCallback, func(s *tracessh.Session) error {
 		errCh := make(chan error, 1)
 		go func() {
-			errCh <- s.Run(ctx, strings.Join(cmd, " "))
+			err := s.Run(ctx, strings.Join(cmd, " "))
+			// If the session is running in a child process with --fork-after-authentication,
+			// stdin will already be closed and this error can be ignored.
+			if err != nil && strings.Contains(err.Error(), "/dev/stdin: file already closed") {
+				err = nil
+			}
+			errCh <- err
 		}()
 
 		select {
