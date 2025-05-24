@@ -34,13 +34,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/windows"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
 func TestMain(m *testing.M) {
@@ -55,7 +55,7 @@ func TestConfigWildcardBaseDN(t *testing.T) {
 				BaseDN: "*",
 			},
 		},
-		LDAPConfig: windows.LDAPConfig{
+		LDAPConfig: winpki.LDAPConfig{
 			Domain: "test.goteleport.com",
 		},
 	}
@@ -173,7 +173,7 @@ func TestGenerateCredentials(t *testing.T) {
 		w := &WindowsService{
 			clusterName: clusterName,
 			cfg: WindowsServiceConfig{
-				LDAPConfig: windows.LDAPConfig{
+				LDAPConfig: winpki.LDAPConfig{
 					Domain: domain,
 				},
 				AuthClient: client,
@@ -205,11 +205,11 @@ func TestGenerateCredentials(t *testing.T) {
 		foundAdUserMapping := false
 		for _, extension := range cert.Extensions {
 			switch {
-			case extension.Id.Equal(windows.EnhancedKeyUsageExtensionOID):
+			case extension.Id.Equal(winpki.EnhancedKeyUsageExtensionOID):
 				foundKeyUsage = true
-			case extension.Id.Equal(windows.SubjectAltNameExtensionOID):
+			case extension.Id.Equal(winpki.SubjectAltNameExtensionOID):
 				foundAltName = true
-			case extension.Id.Equal(windows.ADUserMappingExtensionOID):
+			case extension.Id.Equal(winpki.ADUserMappingExtensionOID):
 				foundAdUserMapping = true
 			}
 		}

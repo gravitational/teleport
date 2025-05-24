@@ -188,8 +188,31 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 		return nil, trace.Wrap(err)
 	}
 
-	s.signMu.Lock()
-	defer s.signMu.Unlock()
+	pivSlot, err := parsePIVSlot(ref.SlotKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Check that the public key in the slot matches our record.
+	publicKey, err := y.getPublicKey(pivSlot)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !publicKey.Equal(ref.PublicKey) {
+		return nil, trace.CompareFailed("public key mismatch on PIV slot 0x%x", pivSlot.Key)
+	}
+
+	// If the sign request is for an unknown agent key, ensure that the requested PIV slot was
+	// configured with a self-signed Teleport metadata certificate.
+	if keyInfo.AgentKeyInfo.UnknownAgentKey {
+		switch err := y.checkCertificate(pivSlot); {
+		case trace.IsNotFound(err), errors.As(err, &nonTeleportCertError{}):
+			return nil, trace.Wrap(err, agentRequiresTeleportCertMessage)
+		case err != nil:
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	return y.sign(ctx, ref, keyInfo, s.getPrompt(), rand, digest, opts)
 }

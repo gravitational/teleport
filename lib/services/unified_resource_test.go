@@ -55,7 +55,6 @@ type client struct {
 	services.SAMLIdPServiceProviders
 	services.GitServers
 	services.IdentityCenterAccounts
-	services.IdentityCenterAccountAssignments
 	types.Events
 }
 
@@ -75,14 +74,13 @@ func newClient(t *testing.T) *client {
 	require.NoError(t, err)
 
 	return &client{
-		bk:                               bk,
-		Presence:                         local.NewPresenceService(bk),
-		WindowsDesktops:                  local.NewWindowsDesktopService(bk),
-		SAMLIdPServiceProviders:          samlService,
-		Events:                           local.NewEventsService(bk),
-		GitServers:                       gitService,
-		IdentityCenterAccounts:           icService,
-		IdentityCenterAccountAssignments: icService,
+		bk:                      bk,
+		Presence:                local.NewPresenceService(bk),
+		WindowsDesktops:         local.NewWindowsDesktopService(bk),
+		SAMLIdPServiceProviders: samlService,
+		Events:                  local.NewEventsService(bk),
+		GitServers:              gitService,
+		IdentityCenterAccounts:  icService,
 	}
 }
 
@@ -176,13 +174,11 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	icAcct := newICAccount(t, ctx, clt)
-	icAcctAssignment := newICAccountAssignment(t, ctx, clt)
 
 	// we expect each of the resources above to exist
 	expectedRes := []types.ResourceWithLabels{node, app, samlapp, dbServer, win,
 		gitServer, gitServer2,
-		types.Resource153ToUnifiedResource(icAcct),
-		types.Resource153ToUnifiedResource(icAcctAssignment),
+		services.IdentityCenterAccountToAppServer(icAcct),
 	}
 	assert.Eventually(t, func() bool {
 		res, err = w.GetUnifiedResources(ctx)
@@ -196,25 +192,6 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
-
-		cmp.Transformer("Unwrap.IdentityCenterAccountAssignment",
-			func(t types.Resource153UnwrapperT[services.IdentityCenterAccountAssignment]) services.IdentityCenterAccountAssignment {
-				return t.UnwrapT()
-			}),
-
-		cmp.Transformer("Unwrap.IdentityCenterAccount",
-			func(t types.Resource153UnwrapperT[services.IdentityCenterAccount]) services.IdentityCenterAccount {
-				return t.UnwrapT()
-			}),
-
-		// Ignore unexported values in RFD153-style resources
-		cmpopts.IgnoreUnexported(
-			headerv1.Metadata{},
-			identitycenterv1.Account{},
-			identitycenterv1.AccountSpec{},
-			identitycenterv1.PermissionSetInfo{},
-			identitycenterv1.AccountAssignment{},
-			identitycenterv1.AccountAssignmentSpec{}),
 	))
 
 	// // Update and remove some resources.
@@ -227,8 +204,8 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	// this should include the updated node, and shouldn't have any apps included
 	expectedRes = []types.ResourceWithLabels{nodeUpdated, samlapp, dbServer, win,
 		gitServer, gitServer2,
-		types.Resource153ToUnifiedResource(icAcct),
-		types.Resource153ToUnifiedResource(icAcctAssignment)}
+		services.IdentityCenterAccountToAppServer(icAcct),
+	}
 
 	assert.Eventually(t, func() bool {
 		res, err = w.GetUnifiedResources(ctx)
@@ -245,26 +222,6 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		cmpopts.EquateEmpty(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
-
-		// Allow comparison of the wrapped values inside a Resource153ToLegacyAdapter
-		cmp.Transformer("Unwrap.IdentityCenterAccountAssignment",
-			func(t types.Resource153UnwrapperT[services.IdentityCenterAccountAssignment]) services.IdentityCenterAccountAssignment {
-				return t.UnwrapT()
-			}),
-
-		cmp.Transformer("Unwrap.IdentityCenterAccount",
-			func(t types.Resource153UnwrapperT[services.IdentityCenterAccount]) services.IdentityCenterAccount {
-				return t.UnwrapT()
-			}),
-
-		// Ignore unexported values in RFD153-style resources
-		cmpopts.IgnoreUnexported(
-			headerv1.Metadata{},
-			identitycenterv1.Account{},
-			identitycenterv1.AccountSpec{},
-			identitycenterv1.PermissionSetInfo{},
-			identitycenterv1.AccountAssignment{},
-			identitycenterv1.AccountAssignmentSpec{}),
 
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
@@ -345,7 +302,6 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 	require.NoError(t, err)
 
 	icAcct := newICAccount(t, ctx, clt)
-	icAcctAssignment := newICAccountAssignment(t, ctx, clt)
 
 	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -364,39 +320,19 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 
-		cmp.Transformer("Unwrap.IdentityCenterAccountAssignment",
-			func(t types.Resource153UnwrapperT[services.IdentityCenterAccountAssignment]) services.IdentityCenterAccountAssignment {
-				return t.UnwrapT()
-			}),
-
-		cmp.Transformer("Unwrap.IdentityCenterAccount",
-			func(t types.Resource153UnwrapperT[services.IdentityCenterAccount]) services.IdentityCenterAccount {
-				return t.UnwrapT()
-			}),
-
-		// Ignore unexported values in RFD153-style resources
-		cmpopts.IgnoreUnexported(
-			headerv1.Metadata{},
-			identitycenterv1.Account{},
-			identitycenterv1.AccountSpec{},
-			identitycenterv1.PermissionSetInfo{},
-			identitycenterv1.AccountAssignment{},
-			identitycenterv1.AccountAssignmentSpec{}),
-
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
 	}
 
 	expected := map[string]types.ResourceWithLabels{
-		types.KindApp:                             app,
-		types.KindDatabase:                        dbServer,
-		types.KindNode:                            node,
-		types.KindWindowsDesktop:                  win,
-		types.KindKubernetesCluster:               kubeServer,
-		types.KindSAMLIdPServiceProvider:          samlapp,
-		types.KindGitServer:                       gitServer,
-		types.KindIdentityCenterAccount:           types.Resource153ToUnifiedResource(icAcct),
-		types.KindIdentityCenterAccountAssignment: types.Resource153ToUnifiedResource(icAcctAssignment),
+		types.KindApp:                    app,
+		types.KindDatabase:               dbServer,
+		types.KindNode:                   node,
+		types.KindWindowsDesktop:         win,
+		types.KindKubernetesCluster:      kubeServer,
+		types.KindSAMLIdPServiceProvider: samlapp,
+		types.KindGitServer:              gitServer,
+		types.KindIdentityCenterAccount:  services.IdentityCenterAccountToAppServer(icAcct),
 	}
 
 	for r, err := range w.Resources(ctx, "", types.SortBy{Field: services.SortByKind}) {
@@ -406,6 +342,9 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 		switch kind {
 		case types.KindAppServer:
 			kind = types.KindApp
+			if r.GetSubKind() == types.KindIdentityCenterAccount {
+				kind = types.KindIdentityCenterAccount
+			}
 		case types.KindDatabaseServer:
 			kind = types.KindDatabase
 		case types.KindKubeServer:
@@ -432,6 +371,9 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 			switch kind {
 			case types.KindAppServer:
 				kind = types.KindApp
+				if r.GetSubKind() == types.KindIdentityCenterAccount {
+					kind = types.KindIdentityCenterAccount
+				}
 			case types.KindDatabaseServer:
 				kind = types.KindDatabase
 			case types.KindKubeServer:
@@ -698,94 +640,6 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 						}
 
 						if !yield(n, nil) {
-							return
-						}
-					}
-				}
-			},
-		},
-		{
-			name: "identity center account",
-			createResource: func(name string, c *client) error {
-				_, err := c.CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
-					Account: &identitycenterv1.Account{
-						Kind:    types.KindIdentityCenterAccount,
-						Version: types.V1,
-						Metadata: &headerv1.Metadata{
-							Name: name,
-							Labels: map[string]string{
-								types.OriginLabel: common.OriginAWSIdentityCenter,
-							},
-						},
-						Spec: &identitycenterv1.AccountSpec{
-							Id:          name,
-							Arn:         "arn:aws:sso:::account/" + name,
-							Name:        "Test AWS Account",
-							Description: "Used for testing",
-							PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
-								{
-									Name: "Alpha",
-									Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-alpha",
-								},
-								{
-									Name: "Beta",
-									Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-beta",
-								},
-							},
-						},
-					}})
-				return err
-			},
-			iterateResources: func(urc *services.UnifiedResourceCache, descending bool) iter.Seq2[GetNamer, error] {
-				return func(yield func(GetNamer, error) bool) {
-					for n, err := range urc.IdentityCenterAccounts(ctx, services.UnifiedResourcesIterateParams{Descending: descending}) {
-						if err != nil {
-							yield(nil, err)
-							return
-						}
-
-						if !yield(types.Resource153ToResourceWithLabels(n), nil) {
-							return
-						}
-					}
-				}
-			},
-		},
-		{
-			name: "identity center account assignment",
-			createResource: func(name string, c *client) error {
-				_, err := c.CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{
-					AccountAssignment: &identitycenterv1.AccountAssignment{
-						Kind:    types.KindIdentityCenterAccountAssignment,
-						Version: types.V1,
-						Metadata: &headerv1.Metadata{
-							Name: name,
-							Labels: map[string]string{
-								types.OriginLabel: common.OriginAWSIdentityCenter,
-							},
-						},
-						Spec: &identitycenterv1.AccountAssignmentSpec{
-							Display: "Admin access on Production",
-							PermissionSet: &identitycenterv1.PermissionSetInfo{
-								Arn:          "arn:aws::::ps-Admin",
-								Name:         "Admin",
-								AssignmentId: "production--admin",
-							},
-							AccountName: "Production",
-							AccountId:   "99999999",
-						},
-					}})
-				return err
-			},
-			iterateResources: func(urc *services.UnifiedResourceCache, descending bool) iter.Seq2[GetNamer, error] {
-				return func(yield func(GetNamer, error) bool) {
-					for n, err := range urc.IdentityCenterAccountAssignments(ctx, services.UnifiedResourcesIterateParams{Descending: descending}) {
-						if err != nil {
-							yield(nil, err)
-							return
-						}
-
-						if !yield(types.Resource153ToResourceWithLabels(n), nil) {
 							return
 						}
 					}
@@ -1108,7 +962,7 @@ const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
 </md:EntityDescriptor>
 `
 
-func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenterAccounts) services.IdentityCenterAccount {
+func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenterAccounts) *identitycenterv1.Account {
 	t.Helper()
 
 	accountID := t.Name()
@@ -1141,35 +995,7 @@ func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenter
 			},
 		}})
 	require.NoError(t, err, "creating Identity Center Account")
-	return icAcct
-}
-
-func newICAccountAssignment(t *testing.T, ctx context.Context, svc services.IdentityCenterAccountAssignments) services.IdentityCenterAccountAssignment {
-	t.Helper()
-
-	assignment, err := svc.CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{
-		AccountAssignment: &identitycenterv1.AccountAssignment{
-			Kind:    types.KindIdentityCenterAccountAssignment,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: t.Name(),
-				Labels: map[string]string{
-					types.OriginLabel: common.OriginAWSIdentityCenter,
-				},
-			},
-			Spec: &identitycenterv1.AccountAssignmentSpec{
-				Display: "Admin access on Production",
-				PermissionSet: &identitycenterv1.PermissionSetInfo{
-					Arn:          "arn:aws::::ps-Admin",
-					Name:         "Admin",
-					AssignmentId: "production--admin",
-				},
-				AccountName: "Production",
-				AccountId:   "99999999",
-			},
-		}})
-	require.NoError(t, err, "creating Identity Center Account Assignment")
-	return assignment
+	return icAcct.Account
 }
 
 func TestOktaAppServers(t *testing.T) {

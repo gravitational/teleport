@@ -131,14 +131,25 @@ func failsForCluster(clusterName string) servicecfg.ImpersonationPermissionsChec
 func TestGetKubeCreds(t *testing.T) {
 	t.Parallel()
 	// kubeMock is a Kubernetes API mock for the session tests.
-	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	kubeMock, err := testingkubemock.NewKubeAPIMock(testingkubemock.WithTeleportRoleCRD)
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
 	targetAddr := kubeMock.Address
 
+	crdResource := metav1.APIResource{
+		Name:         "teleportroles",
+		SingularName: "teleportrole",
+		Namespaced:   true,
+		Kind:         "TeleportRole",
+		Version:      "v6",
+		Group:        "resources.teleport.dev",
+		Verbs:        []string{"delete", "deletecollection", "get", "list", "patch", "create", "update", "watch"},
+	}
 	rbacSupportedTypes := maps.Clone(defaultRBACResources)
-	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles"}] = utils.KubeCustomResource
-	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles/status"}] = utils.KubeCustomResource
+	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles"}] = crdResource
+	crdResource.Name = "teleportroles/status"
+	crdResource.Verbs = []string{"get", "patch", "update"}
+	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles/status"}] = crdResource
 
 	ctx := context.TODO()
 	const teleClusterName = "teleport-cluster"
@@ -338,7 +349,6 @@ current-context: foo
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			fwd := &Forwarder{
