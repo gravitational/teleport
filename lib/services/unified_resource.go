@@ -127,8 +127,7 @@ func (cfg *UnifiedResourceCacheConfig) CheckAndSetDefaults() error {
 func (c *UnifiedResourceCache) putLocked(resource resource) {
 	key := resourceKey(resource)
 	sortKey := makeResourceSortKey(resource)
-	collection, exists := c.resources[key]
-	if exists {
+	if collection, exists := c.resources[key]; exists {
 		// If the resource has changed in such a way that the sort keys
 		// for the nameTree or typeTree change, remove the old entries
 		// from those trees before adding a new one. This can happen
@@ -139,8 +138,7 @@ func (c *UnifiedResourceCache) putLocked(resource resource) {
 		}
 		collection.put(resource)
 	} else {
-		collection = newResourceCollection(resource)
-		c.resources[key] = collection
+		c.resources[key] = newResourceCollection(resource)
 	}
 	c.nameTree.ReplaceOrInsert(&item{Key: sortKey.byName, Value: key})
 	c.typeTree.ReplaceOrInsert(&item{Key: sortKey.byType, Value: key})
@@ -328,7 +326,7 @@ func (c *UnifiedResourceCache) KubernetesServers(ctx context.Context, params Uni
 
 // WindowsDesktops iterates over all cached windows desktops starting from the provided key.
 func (c *UnifiedResourceCache) WindowsDesktops(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.WindowsDesktop, error] {
-	return iterateUnifiedResourceCache(ctx, c, params, types.KindWindowsDesktop, func(desktop types.WindowsDesktop) types.WindowsDesktop { return desktop.Copy() })
+	return iterateUnifiedResourceCache(ctx, c, params, types.KindWindowsDesktop, types.WindowsDesktop.Copy)
 }
 
 // GitServers iterates over all cached git servers starting from the provided key.
@@ -341,7 +339,7 @@ func (c *UnifiedResourceCache) SAMLIdPServiceProviders(ctx context.Context, para
 	return iterateUnifiedResourceCache(ctx, c, params, types.KindSAMLIdPServiceProvider, types.SAMLIdPServiceProvider.Copy)
 }
 
-func iterateUnifiedResourceCache[T any](ctx context.Context, c *UnifiedResourceCache, params UnifiedResourcesIterateParams, kind string, cloneFn func(T) T) iter.Seq2[T, error] {
+func iterateUnifiedResourceCache[T resource](ctx context.Context, c *UnifiedResourceCache, params UnifiedResourcesIterateParams, kind string, cloneFn func(T) T) iter.Seq2[T, error] {
 	return func(yield func(T, error) bool) {
 		sortBy := types.SortBy{IsDesc: params.Descending, Field: SortByName}
 		for i, err := range c.iterateItems(ctx, params.Start, sortBy, kind) {
@@ -351,9 +349,17 @@ func iterateUnifiedResourceCache[T any](ctx context.Context, c *UnifiedResourceC
 				return
 			}
 
-			if !yield(cloneFn(i.resource.(T)), nil) {
+			switch r := i.resource.(type) {
+			case T:
+				if !yield(cloneFn(r), nil) {
+					return
+				}
+			default:
+				var t T
+				yield(t, trace.BadParameter("expected type %T, got %T", t, r))
 				return
 			}
+
 		}
 	}
 }
@@ -919,15 +925,28 @@ type resourceCollection interface {
 func newResourceCollection(r resource) resourceCollection {
 	switch r := r.(type) {
 	case types.DatabaseServer:
-		return newDatabaseServerCollection(r)
-	case types.AppServer, types.KubeServer, types.WindowsDesktop:
-		return &resourceServerCollection{
-			latest:  r,
-			servers: make(map[string]resource),
-		}
+		return newServerResourceCollection(r,
+			func(srv types.DatabaseServer, servers map[string]types.DatabaseServer) types.DatabaseServer {
+				return &aggregatedDatabase{
+					DatabaseServer: srv,
+					status:         aggregateHealthStatuses(servers),
+				}
+			})
+	case serverResource:
+		return newServerResourceCollection(r, nil)
 	default:
 		return &singularResourceCollection{latest: r}
 	}
+}
+
+func aggregateHealthStatuses[T types.TargetHealthStatusGetter](hgs map[string]T) types.TargetHealthStatus {
+	return types.AggregateHealthStatus(func(yield func(types.TargetHealthStatus) bool) {
+		for _, hg := range hgs {
+			if !yield(hg.GetTargetHealthStatus()) {
+				return
+			}
+		}
+	})
 }
 
 type singularResourceCollection struct {
@@ -940,23 +959,45 @@ func (c *singularResourceCollection) put(r resource) { c.latest = r }
 
 func (c *singularResourceCollection) remove(types.Resource) bool { return true }
 
-type resourceServerCollection struct {
-	latest  resource
-	servers map[string]resource
+// serverResource is a type of resource that may have multiple agents
+// heartbeating it.
+type serverResource interface {
+	resource
+	GetHostID() string
 }
 
-func (c *resourceServerCollection) get() resource {
-	return c.latest
+type serverResourceCollection[R serverResource] struct {
+	aggregate     R
+	aggregationFn func(latest R, servers map[string]R) R
+	servers       map[string]R
 }
 
-func (c *resourceServerCollection) put(r resource) {
-	c.latest = r
-	if h, ok := r.(interface{ GetHostID() string }); ok {
-		c.servers[h.GetHostID()] = r
+func newServerResourceCollection[R serverResource](r R, aggFn func(latest R, servers map[string]R) R) *serverResourceCollection[R] {
+	if aggFn == nil {
+		aggFn = func(r R, _ map[string]R) R {
+			return r
+		}
+	}
+	collection := &serverResourceCollection[R]{
+		servers:       make(map[string]R),
+		aggregationFn: aggFn,
+	}
+	collection.put(r)
+	return collection
+}
+
+func (c *serverResourceCollection[R]) get() resource {
+	return c.aggregate
+}
+
+func (c *serverResourceCollection[R]) put(r resource) {
+	if r, ok := r.(R); ok {
+		c.servers[r.GetHostID()] = r
+		c.aggregate = c.aggregationFn(r, c.servers)
 	}
 }
 
-func (c *resourceServerCollection) remove(r types.Resource) bool {
+func (c *serverResourceCollection[R]) remove(r types.Resource) bool {
 	// This looks insane, but we only get a [types.ResourceHeader] in
 	// [types.OpDelete] events.
 	// The types that actually implement [resourceServer] all store the host ID
@@ -968,90 +1009,50 @@ func (c *resourceServerCollection) remove(r types.Resource) bool {
 	// - add test coverage for it in TestUnifiedResourceWatcher_DeleteEvent
 	delete(c.servers, r.GetMetadata().Description)
 	for _, s := range c.servers {
-		c.latest = s
-		return false
-	}
-	return true
-}
-
-func newDatabaseServerCollection(db types.DatabaseServer) *databaseServerCollection {
-	statuses := map[string]types.DatabaseServer{
-		db.GetHostID(): db,
-	}
-	return &databaseServerCollection{
-		aggregate: &aggregatedDatabase{
-			DatabaseServer: db,
-			status:         aggregateHealthStatuses(statuses),
-		},
-		servers: statuses,
-	}
-}
-
-type databaseServerCollection struct {
-	aggregate *aggregatedDatabase
-	servers   map[string]types.DatabaseServer
-}
-
-func (c *databaseServerCollection) get() resource {
-	return c.aggregate
-}
-
-func (c *databaseServerCollection) put(r resource) {
-	if r, ok := r.(types.DatabaseServer); ok {
-		c.servers[r.GetHostID()] = r
-		c.aggregate = &aggregatedDatabase{
-			DatabaseServer: r,
-			status:         aggregateHealthStatuses(c.servers),
-		}
-	}
-}
-
-func (c *databaseServerCollection) remove(r types.Resource) bool {
-	delete(c.servers, r.GetMetadata().Description)
-	for _, s := range c.servers {
-		c.aggregate = &aggregatedDatabase{
-			DatabaseServer: s,
-			status:         aggregateHealthStatuses(c.servers),
-		}
+		c.aggregate = c.aggregationFn(s, c.servers)
 		return false
 	}
 	return true
 }
 
 // aggregatedDatabase wraps a database server with aggregated health status.
-// This type exists to avoid cloning the resource unnecessarily, yet still
-// prevent data races.
+// It is assumed that multiple heartbeats with the same resource name but
+// different host IDs may be received and they may report different health
+// statuses.
+// This type provides the following properties:
+//   - avoid cloning the resource *before* filtering.
+//   - when the resource is cloned *after* filtering, set the clone's health
+//     status to the aggregate health status.
+//
+// Go generics do not support embedding a generic type, otherwise this type
+// would be made generic.
 type aggregatedDatabase struct {
 	types.DatabaseServer
 	status types.TargetHealthStatus
 }
 
-func (d *aggregatedDatabase) GetTargetHealth() types.TargetHealth {
-	out := d.DatabaseServer.GetTargetHealth()
-	out.Status = string(d.status)
-	return out
+// This type MUST implement [types.DatabaseServer] to act as a facade type,
+// otherwise dynamic assertions elsewhere will fail.
+var _ types.DatabaseServer = (*aggregatedDatabase)(nil)
+
+// GetTargetHealthStatus gets the aggregate health status for filtering by
+// health status.
+func (d *aggregatedDatabase) GetTargetHealthStatus() types.TargetHealthStatus {
+	return d.status
 }
 
 // Copy returns a copy of the underlying database server with aggregated health
 // status.
 func (d *aggregatedDatabase) Copy() types.DatabaseServer {
 	out := d.DatabaseServer.Copy()
-	out.SetTargetHealth(d.GetTargetHealth())
+	out.SetTargetHealthStatus(d.status)
 	return out
 }
 
+// CloneResource returns a copy of the underlying database server with
+// aggregated health status.
 func (d *aggregatedDatabase) CloneResource() types.ResourceWithLabels {
 	return d.Copy()
-}
-
-func aggregateHealthStatuses[T types.TargetHealthGetter](hgs map[string]T) types.TargetHealthStatus {
-	return types.AggregateHealthStatus(func(yield func(types.TargetHealthStatus) bool) {
-		for _, hg := range hgs {
-			if !yield(types.TargetHealthStatus(hg.GetTargetHealth().Status)) {
-				return
-			}
-		}
-	})
 }
 
 type item struct {

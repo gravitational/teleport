@@ -307,9 +307,6 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(dbServers) == 0 {
-		return nil, trace.NotFound("database %q not found", databaseName)
-	}
 	database := dbServers[0].GetDatabase()
 
 	switch {
@@ -835,7 +832,13 @@ func fetchDatabaseServersWithName(ctx context.Context, clt resourcesAPIGetter, r
 	}
 
 	servers, err := types.ResourcesWithLabels(resp.Resources).AsDatabaseServers()
-	return servers, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(servers) == 0 {
+		return nil, trace.NotFound("database %q not found", databaseName)
+	}
+	return servers, nil
 }
 
 func getNewDatabaseResource(req createOrOverwriteDatabaseRequest) (*types.DatabaseV3, error) {
