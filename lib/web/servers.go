@@ -147,19 +147,14 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(dbServers) == 0 {
-		return nil, trace.NotFound("database %q not found", databaseName)
-	}
 	aggregateStatus := types.AggregateHealthStatus(func(yield func(types.TargetHealthStatus) bool) {
 		for _, srv := range dbServers {
-			if !yield(types.TargetHealthStatus(srv.GetTargetHealth().Status)) {
+			if !yield(srv.GetTargetHealthStatus()) {
 				return
 			}
 		}
 	})
-	health := dbServers[0].GetTargetHealth()
-	health.Status = string(aggregateStatus)
-	dbServers[0].SetTargetHealth(health)
+	dbServers[0].SetTargetHealthStatus(aggregateStatus)
 
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {

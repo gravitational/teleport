@@ -696,6 +696,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 						if r.GetName() != ids[count] {
 							t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
 						}
+						requireHealthStatusIfGiven(t, r, types.TargetHealthStatusMixed)
 						count++
 					}
 
@@ -710,6 +711,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 						if r.GetName() != ids[count] {
 							t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
 						}
+						requireHealthStatusIfGiven(t, r, types.TargetHealthStatusMixed)
 						count--
 					}
 
@@ -732,10 +734,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 							if r.GetName() != ids[count] {
 								t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
 							}
-							if r, ok := r.(types.TargetHealthGetter); ok {
-								require.Equal(t, "mixed", r.GetTargetHealth().Status, "resource %v", r)
-								require.IsTypef(t, &types.DatabaseServerV3{}, r, "resource %v", r)
-							}
+							requireHealthStatusIfGiven(t, r, types.TargetHealthStatusMixed)
 							count++
 						}
 
@@ -764,10 +763,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 							if r.GetName() != ids[count] {
 								t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
 							}
-							if r, ok := r.(types.TargetHealthGetter); ok {
-								require.Equal(t, "mixed", r.GetTargetHealth().Status, "resource %v", r)
-								require.IsTypef(t, &types.DatabaseServerV3{}, r, "resource %v", r)
-							}
+							requireHealthStatusIfGiven(t, r, types.TargetHealthStatusMixed)
 							count--
 						}
 
@@ -1123,4 +1119,11 @@ func mustCreateOktaAppServer(t *testing.T, name, friendlyName string) *types.App
 	})
 	require.NoError(t, err)
 	return resource
+}
+
+func requireHealthStatusIfGiven(t *testing.T, r any, want types.TargetHealthStatus) {
+	t.Helper()
+	if r, ok := r.(types.TargetHealthStatusGetter); ok {
+		require.Equal(t, want, r.GetTargetHealthStatus(), "resource %v", r)
+	}
 }

@@ -66,22 +66,22 @@ func TestGroupByTargetHealth(t *testing.T) {
 	rand.Shuffle(len(servers), func(i, j int) {
 		servers[i], servers[j] = servers[j], servers[i]
 	})
-	groups := GroupByTargetHealth(servers)
+	groups := GroupByTargetHealthStatus(servers)
 	for _, server := range groups.Healthy {
 		require.Equal(t, TargetHealthStatusHealthy,
-			TargetHealthStatus(server.GetTargetHealth().Status),
+			server.GetTargetHealthStatus(),
 			"server %s is in the wrong group", server.GetName(),
 		)
 	}
 	for _, server := range groups.Unhealthy {
 		require.Equal(t, TargetHealthStatusUnhealthy,
-			TargetHealthStatus(server.GetTargetHealth().Status),
+			server.GetTargetHealthStatus(),
 			"server %s is in the wrong group", server.GetName(),
 		)
 	}
 	for _, server := range groups.Unknown {
 		require.Contains(t, []TargetHealthStatus{TargetHealthStatusUnknown, ""},
-			TargetHealthStatus(server.GetTargetHealth().Status),
+			server.GetTargetHealthStatus(),
 			"server %s is in the wrong group", server.GetName(),
 		)
 	}
