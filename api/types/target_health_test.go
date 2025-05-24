@@ -19,6 +19,7 @@ package types
 import (
 	"fmt"
 	"math/rand/v2"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -65,23 +66,72 @@ func TestGroupByTargetHealth(t *testing.T) {
 	rand.Shuffle(len(servers), func(i, j int) {
 		servers[i], servers[j] = servers[j], servers[i]
 	})
-	groups := GroupByTargetHealth(servers)
+	groups := GroupByTargetHealthStatus(servers)
 	for _, server := range groups.Healthy {
 		require.Equal(t, TargetHealthStatusHealthy,
-			TargetHealthStatus(server.GetTargetHealth().Status),
+			server.GetTargetHealthStatus(),
 			"server %s is in the wrong group", server.GetName(),
 		)
 	}
 	for _, server := range groups.Unhealthy {
 		require.Equal(t, TargetHealthStatusUnhealthy,
-			TargetHealthStatus(server.GetTargetHealth().Status),
+			server.GetTargetHealthStatus(),
 			"server %s is in the wrong group", server.GetName(),
 		)
 	}
 	for _, server := range groups.Unknown {
 		require.Contains(t, []TargetHealthStatus{TargetHealthStatusUnknown, ""},
-			TargetHealthStatus(server.GetTargetHealth().Status),
+			server.GetTargetHealthStatus(),
 			"server %s is in the wrong group", server.GetName(),
 		)
+	}
+}
+
+func TestTargetHealthStatusCanonical(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    TargetHealthStatus
+		expected TargetHealthStatus
+	}{
+		{"healthy remains healthy", TargetHealthStatusHealthy, TargetHealthStatusHealthy},
+		{"unhealthy remains unhealthy", TargetHealthStatusUnhealthy, TargetHealthStatusUnhealthy},
+		{"unknown becomes unknown", TargetHealthStatusUnknown, TargetHealthStatusUnknown},
+		{"mixed becomes unknown", TargetHealthStatusMixed, TargetHealthStatusUnknown},
+		{"empty string becomes unknown", TargetHealthStatus(""), TargetHealthStatusUnknown},
+		{"random string becomes unknown", TargetHealthStatus("invalid"), TargetHealthStatusUnknown},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := test.input.Canonical()
+			require.Equal(t, test.expected, actual)
+		})
+	}
+}
+
+func TestTargetHealthStatusesAggregate(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []TargetHealthStatus
+		expected TargetHealthStatus
+	}{
+		{"empty list returns unknown", []TargetHealthStatus{}, TargetHealthStatusUnknown},
+		{"one healthy", []TargetHealthStatus{TargetHealthStatusHealthy}, TargetHealthStatusHealthy},
+		{"one unhealthy", []TargetHealthStatus{TargetHealthStatusUnhealthy}, TargetHealthStatusUnhealthy},
+		{"one unknown", []TargetHealthStatus{TargetHealthStatusUnknown}, TargetHealthStatusUnknown},
+		{"one mixed", []TargetHealthStatus{TargetHealthStatusMixed}, TargetHealthStatusUnknown},
+		{"all healthy", []TargetHealthStatus{TargetHealthStatusHealthy, TargetHealthStatusHealthy}, TargetHealthStatusHealthy},
+		{"all unhealthy", []TargetHealthStatus{TargetHealthStatusUnhealthy, TargetHealthStatusUnhealthy}, TargetHealthStatusUnhealthy},
+		{"all unknown", []TargetHealthStatus{TargetHealthStatusUnknown, TargetHealthStatusUnknown}, TargetHealthStatusUnknown},
+		{"all empty", []TargetHealthStatus{"", ""}, TargetHealthStatusUnknown},
+		{"empty and unknown", []TargetHealthStatus{"", TargetHealthStatusUnknown}, TargetHealthStatusUnknown},
+		{"healthy and unhealthy", []TargetHealthStatus{TargetHealthStatusHealthy, TargetHealthStatusUnhealthy}, TargetHealthStatusMixed},
+		{"unhealthy and unknown", []TargetHealthStatus{TargetHealthStatusUnhealthy, TargetHealthStatusUnknown}, TargetHealthStatusMixed},
+		{"healthy and unhealthy and unknown", []TargetHealthStatus{TargetHealthStatusHealthy, TargetHealthStatusUnhealthy, TargetHealthStatusUnknown}, TargetHealthStatusMixed},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := AggregateHealthStatus(slices.Values(test.input))
+			require.Equal(t, test.expected, actual)
+		})
 	}
 }

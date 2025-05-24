@@ -1349,28 +1349,30 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// add db
-	db, err := types.NewDatabaseV3(types.Metadata{
-		Name: "dbdb",
-		Labels: map[string]string{
-			"env": "prod",
-		},
-	}, types.DatabaseSpecV3{
-		Protocol: "test-protocol",
-		URI:      "test-uri",
-	})
-	require.NoError(t, err)
-	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: "dddb1",
-	}, types.DatabaseServerSpecV3{
-		Hostname: "dddb1",
-		HostID:   uuid.NewString(),
-		Database: db,
-	})
-	require.NoError(t, err)
-	dbServer.SetTargetHealth(types.TargetHealth{Status: "testing-status"})
-	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
-	require.NoError(t, err)
+	// add HA dbs
+	for _, healthStatus := range []string{"healthy", "unhealthy", "unknown"} {
+		db, err := types.NewDatabaseV3(types.Metadata{
+			Name: "dbdb",
+			Labels: map[string]string{
+				"env": "prod",
+			},
+		}, types.DatabaseSpecV3{
+			Protocol: "test-protocol",
+			URI:      "test-uri",
+		})
+		require.NoError(t, err)
+		dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+			Name: db.GetName(),
+		}, types.DatabaseServerSpecV3{
+			Hostname: "dddb1",
+			HostID:   uuid.NewString(),
+			Database: db,
+		})
+		require.NoError(t, err)
+		dbServer.SetTargetHealth(types.TargetHealth{Status: healthStatus})
+		_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
+		require.NoError(t, err)
+	}
 
 	// add windows desktop
 	win, err := types.NewWindowsDesktopV3(
@@ -1430,7 +1432,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		Items      []webui.Database `json:"items"`
 		TotalCount int              `json:"totalCount"`
 	}
-	query = url.Values{"sort": []string{"name"}, "limit": []string{"1"}, "kinds": []string{types.KindDatabase}}
+	query = url.Values{"sort": []string{"name"}, "limit": []string{"1"}, "kinds": []string{types.KindDatabase}, "query": []string{`health.status == "mixed"`}}
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 	dbRes := dbResponse{}
@@ -1444,7 +1446,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		Protocol:     "test-protocol",
 		Hostname:     "test-uri",
 		URI:          "test-uri",
-		TargetHealth: types.TargetHealth{Status: "testing-status"},
+		TargetHealth: types.TargetHealth{Status: "mixed"},
 	}})
 
 	// should return first page and have a second page
@@ -4139,7 +4141,7 @@ func TestClusterDatabasesGet_NoRole(t *testing.T) {
 		Database: db,
 	})
 	require.NoError(t, err)
-	dbServer.SetTargetHealth(types.TargetHealth{Status: "testing-status"})
+	dbServer.SetTargetHealth(types.TargetHealth{Status: "healthy"})
 
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
 	require.NoError(t, err)
@@ -4159,7 +4161,7 @@ func TestClusterDatabasesGet_NoRole(t *testing.T) {
 		Protocol:     "test-protocol",
 		Hostname:     "test-uri",
 		URI:          "test-uri:1234",
-		TargetHealth: types.TargetHealth{Status: "testing-status"},
+		TargetHealth: types.TargetHealth{Status: "healthy"},
 	}})
 }
 
