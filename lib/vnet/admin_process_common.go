@@ -22,9 +22,11 @@ import (
 )
 
 func newNetworkStackConfig(tun tunDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {
+	sshProvider := newSSHProvider(sshProviderConfig{clt: clt})
 	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
 		clt:         clt,
 		appProvider: newAppProvider(clt),
+		sshProvider: sshProvider,
 		clock:       clockwork.NewRealClock(),
 	})
 	ipv6Prefix, err := newIPv6Prefix()
