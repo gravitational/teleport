@@ -206,6 +206,7 @@ spec:
     kubernetes_resources:
         # The resource kind. Teleport currently supports:
         # - * (all resources)
+        # - namespaces (including all resources kinds in the namespace)
         # - <arbitrary string> (Resource plural name, e.g. pods, deployments, cronjobs, mycustomresources)
       - kind: '*'
         # The name of the Kubernetes namespace in which to allow access the
