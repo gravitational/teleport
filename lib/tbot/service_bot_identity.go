@@ -633,6 +633,10 @@ func botIdentityFromToken(
 		return nil, trace.BadParameter("unsupported address kind: %v", addrKind)
 	}
 
+	// Only set during bound keypair joining, but used both before and after.
+	var boundKeypairAdapter boundkeypair.FS
+	var boundKeypairState *boundkeypair.ClientState
+
 	switch params.JoinMethod {
 	case types.JoinMethodAzure:
 		params.AzureParams = join.AzureParams{
@@ -644,25 +648,35 @@ func botIdentityFromToken(
 		params.GitlabParams = join.GitlabParams{
 			EnvVarName: cfg.Onboarding.Gitlab.TokenEnvVarName,
 		}
-	}
-
-	if params.JoinMethod == types.JoinMethodBoundKeypair {
+	case types.JoinMethodBoundKeypair:
 		joinSecret := cfg.Onboarding.BoundKeypair.InitialJoinSecret
 
-		adapter := config.NewBoundkeypairDestinationAdapter(cfg.Storage.Destination)
-		state, err := boundkeypair.LoadClientState(ctx, adapter)
+		boundKeypairAdapter = config.NewBoundkeypairDestinationAdapter(cfg.Storage.Destination)
+		boundKeypairState, err = boundkeypair.LoadClientState(ctx, boundKeypairAdapter)
 		if trace.IsNotFound(err) && joinSecret != "" {
 			return nil, trace.NotImplemented("no existing client state was found and join secrets are not yet supported")
 		} else if err != nil {
 			return nil, trace.Wrap(err, "loading bound keypair client state")
 		}
 
-		params.BoundKeypairParams = state.ToJoinParams(joinSecret)
+		params.BoundKeypairParams = boundKeypairState.ToJoinParams(joinSecret)
 	}
 
 	result, err := join.Register(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if boundKeypairState != nil {
+		if err := boundKeypairState.UpdateFromRegisterResult(result); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		log.DebugContext(ctx, "updating bound keypair client state")
+
+		if err := boundkeypair.StoreClientState(ctx, boundKeypairAdapter, boundKeypairState); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)
