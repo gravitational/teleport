@@ -377,6 +377,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 
 		if c.awsCfg == nil {
 			opts := []awsconfig.OptionsFn{
+				awsconfig.WithAmbientCredentials(),
 				awsconfig.WithSTSClientProvider(func(cfg aws.Config) awsconfig.STSClient {
 					return getSTSClient(cfg)
 				}),

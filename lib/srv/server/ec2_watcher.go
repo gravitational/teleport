@@ -68,6 +68,10 @@ type EC2Instances struct {
 	// Might be empty for instances that didn't use an Integration.
 	Integration string
 
+	AssumeRoleARN string
+
+	ExternalID string
+
 	// DiscoveryConfigName is the DiscoveryConfig name which originated this Run Request.
 	// Empty if using static matchers (coming from the `teleport.yaml`).
 	DiscoveryConfigName string
@@ -246,6 +250,9 @@ type ec2InstanceFetcher struct {
 	DiscoveryConfigName string
 	EnrollMode          types.InstallParamEnrollMode
 
+	AssumeRoleARN string
+	ExternalID    string
+
 	// cachedInstances keeps all of the ec2 instances that were matched
 	// in the last run of GetInstances for use as a cache with
 	// GetMatchingInstances
@@ -329,7 +336,7 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 		}
 	}
 
-	fetcherConfig := ec2InstanceFetcher{
+	fetcher := ec2InstanceFetcher{
 		EC2:                 cfg.EC2Client,
 		Filters:             tagFilters,
 		Region:              cfg.Region,
@@ -342,7 +349,11 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 			instances: map[cachedInstanceKey]struct{}{},
 		},
 	}
-	return &fetcherConfig
+	if ar := cfg.Matcher.AssumeRole; ar != nil {
+		fetcher.AssumeRoleARN = ar.RoleARN
+		fetcher.ExternalID = ar.ExternalID
+	}
+	return &fetcher
 }
 
 // GetMatchingInstances returns a list of EC2 instances from a list of matching Teleport nodes
@@ -444,6 +455,8 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 					Parameters:          f.Parameters,
 					Rotation:            rotation,
 					Integration:         f.Integration,
+					AssumeRoleARN:       f.AssumeRoleARN,
+					ExternalID:          f.ExternalID,
 					DiscoveryConfigName: f.DiscoveryConfigName,
 					EnrollMode:          f.EnrollMode,
 				}
