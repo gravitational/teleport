@@ -267,6 +267,12 @@ func TestRole_GetKubeResources(t *testing.T) {
 						Name:      "test",
 						Verbs:     []string{Wildcard},
 					},
+					{
+						Kind:      KindKubeJob,
+						Namespace: "test",
+						Name:      "test",
+						Verbs:     []string{Wildcard},
+					},
 				},
 			},
 			wantDeny: []KubernetesResource{
@@ -275,7 +281,14 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Namespace: "test",
 					Name:      "test",
 					Verbs:     []string{Wildcard},
-					APIGroup:  Wildcard,
+					APIGroup:  "",
+				},
+				{
+					Kind:      "jobs",
+					Namespace: "test",
+					Name:      "test",
+					Verbs:     []string{Wildcard},
+					APIGroup:  "batch",
 				},
 			},
 			assertErrorCreation: require.NoError,
@@ -306,6 +319,11 @@ func TestRole_GetKubeResources(t *testing.T) {
 						Namespace: "test",
 						Name:      "test",
 					},
+					{
+						Kind:      KindKubeDeployment,
+						Namespace: "test",
+						Name:      "test",
+					},
 				},
 			},
 			assertErrorCreation: require.NoError,
@@ -314,7 +332,13 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Kind:      "pods",
 					Namespace: "test",
 					Name:      "test",
-					APIGroup:  Wildcard,
+					APIGroup:  "",
+				},
+				{
+					Kind:      "deployments",
+					Namespace: "test",
+					Name:      "test",
+					APIGroup:  "apps",
 				},
 			},
 		},
@@ -353,7 +377,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Kind:      "pods",
 					Namespace: "test",
 					Name:      "test",
-					APIGroup:  Wildcard,
+					APIGroup:  "",
 				},
 			},
 		},
@@ -377,7 +401,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Namespace: "test",
 					Name:      "test",
 					Verbs:     []string{Wildcard},
-					APIGroup:  Wildcard,
+					APIGroup:  "",
 				},
 			},
 				appendV7KubeResources()...),
@@ -426,7 +450,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Namespace: "test",
 					Name:      "test",
 					Verbs:     []string{Wildcard},
-					APIGroup:  Wildcard,
+					APIGroup:  "",
 				},
 			},
 				appendV7KubeResources()...),
@@ -703,6 +727,7 @@ func appendV7KubeResources() []KubernetesResource {
 	resources := []KubernetesResource{}
 	// append other kubernetes resources
 	for _, resource := range KubernetesResourcesKinds {
+		group := KubernetesResourcesV7KindGroups[resource]
 		resource = KubernetesResourcesKindsPlurals[resource]
 		if resource == "pods" || resource == "namespaces" {
 			continue
@@ -712,7 +737,7 @@ func appendV7KubeResources() []KubernetesResource {
 			Namespace: Wildcard,
 			Name:      Wildcard,
 			Verbs:     []string{Wildcard},
-			APIGroup:  Wildcard,
+			APIGroup:  group,
 		},
 		)
 	}

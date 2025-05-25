@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
@@ -433,7 +434,7 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 			// access the Kubernetes cluster that it belongs to.
 			// At this point, we do not verify that the accessed resource matches the
 			// allowed resources, but that verification happens in the caller function.
-			(resourceID.Kind == r.GetKind() || (slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) && r.GetKind() == types.KindKubernetesCluster)) &&
+			(resourceID.Kind == r.GetKind() || ((slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) || strings.HasPrefix(resourceID.Kind, types.PrefixKindKube)) && r.GetKind() == types.KindKubernetesCluster)) &&
 			resourceID.Name == r.GetName() {
 			// Allowed to access this resource by resource ID, move on to role checks.
 
@@ -517,13 +518,15 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 			continue
 		}
 		switch {
-		case slices.Contains(types.KubernetesResourcesKinds, r.Kind):
+		case slices.Contains(types.KubernetesResourcesKinds, r.Kind) || strings.HasPrefix(r.Kind, types.PrefixKindKube):
 			namespace := ""
 			name := ""
-			if slices.Contains(types.KubernetesClusterWideResourceKinds, r.Kind) {
+			if slices.Contains(types.KubernetesClusterWideResourceKinds, r.Kind) || strings.HasPrefix(r.Kind, types.PrefixKindKubeClusterWide) {
 				// Cluster wide resources do not have a namespace.
 				name = r.SubResourceName
+				r.Kind = strings.TrimPrefix(r.Kind, types.PrefixKindKubeClusterWide)
 			} else {
+				r.Kind = strings.TrimPrefix(r.Kind, types.PrefixKindKubeNamespaced)
 				splitted := strings.SplitN(r.SubResourceName, "/", 3)
 				// This condition should never happen since SubResourceName is validated
 				// but it's better to validate it.
@@ -534,18 +537,21 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 				name = splitted[1]
 			}
 
-			// TODO(@creack): Find a better way. For now this only enables support for existing access requests.
-			// It doesnt support CRDs.
+			// Map legacy names to the new ones.
 			kind := types.KubernetesResourcesKindsPlurals[r.Kind]
 			if kind == "" {
 				kind = r.Kind
 			}
+
+			gk := schema.ParseGroupKind(kind)
+			if gk.Group == "" {
+				gk.Group = types.KubernetesResourcesV7KindGroups[r.Kind]
+			}
 			r := types.KubernetesResource{
-				Kind:      kind,
+				Kind:      gk.Kind,
 				Namespace: namespace,
 				Name:      name,
-				// TODO(@creack): Add support for CRDs in AccessRequests.
-				APIGroup: types.Wildcard,
+				APIGroup:  gk.Group,
 			}
 			// matchKubernetesResource checks if the Kubernetes Resource matches the tuple
 			// (kind, namespace, kame) from the allowed/denied list and does not match the resource
