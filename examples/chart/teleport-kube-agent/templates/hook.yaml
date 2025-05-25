@@ -1,9 +1,9 @@
-{{- $deployment := (lookup "apps/v1" "Deployment"  .Release.Namespace .Release.Name ) -}}
+{{- $deployment := (lookup "apps/v1" "Deployment"  .Release.Namespace (include "teleport-kube-agent.fullname" .) ) -}}
 {{- if $deployment }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ .Release.Name }}-hook
+  name: {{ include "teleport-kube-agent.fullname" . }}-hook
   namespace: {{ .Release.Namespace }}
   annotations:
     "helm.sh/hook": post-upgrade
@@ -13,7 +13,7 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ .Release.Name }}-hook
+  name: {{ include "teleport-kube-agent.fullname" . }}-hook
   namespace: {{ .Release.Namespace }}
   annotations:
     "helm.sh/hook": post-upgrade
@@ -22,20 +22,20 @@ metadata:
 rules:
   - apiGroups: ["apps"]
     resources: ["statefulsets"]
-    resourceNames: ["{{ .Release.Name }}"]
+    resourceNames: [{{ include "teleport-kube-agent.fullname" . | quote }}]
     verbs: ["get", "watch", "list"]
   - apiGroups: [""]
     resources: ["pods",]
     verbs: ["get", "watch"]
   - apiGroups: ["apps"]
     resources: ["deployments",]
-    resourceNames: ["{{ .Release.Name }}"]
+    resourceNames: [{{ include "teleport-kube-agent.fullname" . | quote }}]
     verbs: ["get", "delete", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ .Release.Name }}-hook
+  name: {{ include "teleport-kube-agent.fullname" . }}-hook
   namespace: {{ .Release.Namespace }}
   annotations:
     "helm.sh/hook": post-upgrade
@@ -44,16 +44,16 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ .Release.Name }}-hook
+  name: {{ include "teleport-kube-agent.fullname" . }}-hook
 subjects:
 - kind: ServiceAccount
-  name: {{ .Release.Name }}-hook
+  name: {{ include "teleport-kube-agent.fullname" . }}-hook
   namespace: {{ .Release.Namespace }}
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ .Release.Name }}-hook
+  name: {{ include "teleport-kube-agent.fullname" . }}-hook
   namespace: {{ .Release.Namespace }}
   annotations:
     "helm.sh/hook": post-upgrade
@@ -62,13 +62,13 @@ metadata:
 spec:
   template:
     metadata:
-      name: {{ .Release.Name }}-hook
+      name: {{ include "teleport-kube-agent.fullname" . }}-hook
 {{- if .Values.annotations.pod }}
       annotations:
   {{- toYaml .Values.annotations.pod | nindent 8 }}
 {{- end }}
       labels:
-        app: {{ .Release.Name }}
+        app: {{ include "teleport-kube-agent.fullname" . }}
 {{- if .Values.extraLabels.pod }}
   {{- toYaml .Values.extraLabels.pod | nindent 8 }}
 {{- end }}
@@ -80,7 +80,7 @@ spec:
       tolerations:
         {{- toYaml .Values.tolerations | nindent 6 }}
 {{- end }}
-      serviceAccountName: {{ .Release.Name }}-hook
+      serviceAccountName: {{ include "teleport-kube-agent.fullname" . }}-hook
       restartPolicy: OnFailure
 {{- if .Values.nodeSelector }}
       nodeSelector:
@@ -96,9 +96,9 @@ spec:
             /bin/sh <<'EOF'
               set -eu -o pipefail
               # wait until statefulset is ready
-              kubectl rollout status --watch --timeout=600s statefulset/{{ .Release.Name }}
+              kubectl rollout status --watch --timeout=600s statefulset/{{ include "teleport-kube-agent.fullname" . }}
               # delete deployment
-              kubectl delete deployment/{{ .Release.Name }}
+              kubectl delete deployment/{{ include "teleport-kube-agent.fullname" . }}
             EOF
         {{- if .Values.securityContext }}
         securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
