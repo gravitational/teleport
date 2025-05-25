@@ -3334,22 +3334,24 @@ func TestValidate_WithAllowRequestKubernetesResources(t *testing.T) {
 			wantInvalidRequestKindErr: true,
 		},
 		{
-			desc:                 "allow namespace request when deny is not matched",
+			desc:                 "deny namespace request when deny is not matched",
 			userStaticRoles:      []string{"request-namespace_search-namespace_deny-secret"},
 			expectedRequestRoles: []string{"kube-access-namespace"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace2"},
 			},
+			wantInvalidRequestKindErr: true,
 		},
 		{
-			desc:                 "allow namespace request when deny is not matched with leaf clusters",
+			desc:                 "deny namespace request when deny is not matched with leaf clusters",
 			userStaticRoles:      []string{"request-namespace_search-namespace_deny-secret"},
 			expectedRequestRoles: []string{"kube-access-namespace"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: "leaf-cluster", Name: "kube", SubResourceName: "namespace"},
 				{Kind: types.KindKubeNamespace, ClusterName: "leaf-cluster", Name: "kube", SubResourceName: "namespace2"},
 			},
+			wantInvalidRequestKindErr: true,
 		},
 		{
 			desc:                 "allow a list of different request.kubernetes_resources from same role",
@@ -3369,13 +3371,22 @@ func TestValidate_WithAllowRequestKubernetesResources(t *testing.T) {
 			wantInvalidRequestKindErr: true,
 		},
 		{
-			desc:                 "allow wildcard request when deny is not matched",
+			desc:                 "deny wildcard request when deny is not matched - ns",
 			userStaticRoles:      []string{"request-undefined_search-wildcard_deny-deployment-pod"},
 			expectedRequestRoles: []string{"kube-access-wildcard"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
+			},
+			wantInvalidRequestKindErr: true,
+		},
+		{
+			desc:                 "deny wildcard request when deny is not matched - cluster",
+			userStaticRoles:      []string{"request-undefined_search-wildcard_deny-deployment-pod"},
+			expectedRequestRoles: []string{"kube-access-wildcard"},
+			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
 			},
+			wantInvalidRequestKindErr: true,
 		},
 		{
 			desc:            "deny wildcard request when deny is matched",

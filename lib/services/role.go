@@ -3395,14 +3395,20 @@ type gk struct{ group, kind string }
 
 // noramlize the give kube kind. Maps legacy values to plural+group, trim the kube: prefix.
 // Returns <kind>[.<group>].
-// NOTE: When dealing with the new format, expect the `kube:<kind>.<group>` format
-// as sent by the client (no ns: nor cw:).
 func normalizeKubernetesKind(in string) (out gk) {
 	// Check if we have a legacy kind.
 	out.group = types.KubernetesResourcesV7KindGroups[in]
 	out.kind = types.KubernetesResourcesKindsPlurals[in]
 	if out.kind == "" {
-		out.kind = strings.TrimPrefix(in, types.PrefixKindKube)
+		switch {
+		case strings.HasPrefix(in, types.PrefixKindKubeNamespaced):
+			out.kind = strings.TrimPrefix(in, types.PrefixKindKubeNamespaced)
+		case strings.HasPrefix(in, types.PrefixKindKubeClusterWide):
+			out.kind = strings.TrimPrefix(in, types.PrefixKindKubeClusterWide)
+			// Subset if the two first used in search. Must be last.
+		case strings.HasPrefix(in, types.PrefixKindKube):
+			out.kind = strings.TrimPrefix(in, types.PrefixKindKube)
+		}
 	}
 	if out.group != "" { // If we have a group, we are dealing with legacy value, we have the noramlized version.
 		return out
@@ -3417,31 +3423,57 @@ func normalizeKubernetesKind(in string) (out gk) {
 	return out
 }
 
-func matchRequestKubernetesResources(input gk, reference types.RequestKubernetesResource) bool {
+// matchRequestKubernetesResources checks if the input matches the reference
+// based on the condition type.
+//
+// Similar logic as utils.KubeResourceMatchesRegex(), but with support for wildcard input
+// and without support for verbs/names/namespaces.
+//
+// Examples:
+// Request: *.apps        Deny: deployments.apps -> match.
+// Request: *.apps        Deny: deployments.*    -> match. (*.apps could be deployments.apps which matches deployments.*)
+// Request: *.apps        Deny: *.*	         -> match.
+// Request: deployments.* Deny: deployments.apps -> match.
+// Request: deployments.* Deny: deployments.*    -> match.
+// Request: deployments.* Deny: *.*	         -> match.
+// Request: *.*           Deny: deployments.apps -> match.
+// Request: *.*           Deny: deployments.*    -> match.
+// Request: *.*           Deny: *.*	         -> match.
+func matchRequestKubernetesResources(input gk, reference types.RequestKubernetesResource, cond types.RoleConditionType) bool {
 	// If we have an exact match, we are done.
 	if input.kind == reference.Kind && input.group == reference.APIGroup {
 		return true
 	}
-
-	// If the reference kind is not a wildcard and doesn't match exactly, we reject.
-	if reference.Kind != types.Wildcard && input.kind != reference.Kind {
-		return false
-	}
-
-	// If the reference is a wildcard and the input kube_cluster, we reject.
-	// TODO(@creack): Reconsider this. Keeping existing behavior for now.
+	// If the reference is a wildcard and the input kube_cluster, we don't match allow, but we match deny.
+	// Ref:
+	//  https://github.com/gravitational/teleport/blob/master/rfd/0183-access-request-kube-resource-allow-list.md#as-an-admin-i-want-to-require-users-to-request-for-kubernetes-subresources-instead-of-the-whole-kubernetes-cluster
 	if reference.Kind == types.Wildcard && input.kind == types.KindKubernetesCluster {
+		return cond == types.Deny
+	}
+
+	if cond == types.Allow {
+		// In allow mode, if the reference kind is not a wildcard and doesn't match exactly, we reject.
+		if reference.Kind != types.Wildcard && input.kind != reference.Kind {
+			return false
+		}
+
+		// If the reference api group is a wildcard or is an exact match, we are done.
+		if reference.APIGroup == types.Wildcard || input.group == reference.APIGroup {
+			return true
+		}
+
+		// Otherwise, attempt to match the api group pattern.
+		ok, _ := utils.MatchString(input.group, reference.APIGroup)
+		return ok
+	}
+	// In deny mode, we reject only if both input/ref are not wildcard and are not equal.
+	if reference.Kind != types.Wildcard && input.kind != types.Wildcard && input.kind != reference.Kind {
 		return false
 	}
-
-	// If the reference api group is a wildcard or is an exact match, we are done.
-	if reference.APIGroup == types.Wildcard || input.group == reference.APIGroup {
-		return true
-	}
-
-	// Otherwise, attempt to match the api group pattern.
-	ok, err := utils.MatchString(input.group, reference.APIGroup)
-	return ok && err == nil
+	// If there is no conflict on the kind, check the group. As we support pattern matching, check both sides.
+	ok1, _ := utils.MatchString(input.group, reference.APIGroup)
+	ok2, _ := utils.MatchString(reference.APIGroup, input.group)
+	return ok1 || ok2
 }
 
 // GetAllowedSearchAsRolesForKubeResourceKind returns all of the allowed SearchAsRoles
@@ -3450,7 +3482,7 @@ func (set RoleSet) GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResou
 	// Return no results if encountering any denies since its globally matched.
 	for _, role := range set {
 		for _, kr := range role.GetRequestKubernetesResources(types.Deny) {
-			if matchRequestKubernetesResources(normalizeKubernetesKind(requestedKubeResourceKind), kr) {
+			if matchRequestKubernetesResources(normalizeKubernetesKind(requestedKubeResourceKind), kr, types.Deny) {
 				return nil
 			}
 		}
@@ -3469,7 +3501,7 @@ func WithAllowedKubernetesResourceKindFilter(requestedKubeResourceKind string) S
 			return true
 		}
 		for _, kr := range role.GetRequestKubernetesResources(types.Allow) {
-			if matchRequestKubernetesResources(normalizeKubernetesKind(requestedKubeResourceKind), kr) {
+			if matchRequestKubernetesResources(normalizeKubernetesKind(requestedKubeResourceKind), kr, types.Allow) {
 				return true
 			}
 		}

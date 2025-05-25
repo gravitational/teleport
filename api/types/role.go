@@ -485,9 +485,11 @@ func (r *RoleV6) convertDenyKubernetesResourcesBetweenRoleVersions(resources []K
 		v7resources := slices.Clone(resources)
 		for i, r := range v7resources {
 			if k, ok := KubernetesResourcesKindsPlurals[r.Kind]; ok { // Can be empty if the kind is a wildcard.
+				r.APIGroup = KubernetesResourcesV7KindGroups[r.Kind]
 				r.Kind = k
+			} else {
+				r.APIGroup = Wildcard
 			}
-			r.APIGroup = Wildcard
 			v7resources[i] = r
 		}
 		return v7resources
@@ -517,9 +519,11 @@ func (r *RoleV6) convertAllowKubernetesResourcesBetweenRoleVersions(resources []
 		v7resources := slices.Clone(resources)
 		for i, r := range v7resources {
 			if k, ok := KubernetesResourcesKindsPlurals[r.Kind]; ok { // Can be empty if the kind is a wildcard.
+				r.APIGroup = KubernetesResourcesV7KindGroups[r.Kind]
 				r.Kind = k
+			} else {
+				r.APIGroup = Wildcard
 			}
-			r.APIGroup = Wildcard
 			v7resources[i] = r
 		}
 		return v7resources
@@ -540,13 +544,16 @@ func (r *RoleV6) convertAllowKubernetesResourcesBetweenRoleVersions(resources []
 			v6resources := slices.Clone(resources)
 			for i, r := range v6resources {
 				if k, ok := KubernetesResourcesKindsPlurals[r.Kind]; ok {
+					r.APIGroup = KubernetesResourcesV7KindGroups[r.Kind]
 					r.Kind = k
+				} else {
+					r.APIGroup = Wildcard
 				}
-				r.APIGroup = Wildcard
 				v6resources[i] = r
 			}
 
 			for _, resource := range KubernetesResourcesKinds { // Iterate over the list to have deterministic order.
+				group := KubernetesResourcesV7KindGroups[resource]
 				resource = KubernetesResourcesKindsPlurals[resource]
 				// Ignore Pod resources for older roles because Pods were already supported
 				// so we don't need to keep backwards compatibility for them.
@@ -555,7 +562,7 @@ func (r *RoleV6) convertAllowKubernetesResourcesBetweenRoleVersions(resources []
 				if resource == "pods" || resource == "namespaces" {
 					continue
 				}
-				v6resources = append(v6resources, KubernetesResource{Kind: resource, Name: Wildcard, Namespace: Wildcard, Verbs: []string{Wildcard}, APIGroup: Wildcard})
+				v6resources = append(v6resources, KubernetesResource{Kind: resource, Name: Wildcard, Namespace: Wildcard, Verbs: []string{Wildcard}, APIGroup: group})
 			}
 			return v6resources
 		}
@@ -651,9 +658,11 @@ func (r *RoleV6) convertRequestKubernetesResourcesBetweenRoleVersions(resources 
 		v7resources := slices.Clone(resources)
 		for i, r := range v7resources {
 			if k, ok := KubernetesResourcesKindsPlurals[r.Kind]; ok { // Can be empty if the kind is a wildcard.
+				r.APIGroup = KubernetesResourcesV7KindGroups[r.Kind]
 				r.Kind = k
+			} else {
+				r.APIGroup = Wildcard
 			}
-			r.APIGroup = Wildcard
 			v7resources[i] = r
 		}
 		return v7resources

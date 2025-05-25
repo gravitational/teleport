@@ -1624,10 +1624,11 @@ func (m *requestValidator) push(ctx context.Context, role types.Role) error {
 		}
 	}
 
-	setAllowRequestKubeResourceLookup(allow.KubernetesResources, allow.SearchAsRoles, m.kubernetesResource.allow)
+	// NOTE: Not using allow.KubernetesResources as we need to map older roles to new values.
+	setAllowRequestKubeResourceLookup(role.GetRequestKubernetesResources(types.Allow), allow.SearchAsRoles, m.kubernetesResource.allow)
 
-	if len(deny.KubernetesResources) > 0 {
-		m.kubernetesResource.deny = append(m.kubernetesResource.deny, deny.KubernetesResources...)
+	if deniedKubeResources := role.GetRequestKubernetesResources(types.Deny); len(deniedKubeResources) > 0 {
+		m.kubernetesResource.deny = append(m.kubernetesResource.deny, deniedKubeResources...)
 	}
 
 	m.roles.denyRequest, err = appendRoleMatchers(m.roles.denyRequest, deny.Roles, deny.ClaimsToRoles, m.userState.GetTraits())
@@ -1717,15 +1718,15 @@ func (m *requestValidator) setRolesForResourceRequest(ctx context.Context, req t
 
 // requestResourcesToStrings formats the resource list as <kind>.<apiGroup>.
 // Removes wildcards if any.
-func requestResourcesToStrings(resources []types.RequestKubernetesResource) []string {
+func requestResourcesToStrings(resources, denied []types.RequestKubernetesResource) []string {
 	strs := make([]string, 0, len(resources))
 	for _, resource := range resources {
-		if resource.Kind == types.Wildcard {
-			continue
-		}
 		str := resource.Kind
 		if resource.APIGroup != "" {
 			str += "." + resource.APIGroup
+		}
+		if resource.Kind == types.Wildcard && len(denied) > 0 {
+			str += "(- " + strings.Join(requestResourcesToStrings(denied, nil), ", ") + ")"
 		}
 		strs = append(strs, str)
 	}
@@ -1742,7 +1743,9 @@ func (m *requestValidator) pruneRequestedRolesNotMatchingKubernetesResourceKinds
 	// Filter for the kube_cluster and its subresource kinds.
 	requestedKubeKinds := map[gk]struct{}{}
 	for _, resourceID := range requestedResourceIDs {
-		if resourceID.Kind == types.KindKubernetesCluster || slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) || strings.HasPrefix(resourceID.Kind, types.PrefixKindKube) {
+		if resourceID.Kind == types.KindKubernetesCluster {
+			requestedKubeKinds[gk{kind: types.KindKubernetesCluster}] = struct{}{}
+		} else if slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) || strings.HasPrefix(resourceID.Kind, types.PrefixKindKube) {
 			requestedKubeKinds[normalizeKubernetesKind(resourceID.Kind)] = struct{}{}
 		}
 	}
@@ -1766,9 +1769,27 @@ func (m *requestValidator) pruneRequestedRolesNotMatchingKubernetesResourceKinds
 		if len(allowedKinds) == 0 {
 			allowedKinds = append(allowedKinds,
 				types.RequestKubernetesResource{Kind: types.Wildcard, APIGroup: types.Wildcard},
-				types.RequestKubernetesResource{Kind: types.KindKubernetesCluster},
 			)
+			// If there is nothing in deny, also include kube_cluster.
+			if len(deniedKinds) == 0 {
+				allowedKinds = append(allowedKinds,
+					types.RequestKubernetesResource{Kind: types.KindKubernetesCluster},
+				)
+			}
 		}
+
+		allowedKinds = slices.DeleteFunc(allowedKinds, func(in types.RequestKubernetesResource) bool {
+			for _, elem := range deniedKinds {
+				if matchRequestKubernetesResources(gk{group: in.APIGroup, kind: in.Kind}, elem, types.Allow) {
+					return true
+				}
+			}
+			return false
+		})
+
+		// TODO(@creack): Consider removing this. We shouldn't disclose to the user what they could request when getting an access denied error.
+		//                Keeping existing behavior for now.
+		mappedRequestedRolesToAllowedKinds[requestedRoleName] = requestResourcesToStrings(allowedKinds, deniedKinds)
 
 		// If we have any requested kinds that is either not allowed or that is denied, reject the role.
 		// TODO(@creack): Reconsider this, we may want to allow some kinds and deny others.
@@ -1776,22 +1797,26 @@ func (m *requestValidator) pruneRequestedRolesNotMatchingKubernetesResourceKinds
 		filteredAllowedKinds := make([]types.RequestKubernetesResource, 0, len(requestedKubeKinds))
 		for requestedKubeKind := range requestedKubeKinds {
 			for _, k := range allowedKinds {
-				if matchRequestKubernetesResources(requestedKubeKind, k) {
+				if matchRequestKubernetesResources(requestedKubeKind, k, types.Allow) {
 					filteredAllowedKinds = append(filteredAllowedKinds, types.RequestKubernetesResource{Kind: requestedKubeKind.kind, APIGroup: requestedKubeKind.group})
 					break
 				}
 			}
 		}
-		// TODO(@creack): Add a 'mappedRequestedRolesToDeniedKinds' map for better errors.
-		mappedRequestedRolesToAllowedKinds[requestedRoleName] = requestResourcesToStrings(filteredAllowedKinds)
 		if len(filteredAllowedKinds) != len(requestedKubeKinds) {
 			// If we don't have as many allowed kinds as request, we reject the role.
 			continue
 		}
 
+		// If there is something to deny, make sure we reject 'namespace' and 'kube_cluster', as it would grant access to everything.
 		for requestedKubeKind := range requestedKubeKinds {
 			for _, k := range deniedKinds {
-				if matchRequestKubernetesResources(requestedKubeKind, k) {
+				if requestedKubeKind.kind == types.KindKubernetesCluster || requestedKubeKind.kind == "namespaces" {
+					// We have a deny entry and the request is for a kube_cluster or namespaces, reject.
+					return nil, mappedRequestedRolesToAllowedKinds
+				}
+
+				if matchRequestKubernetesResources(requestedKubeKind, k, types.Deny) {
 					// If we have any requested kinds that is denied, reject all roles.
 					return nil, mappedRequestedRolesToAllowedKinds
 				}
