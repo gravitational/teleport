@@ -19,14 +19,18 @@
 package proxy
 
 import (
+	"embed"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/gravitational/teleport/api/types"
@@ -73,6 +77,35 @@ func TestParseResourcePath(t *testing.T) {
 			require.Empty(t, diff, "parsing path %q", tt.path)
 		})
 	}
+}
+
+//go:embed testing/kube_server/data
+var apiData embed.FS
+var apiDataRe = regexp.MustCompile(`^api(_?[^_]*)_v1\.json$`)
+
+func getRBACSupportedTypes(t *testing.T) rbacSupportedResources {
+	rbacSupportedTypes := rbacSupportedResources{}
+
+	entries, err := apiData.ReadDir("testing/kube_server/data")
+	require.NoError(t, err)
+	for _, elem := range entries {
+		matches := apiDataRe.FindStringSubmatch(elem.Name())
+		if matches == nil {
+			continue
+		}
+		buf, err := apiData.ReadFile("testing/kube_server/data/" + elem.Name())
+		require.NoError(t, err)
+
+		var resourceList metav1.APIResourceList
+		require.NoError(t, json.Unmarshal(buf, &resourceList))
+		gv, _ := schema.ParseGroupVersion(resourceList.GroupVersion)
+		for _, elem := range resourceList.APIResources {
+			elem.Group = gv.Group
+			elem.Version = gv.Version
+			rbacSupportedTypes[allowedResourcesKey{apiGroup: elem.Group, resourceKind: elem.Name}] = elem
+		}
+	}
+	return rbacSupportedTypes
 }
 
 func Test_getResourceFromRequest(t *testing.T) {
@@ -218,6 +251,7 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/apis/networking.k8s.io/v1/ingresses/foo", want: &types.KubernetesResource{Kind: "ingresses", Name: "foo", Verbs: []string{"get"}, APIGroup: "networking.k8s.io"}},
 	}
 
+	rbacSupportedTypes := getRBACSupportedTypes(t)
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
 			verb := http.MethodGet
@@ -226,7 +260,7 @@ func Test_getResourceFromRequest(t *testing.T) {
 			}
 			got, err := getResourceFromRequest(&http.Request{Method: verb, URL: &url.URL{Path: tt.path}, Body: tt.body}, &kubeDetails{
 				kubeCodecs:         &globalKubeCodecs,
-				rbacSupportedTypes: defaultRBACResources,
+				rbacSupportedTypes: rbacSupportedTypes,
 				gvkSupportedResources: map[gvkSupportedResourcesKey]*schema.GroupVersionKind{
 					{
 						apiGroup: "",
