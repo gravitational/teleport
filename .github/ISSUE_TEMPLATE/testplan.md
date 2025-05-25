@@ -387,20 +387,80 @@ and cluster v1.30 (does support it by default) and to access them both through k
       * [ ] Restart the agent after token TTL expires to see if it reuses the same identity.
     * [ ] Force cluster CA rotation
 
-### Kubernetes Pod RBAC
+### Kubernetes RBAC
 
-* [ ] Verify the following scenarios for `kubernetes_resources`:
+* [ ] Verify role v7 with multiple resources. Examples are given for `pod`, but should be tested with various ones like `deployment` and `clusterrole`:
+  * [ ] Verify the following scenarios for `kubernetes_resources`:
     * [ ] `{"kind":"pod","name":"*","namespace":"*"}` - must allow access to every pod.
     * [ ] `{"kind":"pod","name":"<somename>","namespace":"*"}` - must allow access to pod `<somename>` in every namespace.
     * [ ] `{"kind":"pod","name":"*","namespace":"<somenamespace>"}` - must allow access to any pod in `<somenamespace>` namespace.
-    * [ ] Verify support for  `*` wildcards - `<some-name>-*` and regex for `name` and `namespace` fields.
-    * [ ] Verify support for delete pods collection - must use `go-client`.
-* [ ] Verify scenarios with multiple roles defining `kubernetes_resources`:
+    * [ ] Verify support for `*` wildcards - `<some-name>-*` and regex for `name` and `namespace` fields.
+    * [ ] Verify support for delete pods collection (`kubectl delete --raw=/api/v1/namespaces/<namespace name>/pods`).
+  * [ ] Verify scenarios with multiple roles defining `kubernetes_resources`:
     * [ ] Validate that the returned list of pods is the union of every role.
     * [ ] Validate that access to other pods is denied by RBAC.
     * [ ] Validate that the Kubernetes Groups/Users are correctly selected depending on the role that applies to the pod.
-        * [ ] Test with a `kubernetes_groups` that denies exec into a pod
-* [ ] Verify the following scenarios for Resource Access Requests to Pods:
+      * [ ] Test with a `kubernetes_groups` that denies exec into a pod
+  * [ ] Verify kind wildcard `{"kind":"*","name":"*","namespace":"foo","verbs":["*]}`:
+    * [ ] Verify access to namespaced resources like `pods`, `services`, `deployments` in the `foo` namespace.
+    * [ ] Verify access to CRDs.
+    * [ ] Verify access to global resources like `clusterroles`, `persistentvolumes`, `nodes`, etc including cluster-wide CRDs.
+  * [ ] Verify special `namespace` kind `{"kind":"namespace","name":"foo","verbs":["*]}` (different behavior than rolev8)
+    * [ ] Verify access to namespaced resources like `pods`, `services`, `deployments` in the `foo` namespace.
+    * [ ] Verify access to namespaced CRD.
+    * [ ] Verify access denied to global resources like `clusterroles`, `persistentvolumes`, `nodes`, etc.
+* [ ] Upgrade role v7 to v8:
+  * [ ] Attempt to upgrade without looking at the docs, the errors should be descriptive enough (using the CLI and using the Web editor).
+  * [ ] Attempt to use a rolev7 value in kind with wildcard or matching api group (i.e. pod/"", deployments/apps, jobs/*).
+* [ ] Verify role v8
+  * [ ] Namespaced CRD
+    * [ ] Create a namespaced CRD on your cluster, restart kuberbetes_service
+    * [ ] Verify you don't have access to the CRD
+    * [ ] Grant access to it with `{"kind":"plural crd name","api_group":"crd api group","namespace":"foo",...}`
+    * [ ] Verify you have access to it
+  * [ ] Cluster-wide CRD
+    * [ ] Create a cluster-wide CRD on your cluster, restart kubernetes_service
+    * [ ] Verify you don't have access to the CRD
+    * [ ] Grant access to it with `{"kind":"plural crd name","api_group":"crd api group","namespace":"",...}`
+    * [ ] Verify you have access to it
+  * [ ] Verify namespace kind
+    * [ ] Grant access to a namespace with `{"kind":"namespaces","namespace":"foo",...}`
+    * [ ] Verify you can access the namespace itself
+    * [ ] Verify you don't have access to any resource within the namespace nor cluster-wide resources
+  * [ ] Verify kind wildcard - global
+    * [ ] Grant a wildcard kind access with wildcard ns `{"kind":"*","name":"*","namespace":"*","api_group":"*","verbs":["*"]}`
+    * [ ] Verify access to namespaced resources, including namespaced CRD
+    * [ ] Verify access to cluster-wide resources, including cluster-wide CRD
+  * [ ] Verify kind wildcard - cluster-wide
+    * [ ] Grant a wildcard kind acess without namespace `{"kind":"*","name":"*","namespace":"","api_group":"*","verbs":["*"]}`
+    * [ ] Verify access to cluster-wide resources, including cluster-wide CRDs
+    * [ ] Verify access denied to namespaced resources, including namespaced CRDs
+  * [ ] Verify deny access to CRDs
+    * [ ] Grant full access to everything in the allow section: `{"kind":"*","name":"*","namespace":"*","api_group":"*","verbs":["*"]}`
+    * [ ] Add a deny rule to a specific namespaced CRD `{"kind":"<crd plural name>","name":"*","namespace":"*","api_group":"<crd group>","verbs":["*"]}`
+    * [ ] Verify access denied
+    * [ ] Add a deny rule to a specific cluster-wide CRD `{"kind":"<crd plural name>","name":"*","namespace":"","api_group":"<crd group>","verbs":["*"]}`
+    * [ ] Verify access denied
+* [ ] Verify support for Teleport v17
+  * [ ] Start a v17 kubernetes_service (easiest done via the helm chart)
+  * [ ] Verify happy path
+    * [ ] Create a role v8 with rbac entries that existed in v7 (pods, deployments, clusterroles) ex: `{"kind":"pods","name":"*","namespace":"*","verbs":["*"]}`.
+    * [ ] Verify access to pods on the v17 cluster
+    * [ ] Verify access denied to other namespaced and cluster-wide resources
+  * [ ] Verify incomptible role, crd
+    * [ ] Create a role v8 with access to pods and a crd.
+    * [ ] Verify access denied to pods and any other resources
+  * [ ] Verify incompatible role, namespace
+    * [ ] Create a role v8 with access to a namespace `{"kind":"namespaces","name":"foo","verbs":["*"]}`
+    * [ ] Verify access denied to the namespace and any other resources
+  * [ ] Verify incompatible role, wildcard kind - namespaced
+    * [ ] Create a role v8 with a namespaced wildcard kind `{"kind":"*","api_group":"*","name":"*","namespace":"*","verbs":["*"]}`
+    * [ ] Verify access denied to any resource
+  * [ ] Verify incompatible role, wildcard kind - cluster-wide
+    * [ ] Create a role v8 with a cluster-wide wildcard kind `{"kind":"*","api_group":"*","name":"*","namespace":"","verbs":["*"]}`
+    * [ ] Verify access denied to any resource
+* [ ] Verify Access Request
+  * [ ] Verify the following scenarios for Resource Access Requests to Pods:
     * [ ] Create a valid resource access request and validate if access to other pods is denied.
     * [ ] Validate if creating a resource access request with Kubernetes resources denied by `search_as_roles` is not allowed.
 
@@ -518,7 +578,7 @@ on the remote host. Note that the `--callback` URL must be able to resolve to th
 
 ### SAML SSO login with different binding methods
 
-- [ ] `http-redirect`. Verify SAML authentication request is sent in a URL. 
+- [ ] `http-redirect`. Verify SAML authentication request is sent in a URL.
   - [ ] Verify this is the default SAML request method.
   - [ ] Verify this is applied with `preferred_request_binding: http-redirect` value in the SAML connector spec.
   - [ ] Web UI SSO.
@@ -1771,7 +1831,7 @@ Verify SAML IdP service provider resource management.
   - [ ] Check SP initiated login with http-redirect binding request.
   - [ ] Check SP initiated login with http-post binding request.
 - [ ] Verify that role version v7 and below enforces `role.options.idp.saml.enabled: true/false` and session MFA.
-- [ ] Verify that role version v8 and above enforces `app_labels` matchers, `saml_idp_service_provider` verbs, device trust and session MFA. 
+- [ ] Verify that role version v8 and above enforces `app_labels` matchers, `saml_idp_service_provider` verbs, device trust and session MFA.
 
 ### SAML service provider catalog
 - [ ] GCP Workforce Identity Federation
