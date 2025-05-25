@@ -1450,12 +1450,11 @@ var KubernetesResourcesV7KindGroups = map[string]string{
 // to their kubernetes name.
 // Used to upgrade roles <=v7 as well as to support existing access request
 // format.
-// TODO(@creack): Remove this, find a better way to handle the mapping.
+// NOTE: Namespace having a different behavior between versions, it is omitted from this map.
 var KubernetesResourcesKindsPlurals = map[string]string{
 	KindKubePod:                       "pods",
 	KindKubeSecret:                    "secrets",
 	KindKubeConfigmap:                 "configmaps",
-	KindKubeNamespace:                 "namespaces",
 	KindKubeService:                   "services",
 	KindKubeServiceAccount:            "serviceaccounts",
 	KindKubeNode:                      "nodes",
@@ -1519,10 +1518,10 @@ var KubernetesVerbs = []string{
 	KubeVerbPortForward,
 }
 
-// KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
+// V7KubernetesClusterWideResourceKinds is the list of rolev7 supported Kubernetes cluster resource kinds
 // that are not namespaced.
-// TODO(@creack): Remove in favor of proper lookup.
-var KubernetesClusterWideResourceKinds = []string{
+// Needed to maintain backward compatibility.
+var V7KubernetesClusterWideResourceKinds = []string{
 	KindKubeNamespace,
 	KindKubeNode,
 	KindKubePersistentVolume,
@@ -1536,8 +1535,6 @@ type groupKind = struct{ apiGroup, kind string }
 // KubernetesNamespacedResourceKinds is the list of known Kubernetes resource kinds
 // that are namespaced.
 // Generated from `kubectl api-resources --namespaced=true -o name --sort-by=name` (kind k8s v1.32.2).
-// (added .core to core resources.)
-// The format is "<plural>.<apigroup>".
 //
 // Only used in role >=v8 to attempt to validate the api_group field.
 // If we have a match, we know we need a namespaced value, if we don't

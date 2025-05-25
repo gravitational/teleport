@@ -21,35 +21,37 @@ package kubeserver
 import (
 	"net/http"
 	"sort"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	authv1 "k8s.io/api/rbac/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
 )
 
-var clusterRoleList = authv1.ClusterRoleList{
+var namespaceList = corev1.NamespaceList{
 	TypeMeta: metav1.TypeMeta{
-		Kind:       "ClusterRoleList",
-		APIVersion: "rbac.authorization.k8s.io/v1",
+		Kind:       "NamespaceList",
+		APIVersion: "v1",
 	},
 	ListMeta: metav1.ListMeta{
 		ResourceVersion: "1231415",
 	},
-	Items: []authv1.ClusterRole{
-		newClusterRole("cr-nginx-1"),
-		newClusterRole("cr-nginx-2"),
-		newClusterRole("cr-test"),
+	Items: []corev1.Namespace{
+		newNamespace("default"),
+		newNamespace("test"),
+		newNamespace("dev"),
+		newNamespace("prod"),
 	},
 }
 
-func newClusterRole(name string) authv1.ClusterRole {
-	return authv1.ClusterRole{
+func newNamespace(name string) corev1.Namespace {
+	return corev1.Namespace{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "ClusterRole",
-			APIVersion: "rbac.authorization.k8s.io/v1",
+			Kind:       "Namespace",
+			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -57,25 +59,28 @@ func newClusterRole(name string) authv1.ClusterRole {
 	}
 }
 
-func (s *KubeMockServer) listClusterRoles(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
-	return &clusterRoleList, nil
+func (s *KubeMockServer) listNamespaces(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
+	list := namespaceList.DeepCopy()
+	return list, nil
 }
 
-func (s *KubeMockServer) getClusterRole(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
+func (s *KubeMockServer) getNamespace(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	name := p.ByName("name")
-	filter := func(role authv1.ClusterRole) bool {
+	filter := func(role corev1.Namespace) bool {
 		return role.Name == name
 	}
-	for _, role := range clusterRoleList.Items {
+	for _, role := range namespaceList.Items {
 		if filter(role) {
 			return role, nil
 		}
 	}
-	return nil, trace.NotFound("cluster role %q not found", name)
+	return nil, trace.NotFound("namespace %q not found", name)
 }
 
-func (s *KubeMockServer) deleteClusterRole(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
-	name := p.ByName("name")
+func (s *KubeMockServer) deleteNamespace(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
+	tmp := strings.Split(req.URL.Path, "/")
+	name := tmp[len(tmp)-1]
+
 	deleteOpts, err := parseDeleteCollectionBody(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -84,24 +89,24 @@ func (s *KubeMockServer) deleteClusterRole(w http.ResponseWriter, req *http.Requ
 	if deleteOpts.Preconditions != nil && deleteOpts.Preconditions.UID != nil {
 		reqID = string(*deleteOpts.Preconditions.UID)
 	}
-	filter := func(role authv1.ClusterRole) bool {
+	filter := func(role corev1.Namespace) bool {
 		return role.Name == name
 	}
-	for _, role := range clusterRoleList.Items {
+	for _, role := range namespaceList.Items {
 		if filter(role) {
 			s.mu.Lock()
-			key := deletedResource{reqID, types.KindKubeClusterRole}
+			key := deletedResource{reqID, types.KindKubeNamespace}
 			s.deletedResources[key] = append(s.deletedResources[key], name)
 			s.mu.Unlock()
 			return role, nil
 		}
 	}
-	return nil, trace.NotFound("cluster %q not found", name)
+	return nil, trace.NotFound("namespace %q not found", name)
 }
 
-func (s *KubeMockServer) DeletedClusterRoles(reqID string) []string {
+func (s *KubeMockServer) Deletednamespaces(reqID string) []string {
 	s.mu.Lock()
-	key := deletedResource{reqID, types.KindKubeClusterRole}
+	key := deletedResource{reqID, types.KindKubeNamespace}
 	deleted := make([]string, len(s.deletedResources[key]))
 	copy(deleted, s.deletedResources[key])
 	s.mu.Unlock()

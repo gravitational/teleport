@@ -233,7 +233,15 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 			resources: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
 					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Namespace: "",
 					Name:      types.Wildcard,
 					Verbs:     []string{types.Wildcard},
 				},
@@ -472,16 +480,18 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 		{
 			name: "list clusterrole with resource",
 			input: types.KubernetesResource{
-				Kind:  "clusterroles",
-				Name:  "clusterrole",
-				Verbs: []string{types.KubeVerbGet},
+				Kind:     "clusterroles",
+				APIGroup: "rbac.authorization.k8s.io",
+				Name:     "clusterrole",
+				Verbs:    []string{types.KubeVerbGet},
 			},
 			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
-					Kind:  "clusterroles",
-					Name:  "clusterrole",
-					Verbs: []string{types.Wildcard},
+					Kind:     "clusterroles",
+					APIGroup: "rbac.authorization.k8s.io",
+					Name:     "clusterrole",
+					Verbs:    []string{types.Wildcard},
 				},
 			},
 			assert:  require.NoError,
@@ -491,16 +501,18 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 		{
 			name: "list clusterrole with wildcard",
 			input: types.KubernetesResource{
-				Kind:  "clusterroles",
-				Name:  "clusterrole",
-				Verbs: []string{types.KubeVerbGet},
+				Kind:     "clusterroles",
+				APIGroup: "rbac.authorization.k8s.io",
+				Name:     "clusterrole",
+				Verbs:    []string{types.KubeVerbGet},
 			},
 			isClusterWide: true,
 			resources: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
 					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
+					Namespace: "",
 					Verbs:     []string{types.Wildcard},
 				},
 			},
@@ -571,7 +583,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 		},
 
 		{
-			name: "namespace granting read access to pod",
+			name: "jailed namespace granting read access to pod",
 			input: types.KubernetesResource{
 				Kind:      "pods",
 				Namespace: "default",
@@ -584,13 +596,20 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 					Name:  "default",
 					Verbs: []string{types.KubeVerbGet},
 				},
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "default",
+					APIGroup:  types.Wildcard,
+					Verbs:     []string{types.KubeVerbGet},
+				},
 			},
 			assert:  require.NoError,
 			action:  types.Allow,
 			matches: true,
 		},
 		{
-			name: "namespace denying update access to pod",
+			name: "jailed namespace denying update access to pod",
 			input: types.KubernetesResource{
 				Kind:      "pods",
 				Namespace: "default",
@@ -603,13 +622,20 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 					Name:  "default",
 					Verbs: []string{types.KubeVerbGet},
 				},
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "default",
+					APIGroup:  types.Wildcard,
+					Verbs:     []string{types.KubeVerbGet},
+				},
 			},
 			assert:  require.NoError,
 			action:  types.Allow,
 			matches: false,
 		},
 		{
-			name: "namespace granting read access to custom resource",
+			name: "jailed namespace granting read access to custom resource",
 			input: types.KubernetesResource{
 				Kind:      "mycustomresources",
 				Namespace: "default",
@@ -619,10 +645,16 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 			},
 			resources: []types.KubernetesResource{
 				{
-					Kind:     "namespaces",
-					Name:     "default",
-					Verbs:    []string{types.KubeVerbGet},
-					APIGroup: "*",
+					Kind:  "namespaces",
+					Name:  "default",
+					Verbs: []string{types.KubeVerbGet},
+				},
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "default",
+					APIGroup:  types.Wildcard,
+					Verbs:     []string{types.KubeVerbGet},
 				},
 			},
 			assert:  require.NoError,
@@ -640,10 +672,9 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 			},
 			resources: []types.KubernetesResource{
 				{
-					Kind:     "namespaces",
-					Name:     "default",
-					Verbs:    []string{types.KubeVerbGet},
-					APIGroup: "*",
+					Kind:  "namespaces",
+					Name:  "default",
+					Verbs: []string{types.KubeVerbGet},
 				},
 			},
 			assert:  require.NoError,
@@ -665,13 +696,11 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 					Namespace: "default",
 					Name:      "name",
 					Verbs:     []string{types.KubeVerbGet},
-					APIGroup:  "*",
 				},
 				{
-					Kind:     "namespaces",
-					Name:     "diffnamespace",
-					Verbs:    []string{types.KubeVerbGet},
-					APIGroup: "*",
+					Kind:  "namespaces",
+					Name:  "diffnamespace",
+					Verbs: []string{types.KubeVerbGet},
 				},
 			},
 			assert:  require.NoError,
@@ -699,7 +728,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 			matches: true,
 		},
 		{
-			name: "global custom resource with namespaced wildcard",
+			name: "global custom resource with jailed namespaced wildcard",
 			input: types.KubernetesResource{
 				Kind:     "mycustomresources",
 				Name:     "name",
@@ -708,10 +737,16 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 			},
 			resources: []types.KubernetesResource{
 				{
-					Kind:     "namespaces",
-					Name:     "*",
-					Verbs:    []string{types.KubeVerbGet},
-					APIGroup: "*",
+					Kind:  "namespaces",
+					Name:  types.Wildcard,
+					Verbs: []string{types.KubeVerbGet},
+				},
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "default",
+					APIGroup:  types.Wildcard,
+					Verbs:     []string{types.KubeVerbGet},
 				},
 			},
 			assert:  require.NoError,
@@ -1269,7 +1304,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 		},
 
 		{
-			name: "namespace granting read access to pod",
+			name: "jailed namespace granting read access to pod",
 			input: types.KubernetesResource{
 				Kind:      "pods",
 				Namespace: "default",
@@ -1281,31 +1316,20 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 					Name:  "default",
 					Verbs: []string{types.KubeVerbGet},
 				},
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "default",
+					APIGroup:  types.Wildcard,
+					Verbs:     []string{types.KubeVerbGet},
+				},
 			},
 			assert:  require.NoError,
 			matches: true,
 			action:  types.Allow,
 		},
 		{
-			name: "namespace denying update access to pod",
-			input: types.KubernetesResource{
-				Kind:      "pods",
-				Namespace: "default",
-				Verbs:     []string{types.KubeVerbList},
-			},
-			resources: []types.KubernetesResource{
-				{
-					Kind:  "namespaces",
-					Name:  "default",
-					Verbs: []string{types.KubeVerbList},
-				},
-			},
-			assert:  require.NoError,
-			matches: false,
-			action:  types.Deny,
-		},
-		{
-			name: "namespace denying list access to pod with different namespace",
+			name: "jailed namespace denying list access to pod with different namespace",
 			input: types.KubernetesResource{
 				Kind:      "pods",
 				Namespace: "default2",
@@ -1313,9 +1337,16 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 			},
 			resources: []types.KubernetesResource{
 				{
-					Kind:  "namespaces",
+					Kind:  "names",
 					Name:  "default",
 					Verbs: []string{types.KubeVerbList},
+				},
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "default",
+					APIGroup:  types.Wildcard,
+					Verbs:     []string{types.KubeVerbList},
 				},
 			},
 			assert:  require.NoError,
@@ -1323,7 +1354,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 			action:  types.Deny,
 		},
 		{
-			name: "namespace denying list access to pod in all namespaces doesnt match deny",
+			name: "jailed namespace denying list access to pod in all namespaces doesnt match deny",
 			input: types.KubernetesResource{
 				Kind:      "pods",
 				Namespace: "",
@@ -1335,13 +1366,20 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 					Name:  "default",
 					Verbs: []string{types.KubeVerbList},
 				},
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "default",
+					APIGroup:  types.Wildcard,
+					Verbs:     []string{types.KubeVerbList},
+				},
 			},
 			assert:  require.NoError,
 			matches: false,
 			action:  types.Deny,
 		},
 		{
-			name: "namespace denying update access to pod in all namespaces matches allow",
+			name: "jailed namespace denying update access to pod in all namespaces matches allow",
 			input: types.KubernetesResource{
 				Kind:      "pods",
 				Namespace: "",
@@ -1352,29 +1390,18 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 					Kind:  "namespaces",
 					Name:  "default",
 					Verbs: []string{types.KubeVerbList},
+				},
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "default",
+					APIGroup:  types.Wildcard,
+					Verbs:     []string{types.KubeVerbList},
 				},
 			},
 			assert:  require.NoError,
 			matches: true,
 			action:  types.Allow,
-		},
-		{
-			name: "namespace denying update access to pod deny matches all namespaces",
-			input: types.KubernetesResource{
-				Kind:      "pods",
-				Namespace: "",
-				Verbs:     []string{types.KubeVerbList},
-			},
-			resources: []types.KubernetesResource{
-				{
-					Kind:  "namespaces",
-					Name:  types.Wildcard,
-					Verbs: []string{types.KubeVerbList},
-				},
-			},
-			assert:  require.NoError,
-			matches: true,
-			action:  types.Deny,
 		},
 	}
 	for _, tt := range tests {

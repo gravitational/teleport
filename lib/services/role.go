@@ -151,7 +151,14 @@ func NewImplicitRole() types.Role {
 //
 // Used in tests only.
 func RoleForUser(u types.User) types.Role {
-	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV6{
+	return RoleWithVersionForUser(u, types.DefaultRoleVersion)
+}
+
+// RoleWithVersionForUser creates an admin role for a services.User.
+//
+// Used in tests only.
+func RoleWithVersionForUser(u types.User, v string) types.Role {
+	role, _ := types.NewRoleWithVersion(RoleNameForUser(u.GetName()), v, types.RoleSpecV6{
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
 			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),

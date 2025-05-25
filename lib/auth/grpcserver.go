@@ -2200,11 +2200,12 @@ type allowedResourcesKey struct {
 // TODO(@creack): Delete in v19.0.0.
 // Only used in the maybeDowngradeRoleVersionToV7 function above.
 // Must be synced with the defaultRBACResources map in lib/kube/proxy/url.go.
+// NOTE: 'namespaces' is not included as the v8 behavior is different from v7.
+// A 'namespaces' resource in v8 would result in wildcard deny in older versions.
 var defaultRBACResources = map[allowedResourcesKey]string{
 	{apiGroup: "", resourceKind: "pods"}:                                          types.KindKubePod,
 	{apiGroup: "", resourceKind: "secrets"}:                                       types.KindKubeSecret,
 	{apiGroup: "", resourceKind: "configmaps"}:                                    types.KindKubeConfigmap,
-	{apiGroup: "", resourceKind: "namespaces"}:                                    types.KindKubeNamespace,
 	{apiGroup: "", resourceKind: "services"}:                                      types.KindKubeService,
 	{apiGroup: "", resourceKind: "endpoints"}:                                     types.KindKubeService,
 	{apiGroup: "", resourceKind: "serviceaccounts"}:                               types.KindKubeServiceAccount,
