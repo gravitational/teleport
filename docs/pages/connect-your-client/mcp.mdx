@@ -3,8 +3,8 @@ title: Using Model Context Protocol (MCP)
 description: How to configure MCP clients to use Teleport MCP servers.
 ---
 
-Introduced in late 2024 by Anthropic, [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction)
-is a widely adopted, open-source standard that enables language models to
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction)
+is an open-source standard that enables large language models (LLMs) to
 seamlessly interact with external tools and data, enhancing their contextual
 capabilities. This guide will show you how to use the Teleport Model Context
 Protocols (MCP) servers.
@@ -57,7 +57,7 @@ you to pick the database user and name the MCP connections will use. In
 addition, you can also filter which database will be available as an MCP
 resource, either using `--query` or `--labels` flags.
 
-As for the current version, **you can only specify a single value for
+Currently, **you can only specify a single value for
 `--db-user` and `--db-name`**. All selected databases must have a database and
 a database user. Otherwise, the queries will fail. 
 
@@ -104,7 +104,7 @@ And update the contents with the Teleport MCP server configuration.
 ```json
 {
   "mcpServers": {
-    "teleport-detabases": {
+    "teleport-databases": {
       "command": "tsh",
       "args": [
         "mcp",
