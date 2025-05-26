@@ -35,7 +35,6 @@ import (
 
 type clientProvider struct {
 	AuthClient windows.AuthInterface
-	DataDir    string
 
 	kinitCommandGenerator kinit.CommandGenerator
 }
@@ -46,14 +45,13 @@ type ClientProvider interface {
 	GetKerberosClient(ctx context.Context, ad types.AD, username string) (*client.Client, error)
 }
 
-func NewClientProvider(authClient windows.AuthInterface, dataDir string) ClientProvider {
-	return newClientProvider(authClient, dataDir)
+func NewClientProvider(authClient windows.AuthInterface) ClientProvider {
+	return newClientProvider(authClient)
 }
 
-func newClientProvider(authClient windows.AuthInterface, dataDir string) *clientProvider {
+func newClientProvider(authClient windows.AuthInterface) *clientProvider {
 	return &clientProvider{
 		AuthClient: authClient,
-		DataDir:    dataDir,
 	}
 }
 
@@ -69,7 +67,7 @@ func (c *clientProvider) GetKerberosClient(ctx context.Context, ad types.AD, use
 		}
 		return kt, nil
 	case ad.KDCHostName != "" && ad.LDAPCert != "":
-		kt, err := c.kinitClient(ctx, ad, username, c.AuthClient, c.DataDir)
+		kt, err := c.kinitClient(ctx, ad, username, c.AuthClient)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -108,7 +106,7 @@ func (c *clientProvider) keytabClient(ad types.AD, username string) (*client.Cli
 }
 
 // kinitClient returns a kerberos client using a kinit ccache
-func (c *clientProvider) kinitClient(ctx context.Context, ad types.AD, username string, auth windows.AuthInterface, dataDir string) (*client.Client, error) {
+func (c *clientProvider) kinitClient(ctx context.Context, ad types.AD, username string, auth windows.AuthInterface) (*client.Client, error) {
 	ldapPem, _ := pem.Decode([]byte(ad.LDAPCert))
 
 	if ldapPem == nil {
@@ -137,7 +135,6 @@ func (c *clientProvider) kinitClient(ctx context.Context, ad types.AD, username 
 			Realm:       realmName,
 			KDCHost:     ad.KDCHostName,
 			AdminServer: ad.Domain,
-			DataDir:     dataDir,
 			LDAPCA:      cert,
 			LDAPCAPEM:   ad.LDAPCert,
 			Command:     c.kinitCommandGenerator,
