@@ -431,7 +431,8 @@ type Server struct {
 	dynamicKubeFetchers   map[string][]common.Fetcher
 	muDynamicKubeFetchers sync.RWMutex
 
-	dynamicDiscoveryConfig map[string]*discoveryconfig.DiscoveryConfig
+	dynamicDiscoveryConfig   map[string]*discoveryconfig.DiscoveryConfig
+	dynamicDiscoveryConfigMu sync.RWMutex
 
 	tagSyncStatus         *tagSyncStatus
 	awsEC2ResourcesStatus awsResourcesStatus
@@ -1655,19 +1656,24 @@ func (s *Server) startDynamicWatcherUpdater() {
 					name := dc.GetName()
 					// If the DiscoveryConfig was never part part of this discovery service because the
 					// discovery group never matched, then it must be ignored.
+					s.dynamicDiscoveryConfigMu.RLock()
 					if _, ok := s.dynamicDiscoveryConfig[name]; !ok {
+						s.dynamicDiscoveryConfigMu.RUnlock()
 						continue
 					}
 					// Let's assume there's a DiscoveryConfig DC1 has DiscoveryGroup DG1, which this process is monitoring.
 					// If the user updates the DiscoveryGroup to DG2, then DC1 must be removed from the scope of this process.
 					// We blindly delete it, in the worst case, this is a no-op.
 					s.deleteDynamicFetchers(name)
+					s.dynamicDiscoveryConfigMu.Lock()
 					delete(s.dynamicDiscoveryConfig, name)
+					s.dynamicDiscoveryConfigMu.Unlock()
 					s.notifyDiscoveryConfigChanged()
 					continue
 				}
-
+				s.dynamicDiscoveryConfigMu.RLock()
 				oldDiscoveryConfig := s.dynamicDiscoveryConfig[dc.GetName()]
+				s.dynamicDiscoveryConfigMu.RUnlock()
 				// If the DiscoveryConfig spec didn't change, then there's no need to update the matchers.
 				// we can skip this event.
 				if oldDiscoveryConfig.IsEqual(dc) {
@@ -1678,18 +1684,25 @@ func (s *Server) startDynamicWatcherUpdater() {
 					s.Log.WarnContext(s.ctx, "Failed to update dynamic matchers for discovery config", "discovery_config", dc.GetName(), "error", err)
 					continue
 				}
+				s.dynamicDiscoveryConfigMu.Lock()
 				s.dynamicDiscoveryConfig[dc.GetName()] = dc
+				s.dynamicDiscoveryConfigMu.Unlock()
 				s.notifyDiscoveryConfigChanged()
 
 			case types.OpDelete:
 				name := event.Resource.GetName()
-				// If the DiscoveryConfig was never part part of this discovery service because the
+				s.dynamicDiscoveryConfigMu.RLock()
+				// If the DiscoveryConfig was never part of this discovery service because the
 				// discovery group never matched, then it must be ignored.
-				if _, ok := s.dynamicDiscoveryConfig[name]; !ok {
+				_, ok := s.dynamicDiscoveryConfig[name]
+				s.dynamicDiscoveryConfigMu.RUnlock()
+				if !ok {
 					continue
 				}
 				s.deleteDynamicFetchers(name)
+				s.dynamicDiscoveryConfigMu.Lock()
 				delete(s.dynamicDiscoveryConfig, name)
+				s.dynamicDiscoveryConfigMu.Unlock()
 				s.notifyDiscoveryConfigChanged()
 			default:
 				s.Log.WarnContext(s.ctx, "Skipping unknown event type %s", "got", event.Type)

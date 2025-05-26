@@ -38,8 +38,6 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
-
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -70,7 +68,7 @@ func init() {
 // the given scheme.
 func registerDefaultKubeTypes(s *runtime.Scheme) error {
 	// Register external types for Scheme
-	metav1.AddToGroupVersion(s, schema.GroupVersion{Version: "v1"})
+	metav1.AddToGroupVersion(s, schema.GroupVersion{Group: "", Version: "v1"})
 	if err := metav1.AddMetaToScheme(s); err != nil {
 		return trace.Wrap(err)
 	}
@@ -96,6 +94,7 @@ func newClientNegotiator(codecFactory *serializer.CodecFactory) runtime.ClientNe
 		schema.GroupVersion{
 			// create a serializer for Kube API v1
 			Version: "v1",
+			Group:   "",
 		},
 	)
 }
@@ -163,40 +162,40 @@ func newClusterSchemaBuilder(log *slog.Logger, client kubernetes.Interface) (*se
 
 		// Skip well-known Kubernetes API groups because they are already registered
 		// in the scheme.
+		// TODO(@creack): Remove this. It prevents resources like replicationcontroller from being registered.
+		// There is more to it though as even when registering here, it doesn't get handlded by the RBAC filters.
 		if _, ok := knownKubernetesGroups[group]; ok {
 			continue
 		}
 		groupVersion := schema.GroupVersion{Group: group, Version: version}
 		for _, apiResource := range apiGroup.APIResources {
-			// Skip cluster-scoped resources because we don't support RBAC restrictions
-			// for them.
-			if !apiResource.Namespaced {
-				continue
-			}
 			// build the resource key to be able to look it up later and check if
 			// if we support RBAC restrictions for it.
 			resourceKey := allowedResourcesKey{
 				apiGroup:     group,
 				resourceKind: apiResource.Name,
 			}
-			// Namespaced custom resources are allowed if the user has access to
-			// the namespace where the resource is located.
-			// This means that we need to map the resource to the namespace kind.
-			supportedResources[resourceKey] = utils.KubeCustomResource
-			// create the group version kind for the resource
+
+			// TODO(@creack): Keep track of the namespaced field.
+			supportedResources[resourceKey] = apiResource
+
+			// Create the group version kind for the resource.
 			gvk := groupVersion.WithKind(apiResource.Kind)
-			// check if the resource is already registered in the scheme
+
+			// Check if the resource is already registered in the scheme,
 			// if it is, we don't need to register it again.
 			if _, err := kubeScheme.New(gvk); err == nil {
 				continue
 			}
-			// register the resource with the scheme to be able to decode it
-			// into an unstructured object
+
+			// Register the resource with the scheme to be able to decode it
+			// into an unstructured object.
 			kubeScheme.AddKnownTypeWithName(
 				gvk,
 				&unstructured.Unstructured{},
 			)
-			// register the resource list with the scheme to be able to decode it
+
+			// Register the resource list with the scheme to be able to decode it
 			// into an unstructured object.
 			// Resource lists follow the naming convention: <resource-kind>List
 			kubeScheme.AddKnownTypeWithName(

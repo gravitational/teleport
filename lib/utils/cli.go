@@ -112,7 +112,7 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 	// If debug or trace logging is not enabled for CLIs,
 	// then discard all log output.
 	if purpose == LoggingForCLI && level > slog.LevelDebug {
-		logger := slog.New(logutils.DiscardHandler{})
+		logger := slog.New(slog.DiscardHandler)
 		slog.SetDefault(logger)
 		return logger, nil
 	}
@@ -147,7 +147,7 @@ func InitLoggerForTests() {
 		}
 
 		if !testing.Verbose() {
-			slog.SetDefault(slog.New(logutils.DiscardHandler{}))
+			slog.SetDefault(slog.New(slog.DiscardHandler))
 			return
 		}
 

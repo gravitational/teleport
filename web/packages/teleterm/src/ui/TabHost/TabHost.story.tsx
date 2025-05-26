@@ -95,11 +95,7 @@ type ArrayElement<T> = T extends (infer U)[] ? U : never;
 type AllExpectedDocs = Exclude<
   Document,
   // DocumentBlank isn't rendered with other documents in the real app.
-  | { kind: 'doc.blank' }
-  // Deprecated DocumentTshNodeWithLoginHost.
-  | { kind: 'doc.terminal_tsh_node'; loginHost: string }
-  // Deprecated DocumentTshKube.
-  | { kind: 'doc.terminal_tsh_kube' }
+  { kind: 'doc.blank' }
 >;
 // This is going to raise a type error if allDocuments does not include all expected documents
 // defined in Document.

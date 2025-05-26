@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -45,15 +46,16 @@ func newUserGroupCollection(u services.UserGroups, w types.WatchKind) (*collecti
 			var startKey string
 			var groups []types.UserGroup
 			for {
-				resp, startKey, err := u.ListUserGroups(ctx, 0, startKey)
+				resp, next, err := u.ListUserGroups(ctx, 0, startKey)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 
 				groups = append(groups, resp...)
-				if startKey == "" {
+				if next == "" {
 					break
 				}
+				startKey = next
 			}
 			return groups, nil
 		},
@@ -87,6 +89,9 @@ func (c *Cache) ListUserGroups(ctx context.Context, pageSize int, nextKey string
 		group, nextKey, err := c.Config.UserGroups.ListUserGroups(ctx, pageSize, nextKey)
 		return group, nextKey, trace.Wrap(err)
 	}
+
+	// TODO(tross): DELETE IN V20.0.0
+	nextKey = strings.TrimPrefix(nextKey, "/")
 
 	// Adjust page size, so it can't be too large.
 	if pageSize <= 0 || pageSize > local.GroupMaxPageSize {
