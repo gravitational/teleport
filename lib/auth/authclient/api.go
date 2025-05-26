@@ -35,6 +35,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -1226,6 +1227,9 @@ type Cache interface {
 	// HealthCheckConfigReader defines methods for fetching health checkc config
 	// resources.
 	services.HealthCheckConfigReader
+
+	// ListRelayServers returns a page of relay_server resources.
+	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
 }
 
 type NodeWrapper struct {

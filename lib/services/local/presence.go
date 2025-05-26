@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -1725,6 +1726,49 @@ func backendItemToRelayServer(item backend.Item) (*presencev1.RelayServer, error
 		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
 	)
+}
+
+func newRelayServerParser() resourceParser {
+	return relayServerParser{}
+}
+
+type relayServerParser struct{}
+
+// parse implements [resourceParser].
+func (relayServerParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.ExactKey(relayServersPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing relay_server key %q", event.Item.Key)
+		}
+		return types.Resource153ToLegacy(&presencev1.RelayServer{
+			Kind:    types.KindRelayServer,
+			SubKind: "",
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: name,
+			},
+		}), nil
+	case types.OpPut:
+		r, err := backendItemToRelayServer(event.Item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
+	default:
+		return nil, trace.BadParameter("event %v is unknown or not supported (this is a bug)", event.Type)
+	}
+}
+
+// match implements [resourceParser].
+func (relayServerParser) match(key backend.Key) bool {
+	return key.HasPrefix(backend.ExactKey(relayServersPrefix))
+}
+
+// prefixes implements [resourceParser].
+func (relayServerParser) prefixes() []backend.Key {
+	return []backend.Key{backend.ExactKey(relayServersPrefix)}
 }
 
 const (

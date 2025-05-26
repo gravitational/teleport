@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net"
 	"slices"
 	"sync"
@@ -5190,6 +5191,30 @@ func (c *Client) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, 
 		}
 		pageToken = nextToken
 	}
+}
+
+// ListRelayServers returns a paginated list of relay server heartbeats.
+func (c *Client) ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencepb.RelayServer, nextPageToken string, _ error) {
+	req := &presencepb.ListRelayServersRequest{
+		PageSize:  int32(min(max(math.MinInt32, pageSize), math.MaxInt32)),
+		PageToken: pageToken,
+	}
+
+	resp, err := c.PresenceServiceClient().ListRelayServers(ctx, req)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return resp.GetRelays(), resp.GetNextPageToken(), nil
+}
+
+// DeleteRelayServer deletes a relay server heartbeat by name.
+func (c *Client) DeleteRelayServer(ctx context.Context, name string) error {
+	req := &presencepb.DeleteRelayServerRequest{
+		Name: name,
+	}
+	_, err := c.PresenceServiceClient().DeleteRelayServer(ctx, req)
+	return trace.Wrap(err)
 }
 
 // IdentityCenterClient returns Identity Center service client using an underlying

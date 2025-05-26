@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -511,6 +512,8 @@ type Cache struct {
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
 }
+
+var _ authclient.Cache = (*Cache)(nil)
 
 func (c *Cache) setInitError(err error) {
 	c.initOnce.Do(func() {
