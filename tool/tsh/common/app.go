@@ -117,11 +117,11 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := printAppCommand(cf, tc, app, appInfo); err != nil {
+	if err := writeFilesForExternalApps(appInfo); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := writeFilesForExternalApps(routeToApp); err != nil {
+	if err := printAppCommand(cf, tc, app, appInfo); err != nil {
 		return trace.Wrap(err)
 	}
 
