@@ -210,12 +210,12 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 		return "", trace.NotFound("session credentials not found")
 	}
 
-	credentials, err := baseCfg.Credentials.Retrieve(ctx)
+	baseCreds, err := baseCfg.Credentials.Retrieve(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	temporarySession, err := isSessionUsingTemporaryCredentials(credentials)
+	temporarySession, err := isSessionUsingTemporaryCredentials(baseCreds)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -223,30 +223,6 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	duration, err := c.getFederationDuration(req, temporarySession)
 	if err != nil {
 		return "", trace.Wrap(err)
-	}
-
-	assumeRole := awsconfig.AssumeRole{
-		RoleARN:    req.Identity.RouteToApp.AWSRoleARN,
-		ExternalID: req.ExternalID,
-		// Setting role session name to Teleport username will allow to
-		// associate CloudTrail events with the Teleport user.
-		SessionName: req.Identity.Username,
-	}
-
-	// Setting web console session duration through AssumeRole call for AWS
-	// sessions with temporary credentials.
-	// Technically the session duration can be set this way for
-	// non-temporary sessions. However, the AssumeRole call will fail if we
-	// are requesting duration longer than the maximum session duration of
-	// the role we are assuming. In addition, the session credentials may
-	// not have permission to perform a get-role on the role. Therefore,
-	// "SessionDuration" parameter will be defined when calling federation
-	// endpoint below instead of here, for non-temporary sessions.
-	//
-	// https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
-	if temporarySession {
-		c.cfg.Logger.DebugContext(ctx, "Temporary session")
-		assumeRole.Duration = duration
 	}
 
 	awsConfigOptions := append(c.cfg.AWSConfigOptions,
@@ -264,7 +240,7 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	case req.RolesAnywhereMetadata.ProfileARN != "":
 	default:
 		awsConfigOptions = append(awsConfigOptions,
-			awsconfig.WithDetailedAssumeRole(assumeRole),
+			getAssumeDetailedRolesOption(ctx, req, temporarySession, duration),
 		)
 	}
 
@@ -325,6 +301,33 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	}
 
 	return fedResp.SigninToken, nil
+}
+
+func getAssumeDetailedRolesOption(ctx context.Context, req *AWSSigninRequest, temporarySession bool, duration time.Duration) awsconfig.OptionsFn {
+	assumeRole := awsconfig.AssumeRole{
+		RoleARN:    req.Identity.RouteToApp.AWSRoleARN,
+		ExternalID: req.ExternalID,
+		// Setting role session name to Teleport username will allow to
+		// associate CloudTrail events with the Teleport user.
+		SessionName: req.Identity.Username,
+	}
+
+	// Setting web console session duration through AssumeRole call for AWS
+	// sessions with temporary credentials.
+	// Technically the session duration can be set this way for
+	// non-temporary sessions. However, the AssumeRole call will fail if we
+	// are requesting duration longer than the maximum session duration of
+	// the role we are assuming. In addition, the session credentials may
+	// not have permission to perform a get-role on the role. Therefore,
+	// "SessionDuration" parameter will be defined when calling federation
+	// endpoint below instead of here, for non-temporary sessions.
+	//
+	// https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
+	if temporarySession {
+		assumeRole.Duration = duration
+	}
+
+	return awsconfig.WithDetailedAssumeRole(assumeRole)
 }
 
 // isSessionUsingTemporaryCredentials checks if the current aws session is
