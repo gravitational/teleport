@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/summarizer"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -444,10 +445,24 @@ func (s *ProtoStream) Complete(ctx context.Context) error {
 	select {
 	case <-s.uploadLoopDoneCh:
 		s.cancel()
+		go s.summarize()
 		return s.getCompleteResult()
 	case <-ctx.Done():
 		return trace.ConnectionProblem(ctx.Err(), "context has canceled before complete could succeed")
 	}
+}
+
+func (s *ProtoStream) summarize() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	summary, err := summarizer.Summarize(ctx, s.cfg.Upload.SessionID)
+	if err != nil {
+		slog.ErrorContext(ctx, "=============== Summarization error", "error", err)
+		return
+	}
+
+	slog.DebugContext(ctx, "===================== SUMMARY =================", "summary", summary)
 }
 
 // Status returns channel receiving updates about stream status
