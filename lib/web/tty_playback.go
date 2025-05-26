@@ -29,7 +29,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/metadata"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/session"
@@ -84,12 +86,86 @@ func (h *Handler) sessionLengthHandle(
 				return nil, trace.NotFound("could not find end event for session %v", sID)
 			}
 			switch evt := evt.(type) {
-			case *events.SessionEnd:
+			case *apievents.SessionEnd:
 				return map[string]any{"durationMs": evt.EndTime.Sub(evt.StartTime).Milliseconds()}, nil
-			case *events.WindowsDesktopSessionEnd:
+			case *apievents.WindowsDesktopSessionEnd:
 				return map[string]any{"durationMs": evt.EndTime.Sub(evt.StartTime).Milliseconds()}, nil
-			case *events.DatabaseSessionEnd:
+			case *apievents.DatabaseSessionEnd:
 				return map[string]any{"durationMs": evt.EndTime.Sub(evt.StartTime).Milliseconds()}, nil
+			}
+		}
+	}
+}
+
+func (h *Handler) sessionEvents(
+	w http.ResponseWriter,
+	r *http.Request,
+	p httprouter.Params,
+	sctx *SessionContext,
+	site reversetunnelclient.RemoteSite,
+) (interface{}, error) {
+	sID := p.ByName("sid")
+	if sID == "" {
+		return nil, trace.BadParameter("missing session ID in request URL")
+	}
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	type SessionEvent struct {
+		Type string `json:"type"`
+		Data []byte `json:"data"`
+		Time int64  `json:"time"`
+	}
+
+	type SessionEventsResponse struct {
+		Duration int64          `json:"duration"`
+		Events   []SessionEvent `json:"events"`
+	}
+
+	var sessionEvents []SessionEvent
+
+	evts, errs := clt.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, teleport.PTY), session.ID(sID), 0)
+	for {
+		select {
+		case err := <-errs:
+			return nil, trace.Wrap(err)
+		case evt, ok := <-evts:
+			if !ok {
+				return nil, trace.NotFound("could not find end event for session %v", sID)
+			}
+			switch evt := evt.(type) {
+			case *apievents.SessionStart:
+				sessionEvents = append(sessionEvents, SessionEvent{
+					Type: "start",
+					Data: []byte(evt.TerminalSize),
+				})
+			case *apievents.SessionPrint:
+				sessionEvents = append(sessionEvents, SessionEvent{
+					Type: "print",
+					Data: evt.Data,
+					Time: evt.DelayMilliseconds,
+				})
+			case *apievents.SessionEnd:
+				sessionEvents = append(sessionEvents, SessionEvent{
+					Type: "end",
+					Data: []byte(evt.EndTime.Format(time.RFC3339)),
+					Time: int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond),
+				})
+				return SessionEventsResponse{
+					Duration: int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond),
+					Events:   sessionEvents,
+				}, nil
+			case *apievents.Resize:
+				sessionEvents = append(sessionEvents, SessionEvent{
+					Type: "resize",
+					Data: []byte(evt.TerminalSize),
+				})
 			}
 		}
 	}
@@ -237,19 +313,19 @@ func (h *Handler) ttyPlaybackHandle(
 				}
 
 				switch evt := evt.(type) {
-				case *events.SessionStart:
+				case *apievents.SessionStart:
 					if err := writeSize(evt.TerminalSize); err != nil {
 						h.logger.DebugContext(ctx, "Failed to write resize", "error", err)
 						return
 					}
 
-				case *events.SessionPrint:
+				case *apievents.SessionPrint:
 					if err := writePTY(evt.Data, uint64(evt.DelayMilliseconds)); err != nil {
 						h.logger.DebugContext(ctx, "Failed to send PTY data", "error", err)
 						return
 					}
 
-				case *events.SessionEnd:
+				case *apievents.SessionEnd:
 					// send empty PTY data - this will ensure that any dead time
 					// at the end of the recording is processed and the allow
 					// the progress bar to go to 100%
@@ -258,13 +334,13 @@ func (h *Handler) ttyPlaybackHandle(
 						return
 					}
 
-				case *events.Resize:
+				case *apievents.Resize:
 					if err := writeSize(evt.TerminalSize); err != nil {
 						h.logger.DebugContext(ctx, "Failed to write resize", "error", err)
 						return
 					}
 
-				case *events.SessionLeave: // do nothing
+				case *apievents.SessionLeave: // do nothing
 
 				default:
 					h.logger.DebugContext(ctx, "unexpected event type", "event_type", logutils.TypeAttr(evt))
