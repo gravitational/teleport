@@ -570,9 +570,9 @@ func (c *Cache) setInitError(err error) {
 	})
 
 	if err == nil {
-		cacheHealth.WithLabelValues(c.Component).Set(1.0)
+		cacheHealth.WithLabelValues(c.target).Set(1.0)
 	} else {
-		cacheHealth.WithLabelValues(c.Component).Set(0.0)
+		cacheHealth.WithLabelValues(c.target).Set(0.0)
 	}
 }
 
@@ -1298,7 +1298,7 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //	we assume that this cache will eventually end up in a correct state
 //	potentially lagging behind the state of the database.
 func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) error {
-	cacheLastReset.WithLabelValues(c.Component).SetToCurrentTime()
+	cacheLastReset.WithLabelValues(c.target).SetToCurrentTime()
 	requestKinds := c.watchKinds()
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		Name:                c.Component,
