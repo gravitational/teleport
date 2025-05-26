@@ -374,10 +374,10 @@ func (a *accessListSync) reconcileAll(ctx context.Context) error {
 	// Note: If the access request was promoted (`RequestState_PROMOTED`), then the Okta assignment
 	// originating from the access request is not created. Instead, the Access Request promotion
 	// results in a new Okta assignment based on the ACL membership.
-	ongoingAccessRequestFilter := common.OngoingAccessRequestMembershipFilter{
+	ongoingAccessRequestFilter := common.OngoingAssignmentsMembershipFilter{
 		AssignmentsService: a.assignmentsService,
 	}
-	filtered, err := ongoingAccessRequestFilter.Filter(ctx, oktaMembers, existingMembers)
+	filtered, existingMembers, err := ongoingAccessRequestFilter.Filter(ctx, oktaMembers, existingMembers)
 	if err != nil {
 		return trace.Wrap(err)
 	}

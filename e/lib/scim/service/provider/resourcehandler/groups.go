@@ -197,15 +197,15 @@ func (h *GroupHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCI
 
 	// Exclude Okta members who were assigned via an ongoing Access Request.
 	// These temporary assignments should not be treated as long-term membership.
-	f := oktacommon.OngoingAccessRequestMembershipFilter{AssignmentsService: h.AssignmentService}
+	f := oktacommon.OngoingAssignmentsMembershipFilter{AssignmentsService: h.AssignmentService}
 
-	filteredMembersMap, err := f.Filter(ctx, oktaMemberMap, oldMembersMap)
+	filteredOktaMembersMap, _, err := f.Filter(ctx, oktaMemberMap, oldMembersMap)
 	if err != nil {
 		return nil, trace.Wrap(err, "filtering members with an ongoing Access Request")
 	}
 	var filteredMembers []*accesslist.AccessListMember
 	for _, m := range newMembers {
-		if _, ok := filteredMembersMap[oktacommon.MemberKey(m)]; ok {
+		if _, ok := filteredOktaMembersMap[oktacommon.MemberKey(m)]; ok {
 			filteredMembers = append(filteredMembers, m)
 		}
 	}

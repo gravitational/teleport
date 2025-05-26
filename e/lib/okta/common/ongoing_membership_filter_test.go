@@ -15,111 +15,90 @@ import (
 
 func TestOngoingAccessRequestMembershipFilter_Filter(t *testing.T) {
 	tests := []struct {
-		name            string
-		oktaMembers     map[string]*accesslist.AccessListMember
-		teleportMembers map[string]*accesslist.AccessListMember
-		assignments     []types.OktaAssignment
-		expectedPresent bool
+		name                    string
+		oktaMembers             map[string]*accesslist.AccessListMember
+		teleportMembers         map[string]*accesslist.AccessListMember
+		assignments             []types.OktaAssignment
+		expectedOktaPresent     bool
+		expectedTeleportPresent bool
 	}{
 		{
 			name: "filters access-request assignment not in teleport members",
 			oktaMembers: map[string]*accesslist.AccessListMember{
-				"groupA/alice": {
-					Spec: accesslist.AccessListMemberSpec{AccessList: "groupA"},
-					ResourceHeader: header.ResourceHeader{
-						Metadata: header.Metadata{Name: "alice"},
-					},
-				},
+				"groupA/alice": newMember("groupA", "alice"),
 			},
 			teleportMembers: map[string]*accesslist.AccessListMember{},
 			assignments: []types.OktaAssignment{
 				newAssignment("alice", "groupA", "access-request/abc", types.OktaAssignmentSpecV1_PROCESSING),
 			},
-			expectedPresent: false,
+			expectedOktaPresent:     false,
+			expectedTeleportPresent: false,
 		},
 		{
 			name: "preserves access-request assignment if also in teleport members",
 			oktaMembers: map[string]*accesslist.AccessListMember{
-				"groupA/alice": {
-					Spec: accesslist.AccessListMemberSpec{AccessList: "groupA"},
-					ResourceHeader: header.ResourceHeader{
-						Metadata: header.Metadata{Name: "alice"},
-					},
-				},
+				"groupA/alice": newMember("groupA", "alice"),
 			},
 			teleportMembers: map[string]*accesslist.AccessListMember{
-				"groupA/alice": {
-					Spec: accesslist.AccessListMemberSpec{AccessList: "groupA"},
-					ResourceHeader: header.ResourceHeader{
-						Metadata: header.Metadata{Name: "alice"},
-					},
-				},
+				"groupA/alice": newMember("groupA", "alice"),
 			},
 			assignments: []types.OktaAssignment{
 				newAssignment("alice", "groupA", "access-request/abc", types.OktaAssignmentSpecV1_SUCCESSFUL),
 			},
-			expectedPresent: true,
+			expectedOktaPresent:     true,
+			expectedTeleportPresent: true,
 		},
 		{
 			name: "ignores non-access-request assignment",
 			oktaMembers: map[string]*accesslist.AccessListMember{
-				"groupA/alice": {
-					Spec: accesslist.AccessListMemberSpec{AccessList: "groupA"},
-					ResourceHeader: header.ResourceHeader{
-						Metadata: header.Metadata{Name: "alice"},
-					},
-				},
+				"groupA/alice": newMember("groupA", "alice"),
 			},
 			teleportMembers: map[string]*accesslist.AccessListMember{},
 			assignments: []types.OktaAssignment{
 				newAssignment("alice", "groupA", "manual-sync", types.OktaAssignmentSpecV1_SUCCESSFUL),
 			},
-			expectedPresent: true,
+			expectedOktaPresent:     true,
+			expectedTeleportPresent: false,
 		},
 		{
 			name: "ignores unrelated assignment status",
 			oktaMembers: map[string]*accesslist.AccessListMember{
-				"groupA/alice": {
-					Spec: accesslist.AccessListMemberSpec{AccessList: "groupA"},
-					ResourceHeader: header.ResourceHeader{
-						Metadata: header.Metadata{Name: "alice"},
-					},
-				},
+				"groupA/alice": newMember("groupA", "alice"),
 			},
 			teleportMembers: map[string]*accesslist.AccessListMember{},
 			assignments: []types.OktaAssignment{
 				newAssignment("alice", "groupA", "access-request/xyz", types.OktaAssignmentSpecV1_FAILED),
 			},
-			expectedPresent: true,
+			expectedOktaPresent:     true,
+			expectedTeleportPresent: false,
 		},
 		{
 			name: "no assignments, no filtering",
 			oktaMembers: map[string]*accesslist.AccessListMember{
-				"groupA/alice": {
-					Spec: accesslist.AccessListMemberSpec{AccessList: "groupA"},
-					ResourceHeader: header.ResourceHeader{
-						Metadata: header.Metadata{Name: "alice"},
-					},
-				},
+				"groupA/alice": newMember("groupA", "alice"),
 			},
-			teleportMembers: map[string]*accesslist.AccessListMember{},
-			assignments:     []types.OktaAssignment{},
-			expectedPresent: true,
+			teleportMembers:         map[string]*accesslist.AccessListMember{},
+			assignments:             []types.OktaAssignment{},
+			expectedOktaPresent:     true,
+			expectedTeleportPresent: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filter := &OngoingAccessRequestMembershipFilter{
+			filter := &OngoingAssignmentsMembershipFilter{
 				AssignmentsService: &mockAssignmentsService{assignments: tt.assignments},
 			}
 			ctx := context.Background()
 
-			filtered, err := filter.Filter(ctx, tt.oktaMembers, tt.teleportMembers)
+			filteredOktaMembers, filteredTeleportMembers, err := filter.Filter(ctx, tt.oktaMembers, tt.teleportMembers)
 			require.NoError(t, err)
 
-			_, present := filtered["groupA/alice"]
-			require.Equal(t, tt.expectedPresent, present)
+			_, oktaPresent := filteredOktaMembers["groupA/alice"]
+			require.Equal(t, tt.expectedOktaPresent, oktaPresent, "unexpected presence in oktaMembers")
+
+			_, teleportPresent := filteredTeleportMembers["groupA/alice"]
+			require.Equal(t, tt.expectedTeleportPresent, teleportPresent, "unexpected presence in teleportMembers")
 		})
 	}
 }
@@ -144,6 +123,15 @@ func newAssignment(user, group, source string, status types.OktaAssignmentSpecV1
 			User:    user,
 			Status:  status,
 			Targets: []*types.OktaAssignmentTargetV1{{Id: group, Type: types.OktaAssignmentTargetV1_GROUP}},
+		},
+	}
+}
+
+func newMember(group, user string) *accesslist.AccessListMember {
+	return &accesslist.AccessListMember{
+		Spec: accesslist.AccessListMemberSpec{AccessList: group},
+		ResourceHeader: header.ResourceHeader{
+			Metadata: header.Metadata{Name: user},
 		},
 	}
 }
