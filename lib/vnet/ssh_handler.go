@@ -18,9 +18,15 @@ package vnet
 
 import (
 	"context"
+	"crypto/rand"
 	"net"
+	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // sshHandler handles incoming VNet SSH connections.
@@ -61,13 +67,83 @@ func (h *sshHandler) handleTCPConnectorWithTargetConn(
 	connector func() (net.Conn, error),
 	targetConn net.Conn,
 ) error {
-	// For now we accept the incoming TCP conn to indicate that the node exists,
-	// but SSH connection forwarding is not implemented yet so we immediately
-	// close it.
+	hostCert, err := h.newHostCert(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	localConn, err := connector()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	localConn.Close()
+	defer localConn.Close()
+
+	// For now we accept the incoming SSH connection but forwarding to the
+	// target is not implemented yet so we immediately close it.
+	serverConfig := &ssh.ServerConfig{
+		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			if !sshutils.KeysEqual(h.cfg.sshProvider.trustedUserPublicKey, key) {
+				return nil, trace.AccessDenied("SSH client public key is not trusted")
+			}
+			return nil, nil
+		},
+	}
+	serverConfig.AddHostKey(hostCert)
+	serverConn, chans, reqs, err := ssh.NewServerConn(localConn, serverConfig)
+	if err != nil {
+		return trace.Wrap(err, "accepting incoming SSH connection")
+	}
+	// Immediately close the connection but make sure to drain the channels.
+	serverConn.Close()
+	go ssh.DiscardRequests(reqs)
+	go func() {
+		for newChan := range chans {
+			_ = newChan.Reject(0, "")
+		}
+	}()
+	target := h.cfg.target
+	log.DebugContext(ctx, "Accepted incoming SSH connection",
+		"profile", target.profile,
+		"cluster", target.cluster,
+		"host", target.host,
+		"user", serverConn.User(),
+	)
 	return trace.NotImplemented("VNet SSH connection forwarding is not yet implemented")
+}
+
+func (h *sshHandler) newHostCert(ctx context.Context) (ssh.Signer, error) {
+	// If the user typed "ssh host.com" or "ssh host.com." our DNS handler will
+	// only see the fully-qualified variant with the trailing "." but the SSH
+	// client treats them differently, we need both in the principals if we want
+	// the cert to be trusted in both cases.
+	validPrincipals := []string{
+		h.cfg.target.fqdn,
+		strings.TrimSuffix(h.cfg.target.fqdn, "."),
+	}
+	// We generate an ephemeral key for every connection, Ed25519 is fast and
+	// well supported.
+	hostKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	if err != nil {
+		return nil, trace.Wrap(err, "generating SSH host key")
+	}
+	hostSigner, err := ssh.NewSignerFromSigner(hostKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert := &ssh.Certificate{
+		Key:             hostSigner.PublicKey(),
+		Serial:          1,
+		CertType:        ssh.HostCert,
+		ValidPrincipals: validPrincipals,
+		// This cert will only ever be used to handle this one SSH connection,
+		// the private key is held only in memory, the issuing CA is regenerated
+		// every time this process restarts and will only be trusted on this one
+		// host. The expiry doesn't matter.
+		ValidBefore: ssh.CertTimeInfinity,
+	}
+	if err := cert.SignCert(rand.Reader, h.cfg.sshProvider.hostCASigner); err != nil {
+		return nil, trace.Wrap(err, "signing SSH host cert")
+	}
+	certSigner, err := ssh.NewCertSigner(cert, hostSigner)
+	return certSigner, trace.Wrap(err)
 }
