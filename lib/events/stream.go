@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"sort"
@@ -125,8 +126,11 @@ type ProtoStreamerConfig struct {
 	// RetryConfig defines how to retry on a failed upload
 	RetryConfig *retryutils.LinearConfig
 	// Encrypter wraps the final gzip writer with encryption.
-	Encrypter EncryptionWrapper
+	Encrypter      EncryptionWrapper
+	CompletionHook UploadCompletionHook
 }
+
+type UploadCompletionHook func(ctx context.Context, sessionID session.ID, sessionendEvent *apievents.OneOf) error
 
 // CheckAndSetDefaults checks and sets streamer defaults
 func (cfg *ProtoStreamerConfig) CheckAndSetDefaults() error {
@@ -177,6 +181,7 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 		ForceFlush:        s.cfg.ForceFlush,
 		RetryConfig:       s.cfg.RetryConfig,
 		Encrypter:         s.cfg.Encrypter,
+		CompletionHook:    s.cfg.CompletionHook,
 	})
 }
 
@@ -207,6 +212,7 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		CompletedParts: parts,
 		RetryConfig:    s.cfg.RetryConfig,
 		Encrypter:      s.cfg.Encrypter,
+		CompletionHook: s.cfg.CompletionHook,
 	})
 }
 
@@ -240,7 +246,8 @@ type ProtoStreamConfig struct {
 	// RetryConfig defines how to retry on a failed upload
 	RetryConfig *retryutils.LinearConfig
 	// Encrypter wraps the final gzip writer with encryption.
-	Encrypter EncryptionWrapper
+	Encrypter      EncryptionWrapper
+	CompletionHook UploadCompletionHook
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -305,6 +312,7 @@ func (cfg *ProtoStreamConfig) CheckAndSetDefaults() error {
 // This design allows the streamer to upload slices using S3-compatible APIs
 // in parallel without buffering to disk.
 func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
+	slog.Debug("------------ NewProtoStream")
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -545,6 +553,12 @@ type sliceWriter struct {
 	retryConfig retryutils.LinearConfig
 	// encrypter wraps writes with encryption
 	encrypter EncryptionWrapper
+	// sessionEndEvent is a SessionEnd or WindowsDesktopSessionEnd event that is
+	// used to mark the end of the stream. It may be nil if the stream hasn't
+	// ended yet, and it may also be nil if the stream picked up after an auth
+	// server start from a point where the session end event has already been
+	// uploaded.
+	sessionEndEvent *apievents.OneOf
 }
 
 func (w *sliceWriter) updateCompletedParts(part StreamPart, lastEventIndex int64) {
@@ -647,6 +661,14 @@ func (w *sliceWriter) receiveAndUpload() error {
 				}
 
 				continue
+			}
+			switch event.oneof.GetEvent().(type) {
+			case *apievents.OneOf_SessionEnd,
+				*apievents.OneOf_DatabaseSessionEnd,
+				*apievents.OneOf_WindowsDesktopSessionEnd,
+				*apievents.OneOf_AppSessionEnd,
+				*apievents.OneOf_MCPSessionEnd:
+				w.sessionEndEvent = event.oneof
 			}
 			if w.shouldUploadCurrentSlice() {
 				// this logic blocks the EmitAuditEvent in case if the
@@ -768,6 +790,10 @@ func (w *sliceWriter) completeStream() {
 		sort.Slice(w.completedParts, func(i, j int) bool {
 			return w.completedParts[i].Number < w.completedParts[j].Number
 		})
+		slog.Debug("==============================")
+		slog.Debug("============================== complete upload")
+		slog.Debug("==============================")
+		slog.Debug(fmt.Sprintf("%T", w.proto.cfg.Uploader))
 		err := w.proto.cfg.Uploader.CompleteUpload(w.proto.cancelCtx, w.proto.cfg.Upload, w.completedParts)
 		w.proto.setCompleteResult(err)
 		if err != nil {
@@ -776,6 +802,17 @@ func (w *sliceWriter) completeStream() {
 				"upload", w.proto.cfg.Upload.ID,
 				"session", w.proto.cfg.Upload.SessionID,
 			)
+		}
+
+		if w.proto.cfg.CompletionHook != nil {
+			err := w.proto.cfg.CompletionHook(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, w.sessionEndEvent)
+			if err != nil {
+				slog.WarnContext(w.proto.cancelCtx, "Completion hook failed",
+					"error", err,
+					"upload", w.proto.cfg.Upload.ID,
+					"session", w.proto.cfg.Upload.SessionID,
+				)
+			}
 		}
 	}
 }

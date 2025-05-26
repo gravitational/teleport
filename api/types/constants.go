@@ -651,6 +651,10 @@ const (
 	// stable UNIX users.
 	KindStableUNIXUser = "stable_unix_user"
 
+	KindSummarizationInferenceModel  = "summarization_inference_model"
+	KindSummarizationInferenceSecret = "summarization_inference_secret"
+	KindSummarizationInferencePolicy = "summarization_inference_policy"
+
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
