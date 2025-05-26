@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -47,6 +48,8 @@ type PresenceService struct {
 	jitter retryutils.Jitter
 	backend.Backend
 }
+
+var _ services.PresenceInternal = (*PresenceService)(nil)
 
 // backendItemToResourceFunc defines a function that unmarshals a
 // `backend.Item` into the implementation of `types.Resource`.
@@ -1218,6 +1221,68 @@ func (s *PresenceService) GetSAMLIdPServiceProviders(ctx context.Context, opts .
 	return serviceProviders, nil
 }
 
+// ListRelayServers implements [services.Presence].
+func (s *PresenceService) ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error) {
+	rangeStart := backend.ExactKey(relayServersPrefix)
+	rangeEnd := backend.RangeEnd(rangeStart)
+	if pageToken != "" {
+		rangeStart = backend.NewKey(relayServersPrefix, pageToken)
+	}
+
+	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
+		pageSize = apidefaults.DefaultChunkSize
+	}
+
+	result, err := s.GetRange(ctx, rangeStart, rangeEnd, pageSize+1)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	relays := make([]*presencev1.RelayServer, 0, len(result.Items))
+	for _, item := range result.Items {
+		relay, err := backendItemToRelayServer(item)
+		if err != nil {
+			slog.WarnContext(ctx, "Skipping item during ListRelayServers because conversion from backend item failed", "key", item.Key, "error", err)
+			continue
+		}
+		relays = append(relays, relay)
+	}
+
+	if len(relays) > pageSize {
+		nextPageToken = relays[pageSize].GetMetadata().GetName()
+		clear(relays[pageSize:])
+		relays = relays[:pageSize]
+	}
+	return relays, nextPageToken, nil
+}
+
+// DeleteRelayServer implements [services.Presence].
+func (s *PresenceService) DeleteRelayServer(ctx context.Context, name string) error {
+	err := s.Delete(ctx, backend.NewKey(relayServersPrefix, name))
+	if trace.IsNotFound(err) {
+		return trace.NotFound("relay_server %q doesn't exist", name)
+	}
+	return trace.Wrap(err)
+}
+
+// UpsertRelayServer implements [services.PresenceInternal].
+func (s *PresenceService) UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (revision string, _ error) {
+	value, err := services.MarshalProtoResource(relayServer)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	lease, err := s.Put(ctx, backend.Item{
+		Key:      backend.NewKey(relayServersPrefix, relayServer.GetMetadata().GetName()),
+		Value:    value,
+		Expires:  utils.TimeFromProto(relayServer.GetMetadata().GetExpires()),
+		Revision: relayServer.GetMetadata().GetRevision(),
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return lease.Revision, nil
+}
+
 // ListResources returns a paginated list of resources.
 // It implements various filtering for scenarios where the call comes directly
 // here (without passing through the RBAC).
@@ -1654,6 +1719,14 @@ func backendItemToUserGroup(item backend.Item) (types.ResourceWithLabels, error)
 	)
 }
 
+func backendItemToRelayServer(item backend.Item) (*presencev1.RelayServer, error) {
+	return services.UnmarshalProtoResource[*presencev1.RelayServer](
+		item.Value,
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
+	)
+}
+
 const (
 	reverseTunnelsPrefix         = "reverseTunnels"
 	tunnelConnectionsPrefix      = "tunnelConnections"
@@ -1675,4 +1748,5 @@ const (
 	loginTimePrefix              = "hostuser_interaction_time"
 	serverInfoPrefix             = "serverInfos"
 	cloudLabelsPrefix            = "cloudLabels"
+	relayServersPrefix           = "relay_servers"
 )
