@@ -1165,13 +1165,6 @@ func TestRoleV6_KubernetesResourcesCheckAndSetDefaults(t *testing.T) {
 							Verbs:     []string{Wildcard},
 							APIGroup:  Wildcard,
 						},
-						{
-							Kind:      Wildcard,
-							Namespace: "",
-							Name:      Wildcard,
-							Verbs:     []string{Wildcard},
-							APIGroup:  Wildcard,
-						},
 					},
 				},
 			}),

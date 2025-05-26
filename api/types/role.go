@@ -1282,23 +1282,13 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 	case V8:
-		// Kubernetes resources default to
-		// [{kind:*, name:*, namespace:*, api_group:*, verbs:[*]},
-		//  {kind:*, name:*,, api_group:*, verbs:[*]}] for v8 roles.
+		// Kubernetes resources default to {kind:*, name:*, namespace:*, api_group:*, verbs:[*]} for v8 roles.
 		if len(r.Spec.Allow.KubernetesResources) == 0 && r.HasLabelMatchers(Allow, KindKubernetesCluster) {
 			r.Spec.Allow.KubernetesResources = []KubernetesResource{
-				// Full access to namespaced resources.
+				// Full access to everything.
 				{
 					Kind:      Wildcard,
 					Namespace: Wildcard,
-					Name:      Wildcard,
-					Verbs:     []string{Wildcard},
-					APIGroup:  Wildcard,
-				},
-				// Full access to global resources.
-				{
-					Kind:      Wildcard,
-					Namespace: "",
 					Name:      Wildcard,
 					Verbs:     []string{Wildcard},
 					APIGroup:  Wildcard,

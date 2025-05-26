@@ -98,13 +98,6 @@ func TestListKubernetesResources(t *testing.T) {
 							Verbs:     []string{types.Wildcard},
 							APIGroup:  types.Wildcard,
 						},
-						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: "",
-							Verbs:     []string{types.Wildcard},
-							APIGroup:  types.Wildcard,
-						},
 					},
 				)
 			},

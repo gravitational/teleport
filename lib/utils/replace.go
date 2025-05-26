@@ -229,13 +229,6 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, isClusterWideResou
 				continue
 			}
 
-			// With cluster-wide, if there is no namespace, we have a match.
-			if isClusterWideResource && resource.Namespace == "" {
-				return true, nil
-			} else if isClusterWideResource { // If there is a namespace, we don't have a match.
-				continue
-			}
-
 			// At this point everything else matched. If we match the namespace as well, we have a match.
 			if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil || ok {
 				return ok, trace.Wrap(err)
@@ -315,9 +308,6 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, isClusterWideRe
 				return isAllowOrFullDeny, nil
 			}
 
-			if isClusterWideResource && resource.Namespace != "" {
-				continue
-			}
 			if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil {
 				return false, trace.Wrap(err)
 			} else if !ok {
