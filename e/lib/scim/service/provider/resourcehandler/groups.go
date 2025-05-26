@@ -5,15 +5,13 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/mitchellh/mapstructure"
-	"google.golang.org/protobuf/types/known/structpb"
 
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
 	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
+	"github.com/gravitational/teleport/e/lib/scim/conv"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
 	scimfilter "github.com/gravitational/teleport/e/lib/scim/service/filter"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
@@ -80,7 +78,7 @@ func (h *GroupHandler) CreateResource(ctx context.Context, req *scimpb.CreateSCI
 		return nil, trace.Wrap(err)
 	}
 
-	resource, err := accessListToResource(finalACL, finalMembers)
+	resource, err := conv.AccessListToResource(finalACL, finalMembers)
 	if err != nil {
 		return nil, trace.Wrap(err, "formatting response")
 	}
@@ -127,7 +125,7 @@ func (h *GroupHandler) ListResources(ctx context.Context, req *scimpb.ListSCIMRe
 			}
 
 			if len(outputResources) < int(req.GetPage().GetCount()) {
-				groupResource, err := accessListToResource(accessList, nil)
+				groupResource, err := conv.AccessListToResource(accessList, nil)
 				if err != nil {
 					h.Logger.ErrorContext(ctx, "converting access list to SCIM group resource",
 						"error", err,
@@ -163,7 +161,7 @@ func (h *GroupHandler) GetResource(ctx context.Context, req *scimpb.GetSCIMResou
 		return nil, trace.Wrap(err)
 	}
 
-	resource, err := accessListToResource(accessList, members)
+	resource, err := conv.AccessListToResource(accessList, members)
 	if err != nil {
 		return nil, trace.Wrap(err, "formatting response")
 	}
@@ -215,7 +213,7 @@ func (h *GroupHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCI
 		return nil, trace.Wrap(err, "upserting access list")
 	}
 
-	resource, err := accessListToResource(finalACL, finalMembers)
+	resource, err := conv.AccessListToResource(finalACL, finalMembers)
 	if err != nil {
 		return nil, trace.Wrap(err, "formatting response")
 	}
@@ -273,60 +271,15 @@ func (h *GroupHandler) DeleteResource(ctx context.Context, req *scimpb.DeleteSCI
 // the missing details before the resources are presented to the AccessList
 // service
 func (h *GroupHandler) resourceToAccessList(r *scimpb.Resource) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
-	group, err := decodeGroupResource(r.Attributes.AsMap())
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	var roles []string
-	if r.GetId() != "" {
-		roles = []string{r.GetId()}
-	}
-
-	labels := h.GetResourceLabels()
-
-	// We may not have enough information to create a fully valid AccessList
-	// that would be accepted by the AccessList service here - especially if
-	// the SCIM group we're decoding was presented to us in order to create a
-	// new group - hence we have to create the structure manually rather than
-	// via accesslist.NewAccessList().
-	acl := &accesslist.AccessList{
-		ResourceHeader: header.ResourceHeader{
-			Metadata: header.Metadata{
-				Name:   r.Id,
-				Labels: labels,
-			},
-		},
-		Spec: accesslist.Spec{
-			Title: group.DisplayName,
-			Grants: accesslist.Grants{
-				Roles:  roles,
-				Traits: trait.Traits{},
-			},
-		},
-	}
-
-	members := make([]*accesslist.AccessListMember, len(group.Members))
-	for i, m := range group.Members {
-		// We don't have enough data to make a valid AccessListMember at this
-		// point, hence creating it directly rather than using the provided
-		// NewAccessList() constructor, which would fail.
-		newMember := &accesslist.AccessListMember{
-			ResourceHeader: header.ResourceHeader{
-				Metadata: header.Metadata{
-					Name:   m.Value,
-					Labels: labels,
-				},
-			},
-			Spec: accesslist.AccessListMemberSpec{
-				AccessList: acl.GetName(),
-				Name:       m.Value,
-				Joined:     h.Clock.Now(),
-			},
-		}
-		members[i] = newMember
-	}
-	return acl, members, nil
+	list, members, err := conv.AccessListFromResource(r,
+		conv.WithClock(h.Clock),
+		conv.WithAccessListLabels(h.GetResourceLabels()),
+		conv.WithGrants(accesslist.Grants{
+			Roles:  []string{r.GetId()},
+			Traits: trait.Traits{}},
+		),
+	)
+	return list, members, trace.Wrap(err)
 }
 
 // createNewAccessList creates a new AccessList amd adds it to the cluster backend.
@@ -589,60 +542,4 @@ func (h *GroupHandler) loadAccessListMembersRecurse(ctx context.Context, accessL
 	}
 
 	return members, nil
-}
-
-// member holds a SCIM group membership record as per RFC 7643 Section 4.2
-type member struct {
-	Value   string `mapstructure:"value"`
-	Display string `mapstructure:"display"`
-}
-
-// groupResource uses holds a parsed representation of a SCIM group resource,
-// as per RFC 7643 Section 4.2
-type groupResource struct {
-	DisplayName string   `mapstructure:"displayName"`
-	Members     []member `mapstructure:"members"`
-}
-
-// decodeGroupResource parses a SCIM group resource using `mapstructure`
-func decodeGroupResource(attributes map[string]any) (groupResource, error) {
-	var group groupResource
-	if err := mapstructure.Decode(attributes, &group); err != nil {
-		return groupResource{}, trace.Wrap(err)
-	}
-	return group, nil
-}
-
-// accessListToResource encodes a teleport AccessList and its associated
-// AccessListMember records into an ARFC 7543-compliant SCIM group resource
-func accessListToResource(accessList *accesslist.AccessList, members []*accesslist.AccessListMember) (*scimpb.Resource, error) {
-	// The mapstructure package doesn't handle slices well when encoding to an
-	// attribute map so we have to do it all manually.
-	// See https://github.com/mitchellh/mapstructure/issues/249
-
-	memberResources := make([]any, 0, len(members))
-	for _, m := range members {
-		memberResources = append(memberResources,
-			map[string]any{"display": m.GetName(), "value": m.GetName()})
-	}
-
-	groupAttrs := map[string]any{
-		"displayName": accessList.Spec.Title,
-		"members":     memberResources,
-	}
-
-	attrs, err := structpb.NewStruct(groupAttrs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resource := &scimpb.Resource{
-		Id: accessList.GetName(),
-		Meta: &scimpb.Meta{
-			ResourceType: common.ResourceTypeGroup,
-			Version:      accessList.GetRevision(),
-		},
-		Attributes: attrs,
-	}
-	return resource, nil
 }

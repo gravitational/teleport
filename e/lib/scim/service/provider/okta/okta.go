@@ -10,8 +10,6 @@ import (
 	"github.com/mitchellh/mapstructure"
 	oktasdk "github.com/okta/okta-sdk-golang/v2/okta"
 	oktaquery "github.com/okta/okta-sdk-golang/v2/okta/query"
-	"google.golang.org/protobuf/types/known/structpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
@@ -22,7 +20,7 @@ import (
 	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
 	oktaconvert "github.com/gravitational/teleport/e/lib/okta/convert"
 	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
-	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	"github.com/gravitational/teleport/e/lib/scim/conv"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
 	"github.com/gravitational/teleport/e/lib/scim/service/provider/resourcehandler"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
@@ -112,16 +110,17 @@ func (s *oktaShim) userCreatedByOktaConnector(user types.User) bool {
 
 // UserToResource converts a Teleport user to an Okta SCIM resource. The
 func (s *oktaShim) UserToResource(_ context.Context, user types.User) (*scimpb.Resource, error) {
-	resource := scimpb.Resource{
-		Id:         user.GetName(),
-		ExternalId: getOktaUserExternalID(user),
-		Meta: &scimpb.Meta{
-			Created: timestamppb.New(user.GetCreatedBy().Time),
-			Version: user.GetRevision(),
-		},
-	}
+	u, err := conv.UserToResource(
+		user,
+		conv.WithExternalIDFunc(getOktaUserExternalID),
+		conv.WithAttributes(getOktaTrailsUserAttributes(user)),
+		conv.WithUserOptionClock(s.Clock),
+	)
+	return u, trace.Wrap(err)
+}
 
-	attribs := scimsdk.AttributeSet{common.UsernameAttribute: user.GetName()}
+func getOktaTrailsUserAttributes(user types.User) map[string]any {
+	var attribs = make(map[string]any)
 	for k, v := range user.GetTraits() {
 		if !strings.HasPrefix(k, eteleport.OktaTraitPrefix) {
 			continue
@@ -134,15 +133,7 @@ func (s *oktaShim) UserToResource(_ context.Context, user types.User) (*scimpb.R
 		}
 		attribs[k] = v
 	}
-
-	attribStruct, err := structpb.NewStruct(attribs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resource.Attributes = attribStruct
-
-	return &resource, nil
+	return attribs
 }
 
 // ResourceToUser converts an Okta SCIM resource to a Teleport user
