@@ -1401,7 +1401,7 @@ type createUserAndRoleOptions struct {
 // CreateUserAndRoleOption is a functional option for CreateUserAndRole
 type CreateUserAndRoleOption func(*createUserAndRoleOptions)
 
-// WithRoleName sets the version of the role to be created.
+// WithRoleVersion sets the version of the role to be created.
 func WithRoleVersion(version string) CreateUserAndRoleOption {
 	return func(o *createUserAndRoleOptions) {
 		o.version = version
