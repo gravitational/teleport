@@ -126,7 +126,17 @@ type ProtoStreamerConfig struct {
 	RetryConfig *retryutils.LinearConfig
 	// Encrypter wraps the final gzip writer with encryption.
 	Encrypter EncryptionWrapper
+	// CompletionHook is a function that will be called when an upload is
+	// completed.
+	CompletionHook UploadCompletionHook
 }
+
+// UploadCompletionHook is a function to be called after an upload is
+// completed. The sessionEndEvent parameter is optional, but should be
+// specified if possible, as it may be used to skip reading the event stream.
+type UploadCompletionHook func(
+	ctx context.Context, sessionID session.ID, sessionEndEvent *apievents.OneOf,
+) error
 
 // CheckAndSetDefaults checks and sets streamer defaults
 func (cfg *ProtoStreamerConfig) CheckAndSetDefaults() error {
@@ -177,6 +187,7 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 		ForceFlush:        s.cfg.ForceFlush,
 		RetryConfig:       s.cfg.RetryConfig,
 		Encrypter:         s.cfg.Encrypter,
+		CompletionHook:    s.cfg.CompletionHook,
 	})
 }
 
@@ -207,6 +218,7 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		CompletedParts: parts,
 		RetryConfig:    s.cfg.RetryConfig,
 		Encrypter:      s.cfg.Encrypter,
+		CompletionHook: s.cfg.CompletionHook,
 	})
 }
 
@@ -241,6 +253,9 @@ type ProtoStreamConfig struct {
 	RetryConfig *retryutils.LinearConfig
 	// Encrypter wraps the final gzip writer with encryption.
 	Encrypter EncryptionWrapper
+	// CompletionHook is a function that will be called when this upload is
+	// completed.
+	CompletionHook UploadCompletionHook
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -545,6 +560,13 @@ type sliceWriter struct {
 	retryConfig retryutils.LinearConfig
 	// encrypter wraps writes with encryption
 	encrypter EncryptionWrapper
+	// sessionEndEvent is an [apievents.SessionEnd] or other protocol-specific
+	// equivalent event that is used to mark the end of the session. It may be
+	// nil if the stream hasn't ended yet, and it may also be nil if the stream
+	// picked up after an auth server start from a point where the session end
+	// event has already been uploaded. If captured, it will be passed to the
+	// upload completion hook.
+	sessionEndEvent *apievents.OneOf
 }
 
 func (w *sliceWriter) updateCompletedParts(part StreamPart, lastEventIndex int64) {
@@ -647,6 +669,18 @@ func (w *sliceWriter) receiveAndUpload() error {
 				}
 
 				continue
+			}
+			// Capture the session end event. Note that we deliberately support more
+			// than necessary by the underlying purpose (session summarization), just
+			// for completeness' sake. The upload hook will only pick up the
+			// supported sessions anyway.
+			switch event.oneof.GetEvent().(type) {
+			case *apievents.OneOf_SessionEnd,
+				*apievents.OneOf_DatabaseSessionEnd,
+				*apievents.OneOf_WindowsDesktopSessionEnd,
+				*apievents.OneOf_AppSessionEnd,
+				*apievents.OneOf_MCPSessionEnd:
+				w.sessionEndEvent = event.oneof
 			}
 			if w.shouldUploadCurrentSlice() {
 				// this logic blocks the EmitAuditEvent in case if the
@@ -776,6 +810,18 @@ func (w *sliceWriter) completeStream() {
 				"upload", w.proto.cfg.Upload.ID,
 				"session", w.proto.cfg.Upload.SessionID,
 			)
+		}
+
+		if w.proto.cfg.CompletionHook != nil {
+			err := trace.Wrap(w.proto.cfg.CompletionHook(
+				w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, w.sessionEndEvent))
+			if err != nil {
+				slog.WarnContext(w.proto.cancelCtx, "Completion hook failed",
+					"error", err,
+					"upload", w.proto.cfg.Upload.ID,
+					"session", w.proto.cfg.Upload.SessionID,
+				)
+			}
 		}
 	}
 }

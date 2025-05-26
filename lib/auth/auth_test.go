@@ -82,6 +82,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -5095,4 +5096,49 @@ func TestCreateAuthPreference(t *testing.T) {
 			test.assertion(t, created, err)
 		})
 	}
+}
+
+func TestCallsRegisteredUploadHooks(t *testing.T) {
+	server, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, server.Close()) })
+
+	endEvent := &apievents.OneOf{Event: &apievents.OneOf_SessionEnd{SessionEnd: &apievents.SessionEnd{}}}
+	called1 := false
+	called2 := false
+	server.AuthServer.RegisterUploadCompletionHook(
+		func(ctx context.Context, sessionID session.ID, sessionEndEvent *apievents.OneOf) error {
+			called1 = true
+			assert.Equal(t, endEvent, sessionEndEvent, "session end event should match")
+			// This error should not prevent the second hook from being called.
+			switch string(sessionID) {
+			case "session1":
+				return errors.New("oops")
+			case "session2":
+				return nil
+			default:
+				assert.Fail(t, "session ID should match")
+				return nil
+			}
+		})
+	server.AuthServer.RegisterUploadCompletionHook(
+		func(ctx context.Context, sessionID session.ID, sessionEndEvent *apievents.OneOf) error {
+			called2 = true
+			assert.True(t, sessionID == session.ID("session1") || sessionID == session.ID("session2"),
+				"session ID should match")
+			assert.Equal(t, endEvent, sessionEndEvent, "session end event should match")
+			return nil
+		})
+
+	err = server.AuthServer.CallUploadCompletionHooks(context.Background(), session.ID("session1"), endEvent)
+	assert.EqualError(t, err, "oops", "error from first hook should be returned")
+	assert.True(t, called1, "first hook should have been called")
+	assert.True(t, called2, "second hook should have been called")
+
+	called1 = false
+	called2 = false
+	err = server.AuthServer.CallUploadCompletionHooks(context.Background(), session.ID("session2"), endEvent)
+	require.NoError(t, err)
+	assert.True(t, called1, "first hook should have been called")
+	assert.True(t, called2, "second hook should have been called")
 }

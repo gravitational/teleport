@@ -391,6 +391,9 @@ type InitConfig struct {
 
 	// MultipartHandler handles multipart uploads.
 	MultipartHandler events.MultipartHandler
+
+	// Summarizer manages summarization inference configuration resources.
+	Summarizer services.Summarizer
 }
 
 // Init instantiates and configures an instance of AuthServer
