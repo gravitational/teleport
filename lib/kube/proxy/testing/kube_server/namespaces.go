@@ -78,8 +78,7 @@ func (s *KubeMockServer) getNamespace(w http.ResponseWriter, req *http.Request, 
 }
 
 func (s *KubeMockServer) deleteNamespace(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
-	tmp := strings.Split(req.URL.Path, "/")
-	name := tmp[len(tmp)-1]
+	name := p.ByName("name")
 
 	deleteOpts, err := parseDeleteCollectionBody(req)
 	if err != nil {
