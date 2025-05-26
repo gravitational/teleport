@@ -501,7 +501,7 @@ func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []Kuber
 				continue
 			}
 			// The namespace field was ignored in v7 for global resources.
-			if r.Namespace != "" && slices.Contains(V7KubernetesClusterWideResourceKinds, r.Kind) {
+			if r.Namespace != "" && slices.Contains(KubernetesClusterWideResourceKinds, r.Kind) {
 				r.Namespace = ""
 			}
 			if k, ok := KubernetesResourcesKindsPlurals[r.Kind]; ok { // Can be empty if the kind is a wildcard.
@@ -510,7 +510,7 @@ func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []Kuber
 			r.APIGroup = Wildcard
 			v7resources[i] = r
 			if r.Kind == Wildcard { // If we have a wildcard, inject the clusterwide resources.
-				for _, elem := range V7KubernetesClusterWideResourceKinds {
+				for _, elem := range KubernetesClusterWideResourceKinds {
 					if elem == KindKubeNamespace { // Namespace is handled separately.
 						continue
 					}
@@ -2007,7 +2007,7 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 			if kubeResource.Kind != Wildcard && !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) {
 				return trace.BadParameter("KubernetesResource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
 			}
-			if kubeResource.Namespace == "" && !slices.Contains(V7KubernetesClusterWideResourceKinds, kubeResource.Kind) {
+			if kubeResource.Namespace == "" && !slices.Contains(KubernetesClusterWideResourceKinds, kubeResource.Kind) {
 				return trace.BadParameter("KubernetesResource kind %q must include Namespace", kubeResource.Kind)
 			}
 		case V8:

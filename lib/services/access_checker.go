@@ -536,7 +536,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 			namespace := ""
 			name := ""
 			// TODO(@creack): Make sure this gets handled in the AccessRequest PR.
-			if slices.Contains(types.V7KubernetesClusterWideResourceKinds, r.Kind) {
+			if slices.Contains(types.KubernetesClusterWideResourceKinds, r.Kind) {
 				// Cluster wide resources do not have a namespace.
 				name = r.SubResourceName
 			} else {

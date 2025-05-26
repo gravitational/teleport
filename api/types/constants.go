@@ -1518,10 +1518,10 @@ var KubernetesVerbs = []string{
 	KubeVerbPortForward,
 }
 
-// V7KubernetesClusterWideResourceKinds is the list of rolev7 supported Kubernetes cluster resource kinds
+// KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
 // that are not namespaced.
 // Needed to maintain backward compatibility.
-var V7KubernetesClusterWideResourceKinds = []string{
+var KubernetesClusterWideResourceKinds = []string{
 	KindKubeNamespace,
 	KindKubeNode,
 	KindKubePersistentVolume,
@@ -1535,6 +1535,8 @@ type groupKind = struct{ apiGroup, kind string }
 // KubernetesNamespacedResourceKinds is the list of known Kubernetes resource kinds
 // that are namespaced.
 // Generated from `kubectl api-resources --namespaced=true -o name --sort-by=name` (kind k8s v1.32.2).
+// (added .core to core resources.)
+// The format is "<plural>.<apigroup>".
 //
 // Only used in role >=v8 to attempt to validate the api_group field.
 // If we have a match, we know we need a namespaced value, if we don't
