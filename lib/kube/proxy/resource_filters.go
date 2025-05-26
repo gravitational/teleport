@@ -27,13 +27,6 @@ import (
 	"net/http"
 
 	"github.com/gravitational/trace"
-	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
-	certificatesv1 "k8s.io/api/certificates/v1"
-	corev1 "k8s.io/api/core/v1"
-	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
-	networkingv1 "k8s.io/api/networking/v1"
-	authv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -42,7 +35,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
-	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // newResourceFilterer creates a wrapper function that once executed creates
@@ -173,288 +165,6 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// Status object is returned when the Kubernetes API returns an error and
 		// should be forwarded to the user.
 		return true, false, nil
-	case *corev1.Pod:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *corev1.PodList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-	case *corev1.Secret:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *corev1.SecretList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-	case *corev1.ConfigMap:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *corev1.ConfigMapList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-	case *corev1.Namespace:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *corev1.NamespaceList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-	case *corev1.Service:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *corev1.ServiceList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-	case *corev1.Endpoints: //nolint:staticcheck // SA1019. Preserve compatibility until RBAC is tweaked to support discovery endpoints.
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *corev1.EndpointsList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-	case *corev1.ReplicationController:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *corev1.ReplicationControllerList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-	case *corev1.ServiceAccount:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *corev1.ServiceAccountList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-	case *corev1.Node:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *corev1.NodeList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-	case *corev1.PersistentVolume:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *corev1.PersistentVolumeList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-	case *corev1.PersistentVolumeClaim:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *corev1.PersistentVolumeClaimList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-
-	case *appsv1.Deployment:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *appsv1.DeploymentList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-
-	case *appsv1.ReplicaSet:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *appsv1.ReplicaSetList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-	case *appsv1.StatefulSet:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *appsv1.StatefulSetList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-
-	case *appsv1.DaemonSet:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *appsv1.DaemonSetList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-	case *authv1.ClusterRole:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *authv1.ClusterRoleList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-	case *authv1.Role:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *authv1.RoleList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-
-	case *authv1.ClusterRoleBinding:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *authv1.ClusterRoleBindingList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-
-	case *authv1.RoleBinding:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *authv1.RoleBindingList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-
-	case *batchv1.CronJob:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *batchv1.CronJobList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-
-	case *batchv1.Job:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *batchv1.JobList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-
-	case *certificatesv1.CertificateSigningRequest:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *certificatesv1.CertificateSigningRequestList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-	case *networkingv1.Ingress:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *networkingv1.IngressList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-	case *extensionsv1beta1.Ingress:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *extensionsv1beta1.IngressList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-
-	case *extensionsv1beta1.DaemonSet:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *extensionsv1beta1.DaemonSetList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-
-		return len(o.Items) > 0, true, nil
-
-	case *extensionsv1beta1.Deployment:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *extensionsv1beta1.DeploymentList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
-
-	case *extensionsv1beta1.ReplicaSet:
-		result, err := d.filterResource(o)
-		if err != nil {
-			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
-		}
-		// if err is not nil or result is false, we should not include it.
-		return result, false, nil
-	case *extensionsv1beta1.ReplicaSetList:
-		o.Items = slices.FromPointers(filterResourceList(d, slices.ToPointers(o.Items)))
-		return len(o.Items) > 0, true, nil
 
 	case *unstructured.Unstructured:
 		if o.IsList() {
@@ -480,10 +190,34 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		}
 		return len(o.Rows) > 0, true, nil
 	default:
+		if isListObj(o) {
+			output, err := getItemsUsingReflection(obj)
+			if err != nil {
+				return false, false, trace.Wrap(err, "failed to get items from list object")
+			}
+			if len(output.items) > 0 {
+				output.items = filterResourceList(d, output.items)
+				setItemsUsingReflection(output.underlyingValue, output.underlyingType, output.items)
+			}
+			return len(output.items) > 0, true, nil
+		} else if kubeObj, ok := o.(kubeObjectInterface); ok {
+			result, err := d.filterResource(kubeObj)
+			if err != nil {
+				d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
+			}
+			// if err is not nil or result is false, we should not include it.
+			return result, false, nil
+		}
+
 		// It's important default types are never blindly forwarded or protocol
 		// extensions could result in information disclosures.
 		return false, false, trace.BadParameter("unexpected type received; got %T", obj)
 	}
+}
+
+func isListObj(obj runtime.Object) bool {
+	_, ok := obj.(metav1.ListInterface)
+	return ok
 }
 
 // decode decodes the buffer into the appropriate type if the responseCode

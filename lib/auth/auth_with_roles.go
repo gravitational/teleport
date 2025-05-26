@@ -3436,20 +3436,6 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		appSessionID = ws.GetName()
 	}
 
-	sshPublicKey, tlsPublicKey, err := authclient.UserPublicKeys(
-		req.PublicKey, //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		req.SSHPublicKey,
-		req.TLSPublicKey,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
-		hardwarekey.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		hardwarekey.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
-		hardwarekey.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
-	)
-
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
 	certReq := certRequest{
@@ -3457,10 +3443,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		user:                             user,
 		ttl:                              req.Expires.Sub(a.authServer.GetClock().Now()),
 		compatibility:                    req.Format,
-		sshPublicKey:                     sshPublicKey,
-		tlsPublicKey:                     tlsPublicKey,
-		sshPublicKeyAttestationStatement: sshAttestationStatement,
-		tlsPublicKeyAttestationStatement: tlsAttestationStatement,
+		sshPublicKey:                     req.SSHPublicKey,
+		tlsPublicKey:                     req.TLSPublicKey,
+		sshPublicKeyAttestationStatement: hardwarekey.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
+		tlsPublicKeyAttestationStatement: hardwarekey.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
 		overrideRoleTTL:                  a.hasBuiltinRole(types.RoleAdmin),
 		routeToCluster:                   req.RouteToCluster,
 		kubernetesCluster:                req.KubernetesCluster,

@@ -61,7 +61,6 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -69,7 +68,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -916,11 +914,6 @@ type SAMLAuthResponse struct {
 type SAMLAuthRequest struct {
 	// ID is a unique request ID.
 	ID string `json:"id"`
-	// PublicKey is a public key the user wants as the subject of their SSH and TLS
-	// certificates. It must be in SSH authorized_keys format.
-	//
-	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
-	PublicKey []byte `json:"public_key,omitempty"`
 	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
 	// certificate. It must be in SSH authorized_keys format.
 	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`
@@ -1283,10 +1276,6 @@ type AuthenticateUserRequest struct {
 	// Username is a username
 	Username string `json:"username"`
 
-	// PublicKey is a public key in ssh authorized_keys format.
-	// Deprecated: prefer SSHPublicKey and/or TLSPublicKey.
-	PublicKey []byte `json:"public_key,omitempty"`
-
 	// SSHPublicKey is a public key in ssh authorized_keys format.
 	SSHPublicKey []byte `json:"ssh_public_key,omitempty"`
 	// TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format.
@@ -1324,58 +1313,8 @@ func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter 'username'")
 	case a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil && a.HeadlessAuthenticationID == "":
 		return trace.BadParameter("at least one authentication method is required")
-	case len(a.PublicKey) > 0 && len(a.SSHPublicKey) > 0:
-		return trace.BadParameter("'public_key' and 'ssh_public_key' cannot both be set")
-	case len(a.PublicKey) > 0 && len(a.TLSPublicKey) > 0:
-		return trace.BadParameter("'public_key' and 'tls_public_key' cannot both be set")
 	}
-	var err error
-	a.SSHPublicKey, a.TLSPublicKey, err = UserPublicKeys(a.PublicKey, a.SSHPublicKey, a.TLSPublicKey)
-	a.PublicKey = nil
-	return trace.Wrap(err)
-}
-
-// UserPublicKeys is a helper for the transition from clients sending a single
-// public key for both SSH and TLS, to separate public keys for each protocol.
-// [pubIn] should be the single public key that should be set by any pre-17.0.0
-// client in SSH authorized_keys format. If set, both returned keys will be
-// derived from this. If empty, sshPubIn and tlsPubIn will be returned.
-// [sshPubIn] should be the SSH public key set by any post-17.0.0 client in SSH
-// authorized_keys format.
-// [tlsPubIn] should be the TLS public key set by any post-17.0.0 client in
-// PEM-encoded PKIX or PKCS#1 ASN.1 DER form.
-// [sshPubOut] will be nil or an SSH public key in SSH authorized_keys format.
-// [tlsPubOut] will be nil or a TLS public key in PEM-encoded PKIX or PKCS#1
-// ASN.1 DER form.
-//
-// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
-// the separated keys.
-func UserPublicKeys(pubIn, sshPubIn, tlsPubIn []byte) (sshPubOut, tlsPubOut []byte, err error) {
-	if len(pubIn) == 0 {
-		return sshPubIn, tlsPubIn, nil
-	}
-	sshPubOut = pubIn
-	cryptoPubKey, err := sshutils.CryptoPublicKey(pubIn)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	tlsPubOut, err = keys.MarshalPublicKey(cryptoPubKey)
-	return sshPubOut, tlsPubOut, trace.Wrap(err)
-}
-
-// UserAttestationStatements is a helper for the transition from clients sending
-// a single attestation statement for both SSH and TLS, to separate public keys
-// and attestation statements for each protocol.
-// [attIn] should be the single attestation that should be set by any pre-17.0.0
-// client. If set, it will be returned in both return positions. If nil,
-// sshAttIn and tlsAttIn will be returned.
-// [sshAttIn] and [tlsAttIn] should be the SSH and TLS attestation statements
-// set by any post-17.0.0 client.
-func UserAttestationStatements(attIn, sshAttIn, tlsAttIn *hardwarekey.AttestationStatement) (sshAttOut, tlsAttOut *hardwarekey.AttestationStatement) {
-	if attIn == nil {
-		return sshAttIn, tlsAttIn
-	}
-	return attIn, attIn
+	return nil
 }
 
 // PassCreds is a password credential
@@ -1411,11 +1350,6 @@ type AuthenticateSSHRequest struct {
 	// certificate. This can be empty on older clients.
 	KubernetesCluster string `json:"kubernetes_cluster"`
 
-	// AttestationStatement is an attestation statement associated with the given public key.
-	//
-	// Deprecated: prefer SSHAttestationStatement and/or TLSAttestationStatement.
-	AttestationStatement *hardwarekey.AttestationStatement `json:"attestation_statement,omitempty"`
-
 	// SSHAttestationStatement is an attestation statement associated with the
 	// given SSH public key.
 	SSHAttestationStatement *hardwarekey.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
@@ -1429,16 +1363,9 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 	if err := a.AuthenticateUserRequest.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	switch {
-	case len(a.SSHPublicKey)+len(a.TLSPublicKey) == 0:
+	if len(a.SSHPublicKey) == 0 && len(a.TLSPublicKey) == 0 {
 		return trace.BadParameter("'ssh_public_key' or 'tls_public_key' must be set")
-	case a.AttestationStatement != nil && a.SSHAttestationStatement != nil:
-		return trace.BadParameter("'attestation_statement' and 'ssh_attestation_statement' cannot both be set")
-	case a.AttestationStatement != nil && a.TLSAttestationStatement != nil:
-		return trace.BadParameter("'attestation_statement' and 'tls_attestation_statement' cannot both be set")
 	}
-	a.SSHAttestationStatement, a.TLSAttestationStatement = UserAttestationStatements(a.AttestationStatement, a.SSHAttestationStatement, a.TLSAttestationStatement)
-	a.AttestationStatement = nil
 	certificateFormat, err := utils.CheckCertificateFormatFlag(a.CompatibilityMode)
 	if err != nil {
 		return trace.Wrap(err)

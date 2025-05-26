@@ -5205,6 +5205,8 @@ message OIDCConnectorMFASettings {
 // OIDCAuthRequest is a request to authenticate with OIDC
 // provider, the state about request is managed by Auth Service
 message OIDCAuthRequest {
+  reserved 7, 17;
+  reserved "PublicKey", "attestation_statement";
   // ConnectorID is ID of OIDC connector this request uses
   string ConnectorID = 1 [(gogoproto.jsontag) = "connector_id"];
 
@@ -5224,15 +5226,6 @@ message OIDCAuthRequest {
   // RedirectURL will be used to route the user back to a
   // Teleport Proxy after the oidc login attempt in the browser.
   string RedirectURL = 6 [(gogoproto.jsontag) = "redirect_url"];
-
-  // PublicKey is an optional public key, users want these keys to be signed by
-  // the Auth Service's user CA in case of successful auth.
-  //
-  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
-  bytes PublicKey = 7 [
-    (gogoproto.jsontag) = "public_key",
-    deprecated = true
-  ];
 
   // CertTTL is the TTL of the certificate user wants to get
   int64 CertTTL = 8 [
@@ -5268,14 +5261,6 @@ message OIDCAuthRequest {
   // the address. If there is no match, the default redirect
   // url will be used.
   string ProxyAddress = 16 [(gogoproto.jsontag) = "proxy_address,omitempty"];
-
-  // attestation_statement is an attestation statement for the given public key.
-  //
-  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 17 [
-    (gogoproto.jsontag) = "attestation_statement,omitempty",
-    deprecated = true
-  ];
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 18 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
@@ -5428,6 +5413,9 @@ enum SAMLForceAuthn {
 // SAMLAuthRequest is a request to authenticate with SAML
 // provider, the state about request is managed by the Auth Service
 message SAMLAuthRequest {
+  reserved 6, 16;
+  reserved "PublicKey", "attestation_statement";
+
   // ID is a unique request ID.
   string ID = 1 [(gogoproto.jsontag) = "id"];
 
@@ -5443,16 +5431,6 @@ message SAMLAuthRequest {
   // RedirectURL will be used by browser.
   // Value only set if the PreferredRequestBinding "http-redirect".
   string RedirectURL = 5 [(gogoproto.jsontag) = "redirect_url"];
-
-  // PublicKey is an optional public key, users want these
-  // keys to be signed by Auth Service's user CA in case
-  // of successful auth.
-  //
-  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
-  bytes PublicKey = 6 [
-    (gogoproto.jsontag) = "public_key",
-    deprecated = true
-  ];
 
   // CertTTL is the TTL of the certificate user wants to get.
   int64 CertTTL = 7 [
@@ -5485,11 +5463,6 @@ message SAMLAuthRequest {
 
   // ConnectorSpec is embedded connector spec for use in test flow.
   SAMLConnectorSpecV2 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
-
-  // attestation_statement is an attestation statement for the given public key.
-  //
-  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
@@ -5597,6 +5570,9 @@ message GithubConnectorSpecV3 {
 
 // GithubAuthRequest is the request to start Github OAuth2 flow.
 message GithubAuthRequest {
+  reserved 5, 16;
+  reserved "PublicKey", "attestation_statement";
+
   // ConnectorID is the name of the connector to use.
   string ConnectorID = 1 [(gogoproto.jsontag) = "connector_id"];
   // Type is opaque string that helps callbacks identify the request type.
@@ -5605,13 +5581,6 @@ message GithubAuthRequest {
   string StateToken = 3 [(gogoproto.jsontag) = "state_token"];
   // CSRFToken is used to protect against CSRF attacks.
   string CSRFToken = 4 [(gogoproto.jsontag) = "csrf_token"];
-  // PublicKey is an optional public key to sign in case of successful auth.
-  //
-  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
-  bytes PublicKey = 5 [
-    (gogoproto.jsontag) = "public_key",
-    deprecated = true
-  ];
   // CertTTL is TTL of the cert that's generated in case of successful auth.
   int64 CertTTL = 6 [
     (gogoproto.jsontag) = "cert_ttl",
@@ -5641,13 +5610,6 @@ message GithubAuthRequest {
   bool SSOTestFlow = 14 [(gogoproto.jsontag) = "sso_test_flow"];
   // ConnectorSpec is embedded connector spec for use in test flow or authenticated user flow.
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
-  // AttestationStatement is an attestation statement for the given public key.
-  //
-  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 16 [
-    (gogoproto.jsontag) = "attestation_statement,omitempty",
-    deprecated = true
-  ];
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
   // ClientUserAgent is the user agent of the Web browser, used for issuing
@@ -6195,7 +6157,7 @@ message RegisterUsingTokenRequest {
     (gogoproto.jsontag) = "expires,omitempty"
   ];
   // BotInstanceID is a trusted instance identifier for a Machine ID bot,
-  // provided when rejoining. This parameters may only be provided by the join
+  // provided when rejoining. This parameter may only be provided by the join
   // service and is ignored otherwise; bots should otherwise rejoin with their
   // existing client certificate to prove their instance identity.
   string BotInstanceID = 13 [(gogoproto.jsontag) = "bot_instance_id"];
@@ -6204,6 +6166,10 @@ message RegisterUsingTokenRequest {
   // join method. Rejoining bots supply this value via a client certificate
   // extension; it is ignored from other sources.
   int32 BotGeneration = 14 [(gogoproto.jsontag) = "bot_generation"];
+  // PreviousBotInstanceID is a trusted previous instance identifier for a
+  // Machine ID bot. This parameter may only be set internally during certain
+  // join processes and is ignored otherwise.
+  string PreviousBotInstanceID = 15 [(gogoproto.jsontag) = "previous_bot_instance_id"];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
@@ -8249,6 +8215,9 @@ message AWSRolesAnywhereProfileSyncConfig {
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.
 message HeadlessAuthentication {
+  reserved 3;
+  reserved "public_key";
+
   // Header is the resource header.
   ResourceHeader header = 1 [
     (gogoproto.nullable) = false,
@@ -8257,11 +8226,6 @@ message HeadlessAuthentication {
 
   // User is a teleport user name.
   string user = 2;
-
-  // PublicKey is an ssh public key to sign in case of successful auth.
-  //
-  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
-  bytes public_key = 3 [deprecated = true];
 
   // State is the headless authentication request state.
   HeadlessAuthenticationState state = 4;

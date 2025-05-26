@@ -909,15 +909,7 @@ func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
 			}))
 		}
 	}
-	t.Run("ssh single key", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
-		req.PublicKey = []byte(sshPubKey)
-		_, err := s.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
-			AuthenticateUserRequest: req,
-			TTL:                     24 * time.Hour,
-		})
-		return err
-	}))
-	t.Run("ssh split keys", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
+	t.Run("ssh", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
 		req.SSHPublicKey = []byte(sshPubKey)
 		req.TLSPublicKey = []byte(tlsPubKey)
 		_, err := s.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
