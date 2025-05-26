@@ -61,43 +61,8 @@ func newHaltOnErrorStrategy(log *slog.Logger, clt Client) (rolloutStrategy, erro
 	}, nil
 }
 
-func (h *haltOnErrorStrategy) getAllReports(ctx context.Context) ([]*autoupdate.AutoUpdateAgentReport, error) {
-	reports := make([]*autoupdate.AutoUpdateAgentReport, 0)
-
-	// this is an in-memory client, we go for the max page size
-	const pageSize = 0
-	var pageToken string
-	for {
-		page, nextToken, err := h.clt.ListAutoUpdateAgentReports(ctx, pageSize, pageToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		reports = append(reports, page...)
-		if nextToken == "" {
-			return reports, nil
-		}
-		pageToken = nextToken
-	}
-}
-
-func (h *haltOnErrorStrategy) getAllValidReports(ctx context.Context, now time.Time) ([]*autoupdate.AutoUpdateAgentReport, error) {
-	allReports, err := h.getAllReports(ctx)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err, "getting all reports")
-	}
-
-	validReports := make([]*autoupdate.AutoUpdateAgentReport, len(allReports))
-	for _, report := range allReports {
-		// TODO replace time.minute by the auth periodic operation constant
-		if now.Sub(report.GetSpec().GetTimestamp().AsTime()) <= time.Minute {
-			validReports = append(validReports, report)
-		}
-	}
-	return validReports, nil
-}
-
 func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, spec *autoupdate.AutoUpdateAgentRolloutSpec, status *autoupdate.AutoUpdateAgentRolloutStatus, now time.Time) error {
-	reports, err := h.getAllValidReports(ctx, now)
+	reports, err := getAllValidReports(ctx, h.clt, now)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
