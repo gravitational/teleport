@@ -5061,14 +5061,6 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 		reqBody any
 	}{
 		{
-			name: "/webapi/mfa/authenticatechallenge/password",
-			clt:  authnClt,
-			ep:   []string{"webapi", "mfa", "authenticatechallenge", "password"},
-			reqBody: client.MFAChallengeRequest{
-				Pass: authPack.password,
-			},
-		},
-		{
 			name: "/webapi/mfa/login/begin",
 			clt:  publicClt,
 			ep:   []string{"webapi", "mfa", "login", "begin"},

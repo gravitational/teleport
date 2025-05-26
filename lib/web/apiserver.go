@@ -957,9 +957,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/mfa/registerchallenge", h.WithAuth(h.createRegisterChallengeHandle))
 
 	h.POST("/webapi/mfa/devices", h.WithAuth(h.addMFADeviceHandle))
-	// DEPRECATED in favor of mfa/authenticatechallenge.
-	// TODO(bl-nero): DELETE IN 17.0.0
-	h.POST("/webapi/mfa/authenticatechallenge/password", h.WithAuth(h.createAuthenticateChallengeWithPassword))
 
 	// Device Trust.
 	// Do not enforce bearer token for /webconfirm, it is called from outside the
