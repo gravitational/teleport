@@ -739,8 +739,8 @@ github.com/gravitational/go-cassandra-native-protocol v0.0.0-teleport.1 h1:zGsdD
 github.com/gravitational/go-cassandra-native-protocol v0.0.0-teleport.1/go.mod h1:6FzirJfdffakAVqmHjwVfFkpru/gNbIazUOK5rIhndc=
 github.com/gravitational/go-libfido2 v1.5.3-teleport.1 h1:nPfxiTH2Sr3J6zan280fbHOkWE7gRF/lMqvhcXKh2ek=
 github.com/gravitational/go-libfido2 v1.5.3-teleport.1/go.mod h1:92J9LtSBl0UyUWljElJpTbMMNhC6VeY8dshsu40qjjo=
-github.com/gravitational/go-mssqldb v0.11.1-0.20230331180905-0f76f1751cd3 h1:3JGTacvAeV5tIC4/9XsdLC2K5K7FWaXxIwpW4t+dGH0=
-github.com/gravitational/go-mssqldb v0.11.1-0.20230331180905-0f76f1751cd3/go.mod h1:LbRWqr72fXehxAGLXO8nDNQAi4gthRz4j7f8L2LS0XM=
+github.com/gravitational/go-mssqldb v1.8.1-teleport.2 h1:vzt5i39yPLCQ8FL19wUXq4+BcJR53NPimAIAOAIl4I0=
+github.com/gravitational/go-mssqldb v1.8.1-teleport.2/go.mod h1:vp38dT33FGfVotRiTmDo3bFyaHq+p3LektQrjTULowo=
 github.com/gravitational/go-mysql v1.9.1-teleport.4 h1:2Lt2fcEMrco6apu8jme0mj6OS2pXa/9+Tjl+5MpyVKY=
 github.com/gravitational/go-mysql v1.9.1-teleport.4/go.mod h1:pkllauQtJgHr2mTonYYysOznctozxiWgwpKAez0s+2U=
 github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5 h1:qg8FcGwRACSHortU1UxCSo9nF0t34rPWjk9Nef3j2Ic=
