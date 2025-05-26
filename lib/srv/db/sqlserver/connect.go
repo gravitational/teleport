@@ -58,8 +58,6 @@ type connector struct {
 	DBAuth common.Auth
 	// AuthClient is the teleport client
 	AuthClient windows.AuthInterface
-	// DataDir is the Teleport data directory
-	DataDir string
 
 	kinitCommandGenerator kinit.CommandGenerator
 }
@@ -75,7 +73,7 @@ func (c *connector) getKerberosClient(ctx context.Context, sessionCtx *common.Se
 		}
 		return kt, nil
 	case sessionCtx.Database.GetAD().KDCHostName != "" && sessionCtx.Database.GetAD().LDAPCert != "":
-		kt, err := c.kinitClient(ctx, sessionCtx, c.AuthClient, c.DataDir)
+		kt, err := c.kinitClient(ctx, sessionCtx, c.AuthClient)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
