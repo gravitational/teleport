@@ -4366,9 +4366,7 @@ func TestSerializeDatabases(t *testing.T) {
 			dbUsersData: `,
     "users": {
       "allowed": [
-        "*",
-        "bar",
-        "foo"
+        "*"
       ],
       "denied": [
         "baz",
@@ -4423,9 +4421,7 @@ func TestSerializeDatabases(t *testing.T) {
 			dbUsersData: `,
     "users": {
       "allowed": [
-        "*",
-        "bar",
-        "foo"
+        "*"
       ]
      }`,
 			roles: services.RoleSet{
