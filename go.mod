@@ -66,6 +66,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.34.3
 	github.com/aws/aws-sdk-go-v2/service/rds v1.89.0
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.51.0
+	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.16.3
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.2
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.34.3
 	github.com/aws/aws-sdk-go-v2/service/sns v1.33.3
