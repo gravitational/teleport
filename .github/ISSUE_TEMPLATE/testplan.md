@@ -1471,6 +1471,9 @@ manualy testing.
   - [ ] Updating dynamic Windows desktop's labels so it no longer matches `windows_desktop_services` deletes
       corresponding Windows desktops
   - [ ] Deleting dynamic Windows desktop deletes corresponding Windows desktops
+- Keyboard Layout
+  - [ ] Keyboard layout is set to the same as the local machine, if "System" is chosen in preferences
+  - [ ] If "United States - International" is chosen in preferences, the keyboard layout is set to "United States - International" on the remote machine
 
 ## Binaries / OS compatibility
 
