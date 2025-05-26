@@ -915,9 +915,6 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
-	// Deprecated: Use `/webapi/sites/:site/resources` instead.
-	// TODO(kiosion): DELETE in 18.0
-	h.GET("/webapi/sites/:site/resources/check", h.WithClusterAuth(h.checkAccessToRegisteredResource))
 
 	// Database access handlers.
 	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
