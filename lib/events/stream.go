@@ -23,8 +23,10 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -39,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/summarizer"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -126,8 +127,11 @@ type ProtoStreamerConfig struct {
 	// RetryConfig defines how to retry on a failed upload
 	RetryConfig *retryutils.LinearConfig
 	// Encrypter wraps the final gzip writer with encryption.
-	Encrypter EncryptionWrapper
+	Encrypter      EncryptionWrapper
+	CompletionHook UploadCompletionHook
 }
+
+type UploadCompletionHook func(ctx context.Context, sessionID session.ID) error
 
 // CheckAndSetDefaults checks and sets streamer defaults
 func (cfg *ProtoStreamerConfig) CheckAndSetDefaults() error {
@@ -178,6 +182,7 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 		ForceFlush:        s.cfg.ForceFlush,
 		RetryConfig:       s.cfg.RetryConfig,
 		Encrypter:         s.cfg.Encrypter,
+		CompletionHook:    s.cfg.CompletionHook,
 	})
 }
 
@@ -208,6 +213,7 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		CompletedParts: parts,
 		RetryConfig:    s.cfg.RetryConfig,
 		Encrypter:      s.cfg.Encrypter,
+		CompletionHook: s.cfg.CompletionHook,
 	})
 }
 
@@ -241,7 +247,8 @@ type ProtoStreamConfig struct {
 	// RetryConfig defines how to retry on a failed upload
 	RetryConfig *retryutils.LinearConfig
 	// Encrypter wraps the final gzip writer with encryption.
-	Encrypter EncryptionWrapper
+	Encrypter      EncryptionWrapper
+	CompletionHook UploadCompletionHook
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -306,6 +313,8 @@ func (cfg *ProtoStreamConfig) CheckAndSetDefaults() error {
 // This design allows the streamer to upload slices using S3-compatible APIs
 // in parallel without buffering to disk.
 func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
+	slog.Debug("------------ NewProtoStream")
+	debug.PrintStack()
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -484,24 +493,10 @@ func (s *ProtoStream) Complete(ctx context.Context) error {
 	select {
 	case <-s.uploadLoopDoneCh:
 		s.cancel()
-		go s.summarize()
 		return s.getCompleteResult()
 	case <-ctx.Done():
 		return trace.ConnectionProblem(ctx.Err(), "context has canceled before complete could succeed")
 	}
-}
-
-func (s *ProtoStream) summarize() {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
-	summary, err := summarizer.Summarize(ctx, s.cfg.Upload.SessionID)
-	if err != nil {
-		slog.ErrorContext(ctx, "=============== Summarization error", "error", err)
-		return
-	}
-
-	slog.DebugContext(ctx, "===================== SUMMARY =================", "summary", summary)
 }
 
 // Status returns channel receiving updates about stream status
@@ -783,6 +778,11 @@ func (w *sliceWriter) completeStream() {
 		sort.Slice(w.completedParts, func(i, j int) bool {
 			return w.completedParts[i].Number < w.completedParts[j].Number
 		})
+		slog.Debug("==============================")
+		slog.Debug("============================== complete upload")
+		slog.Debug("==============================")
+		debug.PrintStack()
+		slog.Debug(fmt.Sprintf("%T", w.proto.cfg.Uploader))
 		err := w.proto.cfg.Uploader.CompleteUpload(w.proto.cancelCtx, w.proto.cfg.Upload, w.completedParts)
 		w.proto.setCompleteResult(err)
 		if err != nil {
@@ -791,6 +791,10 @@ func (w *sliceWriter) completeStream() {
 				"upload", w.proto.cfg.Upload.ID,
 				"session", w.proto.cfg.Upload.SessionID,
 			)
+		}
+
+		if w.proto.cfg.CompletionHook != nil {
+			w.proto.cfg.CompletionHook(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
 		}
 	}
 }
