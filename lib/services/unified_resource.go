@@ -308,40 +308,40 @@ type UnifiedResourcesIterateParams struct {
 
 // Nodes iterates over all cached nodes starting from the provided key.
 func (c *UnifiedResourceCache) Nodes(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.Server, error] {
-	return iterateUnifiedResourceCache(ctx, c, params, types.KindNode, types.Server.DeepCopy)
+	return iterateUnifiedResourceCache[types.Server](ctx, c, params, types.KindNode)
 }
 
 // AppServers iterates over all cached app servers starting from the provided key.
 func (c *UnifiedResourceCache) AppServers(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.AppServer, error] {
-	return iterateUnifiedResourceCache(ctx, c, params, types.KindAppServer, types.AppServer.Copy)
+	return iterateUnifiedResourceCache[types.AppServer](ctx, c, params, types.KindAppServer)
 }
 
 // DatabaseServers iterates over all cached database servers starting from the provided key.
 func (c *UnifiedResourceCache) DatabaseServers(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.DatabaseServer, error] {
-	return iterateUnifiedResourceCache(ctx, c, params, types.KindDatabaseServer, types.DatabaseServer.Copy)
+	return iterateUnifiedResourceCache[types.DatabaseServer](ctx, c, params, types.KindDatabaseServer)
 }
 
 // KubernetesServers iterates over all cached Kubernetes servers starting from the provided key.
 func (c *UnifiedResourceCache) KubernetesServers(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.KubeServer, error] {
-	return iterateUnifiedResourceCache(ctx, c, params, types.KindKubeServer, types.KubeServer.Copy)
+	return iterateUnifiedResourceCache[types.KubeServer](ctx, c, params, types.KindKubeServer)
 }
 
 // WindowsDesktops iterates over all cached windows desktops starting from the provided key.
 func (c *UnifiedResourceCache) WindowsDesktops(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.WindowsDesktop, error] {
-	return iterateUnifiedResourceCache(ctx, c, params, types.KindWindowsDesktop, func(desktop types.WindowsDesktop) types.WindowsDesktop { return desktop.Copy() })
+	return iterateUnifiedResourceCache[types.WindowsDesktop](ctx, c, params, types.KindWindowsDesktop)
 }
 
 // GitServers iterates over all cached git servers starting from the provided key.
 func (c *UnifiedResourceCache) GitServers(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.Server, error] {
-	return iterateUnifiedResourceCache(ctx, c, params, types.KindGitServer, types.Server.DeepCopy)
+	return iterateUnifiedResourceCache[types.Server](ctx, c, params, types.KindGitServer)
 }
 
 // SAMLIdPServiceProviders iterates over all cached sAML IdP service providers starting from the provided key.
 func (c *UnifiedResourceCache) SAMLIdPServiceProviders(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.SAMLIdPServiceProvider, error] {
-	return iterateUnifiedResourceCache(ctx, c, params, types.KindSAMLIdPServiceProvider, types.SAMLIdPServiceProvider.Copy)
+	return iterateUnifiedResourceCache[types.SAMLIdPServiceProvider](ctx, c, params, types.KindSAMLIdPServiceProvider)
 }
 
-func iterateUnifiedResourceCache[T any](ctx context.Context, c *UnifiedResourceCache, params UnifiedResourcesIterateParams, kind string, cloneFn func(T) T) iter.Seq2[T, error] {
+func iterateUnifiedResourceCache[T any](ctx context.Context, c *UnifiedResourceCache, params UnifiedResourcesIterateParams, kind string) iter.Seq2[T, error] {
 	return func(yield func(T, error) bool) {
 		sortBy := types.SortBy{IsDesc: params.Descending, Field: SortByName}
 		for i, err := range c.iterateItems(ctx, params.Start, sortBy, kind) {
@@ -351,7 +351,12 @@ func iterateUnifiedResourceCache[T any](ctx context.Context, c *UnifiedResourceC
 				return
 			}
 
-			if !yield(cloneFn(i.resource.(T)), nil) {
+			clone := i.resource.CloneResource()
+			if r, ok := clone.(T); !ok {
+				var t T
+				yield(t, trace.BadParameter("expected type %T, got %T", t, clone))
+				return
+			} else if !yield(r, nil) {
 				return
 			}
 		}
@@ -919,7 +924,7 @@ type resourceCollection interface {
 func newResourceCollection(r resource) resourceCollection {
 	switch r := r.(type) {
 	case types.DatabaseServer:
-		return newDatabaseServerCollection(r)
+		return newHealthCheckResourceCollection(r)
 	case types.AppServer, types.KubeServer, types.WindowsDesktop:
 		return &resourceServerCollection{
 			latest:  r,
@@ -974,72 +979,77 @@ func (c *resourceServerCollection) remove(r types.Resource) bool {
 	return true
 }
 
-func newDatabaseServerCollection(db types.DatabaseServer) *databaseServerCollection {
-	statuses := map[string]types.DatabaseServer{
-		db.GetHostID(): db,
-	}
-	return &databaseServerCollection{
-		aggregate: &aggregatedDatabase{
-			DatabaseServer: db,
-			status:         aggregateHealthStatuses(statuses),
-		},
-		servers: statuses,
-	}
+// healthCheckResource defines server types that support health checks.
+//
+// It is assumed that multiple heartbeats with the same resource name but
+// different host IDs may be received and they may report different health
+// statuses.
+type healthCheckResource interface {
+	resource
+	GetHostID() string
+	GetTargetHealthStatus() types.TargetHealthStatus
+	SetTargetHealthStatus(types.TargetHealthStatus)
 }
 
-type databaseServerCollection struct {
-	aggregate *aggregatedDatabase
-	servers   map[string]types.DatabaseServer
+// newHealthCheckResourceCollection keeps track of all heartbeats for the same
+// resource and handles aggregating the health statuses.
+func newHealthCheckResourceCollection[R healthCheckResource](r R) *healthCheckResourceCollection[R] {
+	collection := &healthCheckResourceCollection[R]{
+		servers: make(map[string]R),
+	}
+	collection.put(r)
+	return collection
 }
 
-func (c *databaseServerCollection) get() resource {
+type healthCheckResourceCollection[R healthCheckResource] struct {
+	aggregate *aggregatedHealthResource[R]
+	servers   map[string]R
+}
+
+func (c *healthCheckResourceCollection[R]) get() resource {
 	return c.aggregate
 }
 
-func (c *databaseServerCollection) put(r resource) {
-	if r, ok := r.(types.DatabaseServer); ok {
+func (c *healthCheckResourceCollection[R]) put(r resource) {
+	if r, ok := r.(R); ok {
 		c.servers[r.GetHostID()] = r
-		c.aggregate = &aggregatedDatabase{
-			DatabaseServer: r,
-			status:         aggregateHealthStatuses(c.servers),
+		c.aggregate = &aggregatedHealthResource[R]{
+			healthCheckResource: r,
+			status:              aggregateHealthStatuses(c.servers),
 		}
 	}
 }
 
-func (c *databaseServerCollection) remove(r types.Resource) bool {
+func (c *healthCheckResourceCollection[R]) remove(r types.Resource) bool {
 	delete(c.servers, r.GetMetadata().Description)
 	for _, s := range c.servers {
-		c.aggregate = &aggregatedDatabase{
-			DatabaseServer: s,
-			status:         aggregateHealthStatuses(c.servers),
+		c.aggregate = &aggregatedHealthResource[R]{
+			healthCheckResource: s,
+			status:              aggregateHealthStatuses(c.servers),
 		}
 		return false
 	}
 	return true
 }
 
-// aggregatedDatabase wraps a database server with aggregated health status.
+// aggregatedHealthResource wraps a server resource with aggregated health status.
 // This type exists to avoid cloning the resource unnecessarily, yet still
 // prevent data races.
-type aggregatedDatabase struct {
-	types.DatabaseServer
+type aggregatedHealthResource[R healthCheckResource] struct {
+	healthCheckResource
 	status types.TargetHealthStatus
 }
 
-func (d *aggregatedDatabase) GetTargetHealthStatus() types.TargetHealthStatus {
-	return d.status
+func (a *aggregatedHealthResource[R]) GetTargetHealthStatus() types.TargetHealthStatus {
+	return a.status
 }
 
-// Copy returns a copy of the underlying database server with aggregated health
-// status.
-func (d *aggregatedDatabase) Copy() types.DatabaseServer {
-	out := d.DatabaseServer.Copy()
-	out.SetTargetHealthStatus(d.status)
-	return out
-}
-
-func (d *aggregatedDatabase) CloneResource() types.ResourceWithLabels {
-	return d.Copy()
+func (a *aggregatedHealthResource[R]) CloneResource() types.ResourceWithLabels {
+	clone := a.healthCheckResource.CloneResource()
+	if r, ok := clone.(healthCheckResource); ok {
+		r.SetTargetHealthStatus(a.status)
+	}
+	return clone
 }
 
 func aggregateHealthStatuses[T types.TargetHealthStatusGetter](hgs map[string]T) types.TargetHealthStatus {
