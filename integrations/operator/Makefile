@@ -98,8 +98,8 @@ PROTOS = \
 	teleport/accesslist/v1/accesslist.proto \
 	teleport/legacy/types/types.proto \
 	teleport/machineid/v1/bot.proto \
-	teleport/workloadidentity/v1/resource.proto
-
+	teleport/workloadidentity/v1/resource.proto \
+	teleport/autoupdate/v1/autoupdate.proto
 
 .PHONY: crd-manifests
 crd-manifests: crdgen ## Generates CRD manifests using crdgen.

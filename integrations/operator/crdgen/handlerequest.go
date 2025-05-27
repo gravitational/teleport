@@ -223,6 +223,21 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 				withVersionInKindOverride(),
 			},
 		},
+		{
+			name: "AutoUpdateConfig",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withVersionInKindOverride(),
+				withNameOverride("AutoupdateConfig"),
+			},
+		},
+		{
+			name: "AutoUpdateVersion",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withVersionInKindOverride(),
+				withNameOverride("AutoupdateVersion"),
+			}},
 	}
 
 	for _, resource := range resources {
