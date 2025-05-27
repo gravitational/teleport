@@ -25,9 +25,11 @@ import { AwsOidcTitle } from 'teleport/Integrations/status/AwsOidc/AwsOidcTitle'
 import {
   AwsResource,
   StatCard,
-} from 'teleport/Integrations/status/AwsOidc/StatCard';
+} from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { TaskAlert } from 'teleport/Integrations/status/AwsOidc/Tasks/TaskAlert';
 import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
+
+import { ConsoleCard } from './Cards/ConsoleCard';
 
 export function AwsOidcDashboard() {
   const { statsAttempt, integrationAttempt } = useAwsOidcStatus();
@@ -90,6 +92,7 @@ export function AwsOidcDashboard() {
             summary={awseks}
           />
         </Flex>
+        <ConsoleCard />
       </FeatureBox>
     </>
   );

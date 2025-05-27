@@ -18,13 +18,12 @@
 
 import { Link as InternalLink } from 'react-router-dom';
 
-import { CardTile, Flex, H2, P2, Text } from 'design';
+import { Box, CardTile, Flex, H2, H3, P2, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { SyncStamp } from 'design/SyncStamp/SyncStamp';
 
 import cfg from 'teleport/config';
-import { EnrollCard } from 'teleport/Integrations/status/AwsOidc/EnrollCard';
 import {
   IntegrationKind,
   ResourceTypeSummary,
@@ -105,6 +104,42 @@ export function StatCard({ name, item, resource, summary }: StatCardProps) {
           </Flex>
         </Flex>
         <SyncStamp date={updated} />
+      </Flex>
+    </CardTile>
+  );
+}
+
+function EnrollCard({
+  resource,
+  item,
+}: {
+  resource: AwsResource;
+  item: string;
+}) {
+  return (
+    <CardTile
+      width="33%"
+      data-testid={`${resource}-enroll`}
+      as={InternalLink}
+      to={{
+        pathname: cfg.routes.discover,
+        state: { searchKeywords: resource },
+      }}
+    >
+      <Flex flexDirection="column" justifyContent="space-between" height="100%">
+        <Box>
+          <Flex alignItems="center">
+            <ResourceIcon name={resource} mr={2} width="32px" height="32px" />
+            <H2>{resource.toUpperCase()}</H2>
+          </Flex>
+          <P2 mb={2}>
+            Discover and enroll {resource.toUpperCase()} {item}
+          </P2>
+        </Box>
+        <Flex alignItems="center" gap={2}>
+          <H3>Enroll {resource.toUpperCase()}</H3>
+          <Icons.ArrowForward />
+        </Flex>
       </Flex>
     </CardTile>
   );
