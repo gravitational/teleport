@@ -122,11 +122,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/summarizer"
 	"github.com/gravitational/teleport/lib/terraformcloud"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
@@ -1181,6 +1181,9 @@ type Server struct {
 	// loginHooks are a list of hooks that will be called on login.
 	loginHooks []LoginHook
 
+	uploadCompletionHooksMu sync.RWMutex
+	uploadCompletionHooks   []events.UploadCompletionHook
+
 	// httpClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests.
 	httpClientForAWSSTS utils.HTTPDoClient
@@ -1233,9 +1236,6 @@ func (a *Server) SetSAMLService(svc SAMLService) {
 // will override the previous registration.
 func (a *Server) SetOIDCService(svc OIDCService) {
 	a.oidcAuthService = svc
-}
-
-func (a *Server) SetSummarizer(s summarizer.Summarizer) {
 }
 
 // SetLicense sets the license
@@ -1310,6 +1310,31 @@ func (a *Server) ResetLoginHooks() {
 	a.loginHooksMu.Lock()
 	a.loginHooks = nil
 	a.loginHooksMu.Unlock()
+}
+
+func (a *Server) RegisterUploadCompletionHook(hook events.UploadCompletionHook) {
+	a.uploadCompletionHooksMu.Lock()
+	defer a.uploadCompletionHooksMu.Unlock()
+	a.uploadCompletionHooks = append(a.uploadCompletionHooks, hook)
+}
+
+func (a *Server) CallUploadCompletionHooks(ctx context.Context, sessionID session.ID) error {
+	// Make a copy of the login hooks to operate on.
+	a.uploadCompletionHooksMu.RLock()
+	completionHooks := make([]events.UploadCompletionHook, len(a.uploadCompletionHooks))
+	copy(completionHooks, a.uploadCompletionHooks)
+	a.uploadCompletionHooksMu.RUnlock()
+
+	if len(completionHooks) == 0 {
+		return nil
+	}
+
+	var errs []error
+	for _, hook := range completionHooks {
+		errs = append(errs, hook(ctx, sessionID))
+	}
+
+	return trace.NewAggregate(errs...)
 }
 
 // CloseContext returns the close context

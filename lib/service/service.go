@@ -151,6 +151,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/expiry"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpnproxyauth "github.com/gravitational/teleport/lib/srv/alpnproxy/auth"
@@ -2086,6 +2087,13 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		streamer, err = events.NewProtoStreamer(events.ProtoStreamerConfig{
 			Uploader: uploadHandler,
+			CompletionHook: func(ctx context.Context, sessionID session.ID) error {
+				la := process.getLocalAuth()
+				if la == nil {
+					return nil
+				}
+				return la.CallUploadCompletionHooks(ctx, sessionID)
+			},
 		})
 		if err != nil {
 			return trace.Wrap(err)

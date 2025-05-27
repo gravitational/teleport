@@ -261,7 +261,10 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
 
-require github.com/zeebo/assert v1.3.0
+require (
+	github.com/openai/openai-go v1.1.0
+	github.com/zeebo/assert v1.3.0
+)
 
 require (
 	cel.dev/expr v0.20.0 // indirect
@@ -533,6 +536,10 @@ require (
 	github.com/thales-e-security/pool v0.0.2 // indirect
 	github.com/theupdateframework/go-tuf v0.7.0 // indirect
 	github.com/theupdateframework/go-tuf/v2 v2.0.2 // indirect
+	github.com/tidwall/gjson v1.14.4 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/titanous/rocacheck v0.0.0-20171023193734-afe73141d399 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
