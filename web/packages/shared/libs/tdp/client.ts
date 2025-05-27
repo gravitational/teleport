@@ -149,15 +149,23 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.codec = new Codec();
   }
 
-  /**
-   * Connects to the transport and registers event handlers.
-   * Include a screen spec in cases where the client should determine the screen size
-   * (e.g. in a desktop session). Leave the screen spec undefined in cases where the server determines
-   * the screen size (e.g. in a recording playback session). In that case, the client will
-   * set the internal screen size when it receives the screen spec from the server
-   * (see PlayerClient.handleClientScreenSpec).
-   */
-  async connect(keyboardLayout: number = 0, spec?: ClientScreenSpec) {
+  /** Connects to the transport and registers event handlers. */
+  async connect(
+    options: {
+      /**
+       * Client keyboard layout.
+       * This should be provided only for a desktop session
+       * (desktop player doesn't allow this parameter).
+       */
+      keyboardLayout?: number;
+      /**
+       * Client screen size.
+       * This should be provided only for a desktop session
+       * (desktop player doesn't allow this parameter).
+       */
+      screenSpec?: ClientScreenSpec;
+    } = {}
+  ) {
     this.transportAbortController = new AbortController();
     if (!wasmReady) {
       wasmReady = this.initWasm();
@@ -174,11 +182,13 @@ export class TdpClient extends EventEmitter<EventMap> {
     }
 
     this.emit(TdpClientEvent.TRANSPORT_OPEN);
-    if (spec) {
-      this.sendClientScreenSpec(spec);
+    if (options.screenSpec) {
+      this.sendClientScreenSpec(options.screenSpec);
     }
 
-    this.sendClientKeyboardLayout(keyboardLayout);
+    if (options.keyboardLayout !== undefined) {
+      this.sendClientKeyboardLayout(options.keyboardLayout);
+    }
 
     let processingError: Error | undefined;
     let connectionError: Error | undefined;
