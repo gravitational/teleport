@@ -129,5 +129,6 @@ func (n *NetInterfaces) interfaceApp(ctx context.Context, ifaceName string) (str
 func (c *RouteConflictDiag) commands(ctx context.Context) []*exec.Cmd {
 	return []*exec.Cmd{
 		exec.CommandContext(ctx, "netstat", "-rn", "-f", "inet"),
+		exec.CommandContext(ctx, "scutil", "--dns"),
 	}
 }
