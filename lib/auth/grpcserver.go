@@ -69,6 +69,7 @@ import (
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -104,6 +105,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
+	"github.com/gravitational/teleport/lib/auth/secreports/secreportsv1"
 	"github.com/gravitational/teleport/lib/auth/stableunixusers"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate/userloginstatev1"
@@ -443,18 +445,6 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			var errors []error
 			errors = append(errors, eventStream.RecordEvent(stream.Context(), preparedEvent))
 
-			// v13 clients expect this request to also emit the event, so emit here
-			// just for them.
-			switch event.GetType() {
-			// Don't emit really verbose events.
-			case events.ResizeEvent, events.SessionDiskEvent, events.SessionPrintEvent, events.AppSessionRequestEvent, "":
-			default:
-				clientVersion, versionExists := metadata.ClientVersionFromContext(stream.Context())
-				if versionExists && semver.New(clientVersion).Major <= 13 {
-					errors = append(errors, auth.EmitAuditEvent(stream.Context(), event))
-				}
-			}
-
 			err = trace.NewAggregate(errors...)
 			if err != nil {
 				switch {
@@ -661,6 +651,15 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
 
+	if req.RequesterName == authpb.UserCertsRequest_TSH_DB_EXEC {
+		if req.Usage != authpb.UserCertsRequest_Database {
+			return trace.BadParameter("requester %s can only request database certificates", req.RequesterName)
+		}
+		if req.MFAResponse != nil && req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+			return trace.BadParameter("requester %q can only request single use certificates", req.RequesterName)
+		}
+	}
+
 	if req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
 		return nil
 	}
@@ -759,8 +758,10 @@ func (g *GRPCServer) AssertSystemRole(ctx context.Context, req *authpb.SystemRol
 // icsServicesToMetricName is a helper for translating service names to keepalive names for control-stream
 // purposes. When new services switch to using control-stream based heartbeats, they should be added here.
 var icsServiceToMetricName = map[types.SystemRole]string{
-	types.RoleNode: constants.KeepAliveNode,
-	types.RoleApp:  constants.KeepAliveApp,
+	types.RoleApp:      constants.KeepAliveApp,
+	types.RoleDatabase: constants.KeepAliveDatabase,
+	types.RoleKube:     constants.KeepAliveKube,
+	types.RoleNode:     constants.KeepAliveNode,
 }
 
 func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryControlStreamServer) error {
@@ -786,7 +787,7 @@ func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryC
 	// mapping for translation.
 	var metricServices []string
 	for _, service := range hello.Services {
-		if name, ok := icsServiceToMetricName[service]; ok {
+		if name, ok := icsServiceToMetricName[types.SystemRole(service)]; ok {
 			metricServices = append(metricServices, name)
 		}
 	}
@@ -810,12 +811,12 @@ func (g *GRPCServer) GetInventoryStatus(ctx context.Context, req *authpb.Invento
 		return nil, trail.ToGRPC(err)
 	}
 
-	rsp, err := auth.GetInventoryStatus(ctx, *req)
+	rsp, err := auth.GetInventoryStatus(ctx, req)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
-	return &rsp, nil
+	return rsp, nil
 }
 
 // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
@@ -1891,6 +1892,32 @@ func (g *GRPCServer) GetWebSessions(ctx context.Context, _ *emptypb.Empty) (*aut
 	}, nil
 }
 
+// StreamWebSessions implements [authpb.AuthServiceServer].
+func (g *GRPCServer) StreamWebSessions(req *emptypb.Empty, srv authpb.AuthService_StreamWebSessionsServer) error {
+	ctx := srv.Context()
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sessions, err := auth.WebSessions().List(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, session := range sessions {
+		sess, ok := session.(*types.WebSessionV2)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", session)
+		}
+		if err := srv.Send(sess); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
 // DeleteWebSession removes the web session given with req.
 func (g *GRPCServer) DeleteWebSession(ctx context.Context, req *types.DeleteWebSessionRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -2054,7 +2081,159 @@ func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6,
 	}
 
 	role = maybeDowngradeRoleSSHPortForwarding(role, clientVersion)
+	role = maybeDowngradeRoleVersionToV7(role, clientVersion)
 	return role, nil
+}
+
+var minSupportedRoleV8Version = semver.New(utils.VersionBeforeAlpha("18.0.0"))
+
+// maybeDowngradeRoleVersionToV7 downgrades the role version to V7 if
+// the client version passed through the gRPC metadata is below the version
+// specified in minSupportedRoleV8Version.
+//
+// TODO(@creack): Delete in v19.0.0.
+func maybeDowngradeRoleVersionToV7(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
+	switch role.GetVersion() {
+	case types.V1, types.V2, types.V3, types.V4, types.V5, types.V6, types.V7:
+		return role
+	}
+	if supported, err := utils.MinVerWithoutPreRelease(
+		clientVersion.String(),
+		minSupportedRoleV8Version.String()); supported || err != nil {
+		return role
+	}
+
+	// Make a shallow copy of the role so that we don't mutate the original.
+	// This is necessary because the role is shared
+	// between multiple clients sessions when notifying about changes in watchers.
+	// If we mutate the original role, it will be mutated for all clients
+	// which can cause panics since it causes a race condition.
+	role = apiutils.CloneProtoMsg(role)
+	role.Version = types.V7
+	role = downgradeSAMLIdPRBAC(role)
+
+	reason := fmt.Sprintf(`Role V8 is only supported from the client version %q and above.`+
+		`Access to SAML IdP will be disabled.`, minSupportedRoleV8Version)
+	if role.Metadata.Labels == nil {
+		role.Metadata.Labels = make(map[string]string, 1)
+	}
+	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
+
+	role = maybeDowngradeRoleK8sAPIGroupToV7(role)
+
+	return role
+}
+
+// downgradeSAMLIdPRBAC disables access to all saml_idp_service_provider
+// resources. The RBAC for saml_idp_service_provider resource before role V8
+// is a blanket allow/deny rule. Since the saml resource can now be
+// scoped per resource labels, disabling access on downgraded role is
+// a simpler and safer option.
+func downgradeSAMLIdPRBAC(downgradedRole *types.RoleV6) *types.RoleV6 {
+	options := downgradedRole.GetOptions()
+	options.IDP = &types.IdPOptions{
+		SAML: &types.IdPSAMLOptions{
+			Enabled: types.NewBoolOption(false),
+		},
+	}
+	downgradedRole.SetOptions(options)
+
+	return downgradedRole
+}
+
+func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
+	downgrade := func(resources []types.KubernetesResource) ([]types.KubernetesResource, bool) {
+		var out []types.KubernetesResource
+		for _, elem := range resources {
+			// If group is '*', simply remove it as the behavior in v7 would be the same.
+			if elem.APIGroup == types.Wildcard {
+				elem.APIGroup = ""
+			}
+
+			// If Kind is known in v7 and group is known, remove it the api group and keep the resource.
+			if v, ok := defaultRBACResources[allowedResourcesKey{elem.APIGroup, elem.Kind}]; ok {
+				elem.APIGroup = ""
+				elem.Kind = v
+				out = append(out, elem)
+				continue
+			}
+
+			// If we reach this point, we are dealing with a resource we don't know about or a wildcard
+			// As the scope of permissions granted differs, deny everything.
+			role.Spec.Allow.KubernetesResources = nil
+			role.Spec.Deny.KubernetesLabels = types.Labels{
+				types.Wildcard: {types.Wildcard},
+			}
+			role.Spec.Deny.KubernetesResources = []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			}
+			return nil, false
+		}
+		return out, true
+	}
+
+	var ok bool
+	role.Spec.Allow.KubernetesResources, ok = downgrade(role.Spec.Allow.KubernetesResources)
+	if !ok {
+		return role
+	}
+	role.Spec.Deny.KubernetesResources, _ = downgrade(role.Spec.Deny.KubernetesResources)
+
+	return role
+}
+
+// allowedResourcesKey is a key used to identify a resource in the allowedResources map.
+type allowedResourcesKey struct {
+	apiGroup     string
+	resourceKind string
+}
+
+// TODO(@creack): Delete in v19.0.0.
+// Only used in the maybeDowngradeRoleVersionToV7 function above.
+// Must be synced with the defaultRBACResources map in lib/kube/proxy/url.go.
+// NOTE: 'namespaces' is not included as the v8 behavior is different from v7.
+// A 'namespaces' resource in v8 would result in wildcard deny in older versions.
+var defaultRBACResources = map[allowedResourcesKey]string{
+	{apiGroup: "", resourceKind: "pods"}:                                          types.KindKubePod,
+	{apiGroup: "", resourceKind: "secrets"}:                                       types.KindKubeSecret,
+	{apiGroup: "", resourceKind: "configmaps"}:                                    types.KindKubeConfigmap,
+	{apiGroup: "", resourceKind: "services"}:                                      types.KindKubeService,
+	{apiGroup: "", resourceKind: "endpoints"}:                                     types.KindKubeService,
+	{apiGroup: "", resourceKind: "serviceaccounts"}:                               types.KindKubeServiceAccount,
+	{apiGroup: "", resourceKind: "nodes"}:                                         types.KindKubeNode,
+	{apiGroup: "", resourceKind: "persistentvolumes"}:                             types.KindKubePersistentVolume,
+	{apiGroup: "", resourceKind: "persistentvolumeclaims"}:                        types.KindKubePersistentVolumeClaim,
+	{apiGroup: "", resourceKind: "replicationcontrollers"}:                        types.KindKubeReplicationController,
+	{apiGroup: "apps", resourceKind: "deployments"}:                               types.KindKubeDeployment,
+	{apiGroup: "apps", resourceKind: "replicasets"}:                               types.KindKubeReplicaSet,
+	{apiGroup: "apps", resourceKind: "statefulsets"}:                              types.KindKubeStatefulset,
+	{apiGroup: "apps", resourceKind: "daemonsets"}:                                types.KindKubeDaemonSet,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterroles"}:         types.KindKubeClusterRole,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "roles"}:                types.KindKubeRole,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterrolebindings"}:  types.KindKubeClusterRoleBinding,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "rolebindings"}:         types.KindKubeRoleBinding,
+	{apiGroup: "batch", resourceKind: "cronjobs"}:                                 types.KindKubeCronjob,
+	{apiGroup: "batch", resourceKind: "jobs"}:                                     types.KindKubeJob,
+	{apiGroup: "certificates.k8s.io", resourceKind: "certificatesigningrequests"}: types.KindKubeCertificateSigningRequest,
+	{apiGroup: "networking.k8s.io", resourceKind: "ingresses"}:                    types.KindKubeIngress,
+	{apiGroup: "extensions", resourceKind: "deployments"}:                         types.KindKubeDeployment,
+	{apiGroup: "extensions", resourceKind: "replicasets"}:                         types.KindKubeReplicaSet,
+	{apiGroup: "extensions", resourceKind: "daemonsets"}:                          types.KindKubeDaemonSet,
+	{apiGroup: "extensions", resourceKind: "ingresses"}:                           types.KindKubeIngress,
+}
+
+// TODO(@creack): Delete in v19.0.0.
+func init() {
+	// Populate the map with empty group to match v7 kind.
+	for k, v := range defaultRBACResources {
+		k.apiGroup = ""
+		defaultRBACResources[k] = v
+	}
 }
 
 var minSupportedSSHPortForwardingVersion = semver.Version{Major: 17, Minor: 1, Patch: 0}
@@ -2314,9 +2493,8 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *authpb.DeleteRoleReque
 // related gRPC API endpoints.
 func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authpb.AuthService_MaintainSessionPresenceServer, challengeReq *authpb.PresenceMFAChallengeRequest) error {
 	user := actx.User.GetName()
-
 	chalExt := &mfav1pb.ChallengeExtensions{Scope: mfav1pb.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
-	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, challengeReq.SSOClientRedirectURL, chalExt)
+	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, challengeReq.SSOClientRedirectURL, challengeReq.ProxyAddress, chalExt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2664,7 +2842,7 @@ func (g *GRPCServer) GetSAMLConnector(ctx context.Context, req *types.ResourceWi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sc, err := auth.ServerWithRoles.GetSAMLConnector(ctx, req.Name, req.WithSecrets)
+	sc, err := auth.ServerWithRoles.GetSAMLConnector(ctx, req.Name, req.WithSecrets, types.SAMLConnectorValidationFollowURLs(!req.SAMLValidationNoFollowURLs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2681,7 +2859,7 @@ func (g *GRPCServer) GetSAMLConnectors(ctx context.Context, req *types.Resources
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	scs, err := auth.ServerWithRoles.GetSAMLConnectors(ctx, req.WithSecrets)
+	scs, err := auth.ServerWithRoles.GetSAMLConnectors(ctx, req.WithSecrets, types.SAMLConnectorValidationFollowURLs(!req.SAMLValidationNoFollowURLs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3518,8 +3696,7 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *authpb.GetEventsRequest
 		return nil, trace.Wrap(err)
 	}
 
-	var res *authpb.Events = &authpb.Events{}
-
+	res := &authpb.Events{}
 	encodedEvents := make([]*apievents.OneOf, 0, len(rawEvents))
 
 	for _, rawEvent := range rawEvents {
@@ -3553,8 +3730,7 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *authpb.GetSessio
 		return nil, trace.Wrap(err)
 	}
 
-	var res *authpb.Events = &authpb.Events{}
-
+	res := &authpb.Events{}
 	encodedEvents := make([]*apievents.OneOf, 0, len(rawEvents))
 
 	for _, rawEvent := range rawEvents {
@@ -4245,7 +4421,7 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 		return nil, trace.Wrap(err)
 	}
 
-	paginatedResources, err := services.MakePaginatedResources(ctx, req.ResourceType, resp.Resources, nil /* requestable map */)
+	paginatedResources, err := services.MakePaginatedResources(req.ResourceType, resp.Resources, nil /* requestable map */)
 	if err != nil {
 		return nil, trace.Wrap(err, "making paginated resources")
 	}
@@ -5304,12 +5480,14 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err, "getting cluster name")
 	}
 	workloadIdentityIssuanceService, err := workloadidentityv1.NewIssuanceService(&workloadidentityv1.IssuanceServiceConfig{
-		Authorizer:  cfg.Authorizer,
-		Cache:       cfg.AuthServer.Cache,
-		Emitter:     cfg.Emitter,
-		Clock:       cfg.AuthServer.GetClock(),
-		KeyStore:    cfg.AuthServer.keyStore,
-		ClusterName: clusterName.GetClusterName(),
+		Authorizer:                 cfg.Authorizer,
+		Cache:                      cfg.AuthServer.Cache,
+		Emitter:                    cfg.Emitter,
+		Clock:                      cfg.AuthServer.GetClock(),
+		KeyStore:                   cfg.AuthServer.keyStore,
+		OverrideGetter:             cfg.AuthServer,
+		ClusterName:                clusterName.GetClusterName(),
+		GetSigstorePolicyEvaluator: cfg.AuthServer.GetSigstorePolicyEvaluator,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating workload identity issuance service")
@@ -5335,20 +5513,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	workloadidentityv1pb.RegisterWorkloadIdentityRevocationServiceServer(server, workloadIdentityRevocationService)
 	go workloadIdentityRevocationService.RunCRLSigner(cfg.AuthServer.CloseContext())
-
-	if cfg.PluginRegistry == nil || !cfg.PluginRegistry.IsRegistered("auth.enterprise") {
-		srv, err := workloadidentityv1.NewX509OverridesService(workloadidentityv1.X509OverridesServiceConfig{
-			Authorizer: cfg.Authorizer,
-			Storage:    cfg.AuthServer.Services,
-			Emitter:    cfg.Emitter,
-
-			ClusterName: clusterName.GetClusterName(),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err, "creating workload identity X509 overrides service")
-		}
-		workloadidentityv1pb.RegisterX509OverridesServiceServer(server, srv)
-	}
 
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5592,11 +5756,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	notificationsv1pb.RegisterNotificationServiceServer(server, notificationsServer)
 
-	vnetConfigStorage, err := local.NewVnetConfigService(cfg.AuthServer.bk)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	vnetConfigServiceServer := vnetconfigv1.NewService(vnetConfigStorage, cfg.Authorizer)
+	vnetConfigServiceServer := vnetconfigv1.NewService(cfg.AuthServer.VnetConfigService, cfg.Authorizer)
 	vnetv1pb.RegisterVnetConfigServiceServer(server, vnetConfigServiceServer)
 
 	staticHostUserServer, err := userprovisioningv2.NewService(userprovisioningv2.ServiceConfig{
@@ -5646,11 +5806,26 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	gitserverv1pb.RegisterGitServerServiceServer(server, gitServerService)
 
-	// Only register the service if this is an open source build. Enterprise builds
+	// Only register the following services if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all
 	// Enterprise builds would fail with a duplicate service registered error.
 	if cfg.PluginRegistry == nil || !cfg.PluginRegistry.IsRegistered("auth.enterprise") {
 		loginrulev1pb.RegisterLoginRuleServiceServer(server, loginrulev1.NotImplementedService{})
+		secreportsv1pb.RegisterSecReportsServiceServer(server, secreportsv1.NotImplementedService{})
+
+		srv, err := workloadidentityv1.NewX509OverridesService(workloadidentityv1.X509OverridesServiceConfig{
+			Authorizer: cfg.Authorizer,
+			Storage:    cfg.AuthServer.Services,
+			Emitter:    cfg.Emitter,
+
+			ClusterName: clusterName.GetClusterName(),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "creating workload identity X509 overrides service")
+		}
+		workloadidentityv1pb.RegisterX509OverridesServiceServer(server, srv)
+		workloadidentityv1pb.RegisterSigstorePolicyResourceServiceServer(server, workloadidentityv1.NewSigstorePolicyResourceService())
+
 	}
 
 	decisionService, err := decisionv1.NewService(decisionv1.ServiceConfig{
@@ -5665,6 +5840,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	healthCheckConfigSvc, err := healthcheckconfigv1.NewService(healthcheckconfigv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services.HealthCheckConfig,
+		Cache:      cfg.AuthServer.Cache,
 		Emitter:    cfg.Emitter,
 	})
 	if err != nil {

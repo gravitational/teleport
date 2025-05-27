@@ -34,6 +34,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	X509OverridesService_SignX509IssuerCSR_FullMethodName        = "/teleport.workloadidentity.v1.X509OverridesService/SignX509IssuerCSR"
 	X509OverridesService_GetX509IssuerOverride_FullMethodName    = "/teleport.workloadidentity.v1.X509OverridesService/GetX509IssuerOverride"
 	X509OverridesService_ListX509IssuerOverrides_FullMethodName  = "/teleport.workloadidentity.v1.X509OverridesService/ListX509IssuerOverrides"
 	X509OverridesService_CreateX509IssuerOverride_FullMethodName = "/teleport.workloadidentity.v1.X509OverridesService/CreateX509IssuerOverride"
@@ -50,6 +51,8 @@ const (
 // issuer overrides, and for operations that require the auth's help or
 // involvement in generating overrides.
 type X509OverridesServiceClient interface {
+	// Create a CSR with the key associated with an internal X.509 SPIFFE issuer.
+	SignX509IssuerCSR(ctx context.Context, in *SignX509IssuerCSRRequest, opts ...grpc.CallOption) (*SignX509IssuerCSRResponse, error)
 	// Get a workload_identity_x509_issuer_override by name.
 	GetX509IssuerOverride(ctx context.Context, in *GetX509IssuerOverrideRequest, opts ...grpc.CallOption) (*X509IssuerOverride, error)
 	// List a page of workload_identity_x509_issuer_override items.
@@ -76,6 +79,16 @@ type x509OverridesServiceClient struct {
 
 func NewX509OverridesServiceClient(cc grpc.ClientConnInterface) X509OverridesServiceClient {
 	return &x509OverridesServiceClient{cc}
+}
+
+func (c *x509OverridesServiceClient) SignX509IssuerCSR(ctx context.Context, in *SignX509IssuerCSRRequest, opts ...grpc.CallOption) (*SignX509IssuerCSRResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SignX509IssuerCSRResponse)
+	err := c.cc.Invoke(ctx, X509OverridesService_SignX509IssuerCSR_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *x509OverridesServiceClient) GetX509IssuerOverride(ctx context.Context, in *GetX509IssuerOverrideRequest, opts ...grpc.CallOption) (*X509IssuerOverride, error) {
@@ -146,6 +159,8 @@ func (c *x509OverridesServiceClient) DeleteX509IssuerOverride(ctx context.Contex
 // issuer overrides, and for operations that require the auth's help or
 // involvement in generating overrides.
 type X509OverridesServiceServer interface {
+	// Create a CSR with the key associated with an internal X.509 SPIFFE issuer.
+	SignX509IssuerCSR(context.Context, *SignX509IssuerCSRRequest) (*SignX509IssuerCSRResponse, error)
 	// Get a workload_identity_x509_issuer_override by name.
 	GetX509IssuerOverride(context.Context, *GetX509IssuerOverrideRequest) (*X509IssuerOverride, error)
 	// List a page of workload_identity_x509_issuer_override items.
@@ -174,6 +189,9 @@ type X509OverridesServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedX509OverridesServiceServer struct{}
 
+func (UnimplementedX509OverridesServiceServer) SignX509IssuerCSR(context.Context, *SignX509IssuerCSRRequest) (*SignX509IssuerCSRResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignX509IssuerCSR not implemented")
+}
 func (UnimplementedX509OverridesServiceServer) GetX509IssuerOverride(context.Context, *GetX509IssuerOverrideRequest) (*X509IssuerOverride, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetX509IssuerOverride not implemented")
 }
@@ -211,6 +229,24 @@ func RegisterX509OverridesServiceServer(s grpc.ServiceRegistrar, srv X509Overrid
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&X509OverridesService_ServiceDesc, srv)
+}
+
+func _X509OverridesService_SignX509IssuerCSR_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SignX509IssuerCSRRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(X509OverridesServiceServer).SignX509IssuerCSR(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: X509OverridesService_SignX509IssuerCSR_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(X509OverridesServiceServer).SignX509IssuerCSR(ctx, req.(*SignX509IssuerCSRRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _X509OverridesService_GetX509IssuerOverride_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -328,6 +364,10 @@ var X509OverridesService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "teleport.workloadidentity.v1.X509OverridesService",
 	HandlerType: (*X509OverridesServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "SignX509IssuerCSR",
+			Handler:    _X509OverridesService_SignX509IssuerCSR_Handler,
+		},
 		{
 			MethodName: "GetX509IssuerOverride",
 			Handler:    _X509OverridesService_GetX509IssuerOverride_Handler,

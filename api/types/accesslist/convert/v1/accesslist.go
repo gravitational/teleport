@@ -90,26 +90,6 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		nextAuditDate = msg.Spec.Audit.NextAuditDate.AsTime()
 	}
 
-	var memberCount *uint32
-	var memberListCount *uint32
-	if msg.Status != nil && msg.Status.MemberCount != nil {
-		memberCount = new(uint32)
-		*memberCount = *msg.Status.MemberCount
-	}
-	if msg.Status != nil && msg.Status.MemberListCount != nil {
-		memberListCount = new(uint32)
-		*memberListCount = *msg.Status.MemberListCount
-	}
-
-	var ownerOf []string
-	var memberOf []string
-	if msg.Status != nil && msg.Status.OwnerOf != nil {
-		ownerOf = msg.Status.OwnerOf
-	}
-	if msg.Status != nil && msg.Status.MemberOf != nil {
-		memberOf = msg.Status.MemberOf
-	}
-
 	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
 		Title:       msg.Spec.Title,
 		Description: msg.Spec.Description,
@@ -136,11 +116,10 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessList.Status = accesslist.Status{
-		MemberCount:     memberCount,
-		MemberListCount: memberListCount,
-		OwnerOf:         ownerOf,
-		MemberOf:        memberOf,
+	accessList.SetSubKind(msg.GetHeader().GetSubKind())
+
+	if status := fromStatusProto(msg); status != nil {
+		accessList.Status = *status
 	}
 
 	for _, opt := range opts {
@@ -178,27 +157,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 		nextAuditDate = timestamppb.New(accessList.Spec.Audit.NextAuditDate)
 	}
 
-	var memberCount *uint32
-	var memberListCount *uint32
-	if accessList.Status.MemberCount != nil {
-		memberCount = new(uint32)
-		*memberCount = *accessList.Status.MemberCount
-	}
-	if accessList.Status.MemberListCount != nil {
-		memberListCount = new(uint32)
-		*memberListCount = *accessList.Status.MemberListCount
-	}
-
-	var ownerOf []string
-	var memberOf []string
-	if accessList.Status.OwnerOf != nil {
-		ownerOf = accessList.Status.OwnerOf
-	}
-	if accessList.Status.MemberOf != nil {
-		memberOf = accessList.Status.MemberOf
-	}
-
-	return &accesslistv1.AccessList{
+	proto := &accesslistv1.AccessList{
 		Header: headerv1.ToResourceHeaderProto(accessList.ResourceHeader),
 		Spec: &accesslistv1.AccessListSpec{
 			Title:       accessList.Spec.Title,
@@ -228,13 +187,10 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 			},
 			OwnerGrants: ownerGrants,
 		},
-		Status: &accesslistv1.AccessListStatus{
-			MemberCount:     memberCount,
-			MemberListCount: memberListCount,
-			OwnerOf:         ownerOf,
-			MemberOf:        memberOf,
-		},
+		Status: toStatusProto(&accessList.Status),
 	}
+
+	return proto
 }
 
 // ToOwnerProto converts an internal access list owner into a v1 access list owner object.
@@ -290,5 +246,81 @@ func WithOwnersIneligibleStatusField(protoOwners []*accesslistv1.AccessListOwner
 			updatedOwners[i] = owner
 		}
 		a.SetOwners(updatedOwners)
+	}
+}
+
+func toStatusProto(status *accesslist.Status) *accesslistv1.AccessListStatus {
+	if status == nil {
+		return nil
+	}
+
+	protoStatus := &accesslistv1.AccessListStatus{}
+
+	if status.MemberCount != nil {
+		protoStatus.MemberCount = new(uint32)
+		*protoStatus.MemberCount = *status.MemberCount
+	}
+	if status.MemberListCount != nil {
+		protoStatus.MemberListCount = new(uint32)
+		*protoStatus.MemberListCount = *status.MemberListCount
+	}
+
+	if status.OwnerOf != nil {
+		protoStatus.OwnerOf = status.OwnerOf
+	}
+	if status.MemberOf != nil {
+		protoStatus.MemberOf = status.MemberOf
+	}
+
+	protoStatus.CurrentUserAssignments = toCurrentUserAssignmentsProto(status.CurrentUserAssignments)
+
+	return protoStatus
+}
+
+func fromStatusProto(msg *accesslistv1.AccessList) *accesslist.Status {
+	if msg.Status == nil {
+		return nil
+	}
+
+	status := &accesslist.Status{}
+
+	if msg.Status.MemberCount != nil {
+		status.MemberCount = new(uint32)
+		*status.MemberCount = *msg.Status.MemberCount
+	}
+	if msg.Status.MemberListCount != nil {
+		status.MemberListCount = new(uint32)
+		*status.MemberListCount = *msg.Status.MemberListCount
+	}
+
+	if msg.Status.OwnerOf != nil {
+		status.OwnerOf = msg.Status.OwnerOf
+	}
+	if msg.Status.MemberOf != nil {
+		status.MemberOf = msg.Status.MemberOf
+	}
+
+	status.CurrentUserAssignments = fromCurrentUserAssignmentsProto(msg.Status.CurrentUserAssignments)
+
+	return status
+}
+
+func toCurrentUserAssignmentsProto(assignments *accesslist.CurrentUserAssignments) *accesslistv1.CurrentUserAssignments {
+	if assignments == nil {
+		return nil
+	}
+	return &accesslistv1.CurrentUserAssignments{
+		OwnershipType:  assignments.OwnershipType,
+		MembershipType: assignments.MembershipType,
+	}
+}
+
+func fromCurrentUserAssignmentsProto(assignments *accesslistv1.CurrentUserAssignments) *accesslist.CurrentUserAssignments {
+	if assignments == nil {
+		return nil
+	}
+	return &accesslist.CurrentUserAssignments{
+		OwnershipType:  assignments.OwnershipType,
+		MembershipType: assignments.MembershipType,
 	}
 }

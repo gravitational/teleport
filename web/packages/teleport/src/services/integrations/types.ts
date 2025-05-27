@@ -147,6 +147,7 @@ export enum IntegrationStatusCode {
   OtherError = 2,
   Unauthorized = 3,
   SlackNotInChannel = 10,
+  OktaConfigError = 20,
   Draft = 100,
 }
 
@@ -158,6 +159,8 @@ export function getStatusCodeTitle(code: IntegrationStatusCode): string {
       return 'Running';
     case IntegrationStatusCode.Unauthorized:
       return 'Unauthorized';
+    case IntegrationStatusCode.OktaConfigError:
+      return 'Configuration Error';
     case IntegrationStatusCode.SlackNotInChannel:
       return 'Bot not invited to channel';
     case IntegrationStatusCode.Draft:
@@ -168,12 +171,14 @@ export function getStatusCodeTitle(code: IntegrationStatusCode): string {
 }
 
 export function getStatusCodeDescription(
-  code: IntegrationStatusCode
+  code: IntegrationStatusCode,
+  msg?: string
 ): string | null {
   switch (code) {
     case IntegrationStatusCode.Unauthorized:
       return 'The integration was denied access. This could be a result of revoked authorization on the 3rd party provider. Try removing and re-connecting the integration.';
-
+    case IntegrationStatusCode.OktaConfigError:
+      return `There was an error with the integration's configuration.${msg ? ` ${msg}` : ''}`;
     case IntegrationStatusCode.SlackNotInChannel:
       return 'The Slack integration must be invited to the default channel in order to receive access request notifications.';
     default:
@@ -267,7 +272,8 @@ export type PluginKind =
   | 'jamf'
   | 'entra-id'
   | 'datadog'
-  | 'aws-identity-center';
+  | 'aws-identity-center'
+  | 'scim';
 
 export type PluginOktaSpec = {
   // The plaintext of the bearer token that Okta will use
@@ -295,10 +301,14 @@ export type PluginOktaSpec = {
   enableBidirectionalSync?: boolean;
   // Whether User Sync is enabled
   enableUserSync?: boolean;
+  // Whether the builtin okta-requester role should be assigned to synced users.
+  assignDefaultRoles?: boolean;
   // Whether Access List Sync is enabled. Should match App/Group sync.
   enableAccessListSync?: boolean;
   // Whether App/Group Sync is enabled. Should match Access List sync.
   enableAppGroupSync?: boolean;
+  // Whether Audit Logs syncing to Identity Security is enabled. Should match Identity Security sync.
+  enableSystemLogExport?: boolean;
   // Information about currently configured credentials for the plugin
   credentialsInfo?: CredentialsInfo;
 };
@@ -575,7 +585,7 @@ export type ResourceTypeSummary = {
   // discoverLastSync contains the time when this integration tried to auto-enroll resources.
   discoverLastSync: number;
   // unresolvedUserTasks contains the count of unresolved user tasks related to this integration and resource type.
-  unresolvedUserTasks: number;
+  unresolvedUserTasks?: number;
   // ecsDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
   // Only applicable for AWS RDS resource summary.
   ecsDatabaseServiceCount: number;

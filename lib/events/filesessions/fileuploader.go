@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"iter"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -41,6 +42,8 @@ type Config struct {
 	Directory string
 	// OnBeforeComplete can be used to inject failures during tests
 	OnBeforeComplete func(ctx context.Context, upload events.StreamUpload) error
+	// OpenFile is used by session recording to open OS files
+	OpenFile utils.OpenFileWithFlagsFunc
 }
 
 // nopBeforeComplete does nothing
@@ -59,7 +62,17 @@ func (s *Config) CheckAndSetDefaults() error {
 	if s.OnBeforeComplete == nil {
 		s.OnBeforeComplete = nopBeforeComplete
 	}
+	if s.OpenFile == nil {
+		s.OpenFile = os.OpenFile
+	}
 	return nil
+}
+
+// sessionFileRecorder captures file operations performed as part of saving session recordings as files.
+type sessionFileRecorder interface {
+	ReservePart(ctx context.Context, name string, size int64) error
+	WritePart(ctx context.Context, name string, data io.Reader) error
+	CombineParts(ctx context.Context, dst io.Writer, parts iter.Seq[string]) error
 }
 
 // NewHandler returns new file sessions handler
@@ -72,9 +85,11 @@ func NewHandler(cfg Config) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	logger := slog.With(teleport.ComponentKey, teleport.SchemeFile)
 	h := &Handler{
-		logger: slog.With(teleport.ComponentKey, teleport.SchemeFile),
-		Config: cfg,
+		logger:       logger,
+		Config:       cfg,
+		fileRecorder: NewPlainFileRecorder(logger, cfg.OpenFile),
 	}
 	return h, nil
 }
@@ -86,6 +101,8 @@ type Handler struct {
 	Config
 	// logger emits logs messages
 	logger *slog.Logger
+	// fileRecorder is the interface for "low-level" file operations
+	fileRecorder sessionFileRecorder
 }
 
 // Closer releases connection and resources associated with log if any

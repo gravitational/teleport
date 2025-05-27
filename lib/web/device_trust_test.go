@@ -18,6 +18,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -34,70 +35,102 @@ import (
 )
 
 func TestHandler_DeviceWebConfirm(t *testing.T) {
-	t.Parallel()
+	ctx := context.Background()
+	fakeDevices := &fakeDevicesClient{}
+	wPack := newWebPack(
+		t,
+		1, /* numProxies */
+		withDevicesClientOverride(fakeDevices),
+	)
+	proxy := wPack.proxies[0]
+
+	aPack := proxy.authPack(t, "llama", nil /* roles */)
+	webClient := aPack.clt
 
 	tests := []struct {
 		name               string
 		redirectURI        string
 		expectedRedirectTo string
+		redirectsToFullURL bool
+		statusCode         int
 	}{
 		{
 			name:               "no redirect_uri",
 			redirectURI:        "",
 			expectedRedirectTo: "/web",
+			statusCode:         http.StatusSeeOther,
 		},
 		{
 			name:               "with redirect_uri",
 			redirectURI:        "https://example.com/web/custom/path",
 			expectedRedirectTo: "/web/custom/path",
+			statusCode:         http.StatusSeeOther,
 		},
 		{
 			name:               "with app access redirect_uri",
 			redirectURI:        "https://example.com/web/launch/myapp.example.com",
 			expectedRedirectTo: "/web/launch/myapp.example.com",
+			statusCode:         http.StatusSeeOther,
 		},
 		{
-			name:               "with invalid redirect_uri",
-			redirectURI:        "://invalid",
-			expectedRedirectTo: "/web",
+			name:        "with invalid redirect_uri",
+			redirectURI: "://invalid",
+			statusCode:  http.StatusBadRequest,
 		},
 		{
 			name:               "with external redirect_uri",
 			redirectURI:        "https://example.com/path",
 			expectedRedirectTo: "/web/path",
+			statusCode:         http.StatusSeeOther,
 		},
 		{
 			name:               "with empty path redirect_uri",
 			redirectURI:        "https://example.com",
 			expectedRedirectTo: "/web",
+			statusCode:         http.StatusSeeOther,
 		},
 		{
 			name:               "with relative path",
 			redirectURI:        "/custom/path",
 			expectedRedirectTo: "/web/custom/path",
+			statusCode:         http.StatusSeeOther,
 		},
 		{
 			name:               "with web prefix already",
 			redirectURI:        "/web/existing/path",
 			expectedRedirectTo: "/web/existing/path",
+			statusCode:         http.StatusSeeOther,
+		},
+		{
+			name:               "saml idp service provider initiated sso endpoint",
+			redirectURI:        fmt.Sprintf("https://%s/enterprise/saml-idp/sso?SAMLRequest=example-authn-request", proxy.webURL.Host),
+			expectedRedirectTo: fmt.Sprintf("https://%s/enterprise/saml-idp/sso?SAMLRequest=example-authn-request", proxy.webURL.Host),
+			redirectsToFullURL: true,
+			statusCode:         http.StatusSeeOther,
+		},
+		{
+			name:               "saml idp identity provider initiated sso endpoint",
+			redirectURI:        fmt.Sprintf("https://%s/enterprise/saml-idp/login/example-app", proxy.webURL.Host),
+			expectedRedirectTo: fmt.Sprintf("https://%s/enterprise/saml-idp/login/example-app", proxy.webURL.Host),
+			redirectsToFullURL: true,
+			statusCode:         http.StatusSeeOther,
+		},
+		{
+			name:               "saml idp sso endpoint with redirect_uri pointing to a different host",
+			redirectURI:        "https://example.com/enterprise/saml-idp/sso?SAMLRequest=example-authn-request",
+			redirectsToFullURL: true,
+			statusCode:         http.StatusBadRequest,
+		},
+		{
+			name:               "saml idp sso endpoint with redirect_uri pointing to a malformed URL",
+			redirectURI:        "https://%s.//example.com/enterprise/saml-idp/sso?SAMLRequest=example-authn-request",
+			redirectsToFullURL: true,
+			statusCode:         http.StatusBadRequest,
 		},
 	}
 
 	for _, test := range tests {
-		fakeDevices := &fakeDevicesClient{}
-		wPack := newWebPack(
-			t,
-			1, /* numProxies */
-			withDevicesClientOverride(fakeDevices),
-		)
-		proxy := wPack.proxies[0]
-		aPack := proxy.authPack(t, "llama", nil /* roles */)
-		webClient := aPack.clt
-
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := context.Background()
-
 			query := make(url.Values)
 			query.Set("id", "my-token-id")
 			query.Set("token", "my-token-token")
@@ -109,11 +142,12 @@ func TestHandler_DeviceWebConfirm(t *testing.T) {
 			var actualRedirectTo string
 			httpClient := webClient.HTTPClient()
 			httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-				if !redirected {
-					redirected = true
-					actualRedirectTo = req.URL.Path
+				redirected = true
+				actualRedirectTo = req.URL.Path
+				if test.redirectsToFullURL {
+					actualRedirectTo = req.URL.String()
 				}
-				return nil
+				return http.ErrUseLastResponse
 			}
 
 			req, err := http.NewRequestWithContext(ctx, "GET", webClient.Endpoint("webapi", "devices", "webconfirm"), nil)
@@ -125,9 +159,11 @@ func TestHandler_DeviceWebConfirm(t *testing.T) {
 			io.Copy(io.Discard, resp.Body)
 			resp.Body.Close()
 
-			assert.True(t, redirected, "GET /webapi/devices/webconfirm didn't cause a redirect")
-			assert.Equal(t, http.StatusOK, resp.StatusCode, "GET /webapi/devices/webconfirm code mismatch")
-			assert.Equal(t, test.expectedRedirectTo, actualRedirectTo, "Redirect destination mismatch")
+			assert.Equal(t, test.statusCode, resp.StatusCode, "GET /webapi/devices/webconfirm status code mismatch")
+			if test.expectedRedirectTo != "" {
+				assert.True(t, redirected, "GET /webapi/devices/webconfirm didn't cause a redirect")
+				assert.Equal(t, test.expectedRedirectTo, actualRedirectTo, "Redirect destination mismatch")
+			}
 
 			got := fakeDevices.resetConfirmRequests()
 			want := []*devicepb.ConfirmDeviceWebAuthenticationRequest{

@@ -329,6 +329,17 @@ type AccessGraphConfig struct {
 
 	// Insecure is true if the connection to the Access Graph service should be insecure
 	Insecure bool
+
+	// AuditLog contains audit log export details.
+	AuditLog AuditLogConfig
+}
+
+// AuditLogConfig specifies the audit log event export setup.
+type AuditLogConfig struct {
+	// Enabled indicates if Audit Log event exporting is enabled.
+	Enabled bool
+	// StartDate is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
+	StartDate time.Time
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.
@@ -381,6 +392,33 @@ func (c CachePolicy) String() string {
 		return "no cache"
 	}
 	return "in-memory cache"
+}
+
+// CheckServicesForSELinux returns false if any services that don't
+// support SELinux enforcement are enabled.
+func (cfg *Config) CheckServicesForSELinux() bool {
+	switch {
+	case cfg.AccessGraph.Enabled:
+		fallthrough
+	case cfg.Apps.Enabled:
+		fallthrough
+	case cfg.Auth.Enabled:
+		fallthrough
+	case cfg.Databases.Enabled:
+		fallthrough
+	case cfg.Jamf.Enabled():
+		fallthrough
+	case cfg.Kube.Enabled:
+		fallthrough
+	case cfg.Okta.Enabled:
+		fallthrough
+	case cfg.Proxy.Enabled:
+		fallthrough
+	case cfg.WindowsDesktop.Enabled:
+		return false
+
+	}
+	return true
 }
 
 // AuthServerAddresses returns the value of authServers for config versions v1 and v2 and

@@ -161,21 +161,9 @@ func (k *Key) getSigner(opts *jose.SignerOptions) (jose.Signer, error) {
 		return nil, trace.BadParameter("can not sign token with non-signing key")
 	}
 
-	// Create a signer with configured private key and algorithm.
-	var signer interface{}
-	switch k.config.PrivateKey.(type) {
-	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
-		signer = k.config.PrivateKey
-	default:
-		signer = cryptosigner.Opaque(k.config.PrivateKey)
-	}
-	algorithm, err := joseAlgorithm(k.config.PrivateKey.Public())
+	signingKey, err := SigningKeyFromPrivateKey(k.config.PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	signingKey := jose.SigningKey{
-		Algorithm: algorithm,
-		Key:       signer,
 	}
 
 	if opts == nil {
@@ -189,7 +177,8 @@ func (k *Key) getSigner(opts *jose.SignerOptions) (jose.Signer, error) {
 	return sig, nil
 }
 
-func joseAlgorithm(pub crypto.PublicKey) (jose.SignatureAlgorithm, error) {
+// AlgorithmForPublicKey returns a jose algorithm for the given public key.
+func AlgorithmForPublicKey(pub crypto.PublicKey) (jose.SignatureAlgorithm, error) {
 	switch pub.(type) {
 	case *rsa.PublicKey:
 		return jose.RS256, nil
@@ -199,6 +188,28 @@ func joseAlgorithm(pub crypto.PublicKey) (jose.SignatureAlgorithm, error) {
 		return jose.EdDSA, nil
 	}
 	return "", trace.BadParameter("unsupported public key type %T", pub)
+}
+
+// SigningKeyFromPrivateKey creates a jose.SigningKey from the given signer,
+// wrapping it in an opaque signer if necessary.
+func SigningKeyFromPrivateKey(priv crypto.Signer) (jose.SigningKey, error) {
+	// Create a signer with configured private key and algorithm.
+	var signer interface{}
+	switch priv.(type) {
+	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
+		signer = priv
+	default:
+		signer = cryptosigner.Opaque(priv)
+	}
+	algorithm, err := AlgorithmForPublicKey(priv.Public())
+	if err != nil {
+		return jose.SigningKey{}, trace.Wrap(err)
+	}
+
+	return jose.SigningKey{
+		Algorithm: algorithm,
+		Key:       signer,
+	}, nil
 }
 
 func (k *Key) Sign(p SignParams) (string, error) {

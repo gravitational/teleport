@@ -21,6 +21,7 @@ package local
 import (
 	"context"
 	"fmt"
+	"maps"
 	"testing"
 	"time"
 
@@ -578,6 +579,37 @@ func TestListResources(t *testing.T) {
 			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
 				desktopService := NewWindowsDesktopService(presence.Backend)
 				return desktopService.DeleteAllWindowsDesktops(ctx)
+			},
+		},
+		"GitServer": {
+			resourceType: types.KindGitServer,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				gitServerService, err := NewGitServerService(presence.Backend)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+					Organization: "my-org",
+					Integration:  "my-org",
+				})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				gitServer.SetName(name)
+				newLabels := gitServer.GetLabels()
+				maps.Copy(newLabels, labels)
+				gitServer.SetStaticLabels(newLabels)
+
+				_, err = gitServerService.UpsertGitServer(ctx, gitServer)
+				return trace.Wrap(err)
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				gitServerService, err := NewGitServerService(presence.Backend)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				return gitServerService.DeleteAllGitServers(ctx)
 			},
 		},
 	}

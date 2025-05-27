@@ -65,8 +65,6 @@ type UsersService interface {
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// ListUsers returns a page of users.
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
-	// DeleteAllUsers deletes all users
-	DeleteAllUsers(ctx context.Context) error
 }
 
 // Identity is responsible for managing user entries and external identities
@@ -207,10 +205,15 @@ type Identity interface {
 
 	// GetSAMLConnector returns OIDC connector data, withSecrets adds or removes secrets from return results
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	// GetSAMLConnector returns OIDC connector data, withSecrets adds or removes secrets from return results
+	GetSAMLConnectorWithValidationOptions(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error)
 
 	// GetSAMLConnectors returns valid registered connectors, withSecrets adds or removes secret from return results.
 	// Invalid Connectors are simply logged but errors are not forwarded.
 	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
+	// GetSAMLConnectors returns valid registered connectors, withSecrets adds or removes secret from return results.
+	// Invalid Connectors are simply logged but errors are not forwarded.
+	GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error)
 
 	// CreateSAMLAuthRequest creates new auth request
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest, ttl time.Duration) error

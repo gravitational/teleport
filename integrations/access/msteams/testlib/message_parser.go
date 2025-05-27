@@ -52,7 +52,7 @@ func (msg testTeamsMessage) checkStatusApproved(t *testing.T, reason string) {
 	require.GreaterOrEqual(t, len(body), 3)
 	require.Equal(t, "✅", body[1].Columns[0].Items[0].Text)
 	require.Equal(t, "APPROVED", body[1].Columns[1].Items[0].Text)
-	require.Equal(t, reason, body[2].Facts[4].Value)
+	require.Equal(t, reason, body[2].Facts[5].Value)
 }
 
 func (msg testTeamsMessage) checkStatusDenied(t *testing.T, reason string) {
@@ -61,7 +61,7 @@ func (msg testTeamsMessage) checkStatusDenied(t *testing.T, reason string) {
 	require.GreaterOrEqual(t, len(body), 3)
 	require.Equal(t, "❌", body[1].Columns[0].Items[0].Text)
 	require.Equal(t, "DENIED", body[1].Columns[1].Items[0].Text)
-	require.Equal(t, reason, body[2].Facts[4].Value)
+	require.Equal(t, reason, body[2].Facts[5].Value)
 }
 
 func (msg testTeamsMessage) checkStatusExpired(t *testing.T) {

@@ -55,9 +55,8 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 
 	isLocalKubeCluster := sess.isLocalKubernetesCluster
 	supportsType := false
-	resourceKind := ""
 	if isLocalKubeCluster {
-		resourceKind, supportsType = sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
+		_, supportsType = sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.metaResource.requestedResource)
 	}
 
 	// status holds the returned response code.
@@ -71,21 +70,22 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 		status = rw.Status()
 	} else {
 		allowedResources, deniedResources := sess.Checker.GetKubeResources(sess.kubeCluster)
-		shouldBeAllowed, err := matchListRequestShouldBeAllowed(sess, resourceKind, allowedResources, deniedResources)
+
+		shouldBeAllowed, err := matchListRequestShouldBeAllowed(sess, sess.metaResource.requestedResource.resourceKind, sess.metaResource.requestedResource.apiGroup, allowedResources, deniedResources)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if !shouldBeAllowed {
 			notFoundMessage := f.kubeResourceDeniedAccessMsg(
 				sess.User.GetName(),
-				sess.requestVerb,
-				sess.apiResource,
+				sess.metaResource.verb,
+				sess.metaResource.requestedResource,
 			)
 			return nil, trace.AccessDenied("%s", notFoundMessage)
 		}
 		// isWatch identifies if the request is long-lived watch stream based on
 		// HTTP connection.
-		isWatch := isKubeWatchRequest(req, sess.authContext.apiResource)
+		isWatch := isKubeWatchRequest(req, sess.authContext.metaResource.requestedResource)
 		if !isWatch {
 			// List resources.
 			status, err = f.listResourcesList(req, w, sess, allowedResources, deniedResources)
@@ -115,15 +115,16 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	memBuffer := responsewriters.NewMemoryResponseWriter()
 	// Forward the request to the target cluster.
 	sess.forwarder.ServeHTTP(memBuffer, req)
-	resourceKind, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
+	_, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.metaResource.requestedResource)
 	if !ok {
-		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.apiResource.resourceKind)
+		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.metaResource.requestedResource.resourceKind)
 	}
-	verb := sess.requestVerb
+	verb := sess.metaResource.verb
+
 	// filterBuffer filters the response to exclude resources the user doesn't have access to.
 	// The filtered payload will be written into memBuffer again.
 	if err := filterBuffer(
-		newResourceFilterer(resourceKind, verb, sess.codecFactory, allowedResources, deniedResources, f.log),
+		newResourceFilterer(sess.metaResource.requestedResource.resourceKind, sess.metaResource.requestedResource.apiGroup, verb, sess.metaResource.isClusterWideResource(), sess.codecFactory, allowedResources, deniedResources, f.log),
 		memBuffer,
 	); err != nil {
 		return memBuffer.Status(), trace.Wrap(err)
@@ -140,20 +141,23 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 // has no access and present then a more user-friendly error message instead of returning
 // an empty list.
 // This function is not responsible for enforcing access rules.
-func matchListRequestShouldBeAllowed(sess *clusterSession, resourceKind string, allowedResources, deniedResources []types.KubernetesResource) (bool, error) {
+func matchListRequestShouldBeAllowed(sess *clusterSession, resourceKind, resourceGroup string, allowedResources, deniedResources []types.KubernetesResource) (bool, error) {
+	// TODO(@creack): Use metaResource.rbac()?
 	resource := types.KubernetesResource{
 		Kind:      resourceKind,
-		Namespace: sess.apiResource.namespace,
-		Verbs:     []string{sess.requestVerb},
+		Namespace: sess.metaResource.requestedResource.namespace,
+		Verbs:     []string{sess.metaResource.verb},
+		APIGroup:  resourceGroup,
 	}
-	result, err := utils.KubeResourceCouldMatchRules(resource, deniedResources, types.Deny)
+
+	result, err := utils.KubeResourceCouldMatchRules(resource, sess.metaResource.isClusterWideResource(), deniedResources, types.Deny)
 	if err != nil {
 		return false, trace.Wrap(err)
 	} else if result {
 		return false, nil
 	}
 
-	result, err = utils.KubeResourceCouldMatchRules(resource, allowedResources, types.Allow)
+	result, err = utils.KubeResourceCouldMatchRules(resource, sess.metaResource.isClusterWideResource(), allowedResources, types.Allow)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -172,17 +176,19 @@ func matchListRequestShouldBeAllowed(sess *clusterSession, resourceKind string, 
 // for the next event.
 func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWriter, sess *clusterSession, allowedResources, deniedResources []types.KubernetesResource) (int, error) {
 	negotiator := newClientNegotiator(sess.codecFactory)
-	resourceKind, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
+	_, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.metaResource.requestedResource)
 	if !ok {
-		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.apiResource.resourceKind)
+		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.metaResource.requestedResource.resourceKind)
 	}
-	verb := sess.requestVerb
+	verb := sess.metaResource.verb
 	rw, err := responsewriters.NewWatcherResponseWriter(
 		w,
 		negotiator,
 		newResourceFilterer(
-			resourceKind,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
 			verb,
+			sess.metaResource.isClusterWideResource(),
 			sess.codecFactory,
 			allowedResources,
 			deniedResources,
@@ -199,7 +205,7 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 	// by this user
 	done := make(chan struct{})
 	var wg sync.WaitGroup
-	if podName := isRequestTargetedToPod(req, sess.apiResource); podName != "" && ok {
+	if podName := isRequestTargetedToPod(req, sess.metaResource.requestedResource); podName != "" && ok {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -233,7 +239,7 @@ func (f *Forwarder) sendEphemeralContainerEvents(done <-chan struct{}, req *http
 			req.Context(),
 			sess.User.GetName(),
 			sess.kubeClusterName,
-			sess.apiResource.namespace,
+			sess.metaResource.requestedResource.namespace,
 			podName,
 		)
 		if err != nil {

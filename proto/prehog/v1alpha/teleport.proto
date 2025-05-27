@@ -801,6 +801,21 @@ message UICreateNewRoleClickEvent {
 message UICreateNewRoleSaveClickEvent {
   //anonymized
   string user_name = 1;
+  // StandardUsed indicates if the user interacted with the standard editor
+  // tab.
+  bool standard_used = 2;
+  // YamlUsed indicates if the user interacted with the YAML editor tab.
+  bool yaml_used = 3;
+  // ModeWhenSaved indicates which editor tab was active when the Save button
+  // was clicked ("standard" or "yaml"). Note that it's inherently different
+  // from what `StandardUsed` or `YamlUsed` describe; the user can interact
+  // with one kind of editor, then verify the results in another, and
+  // ultimately click Save on any of them.
+  string mode_when_saved = 4;
+  // A list of field paths that prevented the standard editor from being
+  // operational, if any. Looking at these may provide insight into which
+  // missing features should be implemented first.
+  repeated string fields_with_conversion_errors = 5;
 }
 
 // UICreateNewRoleCancelClickEvent is an event that can be triggered during custom role creation
@@ -1586,10 +1601,51 @@ message UserTaskStateEvent {
   int32 instances_count = 4;
 }
 
-// AccessRequestEvent emitted for Access Request audit events.
-message AccessRequestEvent {
+// AccessRequestCreateEvent is emitted when an Access Request is created.
+//
+// PostHog event: tp.access_request.create
+message AccessRequestCreateEvent {
   // Teleport user name. Anonymized.
   string user_name = 1;
+
+  // resource_kinds specifies the kind of resources requested.
+  //
+  // PostHog property: tp.access_request.resource_kinds.
+  repeated string resource_kinds = 2;
+}
+
+// AccessRequestReviewEvent is emitted when an Access Request is reviewed.
+//
+// PostHog event: tp.access_request.review
+message AccessRequestReviewEvent {
+  // Teleport user name. Anonymized.
+  string user_name = 1;
+
+  // resource_kinds specifies the kind of resources requested.
+  //
+  // PostHog property: tp.access_request.resource_kinds.
+  repeated string resource_kinds = 2;
+
+  // is_bot_reviewed indicates whether the access request was automatically
+  // reviewed by a bot.
+  //
+  // PostHog property: tp.access_request.is_bot_reviewed.
+  bool is_bot_reviewed = 3;
+
+  // ProposedState specifies the proposed state of an access request review.
+  enum ProposedState {
+    // PROPOSED_STATE_UNSPECIFIED is an unspecified access request state.
+    PROPOSED_STATE_UNSPECIFIED = 0;
+    // PROPOSED_STATE_APPROVED specifies the approved access request state.
+    PROPOSED_STATE_APPROVED = 1;
+    // PROPOSED_STATE_DENIED specifies the denied access request state.
+    PROPOSED_STATE_DENIED = 2;
+  }
+
+  // proposed_state specifies the proposed state of the access request review.
+  //
+  // PostHog property: tp.access_request.proposed_state.
+  ProposedState proposed_state = 4;
 }
 
 message SubmitEventRequest {
@@ -1760,12 +1816,16 @@ message SubmitEventRequest {
 
     UIIntegrationEnrollStepEvent ui_integration_enroll_step_event = 96;
 
-    AccessRequestEvent access_request_create_event = 97;
-    AccessRequestEvent access_request_review_event = 98;
+    AccessRequestCreateEvent access_request_create = 99;
+    AccessRequestReviewEvent access_request_review = 100;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
+
+  reserved 97, 98; // AccessRequestEvent
+  reserved "access_request_create_event";
+  reserved "access_request_review_event";
 }
 message SubmitEventResponse {}
 

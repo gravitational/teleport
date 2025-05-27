@@ -131,9 +131,10 @@ type ReissueParams struct {
 	KubernetesCluster string
 	AccessRequests    []string
 	// See [proto.UserCertsRequest.DropAccessRequests].
-	DropAccessRequests []string
-	RouteToDatabase    proto.RouteToDatabase
-	RouteToApp         proto.RouteToApp
+	DropAccessRequests    []string
+	RouteToDatabase       proto.RouteToDatabase
+	RouteToApp            proto.RouteToApp
+	RouteToWindowsDesktop proto.RouteToWindowsDesktop
 
 	// ExistingCreds is a gross hack for lib/web/terminal.go to pass in
 	// existing user credentials. The TeleportClient in lib/web/terminal.go
@@ -157,6 +158,10 @@ type ReissueParams struct {
 	// remains valid. It's bounded by the `max_session_ttl` or `mfa_verification_interval`
 	// if MFA is required.
 	TTL time.Duration
+
+	// ReusableMFAResponse is a reusable MFA response that can be used when MFA
+	// is required.
+	ReusableMFAResponse *proto.MFAAuthenticateResponse
 }
 
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
@@ -177,6 +182,10 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 		// App means a request for a TLS certificate for access to a specific
 		// web app, as specified by RouteToApp.
 		return proto.UserCertsRequest_App
+	case p.RouteToWindowsDesktop.WindowsDesktop != "":
+		// Windows desktop means a request for a TLS certificate for access to a specific
+		// desktop, as specified by RouteToWindowsDesktop.
+		return proto.UserCertsRequest_WindowsDesktop
 	default:
 		// All means a request for both SSH and TLS certificates for the
 		// overall user session. These certificates are not specific to any SSH
@@ -196,6 +205,8 @@ func (p ReissueParams) isMFARequiredRequest(sshLogin string) (*proto.IsMFARequir
 		req.Target = &proto.IsMFARequiredRequest_Database{Database: &p.RouteToDatabase}
 	case p.RouteToApp.Name != "":
 		req.Target = &proto.IsMFARequiredRequest_App{App: &p.RouteToApp}
+	case p.RouteToWindowsDesktop.WindowsDesktop != "":
+		req.Target = &proto.IsMFARequiredRequest_WindowsDesktop{WindowsDesktop: &p.RouteToWindowsDesktop}
 	default:
 		return nil, trace.BadParameter("reissue params have no valid MFA target")
 	}
@@ -404,7 +415,7 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 		env[teleport.SSHSessionWebProxyAddr] = c.ProxyPublicAddr
 	}
 
-	nodeSession, err := newSession(ctx, c, sessToJoin, env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, c.TC.EnableEscapeSequences)
+	nodeSession, err := newSession(ctx, c, sessToJoin, env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, !c.TC.DisableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -414,9 +425,9 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 		var exitMissingErr *ssh.ExitMissingError
 		switch err := trace.Unwrap(err); {
 		case errors.As(err, &exitErr):
-			c.TC.ExitStatus = exitErr.ExitStatus()
+			c.TC.SetExitStatus(exitErr.ExitStatus())
 		case errors.As(err, &exitMissingErr):
-			c.TC.ExitStatus = 1
+			c.TC.SetExitStatus(1)
 		}
 
 		return trace.Wrap(err)
@@ -605,29 +616,35 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...R
 		}
 	}
 
-	nodeSession, err := newSession(ctx, c, nil, c.TC.newSessionEnv(), c.TC.Stdin, stdout, stderr, c.TC.EnableEscapeSequences)
+	nodeSession, err := newSession(ctx, c, nil, c.TC.newSessionEnv(), c.TC.Stdin, stdout, stderr, !c.TC.DisableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer nodeSession.Close()
-	if err := nodeSession.runCommand(ctx, types.SessionPeerMode, command, c.TC.OnChannelRequest, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand); err != nil {
-		originErr := trace.Unwrap(err)
-		var exitErr *ssh.ExitError
-		if errors.As(originErr, &exitErr) {
-			c.TC.ExitStatus = exitErr.ExitStatus()
-		} else {
-			// if an error occurs, but no exit status is passed back, GoSSH returns
-			// a generic error like this. in this case the error message is printed
-			// to stderr by the remote process so we have to quietly return 1:
-			if strings.Contains(originErr.Error(), "exited without exit status") {
-				c.TC.ExitStatus = 1
-			}
-		}
-
-		return trace.Wrap(err)
+	err = nodeSession.runCommand(ctx, types.SessionPeerMode, command, c.TC.OnChannelRequest, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand)
+	if err != nil {
+		c.TC.SetExitStatus(getExitStatus(err))
 	}
+	return trace.Wrap(err)
+}
 
-	return nil
+func getExitStatus(err error) int {
+	if err == nil {
+		return 0
+	}
+	originErr := trace.Unwrap(err)
+	var exitErr *ssh.ExitError
+	if errors.As(originErr, &exitErr) {
+		return exitErr.ExitStatus()
+	} else {
+		// if an error occurs, but no exit status is passed back, GoSSH returns
+		// a generic error like this. in this case the error message is printed
+		// to stderr by the remote process so we have to quietly return 1:
+		if strings.Contains(originErr.Error(), "exited without exit status") {
+			return 1
+		}
+	}
+	return 0
 }
 
 // AddEnv add environment variable to SSH session. This method needs to be called

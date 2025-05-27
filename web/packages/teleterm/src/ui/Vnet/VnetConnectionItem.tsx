@@ -52,7 +52,7 @@ export const VnetConnectionItem = (props: {
     onRun: props.openVnetPanel,
   });
 
-  const ref = useRef<HTMLLIElement>();
+  const ref = useRef<HTMLLIElement>(null);
 
   useEffect(() => {
     scrollIntoViewIfActive(ref.current);
@@ -292,6 +292,7 @@ const VnetConnectionItemBase = forwardRef<
                 size="small"
                 intent="neutral"
                 fill="minimal"
+                title=""
                 onClick={e => {
                   e.stopPropagation();
                 }}
@@ -335,6 +336,7 @@ const VnetConnectionItemBase = forwardRef<
                 key={toggleVnetButtonKey}
                 size="small"
                 width={toggleVnetButtonWidth}
+                title=""
                 onClick={e => {
                   e.stopPropagation();
                   stop();
@@ -362,6 +364,7 @@ const VnetConnectionItemBase = forwardRef<
                 key={toggleVnetButtonKey}
                 size="small"
                 width={toggleVnetButtonWidth}
+                title=""
                 onClick={e => {
                   e.stopPropagation();
                   start();

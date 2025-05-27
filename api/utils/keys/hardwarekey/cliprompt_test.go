@@ -153,7 +153,7 @@ func TestChangePIN(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 			defer cancel()
 
-			PINAndPUK, err := prompt.ChangePIN(ctx)
+			PINAndPUK, err := prompt.ChangePIN(ctx, hardwarekey.ContextualKeyInfo{})
 			require.ErrorIs(t, err, tc.expectError)
 			require.Equal(t, tc.expectPINAndPUK, PINAndPUK)
 		})

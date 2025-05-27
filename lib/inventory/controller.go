@@ -170,7 +170,7 @@ func (options *controllerOptions) SetDefaults() {
 	if options.cleanupLimiter == nil {
 		// limit resource cleanup writes to 128 per second to reduce the chances that
 		// agents with very large resource counts cause throttling on graceful disconnect.
-		options.cleanupLimiter = rate.NewLimiter(rate.Every(time.Second), 128)
+		options.cleanupLimiter = rate.NewLimiter(rate.Every(time.Second/128), 1)
 	}
 
 	if options.cleanupTimeout == 0 {
@@ -191,7 +191,7 @@ func WithAuthServerID(serverID string) ControllerOption {
 }
 
 // WithOnConnect sets a function to be called every time a new
-// instance connects via the inventory control stream. The value
+// heartbeat connects via the inventory control stream. The value
 // provided to the callback is the keep alive type of the connected
 // resource. The callback should return quickly so as not to prevent
 // processing of heartbeats.
@@ -201,7 +201,7 @@ func WithOnConnect(f func(heartbeatKind string)) ControllerOption {
 	}
 }
 
-// WithOnDisconnect sets a function to be called every time an existing instance
+// WithOnDisconnect sets a function to be called every time an existing heartbeat
 // disconnects from the inventory control stream. The values provided to the
 // callback are the keep alive type of the disconnected resource, as well as a
 // count of how many resources disconnected at once. The callback should return
@@ -341,8 +341,8 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 }
 
 // RegisterControlStream registers a new control stream with the controller.
-func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) {
-	handle := newUpstreamHandle(stream, hello)
+func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryControlStream, hello *proto.UpstreamInventoryHello) {
+	handle := newUpstreamHandle(stream, hello, c.clock.Now())
 	c.store.Insert(handle)
 
 	// Increment the concurrent connection counter that we use to calculate the
@@ -360,11 +360,18 @@ func (c *Controller) GetControlStream(serverID string) (handle UpstreamHandle, o
 	return
 }
 
-// Iter iterates across all handles registered with this controller.
-// note: if multiple handles are registered for a given server, only
+// UniqueHandles iterates across unique handles registered with this controller.
+// If multiple handles are registered for a given server, only
 // one handle is selected pseudorandomly to be observed.
-func (c *Controller) Iter(fn func(UpstreamHandle)) {
-	c.store.Iter(fn)
+func (c *Controller) UniqueHandles(fn func(UpstreamHandle)) {
+	c.store.UniqueHandles(fn)
+}
+
+// AllHandles iterates across all handles registered with this
+// controller. If multiple handles are registered for a given server,
+// all of them will be observed.
+func (c *Controller) AllHandles(fn func(UpstreamHandle)) {
+	c.store.AllHandles(fn)
 }
 
 // ConnectedInstances gets the total number of connected instances. Note that this is the total number of
@@ -428,17 +435,17 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	}()
 
 	for _, service := range handle.hello.Services {
-		c.serviceCounter.increment(service)
+		c.serviceCounter.increment(types.SystemRole(service))
 	}
 
 	defer func() {
-		if handle.goodbye.GetDeleteResources() {
+		if handle.Goodbye().GetDeleteResources() {
 			c.doResourceCleanup(handle)
 		}
 
 		c.instanceHBVariableDuration.Dec()
 		for _, service := range handle.hello.Services {
-			c.serviceCounter.decrement(service)
+			c.serviceCounter.decrement(types.SystemRole(service))
 		}
 		c.store.Remove(handle)
 		handle.Close() // no effect if CloseWithError was called below
@@ -482,13 +489,13 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 		select {
 		case msg := <-handle.Recv():
 			switch m := msg.(type) {
-			case proto.UpstreamInventoryHello:
+			case *proto.UpstreamInventoryHello:
 				slog.WarnContext(c.closeContext, "Unexpected upstream hello on control stream of server", "server_id", handle.Hello().ServerID)
 				handle.CloseWithError(trace.BadParameter("unexpected upstream hello"))
 				return
-			case proto.UpstreamInventoryAgentMetadata:
+			case *proto.UpstreamInventoryAgentMetadata:
 				c.handleAgentMetadata(handle, m)
-			case proto.InventoryHeartbeat:
+			case *proto.InventoryHeartbeat:
 				// XXX: when adding new services to the heartbeat logic, make
 				// sure to also update the 'icsServiceToMetricName' mapping in
 				// auth/grpcserver.go in order to ensure that metrics start
@@ -543,10 +550,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					}
 				}
 
-			case proto.UpstreamInventoryPong:
+			case *proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
-			case proto.UpstreamInventoryGoodbye:
-				handle.goodbye = m
+			case *proto.UpstreamInventoryGoodbye:
+				handle.setGoodbye(m)
 			default:
 				slog.WarnContext(c.closeContext, "Unexpected upstream message type on control stream",
 					"message_type", logutils.TypeAttr(m),
@@ -765,7 +772,7 @@ func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Tim
 	return nil
 }
 
-func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInventoryPong) {
+func (c *Controller) handlePong(handle *upstreamHandle, msg *proto.UpstreamInventoryPong) {
 	pending, ok := handle.pings[msg.ID]
 	if !ok {
 		slog.WarnContext(c.closeContext, "Unexpected upstream pong",
@@ -774,9 +781,13 @@ func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInvent
 		return
 	}
 	now := c.clock.Now()
+	var systemClock time.Time
+	if c := msg.GetSystemClock(); c != nil {
+		systemClock = c.AsTime()
+	}
 	pong := pingResponse{
 		reqDuration:     now.Sub(pending.start),
-		systemClock:     msg.SystemClock,
+		systemClock:     systemClock,
 		controllerClock: now,
 	}
 
@@ -790,7 +801,7 @@ func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInvent
 }
 
 func (c *Controller) handlePingRequest(handle *upstreamHandle, req pingRequest) error {
-	ping := proto.DownstreamInventoryPing{
+	ping := &proto.DownstreamInventoryPing{
 		ID: req.id,
 	}
 	start := c.clock.Now()
@@ -987,7 +998,7 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 	// the auth layer verifies that a stream's hello message matches the identity and capabilities of the
 	// client cert. after that point it is our responsibility to ensure that heartbeated information is
 	// consistent with the identity and capabilities claimed in the initial hello.
-	if !(handle.HasService(types.RoleKube) || handle.HasService(types.RoleProxy)) {
+	if !handle.HasService(types.RoleKube) && !handle.HasService(types.RoleProxy) {
 		return trace.AccessDenied("control stream not configured to support kubernetes server heartbeats")
 	}
 	if kubernetesServer.GetHostID() != handle.Hello().ServerID {
@@ -1038,12 +1049,12 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 	return nil
 }
 
-func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.UpstreamInventoryAgentMetadata) {
-	handle.SetAgentMetadata(m)
+func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m *proto.UpstreamInventoryAgentMetadata) {
+	handle.setAgentMetadata(m)
 
 	svcs := make([]string, 0, len(handle.Hello().Services))
 	for _, svc := range handle.Hello().Services {
-		svcs = append(svcs, strings.ToLower(svc.String()))
+		svcs = append(svcs, strings.ToLower(svc))
 	}
 
 	c.usageReporter.AnonymizeAndSubmit(&usagereporter.AgentMetadataEvent{

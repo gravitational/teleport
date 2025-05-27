@@ -270,6 +270,10 @@ spec:
                       Role grants access to.
                     items:
                       properties:
+                        api_group:
+                          description: APIGroup specifies the Kubernetes API group
+                            of the Kubernetes resource. It supports wildcards.
+                          type: string
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
                           type: string
@@ -357,6 +361,10 @@ spec:
                           "kube_cluster" and enforce requesting any of its subresources.'
                         items:
                           properties:
+                            api_group:
+                              description: APIGroup specifies the Kubernetes Resource
+                                API group.
+                              type: string
                             kind:
                               description: kind specifies the Kubernetes Resource
                                 type.
@@ -858,6 +866,10 @@ spec:
                       Role grants access to.
                     items:
                       properties:
+                        api_group:
+                          description: APIGroup specifies the Kubernetes API group
+                            of the Kubernetes resource. It supports wildcards.
+                          type: string
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
                           type: string
@@ -945,6 +957,10 @@ spec:
                           "kube_cluster" and enforce requesting any of its subresources.'
                         items:
                           properties:
+                            api_group:
+                              description: APIGroup specifies the Kubernetes Resource
+                                API group.
+                              type: string
                             kind:
                               description: kind specifies the Kubernetes Resource
                                 type.
@@ -1743,6 +1759,10 @@ spec:
                       Role grants access to.
                     items:
                       properties:
+                        api_group:
+                          description: APIGroup specifies the Kubernetes API group
+                            of the Kubernetes resource. It supports wildcards.
+                          type: string
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
                           type: string
@@ -1830,6 +1850,10 @@ spec:
                           "kube_cluster" and enforce requesting any of its subresources.'
                         items:
                           properties:
+                            api_group:
+                              description: APIGroup specifies the Kubernetes Resource
+                                API group.
+                              type: string
                             kind:
                               description: kind specifies the Kubernetes Resource
                                 type.
@@ -2331,6 +2355,10 @@ spec:
                       Role grants access to.
                     items:
                       properties:
+                        api_group:
+                          description: APIGroup specifies the Kubernetes API group
+                            of the Kubernetes resource. It supports wildcards.
+                          type: string
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
                           type: string
@@ -2418,6 +2446,10 @@ spec:
                           "kube_cluster" and enforce requesting any of its subresources.'
                         items:
                           properties:
+                            api_group:
+                              description: APIGroup specifies the Kubernetes Resource
+                                API group.
+                              type: string
                             kind:
                               description: kind specifies the Kubernetes Resource
                                 type.

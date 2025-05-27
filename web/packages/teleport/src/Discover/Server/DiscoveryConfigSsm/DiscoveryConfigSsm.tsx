@@ -39,6 +39,7 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { Rule } from 'shared/components/Validation/rules';
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
+import { LabelsInput } from 'teleport/components/LabelsInput';
 import cfg from 'teleport/config';
 import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
 import { useDiscover } from 'teleport/Discover/useDiscover';
@@ -46,6 +47,7 @@ import {
   createDiscoveryConfig,
   DISCOVERY_GROUP_CLOUD,
   InstallParamEnrollMode,
+  Labels,
 } from 'teleport/services/discovery';
 import { Regions } from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
@@ -61,6 +63,35 @@ import { SingleEc2InstanceInstallation } from '../Shared';
 import { DiscoveryConfigCreatedDialog } from './DiscoveryConfigCreatedDialog';
 
 const IAM_POLICY_NAME = 'EC2DiscoverWithSSM';
+
+type AWSLabel = {
+  name: string;
+  value: string;
+};
+
+type AWSLabels = AWSLabel[];
+
+function makeTags(labels: AWSLabels): Labels {
+  if (labels.length === 0) {
+    return { '*': ['*'] };
+  }
+  const output: Labels = {};
+
+  labels.forEach(label => {
+    if (label.name === '' || label.value === '') {
+      return;
+    }
+
+    if (output[label.name]) {
+      const labelSet = new Set(output[label.name]);
+      labelSet.add(label.value);
+      output[label.name] = Array.from(labelSet);
+      return;
+    }
+    output[label.name] = [label.value];
+  });
+  return output;
+}
 
 export function DiscoveryConfigSsm() {
   const {
@@ -83,7 +114,8 @@ export function DiscoveryConfigSsm() {
     'TeleportDiscoveryInstaller'
   );
   const [scriptUrl, setScriptUrl] = useState('');
-  const joinTokenRef = useRef<JoinToken>();
+  const joinTokenRef = useRef<JoinToken>(undefined);
+  const [tags, setTags] = useState<AWSLabels>([]);
   const [showRestOfSteps, setShowRestOfSteps] = useState(false);
 
   const [attempt, createJoinTokenAndDiscoveryConfig, setAttempt] = useAsync(
@@ -110,7 +142,7 @@ export function DiscoveryConfigSsm() {
             {
               types: ['ec2'],
               regions: [selectedRegion],
-              tags: { '*': ['*'] },
+              tags: makeTags(tags),
               integration: agentMeta.awsIntegration.name,
               ssm: { documentName: ssmDocumentName },
               install: {
@@ -174,94 +206,110 @@ export function DiscoveryConfigSsm() {
   }
 
   return (
-    <>
-      <Header>Setup Discovery Config for Teleport Discovery Service</Header>
-      {cfg.isCloud ? (
-        <Text>
-          The Teleport Discovery Service can connect to Amazon EC2 and
-          automatically discover and enroll EC2 instances. <SsmInfoHeaderText />
-        </Text>
-      ) : (
-        <Text>
-          Discovery config defines the setup that enables Teleport to
-          automatically discover and register instances. <SsmInfoHeaderText />
-        </Text>
-      )}
-      {cfg.isCloud && <SingleEc2InstanceInstallation />}
-      <StyledBox mt={4}>
-        <header>
-          <H3>Step 1</H3>
-          <Subtitle3>
-            Select the AWS Region that contains the EC2 instances that you would
-            like to enroll
-          </Subtitle3>
-        </header>
-        <Box mb={-5}>
-          <AwsRegionSelector
-            onFetch={(region: Regions) => setSelectedRegion(region)}
-            clear={clear}
-            disableSelector={!!scriptUrl}
-          />
-        </Box>
-        {!showRestOfSteps && (
-          <ButtonSecondary
-            onClick={() => setShowRestOfSteps(true)}
-            disabled={!selectedRegion}
-            mt={3}
-          >
-            Next
-          </ButtonSecondary>
-        )}
-        {scriptUrl && (
-          <ButtonSecondary onClick={() => setScriptUrl('')} mt={3}>
-            Edit
-          </ButtonSecondary>
-        )}
-      </StyledBox>
-      {showRestOfSteps && (
+    <Validation>
+      {({ validator }) => (
         <>
+          <Header>Setup Discovery Config for Teleport Discovery Service</Header>
+          {cfg.isCloud ? (
+            <Text>
+              The Teleport Discovery Service can connect to Amazon EC2 and
+              automatically discover and enroll EC2 instances.{' '}
+              <SsmInfoHeaderText />
+            </Text>
+          ) : (
+            <Text>
+              Discovery config defines the setup that enables Teleport to
+              automatically discover and register instances.{' '}
+              <SsmInfoHeaderText />
+            </Text>
+          )}
+          {cfg.isCloud && <SingleEc2InstanceInstallation />}
           <StyledBox mt={4}>
-            <H3>Step 2</H3>
-            <P>
-              Attach AWS managed{' '}
-              <ExternalLink
-                target="_blank"
-                href="https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonSSMManagedInstanceCore.html"
+            <header>
+              <H3>Step 1</H3>
+              <Subtitle3>
+                Select the AWS Region that contains the EC2 instances that you
+                would like to enroll
+              </Subtitle3>
+            </header>
+            <Box mb={-5}>
+              <AwsRegionSelector
+                onFetch={(region: Regions) => setSelectedRegion(region)}
+                clear={clear}
+                disableSelector={!!scriptUrl}
+              />
+            </Box>
+            {selectedRegion && (
+              <Box mb={3} mt={5}>
+                <P>
+                  You can filter for EC2 instances by their tags. If no tags are
+                  added, Teleport will enroll all EC2 instances.
+                </P>
+                <LabelsInput
+                  adjective="tag"
+                  labels={tags}
+                  setLabels={setTags}
+                />
+              </Box>
+            )}
+            {!showRestOfSteps && (
+              <ButtonSecondary
+                onClick={() => setShowRestOfSteps(true)}
+                disabled={!selectedRegion}
+                data-testid="region-next"
+                mt={3}
               >
-                AmazonSSMManagedInstanceCore
-              </ExternalLink>{' '}
-              policy to EC2 instances IAM profile. The policy enables EC2
-              instances to use SSM core functionality.
-            </P>
+                Next
+              </ButtonSecondary>
+            )}
+            {scriptUrl && (
+              <ButtonSecondary onClick={() => setScriptUrl('')} mt={3}>
+                Edit
+              </ButtonSecondary>
+            )}
           </StyledBox>
-          <StyledBox mt={4}>
-            <H3>Step 3</H3>
-            <P>
-              Each EC2 instance requires{' '}
-              <ExternalLink
-                target="_blank"
-                href="https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent-status-and-restart.html"
-              >
-                SSM Agent
-              </ExternalLink>{' '}
-              to be running. The SSM{' '}
-              <ExternalLink
-                target="_blank"
-                href={`https://${selectedRegion}.console.aws.amazon.com/systems-manager/fleet-manager/managed-nodes?region=${selectedRegion}`}
-              >
-                Nodes Manager dashboard
-              </ExternalLink>{' '}
-              will list all instances that have SSM agent already running.
-              Ensure ping statuses are <Mark>Online</Mark>.
-            </P>
-            <Info mt={3} mb={0}>
-              If you do not see your instances listed in the dashboard, it might
-              take up to 30 minutes for your instances to use the IAM
-              credentials you updated in step 2.
-            </Info>
-          </StyledBox>
-          <Validation>
-            {({ validator }) => (
+          {showRestOfSteps && (
+            <>
+              <StyledBox mt={4}>
+                <H3>Step 2</H3>
+                <P>
+                  Attach AWS managed{' '}
+                  <ExternalLink
+                    target="_blank"
+                    href="https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonSSMManagedInstanceCore.html"
+                  >
+                    AmazonSSMManagedInstanceCore
+                  </ExternalLink>{' '}
+                  policy to EC2 instances IAM profile. The policy enables EC2
+                  instances to use SSM core functionality.
+                </P>
+              </StyledBox>
+              <StyledBox mt={4}>
+                <H3>Step 3</H3>
+                <P>
+                  Each EC2 instance requires{' '}
+                  <ExternalLink
+                    target="_blank"
+                    href="https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent-status-and-restart.html"
+                  >
+                    SSM Agent
+                  </ExternalLink>{' '}
+                  to be running. The SSM{' '}
+                  <ExternalLink
+                    target="_blank"
+                    href={`https://${selectedRegion}.console.aws.amazon.com/systems-manager/fleet-manager/managed-nodes?region=${selectedRegion}`}
+                  >
+                    Nodes Manager dashboard
+                  </ExternalLink>{' '}
+                  will list all instances that have SSM agent already running.
+                  Ensure ping statuses are <Mark>Online</Mark>.
+                </P>
+                <Info mt={3} mb={0}>
+                  If you do not see your instances listed in the dashboard, it
+                  might take up to 30 minutes for your instances to use the IAM
+                  credentials you updated in step 2.
+                </Info>
+              </StyledBox>
               <form>
                 <StyledBox mt={4}>
                   <H3>Step 4</H3>
@@ -290,64 +338,65 @@ export function DiscoveryConfigSsm() {
                     type="submit"
                     onClick={e => handleOnSubmit(e, validator)}
                     disabled={!selectedRegion}
+                    data-testid="script-next"
                   >
                     {scriptUrl ? 'Edit' : 'Next'}
                   </ButtonSecondary>
                 </StyledBox>
               </form>
-            )}
-          </Validation>
-          {scriptUrl && (
-            <StyledBox mt={4}>
-              <H3>Step 5</H3>
-              <Flex alignItems="center" gap={1} mb={2}>
-                <P>
-                  Run the command below on your{' '}
-                  <ExternalLink
-                    href="https://console.aws.amazon.com/cloudshell/home"
-                    target="_blank"
-                  >
-                    AWS CloudShell
-                  </ExternalLink>{' '}
-                  to configure your IAM permissions.
-                </P>
-                <IconTooltip sticky={true} maxWidth={450}>
-                  The following IAM permissions will be added as an inline
-                  policy named <Mark>{IAM_POLICY_NAME}</Mark> to IAM role{' '}
-                  <Mark>{arnResourceName}</Mark>
-                  <Box mb={2}>
-                    <EditorWrapper $height={350}>
-                      <TextEditor
-                        readOnly={true}
-                        data={[{ content: inlinePolicyJson, type: 'json' }]}
-                        bg="levels.deep"
-                      />
-                    </EditorWrapper>
-                  </Box>
-                </IconTooltip>
-              </Flex>
-              <TextSelectCopyMulti
-                lines={[{ text: `bash -c "$(curl '${scriptUrl}')"` }]}
-              />
-            </StyledBox>
+              {scriptUrl && (
+                <StyledBox mt={4}>
+                  <H3>Step 5</H3>
+                  <Flex alignItems="center" gap={1} mb={2}>
+                    <P>
+                      Run the command below on your{' '}
+                      <ExternalLink
+                        href="https://console.aws.amazon.com/cloudshell/home"
+                        target="_blank"
+                      >
+                        AWS CloudShell
+                      </ExternalLink>{' '}
+                      to configure your IAM permissions.
+                    </P>
+                    <IconTooltip sticky={true} maxWidth={450}>
+                      The following IAM permissions will be added as an inline
+                      policy named <Mark>{IAM_POLICY_NAME}</Mark> to IAM role{' '}
+                      <Mark>{arnResourceName}</Mark>
+                      <Box mb={2}>
+                        <EditorWrapper $height={350}>
+                          <TextEditor
+                            readOnly={true}
+                            data={[{ content: inlinePolicyJson, type: 'json' }]}
+                            bg="levels.deep"
+                          />
+                        </EditorWrapper>
+                      </Box>
+                    </IconTooltip>
+                  </Flex>
+                  <TextSelectCopyMulti
+                    lines={[{ text: `bash -c "$(curl '${scriptUrl}')"` }]}
+                  />
+                </StyledBox>
+              )}
+            </>
           )}
+
+          {attempt.status === 'success' && (
+            <DiscoveryConfigCreatedDialog toNextStep={nextStep} />
+          )}
+
+          {attempt.status === 'error' && (
+            <Danger mt={3}>{attempt.statusText}</Danger>
+          )}
+
+          <ActionButtons
+            onProceed={createJoinTokenAndDiscoveryConfig}
+            onPrev={prevStep}
+            disableProceed={attempt.status === 'processing' || !scriptUrl}
+          />
         </>
       )}
-
-      {attempt.status === 'success' && (
-        <DiscoveryConfigCreatedDialog toNextStep={nextStep} />
-      )}
-
-      {attempt.status === 'error' && (
-        <Danger mt={3}>{attempt.statusText}</Danger>
-      )}
-
-      <ActionButtons
-        onProceed={createJoinTokenAndDiscoveryConfig}
-        onPrev={prevStep}
-        disableProceed={attempt.status === 'processing' || !scriptUrl}
-      />
-    </>
+    </Validation>
   );
 }
 

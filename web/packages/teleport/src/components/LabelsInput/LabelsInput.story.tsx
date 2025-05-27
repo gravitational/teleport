@@ -36,14 +36,14 @@ const meta: Meta = {
 export default meta;
 
 export const Default = () => {
-  const [labels, setLables] = useState<Label[]>([]);
+  const [labels, setLabels] = useState<Label[]>([]);
 
   return (
     <Validation>
       {({ validator }) => (
         <div>
           <div>
-            <LabelsInput labels={labels} setLabels={setLables} />
+            <LabelsInput labels={labels} setLabels={setLabels} />
           </div>
           <ButtonSecondary
             mt={6}
@@ -62,12 +62,12 @@ export const Default = () => {
 };
 
 export const Custom = () => {
-  const [labels, setLables] = useState<Label[]>([]);
+  const [labels, setLabels] = useState<Label[]>([]);
   return (
     <Validation>
       <LabelsInput
         labels={labels}
-        setLabels={setLables}
+        setLabels={setLabels}
         legend="List of Labels"
         tooltipContent="List of labels, 'nuff said"
         labelKey={{
@@ -85,34 +85,48 @@ export const Custom = () => {
 };
 
 export const Disabled = () => {
-  const [labels, setLables] = useState<Label[]>([
+  const [labels, setLabels] = useState<Label[]>([
     { name: 'some-name', value: 'some-value' },
   ]);
   return (
     <Validation>
-      <LabelsInput labels={labels} setLabels={setLables} disableBtns={true} />
+      <LabelsInput labels={labels} setLabels={setLabels} disableBtns={true} />
     </Validation>
   );
 };
 
 export const AutoFocus = () => {
-  const [labels, setLables] = useState<Label[]>([{ name: '', value: '' }]);
+  const [labels, setLabels] = useState<Label[]>([{ name: '', value: '' }]);
   return (
     <Validation>
-      <LabelsInput labels={labels} setLabels={setLables} autoFocus={true} />
+      <LabelsInput labels={labels} setLabels={setLabels} autoFocus={true} />
     </Validation>
   );
 };
 
 export const AtLeastOneRequired = () => {
-  const [labels, setLables] = useState<Label[]>([{ name: '', value: '' }]);
+  const [labels, setLabels] = useState<Label[]>([{ name: '', value: '' }]);
   return (
     <Validation>
       <LabelsInput
         legend="Labels"
         labels={labels}
-        setLabels={setLables}
+        setLabels={setLabels}
         required={true}
+      />
+    </Validation>
+  );
+};
+
+export const AtLeastOneRowVisible = () => {
+  const [labels, setLabels] = useState<Label[]>([]);
+  return (
+    <Validation>
+      <LabelsInput
+        legend="Labels"
+        labels={labels}
+        setLabels={setLabels}
+        atLeastOneRow
       />
     </Validation>
   );

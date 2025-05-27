@@ -35,7 +35,10 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -47,6 +50,7 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 
 	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
+	setWorkloadIdentityX509CAOverride(ctx, t, process)
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	role, err := types.NewRole("issue-foo", types.RoleSpecV6{
@@ -125,6 +129,8 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Equal(t, "spiffe://root/valid/by-name", svid.ID.String())
+		// the override includes a chain with a single certificate
+		require.Len(t, svid.Certificates, 2)
 
 		// Validate the trust bundle was written to disk, and, that our SVID
 		// appears valid according to the trust bundle.
@@ -182,4 +188,38 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 
 		checkCRL(t, tmpDir, bundle)
 	})
+}
+
+func setWorkloadIdentityX509CAOverride(ctx context.Context, t *testing.T, process *service.TeleportProcess) {
+	const loadKeysFalse = false
+	spiffeCA, err := process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: "root",
+		Type:       types.SPIFFECA,
+	}, loadKeysFalse)
+	require.NoError(t, err)
+
+	spiffeCAX509KeyPairs := spiffeCA.GetTrustedTLSKeyPairs()
+	require.Len(t, spiffeCAX509KeyPairs, 1)
+	spiffeCACert, err := tlsca.ParseCertificatePEM(spiffeCAX509KeyPairs[0].Cert)
+	require.NoError(t, err)
+
+	// this is a bit of a hack: by adding the self-signed CA certificate to the
+	// override chain we distribute a nonempty chain that we can test for, but
+	// all validations will continue working and it's technically not a broken
+	// intermediate chain (just a bit of a useless one)
+
+	// (this is an unsynced write but we know that nothing is issuing
+	// certificates just yet)
+	process.GetAuthServer().SetWorkloadIdentityX509CAOverrideGetter(&staticOverrideGetter{chain: [][]byte{spiffeCACert.Raw}})
+}
+
+type staticOverrideGetter struct {
+	chain [][]byte
+}
+
+var _ services.WorkloadIdentityX509CAOverrideGetter = (*staticOverrideGetter)(nil)
+
+// GetWorkloadIdentityX509CAOverride implements [services.WorkloadIdentityX509CAOverrideGetter].
+func (m *staticOverrideGetter) GetWorkloadIdentityX509CAOverride(ctx context.Context, name string, ca *tlsca.CertAuthority) (*tlsca.CertAuthority, [][]byte, error) {
+	return ca, m.chain, nil
 }

@@ -89,12 +89,12 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 	version, err := h.autoUpdateAgentVersion(ctx, defaultGroup, defaultUpdater)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get intended agent version", "error", err)
-		version = teleport.SemVersion
+		version = teleport.SemVer()
 	}
 
 	// if there's a rollout, we do new autoupdates
 	_, rolloutErr := h.cfg.AccessPoint.GetAutoUpdateAgentRollout(ctx)
-	if rolloutErr != nil && !(trace.IsNotFound(rolloutErr) || trace.IsNotImplemented(rolloutErr)) {
+	if rolloutErr != nil && !trace.IsNotFound(rolloutErr) && !trace.IsNotImplemented(rolloutErr) {
 		h.logger.WarnContext(ctx, "Failed to get rollout", "error", rolloutErr)
 		return scripts.InstallScriptOptions{}, trace.Wrap(err, "failed to check the autoupdate agent rollout state")
 	}
@@ -134,7 +134,6 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 		TeleportFlavor:  teleportFlavor,
 		FIPS:            modules.IsBoringBinary(),
 	}, nil
-
 }
 
 // EnvVarCDNBaseURL is the environment variable that allows users to override the Teleport base CDN url used in the installation script.

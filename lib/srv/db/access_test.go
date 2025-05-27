@@ -747,7 +747,8 @@ func TestAccessMySQLServerPacket(t *testing.T) {
 // TestGCPRequireSSL tests connecting to GCP Cloud SQL Postgres and MySQL
 // databases with an ephemeral client certificate.
 func TestGCPRequireSSL(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	user := "alice"
 	testCtx := setupTestContext(ctx, t)
 	testCtx.createUserAndRole(ctx, t, user, "admin", []string{types.Wildcard}, []string{types.Wildcard})
@@ -2267,6 +2268,8 @@ func init() {
 }
 
 func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDatabaseOption) *testContext {
+	ctx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
 	testCtx := &testContext{
 		clusterName:   "root.example.com",
 		hostID:        uuid.New().String(),
@@ -2503,6 +2506,8 @@ func (p *agentParams) setDefaults(c *testContext) {
 }
 
 func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p agentParams) *Server {
+	ctx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
 	p.setDefaults(c)
 
 	// Database service credentials.
@@ -2560,12 +2565,17 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
-	inventoryHandle := inventory.NewDownstreamHandle(clt.InventoryControlStream, proto.UpstreamInventoryHello{
-		ServerID: p.HostID,
-		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleDatabase},
-		Hostname: "test",
-	})
+	inventoryHandle, err := inventory.NewDownstreamHandle(clt.InventoryControlStream,
+		func(_ context.Context) (*proto.UpstreamInventoryHello, error) {
+			return &proto.UpstreamInventoryHello{
+				ServerID: p.HostID,
+				Version:  teleport.Version,
+				Services: types.SystemRoles{types.RoleDatabase}.StringSlice(),
+				Hostname: "test",
+			}, nil
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
@@ -2622,7 +2632,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 			case sender := <-inventoryHandle.Sender():
 				dbServer, err := server.getServerInfo(ctx, db)
 				require.NoError(t, err)
-				require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat{
+				require.NoError(t, sender.Send(ctx, &proto.InventoryHeartbeat{
 					DatabaseServer: dbServer,
 				}))
 			case <-time.After(20 * time.Second):

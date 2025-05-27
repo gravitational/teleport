@@ -71,7 +71,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -354,7 +353,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = slog.New(logutils.DiscardHandler{})
+		cfg.Logger = slog.New(slog.DiscardHandler)
 	}
 
 	// generate instance secrets (keys):
@@ -1468,7 +1467,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		HostPort:                      cfg.Port,
 		HostLogin:                     cfg.Login,
 		InsecureSkipVerify:            true,
-		KeysDir:                       keyDir,
+		ClientStore:                   client.NewFSClientStore(keyDir),
 		SiteName:                      cfg.Cluster,
 		ForwardAgent:                  fwdAgentMode,
 		Labels:                        cfg.Labels,
@@ -1479,7 +1478,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		TLSRoutingEnabled:             i.IsSinglePortSetup,
 		TLSRoutingConnUpgradeRequired: cfg.ALBAddr != "",
 		Tracer:                        tracing.NoopProvider().Tracer("test"),
-		EnableEscapeSequences:         cfg.EnableEscapeSequences,
+		DisableEscapeSequences:        !cfg.EnableEscapeSequences,
 		Stderr:                        cfg.Stderr,
 		Stdin:                         cfg.Stdin,
 		Stdout:                        cfg.Stdout,

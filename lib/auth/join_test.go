@@ -306,6 +306,8 @@ func TestRegister_Bot(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	bot, err := machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: "test",
 		},
@@ -437,10 +439,9 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 		{
 			name:           "value exceeding limit specified",
 			requestExpires: &tooGreatExpires,
-			// MaxSessionTTL set in createBotRole is 12 hours, so this cap will
-			// apply instead of the defaults.MaxRenewableCertTTL specified
-			// in generateInitialBotCerts.
-			expectTTL: 12 * time.Hour,
+			// Note: MaxSessionTTL is 12 hours unless specified in the bot
+			// resource.
+			expectTTL: defaults.DefaultBotMaxSessionTTL,
 		},
 	}
 
@@ -448,6 +449,8 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			botName := uuid.NewString()
 			_, err := machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: botName,
 				},

@@ -40,7 +40,7 @@ terraform {
   required_providers {
     teleport = {
       source  = "terraform.releases.teleport.dev/gravitational/teleport"
-      version = "~> 15.0"
+      version = "~> (=teleport.major_version=).0"
     }
   }
 }
@@ -61,7 +61,7 @@ terraform {
   required_providers {
     teleport = {
       source  = "terraform.releases.teleport.dev/gravitational/teleport"
-      version = "~> 15.0"
+      version = "~> (=cloud.major_version=).0"
     }
   }
 }
@@ -172,6 +172,7 @@ This auth method has the following limitations:
 - `cert_base64` (String) Base64 encoded TLS auth certificate. This can also be set with the environment variable `TF_TELEPORT_CERT_BASE64`.
 - `cert_path` (String) Path to Teleport auth certificate file. This can also be set with the environment variable `TF_TELEPORT_CERT`.
 - `dial_timeout_duration` (String) DialTimeout sets timeout when trying to connect to the server. This can also be set with the environment variable `TF_TELEPORT_DIAL_TIMEOUT_DURATION`.
+- `gitlab_id_token_env_var` (String) Environment variable used to fetch the ID token issued by GitLab for the `gitlab` join method. If unset, this defaults to `TBOT_GITLAB_JWT`. This can also be set with the environment variable `TF_TELEPORT_GITLAB_ID_TOKEN_ENV_VAR`.
 - `identity_file` (String, Sensitive) Teleport identity file content. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE`.
 - `identity_file_base64` (String, Sensitive) Teleport identity file content base64 encoded. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE_BASE64`.
 - `identity_file_path` (String) Teleport identity file path. This can also be set with the environment variable `TF_TELEPORT_IDENTITY_FILE_PATH`.

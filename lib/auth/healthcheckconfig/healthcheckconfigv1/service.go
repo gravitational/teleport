@@ -37,6 +37,8 @@ type ServiceConfig struct {
 	Authorizer authz.Authorizer
 	// Backend is the backend service.
 	Backend services.HealthCheckConfig
+	// Cache is the cache used to store health check config resources.
+	Cache services.HealthCheckConfigReader
 	// Emitter is an audit event emitter.
 	Emitter apievents.Emitter
 	// Logger is the slog logger.
@@ -50,6 +52,7 @@ type Service struct {
 
 	authorizer authz.Authorizer
 	backend    services.HealthCheckConfig
+	cache      services.HealthCheckConfigReader
 	emitter    apievents.Emitter
 	logger     *slog.Logger
 }
@@ -62,12 +65,16 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.Backend == nil {
 		return nil, trace.BadParameter("backend is required for health check config service")
 	}
+	if cfg.Cache == nil {
+		return nil, trace.BadParameter("cache is required for health check config service")
+	}
 	if cfg.Emitter == nil {
 		return nil, trace.BadParameter("emitter is required for health check config service")
 	}
 	return &Service{
 		authorizer: cfg.Authorizer,
 		backend:    cfg.Backend,
+		cache:      cfg.Cache,
 		emitter:    cfg.Emitter,
 		logger:     cmp.Or(cfg.Logger, slog.Default()),
 	}, nil
@@ -93,7 +100,7 @@ func (s *Service) GetHealthCheckConfig(ctx context.Context, req *healthcheckconf
 		return nil, trace.Wrap(err)
 	}
 
-	cfg, err := s.backend.GetHealthCheckConfig(ctx, req.GetName())
+	cfg, err := s.cache.GetHealthCheckConfig(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -106,7 +113,7 @@ func (s *Service) ListHealthCheckConfigs(ctx context.Context, req *healthcheckco
 		return nil, trace.Wrap(err)
 	}
 
-	page, token, err := s.backend.ListHealthCheckConfigs(ctx, int(req.GetPageSize()), req.GetPageToken())
+	page, token, err := s.cache.ListHealthCheckConfigs(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

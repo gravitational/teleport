@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // JoinMethod is the method used for new nodes to join the cluster.
@@ -80,10 +80,17 @@ const (
 	// JoinMethodOracle indicates that the node will join using the Oracle join
 	// method.
 	JoinMethodOracle JoinMethod = "oracle"
+	// JoinMethodAzureDevops indicates that the node will join using the Azure
+	// Devops join method.
+	JoinMethodAzureDevops JoinMethod = "azure_devops"
+	// JoinMethodBoundKeypair indicates the node will join using the Bound
+	// Keypair join method. See lib/boundkeypair for more.
+	JoinMethodBoundKeypair JoinMethod = "bound_keypair"
 )
 
 var JoinMethods = []JoinMethod{
 	JoinMethodAzure,
+	JoinMethodAzureDevops,
 	JoinMethodBitbucket,
 	JoinMethodCircleCI,
 	JoinMethodEC2,
@@ -97,12 +104,13 @@ var JoinMethods = []JoinMethod{
 	JoinMethodTPM,
 	JoinMethodTerraformCloud,
 	JoinMethodOracle,
+	JoinMethodBoundKeypair,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
 	hasJoinMethod := slices.Contains(JoinMethods, method)
 	if !hasJoinMethod {
-		return trace.BadParameter("join method must be one of %s", apiutils.JoinStrings(JoinMethods, ", "))
+		return trace.BadParameter("join method must be one of %s", utils.JoinStrings(JoinMethods, ", "))
 	}
 
 	return nil
@@ -135,6 +143,8 @@ type ProvisionToken interface {
 	SetAllowRules([]*TokenRule)
 	// GetGCPRules will return the GCP rules within this token.
 	GetGCPRules() *ProvisionTokenSpecV2GCP
+	// GetGithubRules will return the GitHub rules within this token.
+	GetGithubRules() *ProvisionTokenSpecV2GitHub
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -161,6 +171,8 @@ type ProvisionToken interface {
 	// join methods where the name is secret. This should be used when logging
 	// the token name.
 	GetSafeName() string
+	// Clone creates a copy of the token.
+	Clone() ProvisionToken
 }
 
 // NewProvisionToken returns a new provision token with the given roles.
@@ -185,6 +197,26 @@ func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTo
 	return t, nil
 }
 
+// NewProvisionTokenFromSpecAndStatus returns a new provision token with the given spec.
+func NewProvisionTokenFromSpecAndStatus(
+	token string, expires time.Time,
+	spec ProvisionTokenSpecV2,
+	status *ProvisionTokenStatusV2,
+) (ProvisionToken, error) {
+	t := &ProvisionTokenV2{
+		Metadata: Metadata{
+			Name:    token,
+			Expires: &expires,
+		},
+		Spec:   spec,
+		Status: status,
+	}
+	if err := t.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return t, nil
+}
+
 // MustCreateProvisionToken returns a new valid provision token
 // or panics, used in tests
 func MustCreateProvisionToken(token string, roles SystemRoles, expires time.Time) ProvisionToken {
@@ -193,6 +225,10 @@ func MustCreateProvisionToken(token string, roles SystemRoles, expires time.Time
 		panic(err)
 	}
 	return t
+}
+
+func (p *ProvisionTokenV2) Clone() ProvisionToken {
+	return utils.CloneProtoMsg(p)
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -393,6 +429,29 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.oracle: failed validation")
 		}
+	case JoinMethodAzureDevops:
+		providerCfg := p.Spec.AzureDevops
+		if providerCfg == nil {
+			return trace.BadParameter(
+				"spec.azure_devops: must be configured for the join method %q",
+				JoinMethodAzureDevops,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "spec.azure_devops: failed validation")
+		}
+	case JoinMethodBoundKeypair:
+		providerCfg := p.Spec.BoundKeypair
+		if providerCfg == nil {
+			return trace.BadParameter(
+				"spec.bound_keypair: must be configured for the join method %q",
+				JoinMethodBoundKeypair,
+			)
+		}
+
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "spec.bound_keypair: failed validation")
+		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
 	}
@@ -435,6 +494,11 @@ func (p *ProvisionTokenV2) SetAllowRules(rules []*TokenRule) {
 // GetGCPRules will return the GCP rules within this token.
 func (p *ProvisionTokenV2) GetGCPRules() *ProvisionTokenSpecV2GCP {
 	return p.Spec.GCP
+}
+
+// GetGithubRules will return the GitHub rules within this token.
+func (p *ProvisionTokenV2) GetGithubRules() *ProvisionTokenSpecV2GitHub {
+	return p.Spec.GitHub
 }
 
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
@@ -650,7 +714,7 @@ func (a *ProvisionTokenSpecV2GitHub) checkAndSetDefaults() error {
 		repoSet := rule.Repository != ""
 		ownerSet := rule.RepositoryOwner != ""
 		subSet := rule.Sub != ""
-		if !(subSet || ownerSet || repoSet) {
+		if !subSet && !ownerSet && !repoSet {
 			return trace.BadParameter(
 				`allow rule for %q must include at least one of "repository", "repository_owner" or "sub"`,
 				JoinMethodGitHub,
@@ -726,7 +790,7 @@ func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 	default:
 		return trace.BadParameter(
 			"type: must be one of (%s), got %q",
-			apiutils.JoinStrings(JoinMethods, ", "),
+			utils.JoinStrings(JoinMethods, ", "),
 			a.Type,
 		)
 	}
@@ -936,5 +1000,60 @@ func (a *ProvisionTokenSpecV2Oracle) checkAndSetDefaults() error {
 			)
 		}
 	}
+	return nil
+}
+
+// checkAndSetDefaults checks and sets defaults on the Azure Devops spec.
+func (a *ProvisionTokenSpecV2AzureDevops) checkAndSetDefaults() error {
+	switch {
+	case len(a.Allow) == 0:
+		return trace.BadParameter(
+			"the %q join method requires at least one allow rule",
+			JoinMethodAzureDevops,
+		)
+	case a.OrganizationID == "":
+		return trace.BadParameter(
+			"organization_id: must be set",
+		)
+	}
+
+	for i, rule := range a.Allow {
+		subSet := rule.Sub != ""
+		projectNameSet := rule.ProjectName != ""
+		projectIDSet := rule.ProjectID != ""
+		if !subSet && !projectNameSet && !projectIDSet {
+			return trace.BadParameter(
+				"allow[%d]: at least one of ['sub', 'project_name', 'project_id'] must be set",
+				i,
+			)
+		}
+	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2BoundKeypair) checkAndSetDefaults() error {
+	// Note: don't attempt to initialize onboarding - at least for now - as it
+	// has required keys. This behavior may be relaxed when we add
+	// server-generated joining secrets.
+	if a.Onboarding == nil {
+		return trace.BadParameter("spec.bound_keypair.onboarding is required")
+	}
+
+	if a.Onboarding.RegistrationSecret == "" && a.Onboarding.InitialPublicKey == "" {
+		return trace.BadParameter("at least one of [initial_join_secret, " +
+			"initial_public_key] is required in spec.bound_keypair.onboarding")
+	}
+
+	if a.Recovery == nil {
+		a.Recovery = &ProvisionTokenSpecV2BoundKeypair_RecoverySpec{}
+	}
+
+	if a.Recovery.Limit == 0 {
+		a.Recovery.Limit = 1
+	}
+
+	// Note: Recovery.Mode will be interpreted at joining time; it's zero value
+	// ("") is mapped to RecoveryModeStandard.
+
 	return nil
 }

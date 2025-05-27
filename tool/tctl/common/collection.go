@@ -31,12 +31,14 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -1642,6 +1644,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		settingsDatadogIncidentManagement = "datadog_incident_management"
 		settingsEmailAccessPlugin         = "email_access_plugin"
 		settingsAWSIdentityCenter         = "aws_ic"
+		settingsNetIQ                     = "net_iq"
 	)
 	type unknownPluginType struct {
 		Spec struct {
@@ -1695,6 +1698,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Openai{}
 		case settingsOkta:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Okta{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_Okta{}
 		case settingsJamf:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Jamf{}
 		case settingsPagerDuty:
@@ -1709,8 +1713,10 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_ServiceNow{}
 		case settingsGitlab:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Gitlab{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_Gitlab{}
 		case settingsEntraID:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_EntraId{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_EntraId{}
 		case settingsDatadogIncidentManagement:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Datadog{}
 		case settingsEmailAccessPlugin:
@@ -1718,6 +1724,10 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		case settingsAWSIdentityCenter:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_AwsIc{}
 			p.PluginV1.Status.Details = &types.PluginStatusV1_AwsIc{}
+		case settingsNetIQ:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_NetIq{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_NetIq{}
+
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)
 		}
@@ -1756,7 +1766,7 @@ type botInstanceCollection struct {
 func (c *botInstanceCollection) resources() []types.Resource {
 	r := make([]types.Resource, 0, len(c.items))
 	for _, resource := range c.items {
-		r = append(r, types.Resource153ToLegacy(resource))
+		r = append(r, types.ProtoResource153ToLegacy(resource))
 	}
 	return r
 }
@@ -2048,6 +2058,47 @@ func (c *accessMonitoringRuleCollection) writeText(w io.Writer, verbose bool) er
 	}
 	headers := []string{"Name", "Labels"}
 	t := asciitable.MakeTable(headers, rows...)
+
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type healthCheckConfigCollection struct {
+	items []*healthcheckconfigv1.HealthCheckConfig
+}
+
+func (c *healthCheckConfigCollection) resources() []types.Resource {
+	out := make([]types.Resource, 0, len(c.items))
+	for _, item := range c.items {
+		out = append(out, types.ProtoResource153ToLegacy(item))
+	}
+	return out
+}
+
+func (c *healthCheckConfigCollection) writeText(w io.Writer, verbose bool) error {
+	headers := []string{"Name", "Interval", "Timeout", "Healthy Threshold", "Unhealthy Threshold", "DB Labels", "DB Expression"}
+	var rows [][]string
+	for _, item := range c.items {
+		meta := item.GetMetadata()
+		spec := item.GetSpec()
+		rows = append(rows, []string{
+			meta.GetName(),
+			common.FormatDefault(spec.GetInterval().AsDuration(), defaults.HealthCheckInterval),
+			common.FormatDefault(spec.GetTimeout().AsDuration(), defaults.HealthCheckTimeout),
+			common.FormatDefault(spec.GetHealthyThreshold(), defaults.HealthCheckHealthyThreshold),
+			common.FormatDefault(spec.GetUnhealthyThreshold(), defaults.HealthCheckUnhealthyThreshold),
+			common.FormatMultiValueLabels(label.ToMap(spec.GetMatch().GetDbLabels()), verbose),
+			spec.GetMatch().GetDbLabelsExpression(),
+		})
+	}
+	var t asciitable.Table
+	if verbose {
+		t = asciitable.MakeTable(headers, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "DB Labels")
+	}
 
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)

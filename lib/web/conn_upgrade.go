@@ -74,7 +74,8 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 		return h.upgradeALPNWebSocket(w, r, upgradeHandler)
 	}
 
-	// TODO(greedy52) DELETE legacy upgrade in 17.0.
+	// TODO(greedy52) DELETE legacy upgrade in 19.0. Client side is deprecated
+	// in 18.0.
 	hj, ok := w.(http.Hijacker)
 	if !ok {
 		return nil, trace.BadParameter("failed to hijack connection")
@@ -141,7 +142,11 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 
 	if err := upgradeHandler(ctx, conn); err != nil && !utils.IsOKNetworkError(err) {
 		// Upgrader hijacks the connection so no point returning an error here.
-		h.logger.ErrorContext(ctx, "Failed to handle WebSocket upgrade request.", "protocol", wsConn.Subprotocol(), "error", err)
+		h.logger.ErrorContext(ctx, "Failed to handle WebSocket upgrade request",
+			"protocol", wsConn.Subprotocol(),
+			"error", err,
+			"remote_addr", logutils.StringerAttr(conn.RemoteAddr()),
+		)
 	}
 	return nil, nil
 }

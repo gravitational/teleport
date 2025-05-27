@@ -25,9 +25,11 @@ import init, {
   init_wasm_log,
 } from 'shared/libs/ironrdp/pkg/ironrdp';
 import Logger from 'shared/libs/logger';
+import { ensureError, isAbortError } from 'shared/utils/error';
 
 import Codec, {
   FileType,
+  LatencyStats,
   MessageType,
   PointerData,
   Severity,
@@ -51,9 +53,9 @@ import Codec, {
 } from './codec';
 import {
   PathDoesNotExistError,
-  SharedDirectoryManager,
+  SharedDirectoryAccess,
   type FileOrDirInfo,
-} from './sharedDirectoryManager';
+} from './sharedDirectoryAccess';
 
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
@@ -69,10 +71,31 @@ export enum TdpClientEvent {
   // TDP_INFO corresponds with the TDP info message
   TDP_INFO = 'tdp info',
   TRANSPORT_OPEN = 'transport open',
+  // TRANSPORT_CLOSE is emitted when a connection ends due to the transport layer being closed.
+  // This can occur with or without an error.
+  // If an error is present, it will be displayed in the UI.
   TRANSPORT_CLOSE = 'transport close',
   RESET = 'reset',
   POINTER = 'pointer',
+  LATENCY_STATS = 'latency stats',
 }
+
+type EventMap = {
+  [TdpClientEvent.TDP_CLIENT_SCREEN_SPEC]: [ClientScreenSpec];
+  [TdpClientEvent.TDP_PNG_FRAME]: [PngFrame];
+  [TdpClientEvent.TDP_BMP_FRAME]: [BitmapFrame];
+  [TdpClientEvent.TDP_CLIPBOARD_DATA]: [ClipboardData];
+  [TdpClientEvent.ERROR]: [Error];
+  [TdpClientEvent.TDP_WARNING]: [string];
+  [TdpClientEvent.CLIENT_WARNING]: [string];
+  [TdpClientEvent.TDP_INFO]: [string];
+  [TdpClientEvent.TRANSPORT_OPEN]: [void];
+  [TdpClientEvent.TRANSPORT_CLOSE]: [Error | undefined];
+  [TdpClientEvent.RESET]: [void];
+  [TdpClientEvent.POINTER]: [PointerData];
+  [TdpClientEvent.LATENCY_STATS]: [LatencyStats];
+  'terminal.webauthn': [string];
+};
 
 export enum LogType {
   OFF = 'OFF',
@@ -87,7 +110,7 @@ export interface TdpTransport {
   /** Sends a message down the stream. */
   send(data: string | ArrayBufferLike): void;
   /** Adds a callback for every new message. */
-  onMessage(callback: (data: ArrayBuffer) => void): RemoveListenerFn;
+  onMessage(callback: (data: ArrayBufferLike) => void): RemoveListenerFn;
   /**
    * Adds a callback for errors.
    * The stream is closed when this callback is called.
@@ -102,55 +125,69 @@ export interface TdpTransport {
 
 type RemoveListenerFn = () => void;
 
+// WASM IronRDP code can only be initialized once; repeated attempts will cause an error.
+// To prevent multiple initializations, we track the initialization status in a global variable.
+let wasmReady: Promise<void> | undefined;
+
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
-export class TdpClient extends EventEmitter {
+export class TdpClient extends EventEmitter<EventMap> {
   protected codec: Codec;
   protected transport: TdpTransport | undefined;
   private transportAbortController: AbortController | undefined;
-  private sdManager: SharedDirectoryManager;
   private fastPathProcessor: FastPathProcessor | undefined;
-  private wasmReady: Promise<void> | undefined;
 
   private logger = Logger.create('TDPClient');
 
   constructor(
-    private getTransport: (signal: AbortSignal) => Promise<TdpTransport>
+    private getTransport: (signal: AbortSignal) => Promise<TdpTransport>,
+    private sharedDirectoryAccess: SharedDirectoryAccess
   ) {
     super();
     this.codec = new Codec();
-    this.sdManager = new SharedDirectoryManager();
   }
 
-  /**
-   * Connects to the transport and registers event handlers.
-   * Include a screen spec in cases where the client should determine the screen size
-   * (e.g. in a desktop session). Leave the screen spec undefined in cases where the server determines
-   * the screen size (e.g. in a recording playback session). In that case, the client will
-   * set the internal screen size when it receives the screen spec from the server
-   * (see PlayerClient.handleClientScreenSpec).
-   */
-  async connect(spec?: ClientScreenSpec) {
+  /** Connects to the transport and registers event handlers. */
+  async connect(
+    options: {
+      /**
+       * Client keyboard layout.
+       * This should be provided only for a desktop session
+       * (desktop player doesn't allow this parameter).
+       */
+      keyboardLayout?: number;
+      /**
+       * Client screen size.
+       * This should be provided only for a desktop session
+       * (desktop player doesn't allow this parameter).
+       */
+      screenSpec?: ClientScreenSpec;
+    } = {}
+  ) {
     this.transportAbortController = new AbortController();
-    if (!this.wasmReady) {
-      this.wasmReady = this.initWasm();
+    if (!wasmReady) {
+      wasmReady = this.initWasm();
     }
-    await this.wasmReady;
+    await wasmReady;
 
     try {
       this.transport = await this.getTransport(
         this.transportAbortController.signal
       );
     } catch (error) {
-      this.emit(TdpClientEvent.ERROR, error.message);
+      this.emit(TdpClientEvent.ERROR, ensureError(error));
       return;
     }
 
     this.emit(TdpClientEvent.TRANSPORT_OPEN);
-    if (spec) {
-      this.sendClientScreenSpec(spec);
+    if (options.screenSpec) {
+      this.sendClientScreenSpec(options.screenSpec);
+    }
+
+    if (options.keyboardLayout !== undefined) {
+      this.sendClientKeyboardLayout(options.keyboardLayout);
     }
 
     let processingError: Error | undefined;
@@ -165,7 +202,7 @@ export class TdpClient extends EventEmitter {
       subscribers.add(
         this.transport.onMessage(data => {
           void this.processMessage(data).catch(error => {
-            processingError = error;
+            processingError = ensureError(error);
             unsubscribe();
             // All errors are treated as fatal, close the connection.
             this.transportAbortController.abort();
@@ -183,11 +220,13 @@ export class TdpClient extends EventEmitter {
 
     // 'Processing' errors are the most important.
     if (processingError) {
-      this.emit(TdpClientEvent.ERROR, processingError.message);
-    } else if (connectionError) {
-      this.emit(TdpClientEvent.TRANSPORT_CLOSE, connectionError.message);
+      this.emit(TdpClientEvent.ERROR, processingError);
+      // If the connection was closed intentionally by the user (aborted),
+      // do not treat it as an error in the UI.
+    } else if (connectionError && !isAbortError(connectionError)) {
+      this.emit(TdpClientEvent.TRANSPORT_CLOSE, connectionError);
     } else {
-      this.emit(TdpClientEvent.TRANSPORT_CLOSE, 'Session disconnected');
+      this.emit(TdpClientEvent.TRANSPORT_CLOSE, undefined);
     }
 
     this.logger.info('Transport is closed');
@@ -235,7 +274,7 @@ export class TdpClient extends EventEmitter {
     return () => this.off(TdpClientEvent.TDP_WARNING, listener);
   };
 
-  onTransportClose = (listener: (message: string) => void) => {
+  onTransportClose = (listener: (error?: Error) => void) => {
     this.on(TdpClientEvent.TRANSPORT_CLOSE, listener);
     return () => this.off(TdpClientEvent.TRANSPORT_CLOSE, listener);
   };
@@ -253,6 +292,11 @@ export class TdpClient extends EventEmitter {
   onScreenSpec = (listener: (spec: ClientScreenSpec) => void) => {
     this.on(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, listener);
     return () => this.off(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, listener);
+  };
+
+  onLatencyStats = (listener: (stats: LatencyStats) => void) => {
+    this.on(TdpClientEvent.LATENCY_STATS, listener);
+    return () => this.off(TdpClientEvent.LATENCY_STATS, listener);
   };
 
   private async initWasm() {
@@ -285,7 +329,7 @@ export class TdpClient extends EventEmitter {
 
   // processMessage should be await-ed when called,
   // so that its internal await-or-not logic is obeyed.
-  async processMessage(buffer: ArrayBuffer): Promise<void> {
+  async processMessage(buffer: ArrayBufferLike): Promise<void> {
     const messageType = this.codec.decodeMessageType(buffer);
     switch (messageType) {
       case MessageType.PNG_FRAME:
@@ -352,12 +396,20 @@ export class TdpClient extends EventEmitter {
       case MessageType.SHARED_DIRECTORY_TRUNCATE_REQUEST:
         await this.handleSharedDirectoryTruncateRequest(buffer);
         break;
+      case MessageType.LATENCY_STATS:
+        this.handleLatencyStats(buffer);
+        break;
       default:
         this.logger.warn(`received unsupported message type ${messageType}`);
     }
   }
 
-  handleClientScreenSpec(buffer: ArrayBuffer) {
+  handleLatencyStats(buffer: ArrayBufferLike) {
+    const stats = this.codec.decodeLatencyStats(buffer);
+    this.emit(TdpClientEvent.LATENCY_STATS, stats);
+  }
+
+  handleClientScreenSpec(buffer: ArrayBufferLike) {
     this.logger.warn(
       `received unsupported message type ${this.codec.decodeMessageType(
         buffer
@@ -365,7 +417,7 @@ export class TdpClient extends EventEmitter {
     );
   }
 
-  handleMouseButton(buffer: ArrayBuffer) {
+  handleMouseButton(buffer: ArrayBufferLike) {
     this.logger.warn(
       `received unsupported message type ${this.codec.decodeMessageType(
         buffer
@@ -373,7 +425,7 @@ export class TdpClient extends EventEmitter {
     );
   }
 
-  handleMouseMove(buffer: ArrayBuffer) {
+  handleMouseMove(buffer: ArrayBufferLike) {
     this.logger.warn(
       `received unsupported message type ${this.codec.decodeMessageType(
         buffer
@@ -381,18 +433,18 @@ export class TdpClient extends EventEmitter {
     );
   }
 
-  handleClipboardData(buffer: ArrayBuffer) {
+  handleClipboardData(buffer: ArrayBufferLike) {
     this.emit(
       TdpClientEvent.TDP_CLIPBOARD_DATA,
       this.codec.decodeClipboardData(buffer)
     );
   }
 
-  handleTdpAlert(buffer: ArrayBuffer) {
+  handleTdpAlert(buffer: ArrayBufferLike) {
     const alert = this.codec.decodeAlert(buffer);
     // TODO(zmb3): info and warning should use the same handler
     if (alert.severity === Severity.Error) {
-      throw new Error(alert.message);
+      throw new TdpError(alert.message);
     } else if (alert.severity === Severity.Warning) {
       this.handleWarning(alert.message, TdpClientEvent.TDP_WARNING);
     } else {
@@ -402,19 +454,19 @@ export class TdpClient extends EventEmitter {
 
   // Assuming we have a message of type PNG_FRAME, extract its
   // bounds and png bitmap and emit a render event.
-  handlePngFrame(buffer: ArrayBuffer) {
+  handlePngFrame(buffer: ArrayBufferLike) {
     this.codec.decodePngFrame(buffer, (pngFrame: PngFrame) =>
       this.emit(TdpClientEvent.TDP_PNG_FRAME, pngFrame)
     );
   }
 
-  handlePng2Frame(buffer: ArrayBuffer) {
+  handlePng2Frame(buffer: ArrayBufferLike) {
     this.codec.decodePng2Frame(buffer, (pngFrame: PngFrame) =>
       this.emit(TdpClientEvent.TDP_PNG_FRAME, pngFrame)
     );
   }
 
-  handleRdpConnectionActivated(buffer: ArrayBuffer) {
+  handleRdpConnectionActivated(buffer: ArrayBufferLike) {
     const { ioChannelId, userChannelId, screenWidth, screenHeight } =
       this.codec.decodeRdpConnectionActivated(buffer);
     const spec = { width: screenWidth, height: screenHeight };
@@ -432,7 +484,7 @@ export class TdpClient extends EventEmitter {
     this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
   }
 
-  handleRdpFastPathPDU(buffer: ArrayBuffer) {
+  handleRdpFastPathPDU(buffer: ArrayBufferLike) {
     let rdpFastPathPDU = this.codec.decodeRdpFastPathPDU(buffer);
 
     // This should never happen but let's catch it with an error in case it does.
@@ -455,7 +507,7 @@ export class TdpClient extends EventEmitter {
     );
   }
 
-  handleMfaChallenge(buffer: ArrayBuffer) {
+  handleMfaChallenge(buffer: ArrayBufferLike) {
     const mfaJson = this.codec.decodeMfaJson(buffer);
     if (mfaJson.mfaType == 'n') {
       // TermEvent.MFA_CHALLENGE
@@ -471,7 +523,7 @@ export class TdpClient extends EventEmitter {
     }
   }
 
-  handleSharedDirectoryAcknowledge(buffer: ArrayBuffer) {
+  handleSharedDirectoryAcknowledge(buffer: ArrayBufferLike) {
     const ack = this.codec.decodeSharedDirectoryAcknowledge(buffer);
     if (ack.errCode !== SharedDirectoryErrCode.Nil) {
       // A failure in the acknowledge message means the directory
@@ -479,20 +531,22 @@ export class TdpClient extends EventEmitter {
       // Since this is not a fatal error, we emit a warning but otherwise
       // keep the sesion alive.
       this.handleWarning(
-        `Failed to share directory '${this.sdManager.getName()}', drive redirection may be disabled on the RDP server.`,
+        `Failed to share directory '${this.sharedDirectoryAccess.getDirectoryName()}', drive redirection may be disabled on the RDP server.`,
         TdpClientEvent.TDP_WARNING
       );
       return;
     }
 
-    this.logger.info('Started sharing directory: ' + this.sdManager.getName());
+    this.logger.info(
+      `Started sharing directory: ${this.sharedDirectoryAccess.getDirectoryName()}`
+    );
   }
 
-  async handleSharedDirectoryInfoRequest(buffer: ArrayBuffer) {
+  async handleSharedDirectoryInfoRequest(buffer: ArrayBufferLike) {
     const req = this.codec.decodeSharedDirectoryInfoRequest(buffer);
     const path = req.path;
     try {
-      const info = await this.sdManager.getInfo(path);
+      const info = await this.sharedDirectoryAccess.stat(path);
       this.sendSharedDirectoryInfoResponse({
         completionId: req.completionId,
         errCode: SharedDirectoryErrCode.Nil,
@@ -517,12 +571,12 @@ export class TdpClient extends EventEmitter {
     }
   }
 
-  async handleSharedDirectoryCreateRequest(buffer: ArrayBuffer) {
+  async handleSharedDirectoryCreateRequest(buffer: ArrayBufferLike) {
     const req = this.codec.decodeSharedDirectoryCreateRequest(buffer);
 
     try {
-      await this.sdManager.create(req.path, req.fileType);
-      const info = await this.sdManager.getInfo(req.path);
+      await this.sharedDirectoryAccess.create(req.path, req.fileType);
+      const info = await this.sharedDirectoryAccess.stat(req.path);
       this.sendSharedDirectoryCreateResponse({
         completionId: req.completionId,
         errCode: SharedDirectoryErrCode.Nil,
@@ -544,11 +598,11 @@ export class TdpClient extends EventEmitter {
     }
   }
 
-  async handleSharedDirectoryDeleteRequest(buffer: ArrayBuffer) {
+  async handleSharedDirectoryDeleteRequest(buffer: ArrayBufferLike) {
     const req = this.codec.decodeSharedDirectoryDeleteRequest(buffer);
 
     try {
-      await this.sdManager.delete(req.path);
+      await this.sharedDirectoryAccess.delete(req.path);
       this.sendSharedDirectoryDeleteResponse({
         completionId: req.completionId,
         errCode: SharedDirectoryErrCode.Nil,
@@ -562,9 +616,9 @@ export class TdpClient extends EventEmitter {
     }
   }
 
-  async handleSharedDirectoryReadRequest(buffer: ArrayBuffer) {
+  async handleSharedDirectoryReadRequest(buffer: ArrayBufferLike) {
     const req = this.codec.decodeSharedDirectoryReadRequest(buffer);
-    const readData = await this.sdManager.readFile(
+    const readData = await this.sharedDirectoryAccess.read(
       req.path,
       req.offset,
       req.length
@@ -577,9 +631,9 @@ export class TdpClient extends EventEmitter {
     });
   }
 
-  async handleSharedDirectoryWriteRequest(buffer: ArrayBuffer) {
+  async handleSharedDirectoryWriteRequest(buffer: ArrayBufferLike) {
     const req = this.codec.decodeSharedDirectoryWriteRequest(buffer);
-    const bytesWritten = await this.sdManager.writeFile(
+    const bytesWritten = await this.sharedDirectoryAccess.write(
       req.path,
       req.offset,
       req.writeData
@@ -592,7 +646,7 @@ export class TdpClient extends EventEmitter {
     });
   }
 
-  handleSharedDirectoryMoveRequest(buffer: ArrayBuffer) {
+  handleSharedDirectoryMoveRequest(buffer: ArrayBufferLike) {
     const req = this.codec.decodeSharedDirectoryMoveRequest(buffer);
     // Always send back Failed for now, see https://github.com/gravitational/webapps/issues/1064
     this.sendSharedDirectoryMoveResponse({
@@ -606,11 +660,12 @@ export class TdpClient extends EventEmitter {
     );
   }
 
-  async handleSharedDirectoryListRequest(buffer: ArrayBuffer) {
+  async handleSharedDirectoryListRequest(buffer: ArrayBufferLike) {
     const req = this.codec.decodeSharedDirectoryListRequest(buffer);
     const path = req.path;
 
-    const infoList: FileOrDirInfo[] = await this.sdManager.listContents(path);
+    const infoList: FileOrDirInfo[] =
+      await this.sharedDirectoryAccess.readDir(path);
     const fsoList: FileSystemObject[] = infoList.map(info => this.toFso(info));
 
     this.sendSharedDirectoryListResponse({
@@ -620,9 +675,9 @@ export class TdpClient extends EventEmitter {
     });
   }
 
-  async handleSharedDirectoryTruncateRequest(buffer: ArrayBuffer) {
+  async handleSharedDirectoryTruncateRequest(buffer: ArrayBufferLike) {
     const req = this.codec.decodeSharedDirectoryTruncateRequest(buffer);
-    await this.sdManager.truncateFile(req.path, req.endOfFile);
+    await this.sharedDirectoryAccess.truncate(req.path, req.endOfFile);
     this.sendSharedDirectoryTruncateResponse({
       completionId: req.completionId,
       errCode: SharedDirectoryErrCode.Nil,
@@ -652,6 +707,10 @@ export class TdpClient extends EventEmitter {
       `requesting screen spec from client ${spec.width} x ${spec.height}`
     );
     this.send(this.codec.encodeClientScreenSpec(spec));
+  }
+
+  sendClientKeyboardLayout(keyboardLayout: number) {
+    this.send(this.codec.encodeClientKeyboardLayout(keyboardLayout));
   }
 
   sendMouseMove(x: number, y: number) {
@@ -706,12 +765,13 @@ export class TdpClient extends EventEmitter {
     this.send(msg);
   }
 
-  addSharedDirectory(sharedDirectory: FileSystemDirectoryHandle) {
-    this.sdManager.add(sharedDirectory);
+  async shareDirectory() {
+    await this.sharedDirectoryAccess.selectDirectory();
+    this.sendSharedDirectoryAnnounce();
   }
 
   sendSharedDirectoryAnnounce() {
-    const name = this.sdManager.getName();
+    const name = this.sharedDirectoryAccess.getDirectoryName();
     this.send(
       this.codec.encodeSharedDirectoryAnnounce({
         discard: 0, // This is always the first request.
@@ -761,7 +821,7 @@ export class TdpClient extends EventEmitter {
     this.sendClientScreenSpec(spec);
   };
 
-  sendRdpResponsePDU(responseFrame: ArrayBuffer) {
+  sendRdpResponsePDU(responseFrame: ArrayBufferLike) {
     this.send(this.codec.encodeRdpResponsePDU(responseFrame));
   }
 
@@ -806,4 +866,12 @@ export function useListener<T extends any[]>(
       unregister();
     };
   }, [emitter, listener]);
+}
+
+/** Represents an alert emitted by the TDP service with "error" severity. */
+export class TdpError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TdpError';
+  }
 }

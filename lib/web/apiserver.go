@@ -31,6 +31,7 @@ import (
 	"html/template"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/url"
@@ -135,6 +136,10 @@ const (
 	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
 	// cluster configuration changes.
 	findEndpointCacheTTL = 10 * time.Second
+	// cmcCacheTTL is the cache TTL for the clusterMaintenanceConfig resource.
+	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
+	// cluster configuration changes.
+	cmcCacheTTL = time.Minute
 	// DefaultAgentUpdateJitterSeconds is the default jitter agents should wait before updating.
 	DefaultAgentUpdateJitterSeconds = 60
 )
@@ -356,7 +361,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 	}
 	publicAddr := raddr.Host()
 
-	servers, err := app.Match(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
+	servers, err := app.MatchUnshuffled(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
 	if err != nil {
 		h.handler.logger.InfoContext(r.Context(), "failed to match application with public addr", "public_addr", publicAddr)
 		return
@@ -367,7 +372,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	foundApp := servers[0].GetApp()
+	foundApp := servers[rand.N(len(servers))].GetApp()
 	corsPolicy := foundApp.GetCORS()
 	if corsPolicy == nil {
 		return
@@ -488,13 +493,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
 	cmcCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:         findEndpointCacheTTL,
+		TTL:         cmcCacheTTL,
 		Clock:       h.clock,
 		Context:     cfg.Context,
 		ReloadOnErr: false,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err, "creating /find cache")
+		return nil, trace.Wrap(err, "creating cluster maintenance config cache")
 	}
 	h.clusterMaintenanceConfigCache = cmcCache
 
@@ -638,7 +643,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 					return
 				}
 			}
-			httplib.RouteNotFoundResponse(r.Context(), w, teleport.Version)
+			httplib.RouteNotFoundResponse(r.Context(), w)
 			return
 		}
 
@@ -690,7 +695,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				h.logger.ErrorContext(r.Context(), "Failed to execute index page template", "error", err)
 			}
 		} else {
-			httplib.RouteNotFoundResponse(r.Context(), w, teleport.Version)
+			httplib.RouteNotFoundResponse(r.Context(), w)
 			return
 		}
 	})
@@ -844,9 +849,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.clusterNodesGet))
 	h.POST("/webapi/sites/:site/nodes", h.WithClusterAuth(h.handleNodeCreate))
 
-	// Get applications.
-	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.clusterAppsGet))
-
 	// get login alerts
 	h.GET("/webapi/sites/:site/alerts", h.WithClusterAuth(h.clusterLoginAlertsGet))
 
@@ -913,9 +915,6 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
-	// Deprecated: Use `/webapi/sites/:site/resources` instead.
-	// TODO(kiosion): DELETE in 18.0
-	h.GET("/webapi/sites/:site/resources/check", h.WithClusterAuth(h.checkAccessToRegisteredResource))
 
 	// Database access handlers.
 	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
@@ -927,6 +926,9 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// DatabaseService handlers
 	h.GET("/webapi/sites/:site/databaseservices", h.WithClusterAuth(h.clusterDatabaseServicesList))
+
+	// Database server handlers
+	h.GET("/webapi/sites/:site/databaseservers", h.WithClusterAuth(h.clusterDatabaseServersList))
 
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
@@ -955,9 +957,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/mfa/registerchallenge", h.WithAuth(h.createRegisterChallengeHandle))
 
 	h.POST("/webapi/mfa/devices", h.WithAuth(h.addMFADeviceHandle))
-	// DEPRECATED in favor of mfa/authenticatechallenge.
-	// TODO(bl-nero): DELETE IN 17.0.0
-	h.POST("/webapi/mfa/authenticatechallenge/password", h.WithAuth(h.createAuthenticateChallengeWithPassword))
 
 	// Device Trust.
 	// Do not enforce bearer token for /webconfirm, it is called from outside the
@@ -1140,6 +1139,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBot))
 	// Delete Machine ID bot
 	h.DELETE("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.deleteBot))
+
+	// GET Machine ID instance for a bot by id
+	h.GET("/webapi/sites/:site/machine-id/bot/:name/bot-instance/:id", h.WithClusterAuth(h.getBotInstance))
+	// GET Machine ID bot instances (paged)
+	h.GET("/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstances))
 
 	// GET a paginated list of notifications for a user
 	h.GET("/webapi/sites/:site/notifications", h.WithClusterAuth(h.notificationsGet))
@@ -1335,6 +1339,7 @@ func localSettings(ctx context.Context, cap types.AuthPreference, logger *slog.L
 		Local:                   &webclient.LocalSettings{},
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
+		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
 		DeviceTrust:             deviceTrustSettings(cap),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
@@ -1378,6 +1383,7 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
+		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
 		DeviceTrust:             deviceTrustSettings(cap),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
@@ -1400,6 +1406,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
+		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
 		DeviceTrust:             deviceTrustSettings(cap),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
@@ -1418,6 +1425,7 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
+		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
 		DeviceTrust:             deviceTrustSettings(cap),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
@@ -1472,14 +1480,14 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 		}
 	case constants.SAML:
 		if authPreference.GetConnectorName() != "" {
-			samlConnector, err := authClient.GetSAMLConnector(ctx, authPreference.GetConnectorName(), false)
+			samlConnector, err := authClient.GetSAMLConnectorWithValidationOptions(ctx, authPreference.GetConnectorName(), false, types.SAMLConnectorValidationFollowURLs(false))
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
 			as = samlSettings(samlConnector, authPreference)
 		} else {
-			samlConnectors, err := authClient.GetSAMLConnectors(ctx, false)
+			samlConnectors, err := authClient.GetSAMLConnectorsWithValidationOptions(ctx, false, types.SAMLConnectorValidationFollowURLs(false))
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
@@ -1613,7 +1621,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		Auth:              authSettings,
 		Proxy:             *proxyConfig,
 		ServerVersion:     teleport.Version,
-		MinClientVersion:  teleport.MinClientVersion,
+		MinClientVersion:  teleport.MinClientSemVer().String(),
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
 		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, "" /* updater UUID */),
@@ -1645,7 +1653,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			Proxy:            *proxyConfig,
 			Auth:             webclient.AuthenticationSettings{SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite()},
 			ServerVersion:    teleport.Version,
-			MinClientVersion: teleport.MinClientVersion,
+			MinClientVersion: teleport.MinClientSemVer().String(),
 			ClusterName:      h.auth.clusterName,
 			Edition:          modules.GetModules().BuildType(),
 			FIPS:             modules.IsBoringBinary(),
@@ -1680,7 +1688,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	response := &webclient.PingResponse{
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
-		MinClientVersion: teleport.MinClientVersion,
+		MinClientVersion: teleport.MinClientSemVer().String(),
 		ClusterName:      h.auth.clusterName,
 	}
 
@@ -1715,7 +1723,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	// if no oidc connector was found, look for a saml connector
-	samlConnectors, err := authClient.GetSAMLConnectors(r.Context(), false)
+	samlConnectors, err := authClient.GetSAMLConnectorsWithValidationOptions(r.Context(), false, types.SAMLConnectorValidationFollowURLs(false))
 	if err == nil {
 		for index, value := range samlConnectors {
 			collectorNames = append(collectorNames, value.GetMetadata().Name)
@@ -1769,7 +1777,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	// get all SAML connectors
-	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectors(r.Context(), false)
+	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectorsWithValidationOptions(r.Context(), false, types.SAMLConnectorValidationFollowURLs(false))
 	if err != nil {
 		h.logger.ErrorContext(r.Context(), "Cannot retrieve SAML connectors", "error", err)
 	}
@@ -2237,7 +2245,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	targetVersion, err := h.autoUpdateAgentVersion(r.Context(), group, agentUUD)
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Error retrieving the target version", "error", err)
-		targetVersion = teleport.SemVersion
+		targetVersion = teleport.SemVer()
 	}
 
 	instTmpl, err := template.New("").Parse(installer.GetScript())
@@ -3159,7 +3167,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				unifiedResources = append(unifiedResources, ui.MakeGitServer(site.GetName(), r, enriched.RequiresRequest))
 			}
 		case types.DatabaseServer:
-			db := ui.MakeDatabase(r.GetDatabase(), accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
+			db := ui.MakeDatabaseFromDatabaseServer(r, accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
 			allowedAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)
@@ -3170,9 +3178,15 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				r.GetApp().GetName(): allowedAWSRoles,
 			}
 
+			proxyDNSName := h.proxyDNSName()
+			if r.GetApp().GetUseAnyProxyPublicAddr() {
+				// let the current proxy user is connected to override the dns name
+				proxyDNSName = utils.FindMatchingProxyDNS(request.Host, h.proxyDNSNames())
+			}
+
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
 				LocalClusterName:      h.auth.clusterName,
-				LocalProxyDNSName:     h.proxyDNSName(),
+				LocalProxyDNSName:     proxyDNSName,
 				AppClusterName:        site.GetName(),
 				AllowedAWSRolesLookup: allowedAWSRolesLookup,
 				UserGroupLookup:       getUserGroupLookup(),
@@ -3180,35 +3194,6 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				RequiresRequest:       enriched.RequiresRequest,
 			})
 			unifiedResources = append(unifiedResources, app)
-		case types.AppServerOrSAMLIdPServiceProvider:
-			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
-			if r.IsAppServer() {
-				allowedAWSRoles, err := accessChecker.GetAllowedLoginsForResource(r.GetAppServer().GetApp())
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				allowedAWSRolesLookup := map[string][]string{
-					r.GetAppServer().GetApp().GetName(): allowedAWSRoles,
-				}
-				app := ui.MakeApp(r.GetAppServer().GetApp(), ui.MakeAppsConfig{
-					LocalClusterName:      h.auth.clusterName,
-					LocalProxyDNSName:     h.proxyDNSName(),
-					AppClusterName:        site.GetName(),
-					AllowedAWSRolesLookup: allowedAWSRolesLookup,
-					UserGroupLookup:       getUserGroupLookup(),
-					Logger:                h.logger,
-					RequiresRequest:       enriched.RequiresRequest,
-				})
-				unifiedResources = append(unifiedResources, app)
-			} else {
-				app := ui.MakeAppTypeFromSAMLApp(r.GetSAMLIdPServiceProvider(), ui.MakeAppsConfig{
-					LocalClusterName:  h.auth.clusterName,
-					LocalProxyDNSName: h.proxyDNSName(),
-					AppClusterName:    site.GetName(),
-					RequiresRequest:   enriched.RequiresRequest,
-				})
-				unifiedResources = append(unifiedResources, app)
-			}
 		case types.SAMLIdPServiceProvider:
 			// SAMLIdPServiceProvider resources are shown as
 			// "apps" in the UI.
@@ -3850,6 +3835,7 @@ func (h *Handler) podConnect(
 		localCA:             hostCA,
 		configServerAddr:    serverAddr,
 		configTLSServerName: tlsServerName,
+		publicProxyAddr:     h.cfg.PublicProxyAddr,
 	}
 
 	ph.ServeHTTP(w, r)
@@ -4757,7 +4743,8 @@ func checkTokenTTL(tok types.ProvisionToken) bool {
 
 type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)
 
-func isValidRedirectURL(redirectURL string) bool {
+// IsValidRedirectURL validates redirect URL.
+func IsValidRedirectURL(redirectURL string) bool {
 	u, err := url.ParseRequestURI(redirectURL)
 	return err == nil && (!u.IsAbs() || (u.Scheme == "http" || u.Scheme == "https"))
 }
@@ -4768,7 +4755,7 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 		app.SetRedirectPageHeaders(w.Header(), "")
 
 		redirectURL := fn(w, r, p)
-		if !isValidRedirectURL(redirectURL) {
+		if !IsValidRedirectURL(redirectURL) {
 			redirectURL = client.LoginFailedRedirectURL
 		}
 		http.Redirect(w, r, redirectURL, http.StatusFound)
@@ -4782,7 +4769,7 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		redirectURL := fn(w, r, p)
-		if !isValidRedirectURL(redirectURL) {
+		if !IsValidRedirectURL(redirectURL) {
 			redirectURL = client.LoginFailedRedirectURL
 		}
 		err := app.MetaRedirect(w, redirectURL)
@@ -5054,7 +5041,7 @@ func (h *Handler) ProxyWithRoles(ctx context.Context, sctx *SessionContext) (rev
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return reversetunnelclient.NewTunnelWithRoles(h.cfg.Proxy, cn.GetClusterName(), accessChecker, h.cfg.AccessPoint), nil
+	return reversetunnelclient.NewTunnelWithRoles(h.cfg.Proxy, cn.GetClusterName(), accessChecker.CheckAccessToRemoteCluster, h.cfg.AccessPoint), nil
 }
 
 // ProxyHostPort returns the address of the proxy server using --proxy

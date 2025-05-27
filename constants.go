@@ -394,6 +394,10 @@ const (
 	// S3UseVirtualStyleAddressing is an optional switch to use use a virtual-hosted–style URI.
 	S3UseVirtualStyleAddressing = "use_s3_virtual_style_addressing"
 
+	// S3CompleteInitiators is an optional allow list which configures the upload completer
+	// to only complete uploads from the specified set of initiators.
+	S3CompleteInitiators = "complete_initiators"
+
 	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"
 
@@ -417,14 +421,8 @@ const (
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
 
-	// Syslog is a mode for syslog logging
-	Syslog = "syslog"
-
 	// DebugLevel is a debug logging level name
 	DebugLevel = "debug"
-
-	// MinimumEtcdVersion is the minimum version of etcd supported by Teleport
-	MinimumEtcdVersion = "3.3.0"
 
 	// EnvVarAllowNoSecondFactor is used to allow disabling second factor auth
 	// todo(tross): DELETE WHEN ABLE TO
@@ -742,6 +740,12 @@ const (
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
 
 const (
+	// PresetDefaultHealthCheckConfigName is the name of a preset
+	// default health_check_config that enables health checks for all resources.
+	PresetDefaultHealthCheckConfigName = "default"
+)
+
+const (
 	// SystemAccessApproverUserName names a Teleport user that acts as
 	// an Access Request approver for access plugins
 	SystemAccessApproverUserName = "@teleport-access-approval-bot"
@@ -960,6 +964,13 @@ const (
 
 	// HostHeader is the name of the Host header.
 	HostHeader = "Host"
+
+	// XTeleportUsernameHeader is the name of the X-Teleport-Username header
+	// used to pass the username to the Access Graph service.
+	// This header is used to identify the user that is making the request
+	// so that the Access Graph service can store information about the
+	// user's preferences.
+	XTeleportUsernameHeader = "X-Teleport-Username"
 )
 
 // UserSingleUseCertTTL is a TTL for per-connection user certificates.

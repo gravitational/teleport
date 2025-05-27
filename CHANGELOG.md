@@ -7,9 +7,10 @@
 #### TLS Cipher Suites
 
 TLS cipher suites with known security issues can no longer be manually
-configured in the Teleport YAML configuration file.
-If you do not explicitly configure any of the listed TLS cipher suites, you are
-not affected by this change.
+configured in the Teleport YAML configuration file. If you do not explicitly
+configure any of the listed TLS cipher suites, you are not affected by this
+change.
+
 Teleport 18 removes support for:
 - `tls-rsa-with-aes-128-cbc-sha`
 - `tls-rsa-with-aes-256-cbc-sha`
@@ -19,11 +20,106 @@ Teleport 18 removes support for:
 - `tls-ecdhe-ecdsa-with-aes-128-cbc-sha256`
 - `tls-ecdhe-rsa-with-aes-128-cbc-sha256`
 
+#### Terraform provider role defaults
+
+The Terraform provider previously defaulted unset booleans to `false`, starting
+with v18 it will leave the fields empty and let Teleport pick the same default
+value as if you were applying the manifest with the web UI, `tctl create`, or
+the Kubernetes Operator.
+
+This might change the default options of role where not every option was
+explicitly set. For example:
+
+```
+resource "teleport_role" "one-option-set" {
+  version = "v7"
+  metadata = {
+    name        = "one-option-set"
+  }
+
+  spec = {
+    options = {
+      max_session_ttl = "7m"
+      # other boolean options were wrongly set to false by default
+    }
+  }
+}
+```
+
+This change does not affect you if you were not setting role options,
+or setting every role option in your Terraform code.
+
+After updating the Terraform provider to v18, `terraform plan` will display the
+role option differences, please review it and check that the default changes are
+acceptable. If they are not, you must set the options to `false`.
+
+Here's a plan example for the code above:
+```
+# teleport_role.one-option-set will be updated in-place
+~ resource "teleport_role" "one-option-set" {
+      id       = "one-option-set"
+    ~ spec     = {
+        ~ options = {
+            - cert_format               = "standard" -> null
+            - create_host_user          = false -> null
+            ~ desktop_clipboard         = false -> true
+            ~ desktop_directory_sharing = false -> true
+            - port_forwarding           = false -> null
+            ~ ssh_file_copy             = false -> true
+              # (4 unchanged attributes hidden)
+          }
+      }
+      # (3 unchanged attributes hidden)
+  }
+```
+
 #### AWS endpoint URL mode removed
 
-The AWS endpoint URL mode (`--endpoint-url`) has been removed for
-`tsh proxy aws` and `tsh aws`. Users using this mode should use the default
-HTTPS Proxy mode from now on.
+The AWS endpoint URL mode (`--endpoint-url`) has been removed for `tsh proxy
+aws` and `tsh aws`. Users using this mode should use the default HTTPS Proxy
+mode from now on.
+
+### Other changes
+
+#### Configurable keyboard layouts for Windows desktop sessions
+
+Teleport's Account Settings page now exposes an option to set your preferred
+keyboard layout for Windows desktop sessions.
+
+Note: in order for this setting to take affect, agent's running Teleport's
+`windows_desktop_service` must be upgraded to v18.0.0 or later.
+
+#### Windows desktop discovery enhancements
+
+Teleport's LDAP-based discovery mechanism for Windows desktops now supports:
+
+- a configurable discovery interval
+- custom RDP ports
+- the ability to run multiple separate discovery configurations, allowing you to
+  configure finely-grained discovery policies without running multiple agents
+
+To update your configuration, move the `discovery` section to `discovery_configs`:
+
+```diff
+windows_desktop_service:
+  enabled: yes
++  discovery_interval: 10m # optional, defaults to 5 minutes
+-  discovery:
+-    base_dn: '*'
+-    label_attributes: [ department ]
++  discovery_configs:
++    - base_dn: '*'
++      label_attributes: [ department ]
++      rdp_port: 9989 # optional, defaults to 3389
+```
+
+#### Legacy ALPN connection upgrade mode has been removed
+
+Teleport v15.1 added WebSocket upgrade support for Teleport proxies behind
+layer 7 load balancers and reverse proxies. The legacy ALPN upgrade mode using
+`alpn` or `alpn-ping` as upgrade types was left as a fallback until v17.
+Teleport v18 removes the legacy upgrade mode entirely including the use of
+environment variable `TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE`.
 
 ## 16.0.0 (xx/xx/xx)
 

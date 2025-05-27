@@ -402,6 +402,12 @@ type ReadRemoteProxyAccessPoint interface {
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+
+	// GetWindowsDesktops returns windows desktop hosts.
+	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
+
+	// GetWindowsDesktopService returns a registered windows desktop service by name.
+	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 }
 
 // RemoteProxyAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -552,6 +558,10 @@ type AppsAccessPoint interface {
 type ReadDatabaseAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
+
+	// HealthCheckConfigReader defines methods for reading health check config
+	// resources.
+	services.HealthCheckConfigReader
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
@@ -1178,6 +1188,12 @@ type Cache interface {
 	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
 	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
 
+	// GetAutoUpdateAgentReport gets the AutoUpdateAgentRollout from the backend.
+	GetAutoUpdateAgentReport(ctx context.Context, name string) (*autoupdate.AutoUpdateAgentReport, error)
+
+	// ListAutoUpdateAgentReports lists all AutoUpdateAgentReports from the backend.
+	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error)
+
 	// GetAccessGraphSettings returns the access graph settings.
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
 
@@ -1212,6 +1228,10 @@ type Cache interface {
 
 	// GitServerGetter defines methods for fetching Git servers.
 	services.GitServerGetter
+
+	// HealthCheckConfigReader defines methods for fetching health checkc config
+	// resources.
+	services.HealthCheckConfigReader
 }
 
 type NodeWrapper struct {

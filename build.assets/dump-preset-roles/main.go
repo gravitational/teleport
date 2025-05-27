@@ -50,7 +50,7 @@ func main() {
 		}
 	}
 
-	rolesJSON, err := json.Marshal(rolesByName)
+	rolesJSON, err := json.MarshalIndent(rolesByName, "", "  ")
 	if err != nil {
 		log.Fatalf("Could not marshal preset roles as JSON: %s", err)
 	}

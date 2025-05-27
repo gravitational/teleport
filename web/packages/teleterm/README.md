@@ -41,6 +41,17 @@ cd teleport
 pnpm install && make build/tsh
 ```
 
+The app depends on Rust WASM code. To compile it, the following tools have to be installed:
+* `Rust` and `Cargo`. The required version is specified by `RUST_VERSION` in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11).
+* [`wasm-pack`](https://github.com/rustwasm/wasm-pack). The required version is specified by `WASM_PACK_VERSION` in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12).
+* [`binaryen`](https://github.com/WebAssembly/binaryen) which contains `wasm-opt`. This is required on on linux aarch64 (64-bit ARM).
+  You can check if it's already installed on your system by running `which wasm-opt`. If not you can install it like `apt-get install binaryen` (for Debian-based Linux). `wasm-pack` will install this automatically on other platforms.
+
+To automatically install `wasm-pack`, run the following command:
+```shell
+make ensure-wasm-deps
+```
+
 To launch `teleterm` in development mode:
 
 ```sh
@@ -118,6 +129,55 @@ node-pty](https://github.com/microsoft/node-pty#dependencies).
 
 To create arm64 deb and RPM packages you need to provide `USE_SYSTEM_FPM=1` env var.
 
+### Windows
+
+A lot of our tooling assumes that you're running sh-compatible shell with some standard tools like
+`make` available. On Windows, that's available through Git Bash from [Git for Windows](https://gitforwindows.org/).
+It also ships with a lot of GNU tools that are needed to build the project.
+
+`make build/tsh` doesn't work on Windows anyway. But you can run a simplified version of what that
+Make target calls underneath.
+
+```
+GOOS=windows CGO_ENABLED=1 go build -o build/tsh.exe  -ldflags '-w -s' -buildvcs=false ./tool/tsh
+```
+
+It's important for the executable to end with `.exe`. If that command doesn't work, you can always
+inspect what we currently do in [our Windows build pipeline scripts](https://github.com/gravitational/teleport/blob/983017b23f65e49350615bfbbe52b7f1080ea7b9/build.assets/windows/build.ps1#L377).
+
+#### Native dependencies on Windows
+
+On Windows, you need to pay special attention to [the dev tools needed by node-pty](https://github.com/microsoft/node-pty?tab=readme-ov-file#windows),
+especially the Spectre-mitigated libraries installed through Visual Studio Installer that are kind
+of tricky to install. If you're on an arm64 VM of Windows, you'll likely need both arm64 and x64
+versions of Spectre-mitigated libraries. This is because during `pnpm install` pnpm will try to
+build arm64 version of node-pty (which will be used for `pnpm start-term`), and during `pnpm
+package-term` it might attempt to compile x64 version of node-pty.
+
+At the time of writing, we found the following set of individual components for Visual Studio 2022
+to work with Connect build process:
+
+- MSVC v143 - VS 2022 C++ ARM64/ARM64EC Spectre-mitigated libs (Latest)
+- MSVC v143 - VS 2022 C++ x64/x86 Spectre-mitigated libs (Latest)
+
+If you're on an actual Windows machine, you can install just the x64/x86 libs.
+
+#### Packaging
+
+##### VNet dependencies
+
+Packaging Connect on Windows requires wintun.dll, which VNet uses to create a
+virtual network interface.
+A zip file containing the DLL can be downloaded from https://www.wintun.net/builds/wintun-0.14.1.zip
+Extract the zip file and then pass the path to wintun.dll to `pnpm package-term`
+with the `CONNECT_WINTUN_DLL_PATH` environment variable. By default, electron-builder builds an x64
+version of the app, so you need amd64 version of the DLL.
+
+Another DLL that's not required but one that makes logs in Event Viewer easier to read is
+msgfile.dll. Refer to
+[`lib/utils/log/eventlog/README.md`](/lib/utils/log/eventlog/README.md#message-file) for details on
+how to generate it.
+
 ### macOS
 
 To make a fully-fledged build on macOS with Touch ID support, you need two things:
@@ -134,14 +194,6 @@ When running `pnpm package-term`, you need to provide these environment variable
 - `TEAMID`
 
 The details behind those vars are described below.
-
-### Windows
-
-Packaging Connect on Windows requires wintun.dll, which VNet uses to create a
-virtual network interface.
-A zip file containing the DLL can be downloaded from https://www.wintun.net/builds/wintun-0.14.1.zip
-Extract the zip file and then pass the path to wintun.dll to `pnpm package-term`
-with the `CONNECT_WINTUN_DLL_PATH` environment variable.
 
 #### tsh.app
 

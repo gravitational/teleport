@@ -16,13 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { formatDistanceStrict } from 'date-fns';
 import { Link as InternalLink } from 'react-router-dom';
-import styled from 'styled-components';
 
-import { Card, Flex, H2, P2, Text } from 'design';
+import { CardTile, Flex, H2, P2, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
+import { SyncStamp } from 'design/SyncStamp/SyncStamp';
 
 import cfg from 'teleport/config';
 import { EnrollCard } from 'teleport/Integrations/status/AwsOidc/EnrollCard';
@@ -57,7 +56,8 @@ export function StatCard({ name, item, resource, summary }: StatCardProps) {
   }
 
   return (
-    <SelectCard
+    <CardTile
+      width="33%"
       data-testid={`${resource}-stats`}
       as={InternalLink}
       to={cfg.getIntegrationStatusResourcesRoute(
@@ -104,20 +104,9 @@ export function StatCard({ name, item, resource, summary }: StatCardProps) {
             </Flex>
           </Flex>
         </Flex>
-        {updated && (
-          <Text
-            typography="body3"
-            color="text.slightlyMuted"
-            data-testid="sync"
-          >
-            Last Sync:{' '}
-            {formatDistanceStrict(new Date(updated), new Date(), {
-              addSuffix: true,
-            })}
-          </Text>
-        )}
+        <SyncStamp date={updated} />
       </Flex>
-    </SelectCard>
+    </CardTile>
   );
 }
 
@@ -144,19 +133,3 @@ function foundResource(resource: ResourceTypeSummary): boolean {
 
   return resource.rulesCount != 0 || resource.resourcesFound != 0;
 }
-
-export const SelectCard = styled(Card)`
-  width: 33%;
-  background-color: ${props => props.theme.colors.levels.surface};
-  padding: ${props => props.theme.space[3]}px;
-  border-radius: ${props => props.theme.radii[2]}px;
-  border: ${props => `1px solid ${props.theme.colors.levels.surface}`};
-  cursor: pointer;
-  text-decoration: none;
-  color: ${props => props.theme.colors.text.main};
-
-  &:hover {
-    background-color: ${props => props.theme.colors.levels.elevated};
-    box-shadow: ${({ theme }) => theme.boxShadow[2]};
-  }
-`;

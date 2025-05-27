@@ -18,29 +18,49 @@
 
 package gitlab
 
-import "github.com/gravitational/trace"
+import (
+	"os"
+
+	"github.com/gravitational/trace"
+)
 
 type envGetter func(key string) string
 
 // IDTokenSource allows a GitLab ID token to be fetched whilst executing
 // within the context of a GitLab actions workflow.
 type IDTokenSource struct {
-	getEnv envGetter
+	config IDTokenSourceConfig
 }
 
 func (its *IDTokenSource) GetIDToken() (string, error) {
-	tok := its.getEnv("TBOT_GITLAB_JWT")
+	tok := its.config.EnvGetter(its.config.EnvVarName)
 	if tok == "" {
 		return "", trace.BadParameter(
-			"TBOT_GITLAB_JWT environment variable missing",
+			"%q environment variable missing", its.config.EnvVarName,
 		)
 	}
 
 	return tok, nil
 }
 
-func NewIDTokenSource(getEnv envGetter) *IDTokenSource {
+type IDTokenSourceConfig struct {
+	// EnvGetter provides a custom function for fetching the environment
+	// variables. This is useful for testing purposes. If unset, this will
+	// default to os.Getenv.
+	EnvGetter envGetter
+	// EnvVarName is the name of the environment variable that contains the
+	// IDToken. If unset, this will default to "TBOT_GITLAB_JWT".
+	EnvVarName string
+}
+
+func NewIDTokenSource(config IDTokenSourceConfig) *IDTokenSource {
+	if config.EnvGetter == nil {
+		config.EnvGetter = os.Getenv
+	}
+	if config.EnvVarName == "" {
+		config.EnvVarName = "TBOT_GITLAB_JWT"
+	}
 	return &IDTokenSource{
-		getEnv,
+		config: config,
 	}
 }

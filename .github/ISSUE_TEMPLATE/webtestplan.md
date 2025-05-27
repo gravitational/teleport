@@ -45,6 +45,9 @@ There should be a cluster dropdown for:
       - [ ] Can login with added device
     - Recovery codes
       - [ ] Cloud only: can read and generate new recovery codes
+    - Windows Desktop Session Keyboard Layout
+      - [ ] Can change the keyboard layout
+      - [ ] Verify that the keyboard layout is saved upon relogin
   - [ ] Help & Support
     - [ ] Click on all the links and make sure they work (no 404) and are up to date
     - [ ] Renders cluster information
@@ -167,6 +170,13 @@ All actions should require re-authn with a webauthn device.
 - In OSS for `no-code integrations``:
   - [ ] AWS OIDC card is rendered
   - [ ] AWS External Audit Storage is also rendered but locked behind a CTA
+
+##### Okta Integration
+- [ ] Verify an Okta Integration can be enrolled level-by-level. E.g., SSO-only, SSO + SCIM, ...
+- [ ] Verify when an Okta Integration is enrolled with User Sync and App/Group Sync enabled, and Bidirectional Sync disabled:
+  - [ ] Modifying synced Access List's members and grants is not permitted
+  - [ ] Reviews are not required for synced Access Lists
+- [ ] Verify an enrolled Okta Integration's SCIM, User, and App/Group Sync levels can be edited from the Integration Status page.
 
 #### Enroll new resources using Discover Wizard
 

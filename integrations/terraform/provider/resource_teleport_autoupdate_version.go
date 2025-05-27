@@ -203,7 +203,7 @@ func (r resourceTeleportAutoUpdateVersion) Update(ctx context.Context, req tfsdk
 		return
 	}
 
-	_, err = r.p.Client.UpdateAutoUpdateVersion(ctx, autoUpdateVersion)
+	_, err = r.p.Client.UpsertAutoUpdateVersion(ctx, autoUpdateVersion)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating AutoUpdateVersion", trace.Wrap(err), "autoupdate_version"))
 		return

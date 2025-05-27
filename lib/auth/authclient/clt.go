@@ -21,7 +21,6 @@ package authclient
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"net/url"
 	"time"
@@ -62,7 +61,6 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -70,7 +68,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -101,11 +98,6 @@ var (
 // password, or second factor.
 func IsInvalidLocalCredentialError(err error) bool {
 	return errors.Is(err, InvalidUserPassError) || errors.Is(err, InvalidUserPass2FError)
-}
-
-// HostFQDN consists of host UUID and cluster name joined via '.'.
-func HostFQDN(hostUUID, clusterName string) string {
-	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
 }
 
 // APIClient is aliased here so that it can be embedded in Client.
@@ -306,9 +298,13 @@ func (c *Client) GetReverseTunnel(ctx context.Context, name string) (types.Rever
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllTokens not implemented: can only be called locally.
-func (c *Client) DeleteAllTokens() error {
-	return trace.NotImplemented(notImplementedMessage)
+// PatchToken not implemented: can only be called locally
+func (c *Client) PatchToken(
+	ctx context.Context,
+	token string,
+	updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
+) (types.ProvisionToken, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // AddUserLoginAttempt logs user login attempt
@@ -319,11 +315,6 @@ func (c *Client) AddUserLoginAttempt(user string, attempt services.LoginAttempt,
 // GetUserLoginAttempts returns user login attempts
 func (c *Client) GetUserLoginAttempts(user string) ([]services.LoginAttempt, error) {
 	panic("not implemented")
-}
-
-// DeleteAllAuthServers not implemented: can only be called locally.
-func (c *Client) DeleteAllAuthServers() error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteAuthServer not implemented: can only be called locally.
@@ -378,21 +369,6 @@ func (c *Client) DeleteClusterName() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllCertAuthorities not implemented: can only be called locally.
-func (c *Client) DeleteAllCertAuthorities(caType types.CertAuthType) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllReverseTunnels not implemented: can only be called locally.
-func (c *Client) DeleteAllReverseTunnels(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllRemoteClusters not implemented: can only be called locally.
-func (c *Client) DeleteAllRemoteClusters(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // CreateRemoteCluster not implemented: can only be called locally.
 func (c *Client) CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
@@ -403,16 +379,6 @@ func (c *Client) PatchRemoteCluster(ctx context.Context, name string, updateFn f
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllNamespaces not implemented: can only be called locally.
-func (c *Client) DeleteAllNamespaces() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllRoles not implemented: can only be called locally.
-func (c *Client) DeleteAllRoles(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // ListWindowsDesktops not implemented: can only be called locally.
 func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
@@ -421,11 +387,6 @@ func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsD
 // ListWindowsDesktopServices not implemented: can only be called locally.
 func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllUsers not implemented: can only be called locally.
-func (c *Client) DeleteAllUsers(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 const (
@@ -611,11 +572,6 @@ func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllLocks not implemented: can only be called locally.
-func (c *Client) DeleteAllLocks(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
@@ -761,26 +717,6 @@ func (c *Client) DeleteUserNotification(ctx context.Context, username string, no
 		NotificationId: notificationId,
 	})
 	return trace.Wrap(err)
-}
-
-// DeleteAllGlobalNotifications not implemented: can only be called locally.
-func (c *Client) DeleteAllGlobalNotifications(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllUserNotificationStatesForUser not implemented: can only be called locally.
-func (c *Client) DeleteAllUserNotificationStatesForUser(ctx context.Context, username string) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllUserNotifications not implemented: can only be called locally.
-func (c *Client) DeleteAllUserNotifications(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllUserNotificationsForUser not implemented: can only be called locally.
-func (c *Client) DeleteAllUserNotificationsForUser(ctx context.Context, username string) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteUserLastSeenNotification not implemented: can only be called locally.
@@ -978,11 +914,6 @@ type SAMLAuthResponse struct {
 type SAMLAuthRequest struct {
 	// ID is a unique request ID.
 	ID string `json:"id"`
-	// PublicKey is a public key the user wants as the subject of their SSH and TLS
-	// certificates. It must be in SSH authorized_keys format.
-	//
-	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
-	PublicKey []byte `json:"public_key,omitempty"`
 	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
 	// certificate. It must be in SSH authorized_keys format.
 	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`
@@ -1072,8 +1003,12 @@ type IdentityService interface {
 	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
 	// GetSAMLConnector returns SAML connector information by id
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	// GetSAMLConnectorWithValidationOptions returns SAML connector information
+	GetSAMLConnectorWithValidationOptions(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error)
 	// GetSAMLConnectors gets valid SAML connectors list
 	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
+	// GetSAMLConnectorsWithValidationOptions gets valid SAML connectors list
+	GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error)
 	// DeleteSAMLConnector deletes SAML connector by ID
 	DeleteSAMLConnector(ctx context.Context, connectorID string) error
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
@@ -1155,9 +1090,6 @@ type IdentityService interface {
 	// access the Target.
 	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
 
-	// DeleteAllUsers deletes all users
-	DeleteAllUsers(ctx context.Context) error
-
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
@@ -1228,14 +1160,19 @@ type ProvisioningService interface {
 	// could be a reset password token or a machine token
 	DeleteToken(ctx context.Context, token string) error
 
-	// DeleteAllTokens deletes all provisioning tokens
-	DeleteAllTokens() error
-
 	// UpsertToken adds provisioning tokens for the auth server
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 
 	// CreateToken creates a new provision token for the auth server
 	CreateToken(ctx context.Context, token types.ProvisionToken) error
+
+	// PatchToken performs a conditional update on the named token using
+	// `updateFn`, retrying internally if a comparison failure occurs.
+	PatchToken(
+		ctx context.Context,
+		token string,
+		updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
+	) (types.ProvisionToken, error)
 
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
@@ -1339,10 +1276,6 @@ type AuthenticateUserRequest struct {
 	// Username is a username
 	Username string `json:"username"`
 
-	// PublicKey is a public key in ssh authorized_keys format.
-	// Deprecated: prefer SSHPublicKey and/or TLSPublicKey.
-	PublicKey []byte `json:"public_key,omitempty"`
-
 	// SSHPublicKey is a public key in ssh authorized_keys format.
 	SSHPublicKey []byte `json:"ssh_public_key,omitempty"`
 	// TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format.
@@ -1380,58 +1313,8 @@ func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter 'username'")
 	case a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil && a.HeadlessAuthenticationID == "":
 		return trace.BadParameter("at least one authentication method is required")
-	case len(a.PublicKey) > 0 && len(a.SSHPublicKey) > 0:
-		return trace.BadParameter("'public_key' and 'ssh_public_key' cannot both be set")
-	case len(a.PublicKey) > 0 && len(a.TLSPublicKey) > 0:
-		return trace.BadParameter("'public_key' and 'tls_public_key' cannot both be set")
 	}
-	var err error
-	a.SSHPublicKey, a.TLSPublicKey, err = UserPublicKeys(a.PublicKey, a.SSHPublicKey, a.TLSPublicKey)
-	a.PublicKey = nil
-	return trace.Wrap(err)
-}
-
-// UserPublicKeys is a helper for the transition from clients sending a single
-// public key for both SSH and TLS, to separate public keys for each protocol.
-// [pubIn] should be the single public key that should be set by any pre-17.0.0
-// client in SSH authorized_keys format. If set, both returned keys will be
-// derived from this. If empty, sshPubIn and tlsPubIn will be returned.
-// [sshPubIn] should be the SSH public key set by any post-17.0.0 client in SSH
-// authorized_keys format.
-// [tlsPubIn] should be the TLS public key set by any post-17.0.0 client in
-// PEM-encoded PKIX or PKCS#1 ASN.1 DER form.
-// [sshPubOut] will be nil or an SSH public key in SSH authorized_keys format.
-// [tlsPubOut] will be nil or a TLS public key in PEM-encoded PKIX or PKCS#1
-// ASN.1 DER form.
-//
-// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
-// the separated keys.
-func UserPublicKeys(pubIn, sshPubIn, tlsPubIn []byte) (sshPubOut, tlsPubOut []byte, err error) {
-	if len(pubIn) == 0 {
-		return sshPubIn, tlsPubIn, nil
-	}
-	sshPubOut = pubIn
-	cryptoPubKey, err := sshutils.CryptoPublicKey(pubIn)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	tlsPubOut, err = keys.MarshalPublicKey(cryptoPubKey)
-	return sshPubOut, tlsPubOut, trace.Wrap(err)
-}
-
-// UserAttestationStatements is a helper for the transition from clients sending
-// a single attestation statement for both SSH and TLS, to separate public keys
-// and attestation statements for each protocol.
-// [attIn] should be the single attestation that should be set by any pre-17.0.0
-// client. If set, it will be returned in both return positions. If nil,
-// sshAttIn and tlsAttIn will be returned.
-// [sshAttIn] and [tlsAttIn] should be the SSH and TLS attestation statements
-// set by any post-17.0.0 client.
-func UserAttestationStatements(attIn, sshAttIn, tlsAttIn *hardwarekey.AttestationStatement) (sshAttOut, tlsAttOut *hardwarekey.AttestationStatement) {
-	if attIn == nil {
-		return sshAttIn, tlsAttIn
-	}
-	return attIn, attIn
+	return nil
 }
 
 // PassCreds is a password credential
@@ -1467,11 +1350,6 @@ type AuthenticateSSHRequest struct {
 	// certificate. This can be empty on older clients.
 	KubernetesCluster string `json:"kubernetes_cluster"`
 
-	// AttestationStatement is an attestation statement associated with the given public key.
-	//
-	// Deprecated: prefer SSHAttestationStatement and/or TLSAttestationStatement.
-	AttestationStatement *hardwarekey.AttestationStatement `json:"attestation_statement,omitempty"`
-
 	// SSHAttestationStatement is an attestation statement associated with the
 	// given SSH public key.
 	SSHAttestationStatement *hardwarekey.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
@@ -1485,16 +1363,9 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 	if err := a.AuthenticateUserRequest.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	switch {
-	case len(a.SSHPublicKey)+len(a.TLSPublicKey) == 0:
+	if len(a.SSHPublicKey) == 0 && len(a.TLSPublicKey) == 0 {
 		return trace.BadParameter("'ssh_public_key' or 'tls_public_key' must be set")
-	case a.AttestationStatement != nil && a.SSHAttestationStatement != nil:
-		return trace.BadParameter("'attestation_statement' and 'ssh_attestation_statement' cannot both be set")
-	case a.AttestationStatement != nil && a.TLSAttestationStatement != nil:
-		return trace.BadParameter("'attestation_statement' and 'tls_attestation_statement' cannot both be set")
 	}
-	a.SSHAttestationStatement, a.TLSAttestationStatement = UserAttestationStatements(a.AttestationStatement, a.SSHAttestationStatement, a.TLSAttestationStatement)
-	a.AttestationStatement = nil
 	certificateFormat, err := utils.CheckCertificateFormatFlag(a.CompatibilityMode)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1712,7 +1583,7 @@ type ClientI interface {
 	GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error)
 
 	// GetInventoryStatus gets basic status info about instance inventory.
-	GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error)
+	GetInventoryStatus(ctx context.Context, req *proto.InventoryStatusRequest) (*proto.InventoryStatusSummary, error)
 
 	// PingInventory attempts to trigger a downstream ping against a connected instance.
 	PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error)

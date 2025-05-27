@@ -2388,6 +2388,18 @@ func (m *AutoUpdateVersionDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
+func (m *AutoUpdateAgentRolloutTrigger) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *AutoUpdateAgentRolloutForceDone) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *AutoUpdateAgentRolloutRollback) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
 func (m *ContactCreate) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
@@ -2522,5 +2534,17 @@ func (m *WorkloadIdentityX509IssuerOverrideCreate) TrimToMaxSize(int) AuditEvent
 
 // TrimToMaxSize implements [AuditEvent].
 func (m *WorkloadIdentityX509IssuerOverrideDelete) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *SigstorePolicyCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *SigstorePolicyUpdate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *SigstorePolicyDelete) TrimToMaxSize(int) AuditEvent {
 	return m
 }

@@ -302,6 +302,8 @@ type Database struct {
 	DatabaseUsers []string `json:"database_users,omitempty"`
 	// DatabaseNames is the list of allowed Database RBAC names that the user can login.
 	DatabaseNames []string `json:"database_names,omitempty"`
+	// DatabaseRoles is the list of allowed Database RBAC roles that the user can login.
+	DatabaseRoles []string `json:"database_roles,omitempty"`
 	// AWS contains AWS specific fields.
 	AWS *AWS `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
@@ -309,6 +311,19 @@ type Database struct {
 	// SupportsInteractive is a flag to indicate the database supports
 	// interactive sessions using database REPLs.
 	SupportsInteractive bool `json:"supports_interactive,omitempty"`
+	// AutoUsersEnabled is a flag to indicate the database has user auto
+	// provisioning enabled
+	AutoUsersEnabled bool `json:"auto_users_enabled,omitempty"`
+	// TargetHealth describes the health status of network connectivity
+	// reported from an agent (db_service) that is proxying this database.
+	//
+	// This field will be empty if the database was not extracted from
+	// a db_server resource. The following endpoints will set this field
+	// since these endpoints query for db_server under the hood and then
+	// extract db from it:
+	// - webapi/sites/:site/databases/:database (singular)
+	// - webapi/sites/:site/resources (unified resources)
+	TargetHealth types.TargetHealth `json:"targetHealth,omitempty"`
 }
 
 // AWS contains AWS specific fields.
@@ -333,10 +348,26 @@ type DatabaseInteractiveChecker interface {
 
 // MakeDatabase creates database objects.
 func MakeDatabase(database types.Database, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
-	dbNames := accessChecker.EnumerateDatabaseNames(database)
-	var dbUsers []string
+	var (
+		dbUsers []string
+		dbRoles []string
+	)
+	dbNamesResult := accessChecker.EnumerateDatabaseNames(database)
+	dbNames := dbNamesResult.Allowed()
+	if dbNamesResult.WildcardAllowed() {
+		dbNames = append(dbNames, types.Wildcard)
+	}
 	if res, err := accessChecker.EnumerateDatabaseUsers(database); err == nil {
 		dbUsers = res.Allowed()
+		if res.WildcardAllowed() {
+			dbUsers = append(dbUsers, types.Wildcard)
+		}
+	}
+	if roles, err := accessChecker.CheckDatabaseRoles(database, nil); err == nil {
+		// Avoid assigning empty slice to keep the resulting roles nil.
+		if len(roles) > 0 {
+			dbRoles = roles
+		}
 	}
 
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(database.GetAllLabels())
@@ -349,11 +380,13 @@ func MakeDatabase(database types.Database, accessChecker services.AccessChecker,
 		Type:                database.GetType(),
 		Labels:              uiLabels,
 		DatabaseUsers:       dbUsers,
-		DatabaseNames:       dbNames.Allowed(),
+		DatabaseNames:       dbNames,
+		DatabaseRoles:       dbRoles,
 		Hostname:            stripProtocolAndPort(database.GetURI()),
 		URI:                 database.GetURI(),
 		RequiresRequest:     requiresRequest,
 		SupportsInteractive: interactiveChecker.IsSupported(database.GetProtocol()),
+		AutoUsersEnabled:    database.IsAutoUsersEnabled(),
 	}
 
 	if database.IsAWSHosted() {
@@ -367,6 +400,13 @@ func MakeDatabase(database types.Database, accessChecker services.AccessChecker,
 		}
 	}
 
+	return db
+}
+
+// MakeDatabaseFromDatabaseServer creates a database object with db_server target health info.
+func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
+	db := MakeDatabase(dbServer.GetDatabase(), accessChecker, interactiveChecker, requiresRequest)
+	db.TargetHealth = dbServer.GetTargetHealth()
 	return db
 }
 

@@ -25,8 +25,6 @@ import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 
 import { SlidingSidePanel } from '../SlidingSidePanel';
 
-export const infoGuidePanelWidth = 300;
-
 /**
  * An info panel that always slides from the right and supports closing
  * from inside of panel (by clicking on x button from the sticky header).
@@ -34,14 +32,14 @@ export const infoGuidePanelWidth = 300;
  * The panel will always render below the web ui's tob bar menu.
  */
 export const InfoGuideSidePanel = () => {
-  const { infoGuideConfig, setInfoGuideConfig } = useInfoGuide();
+  const { infoGuideConfig, setInfoGuideConfig, panelWidth } = useInfoGuide();
   const infoGuideSidePanelOpened = infoGuideConfig != null;
 
   return (
     <SlidingSidePanel
       isVisible={infoGuideSidePanelOpened}
       skipAnimation={false}
-      panelWidth={infoGuideConfig?.panelWidth || infoGuidePanelWidth}
+      panelWidth={panelWidth}
       zIndex={zIndexMap.infoGuideSidePanel}
       slideFrom="right"
     >

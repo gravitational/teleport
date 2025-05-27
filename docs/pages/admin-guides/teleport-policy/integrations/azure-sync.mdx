@@ -58,7 +58,6 @@ Identity Security’s Access Graph feature visualizes the resources retrieved fr
 how to set up Access Graph.
   - The node running the Access Graph service must be reachable from the Teleport Auth Service.
 
-## Step 1/2. Configure the Discovery Service (Self-hosted only)
 
 <Admonition type="warning">
   If you have a cloud-hosted Teleport Enterprise cluster, you can disregard
@@ -66,8 +65,25 @@ how to set up Access Graph.
   Discovery Service within your cluster.
 </Admonition>
 
+## Step 1/4. Install the Discovery Service
+
+<Admonition type="tip">
+  If you plan on running the Discovery Service on a host that is already running
+  another Teleport service (Auth or Proxy, for example), you can skip this step.
+</Admonition>
+
+Install Teleport on an Azure virtual machine that will run the Discovery Service. This allows for a managed identity
+attached to the VM to be assigned the correct permissions to fetch the required Azure sources. Alternatively, Teleport
+can be installed in other environments as long it is attached to a Auth service configured with an Azure OIDC
+integration. Two options are given below for either 1) using an Azure virtual machine or 2) using Azure OIDC credentials
+via Entra ID integration.
+
+(!docs/pages/includes/install-linux.mdx!)
+
+## Step 2/4. Configure the Discovery Service
+
 To activate the Teleport Discovery Service, add a top level discovery_service section to the `teleport.yaml`
-config file used by the Auth Service. This service monitors dynamic `discovery_config` resources that are set up
+config file. This service monitors dynamic `discovery_config` resources that are set up
 with the `discovery_group` matching.
 
 <Var name="discovery-group" />.
@@ -96,7 +112,47 @@ discovery_service:
 
 The Discovery Service will now periodically fetch resources from your Azure subscription.
 
-## Step 2/2. Set up Access Graph Azure Sync
+## Step 3/4. Activate the Discovery Service
+
+To activate the Discovery Service for fetching Azure resources, you'll need to authorize the identity running the
+Discovery service. Two options for authorization are available.
+
+<Tabs>
+  <TabItem label="Option 1 - Authorize VM With Managed Identity" >
+    Authorizing an Azure VM for running the Discovery service is the simplest option. The Azure VM can be assigned a
+    Managed Identity, and thus the Discovery service running on it can utilize the permissions associated with
+    that identity. The steps below show how to configure a Managed Identity for an Azure VM. In later steps, the
+    Managed Identity's ID is then assigned a role to the identity using the
+    `./teleport integration configure access-graph azure` command.
+
+    (!docs/pages/includes/server-access/azure-join-managed-identity.mdx!)
+
+    Use the Managed Identity ID from this option as the principal ID in step 2 of integration command.
+  </TabItem>
+  <TabItem label="Option 2 - Authorize OIDC Via EntraID Integration" >
+    This option is for running the Discovery service outside of Azure. This requires that Entra OIDC credentials
+    are [configured via the Entra ID integration](./entra-id.mdx). Once the Entra ID integration is configured, the
+    Azure Application is then assigned a role using the
+    `./teleport integration configure access-graph azure` command.
+
+    <Admonition type="tip">
+      Use the application object ID as the principal ID in step 2 of the integration command.
+    </Admonition>
+
+    Lastly, add the name of the <Var name="azure-integration" /> to the configuration, typically this is `entra-id`:
+
+    ```yaml
+    discovery_service:
+      access_graph:
+        azure:
+        - subscription_id: <Var name="azure-subscription-id"/>
+        - integration: <Var name="azure-integration"/>
+    ```
+
+  </TabItem>
+</Tabs>
+
+## Step 4/4. Set up Access Graph Azure Sync
 
 To configure the Teleport Discovery Service, the Azure managed identity running the Discovery Service within
 Azure must be given the right permissions to fetch Azure resources. Within the
@@ -105,10 +161,10 @@ Azure must be given the right permissions to fetch Azure resources. Within the
 command.
 
 You'll need to specify the following in the commands/configuration below:
-- <Var name="teleport-version"/>
-- <Var name="azure-subscription-id"/>
-- <Var name="azure-principal-id"/>
-- <Var name="azure-discovery-role"/>
+- <Var name="teleport-version"/> - The version of Teleport to run the integration command
+- <Var name="azure-subscription-id"/> - The ID of the Azure subscription to fetch resources from
+- <Var name="azure-principal-id"/> - The managed identity (for VM-assigned credentials) or application object ID (for OIDC credentials) that will run the Discovery service
+- <Var name="azure-discovery-role"/> - The name of the new role to create and attach to the above principal (managed identity or application) for permissions to fetch Azure resources
 
 Download and extract the Teleport binary:
 ```shell

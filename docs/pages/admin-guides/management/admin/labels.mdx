@@ -13,7 +13,7 @@ the following:
 This guide demonstrates how to add labels to enrolled server resources.
 However, you can follow similar steps to add labels to other types of resources.
 
-## Static, dynamic, and resource-based labels
+## How it works
 
 The labels you assign to resources can be **static labels**, **dynamic labels**, or **resource-based labels**.
 
@@ -233,7 +233,7 @@ host server every one hour.
    ```yaml
    ...
    ssh_service:
-     enabled: "yes"
+     enabled: true
      labels:
        teleport.internal/resource-id: 1f2cdcc5-cde3-41fa-b390-bc872087821a
        environment: dev

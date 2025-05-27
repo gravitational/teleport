@@ -1,5 +1,5 @@
 discovery_service:
-    enabled: "yes"
+    enabled: true
     # discovery_group is used to group discovered resources into different
     # sets. This is required when you have multiple Teleport Discovery services
     # running. It prevents discovered services from colliding in Teleport when

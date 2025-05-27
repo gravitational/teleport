@@ -165,9 +165,8 @@ func NewSessionStream(conn *websocket.Conn, handshake any) (*SessionStream, erro
 }
 
 func (s *SessionStream) readTask() {
+	defer s.closeOnce.Do(func() { close(s.done) })
 	for {
-		defer s.closeOnce.Do(func() { close(s.done) })
-
 		ty, data, err := s.conn.ReadMessage()
 		if err != nil {
 			if !errors.Is(err, io.EOF) && !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {

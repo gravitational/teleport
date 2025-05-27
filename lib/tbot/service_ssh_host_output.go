@@ -136,7 +136,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	privKey, err := keys.NewSoftwarePrivateKey(key)
+	privKey, err := keys.NewPrivateKey(key)
 	if err != nil {
 		return trace.Wrap(err)
 	}

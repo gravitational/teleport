@@ -31,6 +31,7 @@ import ButtonLink from './ButtonLink';
 import { ButtonWithMenu } from './ButtonWithMenu';
 import Card from './Card';
 import CardSuccess, { CardSuccessLogin } from './CardSuccess';
+import { CardTile } from './CardTile';
 import Flex from './Flex';
 import Image from './Image';
 import { Indicator } from './Indicator';
@@ -45,6 +46,7 @@ import { Pill } from './Pill';
 import Popover from './Popover';
 import { ResourceIcon } from './ResourceIcon';
 import { StepSlider } from './StepSlider';
+import { SyncStamp } from './SyncStamp';
 import Text, {
   H1,
   H2,
@@ -78,6 +80,7 @@ export {
   Card,
   CardSuccess,
   CardSuccessLogin,
+  CardTile,
   Flex,
   H1,
   H2,
@@ -104,6 +107,7 @@ export {
   Subtitle1,
   Subtitle2,
   Subtitle3,
+  SyncStamp,
   Text,
   TextArea,
   Toggle,

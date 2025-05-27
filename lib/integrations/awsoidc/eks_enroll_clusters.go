@@ -54,8 +54,8 @@ import (
 	"github.com/gravitational/teleport/api/types/usertasks"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -414,7 +414,7 @@ func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clo
 		return "", "", trace.Wrap(err)
 	}
 
-	ownershipTags := tags.DefaultResourceCreationTags(req.TeleportClusterName, req.IntegrationName)
+	ownershipTags := defaultResourceCreationTags(req.TeleportClusterName, req.IntegrationName)
 
 	wasAdded, err := maybeAddAccessEntry(ctx, log, clusterName, principalArn, clt, ownershipTags)
 	if err != nil {

@@ -131,17 +131,22 @@ type RegexpConfig struct {
 func KubeResourceMatchesRegexWithVerbsCollector(input types.KubernetesResource, resources []types.KubernetesResource) (bool, []string, error) {
 	verbs := map[string]struct{}{}
 	matchedAny := false
+
 	for _, resource := range resources {
 		if input.Kind != resource.Kind && resource.Kind != types.Wildcard {
 			continue
 		}
-		switch ok, err := MatchString(input.Name, resource.Name); {
-		case err != nil:
+
+		if ok, err := MatchString(input.APIGroup, resource.APIGroup); err != nil {
 			return false, nil, trace.Wrap(err)
-		case !ok:
+		} else if !ok {
 			continue
 		}
-
+		if ok, err := MatchString(input.Name, resource.Name); err != nil {
+			return false, nil, trace.Wrap(err)
+		} else if !ok {
+			continue
+		}
 		if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil {
 			return false, nil, trace.Wrap(err)
 		} else if !ok {
@@ -159,14 +164,6 @@ func KubeResourceMatchesRegexWithVerbsCollector(input types.KubernetesResource, 
 	return matchedAny, slices.Collect(maps.Keys(verbs)), nil
 }
 
-const (
-	// KubeCustomResource is the type that represents a Kubernetes
-	// CustomResource object. These objects are special in that they do not exist
-	// in the user's resources list, but their access is determined by the
-	// access level of their namespace resource.
-	KubeCustomResource = "CustomResource"
-)
-
 // KubeResourceMatchesRegex checks whether the input matches any of the given
 // expressions.
 // This function returns as soon as it finds the first match or when matchString
@@ -178,13 +175,11 @@ const (
 // resources is a list of resources that the user has access to - collected from
 // their roles that match the Kubernetes cluster where the resource is defined.
 // cond is the deny or allow condition of the role that we are evaluating.
-func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.KubernetesResource, cond types.RoleConditionType) (bool, error) {
+func KubeResourceMatchesRegex(input types.KubernetesResource, isClusterWideResource bool, resources []types.KubernetesResource, cond types.RoleConditionType) (bool, error) {
 	if len(input.Verbs) != 1 {
 		return false, trace.BadParameter("only one verb is supported, input: %v", input.Verbs)
 	}
-	// isClusterWideResource is true if the resource is cluster-wide, e.g. a
-	// namespace resource or a clusterrole.
-	isClusterWideResource := slices.Contains(types.KubernetesClusterWideResourceKinds, input.Kind)
+
 	verb := input.Verbs[0]
 	// If the user is list/read/watch a namespace, they should be able to see the
 	// namespace they have resources defined for.
@@ -193,7 +188,7 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.
 	// This is only allowed for the list/read/watch verbs because we don't want
 	// to allow the user to create/update/delete a namespace they don't have
 	// permissions for.
-	targetsReadOnlyNamespace := input.Kind == types.KindKubeNamespace &&
+	targetsReadOnlyNamespace := input.Kind == "namespaces" &&
 		slices.Contains([]string{types.KubeVerbGet, types.KubeVerbList, types.KubeVerbWatch}, verb)
 
 	for _, resource := range resources {
@@ -206,20 +201,7 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.
 			continue
 		}
 		switch {
-		// If the user has access to a specific namespace, they should be able to
-		// access all resources in that namespace.
-		case resource.Kind == types.KindKubeNamespace && input.Namespace != "":
-			// Access to custom resources is determined by the access level of the
-			// namespace resource where the custom resource is defined.
-			// This is a special case because custom resources are not defined in the
-			// user's resources list.
-			// Access to namspaced resources is determined by the access level of the
-			// namespace resource where the resource is defined or by the access level
-			// of the resource if supported.
-			if ok, err := MatchString(input.Namespace, resource.Name); err != nil || ok {
-				return ok, trace.Wrap(err)
-			}
-		case targetsReadOnlyNamespace && cond == types.Allow && resource.Kind != types.KindKubeNamespace && resource.Namespace != "":
+		case targetsReadOnlyNamespace && cond == types.Allow && resource.Kind != "namespaces" && resource.Namespace != "":
 			// If the user requests a read-only namespace get/list/watch, they should
 			// be able to see the list of namespaces they have resources defined in.
 			// This means that if the user has access to pods in the "foo" namespace,
@@ -228,24 +210,34 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.
 			if ok, err := MatchString(input.Name, resource.Namespace); err != nil || ok {
 				return ok, trace.Wrap(err)
 			}
+		case targetsReadOnlyNamespace && cond == types.Allow && resource.Kind == "namespaces" && resource.Name != "":
+			if ok, err := MatchString(input.Name, resource.Name); err != nil || ok {
+				return ok, trace.Wrap(err)
+			}
 		default:
 			if input.Kind != resource.Kind && resource.Kind != types.Wildcard {
 				continue
 			}
-			switch ok, err := MatchString(input.Name, resource.Name); {
-			case err != nil:
+			if ok, err := MatchString(input.APIGroup, resource.APIGroup); err != nil {
 				return false, trace.Wrap(err)
-			case !ok:
+			} else if !ok {
 				continue
-			case ok && input.Namespace == "" && isClusterWideResource:
-				return true, nil
 			}
+			if ok, err := MatchString(input.Name, resource.Name); err != nil {
+				return false, trace.Wrap(err)
+			} else if !ok {
+				continue
+			}
+
+			if input.Namespace == "" && resource.Namespace != "" && resource.Namespace != types.Wildcard {
+				continue
+			}
+			// At this point everything else matched. If we match the namespace as well, we have a match.
 			if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil || ok {
 				return ok, trace.Wrap(err)
 			}
 		}
 	}
-
 	return false, nil
 }
 
@@ -254,7 +246,7 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.
 // has no access and present then a more user-friendly error message instead of returning
 // an empty list.
 // This function is not responsible for enforcing access rules.
-func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []types.KubernetesResource, cond types.RoleConditionType) (bool, error) {
+func KubeResourceCouldMatchRules(input types.KubernetesResource, isClusterWideResource bool, resources []types.KubernetesResource, cond types.RoleConditionType) (bool, error) {
 	if len(input.Verbs) != 1 {
 		return false, trace.BadParameter("only one verb is supported, input: %v", input.Verbs)
 	}
@@ -265,10 +257,6 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []typ
 	verb := input.Verbs[0]
 	isDeny := cond == types.Deny
 
-	// isClusterWideResource is true if the resource is cluster-wide, e.g. a
-	// namespace resource or a clusterrole.
-	isClusterWideResource := slices.Contains(types.KubernetesClusterWideResourceKinds, input.Kind)
-
 	// If the user is allowed to list/read/watch a resource, they should be able to see the
 	// namespace in which the resource is.
 	// This is a special case because we don't want to require the user to have
@@ -276,8 +264,9 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []typ
 	// This is only allowed for the list/read/watch verbs because we don't want
 	// to allow the user to create/update/delete a namespace they don't have
 	// permissions for.
-	targetsReadOnlyNamespace := input.Kind == types.KindKubeNamespace &&
+	targetsReadOnlyNamespace := input.Kind == "namespaces" &&
 		slices.Contains([]string{types.KubeVerbGet, types.KubeVerbList, types.KubeVerbWatch}, verb)
+
 	for _, resource := range resources {
 		// If the resource has a wildcard verb, it matches all verbs.
 		// Otherwise, the resource must have the verb we're looking for otherwise
@@ -288,24 +277,7 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []typ
 			continue
 		}
 		switch {
-		// If the user has access to a specific namespace, they should be able to
-		// access all resources in that namespace.
-		case resource.Kind == types.KindKubeNamespace:
-			isAllowOrFullDeny := !isDeny || resource.Name == types.Wildcard
-			if input.Namespace == "" && isAllowOrFullDeny {
-				return isAllowOrFullDeny, nil
-			}
-			// Access to custom resources is determined by the access level of the
-			// namespace resource where the custom resource is defined.
-			// This is a special case because custom resources are not defined in the
-			// user's resources list.
-			// Access to namespaced resources is determined by the access level of the
-			// namespace resource where the resource is defined or by the access level
-			// of the resource if supported.
-			if ok, err := MatchString(input.Namespace, resource.Name); err != nil || ok && isAllowOrFullDeny {
-				return isAllowOrFullDeny || isDeny, trace.Wrap(err)
-			}
-		case targetsReadOnlyNamespace && !isDeny && resource.Kind != types.KindKubeNamespace && resource.Namespace != "":
+		case targetsReadOnlyNamespace && !isDeny && resource.Kind != "namespaces" && resource.Namespace != "":
 			// If the user requests a read-only namespace get/list/watch, they should
 			// be able to see the list of namespaces they have resources defined in.
 			// This means that if the user has access to pods in the "foo" namespace,
@@ -313,7 +285,14 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []typ
 			// but only if the request is read-only.
 			return true, nil
 		default:
+			// If the kind doesn't match and is not wildcard, skip.
 			if input.Kind != resource.Kind && resource.Kind != types.Wildcard {
+				continue
+			}
+			// If the group doesn't match and is not wildcard, skip.
+			if ok, err := MatchString(input.APIGroup, resource.APIGroup); err != nil {
+				return false, trace.Wrap(err)
+			} else if !ok {
 				continue
 			}
 			// if the resource is cluster-wide, the command is deny and it's a wildcard resource
@@ -331,12 +310,14 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []typ
 			if input.Namespace == "" && isAllowOrFullDeny {
 				return isAllowOrFullDeny, nil
 			}
-			switch ok, err := MatchString(input.Namespace, resource.Namespace); {
-			case err != nil:
+
+			if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil {
 				return false, trace.Wrap(err)
-			case !ok:
+			} else if !ok {
 				continue
-			case ok && (!isDeny || isDeny && resource.Name == types.Wildcard):
+			}
+
+			if !isDeny || isDeny && resource.Name == types.Wildcard {
 				return !isDeny || isDeny && resource.Name == types.Wildcard, nil
 			}
 		}

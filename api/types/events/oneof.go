@@ -785,7 +785,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AutoUpdateConfigDelete{
 			AutoUpdateConfigDelete: e,
 		}
-
 	case *AutoUpdateVersionCreate:
 		out.Event = &OneOf_AutoUpdateVersionCreate{
 			AutoUpdateVersionCreate: e,
@@ -797,6 +796,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *AutoUpdateVersionDelete:
 		out.Event = &OneOf_AutoUpdateVersionDelete{
 			AutoUpdateVersionDelete: e,
+		}
+	case *AutoUpdateAgentRolloutTrigger:
+		out.Event = &OneOf_AutoUpdateAgentRolloutTrigger{
+			AutoUpdateAgentRolloutTrigger: e,
+		}
+	case *AutoUpdateAgentRolloutForceDone:
+		out.Event = &OneOf_AutoUpdateAgentRolloutForceDone{
+			AutoUpdateAgentRolloutForceDone: e,
+		}
+	case *AutoUpdateAgentRolloutRollback:
+		out.Event = &OneOf_AutoUpdateAgentRolloutRollback{
+			AutoUpdateAgentRolloutRollback: e,
 		}
 	case *ContactCreate:
 		out.Event = &OneOf_ContactCreate{
@@ -862,6 +873,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *WorkloadIdentityX509IssuerOverrideDelete:
 		out.Event = &OneOf_WorkloadIdentityX509IssuerOverrideDelete{
 			WorkloadIdentityX509IssuerOverrideDelete: e,
+		}
+	case *SigstorePolicyCreate:
+		out.Event = &OneOf_SigstorePolicyCreate{
+			SigstorePolicyCreate: e,
+		}
+	case *SigstorePolicyUpdate:
+		out.Event = &OneOf_SigstorePolicyUpdate{
+			SigstorePolicyUpdate: e,
+		}
+	case *SigstorePolicyDelete:
+		out.Event = &OneOf_SigstorePolicyDelete{
+			SigstorePolicyDelete: e,
 		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())

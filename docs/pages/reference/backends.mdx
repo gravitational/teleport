@@ -655,6 +655,12 @@ Service reads these parameters to configure its interactions with S3:
   bucket. Only applies when a custom endpoint is set. Defaults to false when unset. If used
   without a custom endpoint set, this option has no effect.
 
+- `complete_initiators` - When specified, Teleport will only complete uploads
+initiated by the specified set of initiators. This is helpful in scenarios where
+software other than Teleport is initiating multipart uploads in the recordings
+bucket. This should be set to the display name of the initiator(s) you want to
+allow.
+
 ### S3 IAM policy
 
 (!docs/pages/includes/s3-iam-policy.mdx!)
@@ -1469,7 +1475,7 @@ teleport:
 </Admonition>
 
 Teleport can use [CockroachDB](https://www.cockroachlabs.com/) as a storage backend
-to achieve high availability and survive regional failures. You must take steps to 
+to achieve high availability and survive regional failures. You must take steps to
 protect access to CockroachDB in this configuration because that is where Teleport
 secrets like keys and user records will be stored.
 

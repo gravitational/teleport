@@ -25,6 +25,11 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // issuer overrides, and for operations that require the auth's help or
 // involvement in generating overrides.
 service X509OverridesService {
+  // Create a CSR with the key associated with an internal X.509 SPIFFE issuer.
+  rpc SignX509IssuerCSR(SignX509IssuerCSRRequest) returns (SignX509IssuerCSRResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+
   // Get a workload_identity_x509_issuer_override by name.
   rpc GetX509IssuerOverride(GetX509IssuerOverrideRequest) returns (X509IssuerOverride) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -50,6 +55,38 @@ service X509OverridesService {
   // Delete an existing workload_identity_x509_issuer_override that has a given
   // name. A NOT_FOUND error is returned if the item didn't exist.
   rpc DeleteX509IssuerOverride(DeleteX509IssuerOverrideRequest) returns (google.protobuf.Empty);
+}
+
+// The CSR creation mode for SignX509IssuerCSRRequest.
+enum CSRCreationMode {
+  CSR_CREATION_MODE_UNSPECIFIED = 0;
+  // CSR with an empty subject and no extensions.
+  CSR_CREATION_MODE_EMPTY = 1;
+  // CSR with the same subject as the original self-signed certificate.
+  CSR_CREATION_MODE_SAME = 2;
+}
+
+// Request message for SignX509IssuerCSR.
+message SignX509IssuerCSRRequest {
+  // ASN.1 DER certificate, the X.509 certificate in the spiffe cert_authority
+  // whose key we want to use for the CSR.
+  bytes issuer = 1;
+
+  // The request mode defines how the CSR should be filled in based on the
+  // content of the original issuer.
+  CSRCreationMode csr_creation_mode = 2;
+
+  // this can be extended with a "bool supports_async" field that would result,
+  // if necessary, in the auth queuing the request for another auth to pick up
+  // (for HSM support); the client would then poll the same request or maybe use
+  // a different RPC with an identifier returned by this RPC to poll for the
+  // signature
+}
+
+// Response message for SignX509IssuerCSR.
+message SignX509IssuerCSRResponse {
+  // ASN.1 DER certificate request.
+  bytes csr = 1;
 }
 
 // Request message for GetX509IssuerOverride.
