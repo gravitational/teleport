@@ -24,12 +24,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"io"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
