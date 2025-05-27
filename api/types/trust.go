@@ -93,7 +93,9 @@ func (c CertAuthType) NewlyAdded() bool {
 	return c.addedInMajorVer() >= api.VersionMajor
 }
 
-// addedInVer return the major version in which given CA was added.
+// addedInMajorVer returns the major version in which given CA was added.
+// The returned version must be the X.0.0 release in which the CA first
+// existed.
 func (c CertAuthType) addedInMajorVer() int64 {
 	switch c {
 	case DatabaseCA:
@@ -105,7 +107,7 @@ func (c CertAuthType) addedInMajorVer() int64 {
 	case SPIFFECA:
 		return 15
 	case OktaCA:
-		return 16
+		return 17
 	case AWSRACA, BoundKeypairCA:
 		return 18
 	default:
