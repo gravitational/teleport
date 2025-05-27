@@ -656,6 +656,25 @@ func (s *Service) DeleteAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 	return &emptypb.Empty{}, nil
 }
 
+func (s *Service) getAllReports(ctx context.Context) ([]*autoupdate.AutoUpdateAgentReport, error) {
+	reports := make([]*autoupdate.AutoUpdateAgentReport, 0)
+
+	// this is an in-memory client, we go for the default page size
+	const pageSize = 0
+	var pageToken string
+	for {
+		page, nextToken, err := s.cache.ListAutoUpdateAgentReports(ctx, pageSize, pageToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		reports = append(reports, page...)
+		if nextToken == "" {
+			return reports, nil
+		}
+		pageToken = nextToken
+	}
+}
+
 // TriggerAutoUpdateAgentGroup triggers automatic updates for one or many groups
 // in the rollout.
 func (s *Service) TriggerAutoUpdateAgentGroup(ctx context.Context, req *autoupdate.TriggerAutoUpdateAgentGroupRequest) (result *autoupdate.AutoUpdateAgentRollout, err error) {
@@ -699,10 +718,14 @@ func (s *Service) TriggerAutoUpdateAgentGroup(ctx context.Context, req *autoupda
 	for range maxTries {
 		existingRollout, err = s.backend.GetAutoUpdateAgentRollout(ctx)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "getting rollout")
+		}
+		reports, err := s.getAllReports(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting reports")
 		}
 
-		err = rollout.TriggerGroups(existingRollout, rollout.GroupListToGroupSet(req.Groups), req.DesiredState, s.clock.Now())
+		err = rollout.TriggerGroups(existingRollout, reports, rollout.GroupListToGroupSet(req.Groups), req.DesiredState, s.clock.Now())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
