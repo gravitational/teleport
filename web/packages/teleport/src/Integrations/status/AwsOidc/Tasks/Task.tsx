@@ -50,7 +50,7 @@ import {
   UserTaskDetail,
 } from 'teleport/services/integrations';
 
-import { AwsResource } from '../StatCard';
+import { AwsResource } from '../Cards/StatCard';
 import { SidePanel } from './SidePanel';
 
 export function Task({

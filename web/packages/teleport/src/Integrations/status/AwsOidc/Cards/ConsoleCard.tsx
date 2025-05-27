@@ -16,43 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Link as InternalLink } from 'react-router-dom';
+import * as Icons from 'web/packages/design/src/Icon';
 
-import { Box, CardTile, Flex, H2, H3, P2, ResourceIcon } from 'design';
-import * as Icons from 'design/Icon';
+import Box from 'design/Box';
+import { CardTile } from 'design/CardTile';
+import Flex from 'design/Flex';
+import { H2, H3, P2 } from 'design/Text';
 
-import cfg from 'teleport/config';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+export function ConsoleCard() {
+  return <EnrollCard />;
+}
 
-export function EnrollCard({
-  resource,
-  item,
-}: {
-  resource: AwsResource;
-  item: string;
-}) {
+function EnrollCard() {
   return (
-    <CardTile
-      width="33%"
-      data-testid={`${resource}-enroll`}
-      as={InternalLink}
-      to={{
-        pathname: cfg.routes.discover,
-        state: { searchKeywords: resource },
-      }}
-    >
+    <CardTile width="100%" data-testid={`console-enroll`}>
       <Flex flexDirection="column" justifyContent="space-between" height="100%">
         <Box>
           <Flex alignItems="center">
-            <ResourceIcon name={resource} mr={2} width="32px" height="32px" />
-            <H2>{resource.toUpperCase()}</H2>
+            <H2>AWS Console and CLI Access</H2>
           </Flex>
           <P2 mb={2}>
-            Discover and enroll {resource.toUpperCase()} {item}
+            {/*todo (michellescripts) updated copy from design*/}
+            Create new app resources to access your AWS account.
           </P2>
         </Box>
         <Flex alignItems="center" gap={2}>
-          <H3>Enroll {resource.toUpperCase()}</H3>
+          <H3>Enable Access</H3>
           <Icons.ArrowForward />
         </Flex>
       </Flex>

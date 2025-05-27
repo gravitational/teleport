@@ -26,7 +26,7 @@ import Table, { LabelCell } from 'design/DataTable';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import cfg from 'teleport/config';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import {
   AWSOIDCDeployedDatabaseService,
   IntegrationKind,
