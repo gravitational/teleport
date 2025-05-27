@@ -1,4 +1,4 @@
-.version: &version "18.0.0-dev.selinux-script2"
+.version: &version "18.0.0-dev.selinux-script3"
 
 name: tbot
 apiVersion: v2

@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.0.0-dev.selinux-script2"
+const Version = "18.0.0-dev.selinux-script3"
 
 const VersionMajor = 18
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "dev.selinux-script2"
+const VersionPreRelease = "dev.selinux-script3"
 const VersionMetadata = ""
