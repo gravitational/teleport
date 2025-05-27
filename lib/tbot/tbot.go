@@ -241,7 +241,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	services = append(services, b.botIdentitySvc)
 
 	authPingCache := &authPingCache{
-		client: b.botIdentitySvc.GetClient(),
+		client: proto.NewAuthServiceClient(b.botIdentitySvc.GetConnection()),
 		log:    b.log,
 	}
 	proxyPingCache := &proxyPingCache{
@@ -829,8 +829,12 @@ func clientForFacade(
 	return c, trace.Wrap(err)
 }
 
+type pingClient interface {
+	Ping(ctx context.Context, in *proto.PingRequest, opts ...grpc.CallOption) (*proto.PingResponse, error)
+}
+
 type authPingCache struct {
-	client *authclient.Client
+	client pingClient
 	log    *slog.Logger
 
 	mu          sync.RWMutex
@@ -845,12 +849,12 @@ func (a *authPingCache) ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 
 	a.log.DebugContext(ctx, "Pinging auth server.")
-	res, err := a.client.Ping(ctx)
+	res, err := a.client.Ping(ctx, &proto.PingRequest{})
 	if err != nil {
 		a.log.ErrorContext(ctx, "Failed to ping auth server.", "error", err)
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
-	a.cachedValue = &res
+	a.cachedValue = res
 	a.log.DebugContext(ctx, "Successfully pinged auth server.", "pong", res)
 
 	return *a.cachedValue, nil
