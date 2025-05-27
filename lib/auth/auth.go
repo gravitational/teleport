@@ -1519,8 +1519,8 @@ func (a *Server) runPeriodicOperations() {
 		})
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           autoUpdateAgentReportKey,
-			Duration:      time.Minute,
-			FirstDuration: retryutils.FullJitter(time.Minute),
+			Duration:      constants.AutoUpdateAgentReportPeriod,
+			FirstDuration: retryutils.FullJitter(constants.AutoUpdateAgentReportPeriod),
 			// No jitter here, this is intentional and required for accurate tracking across auths.
 		})
 	}
