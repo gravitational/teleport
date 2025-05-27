@@ -1580,53 +1580,6 @@ func (g *GRPCServer) GetSnowflakeSessions(ctx context.Context, e *emptypb.Empty)
 	}, nil
 }
 
-// GetSAMLIdPSession gets a SAML IdPsession.
-// TODO(Joerger): DELETE IN v18.0.0
-func (g *GRPCServer) GetSAMLIdPSession(ctx context.Context, req *authpb.GetSAMLIdPSessionRequest) (*authpb.GetSAMLIdPSessionResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	samlSession, err := auth.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{SessionID: req.GetSessionID()})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess, ok := samlSession.(*types.WebSessionV2)
-	if !ok {
-		return nil, trace.BadParameter("unexpected session type %T", samlSession)
-	}
-
-	return &authpb.GetSAMLIdPSessionResponse{
-		Session: sess,
-	}, nil
-}
-
-// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
-// TODO(Joerger): DELETE IN v18.0.0
-func (g *GRPCServer) ListSAMLIdPSessions(ctx context.Context, req *authpb.ListSAMLIdPSessionsRequest) (*authpb.ListSAMLIdPSessionsResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sessions, token, err := auth.ListSAMLIdPSessions(ctx, int(req.PageSize), req.PageToken, req.User)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out := make([]*types.WebSessionV2, 0, len(sessions))
-	for _, sess := range sessions {
-		s, ok := sess.(*types.WebSessionV2)
-		if !ok {
-			return nil, trace.BadParameter("unexpected type %T", sess)
-		}
-		out = append(out, s)
-	}
-
-	return &authpb.ListSAMLIdPSessionsResponse{Sessions: out, NextPageToken: token}, nil
-}
-
 func (g *GRPCServer) DeleteSnowflakeSession(ctx context.Context, req *authpb.DeleteSnowflakeSessionRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1701,32 +1654,6 @@ func (g *GRPCServer) CreateSnowflakeSession(ctx context.Context, req *authpb.Cre
 	}, nil
 }
 
-// CreateSAMLIdPSession creates a SAML IdP session.
-// TODO(Joerger): DELETE IN v18.0.0
-func (g *GRPCServer) CreateSAMLIdPSession(ctx context.Context, req *authpb.CreateSAMLIdPSessionRequest) (*authpb.CreateSAMLIdPSessionResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	session, err := auth.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
-		SessionID:   req.GetSessionID(),
-		Username:    req.GetUsername(),
-		SAMLSession: req.GetSAMLSession(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess, ok := session.(*types.WebSessionV2)
-	if !ok {
-		return nil, trace.BadParameter("unexpected type %T", session)
-	}
-
-	return &authpb.CreateSAMLIdPSessionResponse{
-		Session: sess,
-	}, nil
-}
-
 // DeleteAppSession removes an application web session.
 func (g *GRPCServer) DeleteAppSession(ctx context.Context, req *authpb.DeleteAppSessionRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -1765,53 +1692,6 @@ func (g *GRPCServer) DeleteUserAppSessions(ctx context.Context, req *authpb.Dele
 	}
 
 	if err := auth.DeleteUserAppSessions(ctx, req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &emptypb.Empty{}, nil
-}
-
-// DeleteSAMLIdPSession removes a SAML IdP session.
-// TODO(Joerger): DELETE IN v18.0.0
-func (g *GRPCServer) DeleteSAMLIdPSession(ctx context.Context, req *authpb.DeleteSAMLIdPSessionRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := auth.DeleteSAMLIdPSession(ctx, types.DeleteSAMLIdPSessionRequest{
-		SessionID: req.GetSessionID(),
-	}); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &emptypb.Empty{}, nil
-}
-
-// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
-// TODO(Joerger): DELETE IN v18.0.0
-func (g *GRPCServer) DeleteAllSAMLIdPSessions(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := auth.DeleteAllSAMLIdPSessions(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &emptypb.Empty{}, nil
-}
-
-// DeleteUserSAMLIdPSessions removes all of a user's SAML IdP sessions.
-// TODO(Joerger): DELETE IN v18.0.0
-func (g *GRPCServer) DeleteUserSAMLIdPSessions(ctx context.Context, req *authpb.DeleteUserSAMLIdPSessionsRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := auth.DeleteUserSAMLIdPSessions(ctx, req.Username); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

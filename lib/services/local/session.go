@@ -48,16 +48,6 @@ func (s *IdentityService) GetSnowflakeSession(ctx context.Context, req types.Get
 	return s.getSession(ctx, snowflakePrefix, sessionsPrefix, req.SessionID)
 }
 
-// GetSAMLIdPSession gets a SAML IdP session.
-// TODO(Joerger): DELETE IN v18.0.0
-func (s *IdentityService) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
-	if err := req.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return s.getSession(ctx, samlIdPPrefix, sessionsPrefix, req.SessionID)
-}
-
 func (s *IdentityService) getSession(ctx context.Context, keyParts ...string) (types.WebSession, error) {
 	item, err := s.Get(ctx, backend.NewKey(keyParts...))
 	if err != nil {
@@ -96,12 +86,6 @@ func (s *IdentityService) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 		out[i] = session
 	}
 	return out, nil
-}
-
-// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
-// TODO(Joerger): DELETE IN v18.0.0
-func (s *IdentityService) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
-	return s.listSessions(ctx, pageSize, pageToken, user, samlIdPPrefix, sessionsPrefix)
 }
 
 // listSessions gets a paginated list of sessions.
@@ -178,12 +162,6 @@ func (s *IdentityService) UpsertSnowflakeSession(ctx context.Context, session ty
 	return s.upsertSession(ctx, session, snowflakePrefix, sessionsPrefix)
 }
 
-// UpsertSAMLIdPSession creates a SAMLIdP web session.
-// TODO(Joerger): DELETE IN v18.0.0
-func (s *IdentityService) UpsertSAMLIdPSession(ctx context.Context, session types.WebSession) error {
-	return s.upsertSession(ctx, session, samlIdPPrefix, sessionsPrefix)
-}
-
 // upsertSession creates a web session.
 func (s *IdentityService) upsertSession(ctx context.Context, session types.WebSession, keyPrefix ...string) error {
 	rev := session.GetRevision()
@@ -220,15 +198,6 @@ func (s *IdentityService) DeleteSnowflakeSession(ctx context.Context, req types.
 	return nil
 }
 
-// DeleteSAMLIdPSession removes a SAML IdP session.
-// TODO(Joerger): DELETE IN v18.0.0
-func (s *IdentityService) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
-	if err := s.Delete(ctx, backend.NewKey(samlIdPPrefix, sessionsPrefix, req.SessionID)); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // DeleteUserAppSessions removes all application web sessions for a particular user.
 func (s *IdentityService) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
 	var token string
@@ -256,34 +225,6 @@ func (s *IdentityService) DeleteUserAppSessions(ctx context.Context, req *proto.
 	return nil
 }
 
-// DeleteUserSAMLIdPSessions removes all SAML IdP sessions for a particular user.
-// TODO(Joerger): DELETE IN v18.0.0
-func (s *IdentityService) DeleteUserSAMLIdPSessions(ctx context.Context, user string) error {
-	var token string
-
-	for {
-		sessions, nextToken, err := s.ListSAMLIdPSessions(ctx, maxSessionPageSize, token, user)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		for _, session := range sessions {
-			err := s.DeleteSAMLIdPSession(ctx, types.DeleteSAMLIdPSessionRequest{SessionID: session.GetName()})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
-		if nextToken == "" {
-			break
-		}
-
-		token = nextToken
-	}
-
-	return nil
-}
-
 // DeleteAllAppSessions removes all application web sessions.
 func (s *IdentityService) DeleteAllAppSessions(ctx context.Context) error {
 	startKey := backend.ExactKey(appsPrefix, sessionsPrefix)
@@ -296,16 +237,6 @@ func (s *IdentityService) DeleteAllAppSessions(ctx context.Context) error {
 // DeleteAllSnowflakeSessions removes all Snowflake web sessions.
 func (s *IdentityService) DeleteAllSnowflakeSessions(ctx context.Context) error {
 	startKey := backend.ExactKey(snowflakePrefix, sessionsPrefix)
-	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
-// TODO(Joerger): DELETE IN v18.0.0
-func (s *IdentityService) DeleteAllSAMLIdPSessions(ctx context.Context) error {
-	startKey := backend.ExactKey(samlIdPPrefix, sessionsPrefix)
 	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
 		return trace.Wrap(err)
 	}

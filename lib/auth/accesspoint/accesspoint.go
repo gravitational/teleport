@@ -91,7 +91,6 @@ type Config struct {
 	Provisioner             services.Provisioner
 	Restrictions            services.Restrictions
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
-	SAMLIdPSession          services.SAMLIdPSession
 	SecReports              services.SecReports
 	SnowflakeSession        services.SnowflakeSession
 	SPIFFEFederations       services.SPIFFEFederations
@@ -193,7 +192,6 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		Provisioner:             cfg.Provisioner,
 		Restrictions:            cfg.Restrictions,
 		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
-		SAMLIdPSession:          cfg.SAMLIdPSession,
 		SecReports:              cfg.SecReports,
 		SnowflakeSession:        cfg.SnowflakeSession,
 		SPIFFEFederations:       cfg.SPIFFEFederations,
