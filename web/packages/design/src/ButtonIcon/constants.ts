@@ -16,20 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export const buttonSizes = {
-  0: {
-    fontSize: '12px',
-    height: '24px',
-    width: '24px',
-  },
-  1: {
-    fontSize: '16px',
-    height: '32px',
-    width: '32px',
-  },
-  2: {
-    fontSize: '24px',
-    height: '48px',
-    width: '48px',
-  },
+import { css } from 'styled-components';
+
+export const buttonSizes: Record<number, ReturnType<typeof css>> = {
+  0: css`
+    font-size: 12px;
+    height: 24px;
+    width: 24px;
+  `,
+  1: css`
+    font-size: 16px;
+    height: 32px;
+    width: 32px;
+  `,
+  2: css`
+    font-size: 24px;
+    height: 48px;
+    width: 48px;
+  `,
 };
