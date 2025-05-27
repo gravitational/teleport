@@ -649,9 +649,14 @@ type MatchedCluster struct {
 	Ipv4CidrRange string `protobuf:"bytes,1,opt,name=ipv4_cidr_range,json=ipv4CidrRange,proto3" json:"ipv4_cidr_range,omitempty"`
 	// WebProxyAddr is the web proxy address of the root cluster that matched the
 	// query.
-	WebProxyAddr  string `protobuf:"bytes,2,opt,name=web_proxy_addr,json=webProxyAddr,proto3" json:"web_proxy_addr,omitempty"`
-	Profile       string `protobuf:"bytes,3,opt,name=profile,proto3" json:"profile,omitempty"`
-	RootCluster   string `protobuf:"bytes,4,opt,name=root_cluster,json=rootCluster,proto3" json:"root_cluster,omitempty"`
+	WebProxyAddr string `protobuf:"bytes,2,opt,name=web_proxy_addr,json=webProxyAddr,proto3" json:"web_proxy_addr,omitempty"`
+	// Profile is the profile the matched cluster was found in.
+	Profile string `protobuf:"bytes,3,opt,name=profile,proto3" json:"profile,omitempty"`
+	// RootCluster will always be set to the name of the root cluster that matched
+	// the query.
+	RootCluster string `protobuf:"bytes,4,opt,name=root_cluster,json=rootCluster,proto3" json:"root_cluster,omitempty"`
+	// LeafCluster will be set only when the query matched a leaf cluster of
+	// RootCluster, or else it will be empty.
 	LeafCluster   string `protobuf:"bytes,5,opt,name=leaf_cluster,json=leafCluster,proto3" json:"leaf_cluster,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

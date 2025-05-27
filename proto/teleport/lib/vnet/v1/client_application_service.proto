@@ -135,8 +135,13 @@ message MatchedCluster {
   // WebProxyAddr is the web proxy address of the root cluster that matched the
   // query.
   string web_proxy_addr = 2;
+  // Profile is the profile the matched cluster was found in.
   string profile = 3;
+  // RootCluster will always be set to the name of the root cluster that matched
+  // the query.
   string root_cluster = 4;
+  // LeafCluster will be set only when the query matched a leaf cluster of
+  // RootCluster, or else it will be empty.
   string leaf_cluster = 5;
 }
 

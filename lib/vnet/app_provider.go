@@ -18,7 +18,6 @@ package vnet
 
 import (
 	"context"
-	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 
@@ -57,7 +56,7 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInf
 	return tlsCert, nil
 }
 
-func (p *appProvider) newAppCertSigner(cert []byte, appKey *vnetv1.AppKey, targetPort uint16) (crypto.Signer, error) {
+func (p *appProvider) newAppCertSigner(cert []byte, appKey *vnetv1.AppKey, targetPort uint16) (*rpcSigner, error) {
 	x509Cert, err := x509.ParseCertificate(cert)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing x509 certificate")

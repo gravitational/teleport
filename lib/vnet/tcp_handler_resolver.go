@@ -162,10 +162,11 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 	if err != nil {
 		return trace.Wrap(err, "resolving target in undecidedHandler")
 	}
+	log := log.With("fqdn", h.cfg.fqdn)
 	if matchedTCPApp := resp.GetMatchedTcpApp(); matchedTCPApp != nil {
 		// If matched a TCP app, build a tcpAppHandler that will be used for this
 		// and all subsequent connections to this address.
-		log.DebugContext(ctx, "Resolved FQDN to a matched TCP app", "fqdn", h.cfg.fqdn)
+		log.DebugContext(ctx, "Resolved FQDN to a matched TCP app")
 		tcpAppHandler := newTCPAppHandler(&tcpAppHandlerConfig{
 			appInfo:                  matchedTCPApp.GetAppInfo(),
 			appProvider:              h.cfg.appProvider,
@@ -178,21 +179,20 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 	if matchedWebApp := resp.GetMatchedWebApp(); matchedWebApp != nil && localPort == h.webProxyPort {
 		// If matched a web app, build a webAppHandler that will be used for this
 		// and all subsequent connections to this address.
-		log.DebugContext(ctx, "Resolved FQDN to a matched web app", "fqdn", h.cfg.fqdn)
+		log.DebugContext(ctx, "Resolved FQDN to a matched web app")
 		webAppHandler := newWebAppHandler(h.cfg.webProxyAddr, h.webProxyPort)
 		h.setDecidedHandler(webAppHandler)
 		return webAppHandler.handleTCPConnector(ctx, localPort, connector)
 	}
 	if matchedCluster := resp.GetMatchedCluster(); matchedCluster != nil && localPort == 22 {
 		// Matched a cluster, this FQDN could potentially match an SSH node.
-		log.DebugContext(ctx, "Resolved FQDN to a matched cluster", "fqdn", h.cfg.fqdn)
+		log.DebugContext(ctx, "Resolved FQDN to a matched cluster")
 		// Attempt a dial to the target SSH node to see if it exists.
 		target := computeDialTarget(matchedCluster, h.cfg.fqdn)
 		targetConn, err := h.cfg.sshProvider.dial(ctx, target)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
-				log.DebugContext(ctx, "Failed TCP dial to target, node probably doesn't exist",
-					"fqdn", h.cfg.fqdn)
+				log.DebugContext(ctx, "Failed TCP dial to target, node might be offline")
 				return nil
 			}
 			return trace.Wrap(err, "unexpected error TCP dialing to target node at %s", h.cfg.fqdn)
