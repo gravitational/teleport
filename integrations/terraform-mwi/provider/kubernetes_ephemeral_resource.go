@@ -146,7 +146,7 @@ func (r *KubernetesEphemeralResource) Open(
 			Destination: dest,
 			Selectors: []*config.KubernetesSelector{
 				{
-					Name: data.Selector.Name.String(),
+					Name: data.Selector.Name.ValueString(),
 				},
 			},
 			DisableExecPlugin: true,
