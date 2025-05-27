@@ -949,7 +949,7 @@ func (t *tagEventWatcher) Send(event types.Event) error {
 		t.cacheMtx.Lock()
 		defer t.cacheMtx.Unlock()
 
-		// Double check if the watcher is ready, as the oder of locking in MarkReady is not the same.
+		// Double check if the watcher is ready, as the order of locking in MarkReady is not the same.
 		if t.ready.Load() {
 			// Send the events.
 			return trace.Wrap(t.send(event))

@@ -55,9 +55,8 @@ func (s *Service) ReportAuthorizedKeys(in accessgraphsecretsv1pb.SecretsScannerS
 			}
 			if errors.Is(err, io.EOF) {
 				return nil
-			} else if err != nil {
-				return trace.Wrap(err)
 			}
+			return trace.Wrap(err)
 		}
 
 		if req == nil {

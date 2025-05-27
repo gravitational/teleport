@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	auditlogv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -30,6 +31,7 @@ func initiateAndProcessAuditLogStream(ctx context.Context, log *slog.Logger, ser
 		log:    log,
 		client: authServer,
 		stream: auditLogStream,
+		clock:  clockwork.NewRealClock(),
 	}
 	if err := exporter.start(ctx, config); err != nil {
 		log.ErrorContext(ctx, "Error processing audit log stream", "error", err)
@@ -42,6 +44,7 @@ type auditLogExporter struct {
 	log    *slog.Logger
 	client events.AuditLogSessionStreamer
 	stream auditLogStream
+	clock  clockwork.Clock
 
 	// used by bulk exporter
 	idleCh      chan struct{}
@@ -85,7 +88,7 @@ func (a *auditLogExporter) isBulkExporter(ctx context.Context) (bool, error) {
 	chunks := a.client.GetEventExportChunks(ctx, &auditlogv1.GetEventExportChunksRequest{
 		// target a date 2 days in the future to be confident that we're querying a valid but
 		// empty date range, even in the context of reasonable clock drift.
-		Date: timestamppb.New(time.Now().AddDate(0, 0, 2)),
+		Date: timestamppb.New(a.clock.Now().AddDate(0, 0, 2)),
 	})
 
 	if err := stream.Drain(chunks); err != nil {
@@ -182,13 +185,13 @@ func (a *auditLogExporter) exportBulk(ctx context.Context, startDate time.Time, 
 	defer exporter.Close()
 
 	// pruneTicker start quickly while backfilling and slows down once idle
-	pruneTicker := time.NewTicker(5 * time.Second)
+	pruneTicker := a.clock.NewTicker(5 * time.Second)
 	defer pruneTicker.Stop()
 	firstIdleCall := true
 
 	for {
 		select {
-		case <-pruneTicker.C:
+		case <-pruneTicker.Chan():
 			err := a.syncActiveDates(ctx, exporter.GetState())
 			if err != nil {
 				return trace.Wrap(err)
@@ -308,7 +311,7 @@ func (a *auditLogExporter) exportSearch(ctx context.Context, startDate time.Time
 			select {
 			case <-ctx.Done():
 				return trace.Wrap(ctx.Err(), "Context done for search event audit log exporting")
-			case <-time.After(time.Minute):
+			case <-a.clock.After(time.Minute):
 				continue
 			}
 		}
@@ -331,13 +334,21 @@ func (a *auditLogExporter) exportSearch(ctx context.Context, startDate time.Time
 		if err != nil {
 			return trace.Errorf("failed to send search export on audit log stream. Send error %w, followed by receive error %w", err, receiveUntilErr(a.stream))
 		}
+		if a.lastID != "" { // we have just sent a batch, but we are caught up because the lastID is set, so we don't have a new startKey
+			select {
+			case <-ctx.Done():
+				return trace.Wrap(ctx.Err(), "Context done for search event audit log exporting")
+			case <-a.clock.After(time.Minute):
+				continue
+			}
+		}
 	}
 }
 
 func (a *auditLogExporter) searchUnstructuredEvents(ctx context.Context, startDate time.Time) ([]*auditlogv1.EventUnstructured, error) {
 	req := events.SearchEventsRequest{
 		From:     startDate,
-		To:       time.Now(),
+		To:       a.clock.Now(),
 		Limit:    0,
 		StartKey: a.startKey,
 	}
@@ -386,6 +397,7 @@ func (a *auditLogExporter) updateSearchState(startKey string, events []*auditlog
 		a.lastID = ""
 		return
 	}
+
 	// if we don't have a new start key, but still received new events track most recent event ID
 	a.lastID = events[len(events)-1].GetId()
 }
