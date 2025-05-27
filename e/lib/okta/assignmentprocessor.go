@@ -16,9 +16,11 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/e/lib/accesslist"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type isLeaderGetter interface {
@@ -83,6 +85,8 @@ type assignmentProcessor struct {
 	// be called. Otherwise, the assignment will be marked cleaned up but the Okta API will not be called
 	// until the counter reaches 0.
 	userTargetCounter map[string]map[string]struct{}
+	// accessListSvc is used to access the access list service.
+	accessListSvc services.AccessLists
 }
 
 func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssignments) *assignmentProcessor {
@@ -99,6 +103,7 @@ func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssi
 		assignmentClient:  newAssignmentClient(svc.logger, svc.client),
 		stopCh:            make(chan struct{}, 1),
 		userTargetCounter: map[string]map[string]struct{}{},
+		accessListSvc:     svc.accessListSync.accessLists,
 	}
 }
 
@@ -363,6 +368,22 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, assignment typ
 
 	var errs []error
 	for _, target := range assignment.GetTargets() {
+		m, err := a.accessListSvc.GetAccessListMember(ctx, target.GetID(), assignment.GetUser())
+		switch {
+		case err == nil:
+			if m.Spec.AddedBy == accesslist.OktaServiceRoleUsername {
+				// If the assignment was added by the "okta-service" role, it means it originated
+				// from Okta and was imported into Teleport via Okta Access List Sync.
+				//
+				// In this case, we treat the assignment as being managed by Okta upstream,
+				// so we should not attempt to re-provision the target resource
+				continue
+			}
+		case trace.IsNotFound(err): // do nothing
+		default:
+			a.logger.WarnContext(ctx, "failed to check access list membership", "error", err)
+		}
+
 		ok, err := a.authorizeTarget(ctx, target)
 		if err != nil {
 			// If we can't find the target, then we'll continue because there's nothing we can do here.

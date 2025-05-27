@@ -513,12 +513,15 @@ func assertUserIsNotAccessListMember(t *testing.T, sut *common.SUT, acl, user st
 	}, 3*time.Second, 50*time.Millisecond, "User %s should not be a member of access list %s", user, acl)
 }
 
-func assertUserIsAccessListMember(t *testing.T, sut *common.SUT, acl, user string) {
+func assertUserIsAccessListMember(t *testing.T, sut *common.SUT, acl, user string) *accesslist.AccessListMember {
 	t.Helper()
+	var member *accesslist.AccessListMember
+	var err error
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		_, err := sut.Teleport.Process.GetAuthServer().AccessLists.GetAccessListMember(t.Context(), acl, user)
+		member, err = sut.Teleport.Process.GetAuthServer().AccessLists.GetAccessListMember(t.Context(), acl, user)
 		assert.NoError(collect, err)
 	}, 3*time.Second, 200*time.Millisecond)
+	return member
 }
 
 func createAccessRequest(resourceName, resourceType, clusterName string, requesterUser string) *types.AccessRequestV3 {
@@ -625,4 +628,77 @@ func TestOktaAccessRequestWithSCIMOktaSync(t *testing.T) {
 
 	oktaInfra.assertUserWasUnassignedFromOktaGroup(t, requester.Id, oktaInfra.Groups[0].Id)
 	assertUserIsNotAccessListMember(t, sut, groupID, requester.login())
+}
+
+func TestOktaAssignmentRaceCheck(t *testing.T) {
+	ctx := context.Background()
+	oktaAPIClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
+	oktaInfra := createOktaSetup(t, ctx, oktaAPIClient, withAppsGroupsUsersCount(0, 1, 7))
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+
+	reviewer := oktaInfra.Users[5]
+	requester := oktaInfra.Users[4]
+
+	oktaSAMLAppName := "trial-1234567_teleportsamlconnectorapp_1"
+	samlApp := createOktaSAMLAPP(t, ctx, oktaAPIClient, oktaSAMLAppName)
+	for _, user := range oktaInfra.Users {
+		_, _, err := oktaAPIClient.AssignUserToApplication(t.Context(), samlApp.Id, okta.AppUser{Id: user.Id})
+		require.NoError(t, err)
+	}
+
+	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
+	start := time.Now()
+	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		ApiCredentials:          apiCredentials,
+		EnableUserSync:          true,
+		EnableAppGroupSync:      true,
+		EnableAccessListSync:    true,
+		EnableBidirectionalSync: true,
+		AccessListSettings: &oktav1.AccessListSettings{
+			GroupFilters: []string{"group-*"},
+			AppFilters:   []string{"app-*"},
+			DefaultOwner: []string{reviewer.login()},
+		},
+		ReuseConnector: "okta-pre-created-test",
+	})
+	require.NoError(t, err)
+	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(start))
+
+	auth := sut.Teleport.Process.GetAuthServer()
+
+	userGroups, _, err := auth.ListUserGroups(t.Context(), 0, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, userGroups)
+	group := selectUserGroupByName(userGroups, oktaInfra.Groups[0].Id)
+	require.NotNil(t, group)
+
+	const iterCount = 10
+	for range iterCount {
+		oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, requester.Id)
+		m := assertUserIsAccessListMember(t, sut, group.GetName(), requester.login())
+		require.Equal(t, "okta-service", m.Spec.AddedBy)
+		oktaInfra.removeUserFromGroup(t, oktaInfra.Groups[0].Id, requester.Id)
+		assertUserIsNotAccessListMember(t, sut, group.GetName(), requester.login())
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			assignments, _, err := sut.Teleport.Process.GetAuthServer().Okta.ListOktaAssignments(ctx, 0, "")
+			require.NoError(t, err)
+			require.Empty(t, assignments)
+		}, time.Second*5, time.Millisecond*30)
+	}
+
+	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, requester.Id)
+	assertUserIsAccessListMember(t, sut, group.GetName(), requester.login())
+	for range iterCount {
+		oktaInfra.removeUserFromGroup(t, oktaInfra.Groups[0].Id, requester.Id)
+		assertUserIsNotAccessListMember(t, sut, group.GetName(), requester.login())
+		oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, requester.Id)
+		assertUserIsAccessListMember(t, sut, group.GetName(), requester.login())
+	}
+	oktaInfra.removeUserFromGroup(t, oktaInfra.Groups[0].Id, requester.Id)
+	assertUserIsNotAccessListMember(t, sut, group.GetName(), requester.login())
 }

@@ -44,6 +44,9 @@ const (
 	eventMemberBatches = 50
 
 	componentAccessListService = "access_list_crud_service"
+
+	// OktaServiceRoleUsername is the name of the user for the Teleport Okta Identity
+	OktaServiceRoleUsername = "okta-service"
 )
 
 type AuthServer interface {
@@ -2317,7 +2320,7 @@ func getUsername(authCtx *authz.Context) (string, error) {
 	}
 
 	if authz.HasBuiltinRole(*authCtx, string(types.RoleOkta)) {
-		return "okta-service", nil
+		return OktaServiceRoleUsername, nil
 	}
 
 	identity := authCtx.Identity.GetIdentity()

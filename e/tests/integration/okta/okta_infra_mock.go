@@ -180,6 +180,11 @@ func (s *oktaInfraSetup) addUserToGroup(t *testing.T, groupID, userID string) {
 	require.NoError(t, err, "failed to add %q user to group %q", userID, groupID)
 }
 
+func (s *oktaInfraSetup) removeUserFromGroup(t *testing.T, groupID, userID string) {
+	_, err := s.client.RemoveUserFromGroup(s.ctx, groupID, userID)
+	require.NoError(t, err, "failed to remove %q user to group %q", userID, groupID)
+}
+
 type oktaApplicationEmbedLinks struct {
 	AppLinks []oktaApplicationEmbedLink
 }
