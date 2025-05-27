@@ -34,7 +34,12 @@ message RelayServer {
 
   // resource spec
   message Spec {
-    // TODO
+    string relay_group = 1;
+    string nonce = 2;
+    bool terminating = 3;
+    repeated string proxy_ids = 4;
+
+    // TODO(espadolini)
   }
   Spec spec = 5;
 }
