@@ -90,7 +90,7 @@ func TestListKubernetesResources(t *testing.T) {
 				// override the role to allow access to all kube resources.
 				r.SetKubeResources(
 					types.Allow,
-					[]types.KubernetesResource{{Kind: types.Wildcard, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}}},
+					[]types.KubernetesResource{{Kind: types.Wildcard, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard}},
 				)
 			},
 		},

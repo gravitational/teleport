@@ -57,7 +57,7 @@ export default meta;
 const fakeClient = () => {
   const client = new TdpClient(() => null, new BrowserFileSystem());
   // Don't try to connect to a websocket.
-  client.connect = async spec => {
+  client.connect = async (keyboardLayout: number, spec: ClientScreenSpec) => {
     emitFrame(client, spec);
   };
   return client;
@@ -109,7 +109,7 @@ export const Connected = () => {
 export const DisconnectedWithNoMessage = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.TRANSPORT_CLOSE);
+    client.emit(TdpClientEvent.TRANSPORT_CLOSE, undefined);
   };
 
   return <DesktopSession {...props} client={client} />;
@@ -171,7 +171,7 @@ export const SharingDisabledRbac = () => (
 
 export const Alerts = () => {
   const client = fakeClient();
-  client.connect = async spec => {
+  client.connect = async (keyboardLayout: number, spec: ClientScreenSpec) => {
     emitFrame(client, spec);
     client.emit(
       TdpClientEvent.TDP_WARNING,

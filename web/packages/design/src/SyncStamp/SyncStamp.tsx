@@ -17,21 +17,27 @@
  */
 
 import { formatDistanceToNowStrict } from 'date-fns';
+import { PropsWithChildren } from 'react';
 
 import Flex from 'design/Flex';
 import { SyncAlt } from 'design/Icon';
 import { P3 } from 'design/Text';
 
-export function SyncStamp({ date }: { date?: Date }) {
+export function SyncStamp({
+  date,
+  children,
+}: PropsWithChildren<{ date?: Date }>) {
   let content = 'N/A';
   if (date && date.getTime() >= 0) {
     content = formatDistanceToNowStrict(date, { addSuffix: true });
   }
 
   return (
-    <Flex data-testid="sync">
+    <Flex data-testid="sync" alignItems="center">
       <SyncAlt color="text.muted" size="small" mr={1} />
-      <P3 color="text.muted">Last Sync: {content}</P3>
+      <P3 color="text.muted">
+        Last Sync: {content} {children}
+      </P3>
     </Flex>
   );
 }
