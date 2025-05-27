@@ -105,9 +105,11 @@ type ListBotInstancesRequest struct {
 	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// The page_token value returned from a previous ListBotInstances request, if
 	// any.
-	PageToken     string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// A search term used to filter the results. If non-empty, it's used to match against supported fields.
+	FilterSearchTerm string `protobuf:"bytes,4,opt,name=filter_search_term,json=filterSearchTerm,proto3" json:"filter_search_term,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ListBotInstancesRequest) Reset() {
@@ -157,6 +159,13 @@ func (x *ListBotInstancesRequest) GetPageSize() int32 {
 func (x *ListBotInstancesRequest) GetPageToken() string {
 	if x != nil {
 		return x.PageToken
+	}
+	return ""
+}
+
+func (x *ListBotInstancesRequest) GetFilterSearchTerm() string {
+	if x != nil {
+		return x.FilterSearchTerm
 	}
 	return ""
 }
@@ -363,12 +372,13 @@ const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"\x15GetBotInstanceRequest\x12\x19\n" +
 	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x1f\n" +
 	"\vinstance_id\x18\x02 \x01(\tR\n" +
-	"instanceId\"}\n" +
+	"instanceId\"\xab\x01\n" +
 	"\x17ListBotInstancesRequest\x12&\n" +
 	"\x0ffilter_bot_name\x18\x01 \x01(\tR\rfilterBotName\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x03 \x01(\tR\tpageToken\"\x8b\x01\n" +
+	"page_token\x18\x03 \x01(\tR\tpageToken\x12,\n" +
+	"\x12filter_search_term\x18\x04 \x01(\tR\x10filterSearchTerm\"\x8b\x01\n" +
 	"\x18ListBotInstancesResponse\x12G\n" +
 	"\rbot_instances\x18\x01 \x03(\v2\".teleport.machineid.v1.BotInstanceR\fbotInstances\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"V\n" +

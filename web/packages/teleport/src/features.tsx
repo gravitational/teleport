@@ -28,6 +28,7 @@ import {
   License,
   ListAddCheck,
   ListThin,
+  ListView as ListViewIcon,
   LockKey,
   PlugsConnected,
   Question,
@@ -50,6 +51,7 @@ import { LockedAccessRequests } from './AccessRequests';
 import { AccountPage } from './Account';
 import { AuditContainer as Audit } from './Audit';
 import { AuthConnectorsContainer as AuthConnectors } from './AuthConnectors';
+import { BotInstances } from './BotInstances/BotInstances';
 import { Bots } from './Bots';
 import { AddBots } from './Bots/Add';
 import { Clusters } from './Clusters';
@@ -262,6 +264,40 @@ export class FeatureBots implements TeleportFeature {
       return cfg.getBotsRoute();
     },
     searchableTags: ['bots'],
+  };
+
+  getRoute() {
+    return this.route;
+  }
+}
+
+export class FeatureBotInstances implements TeleportFeature {
+  category = NavigationCategory.MachineWorkloadId;
+
+  route = {
+    title: 'View Bot instances',
+    path: cfg.routes.botInstances,
+    exact: true,
+    component: BotInstances,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    // if feature hiding is enabled, only show
+    // if the user has access
+    if (shouldHideFromNavigation(cfg)) {
+      return flags.listBotInstances;
+    }
+    return true;
+  }
+
+  navigationItem = {
+    title: NavTitle.BotInstances,
+    icon: ListViewIcon,
+    exact: true,
+    getLink() {
+      return cfg.getBotInstancesRoute();
+    },
+    searchableTags: ['bots', 'bot', 'instance', 'instances'],
   };
 
   getRoute() {
@@ -761,6 +797,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     // - Access
     new FeatureUsers(),
     new FeatureBots(),
+    new FeatureBotInstances(),
     new FeatureAddBotsShortcut(),
     new FeatureJoinTokens(),
     new FeatureRoles(),
