@@ -268,7 +268,7 @@ func (s *KubeMockServer) setup() {
 
 	router.Handle("GET /version", s.withWriter(s.versionEndpoint))
 
-	for _, endpoint := range []string{"/api", "/api/:ver", "/apis"} {
+	for _, endpoint := range []string{"/api", "/api/{ver}", "/apis"} {
 		router.Handle("GET "+endpoint, s.withWriter(s.discoveryEndpoint))
 	}
 	for k, v := range s.crds {
