@@ -103,12 +103,11 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 					return trace.ConvertSystemError(err)
 				}
 			case teleport.YAML:
-				_, err := fmt.Println("---")
+				_, err := fmt.Fprintln(w, "---")
 				if err != nil {
 					return trace.ConvertSystemError(err)
 				}
-				err = utils.WriteYAML(w, event)
-				if err != nil {
+				if err := utils.WriteYAML(w, event); err != nil {
 					return trace.ConvertSystemError(err)
 				}
 			case teleport.Text:
@@ -117,8 +116,7 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 					continue
 				}
 				// write bytes to writer
-				_, err := w.Write(printEvent.Data)
-				if err != nil {
+				if _, err := w.Write(printEvent.Data); err != nil {
 					return trace.ConvertSystemError(err)
 				}
 			default:
