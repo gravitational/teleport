@@ -18,11 +18,15 @@ package service
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/srv"
 )
 
 func (process *TeleportProcess) initRelay() {
@@ -44,6 +48,35 @@ func (process *TeleportProcess) runRelayService() error {
 		return trace.Wrap(err)
 	}
 	defer conn.Close()
+
+	var relayServer atomic.Pointer[presencev1.RelayServer]
+	relayServer.Store(&presencev1.RelayServer{
+		Kind:    apitypes.KindRelayServer,
+		SubKind: "",
+		Version: apitypes.V1,
+		Metadata: &headerv1.Metadata{
+			Name: process.Config.HostUUID,
+		},
+		Spec: &presencev1.RelayServer_Spec{},
+	})
+
+	hb, err := srv.NewRelayServerHeartbeat(srv.HeartbeatV2Config[*presencev1.RelayServer]{
+		InventoryHandle: process.inventoryHandle,
+		GetResource: func(context.Context) (*presencev1.RelayServer, error) {
+			return relayServer.Load(), nil
+		},
+
+		// there's no fallback announce mode, the relay service only works with
+		// clusters recent enough to support relay heartbeats through the ICS
+		Announcer: nil,
+
+		OnHeartbeat: process.OnHeartbeat(teleport.ComponentRelay),
+	}, log)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	go hb.Run()
+	defer hb.Close()
 
 	process.BroadcastEvent(Event{Name: RelayReady})
 	log.InfoContext(process.ExitContext(), "The relay service has successfully started.")

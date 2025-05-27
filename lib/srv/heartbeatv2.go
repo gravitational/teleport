@@ -27,9 +27,11 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	gproto "google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -162,6 +164,24 @@ func NewKubernetesServerHeartbeat(cfg HeartbeatV2Config[*types.KubernetesServerV
 	inner := &kubeServerHeartbeatV2{
 		getServer: cfg.GetResource,
 		announcer: cfg.Announcer,
+	}
+
+	return newHeartbeatV2(cfg.InventoryHandle, inner, heartbeatV2Config{
+		onHeartbeatInner:           cfg.OnHeartbeat,
+		announceInterval:           cfg.AnnounceInterval,
+		disruptionAnnounceInterval: cfg.DisruptionAnnounceInterval,
+		pollInterval:               cfg.PollInterval,
+	}), nil
+}
+
+func NewRelayServerHeartbeat(cfg HeartbeatV2Config[*presencev1.RelayServer], log *slog.Logger) (*HeartbeatV2, error) {
+	if err := cfg.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	inner := &relayServerHeartbeatV2{
+		log:       log,
+		getServer: cfg.GetResource,
 	}
 
 	return newHeartbeatV2(cfg.InventoryHandle, inner, heartbeatV2Config{
@@ -812,5 +832,58 @@ func (h *kubeServerHeartbeatV2) Announce(ctx context.Context, sender inventory.D
 	}
 
 	h.prev = server
+	return true
+}
+
+// relayServerHeartbeatV2 is a heartbeat driver for Relay heartbeats.
+type relayServerHeartbeatV2 struct {
+	log       *slog.Logger
+	getServer func(ctx context.Context) (*presencev1.RelayServer, error)
+
+	last *presencev1.RelayServer
+}
+
+var _ heartbeatV2Driver = (*relayServerHeartbeatV2)(nil)
+
+func (h *relayServerHeartbeatV2) Poll(ctx context.Context) (changed bool) {
+	if h.last == nil {
+		return true
+	}
+
+	server, err := h.getServer(ctx)
+	if err != nil {
+		return false
+	}
+
+	return !gproto.Equal(h.last, server)
+}
+
+func (h *relayServerHeartbeatV2) SupportsFallback() bool {
+	return false
+}
+
+func (h *relayServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
+	return false
+}
+
+func (h *relayServerHeartbeatV2) Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool) {
+	if !sender.Hello().GetCapabilities().GetRelayServerHeartbeatsCleanup() {
+		return false
+	}
+
+	server, err := h.getServer(ctx)
+	if err != nil {
+
+		return false
+	}
+
+	if err := sender.Send(ctx, &proto.InventoryHeartbeat{RelayServer: gproto.CloneOf(server)}); err != nil {
+		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
+			h.log.WarnContext(ctx, "Failed to perform relay server heartbeat", "error", err)
+		}
+		return false
+	}
+
+	h.last = server
 	return true
 }
