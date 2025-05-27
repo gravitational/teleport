@@ -451,6 +451,10 @@ type RoleSpec struct {
 
 // CreateUserWithTraitsAndRole creates Teleport user and role with specified names
 func (c *TestContext) CreateUserWithTraitsAndRole(ctx context.Context, t *testing.T, username string, userTraits map[string][]string, roleSpec RoleSpec) (types.User, types.Role) {
+	return c.CreateUserWithTraitsAndRoleVersion(ctx, t, username, userTraits, types.DefaultRoleVersion, roleSpec)
+}
+
+func (c *TestContext) CreateUserWithTraitsAndRoleVersion(ctx context.Context, t *testing.T, username string, userTraits map[string][]string, roleVersion string, roleSpec RoleSpec) (types.User, types.Role) {
 	user, role, err := auth.CreateUserAndRole(
 		c.TLSServer.Auth(),
 		username,
@@ -459,6 +463,7 @@ func (c *TestContext) CreateUserWithTraitsAndRole(ctx context.Context, t *testin
 		auth.WithUserMutator(func(user types.User) {
 			user.SetTraits(userTraits)
 		}),
+		auth.WithRoleVersion(roleVersion),
 	)
 	require.NoError(t, err)
 	role.SetKubeUsers(types.Allow, roleSpec.KubeUsers)
@@ -478,7 +483,12 @@ func (c *TestContext) CreateUserWithTraitsAndRole(ctx context.Context, t *testin
 
 // CreateUserAndRole creates Teleport user and role with specified names
 func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, username string, roleSpec RoleSpec) (types.User, types.Role) {
-	return c.CreateUserWithTraitsAndRole(ctx, t, username, nil, roleSpec)
+	return c.CreateUserAndRoleVersion(ctx, t, username, types.DefaultRoleVersion, roleSpec)
+}
+
+// CreateUserAndRoleVersion creates Teleport user and role with specified names and role version.
+func (c *TestContext) CreateUserAndRoleVersion(ctx context.Context, t *testing.T, username, roleVersion string, roleSpec RoleSpec) (types.User, types.Role) {
+	return c.CreateUserWithTraitsAndRoleVersion(ctx, t, username, nil, roleVersion, roleSpec)
 }
 
 func newKubeConfigFile(t *testing.T, clusters ...KubeClusterConfig) string {

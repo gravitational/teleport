@@ -2149,12 +2149,8 @@ func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
 			if elem.APIGroup == types.Wildcard {
 				elem.APIGroup = ""
 			}
-			// If we have a wildcard kind, keep it.
-			if elem.Kind == types.Wildcard && elem.APIGroup == "" {
-				out = append(out, elem)
-				continue
-			}
-			// If Kind is known in v7 and group is known, remove it.
+
+			// If Kind is known in v7 and group is known, remove it the api group and keep the resource.
 			if v, ok := defaultRBACResources[allowedResourcesKey{elem.APIGroup, elem.Kind}]; ok {
 				elem.APIGroup = ""
 				elem.Kind = v
@@ -2162,8 +2158,8 @@ func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
 				continue
 			}
 
-			// If we reach this point, we are dealing with a resource we don't know about.
-			// As <=v17 granted too much access for unknown resource, we deny everything.
+			// If we reach this point, we are dealing with a resource we don't know about or a wildcard
+			// As the scope of permissions granted differs, deny everything.
 			role.Spec.Allow.KubernetesResources = nil
 			role.Spec.Deny.KubernetesLabels = types.Labels{
 				types.Wildcard: {types.Wildcard},
@@ -2200,11 +2196,12 @@ type allowedResourcesKey struct {
 // TODO(@creack): Delete in v19.0.0.
 // Only used in the maybeDowngradeRoleVersionToV7 function above.
 // Must be synced with the defaultRBACResources map in lib/kube/proxy/url.go.
+// NOTE: 'namespaces' is not included as the v8 behavior is different from v7.
+// A 'namespaces' resource in v8 would result in wildcard deny in older versions.
 var defaultRBACResources = map[allowedResourcesKey]string{
 	{apiGroup: "", resourceKind: "pods"}:                                          types.KindKubePod,
 	{apiGroup: "", resourceKind: "secrets"}:                                       types.KindKubeSecret,
 	{apiGroup: "", resourceKind: "configmaps"}:                                    types.KindKubeConfigmap,
-	{apiGroup: "", resourceKind: "namespaces"}:                                    types.KindKubeNamespace,
 	{apiGroup: "", resourceKind: "services"}:                                      types.KindKubeService,
 	{apiGroup: "", resourceKind: "endpoints"}:                                     types.KindKubeService,
 	{apiGroup: "", resourceKind: "serviceaccounts"}:                               types.KindKubeServiceAccount,

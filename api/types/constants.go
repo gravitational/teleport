@@ -1450,12 +1450,11 @@ var KubernetesResourcesV7KindGroups = map[string]string{
 // to their kubernetes name.
 // Used to upgrade roles <=v7 as well as to support existing access request
 // format.
-// TODO(@creack): Remove this, find a better way to handle the mapping.
+// NOTE: Namespace having a different behavior between versions, it is omitted from this map.
 var KubernetesResourcesKindsPlurals = map[string]string{
 	KindKubePod:                       "pods",
 	KindKubeSecret:                    "secrets",
 	KindKubeConfigmap:                 "configmaps",
-	KindKubeNamespace:                 "namespaces",
 	KindKubeService:                   "services",
 	KindKubeServiceAccount:            "serviceaccounts",
 	KindKubeNode:                      "nodes",
@@ -1521,7 +1520,7 @@ var KubernetesVerbs = []string{
 
 // KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
 // that are not namespaced.
-// TODO(@creack): Remove in favor of proper lookup.
+// Needed to maintain backward compatibility.
 var KubernetesClusterWideResourceKinds = []string{
 	KindKubeNamespace,
 	KindKubeNode,
