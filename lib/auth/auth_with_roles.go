@@ -1289,7 +1289,9 @@ var (
 
 func (a *ServerWithRoles) checkKindAccess(kind string) error {
 	if _, ok := supportedUnifiedResourceKinds[kind]; !ok {
-		return trace.BadParameter("unsupported kind %q requested", kind)
+		// Treat unknown kinds as an access denied error instead of a bad parameter
+		// to prevent rejecting the request if users have access to other kinds requested.
+		return trace.AccessDenied("unsupported kind %q requested", kind)
 	}
 	switch kind {
 	case types.KindNode:
