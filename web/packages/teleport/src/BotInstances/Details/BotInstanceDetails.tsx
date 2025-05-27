@@ -40,7 +40,7 @@ import {
 
 import { useGetBotInstance } from '../hooks';
 
-const docsURL =
+const docsUrl =
   'https://goteleport.com/docs/enroll-resources/machine-id/introduction/#bot-instances';
 
 export function BotInstanceDetails(props: {
@@ -88,7 +88,7 @@ export function BotInstanceDetails(props: {
         <ButtonBorder
           size="medium"
           as="a"
-          href={docsURL}
+          href={docsUrl}
           target="_blank"
           rel="noreferrer"
           onClick={props.onDocsLinkClickedForTesting}

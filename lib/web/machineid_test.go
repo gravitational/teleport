@@ -373,14 +373,14 @@ func TestListBotInstances(t *testing.T) {
 		"bot-instance",
 	)
 
-	instanceId := uuid.New().String()
+	instanceID := uuid.New().String()
 
 	_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
 		Spec: &machineidv1.BotInstanceSpec{
 			BotName:    "test-bot",
-			InstanceId: instanceId,
+			InstanceId: instanceID,
 		},
 		Status: &machineidv1.BotInstanceStatus{
 			LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
@@ -421,7 +421,7 @@ func TestListBotInstances(t *testing.T) {
 	require.Empty(t, cmp.Diff(instances, ListBotInstancesResponse{
 		BotInstances: []BotInstance{
 			{
-				InstanceId:       instanceId,
+				InstanceId:       instanceID,
 				BotName:          "test-bot",
 				JoinMethodLatest: "test-join-method",
 				HostNameLatest:   "test-hostname",
@@ -448,14 +448,14 @@ func TestListBotInstancesWithInitialHeartbeat(t *testing.T) {
 		"bot-instance",
 	)
 
-	instanceId := uuid.New().String()
+	instanceID := uuid.New().String()
 
 	_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
 		Spec: &machineidv1.BotInstanceSpec{
 			BotName:    "test-bot",
-			InstanceId: instanceId,
+			InstanceId: instanceID,
 		},
 		Status: &machineidv1.BotInstanceStatus{
 			InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
@@ -483,7 +483,7 @@ func TestListBotInstancesWithInitialHeartbeat(t *testing.T) {
 	require.Empty(t, cmp.Diff(instances, ListBotInstancesResponse{
 		BotInstances: []BotInstance{
 			{
-				InstanceId:       instanceId,
+				InstanceId:       instanceID,
 				BotName:          "test-bot",
 				JoinMethodLatest: "test-join-method",
 				HostNameLatest:   "test-hostname",
@@ -732,14 +732,14 @@ func TestGetBotInstance(t *testing.T) {
 	clusterName := env.server.ClusterName()
 
 	botName := "test-bot"
-	instanceId := uuid.New().String()
+	instanceID := uuid.New().String()
 
 	_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
 		Spec: &machineidv1.BotInstanceSpec{
 			BotName:    botName,
-			InstanceId: instanceId,
+			InstanceId: instanceID,
 		},
 		Status: &machineidv1.BotInstanceStatus{
 			InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
@@ -760,7 +760,7 @@ func TestGetBotInstance(t *testing.T) {
 		"bot",
 		botName,
 		"bot-instance",
-		instanceId,
+		instanceID,
 	)
 	response, err := pack.clt.Get(ctx, endpoint, url.Values{})
 	require.NoError(t, err)
@@ -774,7 +774,7 @@ func TestGetBotInstance(t *testing.T) {
 		Version: types.V1,
 		Spec: &machineidv1.BotInstanceSpec{
 			BotName:    botName,
-			InstanceId: instanceId,
+			InstanceId: instanceID,
 		},
 		Status: &machineidv1.BotInstanceStatus{
 			InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
@@ -785,5 +785,5 @@ func TestGetBotInstance(t *testing.T) {
 			},
 		},
 	}, protocmp.Transform(), protocmp.IgnoreFields(&machineidv1.BotInstance{}, "metadata")))
-	assert.Equal(t, fmt.Sprintf("kind: bot_instance\nmetadata:\n  name: %[1]s\n  revision: %[2]s\nspec:\n  bot_name: test-bot\n  instance_id: %[1]s\nstatus:\n  initial_heartbeat:\n    recorded_at: \"1970-01-01T00:00:01Z\"\nversion: v1\n", instanceId, resp.BotInstance.Metadata.Revision), resp.YAML)
+	assert.Equal(t, fmt.Sprintf("kind: bot_instance\nmetadata:\n  name: %[1]s\n  revision: %[2]s\nspec:\n  bot_name: test-bot\n  instance_id: %[1]s\nstatus:\n  initial_heartbeat:\n    recorded_at: \"1970-01-01T00:00:01Z\"\nversion: v1\n", instanceID, resp.BotInstance.Metadata.Revision), resp.YAML)
 }
