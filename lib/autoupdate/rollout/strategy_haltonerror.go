@@ -215,9 +215,9 @@ func countUpToDate(
 	for _, report := range reports {
 		for group, groupCount := range report.GetSpec().GetGroups() {
 			for version, versionCount := range groupCount.GetVersions() {
-				countByGroup[group] = countByGroup[group] + int(versionCount.GetCount())
+				countByGroup[group] += int(versionCount.GetCount())
 				if version == targetVersion {
-					upToDateByGroup[group] = upToDateByGroup[group] + int(versionCount.GetCount())
+					upToDateByGroup[group] += int(versionCount.GetCount())
 				}
 			}
 		}
@@ -234,7 +234,7 @@ func countCatchAll(rolloutStatus *autoupdate.AutoUpdateAgentRolloutStatus, count
 		return 0, 0
 	}
 
-	rolloutGroups := make([]string, 0, len(rolloutStatus.GetGroups()))
+	rolloutGroups := make([]string, 0, len(rolloutStatus.GetGroups())-1)
 	// We don't count the last group as it is the default one
 	for _, group := range rolloutStatus.GetGroups()[:len(rolloutStatus.GetGroups())-1] {
 		rolloutGroups = append(rolloutGroups, group.GetName())
