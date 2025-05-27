@@ -23,20 +23,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func Test_progressGroupsTimeBased(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(testSunday)
 	log := utils.NewSlogLoggerForTests()
-	strategy, err := newTimeBasedStrategy(log)
-	require.NoError(t, err)
 
 	groupName := "test-group"
 	canStartToday := everyWeekday
@@ -44,10 +44,21 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 	lastUpdate := timestamppb.New(clock.Now().Add(-5 * time.Minute))
 	ctx := context.Background()
 
-	tests := []struct {
+	startVersion := "1.2.3"
+	targetVersion := "1.2.4"
+	fewSecondsAgo := clock.Now().Add(-5 * time.Second)
+	fewMinutesAgo := clock.Now().Add(-7 * time.Minute)
+	spec := &autoupdate.AutoUpdateAgentRolloutSpec{
+		MaintenanceWindowDuration: durationpb.New(time.Hour),
+		StartVersion:              startVersion,
+		TargetVersion:             targetVersion,
+	}
+
+	var tests = []struct {
 		name             string
 		initialState     []*autoupdate.AutoUpdateAgentRolloutStatusGroup
 		rolloutStartTime *timestamppb.Timestamp
+		reports          []*autoupdate.AutoUpdateAgentReport
 		expectedState    []*autoupdate.AutoUpdateAgentRolloutStatusGroup
 	}{
 		{
@@ -70,6 +81,61 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 					LastUpdateReason: updateReasonOutsideWindow,
 					ConfigDays:       cannotStartToday,
 					ConfigStartHour:  matchingStartHour,
+				},
+			},
+		},
+		{
+			name: "unstarted -> unstarted, with reports",
+			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             groupName,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+					LastUpdateTime:   lastUpdate,
+					LastUpdateReason: updateReasonCreated,
+					ConfigDays:       cannotStartToday,
+					ConfigStartHour:  matchingStartHour,
+				},
+			},
+			reports: []*autoupdate.AutoUpdateAgentReport{
+				{
+					Metadata: &headerv1.Metadata{Name: "auth1"},
+					Spec: &autoupdate.AutoUpdateAgentReportSpec{
+						Timestamp: timestamppb.New(fewSecondsAgo),
+						Groups: map[string]*autoupdate.AutoUpdateAgentReportSpecGroup{
+							groupName: {
+								Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
+									startVersion:  {Count: 5},
+									targetVersion: {Count: 5},
+								},
+							},
+						},
+					},
+				},
+				{
+					Metadata: &headerv1.Metadata{Name: "auth2 (expired)"},
+					Spec: &autoupdate.AutoUpdateAgentReportSpec{
+						Timestamp: timestamppb.New(fewMinutesAgo),
+						Groups: map[string]*autoupdate.AutoUpdateAgentReportSpecGroup{
+							groupName: {
+								Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
+									startVersion:  {Count: 5},
+									targetVersion: {Count: 5},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             groupName,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+					LastUpdateTime:   timestamppb.New(clock.Now()),
+					LastUpdateReason: updateReasonOutsideWindow,
+					ConfigDays:       cannotStartToday,
+					ConfigStartHour:  matchingStartHour,
+					PresentCount:     10,
+					UpToDateCount:    5,
 				},
 			},
 		},
@@ -327,10 +393,6 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 		},
 	}
 
-	spec := &autoupdate.AutoUpdateAgentRolloutSpec{
-		MaintenanceWindowDuration: durationpb.New(time.Hour),
-	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			status := &autoupdate.AutoUpdateAgentRolloutStatus{
@@ -338,7 +400,25 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 				State:     0,
 				StartTime: tt.rolloutStartTime,
 			}
-			err := strategy.progressRollout(ctx, spec, status, clock.Now())
+			stubs := mockClientStubs{}
+			if tt.reports == nil {
+				stubs.reportsAnswers = []callAnswer[[]*autoupdate.AutoUpdateAgentReport]{
+					{
+						result: []*autoupdate.AutoUpdateAgentReport{},
+						err:    trace.NotFound("no report"),
+					},
+				}
+			} else {
+				stubs.reportsAnswers = []callAnswer[[]*autoupdate.AutoUpdateAgentReport]{
+					{
+						result: tt.reports,
+						err:    nil,
+					},
+				}
+			}
+			strategy, err := newTimeBasedStrategy(log, newMockClient(t, stubs))
+			require.NoError(t, err)
+			err = strategy.progressRollout(ctx, spec, status, clock.Now())
 			require.NoError(t, err)
 			// We use require.Equal instead of Elements match because group order matters.
 			// It's not super important for time-based, but is crucial for halt-on-error.
