@@ -212,6 +212,21 @@ func (r *RegisterParams) verifyAuthOrProxyAddress() error {
 	return nil
 }
 
+// BoundKeypairRegistrationResult is the result from a successful bound keypair
+// registration attempt. This contains additional values clients are expected to
+// store for subsequent join attempts.
+type BoundKeypairRegisterResult struct {
+	// BoundPublicKey is the public key trusted by the server after the join
+	// attempt, and can be used to confirm the current public key after
+	// registration or rotation.
+	BoundPublicKey string
+
+	// JoinState is a serialized join state JWT. This should be committed to the
+	// bound keypair client state and provided via `BoundKeypairParams` on the
+	// next join attempt.
+	JoinState []byte
+}
+
 // RegisterResult contains the certificates and the private key generated during
 // the registration process.
 type RegisterResult struct {
@@ -221,6 +236,9 @@ type RegisterResult struct {
 	// generated according to the current signature algorithm suite configured
 	// in the cluster.
 	PrivateKey crypto.Signer
+	// BoundKeypair contains additional results from bound keypair registration
+	// attempts. This is only set when bound keypair joining is used.
+	BoundKeypair *BoundKeypairRegisterResult
 }
 
 // Register is used to get signed certificates when a node, proxy, or bot is
@@ -433,7 +451,14 @@ func registerThroughProxy(
 		case types.JoinMethodOracle:
 			certs, err = registerUsingOracleMethod(ctx, joinServiceClient, token, hostKeys, params)
 		case types.JoinMethodBoundKeypair:
-			certs, err = registerUsingBoundKeypairMethod(ctx, joinServiceClient, token, hostKeys, params)
+			// Bound keypair joining needs to set additional fields on the
+			// result, so it constructs the struct internally.
+			result, err := registerUsingBoundKeypairMethod(ctx, joinServiceClient, token, hostKeys, params)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return result, nil
 		default:
 			return nil, trace.BadParameter("unhandled join method %q", params.JoinMethod)
 		}
@@ -523,7 +548,14 @@ func registerThroughAuthClient(
 	case types.JoinMethodTPM:
 		certs, err = registerUsingTPMMethod(ctx, client, token, hostKeys, params)
 	case types.JoinMethodBoundKeypair:
-		certs, err = registerUsingBoundKeypairMethod(ctx, client, token, hostKeys, params)
+		// Bound keypair joining has additional return values, so it constructs
+		// its RegisterResult internally.
+		result, err := registerUsingBoundKeypairMethod(ctx, client, token, hostKeys, params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return result, nil
 	default:
 		// non-IAM join methods use HTTP endpoint
 		// Get the SSH and X509 certificates for a node.
@@ -712,7 +744,7 @@ type joinServiceClient interface {
 		ctx context.Context,
 		req *proto.RegisterUsingBoundKeypairInitialRequest,
 		challengeResponse client.RegisterUsingBoundKeypairChallengeResponseFunc,
-	) (*proto.Certs, string, error)
+	) (*client.BoundKeypairRegistrationResponse, error)
 }
 
 func registerUsingTokenRequestForParams(token string, hostKeys *newHostKeys, params RegisterParams) *types.RegisterUsingTokenRequest {
@@ -912,7 +944,7 @@ func registerUsingBoundKeypairMethod(
 	token string,
 	hostKeys *newHostKeys,
 	params RegisterParams,
-) (*proto.Certs, error) {
+) (*RegisterResult, error) {
 	bkParams := params.BoundKeypairParams
 
 	// Build a map of all public keys to signers. At the moment, this is just
@@ -939,7 +971,7 @@ func registerUsingBoundKeypairMethod(
 
 	// TODO: When implementing rotation, we should make use of the returned
 	// public key to ensure that key is marked as the primary.
-	certs, _, err := client.RegisterUsingBoundKeypairMethod(
+	regResponse, err := client.RegisterUsingBoundKeypairMethod(
 		ctx,
 		initReq,
 		func(resp *proto.RegisterUsingBoundKeypairMethodResponse) (*proto.RegisterUsingBoundKeypairMethodRequest, error) {
@@ -997,8 +1029,18 @@ func registerUsingBoundKeypairMethod(
 				return nil, trace.BadParameter("received unexpected challenge response: %v", resp.GetResponse())
 			}
 		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return certs, trace.Wrap(err)
+	return &RegisterResult{
+		PrivateKey: hostKeys.privateKey,
+		Certs:      regResponse.Certs,
+		BoundKeypair: &BoundKeypairRegisterResult{
+			BoundPublicKey: regResponse.BoundPublicKey,
+			JoinState:      regResponse.JoinState,
+		},
+	}, nil
 }
 
 // readCA will read in CA that will be used to validate the certificate that

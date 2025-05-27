@@ -160,6 +160,8 @@ const cfg = {
     account: '/web/account',
     accountPassword: '/web/account/password',
     accountMfaDevices: '/web/account/twofactor',
+    accountSecurity: '/web/account/security',
+    accountPreferences: '/web/account/preferences',
     roles: '/web/roles',
     joinTokens: '/web/tokens',
     deviceTrust: `/web/devices`,
@@ -181,6 +183,7 @@ const cfg = {
     desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
     users: '/web/users',
     bots: '/web/bots',
+    botInstances: '/web/bots/instances',
     botsNew: '/web/bots/new/:type?',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
@@ -334,7 +337,6 @@ const cfg = {
     mfaRequired: '/v1/webapi/sites/:clusterId/mfa/required',
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
-    mfaChangePasswordBegin: '/v1/webapi/mfa/authenticatechallenge/password',
 
     headlessSsoPath: `/v1/webapi/headless/:requestId`,
 
@@ -448,6 +450,7 @@ const cfg = {
 
     botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot/:name?',
     botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
+    botInstancesPath: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
 
     gcpWorkforceConfigurePath:
       '/v1/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
@@ -714,6 +717,10 @@ const cfg = {
 
   getBotsRoute() {
     return generatePath(cfg.routes.bots);
+  },
+
+  getBotInstancesRoute() {
+    return generatePath(cfg.routes.botInstances);
   },
 
   getBotsNewRoute(type?: string) {
@@ -1393,6 +1400,11 @@ const cfg = {
   getBotUrlWithName(name: string) {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.botsPath, { clusterId, name });
+  },
+
+  listBotInstancesUrl() {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.botInstancesPath, { clusterId });
   },
 
   getGcpWorkforceConfigScriptUrl(p: UrlGcpWorkforceConfigParam) {

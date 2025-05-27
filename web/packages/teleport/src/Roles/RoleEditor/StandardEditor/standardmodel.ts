@@ -31,7 +31,6 @@ import {
   CreateHostUserMode,
   GitHubPermission,
   isLegacySamlIdpRbac,
-  KubernetesResourceKind,
   KubernetesVerb,
   RequireMFAType,
   ResourceKind,
@@ -185,7 +184,7 @@ export type KubernetesResourceModel = {
   name: string;
   namespace: string;
   verbs: readonly KubernetesVerbOption[];
-
+  apiGroup?: string;
   /**
    * Version of the role that owns this section. Required in order to support
    * version-specific validation rules. It's the responsibility of
@@ -195,13 +194,16 @@ export type KubernetesResourceModel = {
   roleVersion: RoleVersion;
 };
 
-type KubernetesResourceKindOption = Option<KubernetesResourceKind, string>;
+type KubernetesResourceKindOption = Option<string, string>;
 
 /**
  * All possible resource kind drop-down options. This array needs to be kept in
  * sync with `KubernetesResourcesKinds` in `api/types/constants.go.
+ *
+ * This type list needs to be kept in sync with
+ * `KubernetesResourcesKinds` in `api/types/constants.go for roles <=v7.
  */
-export const kubernetesResourceKindOptions: KubernetesResourceKindOption[] = [
+export const kubernetesResourceKindOptionsV7: KubernetesResourceKindOption[] = [
   // The "any kind" option goes first.
   { value: '*', label: 'Any kind' },
 
@@ -236,11 +238,92 @@ export const kubernetesResourceKindOptions: KubernetesResourceKindOption[] = [
   ).toSorted((a, b) => a.label.localeCompare(b.label)),
 ];
 
+// Map of kinds/groups to detect v7->v8 upgrade issues.
+//
+// Record<v7kind, { group: ['main group', 'optional additional groups'], v8name: 'v8 plural name' }>
+export const kubernetesResourceKindV7Groups: Record<
+  string,
+  { groups: string[]; v8name: string }
+> = {
+  pod: { groups: ['core'], v8name: 'pods' },
+  secret: { groups: ['core'], v8name: 'secrets' },
+  configmap: { groups: ['core'], v8name: 'configmaps' },
+  namespace: { groups: ['core'], v8name: 'namespaces' },
+  service: { groups: ['core'], v8name: 'services' },
+  serviceaccount: { groups: ['core'], v8name: 'serviceaccounts' },
+  kube_node: { groups: ['core'], v8name: 'nodes' },
+  persistentvolume: { groups: ['core'], v8name: 'persistentvolumes' },
+  persistentvolumeclaim: { groups: ['core'], v8name: 'persistentvolumeclaims' },
+  deployment: { groups: ['apps', 'extensions'], v8name: 'deployments' },
+  replicaset: { groups: ['apps', 'extensions'], v8name: 'replicasets' },
+  statefulset: { groups: ['apps'], v8name: 'statefulsets' },
+  daemonset: { groups: ['apps', 'extensions'], v8name: 'daemonsets' },
+  clusterrole: {
+    groups: ['rbac.authorization.k8s.io'],
+    v8name: 'clusterroles',
+  },
+  kube_role: { groups: ['rbac.authorization.k8s.io'], v8name: 'roles' },
+  clusterrolebinding: {
+    groups: ['rbac.authorization.k8s.io'],
+    v8name: 'clusterrolebindings',
+  },
+  rolebinding: {
+    groups: ['rbac.authorization.k8s.io'],
+    v8name: 'rolebindings',
+  },
+  cronjob: { groups: ['batch'], v8name: 'cronjobs' },
+  job: { groups: ['batch'], v8name: 'jobs' },
+  certificatesigningrequest: {
+    groups: ['certificates.k8s.io'],
+    v8name: 'certificatesigningrequests',
+  },
+  ingress: { groups: ['networking.k8s.io', 'extensions'], v8name: 'ingresses' },
+} as const;
+
+/**
+ * Some of the possible values for the Kubernetes resource kind drop-down.
+ * Arbitrary list, only preset for the sake of the UI.
+ */
+export const kubernetesResourceKindOptionsV8: KubernetesResourceKindOption[] = [
+  // The "any kind" option goes first.
+  { value: '*', label: 'Any kind' },
+
+  // The rest is sorted by label.
+  ...(
+    [
+      { value: 'pods', label: 'pods' },
+      { value: 'secrets', label: 'secrets' },
+      { value: 'configmaps', label: 'configmaps' },
+      { value: 'namespaces', label: 'namespaces' },
+      { value: 'services', label: 'services' },
+      { value: 'serviceaccounts', label: 'serviceaccounts' },
+      { value: 'nodes', label: 'nodes' },
+      { value: 'persistentvolumes', label: 'persistentvolumes' },
+      { value: 'persistentvolumeclaims', label: 'persistentvolumeclaims' },
+      { value: 'deployments', label: 'deployments' },
+      { value: 'replicasets', label: 'replicasets' },
+      { value: 'statefulsets', label: 'statefulsets' },
+      { value: 'daemonsets', label: 'daemonsets' },
+      { value: 'clusterroles', label: 'clusterroles' },
+      { value: 'roles', label: 'roles' },
+      { value: 'clusterrolebindings', label: 'clusterrolebindings' },
+      { value: 'rolebindings', label: 'rolebindings' },
+      { value: 'cronjobs', label: 'cronjobs' },
+      { value: 'jobs', label: 'jobs' },
+      {
+        value: 'certificatesigningrequests',
+        label: 'certificatesigningrequests',
+      },
+      { value: 'ingresses', label: 'ingresses' },
+    ] as const
+  ).toSorted((a, b) => a.label.localeCompare(b.label)),
+];
+
 const optionsToMap = <K, V>(opts: Option<K, V>[]) =>
   new Map(opts.map(o => [o.value, o]));
 
-export const kubernetesResourceKindOptionsMap = optionsToMap(
-  kubernetesResourceKindOptions
+export const kubernetesResourceKindOptionsMapV7 = optionsToMap(
+  kubernetesResourceKindOptionsV7
 );
 
 export type KubernetesVerbOption = Option<KubernetesVerb, string>;
@@ -579,15 +662,26 @@ export function newResourceAccess(
   }
 }
 
+export function supportsKubernetesCustomResources(roleVersion: RoleVersion) {
+  return ![
+    RoleVersion.V3,
+    RoleVersion.V4,
+    RoleVersion.V5,
+    RoleVersion.V6,
+    RoleVersion.V7,
+  ].includes(roleVersion);
+}
+
 export function newKubernetesResourceModel(
   roleVersion: RoleVersion
 ): KubernetesResourceModel {
   return {
     id: crypto.randomUUID(),
-    kind: kubernetesResourceKindOptions.find(k => k.value === '*'),
+    kind: kubernetesResourceKindOptionsV7.find(k => k.value === '*'),
     name: '*',
     namespace: '*',
     verbs: [],
+    apiGroup: supportsKubernetesCustomResources(roleVersion) ? '*' : '',
     roleVersion,
   };
 }
@@ -617,7 +711,7 @@ export function roleToRoleEditorModel(
   // We use destructuring to strip fields from objects and assert that nothing
   // has been left. Therefore, we don't want Lint to warn us that we didn't use
   // some of the fields.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { kind, metadata, spec, version, ...unsupported } = role;
   conversionErrors.push(...unsupportedFieldErrorsFromObject('', unsupported));
 
@@ -915,17 +1009,40 @@ function kubernetesResourceToModel(
   model?: KubernetesResourceModel;
   conversionErrors: ConversionError[];
 } {
-  const { kind, name, namespace = '', verbs = [], ...unsupported } = res;
+  const {
+    kind,
+    name,
+    namespace = '',
+    verbs = [],
+    api_group: apiGroup,
+    ...unsupported
+  } = res;
   const conversionErrors = unsupportedFieldErrorsFromObject(
     pathPrefix,
     unsupported
   );
 
-  const kindOption = kubernetesResourceKindOptionsMap.get(kind);
-  if (kindOption === undefined) {
+  const supportsCrds = supportsKubernetesCustomResources(roleVersion);
+  const kindOption = supportsCrds
+    ? { value: kind, label: kind }
+    : kubernetesResourceKindOptionsMapV7.get(kind);
+
+  if (supportsCrds) {
+    // If we have an exact match with a v7 entry, it is most likely a mistake.
+    const v7groups = kubernetesResourceKindV7Groups[kind];
+    if (v7groups && (apiGroup == '*' || v7groups.groups.includes(apiGroup))) {
+      kindOption.value = v7groups.v8name;
+      kindOption.label = v7groups.v8name;
+      conversionErrors.push(
+        unsupportedValueWithReplacement(`${pathPrefix}.kind`, v7groups.v8name)
+      );
+    }
+  }
+
+  if (!kindOption) {
     conversionErrors.push({
       type: ConversionErrorType.UnsupportedValue,
-      path: pathPrefix,
+      path: `${pathPrefix}.kind`,
     });
   }
 
@@ -952,6 +1069,7 @@ function kubernetesResourceToModel(
             namespace,
             verbs: knownVerbOptions,
             roleVersion,
+            apiGroup,
           }
         : undefined,
     conversionErrors,
@@ -1392,11 +1510,12 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
         role.spec.allow.kubernetes_groups = optionsToStrings(res.groups);
         role.spec.allow.kubernetes_labels = labelsModelToLabels(res.labels);
         role.spec.allow.kubernetes_resources = res.resources.map(
-          ({ kind, name, namespace, verbs }) => ({
+          ({ kind, name, namespace, verbs, apiGroup }) => ({
             kind: kind.value,
             name,
             namespace,
             verbs: optionsToStrings(verbs),
+            api_group: apiGroup,
           })
         );
         role.spec.allow.kubernetes_users = optionsToStrings(res.users);

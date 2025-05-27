@@ -69,6 +69,7 @@ import (
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -104,6 +105,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
+	"github.com/gravitational/teleport/lib/auth/secreports/secreportsv1"
 	"github.com/gravitational/teleport/lib/auth/stableunixusers"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate/userloginstatev1"
@@ -785,7 +787,7 @@ func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryC
 	// mapping for translation.
 	var metricServices []string
 	for _, service := range hello.Services {
-		if name, ok := icsServiceToMetricName[service]; ok {
+		if name, ok := icsServiceToMetricName[types.SystemRole(service)]; ok {
 			metricServices = append(metricServices, name)
 		}
 	}
@@ -809,12 +811,12 @@ func (g *GRPCServer) GetInventoryStatus(ctx context.Context, req *authpb.Invento
 		return nil, trail.ToGRPC(err)
 	}
 
-	rsp, err := auth.GetInventoryStatus(ctx, *req)
+	rsp, err := auth.GetInventoryStatus(ctx, req)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
-	return &rsp, nil
+	return rsp, nil
 }
 
 // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
@@ -2089,9 +2091,6 @@ var minSupportedRoleV8Version = semver.New(utils.VersionBeforeAlpha("18.0.0"))
 // the client version passed through the gRPC metadata is below the version
 // specified in minSupportedRoleV8Version.
 //
-// TODO(@creack): Downgrade role appropriately when introducing role v8 semantics changes.
-// Currently, only downgrades the version as there is no logic change.
-//
 // TODO(@creack): Delete in v19.0.0.
 func maybeDowngradeRoleVersionToV7(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
 	switch role.GetVersion() {
@@ -2120,6 +2119,8 @@ func maybeDowngradeRoleVersionToV7(role *types.RoleV6, clientVersion *semver.Ver
 	}
 	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
 
+	role = maybeDowngradeRoleK8sAPIGroupToV7(role)
+
 	return role
 }
 
@@ -2138,6 +2139,101 @@ func downgradeSAMLIdPRBAC(downgradedRole *types.RoleV6) *types.RoleV6 {
 	downgradedRole.SetOptions(options)
 
 	return downgradedRole
+}
+
+func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
+	downgrade := func(resources []types.KubernetesResource) ([]types.KubernetesResource, bool) {
+		var out []types.KubernetesResource
+		for _, elem := range resources {
+			// If group is '*', simply remove it as the behavior in v7 would be the same.
+			if elem.APIGroup == types.Wildcard {
+				elem.APIGroup = ""
+			}
+
+			// If Kind is known in v7 and group is known, remove it the api group and keep the resource.
+			if v, ok := defaultRBACResources[allowedResourcesKey{elem.APIGroup, elem.Kind}]; ok {
+				elem.APIGroup = ""
+				elem.Kind = v
+				out = append(out, elem)
+				continue
+			}
+
+			// If we reach this point, we are dealing with a resource we don't know about or a wildcard
+			// As the scope of permissions granted differs, deny everything.
+			role.Spec.Allow.KubernetesResources = nil
+			role.Spec.Deny.KubernetesLabels = types.Labels{
+				types.Wildcard: {types.Wildcard},
+			}
+			role.Spec.Deny.KubernetesResources = []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			}
+			return nil, false
+		}
+		return out, true
+	}
+
+	var ok bool
+	role.Spec.Allow.KubernetesResources, ok = downgrade(role.Spec.Allow.KubernetesResources)
+	if !ok {
+		return role
+	}
+	role.Spec.Deny.KubernetesResources, _ = downgrade(role.Spec.Deny.KubernetesResources)
+
+	return role
+}
+
+// allowedResourcesKey is a key used to identify a resource in the allowedResources map.
+type allowedResourcesKey struct {
+	apiGroup     string
+	resourceKind string
+}
+
+// TODO(@creack): Delete in v19.0.0.
+// Only used in the maybeDowngradeRoleVersionToV7 function above.
+// Must be synced with the defaultRBACResources map in lib/kube/proxy/url.go.
+// NOTE: 'namespaces' is not included as the v8 behavior is different from v7.
+// A 'namespaces' resource in v8 would result in wildcard deny in older versions.
+var defaultRBACResources = map[allowedResourcesKey]string{
+	{apiGroup: "", resourceKind: "pods"}:                                          types.KindKubePod,
+	{apiGroup: "", resourceKind: "secrets"}:                                       types.KindKubeSecret,
+	{apiGroup: "", resourceKind: "configmaps"}:                                    types.KindKubeConfigmap,
+	{apiGroup: "", resourceKind: "services"}:                                      types.KindKubeService,
+	{apiGroup: "", resourceKind: "endpoints"}:                                     types.KindKubeService,
+	{apiGroup: "", resourceKind: "serviceaccounts"}:                               types.KindKubeServiceAccount,
+	{apiGroup: "", resourceKind: "nodes"}:                                         types.KindKubeNode,
+	{apiGroup: "", resourceKind: "persistentvolumes"}:                             types.KindKubePersistentVolume,
+	{apiGroup: "", resourceKind: "persistentvolumeclaims"}:                        types.KindKubePersistentVolumeClaim,
+	{apiGroup: "", resourceKind: "replicationcontrollers"}:                        types.KindKubeReplicationController,
+	{apiGroup: "apps", resourceKind: "deployments"}:                               types.KindKubeDeployment,
+	{apiGroup: "apps", resourceKind: "replicasets"}:                               types.KindKubeReplicaSet,
+	{apiGroup: "apps", resourceKind: "statefulsets"}:                              types.KindKubeStatefulset,
+	{apiGroup: "apps", resourceKind: "daemonsets"}:                                types.KindKubeDaemonSet,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterroles"}:         types.KindKubeClusterRole,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "roles"}:                types.KindKubeRole,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterrolebindings"}:  types.KindKubeClusterRoleBinding,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "rolebindings"}:         types.KindKubeRoleBinding,
+	{apiGroup: "batch", resourceKind: "cronjobs"}:                                 types.KindKubeCronjob,
+	{apiGroup: "batch", resourceKind: "jobs"}:                                     types.KindKubeJob,
+	{apiGroup: "certificates.k8s.io", resourceKind: "certificatesigningrequests"}: types.KindKubeCertificateSigningRequest,
+	{apiGroup: "networking.k8s.io", resourceKind: "ingresses"}:                    types.KindKubeIngress,
+	{apiGroup: "extensions", resourceKind: "deployments"}:                         types.KindKubeDeployment,
+	{apiGroup: "extensions", resourceKind: "replicasets"}:                         types.KindKubeReplicaSet,
+	{apiGroup: "extensions", resourceKind: "daemonsets"}:                          types.KindKubeDaemonSet,
+	{apiGroup: "extensions", resourceKind: "ingresses"}:                           types.KindKubeIngress,
+}
+
+// TODO(@creack): Delete in v19.0.0.
+func init() {
+	// Populate the map with empty group to match v7 kind.
+	for k, v := range defaultRBACResources {
+		k.apiGroup = ""
+		defaultRBACResources[k] = v
+	}
 }
 
 var minSupportedSSHPortForwardingVersion = semver.Version{Major: 17, Minor: 1, Patch: 0}
@@ -5418,21 +5514,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	workloadidentityv1pb.RegisterWorkloadIdentityRevocationServiceServer(server, workloadIdentityRevocationService)
 	go workloadIdentityRevocationService.RunCRLSigner(cfg.AuthServer.CloseContext())
 
-	if cfg.PluginRegistry == nil || !cfg.PluginRegistry.IsRegistered("auth.enterprise") {
-		srv, err := workloadidentityv1.NewX509OverridesService(workloadidentityv1.X509OverridesServiceConfig{
-			Authorizer: cfg.Authorizer,
-			Storage:    cfg.AuthServer.Services,
-			Emitter:    cfg.Emitter,
-
-			ClusterName: clusterName.GetClusterName(),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err, "creating workload identity X509 overrides service")
-		}
-		workloadidentityv1pb.RegisterX509OverridesServiceServer(server, srv)
-		workloadidentityv1pb.RegisterSigstorePolicyResourceServiceServer(server, workloadidentityv1.NewSigstorePolicyResourceService())
-	}
-
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
@@ -5725,11 +5806,26 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	gitserverv1pb.RegisterGitServerServiceServer(server, gitServerService)
 
-	// Only register the service if this is an open source build. Enterprise builds
+	// Only register the following services if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all
 	// Enterprise builds would fail with a duplicate service registered error.
 	if cfg.PluginRegistry == nil || !cfg.PluginRegistry.IsRegistered("auth.enterprise") {
 		loginrulev1pb.RegisterLoginRuleServiceServer(server, loginrulev1.NotImplementedService{})
+		secreportsv1pb.RegisterSecReportsServiceServer(server, secreportsv1.NotImplementedService{})
+
+		srv, err := workloadidentityv1.NewX509OverridesService(workloadidentityv1.X509OverridesServiceConfig{
+			Authorizer: cfg.Authorizer,
+			Storage:    cfg.AuthServer.Services,
+			Emitter:    cfg.Emitter,
+
+			ClusterName: clusterName.GetClusterName(),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "creating workload identity X509 overrides service")
+		}
+		workloadidentityv1pb.RegisterX509OverridesServiceServer(server, srv)
+		workloadidentityv1pb.RegisterSigstorePolicyResourceServiceServer(server, workloadidentityv1.NewSigstorePolicyResourceService())
+
 	}
 
 	decisionService, err := decisionv1.NewService(decisionv1.ServiceConfig{

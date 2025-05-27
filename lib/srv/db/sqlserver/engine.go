@@ -41,9 +41,8 @@ func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 		Connector: &connector{
-			DBAuth: ec.Auth,
-
-			kerberos: kerberos.NewClientProvider(ec.AuthClient, ec.DataDir, ec.Log),
+			DBAuth:   ec.Auth,
+			kerberos: kerberos.NewClientProvider(ec.AuthClient, ec.Log),
 		},
 	}
 }

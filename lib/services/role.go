@@ -151,7 +151,14 @@ func NewImplicitRole() types.Role {
 //
 // Used in tests only.
 func RoleForUser(u types.User) types.Role {
-	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV6{
+	return RoleWithVersionForUser(u, types.DefaultRoleVersion)
+}
+
+// RoleWithVersionForUser creates an admin role for a services.User.
+//
+// Used in tests only.
+func RoleWithVersionForUser(u types.User, v string) types.Role {
+	role, _ := types.NewRoleWithVersion(RoleNameForUser(u.GetName()), v, types.RoleSpecV6{
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
 			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
@@ -540,6 +547,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 						Namespace: namespace,
 						Name:      name,
 						Verbs:     verbs,
+						APIGroup:  rec.APIGroup,
 					})
 				}
 			}
@@ -1557,56 +1565,10 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 	return utils.StringsSliceFromSet(accounts), nil
 }
 
-// CheckAccessToSAMLIdP checks access to the SAML IdP.
-//
-// TODO(sshah): Delete after enterprise changes is merged to use v2.
-//
-//nolint:revive // Because we want this to be IdP.
-func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, state AccessState) error {
-	ctx := context.Background()
-
-	if authPref != nil {
-		if !authPref.IsSAMLIdPEnabled() {
-			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
-		}
-	}
-
-	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
-		rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access to SAML IdP denied, cluster requires per-session MFA")
-		return trace.Wrap(ErrSessionMFARequired)
-	}
-
-	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
-
-	for _, role := range set {
-		options := role.GetOptions()
-
-		// This should never happen, but we should make sure that we don't get a nil pointer error here.
-		if options.IDP == nil || options.IDP.SAML == nil || options.IDP.SAML.Enabled == nil {
-			continue
-		}
-
-		// If any role specifically denies access to the IdP, we'll return AccessDenied.
-		if !options.IDP.SAML.Enabled.Value {
-			return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
-		}
-
-		if !mfaAllowed && options.RequireMFAType.IsSessionMFARequired() {
-			rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access to SAML IdP denied, role requires per-session MFA",
-				slog.String("role", role.GetName()),
-			)
-
-			return trace.Wrap(ErrSessionMFARequired)
-		}
-	}
-
-	return nil
-}
-
-// checkAccessToSAMLIdP checks access to the SAML IdP based on
+// checkAccessToSAMLIdPLegacy checks access to the SAML IdP based on
 // IDP enabled/disabled in role option and MFA. The IDP option is enforced
 // in Teleport role version v7 and below.
-func checkAccessToSAMLIdP(state AccessState, role types.Role) error {
+func checkAccessToSAMLIdPLegacy(state AccessState, role types.Role) error {
 	ctx := context.Background()
 
 	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
@@ -1635,13 +1597,13 @@ func checkAccessToSAMLIdP(state AccessState, role types.Role) error {
 	return nil
 }
 
-// CheckAccessToSAMLIdPV2 checks access to SAML service provider resource.
+// CheckAccessToSAMLIdP checks access to SAML service provider resource.
 // For Teleport role version v7 and below (legacy SAML IdP RBAC), only MFA
 // and IDP role option is checked.
 // For Teleport role version v8 and above (non-legacy SAML IdP RBAC),
 // labels, MFA and Device Trust is checked.
 // IDP option in the auth preference is checked in both the cases.
-func (set RoleSet) CheckAccessToSAMLIdPV2(r AccessCheckable, traits wrappers.Traits, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
+func (set RoleSet) CheckAccessToSAMLIdP(r AccessCheckable, traits wrappers.Traits, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
 	if authPref != nil {
 		if !authPref.IsSAMLIdPEnabled() {
 			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
@@ -1659,7 +1621,7 @@ func (set RoleSet) CheckAccessToSAMLIdPV2(r AccessCheckable, traits wrappers.Tra
 			v8RoleSet = append(v8RoleSet, role)
 			continue
 		}
-		if err := checkAccessToSAMLIdP(state, role); err != nil {
+		if err := checkAccessToSAMLIdPLegacy(state, role); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2515,21 +2477,22 @@ func (m *KubeResourcesMatcher) Unmatched() []string {
 // KubernetesResourceMatcher matches a role against a Kubernetes Resource.
 // Kind is must be stricly equal but namespace and name allow wildcards.
 type KubernetesResourceMatcher struct {
-	resource types.KubernetesResource
+	resource              types.KubernetesResource
+	isClusterWideResource bool
 }
 
 // NewKubernetesResourceMatcher creates a KubernetesResourceMatcher that checks
 // whether the role's KubeResources match the specified condition.
-func NewKubernetesResourceMatcher(resource types.KubernetesResource) *KubernetesResourceMatcher {
+func NewKubernetesResourceMatcher(resource types.KubernetesResource, isClusterWideResource bool) *KubernetesResourceMatcher {
 	return &KubernetesResourceMatcher{
-		resource: resource,
+		resource:              resource,
+		isClusterWideResource: isClusterWideResource,
 	}
 }
 
 // Match matches a Kubernetes Resource against provided role and condition.
 func (m *KubernetesResourceMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	result, err := utils.KubeResourceMatchesRegex(m.resource, role.GetKubeResources(condition), condition)
-
+	result, err := utils.KubeResourceMatchesRegex(m.resource, m.isClusterWideResource, role.GetKubeResources(condition), condition)
 	return result, trace.Wrap(err)
 }
 
@@ -2586,7 +2549,7 @@ type AccessCheckable interface {
 
 var rbacLogger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentRBAC)
 
-// resourceRequiresLabelMatching decides if a resource requires lapel matching
+// resourceRequiresLabelMatching decides if a resource requires label matching
 // when making RBAC access decisions.
 func resourceRequiresLabelMatching(r AccessCheckable) bool {
 	// Some resources do not need label matching when assessing whether the user

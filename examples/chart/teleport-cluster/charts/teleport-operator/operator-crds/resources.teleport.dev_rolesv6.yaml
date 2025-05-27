@@ -364,6 +364,10 @@ spec:
                           "kube_cluster" and enforce requesting any of its subresources.'
                         items:
                           properties:
+                            api_group:
+                              description: APIGroup specifies the Kubernetes Resource
+                                API group.
+                              type: string
                             kind:
                               description: kind specifies the Kubernetes Resource
                                 type.
@@ -956,6 +960,10 @@ spec:
                           "kube_cluster" and enforce requesting any of its subresources.'
                         items:
                           properties:
+                            api_group:
+                              description: APIGroup specifies the Kubernetes Resource
+                                API group.
+                              type: string
                             kind:
                               description: kind specifies the Kubernetes Resource
                                 type.

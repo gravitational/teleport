@@ -902,7 +902,7 @@ func TestValidRedirectURL(t *testing.T) {
 		{"block bad protocol", "javascript:alert('xss')", false},
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
-			require.Equal(t, tt.valid, isValidRedirectURL(tt.url))
+			require.Equal(t, tt.valid, IsValidRedirectURL(tt.url))
 		})
 	}
 }
@@ -2327,11 +2327,17 @@ func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
 	require.NoError(t, err)
 	require.IsType(t, tdp.ClientScreenSpec{}, msg)
 
+	msg, err = tdpConn.ReadMessage()
+	require.NoError(t, err)
+	require.IsType(t, tdp.ClientKeyboardLayout{}, msg, "%v", msg)
+
 	err = tdpConn.WriteMessage(tdp.Alert{Message: "test", Severity: tdp.SeverityWarning})
 	require.NoError(t, err)
 }
 
-func TestDesktopAccessMFARequiresMfa(t *testing.T) {
+func TestDesktopAccessMFA(t *testing.T) {
+	t.Setenv("TELEPORT_DISABLE_DESKTOP_LATENCY_DETECTOR_PING", "true")
+
 	tests := []struct {
 		name           string
 		authPref       types.AuthPreferenceSpecV2
@@ -2395,6 +2401,19 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 			dev := tc.registerDevice(t, ctx, clt)
 
 			ws := proxy.makeDesktopSession(t, pack)
+
+			// Before the session can proceed to the MFA ceremony, the proxy expects the
+			// web UI to send both the screen size and keyboard layout over the websocket.
+			ss, err := tdp.ClientScreenSpec{
+				Width:  1920,
+				Height: 1080,
+			}.Encode()
+			require.NoError(t, err)
+			require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, ss))
+			kl, err := tdp.ClientKeyboardLayout{}.Encode()
+			require.NoError(t, err)
+			require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, kl))
+
 			tc.mfaHandler(t, ws, dev)
 
 			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws})
@@ -2409,9 +2428,6 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
 	wsrwc := &WebsocketIO{Conn: ws}
 	tdpConn := tdp.NewConn(wsrwc)
-
-	// desktopConnectHandle first needs a ClientScreenSpec message in order to continue.
-	tdpConn.WriteMessage(tdp.ClientScreenSpec{Width: 100, Height: 100})
 
 	br := bufio.NewReader(wsrwc)
 	mt, err := br.ReadByte()
@@ -3900,211 +3916,6 @@ func TestSignMTLS_failsAccessDenied(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
-// TestCheckAccessToRegisteredResource_AccessDenied tests that access denied error
-// is ignored.
-// TODO(kiosion): DELETE in 18.0
-func TestCheckAccessToRegisteredResource_AccessDenied(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	env := newWebPack(t, 1)
-
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "foo", nil /* roles */)
-
-	// newWebPack already registers 1 node.
-	n, err := env.server.Auth().GetNodes(ctx, env.node.GetNamespace())
-	require.NoError(t, err)
-	require.Len(t, n, 1)
-
-	// Checking for access returns true.
-	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "resources", "check")
-	re, err := pack.clt.Get(ctx, endpoint, url.Values{})
-	require.NoError(t, err)
-	resp := checkAccessToRegisteredResourceResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.True(t, resp.HasResource)
-
-	// Deny this resource.
-	fooRole, err := env.server.Auth().GetRole(ctx, "user:foo")
-	require.NoError(t, err)
-	fooRole.SetRules(types.Deny, []types.Rule{types.NewRule(types.KindNode, services.RW())})
-	_, err = env.server.Auth().UpsertRole(ctx, fooRole)
-	require.NoError(t, err)
-
-	// Direct querying should return a access denied error.
-	endpoint = pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "nodes")
-	_, err = pack.clt.Get(ctx, endpoint, url.Values{})
-	require.True(t, trace.IsAccessDenied(err))
-
-	// Checking for access returns false, not an error.
-	endpoint = pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "resources", "check")
-	re, err = pack.clt.Get(ctx, endpoint, url.Values{})
-	require.NoError(t, err)
-	resp = checkAccessToRegisteredResourceResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.False(t, resp.HasResource)
-}
-
-// TODO(kiosion): DELETE in 18.0
-func TestCheckAccessToRegisteredResource(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	env := newWebPack(t, 1)
-
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "foo", nil /* roles */)
-
-	// Delete the node that was created by the `newWebPack` to start afresh.
-	require.NoError(t, env.server.Auth().DeleteNode(ctx, env.node.GetNamespace(), env.node.ID()))
-	n, err := env.server.Auth().GetNodes(ctx, env.node.GetNamespace())
-	require.NoError(t, err)
-	require.Empty(t, n)
-
-	// Double check we start of with no resources.
-	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "resources", "check")
-	re, err := pack.clt.Get(ctx, endpoint, url.Values{})
-	require.NoError(t, err)
-	resp := checkAccessToRegisteredResourceResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.False(t, resp.HasResource)
-
-	// Test all cases return true.
-	tests := []struct {
-		name           string
-		resourceKind   string
-		insertResource func()
-		deleteResource func()
-	}{
-		{
-			name: "has registered windows desktop",
-			insertResource: func() {
-				wd, err := types.NewWindowsDesktopV3("test-desktop", nil, types.WindowsDesktopSpecV3{
-					Addr:   "addr",
-					HostID: "hostid",
-				})
-				require.NoError(t, err)
-				require.NoError(t, env.server.Auth().UpsertWindowsDesktop(ctx, wd))
-			},
-			deleteResource: func() {
-				require.NoError(t, env.server.Auth().DeleteWindowsDesktop(ctx, "hostid", "test-desktop"))
-				wds, err := env.server.Auth().GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-				require.NoError(t, err)
-				require.Empty(t, wds)
-			},
-		},
-		{
-			name: "has registered node",
-			insertResource: func() {
-				resource, err := types.NewServer("test-node", types.KindNode, types.ServerSpecV2{})
-				require.NoError(t, err)
-				_, err = env.server.Auth().UpsertNode(ctx, resource)
-				require.NoError(t, err)
-			},
-			deleteResource: func() {
-				require.NoError(t, env.server.Auth().DeleteNode(ctx, apidefaults.Namespace, "test-node"))
-				nodes, err := env.server.Auth().GetNodes(ctx, apidefaults.Namespace)
-				require.NoError(t, err)
-				require.Empty(t, nodes)
-			},
-		},
-		{
-			name: "has registered app server",
-			insertResource: func() {
-				resource := &types.AppServerV3{
-					Metadata: types.Metadata{Name: "test-app"},
-					Kind:     types.KindApp,
-					Version:  types.V2,
-					Spec: types.AppServerSpecV3{
-						HostID: "hostid",
-						App: &types.AppV3{
-							Metadata: types.Metadata{
-								Name: "app-name",
-							},
-							Spec: types.AppSpecV3{
-								URI: "https://console.aws.amazon.com",
-							},
-						},
-					},
-				}
-				_, err := env.server.Auth().UpsertApplicationServer(ctx, resource)
-				require.NoError(t, err)
-			},
-			deleteResource: func() {
-				require.NoError(t, env.server.Auth().DeleteApplicationServer(ctx, apidefaults.Namespace, "hostid", "test-app"))
-				apps, err := env.server.Auth().GetApplicationServers(ctx, apidefaults.Namespace)
-				require.NoError(t, err)
-				require.Empty(t, apps)
-			},
-		},
-		{
-			name: "has registered db server",
-			insertResource: func() {
-				db, err := types.NewDatabaseServerV3(types.Metadata{
-					Name: "test-db",
-				}, types.DatabaseServerSpecV3{
-					Database: mustCreateDatabase(t, "test-db", "test-protocol", "test-uri"),
-					Hostname: "test-hostname",
-					HostID:   "test-hostID",
-				})
-				require.NoError(t, err)
-				_, err = env.server.Auth().UpsertDatabaseServer(ctx, db)
-				require.NoError(t, err)
-			},
-			deleteResource: func() {
-				require.NoError(t, env.server.Auth().DeleteDatabaseServer(ctx, apidefaults.Namespace, "test-hostID", "test-db"))
-				dbs, err := env.server.Auth().GetDatabaseServers(ctx, apidefaults.Namespace)
-				require.NoError(t, err)
-				require.Empty(t, dbs)
-			},
-		},
-		{
-			name: "has registered kube server",
-			insertResource: func() {
-				kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{Name: "test-kube-name"}, types.KubernetesClusterSpecV3{})
-				require.NoError(t, err)
-				kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "test-kube", "test-kube")
-				require.NoError(t, err)
-				_, err = env.server.Auth().UpsertKubernetesServer(ctx, kubeServer)
-				require.NoError(t, err)
-			},
-			deleteResource: func() {
-				require.NoError(t, env.server.Auth().DeleteKubernetesServer(ctx, "test-kube", "test-kube-name"))
-				kubes, err := env.server.Auth().GetKubernetesServers(ctx)
-				require.NoError(t, err)
-				require.Empty(t, kubes)
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			tc.insertResource()
-
-			re, err := pack.clt.Get(ctx, endpoint, url.Values{})
-			require.NoError(t, err)
-			resp := checkAccessToRegisteredResourceResponse{}
-			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-			require.True(t, resp.HasResource)
-
-			tc.deleteResource()
-		})
-	}
-}
-
-func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
-	database, err := types.NewDatabaseV3(
-		types.Metadata{
-			Name: name,
-		},
-		types.DatabaseSpecV3{
-			Protocol: protocol,
-			URI:      uri,
-		},
-	)
-	require.NoError(t, err)
-	return database
-}
-
 func TestClusterDatabasesGet_NoRole(t *testing.T) {
 	env := newWebPack(t, 1)
 
@@ -4357,14 +4168,17 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 				},
 				KubeGroups: []string{"groups"},
 				KubernetesResources: []types.KubernetesResource{
+					// NOTE: Here we use the k8s resource kinds, i.e. plurals.
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
+						APIGroup:  types.Wildcard,
 					},
 					{
-						Kind: types.KindKubeNamespace,
-						Name: types.Wildcard,
+						Kind:     "namespaces",
+						Name:     types.Wildcard,
+						APIGroup: types.Wildcard,
 					},
 				},
 			},
@@ -4391,18 +4205,18 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 	}{
 		{
 			name:        "get pods from gRPC server",
-			kind:        types.KindKubePod,
+			kind:        types.KindKubePod, // NOTE: Here we use the teleport kind.
 			kubeCluster: kubeClusterName,
 			expectedResponse: []webui.KubeResource{
 				{
-					Kind:        types.KindKubePod,
+					Kind:        "pods",
 					Name:        "test-pod",
 					Namespace:   "default",
 					Labels:      []ui.Label{{Name: "app", Value: "test"}},
 					KubeCluster: kubeClusterName,
 				},
 				{
-					Kind:        types.KindKubePod,
+					Kind:        "pods",
 					Name:        "test-pod2",
 					Namespace:   "default",
 					Labels:      []ui.Label{{Name: "app", Value: "test2"}},
@@ -4416,7 +4230,7 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 			kubeCluster: kubeClusterName,
 			expectedResponse: []webui.KubeResource{
 				{
-					Kind:        types.KindKubeNamespace,
+					Kind:        "namespaces",
 					Name:        "default",
 					Namespace:   "",
 					Labels:      []ui.Label{{Name: "app", Value: "test"}},
@@ -4455,7 +4269,6 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 	pack := proxy.authPack(t, user, roleWithFullAccess(user))
 
 	for _, tc := range tt {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes", "resources")
 			params := url.Values{}
@@ -4752,31 +4565,32 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		JoinActiveSessions: true,
 		Edition:            modules.BuildOSS, // testBuildType is empty
 		Entitlements: map[string]webclient.EntitlementInfo{
-			string(entitlements.AccessLists):            {Enabled: false},
-			string(entitlements.AccessMonitoring):       {Enabled: false},
-			string(entitlements.AccessRequests):         {Enabled: false},
-			string(entitlements.App):                    {Enabled: true},
-			string(entitlements.CloudAuditLogRetention): {Enabled: false},
-			string(entitlements.DB):                     {Enabled: true},
-			string(entitlements.Desktop):                {Enabled: true},
-			string(entitlements.DeviceTrust):            {Enabled: false},
-			string(entitlements.ExternalAuditStorage):   {Enabled: false},
-			string(entitlements.FeatureHiding):          {Enabled: false},
-			string(entitlements.HSM):                    {Enabled: false},
-			string(entitlements.Identity):               {Enabled: false},
-			string(entitlements.JoinActiveSessions):     {Enabled: true},
-			string(entitlements.K8s):                    {Enabled: true},
-			string(entitlements.MobileDeviceManagement): {Enabled: false},
-			string(entitlements.OIDC):                   {Enabled: false},
-			string(entitlements.OktaSCIM):               {Enabled: false},
-			string(entitlements.OktaUserSync):           {Enabled: false},
-			string(entitlements.Policy):                 {Enabled: false},
-			string(entitlements.SAML):                   {Enabled: false},
-			string(entitlements.SessionLocks):           {Enabled: false},
-			string(entitlements.UpsellAlert):            {Enabled: false},
-			string(entitlements.UsageReporting):         {Enabled: false},
-			string(entitlements.LicenseAutoUpdate):      {Enabled: false},
-			string(entitlements.AccessGraphDemoMode):    {Enabled: false},
+			string(entitlements.AccessLists):                {Enabled: false},
+			string(entitlements.AccessMonitoring):           {Enabled: false},
+			string(entitlements.AccessRequests):             {Enabled: false},
+			string(entitlements.App):                        {Enabled: true},
+			string(entitlements.CloudAuditLogRetention):     {Enabled: false},
+			string(entitlements.DB):                         {Enabled: true},
+			string(entitlements.Desktop):                    {Enabled: true},
+			string(entitlements.DeviceTrust):                {Enabled: false},
+			string(entitlements.ExternalAuditStorage):       {Enabled: false},
+			string(entitlements.FeatureHiding):              {Enabled: false},
+			string(entitlements.HSM):                        {Enabled: false},
+			string(entitlements.Identity):                   {Enabled: false},
+			string(entitlements.JoinActiveSessions):         {Enabled: true},
+			string(entitlements.K8s):                        {Enabled: true},
+			string(entitlements.MobileDeviceManagement):     {Enabled: false},
+			string(entitlements.OIDC):                       {Enabled: false},
+			string(entitlements.OktaSCIM):                   {Enabled: false},
+			string(entitlements.OktaUserSync):               {Enabled: false},
+			string(entitlements.Policy):                     {Enabled: false},
+			string(entitlements.SAML):                       {Enabled: false},
+			string(entitlements.SessionLocks):               {Enabled: false},
+			string(entitlements.UpsellAlert):                {Enabled: false},
+			string(entitlements.UsageReporting):             {Enabled: false},
+			string(entitlements.LicenseAutoUpdate):          {Enabled: false},
+			string(entitlements.AccessGraphDemoMode):        {Enabled: false},
+			string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
 		},
 		TunnelPublicAddress:            "",
 		RecoveryCodesEnabled:           false,
@@ -4938,31 +4752,32 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 		Questionnaire:       true,
 		IsUsageBasedBilling: true,
 		Entitlements: map[string]webclient.EntitlementInfo{
-			string(entitlements.AccessLists):            {Enabled: true, Limit: 5},
-			string(entitlements.AccessMonitoring):       {Enabled: true, Limit: 10},
-			string(entitlements.AccessRequests):         {Enabled: false},
-			string(entitlements.App):                    {Enabled: false},
-			string(entitlements.CloudAuditLogRetention): {Enabled: false},
-			string(entitlements.DB):                     {Enabled: false},
-			string(entitlements.Desktop):                {Enabled: false},
-			string(entitlements.DeviceTrust):            {Enabled: false},
-			string(entitlements.ExternalAuditStorage):   {Enabled: false},
-			string(entitlements.FeatureHiding):          {Enabled: false},
-			string(entitlements.HSM):                    {Enabled: false},
-			string(entitlements.Identity):               {Enabled: true},
-			string(entitlements.JoinActiveSessions):     {Enabled: false},
-			string(entitlements.K8s):                    {Enabled: false},
-			string(entitlements.MobileDeviceManagement): {Enabled: false},
-			string(entitlements.OIDC):                   {Enabled: false},
-			string(entitlements.OktaSCIM):               {Enabled: false},
-			string(entitlements.OktaUserSync):           {Enabled: false},
-			string(entitlements.Policy):                 {Enabled: false},
-			string(entitlements.SAML):                   {Enabled: false},
-			string(entitlements.SessionLocks):           {Enabled: false},
-			string(entitlements.UpsellAlert):            {Enabled: false},
-			string(entitlements.UsageReporting):         {Enabled: false},
-			string(entitlements.LicenseAutoUpdate):      {Enabled: false},
-			string(entitlements.AccessGraphDemoMode):    {Enabled: false},
+			string(entitlements.AccessLists):                {Enabled: true, Limit: 5},
+			string(entitlements.AccessMonitoring):           {Enabled: true, Limit: 10},
+			string(entitlements.AccessRequests):             {Enabled: false},
+			string(entitlements.App):                        {Enabled: false},
+			string(entitlements.CloudAuditLogRetention):     {Enabled: false},
+			string(entitlements.DB):                         {Enabled: false},
+			string(entitlements.Desktop):                    {Enabled: false},
+			string(entitlements.DeviceTrust):                {Enabled: false},
+			string(entitlements.ExternalAuditStorage):       {Enabled: false},
+			string(entitlements.FeatureHiding):              {Enabled: false},
+			string(entitlements.HSM):                        {Enabled: false},
+			string(entitlements.Identity):                   {Enabled: true},
+			string(entitlements.JoinActiveSessions):         {Enabled: false},
+			string(entitlements.K8s):                        {Enabled: false},
+			string(entitlements.MobileDeviceManagement):     {Enabled: false},
+			string(entitlements.OIDC):                       {Enabled: false},
+			string(entitlements.OktaSCIM):                   {Enabled: false},
+			string(entitlements.OktaUserSync):               {Enabled: false},
+			string(entitlements.Policy):                     {Enabled: false},
+			string(entitlements.SAML):                       {Enabled: false},
+			string(entitlements.SessionLocks):               {Enabled: false},
+			string(entitlements.UpsellAlert):                {Enabled: false},
+			string(entitlements.UsageReporting):             {Enabled: false},
+			string(entitlements.LicenseAutoUpdate):          {Enabled: false},
+			string(entitlements.AccessGraphDemoMode):        {Enabled: false},
+			string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
 		},
 		PlayableDatabaseProtocols:     player.SupportedDatabaseProtocols,
 		IsPolicyRoleVisualizerEnabled: true,
@@ -5261,14 +5076,6 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 		ep      []string
 		reqBody any
 	}{
-		{
-			name: "/webapi/mfa/authenticatechallenge/password",
-			clt:  authnClt,
-			ep:   []string{"webapi", "mfa", "authenticatechallenge", "password"},
-			reqBody: client.MFAChallengeRequest{
-				Pass: authPack.password,
-			},
-		},
 		{
 			name: "/webapi/mfa/login/begin",
 			clt:  publicClt,
@@ -6880,10 +6687,11 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				KubeUsers:  kubeUsers,
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -6905,10 +6713,11 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 				KubeUsers:  kubeUsers,
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -9178,11 +8987,11 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	require.NoError(t, err)
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
-		func(ctx context.Context) (authproto.UpstreamInventoryHello, error) {
-			return authproto.UpstreamInventoryHello{
+		func(ctx context.Context) (*authproto.UpstreamInventoryHello, error) {
+			return &authproto.UpstreamInventoryHello{
 				ServerID: hostID,
 				Version:  teleport.Version,
-				Services: []types.SystemRole{role},
+				Services: types.SystemRoles{role}.StringSlice(),
 				Hostname: "test",
 			}, nil
 		})
@@ -9687,12 +9496,13 @@ type fakeKubeService struct {
 
 func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kubeproto.ListKubernetesResourcesRequest) (*kubeproto.ListKubernetesResourcesResponse, error) {
 	switch req.GetResourceType() {
+	// NOTE: Here we are using the Teleport kinds.
 	case types.KindKubePod:
 		{
 			return &kubeproto.ListKubernetesResourcesResponse{
 				Resources: []*types.KubernetesResourceV1{
 					{
-						Kind: types.KindKubePod,
+						Kind: "pods",
 						Metadata: types.Metadata{
 							Name: "test-pod",
 							Labels: map[string]string{
@@ -9704,7 +9514,7 @@ func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kube
 						},
 					},
 					{
-						Kind: types.KindKubePod,
+						Kind: "pods",
 						Metadata: types.Metadata{
 							Name: "test-pod2",
 							Labels: map[string]string{
@@ -9724,7 +9534,7 @@ func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kube
 			return &kubeproto.ListKubernetesResourcesResponse{
 				Resources: []*types.KubernetesResourceV1{
 					{
-						Kind: types.KindNamespace,
+						Kind: "namespaces",
 						Metadata: types.Metadata{
 							Name: "default",
 							Labels: map[string]string{
@@ -10421,24 +10231,18 @@ func TestGithubAuthCompat(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
-		desc                         string
-		pubKey, sshPubKey, tlsPubKey []byte
-		expectLoginError             string
-		expectSSHSubjectKey          ssh.PublicKey
-		expectTLSSubjectKey          crypto.PublicKey
+		desc                 string
+		sshPubKey, tlsPubKey []byte
+		expectLoginError     string
+		expectSSHSubjectKey  ssh.PublicKey
+		expectTLSSubjectKey  crypto.PublicKey
 	}{
 		{
 			desc:             "no keys",
 			expectLoginError: "Failed to login",
 		},
 		{
-			desc:                "single key",
-			pubKey:              sshPubBytes,
-			expectSSHSubjectKey: sshPub,
-			expectTLSSubjectKey: sshKey.Public(),
-		},
-		{
-			desc:                "split keys",
+			desc:                "both keys",
 			sshPubKey:           sshPubBytes,
 			tlsPubKey:           tlsPubBytes,
 			expectSSHSubjectKey: sshPub,
@@ -10465,8 +10269,7 @@ func TestGithubAuthCompat(t *testing.T) {
 					RawQuery: url.Values{"secret_key": []string{secretKey.String()}}.Encode(),
 				}).String(),
 				ConnectorID: "github",
-				SSOUserPublicKeys: client.SSOUserPublicKeys{
-					PublicKey: tc.pubKey,
+				UserPublicKeys: client.UserPublicKeys{
 					SSHPubKey: tc.sshPubKey,
 					TLSPubKey: tc.tlsPubKey,
 				},
@@ -10929,31 +10732,32 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				SupportType:            0,
 				// since present, becomes source of truth  for feature enablement
 				Entitlements: map[string]*authproto.EntitlementInfo{
-					string(entitlements.AccessLists):            {Enabled: true, Limit: 99},
-					string(entitlements.AccessMonitoring):       {Enabled: true, Limit: 99},
-					string(entitlements.AccessRequests):         {Enabled: true, Limit: 99},
-					string(entitlements.App):                    {Enabled: true, Limit: 99},
-					string(entitlements.CloudAuditLogRetention): {Enabled: true, Limit: 99},
-					string(entitlements.DB):                     {Enabled: true, Limit: 99},
-					string(entitlements.Desktop):                {Enabled: true, Limit: 99},
-					string(entitlements.DeviceTrust):            {Enabled: true, Limit: 99},
-					string(entitlements.ExternalAuditStorage):   {Enabled: true, Limit: 99},
-					string(entitlements.FeatureHiding):          {Enabled: true, Limit: 99},
-					string(entitlements.HSM):                    {Enabled: true, Limit: 99},
-					string(entitlements.Identity):               {Enabled: true, Limit: 99},
-					string(entitlements.JoinActiveSessions):     {Enabled: true, Limit: 99},
-					string(entitlements.K8s):                    {Enabled: true, Limit: 99},
-					string(entitlements.MobileDeviceManagement): {Enabled: true, Limit: 99},
-					string(entitlements.OIDC):                   {Enabled: true, Limit: 99},
-					string(entitlements.OktaSCIM):               {Enabled: true, Limit: 99},
-					string(entitlements.OktaUserSync):           {Enabled: true, Limit: 99},
-					string(entitlements.Policy):                 {Enabled: true, Limit: 99},
-					string(entitlements.SAML):                   {Enabled: true, Limit: 99},
-					string(entitlements.SessionLocks):           {Enabled: true, Limit: 99},
-					string(entitlements.UpsellAlert):            {Enabled: true, Limit: 99},
-					string(entitlements.UsageReporting):         {Enabled: true, Limit: 99},
-					string(entitlements.LicenseAutoUpdate):      {Enabled: true, Limit: 99},
-					string(entitlements.AccessGraphDemoMode):    {Enabled: true, Limit: 99},
+					string(entitlements.AccessLists):                {Enabled: true, Limit: 99},
+					string(entitlements.AccessMonitoring):           {Enabled: true, Limit: 99},
+					string(entitlements.AccessRequests):             {Enabled: true, Limit: 99},
+					string(entitlements.App):                        {Enabled: true, Limit: 99},
+					string(entitlements.CloudAuditLogRetention):     {Enabled: true, Limit: 99},
+					string(entitlements.DB):                         {Enabled: true, Limit: 99},
+					string(entitlements.Desktop):                    {Enabled: true, Limit: 99},
+					string(entitlements.DeviceTrust):                {Enabled: true, Limit: 99},
+					string(entitlements.ExternalAuditStorage):       {Enabled: true, Limit: 99},
+					string(entitlements.FeatureHiding):              {Enabled: true, Limit: 99},
+					string(entitlements.HSM):                        {Enabled: true, Limit: 99},
+					string(entitlements.Identity):                   {Enabled: true, Limit: 99},
+					string(entitlements.JoinActiveSessions):         {Enabled: true, Limit: 99},
+					string(entitlements.K8s):                        {Enabled: true, Limit: 99},
+					string(entitlements.MobileDeviceManagement):     {Enabled: true, Limit: 99},
+					string(entitlements.OIDC):                       {Enabled: true, Limit: 99},
+					string(entitlements.OktaSCIM):                   {Enabled: true, Limit: 99},
+					string(entitlements.OktaUserSync):               {Enabled: true, Limit: 99},
+					string(entitlements.Policy):                     {Enabled: true, Limit: 99},
+					string(entitlements.SAML):                       {Enabled: true, Limit: 99},
+					string(entitlements.SessionLocks):               {Enabled: true, Limit: 99},
+					string(entitlements.UpsellAlert):                {Enabled: true, Limit: 99},
+					string(entitlements.UsageReporting):             {Enabled: true, Limit: 99},
+					string(entitlements.LicenseAutoUpdate):          {Enabled: true, Limit: 99},
+					string(entitlements.AccessGraphDemoMode):        {Enabled: true, Limit: 99},
+					string(entitlements.UnrestrictedManagedUpdates): {Enabled: true, Limit: 99},
 				},
 			},
 			expected: &webclient.WebConfig{
@@ -10992,31 +10796,32 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					AccessRequestMonthlyRequestLimit:    99,
 				},
 				Entitlements: map[string]webclient.EntitlementInfo{
-					string(entitlements.AccessLists):            {Enabled: true, Limit: 99},
-					string(entitlements.AccessMonitoring):       {Enabled: true, Limit: 99},
-					string(entitlements.AccessRequests):         {Enabled: true, Limit: 99},
-					string(entitlements.App):                    {Enabled: true, Limit: 99},
-					string(entitlements.CloudAuditLogRetention): {Enabled: true, Limit: 99},
-					string(entitlements.DB):                     {Enabled: true, Limit: 99},
-					string(entitlements.Desktop):                {Enabled: true, Limit: 99},
-					string(entitlements.DeviceTrust):            {Enabled: true, Limit: 99},
-					string(entitlements.ExternalAuditStorage):   {Enabled: true, Limit: 99},
-					string(entitlements.FeatureHiding):          {Enabled: true, Limit: 99},
-					string(entitlements.HSM):                    {Enabled: true, Limit: 99},
-					string(entitlements.Identity):               {Enabled: true, Limit: 99},
-					string(entitlements.JoinActiveSessions):     {Enabled: true, Limit: 99},
-					string(entitlements.K8s):                    {Enabled: true, Limit: 99},
-					string(entitlements.MobileDeviceManagement): {Enabled: true, Limit: 99},
-					string(entitlements.OIDC):                   {Enabled: true, Limit: 99},
-					string(entitlements.OktaSCIM):               {Enabled: true, Limit: 99},
-					string(entitlements.OktaUserSync):           {Enabled: true, Limit: 99},
-					string(entitlements.Policy):                 {Enabled: true, Limit: 99},
-					string(entitlements.SAML):                   {Enabled: true, Limit: 99},
-					string(entitlements.SessionLocks):           {Enabled: true, Limit: 99},
-					string(entitlements.UpsellAlert):            {Enabled: true, Limit: 99},
-					string(entitlements.UsageReporting):         {Enabled: true, Limit: 99},
-					string(entitlements.LicenseAutoUpdate):      {Enabled: true, Limit: 99},
-					string(entitlements.AccessGraphDemoMode):    {Enabled: true, Limit: 99},
+					string(entitlements.AccessLists):                {Enabled: true, Limit: 99},
+					string(entitlements.AccessMonitoring):           {Enabled: true, Limit: 99},
+					string(entitlements.AccessRequests):             {Enabled: true, Limit: 99},
+					string(entitlements.App):                        {Enabled: true, Limit: 99},
+					string(entitlements.CloudAuditLogRetention):     {Enabled: true, Limit: 99},
+					string(entitlements.DB):                         {Enabled: true, Limit: 99},
+					string(entitlements.Desktop):                    {Enabled: true, Limit: 99},
+					string(entitlements.DeviceTrust):                {Enabled: true, Limit: 99},
+					string(entitlements.ExternalAuditStorage):       {Enabled: true, Limit: 99},
+					string(entitlements.FeatureHiding):              {Enabled: true, Limit: 99},
+					string(entitlements.HSM):                        {Enabled: true, Limit: 99},
+					string(entitlements.Identity):                   {Enabled: true, Limit: 99},
+					string(entitlements.JoinActiveSessions):         {Enabled: true, Limit: 99},
+					string(entitlements.K8s):                        {Enabled: true, Limit: 99},
+					string(entitlements.MobileDeviceManagement):     {Enabled: true, Limit: 99},
+					string(entitlements.OIDC):                       {Enabled: true, Limit: 99},
+					string(entitlements.OktaSCIM):                   {Enabled: true, Limit: 99},
+					string(entitlements.OktaUserSync):               {Enabled: true, Limit: 99},
+					string(entitlements.Policy):                     {Enabled: true, Limit: 99},
+					string(entitlements.SAML):                       {Enabled: true, Limit: 99},
+					string(entitlements.SessionLocks):               {Enabled: true, Limit: 99},
+					string(entitlements.UpsellAlert):                {Enabled: true, Limit: 99},
+					string(entitlements.UsageReporting):             {Enabled: true, Limit: 99},
+					string(entitlements.LicenseAutoUpdate):          {Enabled: true, Limit: 99},
+					string(entitlements.AccessGraphDemoMode):        {Enabled: true, Limit: 99},
+					string(entitlements.UnrestrictedManagedUpdates): {Enabled: true, Limit: 99},
 				},
 			},
 		},
@@ -11109,16 +10914,17 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				},
 				Entitlements: map[string]webclient.EntitlementInfo{
 					// no equivalent legacy feature; defaults to false
-					string(entitlements.App):                    {Enabled: false},
-					string(entitlements.CloudAuditLogRetention): {Enabled: false},
-					string(entitlements.DB):                     {Enabled: false},
-					string(entitlements.Desktop):                {Enabled: false},
-					string(entitlements.HSM):                    {Enabled: false},
-					string(entitlements.K8s):                    {Enabled: false},
-					string(entitlements.UpsellAlert):            {Enabled: false},
-					string(entitlements.UsageReporting):         {Enabled: false},
-					string(entitlements.LicenseAutoUpdate):      {Enabled: false},
-					string(entitlements.AccessGraphDemoMode):    {Enabled: false},
+					string(entitlements.App):                        {Enabled: false},
+					string(entitlements.CloudAuditLogRetention):     {Enabled: false},
+					string(entitlements.DB):                         {Enabled: false},
+					string(entitlements.Desktop):                    {Enabled: false},
+					string(entitlements.HSM):                        {Enabled: false},
+					string(entitlements.K8s):                        {Enabled: false},
+					string(entitlements.UpsellAlert):                {Enabled: false},
+					string(entitlements.UsageReporting):             {Enabled: false},
+					string(entitlements.LicenseAutoUpdate):          {Enabled: false},
+					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
+					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
 
 					// set to equivalent legacy feature
 					string(entitlements.ExternalAuditStorage):   {Enabled: true},
@@ -11239,15 +11045,16 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.UsageReporting):         {Enabled: false},
 
 					// set to equivalent legacy feature
-					string(entitlements.ExternalAuditStorage):   {Enabled: true},
-					string(entitlements.FeatureHiding):          {Enabled: true},
-					string(entitlements.Identity):               {Enabled: false},
-					string(entitlements.JoinActiveSessions):     {Enabled: true},
-					string(entitlements.MobileDeviceManagement): {Enabled: true},
-					string(entitlements.OIDC):                   {Enabled: true},
-					string(entitlements.Policy):                 {Enabled: true},
-					string(entitlements.SAML):                   {Enabled: true},
-					string(entitlements.AccessGraphDemoMode):    {Enabled: false},
+					string(entitlements.ExternalAuditStorage):       {Enabled: true},
+					string(entitlements.FeatureHiding):              {Enabled: true},
+					string(entitlements.Identity):                   {Enabled: false},
+					string(entitlements.JoinActiveSessions):         {Enabled: true},
+					string(entitlements.MobileDeviceManagement):     {Enabled: true},
+					string(entitlements.OIDC):                       {Enabled: true},
+					string(entitlements.Policy):                     {Enabled: true},
+					string(entitlements.SAML):                       {Enabled: true},
+					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
+					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
 					// set to legacy feature "IsIGSEnabled"; false so set value and keep limits
 					string(entitlements.AccessLists):       {Enabled: true, Limit: 88},
 					string(entitlements.AccessMonitoring):  {Enabled: true, Limit: 88},
@@ -11333,31 +11140,32 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				SAML:                     false,
 				MobileDeviceManagement:   false,
 				Entitlements: map[string]webclient.EntitlementInfo{
-					string(entitlements.AccessLists):            {Enabled: true}, // AccessLists had no previous behavior from an enablement perspective; so we default to true
-					string(entitlements.AccessMonitoring):       {Enabled: false},
-					string(entitlements.AccessRequests):         {Enabled: false},
-					string(entitlements.App):                    {Enabled: false},
-					string(entitlements.CloudAuditLogRetention): {Enabled: false},
-					string(entitlements.DB):                     {Enabled: false},
-					string(entitlements.Desktop):                {Enabled: false},
-					string(entitlements.DeviceTrust):            {Enabled: false},
-					string(entitlements.ExternalAuditStorage):   {Enabled: false},
-					string(entitlements.FeatureHiding):          {Enabled: false},
-					string(entitlements.HSM):                    {Enabled: false},
-					string(entitlements.Identity):               {Enabled: false},
-					string(entitlements.JoinActiveSessions):     {Enabled: false},
-					string(entitlements.K8s):                    {Enabled: false},
-					string(entitlements.MobileDeviceManagement): {Enabled: false},
-					string(entitlements.OIDC):                   {Enabled: false},
-					string(entitlements.OktaSCIM):               {Enabled: false},
-					string(entitlements.OktaUserSync):           {Enabled: false},
-					string(entitlements.Policy):                 {Enabled: false},
-					string(entitlements.SAML):                   {Enabled: false},
-					string(entitlements.SessionLocks):           {Enabled: false},
-					string(entitlements.UpsellAlert):            {Enabled: false},
-					string(entitlements.UsageReporting):         {Enabled: false},
-					string(entitlements.LicenseAutoUpdate):      {Enabled: false},
-					string(entitlements.AccessGraphDemoMode):    {Enabled: false},
+					string(entitlements.AccessLists):                {Enabled: true}, // AccessLists had no previous behavior from an enablement perspective; so we default to true
+					string(entitlements.AccessMonitoring):           {Enabled: false},
+					string(entitlements.AccessRequests):             {Enabled: false},
+					string(entitlements.App):                        {Enabled: false},
+					string(entitlements.CloudAuditLogRetention):     {Enabled: false},
+					string(entitlements.DB):                         {Enabled: false},
+					string(entitlements.Desktop):                    {Enabled: false},
+					string(entitlements.DeviceTrust):                {Enabled: false},
+					string(entitlements.ExternalAuditStorage):       {Enabled: false},
+					string(entitlements.FeatureHiding):              {Enabled: false},
+					string(entitlements.HSM):                        {Enabled: false},
+					string(entitlements.Identity):                   {Enabled: false},
+					string(entitlements.JoinActiveSessions):         {Enabled: false},
+					string(entitlements.K8s):                        {Enabled: false},
+					string(entitlements.MobileDeviceManagement):     {Enabled: false},
+					string(entitlements.OIDC):                       {Enabled: false},
+					string(entitlements.OktaSCIM):                   {Enabled: false},
+					string(entitlements.OktaUserSync):               {Enabled: false},
+					string(entitlements.Policy):                     {Enabled: false},
+					string(entitlements.SAML):                       {Enabled: false},
+					string(entitlements.SessionLocks):               {Enabled: false},
+					string(entitlements.UpsellAlert):                {Enabled: false},
+					string(entitlements.UsageReporting):             {Enabled: false},
+					string(entitlements.LicenseAutoUpdate):          {Enabled: false},
+					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
+					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
 				},
 			},
 		},

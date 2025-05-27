@@ -23,20 +23,17 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"reflect"
+	"strings"
 
 	"github.com/gravitational/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
-	certificatesv1 "k8s.io/api/certificates/v1"
-	corev1 "k8s.io/api/core/v1"
-	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
-	networkingv1 "k8s.io/api/networking/v1"
-	authv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport/api/types"
@@ -62,31 +59,17 @@ func (f *Forwarder) deleteResourcesCollection(sess *clusterSession, w http.Respo
 	)
 	defer span.End()
 	req = req.WithContext(ctx)
-	var (
-		isLocalKubeCluster = sess.isLocalKubernetesCluster
-		kubeObjType        string
-		namespace          string
-	)
 
-	if isLocalKubeCluster {
-		namespace = sess.apiResource.namespace
-		kubeObjType, _ = sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
-	}
 	// status holds the returned response code.
 	var status int
 	switch {
 	// Check if the target Kubernetes cluster is not served by the current service.
 	// If it's the case, forward the request to the target Kube Service where the
 	// filtering logic will be applied.
-	case !isLocalKubeCluster:
+	case !sess.isLocalKubernetesCluster:
 		rw := httplib.NewResponseStatusRecorder(w)
 		sess.forwarder.ServeHTTP(rw, req)
 		status = rw.Status()
-	case kubeObjType == utils.KubeCustomResource && namespace != "":
-		status, err = f.handleDeleteCustomResourceCollection(w, req, sess)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	default:
 		memoryRW := responsewriters.NewMemoryResponseWriter()
 		listReq := req.Clone(req.Context())
@@ -177,315 +160,59 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	// TODO (tigrato):
 	//  - parallelize loop
 	//  -  check if the request should stop at the first fail.
-
 	switch o := obj.(type) {
 	case *metav1.Status:
 		// Do nothing.
-	case *corev1.PodList:
+	case *unstructured.Unstructured:
+		if !o.IsList() {
+			return internalErrStatus, trace.BadParameter("unexpected CRD type")
+		}
+		list, err := o.ToList()
+		if err != nil {
+			return internalErrStatus, trace.Wrap(err)
+		}
 		items, err := deleteResources(
 			params,
-			types.KindKubePod,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.CoreV1().Pods(namespace).Delete(ctx, name, deleteOptions))
-			},
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
+			o.GetAPIVersion(),
+			slices.ToPointers(list.Items),
+			deleteOptions,
 		)
 		if err != nil {
 			return internalErrStatus, trace.Wrap(err)
 		}
-		o.Items = slices.FromPointers(items)
-	case *corev1.SecretList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeSecret,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.CoreV1().Secrets(namespace).Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
+		objList := make([]any, 0, len(items))
+		for _, item := range items {
+			objList = append(objList, item.Object)
 		}
-		o.Items = slices.FromPointers(items)
-	case *corev1.ConfigMapList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeConfigmap,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.CoreV1().ConfigMaps(namespace).Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *corev1.NamespaceList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeNamespace,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, _ string) error {
-				return trace.Wrap(client.CoreV1().Namespaces().Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *corev1.ServiceAccountList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeServiceAccount,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.CoreV1().ServiceAccounts(namespace).Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *corev1.PersistentVolumeList:
-		items, err := deleteResources(
-			params,
-			types.KindKubePersistentVolume,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, _ string) error {
-				return trace.Wrap(client.CoreV1().PersistentVolumes().Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
 
-	case *corev1.PersistentVolumeClaimList:
-		items, err := deleteResources(
-			params,
-			types.KindKubePersistentVolumeClaim,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.CoreV1().PersistentVolumeClaims(namespace).Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *appsv1.DeploymentList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeDeployment,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.AppsV1().Deployments(namespace).Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *appsv1.ReplicaSetList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeReplicaSet,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.AppsV1().ReplicaSets(namespace).Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-
-	case *appsv1.StatefulSetList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeStatefulset,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.AppsV1().StatefulSets(namespace).Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *appsv1.DaemonSetList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeDaemonSet,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.AppsV1().DaemonSets(namespace).Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-
-	case *authv1.ClusterRoleList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeClusterRole,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, _ string) error {
-				return trace.Wrap(client.RbacV1().ClusterRoles().Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *authv1.RoleList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeRole,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.RbacV1().Roles(namespace).Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *authv1.ClusterRoleBindingList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeClusterRoleBinding,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, _ string) error {
-				return trace.Wrap(client.RbacV1().ClusterRoleBindings().Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *authv1.RoleBindingList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeRoleBinding,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.RbacV1().RoleBindings(namespace).Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *batchv1.CronJobList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeCronjob,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.BatchV1().CronJobs(namespace).Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *batchv1.JobList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeJob,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.BatchV1().Jobs(namespace).Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *certificatesv1.CertificateSigningRequestList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeCertificateSigningRequest,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, _ string) error {
-				return trace.Wrap(client.CertificatesV1().CertificateSigningRequests().Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *networkingv1.IngressList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeIngress,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.NetworkingV1().Ingresses(namespace).Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *extensionsv1beta1.IngressList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeIngress,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.ExtensionsV1beta1().Ingresses(namespace).Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *extensionsv1beta1.DaemonSetList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeDaemonSet,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.ExtensionsV1beta1().DaemonSets(namespace).Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *extensionsv1beta1.DeploymentList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeDeployment,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.ExtensionsV1beta1().Deployments(namespace).Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
-	case *extensionsv1beta1.ReplicaSetList:
-		items, err := deleteResources(
-			params,
-			types.KindKubeReplicaSet,
-			slices.ToPointers(o.Items),
-			func(ctx context.Context, client kubernetes.Interface, name, namespace string) error {
-				return trace.Wrap(client.ExtensionsV1beta1().ReplicaSets(namespace).Delete(ctx, name, deleteOptions))
-			},
-		)
-		if err != nil {
-			return internalErrStatus, trace.Wrap(err)
-		}
-		o.Items = slices.FromPointers(items)
+		o.Object["items"] = objList
 	default:
-		return internalErrStatus, trace.BadParameter("unexpected type %T", obj)
+		output, err := getItemsUsingReflection(obj)
+		if err != nil {
+			return internalErrStatus, trace.Wrap(err)
+		}
+
+		if len(output.items) == 0 {
+			break
+		}
+
+		apiVersion, itemsR, objs, underlyingType := output.apiVersion, output.underlyingValue, output.items, output.underlyingType
+		items, err := deleteResources(
+			params,
+			sess.metaResource.requestedResource.resourceKind,
+			sess.metaResource.requestedResource.apiGroup,
+			apiVersion,
+			objs,
+			deleteOptions,
+		)
+		if err != nil {
+			return internalErrStatus, trace.Wrap(err)
+		}
+		setItemsUsingReflection(itemsR, underlyingType, items)
 	}
+
 	// reset the memory buffer.
 	memWriter.Buffer().Reset()
 	// set the content type to the response writer to match the delete
@@ -502,9 +229,71 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 	return memWriter.Status(), trace.Wrap(memWriter.CopyInto(w))
 }
 
+type getItemsUsingReflectionOutput struct {
+	items           []kubeObjectInterface
+	apiVersion      string
+	underlyingType  reflect.Type
+	underlyingValue reflect.Value
+}
+
+func getItemsUsingReflection(obj runtime.Object) (getItemsUsingReflectionOutput, error) {
+	// itemsFieldName is the field name of the items in the list
+	// object. This is used to get the items from the list object.
+	// We use reflection to get the items field name since
+	// the list object can be of any type.
+	const itemsFieldName = "Items"
+	objReflect := reflect.ValueOf(obj).Elem()
+	itemsR := objReflect.FieldByName(itemsFieldName)
+	if itemsR.Type().Kind() != reflect.Slice {
+		return getItemsUsingReflectionOutput{}, trace.BadParameter("unexpected type %T, Items is not a slice", obj)
+	}
+	if itemsR.Len() == 0 {
+		return getItemsUsingReflectionOutput{}, nil
+	}
+
+	var (
+		underlyingType = itemsR.Index(0).Type()
+		apiVersion, _  = obj.GetObjectKind().GroupVersionKind().ToAPIVersionAndKind()
+		objs           = make([]kubeObjectInterface, 0, itemsR.Len())
+	)
+	for i := range itemsR.Len() {
+		item := itemsR.Index(i).Addr().Interface()
+		if item, ok := item.(kubeObjectInterface); ok {
+			objs = append(objs, item)
+		} else {
+			return getItemsUsingReflectionOutput{}, trace.BadParameter("unexpected type %T", itemsR.Interface())
+		}
+	}
+
+	return getItemsUsingReflectionOutput{
+		items:           objs,
+		apiVersion:      apiVersion,
+		underlyingType:  underlyingType,
+		underlyingValue: itemsR,
+	}, nil
+
+}
+
+func setItemsUsingReflection(itemsR reflect.Value, underlyingType reflect.Type, items []kubeObjectInterface) {
+	// make a new slice of the same type as the original one.
+	slice := reflect.MakeSlice(itemsR.Type(), len(items), len(items))
+	for i := 0; i < len(items); i++ {
+		item := items[i]
+		// convert the item to the underlying type of the slice.
+		// this is needed because items is a slice of pointers that
+		// satisfy the kubeObjectInterface interface.
+		// but the underlying type of the slice of elements is not
+		// a pointer. We dereference the item and convert it to the
+		// original slice element type.
+		slice.Index(i).Set(reflect.ValueOf(item).Elem().Convert(underlyingType))
+	}
+
+	itemsR.Set(slice)
+}
+
 // newImpersonatedKubeClient creates a new Kubernetes Client that impersonates
 // a username and the groups.
-func newImpersonatedKubeClient(creds kubeCreds, username string, groups []string) (*kubernetes.Clientset, error) {
+func newImpersonatedKubeClient(creds kubeCreds, username string, groups []string) (*dynamic.DynamicClient, error) {
 	c := &rest.Config{}
 	// clone cluster's rest config.
 	*c = *creds.getKubeRestConfig()
@@ -514,7 +303,7 @@ func newImpersonatedKubeClient(creds kubeCreds, username string, groups []string
 		Groups:   groups,
 	}
 	// TODO(tigrato): reuse the http client.
-	client, err := kubernetes.NewForConfig(c)
+	client, err := dynamic.NewForConfig(c)
 	return client, trace.Wrap(err)
 }
 
@@ -533,54 +322,6 @@ func parseDeleteCollectionBody(r io.Reader, decoder runtime.Decoder) (metav1.Del
 	return into, trace.Wrap(err)
 }
 
-// handleDeleteCustomResourceCollection handles the DELETE Collection request
-// for custom resources. It checks if the user is allowed to execute
-// delete collection requests on the desired namespace and forwards the request
-// to the Kubernetes API server.
-// This process is different from the other delete collection requests because
-// we don't have to check if the user is allowed to delete each individual
-// resource. Instead, we just have to check if the user is allowed to delete
-// collections within the namespace.
-func (f *Forwarder) handleDeleteCustomResourceCollection(w http.ResponseWriter, req *http.Request, sess *clusterSession) (status int, err error) {
-	// Access to custom resources is controlled by KindKubeNamespace.
-	// We need to check if the user is allowed to delete the custom resource within
-	// the namespace by using the CheckKubeGroupsAndUsers method.
-	r := types.KubernetesResource{
-		Kind:  types.KindKubeNamespace,
-		Name:  sess.apiResource.namespace,
-		Verbs: []string{types.KubeVerbDeleteCollection},
-	}
-
-	// Check if the user is allowed to delete the custom resource within the namespace
-	// and get the list of groups and users that the request impersonates.
-	allowedKubeGroups, allowedKubeUsers, err := sess.Checker.CheckKubeGroupsAndUsers(
-		sess.sessionTTL,
-		false, /* overrideTTL */
-		services.NewKubernetesClusterLabelMatcher(
-			sess.kubeClusterLabels,
-			sess.Checker.Traits(),
-		),
-		services.NewKubernetesResourceMatcher(r),
-	)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	// fillDefaultKubePrincipalDetails fills the default details in order to keep
-	// the correct behavior when forwarding the request to the Kubernetes API.
-	kubeUsers, kubeGroups := fillDefaultKubePrincipalDetails(allowedKubeGroups, allowedKubeUsers, sess.User.GetName())
-	sess.kubeUsers = utils.StringsSet(kubeUsers)
-	sess.kubeGroups = utils.StringsSet(kubeGroups)
-	if err := setupImpersonationHeaders(sess, req.Header); err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	// forward the request to the Kubernetes API.
-	rw := httplib.NewResponseStatusRecorder(w)
-	sess.forwarder.ServeHTTP(rw, req)
-	return rw.Status(), nil
-}
-
 type deleteResourcesCommonParams struct {
 	ctx         context.Context
 	log         *slog.Logger
@@ -591,9 +332,9 @@ type deleteResourcesCommonParams struct {
 
 func deleteResources[T kubeObjectInterface](
 	params deleteResourcesCommonParams,
-	kind string,
+	kind, group, apiVersion string,
 	items []T,
-	deleteOP func(ctx context.Context, client kubernetes.Interface, name, namespace string) error,
+	deleteOptions metav1.DeleteOptions,
 ) ([]T, error) {
 	deletedItems := make([]T, 0, len(items))
 	for _, item := range items {
@@ -607,7 +348,8 @@ func deleteResources[T kubeObjectInterface](
 				params.authCtx.Checker.Traits(),
 			),
 			services.NewKubernetesResourceMatcher(
-				getKubeResource(kind, types.KubeVerbDeleteCollection, item),
+				getKubeResource(kind, group, types.KubeVerbDeleteCollection, item),
+				params.authCtx.metaResource.isClusterWideResource(),
 			),
 		)
 		// no match was found, we ignore the request.
@@ -630,8 +372,24 @@ func deleteResources[T kubeObjectInterface](
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// delete each pod individually.
-		err = deleteOP(params.ctx, client, item.GetName(), item.GetNamespace())
+
+		gvk := item.GroupVersionKind()
+		if gvk.Group == "" || gvk.Version == "" {
+			tmp := strings.Split(apiVersion, "/")
+			if len(tmp) == 2 {
+				gvk.Group = tmp[0]
+				gvk.Version = tmp[1]
+			} else {
+				gvk.Version = apiVersion
+			}
+		}
+
+		// delete each resource individually.
+		err = client.Resource(schema.GroupVersionResource{
+			Group:    gvk.Group,
+			Version:  gvk.Version,
+			Resource: kind,
+		}).Namespace(item.GetNamespace()).Delete(params.ctx, item.GetName(), deleteOptions)
 		if err != nil {
 			// TODO(tigrato): check what should we do when delete returns an error.
 			// Should we check if it's permission error?

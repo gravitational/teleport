@@ -915,9 +915,6 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
-	// Deprecated: Use `/webapi/sites/:site/resources` instead.
-	// TODO(kiosion): DELETE in 18.0
-	h.GET("/webapi/sites/:site/resources/check", h.WithClusterAuth(h.checkAccessToRegisteredResource))
 
 	// Database access handlers.
 	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
@@ -960,9 +957,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/mfa/registerchallenge", h.WithAuth(h.createRegisterChallengeHandle))
 
 	h.POST("/webapi/mfa/devices", h.WithAuth(h.addMFADeviceHandle))
-	// DEPRECATED in favor of mfa/authenticatechallenge.
-	// TODO(bl-nero): DELETE IN 17.0.0
-	h.POST("/webapi/mfa/authenticatechallenge/password", h.WithAuth(h.createAuthenticateChallengeWithPassword))
 
 	// Device Trust.
 	// Do not enforce bearer token for /webconfirm, it is called from outside the
@@ -1145,6 +1139,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBot))
 	// Delete Machine ID bot
 	h.DELETE("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.deleteBot))
+
+	// GET Machine ID bot instances (paged)
+	h.GET("/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstances))
 
 	// GET a paginated list of notifications for a user
 	h.GET("/webapi/sites/:site/notifications", h.WithClusterAuth(h.notificationsGet))
@@ -4744,7 +4741,8 @@ func checkTokenTTL(tok types.ProvisionToken) bool {
 
 type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)
 
-func isValidRedirectURL(redirectURL string) bool {
+// IsValidRedirectURL validates redirect URL.
+func IsValidRedirectURL(redirectURL string) bool {
 	u, err := url.ParseRequestURI(redirectURL)
 	return err == nil && (!u.IsAbs() || (u.Scheme == "http" || u.Scheme == "https"))
 }
@@ -4755,7 +4753,7 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 		app.SetRedirectPageHeaders(w.Header(), "")
 
 		redirectURL := fn(w, r, p)
-		if !isValidRedirectURL(redirectURL) {
+		if !IsValidRedirectURL(redirectURL) {
 			redirectURL = client.LoginFailedRedirectURL
 		}
 		http.Redirect(w, r, redirectURL, http.StatusFound)
@@ -4769,7 +4767,7 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		redirectURL := fn(w, r, p)
-		if !isValidRedirectURL(redirectURL) {
+		if !IsValidRedirectURL(redirectURL) {
 			redirectURL = client.LoginFailedRedirectURL
 		}
 		err := app.MetaRedirect(w, redirectURL)
