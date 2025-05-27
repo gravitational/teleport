@@ -36,23 +36,6 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
-// appProvider is an interface for getting certs issued for apps and reporting
-// connections and errors.
-type appProvider interface {
-	// ReissueAppCert issues a new cert for the target app.
-	ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) (tls.Certificate, error)
-	// OnNewConnection gets called whenever a new connection is about to be established through VNet.
-	// By the time OnNewConnection, VNet has already verified that the user holds a valid cert for the
-	// app.
-	//
-	// The connection won't be established until OnNewConnection returns. Returning an error prevents
-	// the connection from being made.
-	OnNewConnection(ctx context.Context, appKey *vnetv1.AppKey) error
-	// OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
-	// because the provided port does not match any of the TCP ports in the app spec.
-	OnInvalidLocalPort(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16)
-}
-
 type tcpAppHandler struct {
 	cfg *tcpAppHandlerConfig
 	log *slog.Logger
@@ -64,7 +47,7 @@ type tcpAppHandler struct {
 
 type tcpAppHandlerConfig struct {
 	appInfo     *vnetv1.AppInfo
-	appProvider appProvider
+	appProvider *appProvider
 	clock       clockwork.Clock
 }
 
@@ -136,7 +119,7 @@ func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort
 }
 
 // handleTCPConnector handles an incoming TCP connection from VNet by passing it to the local alpn proxy,
-// which is set up with middleware to automatically handler certificate renewal and re-logins.
+// which is set up with middleware to automatically handle certificate renewal and re-logins.
 func (h *tcpAppHandler) handleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
 	app := h.cfg.appInfo.GetApp()
 	if len(app.GetTCPPorts()) > 0 {
@@ -155,7 +138,7 @@ func (h *tcpAppHandler) handleTCPConnector(ctx context.Context, localPort uint16
 
 // appCertIssuer implements [client.CertIssuer].
 type appCertIssuer struct {
-	appProvider appProvider
+	appProvider *appProvider
 	appInfo     *vnetv1.AppInfo
 	targetPort  uint16
 	group       singleflight.Group
@@ -178,7 +161,7 @@ func (i *appCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 type localProxyMiddleware struct {
 	appKey      *vnetv1.AppKey
 	certChecker *client.CertChecker
-	appProvider appProvider
+	appProvider *appProvider
 }
 
 func (m *localProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy) error {

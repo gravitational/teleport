@@ -155,15 +155,16 @@ func TestPluginsInstallOkta(t *testing.T) {
 				install: pluginInstallArgs{
 					name: "okta-sync-service-test",
 					okta: oktaArgs{
-						org:            mustParseURL("https://example.okta.com"),
-						apiToken:       "api-token-goes-here",
-						samlConnector:  "saml-connector-name",
-						userSync:       true,
-						accessListSync: true,
-						appGroupSync:   true,
-						defaultOwners:  []string{"admin"},
-						groupFilters:   []string{"group-alpha", "group-beta"},
-						appFilters:     []string{"app-gamma", "app-delta", "app-epsilon"},
+						org:                mustParseURL("https://example.okta.com"),
+						apiToken:           "api-token-goes-here",
+						samlConnector:      "saml-connector-name",
+						userSync:           true,
+						assignDefaultRoles: true,
+						accessListSync:     true,
+						appGroupSync:       true,
+						defaultOwners:      []string{"admin"},
+						groupFilters:       []string{"group-alpha", "group-beta"},
+						appFilters:         []string{"app-gamma", "app-delta", "app-epsilon"},
 					},
 				},
 			},
@@ -222,17 +223,18 @@ func TestPluginsInstallOkta(t *testing.T) {
 				install: pluginInstallArgs{
 					name: "okta-scim-test",
 					okta: oktaArgs{
-						org:            mustParseURL("https://example.okta.com"),
-						apiToken:       "api-token-goes-here",
-						appID:          "okta-app-id",
-						samlConnector:  "teleport-saml-connector-id",
-						scimToken:      "i am a scim token",
-						userSync:       true,
-						accessListSync: true,
-						appGroupSync:   true,
-						defaultOwners:  []string{"admin"},
-						groupFilters:   []string{"group-alpha", "group-beta"},
-						appFilters:     []string{"app-gamma", "app-delta", "app-epsilon"},
+						org:                mustParseURL("https://example.okta.com"),
+						apiToken:           "api-token-goes-here",
+						appID:              "okta-app-id",
+						samlConnector:      "teleport-saml-connector-id",
+						scimToken:          "i am a scim token",
+						userSync:           true,
+						assignDefaultRoles: true,
+						accessListSync:     true,
+						appGroupSync:       true,
+						defaultOwners:      []string{"admin"},
+						groupFilters:       []string{"group-alpha", "group-beta"},
+						appFilters:         []string{"app-gamma", "app-delta", "app-epsilon"},
 					},
 				},
 			},
@@ -308,11 +310,12 @@ func TestPluginsInstallOkta(t *testing.T) {
 				install: pluginInstallArgs{
 					name: "okta-barebones-test",
 					okta: oktaArgs{
-						org:           mustParseURL("https://example.okta.com"),
-						samlConnector: "okta-integration",
-						apiToken:      "api-token-goes-here",
-						appGroupSync:  false,
-						scimToken:     "OktaCredPurposeSCIMToken",
+						org:                mustParseURL("https://example.okta.com"),
+						samlConnector:      "okta-integration",
+						apiToken:           "api-token-goes-here",
+						appGroupSync:       false,
+						scimToken:          "OktaCredPurposeSCIMToken",
+						assignDefaultRoles: true,
 					},
 				},
 			},
@@ -357,6 +360,127 @@ func TestPluginsInstallOkta(t *testing.T) {
 				},
 				CredentialLabels: map[string]string{
 					types.OktaOrgURLLabel: "https://example.okta.com",
+				},
+			},
+			expectError: require.NoError,
+		},
+		{
+			name: "scim-only can disable default roles assignment",
+			cmd: PluginsCommand{
+				install: pluginInstallArgs{
+					name: "okta",
+					okta: oktaArgs{
+						org:                mustParseURL("https://example.okta.com"),
+						samlConnector:      "okta-integration",
+						apiToken:           "api-token-goes-here",
+						scimToken:          "test-scim-token",
+						assignDefaultRoles: false,
+					},
+				},
+			},
+			expectSAMLConnectorQuery: "okta-integration",
+			expectPing:               true,
+			expectRequest: &pluginsv1.CreatePluginRequest{
+				Plugin: &types.PluginV1{
+					SubKind: types.PluginSubkindAccess,
+					Metadata: types.Metadata{
+						Labels: map[string]string{
+							types.HostedPluginLabel: "true",
+						},
+						Name: "okta",
+					},
+					Spec: types.PluginSpecV1{
+						Settings: &types.PluginSpecV1_Okta{
+							Okta: &types.PluginOktaSettings{
+								OrgUrl: "https://example.okta.com",
+								SyncSettings: &types.PluginOktaSyncSettings{
+									SsoConnectorId:            "okta-integration",
+									DisableAssignDefaultRoles: true,
+								},
+							},
+						},
+					},
+				},
+				StaticCredentialsList: []*types.PluginStaticCredentialsV1{
+					{
+						ResourceHeader: types.ResourceHeader{
+							Metadata: types.Metadata{
+								Name: "okta",
+								Labels: map[string]string{
+									types.OktaCredPurposeLabel: types.CredPurposeOKTAAPITokenWithSCIMOnlyIntegration,
+								},
+							},
+						},
+						Spec: &types.PluginStaticCredentialsSpecV1{
+							Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+								APIToken: "api-token-goes-here",
+							},
+						},
+					},
+				},
+				CredentialLabels: map[string]string{
+					types.OktaOrgURLLabel: "https://example.okta.com",
+				},
+			},
+			expectError: require.NoError,
+		},
+		{
+			name: "disable default roles assignment",
+			cmd: PluginsCommand{
+				install: pluginInstallArgs{
+					name: "okta",
+					okta: oktaArgs{
+						org:                mustParseURL("https://okta.example.com"),
+						samlConnector:      "okta-integration",
+						apiToken:           "api-token-goes-here",
+						userSync:           true,
+						assignDefaultRoles: false,
+						appGroupSync:       true,
+					},
+				},
+			},
+			expectSAMLConnectorQuery: "okta-integration",
+			expectRequest: &pluginsv1.CreatePluginRequest{
+				Plugin: &types.PluginV1{
+					SubKind: types.PluginSubkindAccess,
+					Metadata: types.Metadata{
+						Labels: map[string]string{
+							types.HostedPluginLabel: "true",
+						},
+						Name: "okta",
+					},
+					Spec: types.PluginSpecV1{
+						Settings: &types.PluginSpecV1_Okta{
+							Okta: &types.PluginOktaSettings{
+								OrgUrl: "https://okta.example.com",
+								SyncSettings: &types.PluginOktaSyncSettings{
+									SsoConnectorId:            "okta-integration",
+									SyncUsers:                 true,
+									DisableAssignDefaultRoles: true,
+								},
+							},
+						},
+					},
+				},
+				StaticCredentialsList: []*types.PluginStaticCredentialsV1{
+					{
+						ResourceHeader: types.ResourceHeader{
+							Metadata: types.Metadata{
+								Name: "okta",
+								Labels: map[string]string{
+									types.OktaCredPurposeLabel: types.OktaCredPurposeAuth,
+								},
+							},
+						},
+						Spec: &types.PluginStaticCredentialsSpecV1{
+							Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+								APIToken: "api-token-goes-here",
+							},
+						},
+					},
+				},
+				CredentialLabels: map[string]string{
+					types.OktaOrgURLLabel: "https://okta.example.com",
 				},
 			},
 			expectError: require.NoError,

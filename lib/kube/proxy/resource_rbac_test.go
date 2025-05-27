@@ -1258,10 +1258,12 @@ func TestDeleteCRDCollectionRBAC(t *testing.T) {
 }
 
 func TestListClusterRoleRBAC(t *testing.T) {
+	t.Parallel()
+
 	const (
 		usernameWithFullAccess    = "full_user"
 		usernameWithLimitedAccess = "limited_user"
-		testPodName               = "test"
+		testClusterRoleName       = "cr-test"
 	)
 	// kubeMock is a Kubernetes API mock for the session tests.
 	// Once a new session is created, this mock will write to
@@ -1321,7 +1323,7 @@ func TestListClusterRoleRBAC(t *testing.T) {
 					[]types.KubernetesResource{
 						{
 							Kind:     "clusterroles",
-							Name:     "nginx-*",
+							Name:     "cr-nginx-*",
 							Verbs:    []string{types.Wildcard},
 							APIGroup: types.Wildcard,
 						},
@@ -1352,9 +1354,9 @@ func TestListClusterRoleRBAC(t *testing.T) {
 			},
 			want: want{
 				listClusterRolesResult: []string{
-					"nginx-1",
-					"nginx-2",
-					"test",
+					"cr-nginx-1",
+					"cr-nginx-2",
+					"cr-test",
 				},
 			},
 		},
@@ -1365,13 +1367,13 @@ func TestListClusterRoleRBAC(t *testing.T) {
 			},
 			want: want{
 				listClusterRolesResult: []string{
-					"nginx-1",
-					"nginx-2",
+					"cr-nginx-1",
+					"cr-nginx-2",
 				},
 				getTestResult: &kubeerrors.StatusError{
 					ErrStatus: metav1.Status{
 						Status:  "Failure",
-						Message: "clusterroles \"test\" is forbidden: User \"limited_user\" cannot get resource \"clusterroles\" in API group \"rbac.authorization.k8s.io\"",
+						Message: "clusterroles \"cr-test\" is forbidden: User \"limited_user\" cannot get resource \"clusterroles\" in API group \"rbac.authorization.k8s.io\"",
 						Code:    403,
 						Reason:  metav1.StatusReasonForbidden,
 					},
@@ -1389,7 +1391,7 @@ func TestListClusterRoleRBAC(t *testing.T) {
 							ClusterName:     testCtx.ClusterName,
 							Kind:            types.KindKubePod,
 							Name:            kubeCluster,
-							SubResourceName: fmt.Sprintf("%s/%s", metav1.NamespaceDefault, testPodName),
+							SubResourceName: fmt.Sprintf("%s/%s", metav1.NamespaceDefault, testClusterRoleName),
 						},
 					),
 				},
@@ -1407,7 +1409,7 @@ func TestListClusterRoleRBAC(t *testing.T) {
 				getTestResult: &kubeerrors.StatusError{
 					ErrStatus: metav1.Status{
 						Status:  "Failure",
-						Message: "clusterroles \"test\" is forbidden: User \"limited_user\" cannot get resource \"clusterroles\" in API group \"rbac.authorization.k8s.io\"",
+						Message: "clusterroles \"cr-test\" is forbidden: User \"limited_user\" cannot get resource \"clusterroles\" in API group \"rbac.authorization.k8s.io\"",
 						Code:    403,
 						Reason:  metav1.StatusReasonForbidden,
 					},
@@ -1449,7 +1451,7 @@ func TestListClusterRoleRBAC(t *testing.T) {
 
 			_, err = client.RbacV1().ClusterRoles().Get(
 				testCtx.Context,
-				testPodName,
+				testClusterRoleName,
 				metav1.GetOptions{},
 			)
 
@@ -1464,6 +1466,8 @@ func TestListClusterRoleRBAC(t *testing.T) {
 }
 
 func TestGenericCustomResourcesRBAC(t *testing.T) {
+	t.Parallel()
+
 	const (
 		usernameWithFullAccess     = "full_user"
 		usernameWithLimitedAccess  = "limited_user"
@@ -1488,10 +1492,11 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 			SetupRoleFunc: func(r types.Role) {
 				r.SetKubeResources(types.Allow, []types.KubernetesResource{
 					{
-						Kind:     "namespaces",
-						Name:     types.Wildcard,
-						Verbs:    []string{types.Wildcard},
-						APIGroup: types.Wildcard,
+						Kind:      types.Wildcard,
+						Name:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				})
 			},
@@ -1511,10 +1516,16 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
-							Kind:     "namespaces",
-							Name:     "dev",
-							Verbs:    []string{types.Wildcard},
-							APIGroup: types.Wildcard,
+							Kind:      types.Wildcard,
+							Name:      types.Wildcard,
+							Namespace: "dev",
+							Verbs:     []string{types.Wildcard},
+							APIGroup:  types.Wildcard,
+						},
+						{
+							Kind:  "namespaces",
+							Name:  "dev",
+							Verbs: []string{types.Wildcard},
 						},
 					},
 				)
@@ -2057,7 +2068,7 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 					{
 						Kind:      clusterswagv0.GetKindPlural(),
 						Name:      "clusterswag-*",
-						Namespace: types.Wildcard,
+						Namespace: "",
 						Verbs:     []string{types.Wildcard},
 						APIGroup:  types.Wildcard,
 					},
@@ -2076,6 +2087,24 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 		},
 		{
 			name: "cluster wide crd no access",
+			args: args{
+				user: newUser("cluster_crd_ko", []types.KubernetesResource{
+					{
+						Kind:      telerolev8.GetKindPlural(),
+						Name:      types.Wildcard,
+						Namespace: "",
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+				}),
+				crds: []*tkm.CRD{clusterswagv0},
+			},
+			want: want{
+				wantListErr: []bool{true},
+			},
+		},
+		{
+			name: "cluster wide crd no acces wildcard",
 			args: args{
 				user: newUser("cluster_crd_ko", []types.KubernetesResource{
 					{

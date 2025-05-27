@@ -1,6 +1,6 @@
 ---
 authors: Grzegorz Zdunek (grzegorz.zdunek@goteleport.com)
-state: draft
+state: implemented (17.5)
 ---
 
 # RFD 208 - Add ProxyWindowsDesktopSession API to Teleport Proxy Service

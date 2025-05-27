@@ -83,7 +83,7 @@ Teleport provides several preset roles:
 
 ### Role versions
 
-There are currently five supported role versions: `v3`, `v4`, `v5`, `v6`, and `v7`.
+There are currently six supported role versions: `v3`, `v4`, `v5`, `v6`, `v7`, and `v8`.
 
 `v4` and higher roles are completely backwards compatible with `v3`. The only difference
 lies in the default values which will be applied to the role if they are not explicitly set.
@@ -106,6 +106,10 @@ Version              |  `kubernetes_resources`
 `v3`, `v4` and `v5` Default | `[{"kind":"pod", "name":"*", "namespace":"*", "verbs": ["*"]}]`
 `v6` Default |  `[]`
 `v7` Default |  `[{"kind":"*", "name":"*", "namespace":"*", "verbs": ["*"]}]`
+
+SAML IdP role option `spec.idp.saml.enabled: true/false` is only supported in role version 7 and below.
+There are further changes to the `saml_idp_service_provider` resource RBAC starting role `v8`. 
+See [SAML IdP RBAC](./saml-idp.mdx#RBAC) for more details.
 
 ## RBAC for infrastructure resources
 

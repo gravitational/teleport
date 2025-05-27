@@ -96,6 +96,26 @@ func TestUserGroupCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	numPages = 0
+	nextToken = ""
+	paginatedOut = make([]types.UserGroup, 0, 2)
+	for {
+		numPages++
+		out, nextToken, err = service.ListUserGroups(ctx, 1, nextToken)
+		require.NoError(t, err)
+
+		paginatedOut = append(paginatedOut, out...)
+		if nextToken == "" {
+			break
+		}
+		nextToken = "/" + nextToken
+	}
+
+	require.Equal(t, 2, numPages)
+	require.Empty(t, cmp.Diff([]types.UserGroup{g1, g2}, paginatedOut,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
 	// Fetch a specific user group.
 	sp, err := service.GetUserGroup(ctx, g2.GetName())
 	require.NoError(t, err)

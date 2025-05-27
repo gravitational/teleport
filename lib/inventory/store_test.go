@@ -56,7 +56,7 @@ func BenchmarkStore(b *testing.B) {
 				defer wg.Done()
 				serverID := fmt.Sprintf("server-%d", sn%uniqueServers)
 				handle := &upstreamHandle{
-					hello: proto.UpstreamInventoryHello{
+					hello: &proto.UpstreamInventoryHello{
 						ServerID: serverID,
 					},
 				}
@@ -110,7 +110,7 @@ func TestStoreAccess(t *testing.T) {
 	for i := 0; i < 1_000; i++ {
 		serverID := fmt.Sprintf("server-%d", i%100)
 		handle := &upstreamHandle{
-			hello: proto.UpstreamInventoryHello{
+			hello: &proto.UpstreamInventoryHello{
 				ServerID: serverID,
 			},
 		}
@@ -163,7 +163,7 @@ func TestAllHandles(t *testing.T) {
 	for i := 0; i < 1_000; i++ {
 		serverID := fmt.Sprintf("server-%d", i%100)
 		handle := &upstreamHandle{
-			hello: proto.UpstreamInventoryHello{
+			hello: &proto.UpstreamInventoryHello{
 				ServerID: serverID,
 			},
 		}

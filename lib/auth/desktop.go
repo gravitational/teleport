@@ -112,7 +112,7 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 // desktopAccessConfigureScript is the script that will run on the windows
 // machine and configure Active Directory
 //
-//go:embed windows/configure-ad.ps1
+//go:embed windows-configure-ad.ps1
 var desktopAccessScriptConfigure string
 var DesktopAccessScriptConfigure = template.Must(template.New("desktop-access-configure-ad").Parse(desktopAccessScriptConfigure))
 

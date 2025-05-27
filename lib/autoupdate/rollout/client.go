@@ -47,4 +47,8 @@ type Client interface {
 
 	// GetClusterMaintenanceConfig loads the current maintenance config singleton.
 	GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error)
+
+	// ListAutoUpdateAgentReports lists the autoupdate_agent_report resources
+	// so the controller can measure the rollout progress.
+	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, nextKey string) ([]*autoupdatepb.AutoUpdateAgentReport, string, error)
 }

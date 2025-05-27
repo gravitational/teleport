@@ -1,0 +1,257 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+// buf:lint:ignore PACKAGE_DIRECTORY_MATCH
+// buf:lint:ignore PACKAGE_VERSION_SUFFIX
+package proto;
+
+import "google/protobuf/timestamp.proto";
+import "teleport/legacy/types/types.proto";
+
+option go_package = "github.com/gravitational/teleport/api/client/proto";
+
+// UpstreamInventoryOneOf is the upstream message for the inventory control stream,
+// sent from teleport instances to the auth server.
+message UpstreamInventoryOneOf {
+  // buf:lint:ignore ONEOF_LOWER_SNAKE_CASE
+  oneof Msg {
+    // Hello is the first message sent up the control stream.
+    UpstreamInventoryHello Hello = 1;
+    // Heartbeat advertises instance status/liveness.
+    InventoryHeartbeat Heartbeat = 2;
+    // UpstreamInventoryPong is a response to a ping (used for testing/debug).
+    UpstreamInventoryPong Pong = 3;
+    // UpstreamInventoryAgentMetadata advertises instance metadata.
+    UpstreamInventoryAgentMetadata AgentMetadata = 4;
+    // UpstreamInventoryGoodbye advertises that the instance is terminating.
+    UpstreamInventoryGoodbye Goodbye = 5;
+  }
+}
+
+// DownstreamInventoryOneOf is the downstream message for the inventory control stream,
+// sent from auth servers to teleport instances.
+message DownstreamInventoryOneOf {
+  // buf:lint:ignore ONEOF_LOWER_SNAKE_CASE
+  oneof Msg {
+    // Hello is the first message sent down the control stream.
+    DownstreamInventoryHello Hello = 1;
+    // Ping triggers an upstream pong (used for testing/debug).
+    DownstreamInventoryPing Ping = 2;
+    // UpdateLabels updates the instance's labels.
+    DownstreamInventoryUpdateLabels UpdateLabels = 3;
+  }
+}
+
+// DownstreamInventoryPing is sent down the inventory control stream.
+message DownstreamInventoryPing {
+  uint64 ID = 1;
+}
+
+// UpstreamInventoryPong is sent up the inventory control stream in response to a downstream
+// ping including the system clock of the downstream.
+message UpstreamInventoryPong {
+  uint64 ID = 1;
+  // SystemClock advertises the system clock of the upstream.
+  google.protobuf.Timestamp SystemClock = 2;
+}
+
+// UpstreamInventoryHello is the hello message sent up the inventory control stream.
+message UpstreamInventoryHello {
+  reserved 7;
+  reserved "UpdaterV2Info";
+
+  // Version advertises the teleport version of the instance.
+  string Version = 1;
+  // ServerID advertises the server ID of the instance.
+  string ServerID = 2;
+  // Services advertises the currently live services of the instance. note: this is
+  // distinct from the SystemRoles associated with a certificate in that a service may
+  // hold a system role that is not currently in use if it was granted that role by
+  // its auth token. i.e. Services is the subset of SystemRoles that are currently
+  // active.
+  repeated string Services = 3;
+  // Hostname is the hostname associated with the instance. This value is not required or guaranteed
+  // to be unique and its validity is not enforceable (i.e. join tokens do not constrain what an
+  // instance can claim its hostname to be). This value exists only to assist users in correlating
+  // instance resources with hosts.
+  string Hostname = 4;
+  // ExternalUpgrader identifies the external upgrader that the instance is configured to
+  // export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
+  string ExternalUpgrader = 5;
+  // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
+  string ExternalUpgraderVersion = 6;
+  // UpdaterInfo is used by Teleport to send information about how the Teleport updater is doing.
+  types.UpdaterV2Info UpdaterInfo = 8;
+}
+
+// UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing
+// metadata about the instance.
+message UpstreamInventoryAgentMetadata {
+  // OS advertises the instance OS ("darwin" or "linux").
+  string OS = 1;
+  // OSVersion advertises the instance OS version (e.g. "ubuntu 22.04").
+  string OSVersion = 2;
+  // HostArchitecture advertises the instance host architecture (e.g. "x86_64" or "arm64").
+  string HostArchitecture = 3;
+  // GlibcVersion advertises the instance glibc version of linux instances (e.g. "2.35").
+  string GlibcVersion = 4;
+  // InstallMethods advertises the install methods used for the instance (e.g. "dockerfile").
+  repeated string InstallMethods = 5;
+  // ContainerRuntime advertises the container runtime for the instance, if any (e.g. "docker").
+  string ContainerRuntime = 6;
+  // ContainerOrchestrator advertises the container orchestrator for the instance, if any
+  // (e.g. "kubernetes-v1.24.8-eks-ffeb93d").
+  string ContainerOrchestrator = 7;
+  // CloudEnvironment advertises the cloud environment for the instance, if any (e.g. "aws").
+  string CloudEnvironment = 8;
+}
+
+// DownstreamInventoryHello is the hello message sent down the inventory control stream.
+message DownstreamInventoryHello {
+  // Version advertises the version of the auth server.
+  string Version = 1;
+  // ServerID advertises the server ID of the auth server.
+  string ServerID = 2;
+
+  // SupportedCapabilities indicate which features of the ICS that
+  // the connect auth server supports. This allows agents to determine
+  // how they should interact with the auth server to maintain compatibility.
+  message SupportedCapabilities {
+    // ProxyHeartbeats indicates the ICS supports heartbeating proxy servers.
+    bool ProxyHeartbeats = 1;
+    // ProxyCleanup indicates the ICS supports deleting proxies when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool ProxyCleanup = 2;
+    // ProxyHeartbeats indicates the ICS supports heartbeating proxy servers.
+    bool AuthHeartbeats = 3;
+    // ProxyCleanup indicates the ICS supports deleting proxies when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool AuthCleanup = 4;
+    // NodeHeartbeats indicates the ICS supports heartbeating ssh servers.
+    bool NodeHeartbeats = 5;
+    // NodeCleanup indicates the ICS supports deleting nodes when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool NodeCleanup = 6;
+    // AppHeartbeats indicates the ICS supports heartbeating app servers.
+    bool AppHeartbeats = 7;
+    // AppCleanup indicates the ICS supports deleting apps when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool AppCleanup = 8;
+    // DatabaseHeartbeats indicates the ICS supports heartbeating databases.
+    bool DatabaseHeartbeats = 9;
+    // DatabaseCleanup indicates the ICS supports deleting databases when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool DatabaseCleanup = 10;
+    // DatabaseServiceHeartbeats indicates the ICS supports heartbeating databse services.
+    bool DatabaseServiceHeartbeats = 11;
+    // DatabaseServiceCleanup indicates the ICS supports deleting database services when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool DatabaseServiceCleanup = 12;
+    // WindowsDesktopHeartbeats indicates the ICS supports heartbeating windows desktop servers.
+    bool WindowsDesktopHeartbeats = 13;
+    // WindowsDesktopCleanup indicates the ICS supports deleting windows desktops when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool WindowsDesktopCleanup = 14;
+    // WindowsDesktopHeartbeats indicates the ICS supports heartbeating windows desktop services.
+    bool WindowsDesktopServiceHeartbeats = 15;
+    // WindowsDesktopCleanup indicates the ICS supports deleting windows desktop services when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool WindowsDesktopServiceCleanup = 16;
+    // KubernetesHeartbeats indicates the ICS supports heartbeating kubernetes clusters.
+    bool KubernetesHeartbeats = 17;
+    // KubernetesCleanup indicates the ICS supports deleting kubernetes clusters when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool KubernetesCleanup = 18;
+  }
+
+  // SupportedCapabilities advertises the supported features of the auth server.
+  SupportedCapabilities Capabilities = 3;
+}
+
+// LabelUpdateKind is the type of service to update labels for.
+// buf:lint:ignore ENUM_VALUE_PREFIX
+// buf:lint:ignore ENUM_VALUE_UPPER_SNAKE_CASE
+enum LabelUpdateKind {
+  // SSHServer is a label update for an SSH server.
+  // buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
+  SSHServer = 0;
+  // SSHServerCloudLabels is a label update for an SSH server coming from a
+  // cloud provider.
+  SSHServerCloudLabels = 1;
+}
+
+// InventoryUpdateLabelsRequest is used to request that a specified instance
+// update its labels.
+message InventoryUpdateLabelsRequest {
+  // ServerID advertises the server ID of the instance.
+  string ServerID = 1;
+  // Kind is the type of service to update labels for.
+  LabelUpdateKind Kind = 2;
+  // Labels is the new set of labels for the instance.
+  map<string, string> Labels = 3;
+}
+
+// DownstreamInventoryUpdateLabels is the message sent down the inventory
+// control stream to update the instance's labels.
+message DownstreamInventoryUpdateLabels {
+  // Kind is the type of service to update labels for.
+  LabelUpdateKind Kind = 1;
+  // Labels is the new set of labels for the instance.
+  map<string, string> Labels = 2;
+}
+
+// InventoryHeartbeat announces information about instance state.
+message InventoryHeartbeat {
+  // SSHServer is a complete ssh server spec to be heartbeated (note: the full spec is heartbeated
+  // in the interest of simple conversion from the old logic of heartbeating via UpsertNode, but
+  // we should be able to cut down on network usage fairly significantly by moving static values
+  // to the hello message and only heartbeating dynamic values here).
+  types.ServerV2 SSHServer = 1;
+  // AppServer is a complete app server spec to be heartbeated.
+  types.AppServerV3 AppServer = 2;
+  // DatabaseServer is a complete db server spec to be heartbeated.
+  types.DatabaseServerV3 DatabaseServer = 3;
+  // KubeServer is a complete kube server spec to be heartbeated.
+  types.KubernetesServerV3 KubernetesServer = 4;
+}
+
+// UpstreamInventoryGoodbye informs the upstream service that instance
+// is terminating
+message UpstreamInventoryGoodbye {
+  // DeleteResources indicates that any heartbeats received from
+  // the instance should be terminated when the stream is closed.
+  bool DeleteResources = 1;
+  // SoftReload indicates that the instance started a new Teleport process
+  // and will gracefully exit once all the currently served sessions are over.
+  bool SoftReload = 2;
+}
+
+// InventoryStatusRequest requests inventory status info.
+message InventoryStatusRequest {
+  // Connected requests summary of the inventory control streams registered with
+  // the auth server that handles the request.
+  bool Connected = 1;
+}
+
+// InventoryStatusSummary is the status summary returned by the GetInventoryStatus rpc.
+message InventoryStatusSummary {
+  // Connected is a summary of the instances connected to the current auth server.  Only set if
+  // the Connected flag in the status request is true.
+  repeated UpstreamInventoryHello Connected = 1;
+
+  // InstanceCount is the total number of instance resources aggregated.
+  uint32 InstanceCount = 2;
+
+  // VersionCounts aggregates unique version counts.
+  map<string, uint32> VersionCounts = 3;
+
+  // UpgraderCounts aggregates the unique upgrader counts.
+  map<string, uint32> UpgraderCounts = 4;
+
+  // ServiceCounts aggregates the number of services.
+  map<string, uint32> ServiceCounts = 5;
+}

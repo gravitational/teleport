@@ -78,6 +78,20 @@ func (c *ClientState) ToJoinParams(initialJoinSecret string) *join.BoundKeypairP
 	}
 }
 
+// UpdateFromRegisterResult updates this client state from the register result.
+func (c *ClientState) UpdateFromRegisterResult(result *join.RegisterResult) error {
+	if result.BoundKeypair == nil {
+		return trace.BadParameter("register result is missing bound keypair parameters")
+	}
+
+	c.JoinStateBytes = result.BoundKeypair.JoinState
+
+	// TODO: When implementing rotation, use the bound public key value to set
+	// the current public key.
+
+	return nil
+}
+
 // ToPublicKeyBytes returns the public key bytes in ssh authorized_keys format.
 func (c *ClientState) ToPublicKeyBytes() ([]byte, error) {
 	sshPubKey, err := ssh.NewPublicKey(c.PrivateKey.Public())

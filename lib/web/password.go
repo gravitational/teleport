@@ -25,9 +25,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 )
 
@@ -70,43 +68,4 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	return OK(), nil
-}
-
-// createAuthenticateChallengeWithPassword verifies given password for the authenticated user
-// and on success returns MFA challenges for the users registered devices.
-// DEPRECATED in favor of createAuthenticateChallengeHandle.
-// TODO(bl-nero): DELETE IN 17.0.0
-func (h *Handler) createAuthenticateChallengeWithPassword(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	var req client.MFAChallengeRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
-			Username: ctx.GetUser(),
-			Password: []byte(req.Pass),
-		}},
-		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-		},
-	})
-	if err != nil && trace.IsAccessDenied(err) {
-		// logout in case of access denied
-		logoutErr := h.logout(r.Context(), w, ctx)
-		if logoutErr != nil {
-			return nil, trace.Wrap(logoutErr)
-		}
-	}
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return makeAuthenticateChallenge(chal, "" /*channelID*/), nil
 }

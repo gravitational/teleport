@@ -18,7 +18,12 @@
 
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
-import { makeBot, toApiGitHubTokenSpec } from 'teleport/services/bot/consts';
+import {
+  makeBot,
+  parseGetBotInstanceResponse,
+  parseListBotInstancesResponse,
+  toApiGitHubTokenSpec,
+} from 'teleport/services/bot/consts';
 import ResourceService, { RoleResource } from 'teleport/services/resources';
 import { FeatureFlags } from 'teleport/types';
 
@@ -102,4 +107,54 @@ export function deleteBot(flags: FeatureFlags, name: string) {
   }
 
   return api.delete(cfg.getBotUrlWithName(name));
+}
+
+export async function listBotInstances(
+  variables: {
+    pageToken: string;
+    pageSize: number;
+    searchTerm?: string;
+    botName?: string;
+  },
+  signal?: AbortSignal
+) {
+  const { pageToken, pageSize, searchTerm, botName } = variables;
+
+  const path = cfg.listBotInstancesUrl();
+  const qs = new URLSearchParams();
+
+  qs.set('page_size', pageSize.toFixed());
+  qs.set('page_token', pageToken);
+  if (searchTerm) {
+    qs.set('search', searchTerm);
+  }
+  if (botName) {
+    qs.set('bot_name', botName);
+  }
+
+  const data = await api.get(`${path}?${qs.toString()}`, signal);
+
+  if (!parseListBotInstancesResponse(data)) {
+    throw new Error('failed to parse list bot instances response');
+  }
+
+  return data;
+}
+
+export async function getBotInstance(
+  variables: {
+    botName: string;
+    instanceId: string;
+  },
+  signal?: AbortSignal
+) {
+  const path = cfg.getBotInstanceUrl(variables.botName, variables.instanceId);
+
+  const data = await api.get(path, signal);
+
+  if (!parseGetBotInstanceResponse(data)) {
+    throw new Error('failed to parse get bot instance response');
+  }
+
+  return data;
 }

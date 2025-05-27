@@ -170,7 +170,7 @@ func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		certReq.DNSNames = getServerNames(req)
 
 		// The windows smartcard cert req already does the same in
-		// lib/auth/windows/windows.go, along with another ExtKeyUsage for
+		// lib/winpki/windows.go, along with another ExtKeyUsage for
 		// smartcard logon that we don't want to override above.
 		switch ca.GetType() {
 		case types.DatabaseCA:
@@ -418,7 +418,7 @@ func filterExtensions(ctx context.Context, logger *slog.Logger, extensions []pki
 	return filtered
 }
 
-// TODO(gavin): move OIDs from here and in lib/auth/windows to tlsca package.
+// TODO(gavin): move OIDs from here and in lib/winpki to lib/tlsca package.
 var (
 	oidExtKeyUsage    = asn1.ObjectIdentifier{2, 5, 29, 37}
 	oidSubjectAltName = asn1.ObjectIdentifier{2, 5, 29, 17}

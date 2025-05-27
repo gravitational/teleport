@@ -350,8 +350,8 @@ function CheckReportRouteConflict({
         emptyText=""
         data={routeConflicts}
         columns={[
-          { key: 'dest', headerText: 'Conflicting destination' },
           { key: 'vnetDest', headerText: 'VNet destination' },
+          { key: 'dest', headerText: 'Conflicting destination' },
           { key: 'interfaceName', headerText: 'Interface' },
           {
             key: 'interfaceApp',

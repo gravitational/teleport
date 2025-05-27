@@ -37,7 +37,7 @@ import (
 	"github.com/jcmturner/gokrb5/v8/credentials"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/windows"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
 type ClientProvider interface {
@@ -46,11 +46,11 @@ type ClientProvider interface {
 }
 
 // NewProviderExternalExecutable returns a new CredentialProvider which performs PKINIT using an external, preinstalled kinit binary.
-func NewProviderExternalExecutable(logger *slog.Logger, auth windows.AuthInterface, adConfig types.AD) (ClientProvider, error) {
+func NewProviderExternalExecutable(logger *slog.Logger, auth winpki.AuthInterface, adConfig types.AD) (ClientProvider, error) {
 	return newKinitProvider(logger, auth, adConfig)
 }
 
-func newKinitProvider(logger *slog.Logger, auth windows.AuthInterface, adConfig types.AD) (*kinitProvider, error) {
+func newKinitProvider(logger *slog.Logger, auth winpki.AuthInterface, adConfig types.AD) (*kinitProvider, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -148,7 +148,7 @@ type certGetter interface {
 
 type dbCertGetter struct {
 	logger        *slog.Logger
-	auth          windows.AuthInterface
+	auth          winpki.AuthInterface
 	domain        string
 	ldapConnector LDAPConnector
 }
@@ -173,18 +173,17 @@ func (d *dbCertGetter) getCertificate(ctx context.Context, username string) (*ge
 		d.logger.WarnContext(ctx, "Failed to get SID from ActiveDirectory; PKINIT flow is likely to fail.", "error", sidLookupError)
 	}
 
-	req := &windows.GenerateCredentialsRequest{
+	req := &winpki.GenerateCredentialsRequest{
 		CAType:             types.DatabaseClientCA,
 		TTL:                time.Minute * 10,
 		Domain:             d.domain,
 		ClusterName:        clusterName.GetClusterName(),
 		OmitCDP:            true,
 		Username:           username,
-		AuthClient:         d.auth,
 		ActiveDirectorySID: sid,
 	}
 
-	certPEM, keyPEM, caCerts, err := windows.DatabaseCredentials(ctx, req)
+	certPEM, keyPEM, caCerts, err := winpki.DatabaseCredentials(ctx, d.auth, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

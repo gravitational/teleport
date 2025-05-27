@@ -26,7 +26,6 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/defaults"
-	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -38,13 +37,9 @@ type tcpHandlerResolver struct {
 }
 
 type tcpHandlerResolverConfig struct {
-	fqdnResolver fqdnResolver
-	appProvider  appProvider
-	clock        clockwork.Clock
-}
-
-type fqdnResolver interface {
-	ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.ResolveFQDNResponse, error)
+	clt         *clientApplicationServiceClient
+	appProvider *appProvider
+	clock       clockwork.Clock
 }
 
 func newTCPHandlerResolver(cfg *tcpHandlerResolverConfig) *tcpHandlerResolver {
@@ -61,7 +56,7 @@ func newTCPHandlerResolver(cfg *tcpHandlerResolverConfig) *tcpHandlerResolver {
 //
 // If fqdn does not match anything it must return errNoTCPHandler.
 func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string) (*tcpHandlerSpec, error) {
-	resp, err := r.cfg.fqdnResolver.ResolveFQDN(ctx, fqdn)
+	resp, err := r.cfg.clt.ResolveFQDN(ctx, fqdn)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +85,7 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 		// TCP connection if this may match an SSH node or an app that may be
 		// added later so we return an undecidedHandler.
 		handler, err := newUndecidedHandler(&undecidedHandlerConfig{
-			fqdnResolver: r.cfg.fqdnResolver,
+			clt:          r.cfg.clt,
 			appProvider:  r.cfg.appProvider,
 			clock:        r.cfg.clock,
 			fqdn:         fqdn,
@@ -123,8 +118,8 @@ type undecidedHandler struct {
 }
 
 type undecidedHandlerConfig struct {
-	fqdnResolver fqdnResolver
-	appProvider  appProvider
+	clt          *clientApplicationServiceClient
+	appProvider  *appProvider
 	clock        clockwork.Clock
 	fqdn         string
 	webProxyAddr string
@@ -164,7 +159,7 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 
 	// Handling an incoming TCP connection but we're not sure what this
 	// address should point to yet, query again in case an app was added.
-	resp, err := h.cfg.fqdnResolver.ResolveFQDN(ctx, h.cfg.fqdn)
+	resp, err := h.cfg.clt.ResolveFQDN(ctx, h.cfg.fqdn)
 	if err != nil {
 		return trace.Wrap(err, "resolving target in undecidedHandler")
 	}

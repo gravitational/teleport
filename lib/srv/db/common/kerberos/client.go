@@ -27,16 +27,16 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
-	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/srv/db/common/kerberos/kinit"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
 type clientProvider struct {
-	authClient windows.AuthInterface
+	authClient winpki.AuthInterface
 	logger     *slog.Logger
 
-	providerFun func(logger *slog.Logger, auth windows.AuthInterface, adConfig types.AD) (kinit.ClientProvider, error) // for testing
-	skipLogin   bool                                                                                                   // for testing
+	providerFun func(logger *slog.Logger, auth winpki.AuthInterface, adConfig types.AD) (kinit.ClientProvider, error) // for testing
+	skipLogin   bool                                                                                                  // for testing
 }
 
 // ClientProvider can create Kerberos client appropriate for given database session.
@@ -46,11 +46,11 @@ type ClientProvider interface {
 }
 
 // NewClientProvider returns new instance of ClientProvider.
-func NewClientProvider(authClient windows.AuthInterface, logger *slog.Logger) ClientProvider {
+func NewClientProvider(authClient winpki.AuthInterface, logger *slog.Logger) ClientProvider {
 	return newClientProvider(authClient, logger)
 }
 
-func newClientProvider(authClient windows.AuthInterface, logger *slog.Logger) *clientProvider {
+func newClientProvider(authClient winpki.AuthInterface, logger *slog.Logger) *clientProvider {
 	return &clientProvider{
 		authClient: authClient,
 		logger:     logger,
@@ -114,7 +114,7 @@ func (c *clientProvider) keytabClient(ad types.AD, username string) (*client.Cli
 }
 
 // kinitClient returns a kerberos client using a kinit ccache
-func (c *clientProvider) kinitClient(ctx context.Context, ad types.AD, username string, auth windows.AuthInterface) (*client.Client, error) {
+func (c *clientProvider) kinitClient(ctx context.Context, ad types.AD, username string, auth winpki.AuthInterface) (*client.Client, error) {
 	if _, err := tlsutils.ParseCertificatePEM([]byte(ad.LDAPCert)); err != nil {
 		return nil, trace.Wrap(err, "invalid certificate was provided via AD configuration")
 	}

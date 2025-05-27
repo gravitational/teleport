@@ -100,7 +100,7 @@ export class BrowserFileSystem implements SharedDirectoryAccess {
       // If dir contains any files or directories, it will
       // enter the loop below and we can register it as not
       // empty. If it doesn't, it will skip over the loop.
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // eslint-disable-next-line unused-imports/no-unused-vars
       for await (const _ of dir.keys()) {
         isEmpty = false;
         break;

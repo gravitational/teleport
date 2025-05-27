@@ -207,19 +207,6 @@ func ParseCertificatePEMs(bytes []byte) ([]*x509.Certificate, error) {
 // MarshalPublicKeyFromPrivateKeyPEM extracts public key from private key
 // and returns PEM marshaled key
 func MarshalPublicKeyFromPrivateKeyPEM(privateKey crypto.PrivateKey) ([]byte, error) {
-	// TODO(nklaassen): DELETE IN 18.0.0 when this quirk is no longer necessary because all parsers can handle
-	// either format.
-	if rsaPrivateKey, ok := privateKey.(*rsa.PrivateKey); ok {
-		// This is weird and historical: we're marshaling an RSA public key into PKIX DER format and then
-		// putting it into an "RSA PUBLIC KEY" PEM block. Normally RSA keys should either be:
-		// - PKCS#1 DER format in an "RSA PUBLIC KEY" PEM block
-		// - PKIX DER format in a "PUBLIC KEY" PEM block
-		derBytes, err := x509.MarshalPKIXPublicKey(rsaPrivateKey.Public())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return pem.EncodeToMemory(&pem.Block{Type: keys.PKCS1PublicKeyType, Bytes: derBytes}), nil
-	}
 	// All private keys in the standard library implement crypto.Signer, which gives access to the public key.
 	if signer, ok := privateKey.(crypto.Signer); ok {
 		return keys.MarshalPublicKey(signer.Public())

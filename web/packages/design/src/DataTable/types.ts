@@ -141,6 +141,7 @@ export type FetchingConfig = {
   onFetchPrev?: () => void;
   onFetchMore?: () => void;
   fetchStatus: FetchStatus;
+  disableLoadingIndicator?: boolean;
 };
 
 export type ServersideProps = {

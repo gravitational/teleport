@@ -591,7 +591,7 @@ func (h *sshServerHeartbeatV2) Announce(ctx context.Context, sender inventory.Do
 		return false
 	}
 
-	if err := sender.Send(ctx, proto.InventoryHeartbeat{SSHServer: apiutils.CloneProtoMsg(server)}); err != nil {
+	if err := sender.Send(ctx, &proto.InventoryHeartbeat{SSHServer: apiutils.CloneProtoMsg(server)}); err != nil {
 		slog.WarnContext(ctx, "Failed to perform inventory heartbeat for ssh server", "error", err)
 		return false
 	}
@@ -661,7 +661,7 @@ func (h *appServerHeartbeatV2) Announce(ctx context.Context, sender inventory.Do
 		return false
 	}
 
-	if err := sender.Send(ctx, proto.InventoryHeartbeat{AppServer: apiutils.CloneProtoMsg(server)}); err != nil {
+	if err := sender.Send(ctx, &proto.InventoryHeartbeat{AppServer: apiutils.CloneProtoMsg(server)}); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
 			slog.WarnContext(ctx, "Failed to perform inventory heartbeat for app server", "error", err)
 		}
@@ -732,7 +732,7 @@ func (h *dbServerHeartbeatV2) Announce(ctx context.Context, sender inventory.Dow
 		slog.WarnContext(ctx, "Failed to perform inventory heartbeat for database server", "error", err)
 		return false
 	}
-	if err := sender.Send(ctx, proto.InventoryHeartbeat{DatabaseServer: apiutils.CloneProtoMsg(server)}); err != nil {
+	if err := sender.Send(ctx, &proto.InventoryHeartbeat{DatabaseServer: apiutils.CloneProtoMsg(server)}); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
 			slog.WarnContext(ctx, "Failed to perform inventory heartbeat for database server", "error", err)
 		}
@@ -804,7 +804,7 @@ func (h *kubeServerHeartbeatV2) Announce(ctx context.Context, sender inventory.D
 		slog.WarnContext(ctx, "Failed to perform inventory heartbeat for kubernetes server", "error", err)
 		return false
 	}
-	if err := sender.Send(ctx, proto.InventoryHeartbeat{KubernetesServer: apiutils.CloneProtoMsg(server)}); err != nil {
+	if err := sender.Send(ctx, &proto.InventoryHeartbeat{KubernetesServer: apiutils.CloneProtoMsg(server)}); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
 			slog.WarnContext(ctx, "Failed to perform inventory heartbeat for kubernetes server", "error", err)
 		}

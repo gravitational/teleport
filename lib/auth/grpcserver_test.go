@@ -3041,16 +3041,16 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	require.NoError(t, err)
 	defer stream.Close()
 
-	err = stream.Send(ctx, proto.UpstreamInventoryHello{
+	err = stream.Send(ctx, &proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: roles,
+		Services: types.SystemRoles(roles).StringSlice(),
 	})
 	require.NoError(t, err)
 
 	select {
 	case msg := <-stream.Recv():
-		_, ok := msg.(proto.DownstreamInventoryHello)
+		_, ok := msg.(*proto.DownstreamInventoryHello)
 		require.True(t, ok)
 	case <-time.After(time.Second * 5):
 		t.Fatalf("timeout waiting for downstream hello")
@@ -3077,9 +3077,9 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	// wait for the ping
 	select {
 	case msg := <-stream.Recv():
-		ping, ok := msg.(proto.DownstreamInventoryPing)
+		ping, ok := msg.(*proto.DownstreamInventoryPing)
 		require.True(t, ok)
-		err = stream.Send(ctx, proto.UpstreamInventoryPong{
+		err = stream.Send(ctx, &proto.UpstreamInventoryPong{
 			ID: ping.ID,
 		})
 		require.NoError(t, err)
@@ -5373,13 +5373,6 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 					APIGroup:  types.Wildcard,
 				},
 				{
-					Kind:      types.Wildcard,
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-				{
 					Kind:      "ingresses",
 					Name:      types.Wildcard,
 					Namespace: types.Wildcard,
@@ -5399,13 +5392,6 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 			KubernetesResources: []types.KubernetesResource{
 				{
 					Kind:      "pods",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-				{
-					Kind:      types.Wildcard,
 					Name:      types.Wildcard,
 					Namespace: types.Wildcard,
 					Verbs:     []string{types.Wildcard},
@@ -5454,6 +5440,43 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 					Name:      types.Wildcard,
 					Namespace: types.Wildcard,
 					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			},
+		},
+	})
+	downgradev7incompatibleNamespace := newRole("downgrade_v7_incompatible_namespace", types.V8, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind:  "namespaces",
+					Name:  "foo",
+					Verbs: []string{types.Wildcard},
+				},
+			},
+		},
+	})
+	downgradev7incompatibleNamespacedWildcard := newRole("downgrade_v7_incompatible_namespaced_wildcard", types.V8, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      "foo",
+					Namespace: "bar",
+					Verbs:     []string{"get"},
+					APIGroup:  types.Wildcard,
+				},
+			},
+		},
+	})
+	downgradev7incompatibleClusterWideWildcard := newRole("downgrade_v7_incompatible_cluster_wide_wildcard", types.V8, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      "bar",
+					Namespace: "", // Cluster wide.
+					Verbs:     []string{"get"},
 					APIGroup:  types.Wildcard,
 				},
 			},
@@ -5581,6 +5604,9 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 		testRole1,
 		downgradev7comptibleK8sResourcesRole,
 		downgradev7incompatibleK8sResourcesRole,
+		downgradev7incompatibleNamespace,
+		downgradev7incompatibleNamespacedWildcard,
+		downgradev7incompatibleClusterWideWildcard,
 		downgradev7mixedK8sResourcesRole,
 		downgradev7ValidAccessRequest,
 		downgradeInvalidAccessRequestAllow,
@@ -5622,12 +5648,6 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 							Verbs:     []string{types.Wildcard},
 						},
 						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-						{
 							Kind:      types.KindKubeIngress,
 							Name:      types.Wildcard,
 							Namespace: types.Wildcard,
@@ -5645,12 +5665,6 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 					KubernetesResources: []types.KubernetesResource{
 						{
 							Kind:      types.KindKubePod,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-						{
-							Kind:      types.Wildcard,
 							Name:      types.Wildcard,
 							Namespace: types.Wildcard,
 							Verbs:     []string{types.Wildcard},
@@ -5686,6 +5700,105 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 			},
 			inputRole: downgradev7incompatibleK8sResourcesRole,
 			expectedRole: newRole(downgradev7incompatibleK8sResourcesRole.GetName(), types.V7, types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					KubernetesResources: nil,
+				},
+				Deny: types.RoleConditions{
+					KubernetesLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					KubernetesResources: []types.KubernetesResource{
+						{
+							Kind:      types.Wildcard,
+							Name:      types.Wildcard,
+							Namespace: types.Wildcard,
+							Verbs:     []string{types.Wildcard},
+						},
+					},
+				},
+				Options: types.RoleOptions{
+					IDP: &types.IdPOptions{
+						SAML: &types.IdPSAMLOptions{
+							Enabled: types.NewBoolOption(false),
+						},
+					},
+				},
+			}),
+			expectDowngraded: true,
+		},
+		{
+			desc: "downgrade v7 incompatible k8s namespaces kind",
+			clientVersions: []string{
+				"17.2.7",
+			},
+			inputRole: downgradev7incompatibleNamespace,
+			expectedRole: newRole(downgradev7incompatibleNamespace.GetName(), types.V7, types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					KubernetesResources: nil,
+				},
+				Deny: types.RoleConditions{
+					KubernetesLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					KubernetesResources: []types.KubernetesResource{
+						{
+							Kind:      types.Wildcard,
+							Name:      types.Wildcard,
+							Namespace: types.Wildcard,
+							Verbs:     []string{types.Wildcard},
+						},
+					},
+				},
+				Options: types.RoleOptions{
+					IDP: &types.IdPOptions{
+						SAML: &types.IdPSAMLOptions{
+							Enabled: types.NewBoolOption(false),
+						},
+					},
+				},
+			}),
+			expectDowngraded: true,
+		},
+		{
+			desc: "downgrade v7 incompatible k8s namespaced wildcard kind",
+			clientVersions: []string{
+				"17.2.7",
+			},
+			inputRole: downgradev7incompatibleNamespacedWildcard,
+			expectedRole: newRole(downgradev7incompatibleNamespacedWildcard.GetName(), types.V7, types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					KubernetesResources: nil,
+				},
+				Deny: types.RoleConditions{
+					KubernetesLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					KubernetesResources: []types.KubernetesResource{
+						{
+							Kind:      types.Wildcard,
+							Name:      types.Wildcard,
+							Namespace: types.Wildcard,
+							Verbs:     []string{types.Wildcard},
+						},
+					},
+				},
+				Options: types.RoleOptions{
+					IDP: &types.IdPOptions{
+						SAML: &types.IdPSAMLOptions{
+							Enabled: types.NewBoolOption(false),
+						},
+					},
+				},
+			}),
+			expectDowngraded: true,
+		},
+		{
+			desc: "downgrade v7 incompatible k8s cluster wide wildcard kind",
+			clientVersions: []string{
+				"17.2.7",
+			},
+			inputRole: downgradev7incompatibleClusterWideWildcard,
+			expectedRole: newRole(downgradev7incompatibleClusterWideWildcard.GetName(), types.V7, types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					KubernetesResources: nil,
 				},

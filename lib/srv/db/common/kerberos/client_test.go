@@ -36,9 +36,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common/kerberos/kinit"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
 //go:embed kinit/testdata/kinit.cache
@@ -210,9 +210,9 @@ func TestConnectorKInitClient(t *testing.T) {
 
 			databaseUser := "alice"
 
-			mockAuth := struct{ windows.AuthInterface }{} // dummy implementation: none of the mockAuth methods should actually be called.
+			mockAuth := struct{ winpki.AuthInterface }{} // dummy implementation: none of the mockAuth methods should actually be called.
 			provider := newClientProvider(mockAuth, slog.Default())
-			provider.providerFun = func(logger *slog.Logger, auth windows.AuthInterface, adConfig types.AD) (kinit.ClientProvider, error) {
+			provider.providerFun = func(logger *slog.Logger, auth winpki.AuthInterface, adConfig types.AD) (kinit.ClientProvider, error) {
 				return &mockClientProvider{}, nil
 			}
 			provider.skipLogin = true

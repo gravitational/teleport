@@ -139,13 +139,13 @@ function routeConflictReportToText({
   const tableRows = report.routeConflictReport.routeConflicts
     .map(
       routeConflict =>
-        `| ${routeConflict.dest} | ${routeConflict.vnetDest} | ${routeConflict.interfaceName} | ${routeConflict.interfaceApp || 'unknown'} |`
+        `| ${routeConflict.vnetDest} | ${routeConflict.dest} | ${routeConflict.interfaceName} | ${routeConflict.interfaceApp || 'unknown'} |`
     )
     .join('\n');
 
   return `⚠️ There are network routes in conflict with VNet.
 
-| Conflicting destination | VNet destination | Interface | Set up by |
-| ----------------------- | ---------------- | --------- | --------- |
+| VNet destination | Conflicting destination | Interface | Set up by |
+| ---------------- | ----------------------- | --------- | --------- |
 ${tableRows}`;
 }

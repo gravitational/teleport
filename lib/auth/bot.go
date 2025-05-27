@@ -493,7 +493,7 @@ func (a *Server) generateInitialBotCerts(
 	sshPubKey, tlsPubKey []byte,
 	expires time.Time, renewable bool,
 	initialAuth *machineidv1pb.BotInstanceStatusAuthentication,
-	existingInstanceID string, currentIdentityGeneration int32,
+	existingInstanceID string, previousInstanceID string, currentIdentityGeneration int32,
 	joinAttrs *workloadidentityv1pb.JoinAttrs,
 ) (*proto.Certs, string, error) {
 	var err error
@@ -560,8 +560,9 @@ func (a *Server) generateInitialBotCerts(
 		initialAuth.Generation = 1
 
 		bi := newBotInstance(&machineidv1pb.BotInstanceSpec{
-			BotName:    botName,
-			InstanceId: uuid.String(),
+			BotName:            botName,
+			InstanceId:         uuid.String(),
+			PreviousInstanceId: previousInstanceID,
 		}, initialAuth, expires.Add(machineidv1.ExpiryMargin))
 
 		_, err = a.BotInstance.CreateBotInstance(ctx, bi)

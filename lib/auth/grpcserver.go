@@ -788,7 +788,7 @@ func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryC
 	// mapping for translation.
 	var metricServices []string
 	for _, service := range hello.Services {
-		if name, ok := icsServiceToMetricName[service]; ok {
+		if name, ok := icsServiceToMetricName[types.SystemRole(service)]; ok {
 			metricServices = append(metricServices, name)
 		}
 	}
@@ -812,12 +812,12 @@ func (g *GRPCServer) GetInventoryStatus(ctx context.Context, req *authpb.Invento
 		return nil, trail.ToGRPC(err)
 	}
 
-	rsp, err := auth.GetInventoryStatus(ctx, *req)
+	rsp, err := auth.GetInventoryStatus(ctx, req)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
-	return &rsp, nil
+	return rsp, nil
 }
 
 // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
@@ -2163,9 +2163,25 @@ func downgradeKubeResources[T types.KubeResource](role *types.RoleV6, resources 
 			out = append(out, elem)
 			continue
 		}
+func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
+	downgrade := func(resources []types.KubernetesResource) ([]types.KubernetesResource, bool) {
+		var out []types.KubernetesResource
+		for _, elem := range resources {
+			// If group is '*', simply remove it as the behavior in v7 would be the same.
+			if elem.APIGroup == types.Wildcard {
+				elem.APIGroup = ""
+			}
 
-		// If we reach this point, we are dealing with a resource we don't know about.
-		// As <=v17 granted too much access for unknown resource, we deny everything.
+			// If Kind is known in v7 and group is known, remove it the api group and keep the resource.
+			if v, ok := defaultRBACResources[allowedResourcesKey{elem.APIGroup, elem.Kind}]; ok {
+				elem.APIGroup = ""
+				elem.Kind = v
+				out = append(out, elem)
+				continue
+			}
+
+		// If we reach this point, we are dealing with a resource we don't know about or a wildcard
+		// As the scope of permissions granted differs, deny everything.
 		role.Spec.Allow.KubernetesResources = nil
 		role.Spec.Deny.KubernetesLabels = types.Labels{
 			types.Wildcard: {types.Wildcard},
@@ -2224,11 +2240,12 @@ type allowedResourcesKey struct {
 // TODO(@creack): Delete in v19.0.0.
 // Only used in the maybeDowngradeRoleVersionToV7 function above.
 // Must be synced with the defaultRBACResources map in lib/kube/proxy/url.go.
+// NOTE: 'namespaces' is not included as the v8 behavior is different from v7.
+// A 'namespaces' resource in v8 would result in wildcard deny in older versions.
 var defaultRBACResources = map[allowedResourcesKey]string{
 	{apiGroup: "", resourceKind: "pods"}:                                          types.KindKubePod,
 	{apiGroup: "", resourceKind: "secrets"}:                                       types.KindKubeSecret,
 	{apiGroup: "", resourceKind: "configmaps"}:                                    types.KindKubeConfigmap,
-	{apiGroup: "", resourceKind: "namespaces"}:                                    types.KindKubeNamespace,
 	{apiGroup: "", resourceKind: "services"}:                                      types.KindKubeService,
 	{apiGroup: "", resourceKind: "endpoints"}:                                     types.KindKubeService,
 	{apiGroup: "", resourceKind: "serviceaccounts"}:                               types.KindKubeServiceAccount,

@@ -207,7 +207,7 @@ func (roles SystemRoles) IncludeAny(candidates ...SystemRole) bool {
 
 // StringSlice returns teleport roles as string slice
 func (roles SystemRoles) StringSlice() []string {
-	s := make([]string, 0)
+	s := make([]string, 0, len(roles))
 	for _, r := range roles {
 		s = append(s, r.String())
 	}
@@ -273,12 +273,12 @@ func (r *SystemRole) Set(v string) error {
 // String returns the system role string representation. Returned values must
 // match (case-insensitive) the role mappings; otherwise, the validation check
 // will fail.
-func (r *SystemRole) String() string {
-	switch *r {
+func (r SystemRole) String() string {
+	switch r {
 	case RoleTrustedCluster:
 		return "trusted_cluster"
 	default:
-		return string(*r)
+		return string(r)
 	}
 }
 
@@ -286,25 +286,25 @@ func (r *SystemRole) String() string {
 // if it's ok, false otherwise
 // Check checks if this a a valid teleport role value, returns nil
 // if it's ok, false otherwise
-func (r *SystemRole) Check() error {
-	sr, ok := roleMappings[strings.ToLower(string(*r))]
-	if ok && string(*r) == string(sr) {
+func (r SystemRole) Check() error {
+	sr, ok := roleMappings[strings.ToLower(string(r))]
+	if ok && string(r) == string(sr) {
 		return nil
 	}
 
-	return trace.BadParameter("role %v is not registered", *r)
+	return trace.BadParameter("role %v is not registered", r)
 }
 
 // IsLocalService checks if the given system role is a teleport service (e.g. auth),
 // as opposed to some non-service role (e.g. admin). Excludes remote services such
 // as remoteproxy.
-func (r *SystemRole) IsLocalService() bool {
-	_, ok := localServiceMappings[*r]
+func (r SystemRole) IsLocalService() bool {
+	_, ok := localServiceMappings[r]
 	return ok
 }
 
 // IsControlPlane checks if the given system role is a control plane element (i.e. auth/proxy).
-func (r *SystemRole) IsControlPlane() bool {
-	_, ok := controlPlaneMapping[*r]
+func (r SystemRole) IsControlPlane() bool {
+	_, ok := controlPlaneMapping[r]
 	return ok
 }

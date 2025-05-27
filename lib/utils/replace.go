@@ -201,19 +201,6 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, isClusterWideResou
 			continue
 		}
 		switch {
-		// If the user has access to a specific namespace, they should be able to
-		// access all resources in that namespace.
-		case resource.Kind == "namespaces" && input.Namespace != "":
-			// Access to custom resources is determined by the access level of the
-			// namespace resource where the custom resource is defined.
-			// This is a special case because custom resources are not defined in the
-			// user's resources list.
-			// Access to namspaced resources is determined by the access level of the
-			// namespace resource where the resource is defined or by the access level
-			// of the resource if supported.
-			if ok, err := MatchString(input.Namespace, resource.Name); err != nil || ok {
-				return ok, trace.Wrap(err)
-			}
 		case targetsReadOnlyNamespace && cond == types.Allow && resource.Kind != "namespaces" && resource.Namespace != "":
 			// If the user requests a read-only namespace get/list/watch, they should
 			// be able to see the list of namespaces they have resources defined in.
@@ -221,6 +208,10 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, isClusterWideResou
 			// they should be able to see the "foo" namespace in the list of namespaces
 			// but only if the request is read-only.
 			if ok, err := MatchString(input.Name, resource.Namespace); err != nil || ok {
+				return ok, trace.Wrap(err)
+			}
+		case targetsReadOnlyNamespace && cond == types.Allow && resource.Kind == "namespaces" && resource.Name != "":
+			if ok, err := MatchString(input.Name, resource.Name); err != nil || ok {
 				return ok, trace.Wrap(err)
 			}
 		default:
@@ -237,16 +228,16 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, isClusterWideResou
 			} else if !ok {
 				continue
 			}
-			if input.Namespace == "" && isClusterWideResource {
-				return true, nil
-			}
 
+			if input.Namespace == "" && resource.Namespace != "" && resource.Namespace != types.Wildcard {
+				continue
+			}
+			// At this point everything else matched. If we match the namespace as well, we have a match.
 			if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil || ok {
 				return ok, trace.Wrap(err)
 			}
 		}
 	}
-
 	return false, nil
 }
 
@@ -286,23 +277,6 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, isClusterWideRe
 			continue
 		}
 		switch {
-		// If the user has access to a specific namespace, they should be able to
-		// access all resources in that namespace.
-		case resource.Kind == "namespaces":
-			isAllowOrFullDeny := !isDeny || resource.Name == types.Wildcard
-			if input.Namespace == "" && isAllowOrFullDeny {
-				return isAllowOrFullDeny, nil
-			}
-			// Access to custom resources is determined by the access level of the
-			// namespace resource where the custom resource is defined.
-			// This is a special case because custom resources are not defined in the
-			// user's resources list.
-			// Access to namespaced resources is determined by the access level of the
-			// namespace resource where the resource is defined or by the access level
-			// of the resource if supported.
-			if ok, err := MatchString(input.Namespace, resource.Name); err != nil || ok && isAllowOrFullDeny {
-				return isAllowOrFullDeny || isDeny, trace.Wrap(err)
-			}
 		case targetsReadOnlyNamespace && !isDeny && resource.Kind != "namespaces" && resource.Namespace != "":
 			// If the user requests a read-only namespace get/list/watch, they should
 			// be able to see the list of namespaces they have resources defined in.
@@ -336,11 +310,13 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, isClusterWideRe
 			if input.Namespace == "" && isAllowOrFullDeny {
 				return isAllowOrFullDeny, nil
 			}
+
 			if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil {
 				return false, trace.Wrap(err)
 			} else if !ok {
 				continue
 			}
+
 			if !isDeny || isDeny && resource.Name == types.Wildcard {
 				return !isDeny || isDeny && resource.Name == types.Wildcard, nil
 			}

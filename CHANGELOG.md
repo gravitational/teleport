@@ -81,6 +81,14 @@ mode from now on.
 
 ### Other changes
 
+#### Configurable keyboard layouts for Windows desktop sessions
+
+Teleport's Account Settings page now exposes an option to set your preferred
+keyboard layout for Windows desktop sessions.
+
+Note: in order for this setting to take affect, agent's running Teleport's
+`windows_desktop_service` must be upgraded to v18.0.0 or later.
+
 #### Windows desktop discovery enhancements
 
 Teleport's LDAP-based discovery mechanism for Windows desktops now supports:

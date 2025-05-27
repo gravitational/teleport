@@ -48,7 +48,9 @@ func newGitServerCollection(upstream services.GitServerGetter, w types.WatchKind
 			var all []types.Server
 			var nextToken string
 			for {
-				page, nextToken, err := upstream.ListGitServers(ctx, apidefaults.DefaultChunkSize, nextToken)
+				var page []types.Server
+				var err error
+				page, nextToken, err = upstream.ListGitServers(ctx, apidefaults.DefaultChunkSize, nextToken)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}

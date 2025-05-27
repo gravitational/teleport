@@ -38,58 +38,9 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
-
-// checkAccessToRegisteredResource checks if calling user has access to at least one registered resource.
-//
-// Deprecated: Use `clusterUnifiedResourcesGet` instead.
-// TODO(kiosion): DELETE in 18.0
-func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	// Get a client to the Auth Server with the logged in user's identity. The
-	// identity of the logged in user is used to fetch the list of resources.
-	clt, err := c.GetUserClient(r.Context(), site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resourceKinds := []string{
-		types.KindNode,
-		types.KindDatabaseServer,
-		types.KindAppServer,
-		types.KindKubeServer,
-		types.KindWindowsDesktop,
-		types.KindSAMLIdPServiceProvider,
-	}
-
-	for _, kind := range resourceKinds {
-		res, err := clt.ListResources(r.Context(), proto.ListResourcesRequest{
-			ResourceType: kind,
-			Limit:        1,
-		})
-		if err != nil {
-			// Access denied error is returned when user does not have permissions
-			// to read/list a resource kind which can be ignored as this function is not
-			// about checking if user has the right perms.
-			if trace.IsAccessDenied(err) {
-				continue
-			}
-			return nil, trace.Wrap(err)
-		}
-
-		if len(res.Resources) > 0 {
-			return checkAccessToRegisteredResourceResponse{
-				HasResource: true,
-			}, nil
-		}
-	}
-
-	return checkAccessToRegisteredResourceResponse{
-		HasResource: false,
-	}, nil
-}
 
 func (h *Handler) listRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
@@ -98,22 +49,7 @@ func (h *Handler) listRolesHandle(w http.ResponseWriter, r *http.Request, params
 	}
 
 	values := r.URL.Query()
-	// If limit exists as a query parameter, this means its coming from a "new" webui
-	// and can return the new paginated response.
-	// TODO(gzdunek): DELETE IN 17.0.0: remove "getRoles".
-	if values.Has("limit") {
-		return listRoles(clt, values)
-	}
-	return getRoles(clt)
-}
-
-func getRoles(clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
-	roles, err := clt.GetRoles(context.TODO())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ui.NewRoles(roles)
+	return listRoles(clt, values)
 }
 
 func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithoutCountGetResponse, error) {
@@ -685,17 +621,9 @@ type listResourcesWithoutCountGetResponse struct {
 	StartKey string `json:"startKey"`
 }
 
-type checkAccessToRegisteredResourceResponse struct {
-	// HasResource is a flag to indicate if user has any access
-	// to a registered resource or not.
-	HasResource bool `json:"hasResource"`
-}
-
 type resourcesAPIGetter interface {
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
-	// GetRoles returns a list of roles
-	GetRoles(ctx context.Context) ([]types.Role, error)
 	// ListRoles returns a paginated list of roles.
 	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 	// UpsertRole creates or updates role
