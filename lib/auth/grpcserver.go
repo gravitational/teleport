@@ -2151,11 +2151,7 @@ func downgradeKubeResources[T types.KubeResource](role *types.RoleV6, resources 
 			elem.SetAPIGroup("")
 			apiGroup = ""
 		}
-		// If we have a wildcard kind, keep it.
-		if kind == types.Wildcard && apiGroup == "" {
-			out = append(out, elem)
-			continue
-		}
+
 		// If Kind is known in v7 and group is known, remove it.
 		if v, ok := defaultRBACResources[allowedResourcesKey{apiGroup, kind}]; ok {
 			elem.SetAPIGroup("")
@@ -2163,22 +2159,6 @@ func downgradeKubeResources[T types.KubeResource](role *types.RoleV6, resources 
 			out = append(out, elem)
 			continue
 		}
-func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
-	downgrade := func(resources []types.KubernetesResource) ([]types.KubernetesResource, bool) {
-		var out []types.KubernetesResource
-		for _, elem := range resources {
-			// If group is '*', simply remove it as the behavior in v7 would be the same.
-			if elem.APIGroup == types.Wildcard {
-				elem.APIGroup = ""
-			}
-
-			// If Kind is known in v7 and group is known, remove it the api group and keep the resource.
-			if v, ok := defaultRBACResources[allowedResourcesKey{elem.APIGroup, elem.Kind}]; ok {
-				elem.APIGroup = ""
-				elem.Kind = v
-				out = append(out, elem)
-				continue
-			}
 
 		// If we reach this point, we are dealing with a resource we don't know about or a wildcard
 		// As the scope of permissions granted differs, deny everything.
