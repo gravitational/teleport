@@ -16,31 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled, { CSSProp } from 'styled-components';
+import styled from 'styled-components';
 
 import { alignSelf, color, space } from 'design/system';
 
 import { buttonSizes } from './constants';
 
-type Props<E extends React.ElementType> = React.ComponentPropsWithoutRef<E> & {
-  size?: number;
-  css?: CSSProp;
-  setRef?: React.ForwardedRef<HTMLButtonElement>;
-  as?: E;
+const defaultSize = buttonSizes[1];
+
+const size = props => {
+  return buttonSizes[props.size] || defaultSize;
 };
 
-const ButtonIcon = <E extends React.ElementType = 'button'>(
-  props: Props<E>
-) => {
-  const { children, setRef, css, size = 1, ...rest } = props;
+const ButtonIcon = props => {
+  const { children, setRef, css, ...rest } = props;
   return (
-    <StyledButtonIcon {...rest} ref={setRef} css={css} $size={size}>
+    <StyledButtonIcon ref={setRef} css={css} {...rest}>
       {children}
     </StyledButtonIcon>
   );
 };
 
-const StyledButtonIcon = styled.button<{ $size: keyof typeof buttonSizes }>`
+const StyledButtonIcon = styled.button`
   align-items: center;
   border: none;
   cursor: pointer;
@@ -66,15 +63,15 @@ const StyledButtonIcon = styled.button<{ $size: keyof typeof buttonSizes }>`
   &:not(:disabled) {
     &:hover,
     &:focus {
-      background: ${({ theme }) => theme.colors.interactive.tonal.neutral[1]};
+      background: ${({ theme }) => theme.colors.spotBackground[1]};
     }
 
     &:active {
-      background: ${({ theme }) => theme.colors.interactive.tonal.neutral[2]};
+      background: ${({ theme }) => theme.colors.spotBackground[2]};
     }
   }
 
-  ${({ $size }) => buttonSizes[$size] ?? buttonSizes[1]}
+  ${size}
   ${space}
   ${color}
   ${alignSelf}
