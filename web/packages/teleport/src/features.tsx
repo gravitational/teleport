@@ -345,7 +345,7 @@ export class FeatureAddBots implements TeleportFeature {
     title: 'Bot',
     path: cfg.routes.botsNew,
     exact: true,
-    component: () => <AddBots />,
+    component: AddBots,
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -518,7 +518,7 @@ export class FeatureIntegrations implements TeleportFeature {
     title: 'Manage Integrations',
     path: cfg.routes.integrations,
     exact: true,
-    component: () => <Integrations />,
+    component: Integrations,
   };
 
   navigationItem = {
@@ -543,7 +543,7 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
     title: 'Integration',
     path: cfg.routes.integrationEnroll,
     exact: false,
-    component: () => <IntegrationEnroll />,
+    component: IntegrationEnroll,
   };
 
   hasAccess(flags: FeatureFlags) {

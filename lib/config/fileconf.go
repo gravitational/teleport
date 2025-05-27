@@ -1603,6 +1603,15 @@ type AccessGraphSync struct {
 	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
+// AccessGraphAWSSyncCloudTrailLogs represents the configuration for the SQS queue
+// to poll for CloudTrail notifications.
+type AccessGraphAWSSyncCloudTrailLogs struct {
+	// QueueURL is the URL of the SQS queue to poll for AWS resources.
+	QueueURL string `yaml:"queue_url,omitempty"`
+	// QueueRegion is the AWS region of the SQS queue to poll for AWS resources.
+	QueueRegion string `yaml:"queue_region,omitempty"`
+}
+
 // AccessGraphAWSSync represents the configuration for the AWS AccessGraph Sync service.
 type AccessGraphAWSSync struct {
 	// Regions are AWS regions to poll for resources.
@@ -1612,6 +1621,9 @@ type AccessGraphAWSSync struct {
 	// ExternalID is the AWS external ID to use when assuming a role for
 	// database discovery in an external AWS account.
 	ExternalID string `yaml:"external_id,omitempty"`
+	// CloudTrailLogs is the configuration for the SQS queue to poll for
+	// CloudTrail logs.
+	CloudTrailLogs *AccessGraphAWSSyncCloudTrailLogs `yaml:"cloud_trail_logs,omitempty"`
 }
 
 // AccessGraphAzureSync represents the configuration for the Azure AccessGraph Sync service.

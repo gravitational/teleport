@@ -187,7 +187,7 @@ func TestRoleParse(t *testing.T) {
 					}
 				}`,
 			error:        trace.BadParameter(""),
-			matchMessage: "KubernetesResource must include Namespace",
+			matchMessage: "KubernetesResource kind \"pod\" must include Namespace",
 		},
 		{
 			name: "validation error, invalid kubernetes_resources kind",
@@ -1073,20 +1073,22 @@ func TestValidateRole(t *testing.T) {
 				Allow: types.RoleConditions{
 					KubernetesResources: []types.KubernetesResource{
 						{
-							Kind:      types.KindKubePod,
+							Kind:      "pods",
 							Namespace: "{{external.namespace",
 							Name:      "{{email.localz(external.email)}}",
 							Verbs:     []string{"{{external.verbs"},
+							APIGroup:  types.Wildcard,
 						},
 					},
 				},
 				Deny: types.RoleConditions{
 					KubernetesResources: []types.KubernetesResource{
 						{
-							Kind:      types.KindKubePod,
+							Kind:      "pods",
 							Namespace: "{{external.namespace",
 							Name:      "{{email.localz(external.email)}}",
 							Verbs:     []string{"{{external.verbs"},
+							APIGroup:  types.Wildcard,
 						},
 					},
 				},
@@ -4533,6 +4535,18 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 		},
 	}
 
+	roleSales := &types.RoleV6{
+		Metadata: types.Metadata{Name: "sales-prod", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"sales"}},
+				DatabaseUsers:  []string{"sales"},
+				DatabaseNames:  []string{"sales"},
+			},
+		},
+	}
+
 	roleNoDBAccess := &types.RoleV6{
 		Metadata: types.Metadata{Name: "no_db_access", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
@@ -4603,12 +4617,12 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 			roles:  RoleSet{roleDevStage, roleDevProd},
 			server: dbStage,
 			enumDBUserResult: EnumerationResult{
-				allowedDeniedMap: map[string]bool{"dev": true, "root": false},
+				allowedDeniedMap: map[string]bool{"root": false},
 				wildcardAllowed:  true,
 				wildcardDenied:   false,
 			},
 			enumDBNameResult: EnumerationResult{
-				allowedDeniedMap: map[string]bool{"dev": true, "root": false},
+				allowedDeniedMap: map[string]bool{"root": false},
 				wildcardAllowed:  true,
 				wildcardDenied:   false,
 			},
@@ -4655,6 +4669,21 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 			enumDBNameResult: EnumerationResult{
 				allowedDeniedMap: map[string]bool{},
 				wildcardAllowed:  true,
+				wildcardDenied:   false,
+			},
+		},
+		{
+			name:   "role sales does not match the resource and should be skipped",
+			roles:  RoleSet{roleSales, roleDevProd},
+			server: dbProd,
+			enumDBUserResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": true},
+				wildcardAllowed:  false,
+				wildcardDenied:   false,
+			},
+			enumDBNameResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": true},
+				wildcardAllowed:  false,
 				wildcardDenied:   false,
 			},
 		},
@@ -6256,7 +6285,7 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 	}
 }
 
-func TestCheckAccessToSAMLIdPV2(t *testing.T) {
+func TestCheckAccessToSAMLIdP(t *testing.T) {
 	createRole := func(t *testing.T, name, version string, spec types.RoleSpecV6) *types.RoleV6 {
 		t.Helper()
 		return &types.RoleV6{
@@ -6644,7 +6673,7 @@ func TestCheckAccessToSAMLIdPV2(t *testing.T) {
 			})
 			require.NoError(t, err)
 			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
-			tc.errAssertionFunc(t, accessChecker.CheckAccessToSAMLIdPV2(sp, authPref, tc.state))
+			tc.errAssertionFunc(t, accessChecker.CheckAccessToSAMLIdP(sp, authPref, tc.state))
 		})
 	}
 }
@@ -7934,12 +7963,12 @@ func TestWindowsDesktopGroups(t *testing.T) {
 func TestGetKubeResources(t *testing.T) {
 	t.Parallel()
 	podA := types.KubernetesResource{
-		Kind:      types.KindKubePod,
+		Kind:      "pods",
 		Namespace: "test",
 		Name:      "podA",
 	}
 	podB := types.KubernetesResource{
-		Kind:      types.KindKubePod,
+		Kind:      "pods",
 		Namespace: "test",
 		Name:      "podB",
 	}
@@ -9259,23 +9288,26 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			Allow: types.RoleConditions{
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: "dev",
 						Name:      types.Wildcard,
+						APIGroup:  types.Wildcard,
 					},
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: "default",
 						Name:      "nginx-*",
+						APIGroup:  types.Wildcard,
 					},
 				},
 			},
 			Deny: types.RoleConditions{
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: "default",
 						Name:      "restricted",
+						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -9288,9 +9320,10 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			Allow: types.RoleConditions{
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: "prod",
 						Name:      "pod",
+						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -9303,9 +9336,10 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			Allow: types.RoleConditions{
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: `^[($`,
 						Name:      `^[($`,
+						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -9332,12 +9366,12 @@ func TestKubeResourcesMatcher(t *testing.T) {
 				cond:  types.Allow,
 				resources: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: "dev",
 						Name:      "pod",
 					},
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: "default",
 						Name:      "nginx-*",
 					},
@@ -9354,12 +9388,12 @@ func TestKubeResourcesMatcher(t *testing.T) {
 				cond:  types.Allow,
 				resources: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: "dev",
 						Name:      "pod",
 					},
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: "default",
 						Name:      "nginx*",
 					},
@@ -9369,7 +9403,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			// because unmatchedResources is not empty.
 			wantMatch:          boolsToSlice(true),
 			assertErr:          require.NoError,
-			unmatchedResources: []string{"pod/default/nginx*"},
+			unmatchedResources: []string{"pods/default/nginx*"},
 		},
 		{
 			name: "user requests a valid subset of pods but distributed across two roles",
@@ -9378,12 +9412,12 @@ func TestKubeResourcesMatcher(t *testing.T) {
 				cond:  types.Allow,
 				resources: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: "dev",
 						Name:      "pod",
 					},
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: "prod",
 						Name:      "pod",
 					},
@@ -9400,7 +9434,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 				cond:  types.Allow,
 				resources: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: "default",
 						Name:      "pod",
 					},
@@ -9408,7 +9442,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			},
 			wantMatch:          boolsToSlice(false, false),
 			assertErr:          require.NoError,
-			unmatchedResources: []string{"pod/default/pod"},
+			unmatchedResources: []string{"pods/default/pod"},
 		},
 		{
 			name: "user requests a denied pod",
@@ -9417,7 +9451,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 				cond:  types.Deny,
 				resources: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: "default",
 						Name:      "restricted",
 					},
@@ -9434,7 +9468,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 				cond:  types.Allow,
 				resources: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: "default",
 						Name:      "restricted",
 					},
@@ -9442,7 +9476,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			},
 			wantMatch:          boolsToSlice(false),
 			assertErr:          require.Error,
-			unmatchedResources: []string{"pod/default/restricted"},
+			unmatchedResources: []string{"pods/default/restricted"},
 		},
 	}
 	for _, tt := range tests {

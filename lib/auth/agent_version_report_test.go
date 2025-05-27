@@ -249,15 +249,15 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 				if status == types.UpdaterStatus_UPDATER_STATUS_UNSPECIFIED {
 					status = types.UpdaterStatus_UPDATER_STATUS_OK
 				}
-				controller.RegisterControlStream(stream, proto.UpstreamInventoryHello{
-					Services:         fixture.roles,
+				controller.RegisterControlStream(stream, &proto.UpstreamInventoryHello{
+					Services:         fixture.roles.StringSlice(),
 					ServerID:         uuid.New().String(),
 					Version:          fixture.version,
 					ExternalUpgrader: types.UpgraderKindTeleportUpdate,
 					UpdaterInfo:      &types.UpdaterV2Info{UpdaterStatus: status, UpdateGroup: fixture.updateGroup},
 				})
 				if fixture.goodbye != nil {
-					stream.fakeMsg(*fixture.goodbye)
+					stream.fakeMsg(fixture.goodbye)
 				}
 				t.Cleanup(stream.close)
 			}
@@ -300,8 +300,8 @@ func TestServer_reportAgentVersions(t *testing.T) {
 
 	for range testNodeCount {
 		stream := newFakeControlStream()
-		controller.RegisterControlStream(stream, proto.UpstreamInventoryHello{
-			Services:         types.SystemRoles{types.RoleNode},
+		controller.RegisterControlStream(stream, &proto.UpstreamInventoryHello{
+			Services:         types.SystemRoles{types.RoleNode}.StringSlice(),
 			Version:          "1.2.3",
 			ServerID:         uuid.NewString(),
 			ExternalUpgrader: types.UpgraderKindTeleportUpdate,

@@ -160,6 +160,8 @@ const cfg = {
     account: '/web/account',
     accountPassword: '/web/account/password',
     accountMfaDevices: '/web/account/twofactor',
+    accountSecurity: '/web/account/security',
+    accountPreferences: '/web/account/preferences',
     roles: '/web/roles',
     joinTokens: '/web/tokens',
     deviceTrust: `/web/devices`,
@@ -336,7 +338,6 @@ const cfg = {
     mfaRequired: '/v1/webapi/sites/:clusterId/mfa/required',
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
-    mfaChangePasswordBegin: '/v1/webapi/mfa/authenticatechallenge/password',
 
     headlessSsoPath: `/v1/webapi/headless/:requestId`,
 

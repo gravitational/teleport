@@ -28,8 +28,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
 //go:embed testdata/kinit.cache
@@ -111,7 +111,7 @@ func TestUseOrCreateCredentials(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			auth := struct{ windows.AuthInterface }{}
+			auth := struct{ winpki.AuthInterface }{}
 			provider, err := newKinitProvider(
 				nil, auth, types.AD{
 					Domain:                 "example.com",

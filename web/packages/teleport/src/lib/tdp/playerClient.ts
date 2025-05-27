@@ -207,19 +207,19 @@ export class PlayerClient extends TdpClient {
   // Overrides Client implementation. This prevents the Client from sending
   // RDP response PDUs to the server during playback, which is unnecessary
   // and breaks the playback system.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line unused-imports/no-unused-vars
   sendRdpResponsePDU(responseFrame: ArrayBuffer) {
     return;
   }
 
   // Overrides Client implementation.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line unused-imports/no-unused-vars
   handleMouseButton(buffer: ArrayBuffer) {
     return;
   }
 
   // Overrides Client implementation.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line unused-imports/no-unused-vars
   handleMouseMove(buffer: ArrayBuffer) {
     return;
   }

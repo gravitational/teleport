@@ -150,6 +150,7 @@ export function RequestCheckout<T extends PendingListItem>({
   setSelectedReviewers,
   SuccessComponent,
   requireReason,
+  reasonPrompts,
   numRequestedResources,
   setSelectedResourceRequestRoles,
   fetchStatus,
@@ -452,6 +453,7 @@ export function RequestCheckout<T extends PendingListItem>({
                       reason={reason}
                       updateReason={updateReason}
                       requireReason={requireReason}
+                      reasonPrompts={reasonPrompts}
                     />
                     {dryRunResponse && maxDuration && (
                       <AdditionalOptions
@@ -729,14 +731,20 @@ function TextBox({
   reason,
   updateReason,
   requireReason,
+  reasonPrompts,
 }: {
   reason: string;
   updateReason(reason: string): void;
   requireReason: boolean;
+  reasonPrompts?: string[];
 }) {
   const { valid, message } = useRule(requireText(reason, requireReason));
   const hasError = !valid;
   const labelText = hasError ? message : 'Request Reason';
+
+  const placeholderText =
+    reasonPrompts?.filter(s => s.length > 0).join('\n') ||
+    'Describe your request...';
 
   return (
     <LabelInput hasError={hasError}>
@@ -750,7 +758,7 @@ function TextBox({
         color="text.main"
         border={hasError ? '2px solid' : '1px solid'}
         borderColor={hasError ? 'error.main' : 'text.muted'}
-        placeholder="Describe your request..."
+        placeholder={placeholderText.replaceAll(/\\n/g, '\n')}
         value={reason}
         onChange={e => updateReason(e.target.value)}
         css={`
@@ -919,6 +927,7 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     SuccessComponent?: (params: SuccessComponentParams) => JSX.Element;
     isResourceRequest: boolean;
     requireReason: boolean;
+    reasonPrompts: string[];
     selectedReviewers: ReviewerOption[];
     pendingAccessRequests: T[];
     showClusterNameColumn?: boolean;

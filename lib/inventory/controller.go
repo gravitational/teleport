@@ -341,7 +341,7 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 }
 
 // RegisterControlStream registers a new control stream with the controller.
-func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) {
+func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryControlStream, hello *proto.UpstreamInventoryHello) {
 	handle := newUpstreamHandle(stream, hello, c.clock.Now())
 	c.store.Insert(handle)
 
@@ -435,17 +435,17 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	}()
 
 	for _, service := range handle.hello.Services {
-		c.serviceCounter.increment(service)
+		c.serviceCounter.increment(types.SystemRole(service))
 	}
 
 	defer func() {
-		if handle.goodbye.GetDeleteResources() {
+		if handle.Goodbye().GetDeleteResources() {
 			c.doResourceCleanup(handle)
 		}
 
 		c.instanceHBVariableDuration.Dec()
 		for _, service := range handle.hello.Services {
-			c.serviceCounter.decrement(service)
+			c.serviceCounter.decrement(types.SystemRole(service))
 		}
 		c.store.Remove(handle)
 		handle.Close() // no effect if CloseWithError was called below
@@ -489,13 +489,13 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 		select {
 		case msg := <-handle.Recv():
 			switch m := msg.(type) {
-			case proto.UpstreamInventoryHello:
+			case *proto.UpstreamInventoryHello:
 				slog.WarnContext(c.closeContext, "Unexpected upstream hello on control stream of server", "server_id", handle.Hello().ServerID)
 				handle.CloseWithError(trace.BadParameter("unexpected upstream hello"))
 				return
-			case proto.UpstreamInventoryAgentMetadata:
+			case *proto.UpstreamInventoryAgentMetadata:
 				c.handleAgentMetadata(handle, m)
-			case proto.InventoryHeartbeat:
+			case *proto.InventoryHeartbeat:
 				// XXX: when adding new services to the heartbeat logic, make
 				// sure to also update the 'icsServiceToMetricName' mapping in
 				// auth/grpcserver.go in order to ensure that metrics start
@@ -550,10 +550,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					}
 				}
 
-			case proto.UpstreamInventoryPong:
+			case *proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
-			case proto.UpstreamInventoryGoodbye:
-				handle.setGoodbye(&m)
+			case *proto.UpstreamInventoryGoodbye:
+				handle.setGoodbye(m)
 			default:
 				slog.WarnContext(c.closeContext, "Unexpected upstream message type on control stream",
 					"message_type", logutils.TypeAttr(m),
@@ -772,7 +772,7 @@ func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Tim
 	return nil
 }
 
-func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInventoryPong) {
+func (c *Controller) handlePong(handle *upstreamHandle, msg *proto.UpstreamInventoryPong) {
 	pending, ok := handle.pings[msg.ID]
 	if !ok {
 		slog.WarnContext(c.closeContext, "Unexpected upstream pong",
@@ -781,9 +781,13 @@ func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInvent
 		return
 	}
 	now := c.clock.Now()
+	var systemClock time.Time
+	if c := msg.GetSystemClock(); c != nil {
+		systemClock = c.AsTime()
+	}
 	pong := pingResponse{
 		reqDuration:     now.Sub(pending.start),
-		systemClock:     msg.SystemClock,
+		systemClock:     systemClock,
 		controllerClock: now,
 	}
 
@@ -797,7 +801,7 @@ func (c *Controller) handlePong(handle *upstreamHandle, msg proto.UpstreamInvent
 }
 
 func (c *Controller) handlePingRequest(handle *upstreamHandle, req pingRequest) error {
-	ping := proto.DownstreamInventoryPing{
+	ping := &proto.DownstreamInventoryPing{
 		ID: req.id,
 	}
 	start := c.clock.Now()
@@ -1045,12 +1049,12 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 	return nil
 }
 
-func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.UpstreamInventoryAgentMetadata) {
-	handle.SetAgentMetadata(m)
+func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m *proto.UpstreamInventoryAgentMetadata) {
+	handle.setAgentMetadata(m)
 
 	svcs := make([]string, 0, len(handle.Hello().Services))
 	for _, svc := range handle.Hello().Services {
-		svcs = append(svcs, strings.ToLower(svc.String()))
+		svcs = append(svcs, strings.ToLower(svc))
 	}
 
 	c.usageReporter.AnonymizeAndSubmit(&usagereporter.AgentMetadataEvent{
