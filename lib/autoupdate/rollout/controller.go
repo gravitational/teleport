@@ -73,7 +73,7 @@ func NewController(client Client, log *slog.Logger, clock clockwork.Clock, perio
 
 	log = log.With(teleport.ComponentLabel, teleport.ComponentRolloutController)
 
-	haltOnError, err := newHaltOnErrorStrategy(log)
+	haltOnError, err := newHaltOnErrorStrategy(log, client)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to initialize halt-on-error strategy")
 	}
