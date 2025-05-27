@@ -785,5 +785,5 @@ func TestGetBotInstance(t *testing.T) {
 			},
 		},
 	}, protocmp.Transform(), protocmp.IgnoreFields(&machineidv1.BotInstance{}, "metadata")))
-	assert.Equal(t, fmt.Sprintf("kind: bot_instance\nmetadata:\n  name: %[1]s\n  revision: %[2]s\nspec:\n  bot_name: test-bot\n  instance_id: %[1]s\nstatus:\n  initial_heartbeat:\n    recorded_at: \"1970-01-01T00:00:01Z\"\nversion: v1\n", instanceID, resp.BotInstance.Metadata.Revision), resp.YAML)
+	assert.YAMLEq(t, fmt.Sprintf("kind: bot_instance\nmetadata:\n  name: %[1]s\n  revision: %[2]s\nspec:\n  bot_name: test-bot\n  instance_id: %[1]s\nstatus:\n  initial_heartbeat:\n    recorded_at: \"1970-01-01T00:00:01Z\"\nversion: v1\n", instanceID, resp.BotInstance.Metadata.Revision), resp.YAML)
 }
