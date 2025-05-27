@@ -89,12 +89,20 @@ func TestUnifiedResourcesList(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	windowsDesktop, err := types.NewWindowsDesktopV3("testWindowsDesktop", nil,
+		types.WindowsDesktopSpecV3{
+			Addr:  "127.0.0.1:3389",
+			NonAD: true,
+		})
+	require.NoError(t, err)
+
 	mockedResources := []*proto.PaginatedResource{
 		{Resource: &proto.PaginatedResource_Node{Node: node.(*types.ServerV2)}},
 		{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}},
 		{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: kube}},
 		{Resource: &proto.PaginatedResource_AppServer{AppServer: app}},
 		{Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{SAMLIdPServiceProvider: samlSP.(*types.SAMLIdPServiceProviderV1)}},
+		{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: windowsDesktop}},
 	}
 	mockedNextKey := "nextKey"
 
@@ -133,6 +141,11 @@ func TestUnifiedResourcesList(t *testing.T) {
 		URI:      uri.NewClusterURI(cluster.ProfileName).AppendApp(samlSP.GetName()),
 		Provider: samlSP,
 	}}, response.Resources[4])
+
+	require.Equal(t, UnifiedResource{WindowsDesktop: &clusters.WindowsDesktop{
+		URI:            uri.NewClusterURI(cluster.ProfileName).AppendWindowsDesktop(windowsDesktop.GetName()),
+		WindowsDesktop: windowsDesktop,
+	}}, response.Resources[5])
 
 	require.Equal(t, mockedNextKey, response.NextKey)
 }

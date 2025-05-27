@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,9 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { isTshdRpcError } from './cloneableClient';
+import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
 
-/** @deprecated Use `isTshdRpcError(error, 'UNIMPLEMENTED')`. */
-export function isUnimplementedError(error: unknown): boolean {
-  return isTshdRpcError(error, 'UNIMPLEMENTED');
+const DEFAULT_RDP_LISTEN_PORT = 3389;
+
+/** Strips the default RDP port from the address since it is unimportant to display. */
+export function getWindowsDesktopAddrWithoutDefaultPort(
+  desktop: WindowsDesktop
+): string {
+  const address = desktop.addr;
+  const parts = address.split(':');
+  if (parts.length === 2 && parts[1] === DEFAULT_RDP_LISTEN_PORT.toString()) {
+    return parts[0];
+  }
+  return address;
 }
