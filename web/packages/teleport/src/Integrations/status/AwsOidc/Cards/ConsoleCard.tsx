@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Link as InternalLink } from 'react-router-dom';
 import * as Icons from 'web/packages/design/src/Icon';
 
 import Box from 'design/Box';
@@ -23,21 +24,32 @@ import { CardTile } from 'design/CardTile';
 import Flex from 'design/Flex';
 import { H2, H3, P2 } from 'design/Text';
 
-export function ConsoleCard() {
-  return <EnrollCard />;
+import cfg from 'teleport/config';
+import { IntegrationKind } from 'teleport/services/integrations';
+
+export function ConsoleCard({ name }: { name: string }) {
+  return <EnrollCard name={name} />;
 }
 
-function EnrollCard() {
+function EnrollCard({ name }: { name: string }) {
   return (
-    <CardTile width="100%" data-testid={`console-enroll`}>
-      <Flex flexDirection="column" justifyContent="space-between" height="100%">
+    <CardTile
+      data-testid={`console-enroll`}
+      as={InternalLink}
+      to={cfg.getIntegrationEnrollChildRoute(
+        IntegrationKind.AwsOidc,
+        name,
+        IntegrationKind.AwsConsole,
+        'integration'
+      )}
+    >
+      <Flex flexDirection="column" justifyContent="space-between" gap={2}>
         <Box>
           <Flex alignItems="center">
             <H2>AWS Console and CLI Access</H2>
           </Flex>
-          <P2 mb={2}>
-            {/*todo (michellescripts) updated copy from design*/}
-            Create new app resources to access your AWS account.
+          <P2 mb={2} color="text.slightlyMuted">
+            Sync AWS IAM Roles Anywhere Profiles with Teleport
           </P2>
         </Box>
         <Flex alignItems="center" gap={2}>

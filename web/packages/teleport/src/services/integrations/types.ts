@@ -75,6 +75,7 @@ export type IntegrationTemplate<
 // with the backend value for defining the integration
 // resource's subKind field.
 export enum IntegrationKind {
+  AwsConsole = 'aws-console',
   AwsOidc = 'aws-oidc',
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',

@@ -216,6 +216,8 @@ const cfg = {
     integrationStatusResources:
       '/web/integrations/status/:type/:name/resources/:resourceKind',
     integrationEnroll: '/web/integrations/new/:type?/:subPage?',
+    integrationEnrollChild:
+      '/web/integrations/new/:type/:name/child/:subType/:subPage?',
     locks: '/web/locks',
     newLock: '/web/locks/new',
     requests: '/web/requests/:requestId?',
@@ -612,6 +614,29 @@ const cfg = {
    */
   getIntegrationEnrollRoute(type?: string, subPage?: string) {
     return generatePath(cfg.routes.integrationEnroll, { type, subPage });
+  },
+
+  /**
+   * Generates a route for an Integration's enrollment page when the integration is a child of an existing integration
+   *
+   * @param {string} [type] - The parent integration type (e.g. "okta", "aws-oidc")
+   * @param {string} [name] - The parent integration name (e.g. "teleport-dev", "prod")
+   * @param {string} [subType] - The child integration type (e.g. "aws-console")
+   * @param {string} [subPage] - Optional subpage within the enrollment flow
+   * @returns {string} Generated enrollment route
+   */
+  getIntegrationEnrollChildRoute(
+    type: string,
+    name: string,
+    subType: string,
+    subPage?: string
+  ) {
+    return generatePath(cfg.routes.integrationEnrollChild, {
+      type,
+      name,
+      subType,
+      subPage,
+    });
   },
 
   /**
