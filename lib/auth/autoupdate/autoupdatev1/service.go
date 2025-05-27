@@ -662,7 +662,7 @@ func (s *Service) DeleteAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 func (s *Service) getAllReports(ctx context.Context) ([]*autoupdate.AutoUpdateAgentReport, error) {
 	reports := make([]*autoupdate.AutoUpdateAgentReport, 0)
 
-	// this is an in-memory client, we go for the max page size
+	// this is an in-memory client, we go for the default page size
 	const pageSize = 0
 	var pageToken string
 	for {

@@ -58,7 +58,7 @@ type Client interface {
 }
 
 func getAllReports(ctx context.Context, clt Client) ([]*autoupdatepb.AutoUpdateAgentReport, error) {
-	reports := make([]*autoupdatepb.AutoUpdateAgentReport, 0)
+	var reports []*autoupdatepb.AutoUpdateAgentReport
 
 	// this is an in-memory client, we go for the max page size
 	const pageSize = 0
