@@ -1526,29 +1526,6 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 	return out, nil
 }
 
-// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
-// Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
-// SAML IdP Sessions are directly tied to their parent web sessions instead.
-func (c *Client) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
-	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
-	resp, err := c.grpc.ListSAMLIdPSessions(
-		ctx,
-		&proto.ListSAMLIdPSessionsRequest{
-			PageSize:  int32(pageSize),
-			PageToken: pageToken,
-			User:      user,
-		})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	out := make([]types.WebSession, 0, len(resp.GetSessions()))
-	for _, v := range resp.GetSessions() {
-		out = append(out, v)
-	}
-	return out, resp.NextPageToken, nil
-}
-
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
 func (c *Client) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error) {
@@ -1574,41 +1551,9 @@ func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	return resp.GetSession(), nil
 }
 
-// CreateSAMLIdPSession creates a SAML IdP session.
-// Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
-// SAML IdP Sessions are directly tied to their parent web sessions instead.
-func (c *Client) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
-	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
-	resp, err := c.grpc.CreateSAMLIdPSession(ctx, &proto.CreateSAMLIdPSessionRequest{
-		SessionID:   req.SessionID,
-		Username:    req.Username,
-		SAMLSession: req.SAMLSession,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return resp.GetSession(), nil
-}
-
 // GetSnowflakeSession gets a Snowflake web session.
 func (c *Client) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.GetSnowflakeSession(ctx, &proto.GetSnowflakeSessionRequest{
-		SessionID: req.SessionID,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return resp.GetSession(), nil
-}
-
-// GetSAMLIdPSession gets a SAML IdP session.
-// Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
-// SAML IdP Sessions are directly tied to their parent web sessions instead.
-func (c *Client) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
-	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
-	resp, err := c.grpc.GetSAMLIdPSession(ctx, &proto.GetSAMLIdPSessionRequest{
 		SessionID: req.SessionID,
 	})
 	if err != nil {
@@ -1634,18 +1579,6 @@ func (c *Client) DeleteSnowflakeSession(ctx context.Context, req types.DeleteSno
 	return trace.Wrap(err)
 }
 
-// DeleteSAMLIdPSession removes a SAML IdP session.
-// Deprecated: Do not use. As of v16, the Concept of SAML IdP Sessions is no longer in use.
-// SAML IdP Sessions are directly tied to their parent web sessions instead. This endpoint
-// will be removed in v17.
-func (c *Client) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
-	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
-	_, err := c.grpc.DeleteSAMLIdPSession(ctx, &proto.DeleteSAMLIdPSessionRequest{
-		SessionID: req.SessionID,
-	})
-	return trace.Wrap(err)
-}
-
 // DeleteAllAppSessions removes all application web sessions.
 func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllAppSessions(ctx, &emptypb.Empty{})
@@ -1658,30 +1591,9 @@ func (c *Client) DeleteAllSnowflakeSessions(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
-// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
-// Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
-// SAML IdP Sessions are directly tied to their parent web sessions instead.
-func (c *Client) DeleteAllSAMLIdPSessions(ctx context.Context) error {
-	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
-	_, err := c.grpc.DeleteAllSAMLIdPSessions(ctx, &emptypb.Empty{})
-	return trace.Wrap(err)
-}
-
 // DeleteUserAppSessions deletes all user’s application sessions.
 func (c *Client) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
 	_, err := c.grpc.DeleteUserAppSessions(ctx, req)
-	return trace.Wrap(err)
-}
-
-// DeleteUserSAMLIdPSessions deletes all user’s SAML IdP sessions.
-// Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
-// SAML IdP Sessions are directly tied to their parent web sessions instead.
-func (c *Client) DeleteUserSAMLIdPSessions(ctx context.Context, username string) error {
-	req := &proto.DeleteUserSAMLIdPSessionsRequest{
-		Username: username,
-	}
-	//nolint:staticcheck // the function is deprecated _because_ it calls this deprecated rpc
-	_, err := c.grpc.DeleteUserSAMLIdPSessions(ctx, req)
 	return trace.Wrap(err)
 }
 
