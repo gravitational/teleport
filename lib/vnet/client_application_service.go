@@ -73,6 +73,7 @@ type clientApplicationServiceConfig struct {
 	fqdnResolver          *fqdnResolver
 	localOSConfigProvider *LocalOSConfigProvider
 	clientApplication     ClientApplication
+	homePath              string
 	clock                 clockwork.Clock
 }
 
@@ -398,6 +399,25 @@ func (s *clientApplicationService) getSignerForSSHSession(ctx context.Context, s
 		return nil, trace.NotFound("session key expired")
 	})
 	return signer, trace.Wrap(err)
+}
+
+// ExchangeSSHKeys recevies the VNet service host CA public key and writes it to
+// ${TELEPORT_HOME}/vnet_known_hosts so that third-party SSH clients can trust
+// it. It then reads or generates ${TELEPORT_HOME}/id_vnet(.pub) which SSH
+// clients should be configured to use for connections to VNet SSH. It returns
+// id_vnet.pub so that VNet SSH can trust it for incoming connections.
+func (s *clientApplicationService) ExchangeSSHKeys(ctx context.Context, req *vnetv1.ExchangeSSHKeysRequest) (*vnetv1.ExchangeSSHKeysResponse, error) {
+	hostPublicKey, err := ssh.ParsePublicKey(req.GetHostPublicKey())
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing host public key")
+	}
+	userPublicKey, err := writeSSHKeys(s.cfg.homePath, hostPublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err, "writing SSH keys")
+	}
+	return &vnetv1.ExchangeSSHKeysResponse{
+		UserPublicKey: userPublicKey.Marshal(),
+	}, nil
 }
 
 // checkAppKey checks that at least the app profile and name are set, which are

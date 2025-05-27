@@ -53,39 +53,20 @@ type sshProviderConfig struct {
 		tlsConfig *tls.Config,
 		dialOpts *vnetv1.DialOptions,
 	) (net.Conn, error)
-	// hostCASigner can be used in tests to set a specific key for the SSH host CA.
-	hostCASigner ssh.Signer
-	// trustedUserPublicKey can be used in tests to set a specific trusted user
-	// SSH key.
-	trustedUserPublicKey ssh.PublicKey
 }
 
-func newSSHProvider(cfg sshProviderConfig) (*sshProvider, error) {
-	hostCASigner := cfg.hostCASigner
-	if hostCASigner == nil {
-		// TODO(nklaassen): write host CA public key to $TELEPORT_HOME/vnet_known_hosts
-		hostKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		hostCASigner, err = ssh.NewSignerFromSigner(hostKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+func newSSHProvider(ctx context.Context, cfg sshProviderConfig) (*sshProvider, error) {
+	hostCAKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	trustedUserPublicKey := cfg.trustedUserPublicKey
-	if trustedUserPublicKey == nil {
-		// TODO(nklaassen): check if $TELEPORT_HOME/id_vnet.pub exists.
-		// If it does, read that file and trust it.
-		// If not, generate the keypair and write it to $TELEPORT_HOME/id_vnet.
-		userKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		trustedUserPublicKey, err = ssh.NewPublicKey(userKey.Public())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	hostCASigner, err := ssh.NewSignerFromSigner(hostCAKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	trustedUserPublicKey, err := cfg.clt.ExchangeSSHKeys(ctx, hostCASigner.PublicKey())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return &sshProvider{
 		cfg:                  cfg,

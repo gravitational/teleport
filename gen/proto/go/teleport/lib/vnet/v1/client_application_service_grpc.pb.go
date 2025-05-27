@@ -48,6 +48,7 @@ const (
 	ClientApplicationService_SignForUserTLS_FullMethodName           = "/teleport.lib.vnet.v1.ClientApplicationService/SignForUserTLS"
 	ClientApplicationService_SessionSSHConfig_FullMethodName         = "/teleport.lib.vnet.v1.ClientApplicationService/SessionSSHConfig"
 	ClientApplicationService_SignForSSHSession_FullMethodName        = "/teleport.lib.vnet.v1.ClientApplicationService/SignForSSHSession"
+	ClientApplicationService_ExchangeSSHKeys_FullMethodName          = "/teleport.lib.vnet.v1.ClientApplicationService/ExchangeSSHKeys"
 )
 
 // ClientApplicationServiceClient is the client API for ClientApplicationService service.
@@ -94,6 +95,9 @@ type ClientApplicationServiceClient interface {
 	// SignForSSHSession signs a digest with the SSH private key associated with the
 	// session from a previous call to SessionSSHConfig.
 	SignForSSHSession(ctx context.Context, in *SignForSSHSessionRequest, opts ...grpc.CallOption) (*SignForSSHSessionResponse, error)
+	// ExchangeSSHKeys sends VNet's SSH host CA key to the client application and
+	// returns the user public key.
+	ExchangeSSHKeys(ctx context.Context, in *ExchangeSSHKeysRequest, opts ...grpc.CallOption) (*ExchangeSSHKeysResponse, error)
 }
 
 type clientApplicationServiceClient struct {
@@ -234,6 +238,16 @@ func (c *clientApplicationServiceClient) SignForSSHSession(ctx context.Context, 
 	return out, nil
 }
 
+func (c *clientApplicationServiceClient) ExchangeSSHKeys(ctx context.Context, in *ExchangeSSHKeysRequest, opts ...grpc.CallOption) (*ExchangeSSHKeysResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExchangeSSHKeysResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_ExchangeSSHKeys_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClientApplicationServiceServer is the server API for ClientApplicationService service.
 // All implementations must embed UnimplementedClientApplicationServiceServer
 // for forward compatibility.
@@ -278,6 +292,9 @@ type ClientApplicationServiceServer interface {
 	// SignForSSHSession signs a digest with the SSH private key associated with the
 	// session from a previous call to SessionSSHConfig.
 	SignForSSHSession(context.Context, *SignForSSHSessionRequest) (*SignForSSHSessionResponse, error)
+	// ExchangeSSHKeys sends VNet's SSH host CA key to the client application and
+	// returns the user public key.
+	ExchangeSSHKeys(context.Context, *ExchangeSSHKeysRequest) (*ExchangeSSHKeysResponse, error)
 	mustEmbedUnimplementedClientApplicationServiceServer()
 }
 
@@ -326,6 +343,9 @@ func (UnimplementedClientApplicationServiceServer) SessionSSHConfig(context.Cont
 }
 func (UnimplementedClientApplicationServiceServer) SignForSSHSession(context.Context, *SignForSSHSessionRequest) (*SignForSSHSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SignForSSHSession not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) ExchangeSSHKeys(context.Context, *ExchangeSSHKeysRequest) (*ExchangeSSHKeysResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExchangeSSHKeys not implemented")
 }
 func (UnimplementedClientApplicationServiceServer) mustEmbedUnimplementedClientApplicationServiceServer() {
 }
@@ -583,6 +603,24 @@ func _ClientApplicationService_SignForSSHSession_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClientApplicationService_ExchangeSSHKeys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExchangeSSHKeysRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).ExchangeSSHKeys(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_ExchangeSSHKeys_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).ExchangeSSHKeys(ctx, req.(*ExchangeSSHKeysRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClientApplicationService_ServiceDesc is the grpc.ServiceDesc for ClientApplicationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -641,6 +679,10 @@ var ClientApplicationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SignForSSHSession",
 			Handler:    _ClientApplicationService_SignForSSHSession_Handler,
+		},
+		{
+			MethodName: "ExchangeSSHKeys",
+			Handler:    _ClientApplicationService_ExchangeSSHKeys_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

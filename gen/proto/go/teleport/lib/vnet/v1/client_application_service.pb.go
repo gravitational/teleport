@@ -2025,6 +2025,100 @@ func (x *SignForSSHSessionResponse) GetSignature() []byte {
 	return nil
 }
 
+// ExchangeSSHKeysRequest is a request to exchange SSH keys for VNet SSH.
+type ExchangeSSHKeysRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// HostPublicKey is the host key that should be trusted by clients connecting
+	// to VNet SSH addresses. It is encoded in OpenSSH wire format.
+	HostPublicKey []byte `protobuf:"bytes,1,opt,name=host_public_key,json=hostPublicKey,proto3" json:"host_public_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExchangeSSHKeysRequest) Reset() {
+	*x = ExchangeSSHKeysRequest{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExchangeSSHKeysRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExchangeSSHKeysRequest) ProtoMessage() {}
+
+func (x *ExchangeSSHKeysRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExchangeSSHKeysRequest.ProtoReflect.Descriptor instead.
+func (*ExchangeSSHKeysRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *ExchangeSSHKeysRequest) GetHostPublicKey() []byte {
+	if x != nil {
+		return x.HostPublicKey
+	}
+	return nil
+}
+
+// ExchangeSSHKeysResponse is a response for ExchangeSSHKeys.
+type ExchangeSSHKeysResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// UserPublicKey is the user key that should be trusted by VNet for incoming
+	// connections from SSH clients. It is encoded in OpenSSH wire format.
+	UserPublicKey []byte `protobuf:"bytes,1,opt,name=user_public_key,json=userPublicKey,proto3" json:"user_public_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExchangeSSHKeysResponse) Reset() {
+	*x = ExchangeSSHKeysResponse{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExchangeSSHKeysResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExchangeSSHKeysResponse) ProtoMessage() {}
+
+func (x *ExchangeSSHKeysResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExchangeSSHKeysResponse.ProtoReflect.Descriptor instead.
+func (*ExchangeSSHKeysResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *ExchangeSSHKeysResponse) GetUserPublicKey() []byte {
+	if x != nil {
+		return x.UserPublicKey
+	}
+	return nil
+}
+
 var File_teleport_lib_vnet_v1_client_application_service_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
@@ -2135,11 +2229,15 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x125\n" +
 	"\x04sign\x18\x02 \x01(\v2!.teleport.lib.vnet.v1.SignRequestR\x04sign\"9\n" +
 	"\x19SignForSSHSessionResponse\x12\x1c\n" +
-	"\tsignature\x18\x01 \x01(\fR\tsignature*<\n" +
+	"\tsignature\x18\x01 \x01(\fR\tsignature\"@\n" +
+	"\x16ExchangeSSHKeysRequest\x12&\n" +
+	"\x0fhost_public_key\x18\x01 \x01(\fR\rhostPublicKey\"A\n" +
+	"\x17ExchangeSSHKeysResponse\x12&\n" +
+	"\x0fuser_public_key\x18\x01 \x01(\fR\ruserPublicKey*<\n" +
 	"\x04Hash\x12\x14\n" +
 	"\x10HASH_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tHASH_NONE\x10\x01\x12\x0f\n" +
-	"\vHASH_SHA256\x10\x022\xcc\v\n" +
+	"\vHASH_SHA256\x10\x022\xbc\f\n" +
 	"\x18ClientApplicationService\x12z\n" +
 	"\x13AuthenticateProcess\x120.teleport.lib.vnet.v1.AuthenticateProcessRequest\x1a1.teleport.lib.vnet.v1.AuthenticateProcessResponse\x12\x83\x01\n" +
 	"\x16ReportNetworkStackInfo\x123.teleport.lib.vnet.v1.ReportNetworkStackInfoRequest\x1a4.teleport.lib.vnet.v1.ReportNetworkStackInfoResponse\x12M\n" +
@@ -2154,7 +2252,8 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\vUserTLSCert\x12(.teleport.lib.vnet.v1.UserTLSCertRequest\x1a).teleport.lib.vnet.v1.UserTLSCertResponse\x12k\n" +
 	"\x0eSignForUserTLS\x12+.teleport.lib.vnet.v1.SignForUserTLSRequest\x1a,.teleport.lib.vnet.v1.SignForUserTLSResponse\x12q\n" +
 	"\x10SessionSSHConfig\x12-.teleport.lib.vnet.v1.SessionSSHConfigRequest\x1a..teleport.lib.vnet.v1.SessionSSHConfigResponse\x12t\n" +
-	"\x11SignForSSHSession\x12..teleport.lib.vnet.v1.SignForSSHSessionRequest\x1a/.teleport.lib.vnet.v1.SignForSSHSessionResponseBLZJgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1;vnetv1b\x06proto3"
+	"\x11SignForSSHSession\x12..teleport.lib.vnet.v1.SignForSSHSessionRequest\x1a/.teleport.lib.vnet.v1.SignForSSHSessionResponse\x12n\n" +
+	"\x0fExchangeSSHKeys\x12,.teleport.lib.vnet.v1.ExchangeSSHKeysRequest\x1a-.teleport.lib.vnet.v1.ExchangeSSHKeysResponseBLZJgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1;vnetv1b\x06proto3"
 
 var (
 	file_teleport_lib_vnet_v1_client_application_service_proto_rawDescOnce sync.Once
@@ -2169,7 +2268,7 @@ func file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP() []
 }
 
 var file_teleport_lib_vnet_v1_client_application_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
+var file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
 var file_teleport_lib_vnet_v1_client_application_service_proto_goTypes = []any{
 	(Hash)(0),                                // 0: teleport.lib.vnet.v1.Hash
 	(*AuthenticateProcessRequest)(nil),       // 1: teleport.lib.vnet.v1.AuthenticateProcessRequest
@@ -2207,7 +2306,9 @@ var file_teleport_lib_vnet_v1_client_application_service_proto_goTypes = []any{
 	(*SessionSSHConfigResponse)(nil),         // 33: teleport.lib.vnet.v1.SessionSSHConfigResponse
 	(*SignForSSHSessionRequest)(nil),         // 34: teleport.lib.vnet.v1.SignForSSHSessionRequest
 	(*SignForSSHSessionResponse)(nil),        // 35: teleport.lib.vnet.v1.SignForSSHSessionResponse
-	(*types.AppV3)(nil),                      // 36: types.AppV3
+	(*ExchangeSSHKeysRequest)(nil),           // 36: teleport.lib.vnet.v1.ExchangeSSHKeysRequest
+	(*ExchangeSSHKeysResponse)(nil),          // 37: teleport.lib.vnet.v1.ExchangeSSHKeysResponse
+	(*types.AppV3)(nil),                      // 38: types.AppV3
 }
 var file_teleport_lib_vnet_v1_client_application_service_proto_depIdxs = []int32{
 	4,  // 0: teleport.lib.vnet.v1.ReportNetworkStackInfoRequest.network_stack_info:type_name -> teleport.lib.vnet.v1.NetworkStackInfo
@@ -2216,7 +2317,7 @@ var file_teleport_lib_vnet_v1_client_application_service_proto_depIdxs = []int32
 	12, // 3: teleport.lib.vnet.v1.ResolveFQDNResponse.matched_cluster:type_name -> teleport.lib.vnet.v1.MatchedCluster
 	13, // 4: teleport.lib.vnet.v1.MatchedTCPApp.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
 	14, // 5: teleport.lib.vnet.v1.AppInfo.app_key:type_name -> teleport.lib.vnet.v1.AppKey
-	36, // 6: teleport.lib.vnet.v1.AppInfo.app:type_name -> types.AppV3
+	38, // 6: teleport.lib.vnet.v1.AppInfo.app:type_name -> types.AppV3
 	15, // 7: teleport.lib.vnet.v1.AppInfo.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
 	13, // 8: teleport.lib.vnet.v1.ReissueAppCertRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
 	14, // 9: teleport.lib.vnet.v1.SignForAppRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
@@ -2241,21 +2342,23 @@ var file_teleport_lib_vnet_v1_client_application_service_proto_depIdxs = []int32
 	30, // 28: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:input_type -> teleport.lib.vnet.v1.SignForUserTLSRequest
 	32, // 29: teleport.lib.vnet.v1.ClientApplicationService.SessionSSHConfig:input_type -> teleport.lib.vnet.v1.SessionSSHConfigRequest
 	34, // 30: teleport.lib.vnet.v1.ClientApplicationService.SignForSSHSession:input_type -> teleport.lib.vnet.v1.SignForSSHSessionRequest
-	2,  // 31: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:output_type -> teleport.lib.vnet.v1.AuthenticateProcessResponse
-	5,  // 32: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:output_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoResponse
-	7,  // 33: teleport.lib.vnet.v1.ClientApplicationService.Ping:output_type -> teleport.lib.vnet.v1.PingResponse
-	9,  // 34: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:output_type -> teleport.lib.vnet.v1.ResolveFQDNResponse
-	17, // 35: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:output_type -> teleport.lib.vnet.v1.ReissueAppCertResponse
-	20, // 36: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:output_type -> teleport.lib.vnet.v1.SignForAppResponse
-	22, // 37: teleport.lib.vnet.v1.ClientApplicationService.OnNewConnection:output_type -> teleport.lib.vnet.v1.OnNewConnectionResponse
-	24, // 38: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:output_type -> teleport.lib.vnet.v1.OnInvalidLocalPortResponse
-	26, // 39: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:output_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationResponse
-	29, // 40: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:output_type -> teleport.lib.vnet.v1.UserTLSCertResponse
-	31, // 41: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:output_type -> teleport.lib.vnet.v1.SignForUserTLSResponse
-	33, // 42: teleport.lib.vnet.v1.ClientApplicationService.SessionSSHConfig:output_type -> teleport.lib.vnet.v1.SessionSSHConfigResponse
-	35, // 43: teleport.lib.vnet.v1.ClientApplicationService.SignForSSHSession:output_type -> teleport.lib.vnet.v1.SignForSSHSessionResponse
-	31, // [31:44] is the sub-list for method output_type
-	18, // [18:31] is the sub-list for method input_type
+	36, // 31: teleport.lib.vnet.v1.ClientApplicationService.ExchangeSSHKeys:input_type -> teleport.lib.vnet.v1.ExchangeSSHKeysRequest
+	2,  // 32: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:output_type -> teleport.lib.vnet.v1.AuthenticateProcessResponse
+	5,  // 33: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:output_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoResponse
+	7,  // 34: teleport.lib.vnet.v1.ClientApplicationService.Ping:output_type -> teleport.lib.vnet.v1.PingResponse
+	9,  // 35: teleport.lib.vnet.v1.ClientApplicationService.ResolveFQDN:output_type -> teleport.lib.vnet.v1.ResolveFQDNResponse
+	17, // 36: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:output_type -> teleport.lib.vnet.v1.ReissueAppCertResponse
+	20, // 37: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:output_type -> teleport.lib.vnet.v1.SignForAppResponse
+	22, // 38: teleport.lib.vnet.v1.ClientApplicationService.OnNewConnection:output_type -> teleport.lib.vnet.v1.OnNewConnectionResponse
+	24, // 39: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:output_type -> teleport.lib.vnet.v1.OnInvalidLocalPortResponse
+	26, // 40: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:output_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationResponse
+	29, // 41: teleport.lib.vnet.v1.ClientApplicationService.UserTLSCert:output_type -> teleport.lib.vnet.v1.UserTLSCertResponse
+	31, // 42: teleport.lib.vnet.v1.ClientApplicationService.SignForUserTLS:output_type -> teleport.lib.vnet.v1.SignForUserTLSResponse
+	33, // 43: teleport.lib.vnet.v1.ClientApplicationService.SessionSSHConfig:output_type -> teleport.lib.vnet.v1.SessionSSHConfigResponse
+	35, // 44: teleport.lib.vnet.v1.ClientApplicationService.SignForSSHSession:output_type -> teleport.lib.vnet.v1.SignForSSHSessionResponse
+	37, // 45: teleport.lib.vnet.v1.ClientApplicationService.ExchangeSSHKeys:output_type -> teleport.lib.vnet.v1.ExchangeSSHKeysResponse
+	32, // [32:46] is the sub-list for method output_type
+	18, // [18:32] is the sub-list for method input_type
 	18, // [18:18] is the sub-list for extension type_name
 	18, // [18:18] is the sub-list for extension extendee
 	0,  // [0:18] is the sub-list for field type_name
@@ -2278,7 +2381,7 @@ func file_teleport_lib_vnet_v1_client_application_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc), len(file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   35,
+			NumMessages:   37,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

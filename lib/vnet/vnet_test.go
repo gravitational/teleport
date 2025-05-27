@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	typesvnet "github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -89,13 +90,16 @@ type testPack struct {
 }
 
 type testPackConfig struct {
-	clock                   clockwork.Clock
-	fakeClientApp           *fakeClientApp
-	sshHostCASigner         ssh.Signer
-	sshTrustedUserPublicKey ssh.PublicKey
+	clock         clockwork.Clock
+	fakeClientApp *fakeClientApp
+	homePath      string
 }
 
 func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPack {
+	if cfg.homePath == "" {
+		cfg.homePath = t.TempDir()
+	}
+
 	// Create two sides of an emulated TUN interface: writes to one can be read on the other, and vice versa.
 	tun1, tun2 := newSplitTUN()
 
@@ -149,14 +153,12 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 	// client application and communicates over gRPC. For the test, everything
 	// runs in a single process, but we still set up the gRPC service and only
 	// interface with fakeClientApp via the gRPC client.
-	clt := runTestClientApplicationService(t, ctx, cfg.clock, cfg.fakeClientApp)
+	clt := runTestClientApplicationService(t, ctx, cfg)
 	appProvider := newAppProvider(clt)
-	sshProvider, err := newSSHProvider(sshProviderConfig{
-		clt:                  clt,
-		clock:                cfg.clock,
-		overrideNodeDialer:   cfg.fakeClientApp.dialSSHNode,
-		hostCASigner:         cfg.sshHostCASigner,
-		trustedUserPublicKey: cfg.sshTrustedUserPublicKey,
+	sshProvider, err := newSSHProvider(ctx, sshProviderConfig{
+		clt:                clt,
+		clock:              cfg.clock,
+		overrideNodeDialer: cfg.fakeClientApp.dialSSHNode,
 	})
 	require.NoError(t, err)
 	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
@@ -270,20 +272,21 @@ func (p *testPack) dialHost(ctx context.Context, host string, port int) (net.Con
 // runTestClientApplicationService runs the gRPC service that's normally used to
 // expose the client application and Teleport client methods to the VNet
 // admin/networking process over gRPC. It returns a client of the gRPC service.
-func runTestClientApplicationService(t *testing.T, ctx context.Context, clock clockwork.Clock, clientApp *fakeClientApp) *clientApplicationServiceClient {
-	clusterConfigCache := NewClusterConfigCache(clock)
-	leafClusterCache, err := newLeafClusterCache(clock)
+func runTestClientApplicationService(t *testing.T, ctx context.Context, cfg testPackConfig) *clientApplicationServiceClient {
+	clusterConfigCache := NewClusterConfigCache(cfg.clock)
+	leafClusterCache, err := newLeafClusterCache(cfg.clock)
 	require.NoError(t, err)
 	fqdnResolver := newFQDNResolver(&fqdnResolverConfig{
-		clientApplication:  clientApp,
+		clientApplication:  cfg.fakeClientApp,
 		clusterConfigCache: clusterConfigCache,
 		leafClusterCache:   leafClusterCache,
 	})
 	clientApplicationService, err := newClientApplicationService(&clientApplicationServiceConfig{
-		clientApplication:     clientApp,
+		clientApplication:     cfg.fakeClientApp,
 		fqdnResolver:          fqdnResolver,
 		localOSConfigProvider: nil, // OS configuration is not needed in tests.
-		clock:                 clock,
+		homePath:              cfg.homePath,
+		clock:                 cfg.clock,
 	})
 	require.NoError(t, err)
 
@@ -1153,6 +1156,7 @@ func TestSSH(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	clock := clockwork.NewRealClock()
+	homePath := t.TempDir()
 
 	const (
 		root1CIDR = "192.168.1.0/24"
@@ -1196,27 +1200,31 @@ func TestSSH(t *testing.T) {
 		signatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
 	})
 
-	sshHostKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	p := newTestPack(t, ctx, testPackConfig{
+		fakeClientApp: clientApp,
+		clock:         clock,
+		homePath:      homePath,
+	})
+
+	// Read the generated vnet_known_hosts file to get the trusted host CA key.
+	knownHosts, err := os.ReadFile(keypaths.VNetKnownHostsPath(homePath))
 	require.NoError(t, err)
-	sshHostCASigner, err := ssh.NewSignerFromSigner(sshHostKey)
+	marker, hosts, hostCAPubKey, _, _, err := ssh.ParseKnownHosts(knownHosts)
+	require.NoError(t, err)
+	require.Equal(t, "cert-authority", marker)
+	require.Equal(t, []string{"*"}, hosts)
+
+	// Read the generated id_vnet file to get the user key.
+	sshUserKey, err := os.ReadFile(keypaths.VNetClientSSHKeyPath(homePath))
+	require.NoError(t, err)
+	sshUserSigner, err := ssh.ParsePrivateKey(sshUserKey)
 	require.NoError(t, err)
 
-	sshUserKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
-	require.NoError(t, err)
-	sshUserSigner, err := ssh.NewSignerFromSigner(sshUserKey)
-	require.NoError(t, err)
-
+	// Create a fake user key to test failed authentication.
 	badUserKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 	badUserSigner, err := ssh.NewSignerFromSigner(badUserKey)
 	require.NoError(t, err)
-
-	p := newTestPack(t, ctx, testPackConfig{
-		fakeClientApp:           clientApp,
-		clock:                   clock,
-		sshHostCASigner:         sshHostCASigner,
-		sshTrustedUserPublicKey: sshUserSigner.PublicKey(),
-	})
 
 	for _, tc := range []struct {
 		dialAddr                 string
@@ -1372,7 +1380,7 @@ func TestSSH(t *testing.T) {
 			// the server.
 			certChecker := ssh.CertChecker{
 				IsHostAuthority: func(auth ssh.PublicKey, address string) bool {
-					return sshutils.KeysEqual(auth, sshHostCASigner.PublicKey())
+					return sshutils.KeysEqual(auth, hostCAPubKey)
 				},
 				Clock: clock.Now,
 			}
