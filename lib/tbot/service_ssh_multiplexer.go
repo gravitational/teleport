@@ -44,7 +44,10 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -93,17 +96,19 @@ var (
 // It places an emphasis on high performance.
 type SSHMultiplexerService struct {
 	alpnUpgradeCache *alpnProxyConnUpgradeRequiredCache
-	// botAuthClient should be an auth client using the bots internal identity.
+	// authClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.SSHMultiplexerService
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	proxyPingCache    *proxyPingCache
-	reloadBroadcaster *channelBroadcaster
-	resolver          reversetunnelclient.Resolver
+	authClient          proto.AuthServiceClient
+	clusterConfigClient clusterconfigpb.ClusterConfigServiceClient
+	trustClient         trustpb.TrustServiceClient
+	botCfg              *config.BotConfig
+	cfg                 *config.SSHMultiplexerService
+	getBotIdentity      getBotIdentityFn
+	log                 *slog.Logger
+	proxyPingCache      *proxyPingCache
+	reloadBroadcaster   *channelBroadcaster
+	resolver            reversetunnelclient.Resolver
 
 	// Fields below here are initialized by the service itself on startup.
 	identity *identity.Facade
@@ -162,7 +167,7 @@ func (s *SSHMultiplexerService) writeArtifacts(
 	// Generate known hosts
 	knownHosts, _, err := ssh.GenerateKnownHosts(
 		ctx,
-		s.botAuthClient,
+		s.trustClient,
 		clusterNames,
 		proxyHost,
 	)
@@ -342,14 +347,15 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 // generateIdentity generates our impersonated identity which we will write to
 // the destination.
 func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity.Identity, error) {
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
+	roles, err := fetchDefaultRoles(ctx, s.authClient, s.getBotIdentity())
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching default roles")
 	}
 
 	id, err := generateIdentity(
 		ctx,
-		s.botAuthClient,
+		s.authClient,
+		s.clusterConfigClient,
 		s.getBotIdentity(),
 		roles,
 		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,

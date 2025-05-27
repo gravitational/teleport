@@ -32,8 +32,9 @@ import (
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"gopkg.in/ini.v1"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -44,13 +45,14 @@ import (
 // WorkloadIdentityAWSRAService is a service that retrieves X.509 certificates
 // and exchanges them for AWS credentials using the AWS Roles Anywhere service.
 type WorkloadIdentityAWSRAService struct {
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.WorkloadIdentityAWSRAService
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	resolver          reversetunnelclient.Resolver
-	reloadBroadcaster *channelBroadcaster
+	authClient          proto.AuthServiceClient
+	clusterConfigClient clusterconfigpb.ClusterConfigServiceClient
+	botCfg              *config.BotConfig
+	cfg                 *config.WorkloadIdentityAWSRAService
+	getBotIdentity      getBotIdentityFn
+	log                 *slog.Logger
+	resolver            reversetunnelclient.Resolver
+	reloadBroadcaster   *channelBroadcaster
 }
 
 // String returns a human-readable description of the service.
@@ -165,14 +167,15 @@ func (s *WorkloadIdentityAWSRAService) requestSVID(
 	)
 	defer span.End()
 
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
+	roles, err := fetchDefaultRoles(ctx, s.authClient, s.getBotIdentity())
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "fetching roles")
 	}
 
 	id, err := generateIdentity(
 		ctx,
-		s.botAuthClient,
+		s.authClient,
+		s.clusterConfigClient,
 		s.getBotIdentity(),
 		roles,
 		// We only need this to issue the X509 SVID, so we don't need the full

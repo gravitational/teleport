@@ -30,9 +30,12 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	machineidpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -42,12 +45,16 @@ import (
 // WorkloadIdentityX509Service is a service that retrieves X.509 certificates
 // for WorkloadIdentity resources.
 type WorkloadIdentityX509Service struct {
-	botAuthClient  *authclient.Client
-	botCfg         *config.BotConfig
-	cfg            *config.WorkloadIdentityX509Service
-	getBotIdentity getBotIdentityFn
-	log            *slog.Logger
-	resolver       reversetunnelclient.Resolver
+	authClient                       proto.AuthServiceClient
+	clusterConfigClient              clusterconfigpb.ClusterConfigServiceClient
+	spiffeFederationClient           machineidpb.SPIFFEFederationServiceClient
+	trustClient                      trustpb.TrustServiceClient
+	workloadIdentityRevocationClient workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
+	botCfg                           *config.BotConfig
+	cfg                              *config.WorkloadIdentityX509Service
+	getBotIdentity                   getBotIdentityFn
+	log                              *slog.Logger
+	resolver                         reversetunnelclient.Resolver
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
 	trustBundleCache *workloadidentity.TrustBundleCache
@@ -69,8 +76,8 @@ func (s *WorkloadIdentityX509Service) OneShot(ctx context.Context) error {
 	bundleSet, err := workloadidentity.FetchInitialBundleSet(
 		ctx,
 		s.log,
-		s.botAuthClient.SPIFFEFederationServiceClient(),
-		s.botAuthClient.TrustClient(),
+		s.spiffeFederationClient,
+		s.trustClient,
 		s.cfg.IncludeFederatedTrustBundles,
 		s.getBotIdentity().ClusterName,
 	)
@@ -79,7 +86,7 @@ func (s *WorkloadIdentityX509Service) OneShot(ctx context.Context) error {
 	}
 	crlSet, err := workloadidentity.FetchCRLSet(
 		ctx,
-		s.botAuthClient.WorkloadIdentityRevocationServiceClient(),
+		s.workloadIdentityRevocationClient,
 	)
 	if err != nil {
 		return trace.Wrap(err, "fetching CRL set")
@@ -187,7 +194,7 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 	)
 	defer span.End()
 
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
+	roles, err := fetchDefaultRoles(ctx, s.authClient, s.getBotIdentity())
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "fetching roles")
 	}
@@ -195,7 +202,8 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	id, err := generateIdentity(
 		ctx,
-		s.botAuthClient,
+		s.authClient,
+		s.clusterConfigClient,
 		s.getBotIdentity(),
 		roles,
 		effectiveLifetime.TTL,

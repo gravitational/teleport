@@ -27,8 +27,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -39,13 +40,15 @@ import (
 // DatabaseOutputService generates the artifacts necessary to connect to a
 // database using Teleport.
 type DatabaseOutputService struct {
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.DatabaseOutput
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	reloadBroadcaster *channelBroadcaster
-	resolver          reversetunnelclient.Resolver
+	authClient          proto.AuthServiceClient
+	clusterConfigClient clusterconfigpb.ClusterConfigServiceClient
+	trustClient         trustpb.TrustServiceClient
+	botCfg              *config.BotConfig
+	cfg                 *config.DatabaseOutput
+	getBotIdentity      getBotIdentityFn
+	log                 *slog.Logger
+	reloadBroadcaster   *channelBroadcaster
+	resolver            reversetunnelclient.Resolver
 }
 
 func (s *DatabaseOutputService) String() string {
@@ -95,7 +98,7 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 	var err error
 	roles := s.cfg.Roles
 	if len(roles) == 0 {
-		roles, err = fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
+		roles, err = fetchDefaultRoles(ctx, s.authClient, s.getBotIdentity())
 		if err != nil {
 			return trace.Wrap(err, "fetching default roles")
 		}
@@ -103,7 +106,8 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 
 	id, err := generateIdentity(
 		ctx,
-		s.botAuthClient,
+		s.authClient,
+		s.clusterConfigClient,
 		s.getBotIdentity(),
 		roles,
 		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
@@ -136,7 +140,8 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	routedIdentity, err := generateIdentity(
 		ctx,
-		s.botAuthClient,
+		s.authClient,
+		s.clusterConfigClient,
 		id,
 		roles,
 		effectiveLifetime.TTL,
@@ -156,18 +161,18 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 		"db_service", route.ServiceName,
 	)
 
-	hostCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.HostCA, false)
+	hostCAs, err := getCertAuthorities(ctx, s.trustClient, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// TODO(noah): It's likely the Database output does not really need to
 	// output all these CAs - but - for backwards compat reasons, we output them.
 	// Revisit this at a later date and make a call.
-	userCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.UserCA, false)
+	userCAs, err := getCertAuthorities(ctx, s.trustClient, types.UserCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	databaseCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	databaseCAs, err := getCertAuthorities(ctx, s.trustClient, types.DatabaseCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

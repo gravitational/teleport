@@ -29,6 +29,8 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -39,13 +41,15 @@ import (
 // ApplicationOutputService generates the artifacts necessary to connect to a
 // HTTP or TCP application using Teleport.
 type ApplicationOutputService struct {
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.ApplicationOutput
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	reloadBroadcaster *channelBroadcaster
-	resolver          reversetunnelclient.Resolver
+	authClient          proto.AuthServiceClient
+	clusterConfigClient clusterconfigpb.ClusterConfigServiceClient
+	trustClient         trustpb.TrustServiceClient
+	botCfg              *config.BotConfig
+	cfg                 *config.ApplicationOutput
+	getBotIdentity      getBotIdentityFn
+	log                 *slog.Logger
+	reloadBroadcaster   *channelBroadcaster
+	resolver            reversetunnelclient.Resolver
 }
 
 func (s *ApplicationOutputService) String() string {
@@ -95,7 +99,7 @@ func (s *ApplicationOutputService) generate(ctx context.Context) error {
 	var err error
 	roles := s.cfg.Roles
 	if len(roles) == 0 {
-		roles, err = fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
+		roles, err = fetchDefaultRoles(ctx, s.authClient, s.getBotIdentity())
 		if err != nil {
 			return trace.Wrap(err, "fetching default roles")
 		}
@@ -103,7 +107,8 @@ func (s *ApplicationOutputService) generate(ctx context.Context) error {
 
 	id, err := generateIdentity(
 		ctx,
-		s.botAuthClient,
+		s.authClient,
+		s.clusterConfigClient,
 		s.getBotIdentity(),
 		roles,
 		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
@@ -134,7 +139,8 @@ func (s *ApplicationOutputService) generate(ctx context.Context) error {
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	routedIdentity, err := generateIdentity(
 		ctx,
-		s.botAuthClient,
+		s.authClient,
+		s.clusterConfigClient,
 		id,
 		roles,
 		effectiveLifetime.TTL,
@@ -154,18 +160,18 @@ func (s *ApplicationOutputService) generate(ctx context.Context) error {
 		"app_name", routeToApp.Name,
 	)
 
-	hostCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.HostCA, false)
+	hostCAs, err := getCertAuthorities(ctx, s.trustClient, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// TODO(noah): It's likely the Application output does not really need to
 	// output these CAs - but - for backwards compat reasons, we output them.
 	// Revisit this at a later date and make a call.
-	userCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.UserCA, false)
+	userCAs, err := getCertAuthorities(ctx, s.trustClient, types.UserCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	databaseCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	databaseCAs, err := getCertAuthorities(ctx, s.trustClient, types.DatabaseCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

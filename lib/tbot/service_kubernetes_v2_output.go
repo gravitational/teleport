@@ -35,9 +35,10 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -50,17 +51,19 @@ import (
 // KubernetesOutputService produces credentials which can be used to connect to
 // a Kubernetes Cluster through teleport.
 type KubernetesV2OutputService struct {
-	// botAuthClient should be an auth client using the bots internal identity.
+	// authClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.KubernetesV2Output
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	proxyPingCache    *proxyPingCache
-	reloadBroadcaster *channelBroadcaster
-	resolver          reversetunnelclient.Resolver
+	authClient          proto.AuthServiceClient
+	clusterConfigClient clusterconfigpb.ClusterConfigServiceClient
+	trustClient         trustpb.TrustServiceClient
+	botCfg              *config.BotConfig
+	cfg                 *config.KubernetesV2Output
+	getBotIdentity      getBotIdentityFn
+	log                 *slog.Logger
+	proxyPingCache      *proxyPingCache
+	reloadBroadcaster   *channelBroadcaster
+	resolver            reversetunnelclient.Resolver
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
 	executablePath func() (string, error)
@@ -109,7 +112,7 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
+	roles, err := fetchDefaultRoles(ctx, s.authClient, s.getBotIdentity())
 	if err != nil {
 		return trace.Wrap(err, "fetching default roles")
 	}
@@ -117,7 +120,8 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	id, err := generateIdentity(
 		ctx,
-		s.botAuthClient,
+		s.authClient,
+		s.clusterConfigClient,
 		s.getBotIdentity(),
 		roles,
 		effectiveLifetime.TTL,
@@ -167,7 +171,7 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	hostCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.HostCA, false)
+	hostCAs, err := getCertAuthorities(ctx, s.trustClient, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

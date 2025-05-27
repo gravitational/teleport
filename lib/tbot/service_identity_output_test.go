@@ -29,8 +29,10 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/webclient"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
@@ -55,19 +57,19 @@ type mockCertAuthorityGetter struct {
 }
 
 func (p *mockCertAuthorityGetter) GetCertAuthority(
-	ctx context.Context, id types.CertAuthID, loadKeys bool,
-) (types.CertAuthority, error) {
-	if !slices.Contains([]string{p.clusterName, p.remoteClusterName}, id.DomainName) {
-		return nil, trace.NotFound("specified id %q not found", id)
+	ctx context.Context, req *trustpb.GetCertAuthorityRequest, opts ...grpc.CallOption,
+) (*types.CertAuthorityV2, error) {
+	if !slices.Contains([]string{p.clusterName, p.remoteClusterName}, req.Domain) {
+		return nil, trace.NotFound("specified domain %q not found", req.Domain)
 	}
-	if loadKeys {
+	if req.IncludeKey {
 		return nil, trace.BadParameter("unexpected loading of key")
 	}
 
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		// Pretend to be the correct type.
-		Type:        id.Type,
-		ClusterName: id.DomainName,
+		Type:        types.CertAuthType(req.Type),
+		ClusterName: req.Domain,
 		ActiveKeys: types.CAKeySet{
 			TLS: []*types.TLSKeyPair{
 				{
@@ -91,21 +93,7 @@ func (p *mockCertAuthorityGetter) GetCertAuthority(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ca, nil
-}
-
-func (p *mockCertAuthorityGetter) GetCertAuthorities(ctx context.Context, caType types.CertAuthType) ([]types.CertAuthority, error) {
-	// We'll just wrap GetCertAuthority()'s dummy CA.
-	ca, err := p.GetCertAuthority(ctx, types.CertAuthID{
-		// Just pretend to be whichever type of CA was requested.
-		Type:       caType,
-		DomainName: p.clusterName,
-	}, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return []types.CertAuthority{ca}, nil
+	return ca.(*types.CertAuthorityV2), nil
 }
 
 type mockALPNConnTester struct {

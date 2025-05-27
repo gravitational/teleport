@@ -28,10 +28,11 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -42,13 +43,15 @@ import (
 )
 
 type SSHHostOutputService struct {
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.SSHHostOutput
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	reloadBroadcaster *channelBroadcaster
-	resolver          reversetunnelclient.Resolver
+	authClient          proto.AuthServiceClient
+	clusterConfigClient clusterconfigpb.ClusterConfigServiceClient
+	trustClient         trustpb.TrustServiceClient
+	botCfg              *config.BotConfig
+	cfg                 *config.SSHHostOutput
+	getBotIdentity      getBotIdentityFn
+	log                 *slog.Logger
+	reloadBroadcaster   *channelBroadcaster
+	resolver            reversetunnelclient.Resolver
 }
 
 func (s *SSHHostOutputService) String() string {
@@ -98,7 +101,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	var err error
 	roles := s.cfg.Roles
 	if len(roles) == 0 {
-		roles, err = fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
+		roles, err = fetchDefaultRoles(ctx, s.authClient, s.getBotIdentity())
 		if err != nil {
 			return trace.Wrap(err, "fetching default roles")
 		}
@@ -107,7 +110,8 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	id, err := generateIdentity(
 		ctx,
-		s.botAuthClient,
+		s.authClient,
+		s.clusterConfigClient,
 		s.getBotIdentity(),
 		roles,
 		effectiveLifetime.TTL,
@@ -131,7 +135,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 
 	// generate a keypair
 	key, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(s.botAuthClient),
+		cryptosuites.GetCurrentSuiteFromAuthPreference(authPreferenceGetter{s.clusterConfigClient}),
 		cryptosuites.HostSSH)
 	if err != nil {
 		return trace.Wrap(err)
@@ -175,7 +179,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	userCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.UserCA, false)
+	userCAs, err := getCertAuthorities(ctx, s.trustClient, types.UserCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

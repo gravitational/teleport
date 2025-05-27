@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
-	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -239,9 +238,10 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		}
 	}()
 	services = append(services, b.botIdentitySvc)
+	clients := b.botIdentitySvc.GetClients()
 
 	authPingCache := &authPingCache{
-		client: proto.NewAuthServiceClient(b.botIdentitySvc.GetConnection()),
+		client: clients.AuthService,
 		log:    b.log,
 	}
 	proxyPingCache := &proxyPingCache{
@@ -272,11 +272,9 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		log: b.log.With(
 			teleport.ComponentKey, teleport.Component(componentTBot, "heartbeat"),
 		),
-		heartbeatSubmitter: machineidv1pb.NewBotInstanceServiceClient(
-			b.botIdentitySvc.GetClient().GetConnection(),
-		),
-		interval:   time.Minute * 30,
-		retryLimit: 5,
+		heartbeatSubmitter: clients.BotInstanceService,
+		interval:           time.Minute * 30,
+		retryLimit:         5,
 	})
 
 	services = append(services, &caRotationService{
@@ -298,8 +296,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 
 		var err error
 		trustBundleCache, err = workloadidentity.NewTrustBundleCache(workloadidentity.TrustBundleCacheConfig{
-			FederationClient: b.botIdentitySvc.GetClient().SPIFFEFederationServiceClient(),
-			TrustClient:      b.botIdentitySvc.GetClient().TrustClient(),
+			FederationClient: clients.SPIFFEFederationService,
+			TrustClient:      clients.TrustService,
 			EventsClient:     b.botIdentitySvc.GetClient(),
 			ClusterName:      b.botIdentitySvc.GetIdentity().ClusterName,
 			Logger: b.log.With(
@@ -320,7 +318,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 
 		var err error
 		crlCache, err = workloadidentity.NewCRLCache(workloadidentity.CRLCacheConfig{
-			RevocationsClient: b.botIdentitySvc.GetClient().WorkloadIdentityRevocationServiceClient(),
+			RevocationsClient: clients.WorkloadIdentityRevocationService,
 			Logger: b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "crl-cache"),
 			),
@@ -343,11 +341,12 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			)
 			clientCredential := &config.UnstableClientCredentialOutput{}
 			svcIdentity := &ClientCredentialOutputService{
-				botAuthClient:     b.botIdentitySvc.GetClient(),
-				botCfg:            b.cfg,
-				cfg:               clientCredential,
-				getBotIdentity:    b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster: reloadBroadcaster,
+				authClient:          clients.AuthService,
+				clusterConfigClient: clients.ClusterConfigService,
+				botCfg:              b.cfg,
+				cfg:                 clientCredential,
+				getBotIdentity:      b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster:   reloadBroadcaster,
 			}
 			svcIdentity.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(
@@ -374,12 +373,13 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svc)
 		case *config.DatabaseTunnelService:
 			svc := &DatabaseTunnelService{
-				getBotIdentity: b.botIdentitySvc.GetIdentity,
-				proxyPingCache: proxyPingCache,
-				botClient:      b.botIdentitySvc.GetClient(),
-				resolver:       resolver,
-				botCfg:         b.cfg,
-				cfg:            svcCfg,
+				getBotIdentity:      b.botIdentitySvc.GetIdentity,
+				proxyPingCache:      proxyPingCache,
+				authClient:          clients.AuthService,
+				clusterConfigClient: clients.ClusterConfigService,
+				resolver:            resolver,
+				botCfg:              b.cfg,
+				cfg:                 svcCfg,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -391,14 +391,16 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			})
 		case *config.SSHMultiplexerService:
 			svc := &SSHMultiplexerService{
-				alpnUpgradeCache:  alpnUpgradeCache,
-				botAuthClient:     b.botIdentitySvc.GetClient(),
-				botCfg:            b.cfg,
-				cfg:               svcCfg,
-				getBotIdentity:    b.botIdentitySvc.GetIdentity,
-				proxyPingCache:    proxyPingCache,
-				reloadBroadcaster: reloadBroadcaster,
-				resolver:          resolver,
+				alpnUpgradeCache:    alpnUpgradeCache,
+				authClient:          clients.AuthService,
+				clusterConfigClient: clients.ClusterConfigService,
+				trustClient:         clients.TrustService,
+				botCfg:              b.cfg,
+				cfg:                 svcCfg,
+				getBotIdentity:      b.botIdentitySvc.GetIdentity,
+				proxyPingCache:      proxyPingCache,
+				reloadBroadcaster:   reloadBroadcaster,
+				resolver:            resolver,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -406,14 +408,16 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svc)
 		case *config.KubernetesOutput:
 			svc := &KubernetesOutputService{
-				botAuthClient:     b.botIdentitySvc.GetClient(),
-				botCfg:            b.cfg,
-				cfg:               svcCfg,
-				getBotIdentity:    b.botIdentitySvc.GetIdentity,
-				proxyPingCache:    proxyPingCache,
-				reloadBroadcaster: reloadBroadcaster,
-				resolver:          resolver,
-				executablePath:    autoupdate.StableExecutable,
+				authClient:          clients.AuthService,
+				clusterConfigClient: clients.ClusterConfigService,
+				trustClient:         clients.TrustService,
+				botCfg:              b.cfg,
+				cfg:                 svcCfg,
+				getBotIdentity:      b.botIdentitySvc.GetIdentity,
+				proxyPingCache:      proxyPingCache,
+				reloadBroadcaster:   reloadBroadcaster,
+				resolver:            resolver,
+				executablePath:      autoupdate.StableExecutable,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -421,14 +425,16 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svc)
 		case *config.KubernetesV2Output:
 			svc := &KubernetesV2OutputService{
-				botAuthClient:     b.botIdentitySvc.GetClient(),
-				botCfg:            b.cfg,
-				cfg:               svcCfg,
-				getBotIdentity:    b.botIdentitySvc.GetIdentity,
-				proxyPingCache:    proxyPingCache,
-				reloadBroadcaster: reloadBroadcaster,
-				resolver:          resolver,
-				executablePath:    autoupdate.StableExecutable,
+				authClient:          clients.AuthService,
+				clusterConfigClient: clients.ClusterConfigService,
+				trustClient:         clients.TrustService,
+				botCfg:              b.cfg,
+				cfg:                 svcCfg,
+				getBotIdentity:      b.botIdentitySvc.GetIdentity,
+				proxyPingCache:      proxyPingCache,
+				reloadBroadcaster:   reloadBroadcaster,
+				resolver:            resolver,
+				executablePath:      autoupdate.StableExecutable,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -440,11 +446,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				"The 'spiffe-svid' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
 			)
 			svc := &SPIFFESVIDOutputService{
-				botAuthClient:  b.botIdentitySvc.GetClient(),
-				botCfg:         b.cfg,
-				cfg:            svcCfg,
-				getBotIdentity: b.botIdentitySvc.GetIdentity,
-				resolver:       resolver,
+				authClient:             clients.AuthService,
+				clusterConfigClient:    clients.ClusterConfigService,
+				spiffeFederationClient: clients.SPIFFEFederationService,
+				trustClient:            clients.TrustService,
+				botCfg:                 b.cfg,
+				cfg:                    svcCfg,
+				getBotIdentity:         b.botIdentitySvc.GetIdentity,
+				resolver:               resolver,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -459,12 +468,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svc)
 		case *config.SSHHostOutput:
 			svc := &SSHHostOutputService{
-				botAuthClient:     b.botIdentitySvc.GetClient(),
-				botCfg:            b.cfg,
-				cfg:               svcCfg,
-				getBotIdentity:    b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster: reloadBroadcaster,
-				resolver:          resolver,
+				authClient:          clients.AuthService,
+				clusterConfigClient: clients.ClusterConfigService,
+				trustClient:         clients.TrustService,
+				botCfg:              b.cfg,
+				cfg:                 svcCfg,
+				getBotIdentity:      b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster:   reloadBroadcaster,
+				resolver:            resolver,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -472,12 +483,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svc)
 		case *config.ApplicationOutput:
 			svc := &ApplicationOutputService{
-				botAuthClient:     b.botIdentitySvc.GetClient(),
-				botCfg:            b.cfg,
-				cfg:               svcCfg,
-				getBotIdentity:    b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster: reloadBroadcaster,
-				resolver:          resolver,
+				authClient:          clients.AuthService,
+				clusterConfigClient: clients.ClusterConfigService,
+				trustClient:         clients.TrustService,
+				botCfg:              b.cfg,
+				cfg:                 svcCfg,
+				getBotIdentity:      b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster:   reloadBroadcaster,
+				resolver:            resolver,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -485,12 +498,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svc)
 		case *config.DatabaseOutput:
 			svc := &DatabaseOutputService{
-				botAuthClient:     b.botIdentitySvc.GetClient(),
-				botCfg:            b.cfg,
-				cfg:               svcCfg,
-				getBotIdentity:    b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster: reloadBroadcaster,
-				resolver:          resolver,
+				authClient:          clients.AuthService,
+				clusterConfigClient: clients.ClusterConfigService,
+				trustClient:         clients.TrustService,
+				botCfg:              b.cfg,
+				cfg:                 svcCfg,
+				getBotIdentity:      b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster:   reloadBroadcaster,
+				resolver:            resolver,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -498,15 +513,17 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svc)
 		case *config.IdentityOutput:
 			svc := &IdentityOutputService{
-				botAuthClient:     b.botIdentitySvc.GetClient(),
-				botCfg:            b.cfg,
-				cfg:               svcCfg,
-				getBotIdentity:    b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster: reloadBroadcaster,
-				resolver:          resolver,
-				executablePath:    autoupdate.StableExecutable,
-				alpnUpgradeCache:  alpnUpgradeCache,
-				proxyPingCache:    proxyPingCache,
+				authClient:          clients.AuthService,
+				clusterConfigClient: clients.ClusterConfigService,
+				trustClient:         clients.TrustService,
+				botCfg:              b.cfg,
+				cfg:                 svcCfg,
+				getBotIdentity:      b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster:   reloadBroadcaster,
+				resolver:            resolver,
+				executablePath:      autoupdate.StableExecutable,
+				alpnUpgradeCache:    alpnUpgradeCache,
+				proxyPingCache:      proxyPingCache,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -514,11 +531,12 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svc)
 		case *config.UnstableClientCredentialOutput:
 			svc := &ClientCredentialOutputService{
-				botAuthClient:     b.botIdentitySvc.GetClient(),
-				botCfg:            b.cfg,
-				cfg:               svcCfg,
-				getBotIdentity:    b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster: reloadBroadcaster,
+				authClient:          clients.AuthService,
+				clusterConfigClient: clients.ClusterConfigService,
+				botCfg:              b.cfg,
+				cfg:                 svcCfg,
+				getBotIdentity:      b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster:   reloadBroadcaster,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -526,12 +544,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svc)
 		case *config.ApplicationTunnelService:
 			svc := &ApplicationTunnelService{
-				getBotIdentity: b.botIdentitySvc.GetIdentity,
-				proxyPingCache: proxyPingCache,
-				botClient:      b.botIdentitySvc.GetClient(),
-				resolver:       resolver,
-				botCfg:         b.cfg,
-				cfg:            svcCfg,
+				getBotIdentity:      b.botIdentitySvc.GetIdentity,
+				proxyPingCache:      proxyPingCache,
+				authClient:          clients.AuthService,
+				clusterConfigClient: clients.ClusterConfigService,
+				trustClient:         clients.TrustService,
+				resolver:            resolver,
+				botCfg:              b.cfg,
+				cfg:                 svcCfg,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -539,11 +559,15 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svc)
 		case *config.WorkloadIdentityX509Service:
 			svc := &WorkloadIdentityX509Service{
-				botAuthClient:  b.botIdentitySvc.GetClient(),
-				botCfg:         b.cfg,
-				cfg:            svcCfg,
-				getBotIdentity: b.botIdentitySvc.GetIdentity,
-				resolver:       resolver,
+				authClient:                       clients.AuthService,
+				clusterConfigClient:              clients.ClusterConfigService,
+				spiffeFederationClient:           clients.SPIFFEFederationService,
+				trustClient:                      clients.TrustService,
+				workloadIdentityRevocationClient: clients.WorkloadIdentityRevocationService,
+				botCfg:                           b.cfg,
+				cfg:                              svcCfg,
+				getBotIdentity:                   b.botIdentitySvc.GetIdentity,
+				resolver:                         resolver,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -563,11 +587,12 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svc)
 		case *config.WorkloadIdentityJWTService:
 			svc := &WorkloadIdentityJWTService{
-				botAuthClient:  b.botIdentitySvc.GetClient(),
-				botCfg:         b.cfg,
-				cfg:            svcCfg,
-				getBotIdentity: b.botIdentitySvc.GetIdentity,
-				resolver:       resolver,
+				authClient:          clients.AuthService,
+				clusterConfigClient: clients.ClusterConfigService,
+				botCfg:              b.cfg,
+				cfg:                 svcCfg,
+				getBotIdentity:      b.botIdentitySvc.GetIdentity,
+				resolver:            resolver,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -583,11 +608,12 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		case *config.WorkloadIdentityAPIService:
 			clientCredential := &config.UnstableClientCredentialOutput{}
 			svcIdentity := &ClientCredentialOutputService{
-				botAuthClient:     b.botIdentitySvc.GetClient(),
-				botCfg:            b.cfg,
-				cfg:               clientCredential,
-				getBotIdentity:    b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster: reloadBroadcaster,
+				authClient:          clients.AuthService,
+				clusterConfigClient: clients.ClusterConfigService,
+				botCfg:              b.cfg,
+				cfg:                 clientCredential,
+				getBotIdentity:      b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster:   reloadBroadcaster,
 			}
 			svcIdentity.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(
@@ -619,12 +645,13 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svc)
 		case *config.WorkloadIdentityAWSRAService:
 			svc := &WorkloadIdentityAWSRAService{
-				botCfg:            b.cfg,
-				cfg:               svcCfg,
-				resolver:          resolver,
-				botAuthClient:     b.botIdentitySvc.GetClient(),
-				getBotIdentity:    b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster: reloadBroadcaster,
+				authClient:          clients.AuthService,
+				clusterConfigClient: clients.ClusterConfigService,
+				botCfg:              b.cfg,
+				cfg:                 svcCfg,
+				resolver:            resolver,
+				getBotIdentity:      b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster:   reloadBroadcaster,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
