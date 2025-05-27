@@ -474,6 +474,10 @@ build-archive: | $(RELEASE_DIR)
 		../README.md \
 		../CHANGELOG.md \
 		teleport-ent/
+	# add SELinux install script for Linux archives
+	$(if $(filter linux,$(OS)), \
+		cp ../assets/install-scripts/install-selinux.sh teleport-ent/ \
+	)
 	echo $(GITTAG) > teleport-ent/VERSION
 	tar $(TAR_FLAGS) -c teleport-ent | gzip -n > $(RELEASE_ENT).tar.gz
 	cp $(RELEASE_ENT).tar.gz $(RELEASE_DIR)
