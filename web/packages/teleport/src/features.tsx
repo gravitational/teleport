@@ -306,7 +306,7 @@ export class FeatureBotInstances implements TeleportFeature {
   }
 }
 
-class FeatureBotInstanceDetails implements TeleportFeature {
+export class FeatureBotInstanceDetails implements TeleportFeature {
   parent = FeatureBotInstances;
 
   route = {
