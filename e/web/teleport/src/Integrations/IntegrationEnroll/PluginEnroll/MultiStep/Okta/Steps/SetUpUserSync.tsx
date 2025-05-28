@@ -1,7 +1,7 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   PropsWithChildren,
   useCallback,
-  useEffect,
   useState,
   type ComponentProps,
   type ComponentType,
@@ -28,7 +28,6 @@ import { HoverTooltip } from 'design/Tooltip';
 import FieldInput from 'shared/components/FieldInput';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import Validation, { type Validator } from 'shared/components/Validation';
-import { useAsync } from 'shared/hooks/useAsync';
 import { getErrMessage } from 'shared/utils/errorType';
 
 import cfg from 'e-teleport/config';
@@ -37,40 +36,43 @@ import {
   BulletList,
   ListItem,
   NumberedList,
-  OktaIntegrationLevel,
+  OktaIntegrationStepType,
   OktaSetupStepComplete,
   StyledBox,
+  USER_SYNC_CONFIG,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
+import type { OktaIntegrationStepFormProps } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/props';
 import { FormDataField } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/types';
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
 import { pluginsService } from 'e-teleport/services/plugins';
+import { createFetchPluginQueryKey } from 'e-teleport/services/plugins/hooks';
 import { Redirect } from 'teleport/components/Router';
-import type { Plugin, PluginOktaSpec } from 'teleport/services/integrations';
-import type { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
 import { withUnsupportedOktaPluginUpdateErrorConversion } from 'teleport/services/version/unsupported';
 
 export const SetUpUserSync = () => {
-  const { plugin, setPlugin, startFrom } = useOktaIntegrationSetUpContext();
+  const { completedStepTypes, getPreviousStep, plugin, startFrom } =
+    useOktaIntegrationSetUpContext();
 
   if (
-    startFrom === OktaIntegrationLevel.USER_SYNC ||
-    startFrom === OktaIntegrationLevel.APP_GROUP_SYNC
+    startFrom === OktaIntegrationStepType.UserSync ||
+    startFrom === OktaIntegrationStepType.AppGroupSync
   ) {
     return <Redirect to={cfg.oss.getIntegrationEnrollRoute('okta')} />;
   }
 
-  return <UserSyncForm plugin={plugin} setPlugin={setPlugin} />;
+  const previousStep = getPreviousStep(OktaIntegrationStepType.UserSync);
+  const previousStepType = completedStepTypes.includes(previousStep?.type)
+    ? undefined
+    : previousStep?.type;
+
+  return <UserSyncForm plugin={plugin} previousStepType={previousStepType} />;
 };
 
 export const UserSyncForm = ({
+  isEditing,
   plugin,
-  setPlugin,
-  isEditing = false,
-}: {
-  plugin: Plugin<PluginOktaSpec, PluginStatusOkta>;
-  setPlugin: (plugin: Plugin<PluginOktaSpec, PluginStatusOkta>) => void;
-  isEditing?: boolean;
-}) => {
+  previousStepType,
+}: OktaIntegrationStepFormProps) => {
   const [clientId, setClientId] = useState<string>('');
   const [bidirectionalSync, setBidirectionalSync] = useState<boolean>(
     !isEditing ? true : !!plugin?.spec?.enableBidirectionalSync
@@ -78,59 +80,64 @@ export const UserSyncForm = ({
   const [showingSetupSteps, setShowingSetupSteps] = useState(
     !(isEditing && plugin?.spec?.credentialsInfo?.hasConfiguredOauthCredentials)
   );
-  const [updatePluginAttempt, updatePlugin] = useAsync(
-    useCallback(
-      () =>
-        pluginsService
-          .updatePlugin({
-            plugin: 'okta',
-            okta: {
-              enableUserSync: true,
-              enableBidirectionalSync: bidirectionalSync,
-              assignDefaultRoles: !!plugin?.spec?.assignDefaultRoles,
-              clientID: clientId?.trim()?.length ? clientId.trim() : undefined,
-              enableAppGroupSync: !!plugin.spec?.enableAppGroupSync,
-              enableAccessListSync: !!plugin.spec?.enableAccessListSync,
-              defaultOwners: plugin.spec?.defaultOwners,
-              appFilters:
-                plugin.status?.details?.accessListsSyncDetails?.appFilters,
-              groupFilters:
-                plugin.status?.details?.accessListsSyncDetails?.groupFilters,
-            },
-          })
-          .catch(withUnsupportedOktaPluginUpdateErrorConversion)
-          .catch(err => {
-            const msg = getErrMessage(err);
-            if (
-              msg
-                .toLowerCase()
-                .includes("invalid value for 'client_id' parameter")
-            ) {
-              throw new Error('Please enter a valid Client ID');
-            }
-            throw err;
-          }),
-      [plugin, bidirectionalSync, clientId]
-    )
+
+  const queryClient = useQueryClient();
+
+  const updatePlugin = useMutation({
+    mutationFn: () =>
+      pluginsService
+        .updatePlugin({
+          plugin: 'okta',
+          okta: {
+            enableUserSync: true,
+            enableBidirectionalSync: bidirectionalSync,
+            assignDefaultRoles: !!plugin?.spec?.assignDefaultRoles,
+            clientID: clientId?.trim()?.length ? clientId.trim() : undefined,
+            enableAppGroupSync: !!plugin.spec?.enableAppGroupSync,
+            enableAccessListSync: !!plugin.spec?.enableAccessListSync,
+            enableSystemLogExport: !!plugin.spec?.enableSystemLogExport,
+            defaultOwners: plugin.spec?.defaultOwners,
+            appFilters:
+              plugin.status?.details?.accessListsSyncDetails?.appFilters,
+            groupFilters:
+              plugin.status?.details?.accessListsSyncDetails?.groupFilters,
+          },
+        })
+        .catch(withUnsupportedOktaPluginUpdateErrorConversion)
+        .catch(err => {
+          const msg = getErrMessage(err);
+          if (
+            msg
+              .toLowerCase()
+              .includes("invalid value for 'client_id' parameter")
+          ) {
+            throw new Error('Please enter a valid Client ID');
+          }
+          throw err;
+        }),
+    onSuccess: data =>
+      queryClient.setQueryData(createFetchPluginQueryKey('okta'), data),
+  });
+
+  const onSubmit = useCallback(
+    (validator: Validator) => {
+      if (updatePlugin.isPending || !validator.validate()) {
+        return;
+      }
+
+      updatePlugin.mutate();
+    },
+    [updatePlugin]
   );
 
-  const onSubmit = async (validator: Validator) => {
-    if (updatePluginAttempt.status === 'processing' || !validator.validate()) {
-      return;
+  if (updatePlugin.isSuccess) {
+    if (isEditing) {
+      return (
+        <Redirect to={cfg.oss.getIntegrationStatusRoute('okta', 'okta')} />
+      );
     }
 
-    const [resp, err] = await updatePlugin();
-    if (!err) {
-      setPlugin(resp);
-    }
-  };
-
-  if (updatePluginAttempt.status === 'success') {
-    return isEditing ? (
-      <Redirect to={cfg.oss.getIntegrationStatusRoute('okta', 'okta')} />
-    ) : (
-      <OktaSetupStepComplete step={OktaIntegrationLevel.USER_SYNC} />
-    );
+    return <OktaSetupStepComplete config={USER_SYNC_CONFIG} />;
   }
 
   const isConfigured =
@@ -286,14 +293,14 @@ export const UserSyncForm = ({
                     ? '••••••••••••'
                     : '0oa3s1...fx25d6'
                 }
-                disabled={updatePluginAttempt.status === 'processing'}
+                disabled={updatePlugin.isPending}
                 mb={1}
               />
             </StyledBox>
-            {updatePluginAttempt.status === 'error' && (
+            {updatePlugin.isError && (
               <Box maxWidth={800}>
                 <Alert kind="danger" mb={0}>
-                  {getErrMessage(updatePluginAttempt.error)}
+                  {getErrMessage(updatePlugin.error)}
                 </Alert>
               </Box>
             )}
@@ -314,7 +321,7 @@ export const UserSyncForm = ({
             <Flex flexDirection="row" alignItems="center" gap={3}>
               <ButtonPrimary
                 onClick={() => onSubmit(validator)}
-                disabled={updatePluginAttempt.status === 'processing'}
+                disabled={updatePlugin.isPending}
               >
                 {isEditing ? 'Save Changes' : 'Continue'}
               </ButtonPrimary>
@@ -323,9 +330,12 @@ export const UserSyncForm = ({
                 to={
                   isEditing
                     ? cfg.oss.getIntegrationStatusRoute('okta', 'okta')
-                    : cfg.oss.getIntegrationEnrollRoute('okta')
+                    : cfg.oss.getIntegrationEnrollRoute(
+                        'okta',
+                        previousStepType
+                      )
                 }
-                disabled={updatePluginAttempt.status === 'processing'}
+                disabled={updatePlugin.isPending}
               >
                 {isEditing ? 'Cancel' : 'Back'}
               </ButtonSecondary>
@@ -337,7 +347,9 @@ export const UserSyncForm = ({
   );
 };
 
-const requiredScopes = [
+type RequiredScope = [string, string];
+
+const requiredScopes: RequiredScope[] = [
   [
     'okta.apps.manage',
     'Required to create and manage Apps in your Okta organization',
@@ -403,7 +415,7 @@ const HelpButton = ({
   </Button>
 );
 
-const RequiredPermissionItem = ({
+export const RequiredPermissionItem = ({
   text,
   description,
 }: {
@@ -425,102 +437,105 @@ const GrantScopesSteps = ({
 }: {
   readOnly: boolean;
   showResourceSetSteps: boolean;
-}) => (
-  <>
-    <ListItem>
-      <Text>
-        Go to the <b>Okta API Scopes</b> tab of your app and grant the following
-        scopes:
-      </Text>
-      <CollapsibleInfoSection
-        size="small"
-        openLabel="Show more"
-        closeLabel="Show less"
-        defaultOpen
-      >
-        <BulletList>
-          {requiredScopes.map(([scope, desc]) =>
-            !readOnly || scope.endsWith('read') ? (
+}) => {
+  const scopes = requiredScopes.filter(
+    ([scope]) => !readOnly || scope.endsWith('read')
+  );
+
+  return (
+    <>
+      <ListItem>
+        <Text>
+          Go to the <b>Okta API Scopes</b> tab of your app and grant the
+          following scopes:
+        </Text>
+        <CollapsibleInfoSection
+          size="small"
+          openLabel="Show more"
+          closeLabel="Show less"
+          defaultOpen
+        >
+          <BulletList>
+            {scopes.map(([scope, desc]) => (
               <RequiredPermissionItem
                 key={scope}
                 text={scope}
                 description={desc}
               />
-            ) : null
-          )}
-        </BulletList>
-      </CollapsibleInfoSection>
-    </ListItem>
-    {showResourceSetSteps && (
-      <>
-        <ListItem>
-          <Text>
-            Follow Okta&#39;s documentation to{' '}
-            <Link
-              href="https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-resource-set.htm"
-              target="_blank"
-            >
-              create a resource set
-            </Link>{' '}
-            constrained to all Users, Groups, and Applications, then{' '}
-            <Link
-              href="https://support.okta.com/help/s/article/How-to-Create-Custom-Admin-Roles"
-              target="_blank"
-            >
-              create a custom admin role
-            </Link>{' '}
-            with the following permissions:
-          </Text>
-          <CollapsibleInfoSection
-            size="small"
-            openLabel="Show more"
-            closeLabel="Show less"
-          >
-            {requiredRolePermissions.map(([title, roles]) => (
-              <Box key={title}>
-                <Text mb={1} bold>
-                  {title}
-                </Text>
-                <BulletList>
-                  {roles.map(role => (
-                    <ListItem key={role}>
-                      <Text>{role}</Text>
-                    </ListItem>
-                  ))}
-                </BulletList>
-              </Box>
             ))}
-          </CollapsibleInfoSection>
-        </ListItem>
-        <ListItem mb={0}>
-          <Text>
-            Go to the <b>Admin Roles</b> tab of your app. Click{' '}
-            <b>Edit Assignments</b>, and select the custom admin role you
-            created, along with the resource set you created. Click <b>Save</b>.
-          </Text>
-        </ListItem>
-      </>
-    )}
-  </>
-);
+          </BulletList>
+        </CollapsibleInfoSection>
+      </ListItem>
+      {showResourceSetSteps && (
+        <>
+          <ListItem>
+            <Text>
+              Follow Okta&#39;s documentation to{' '}
+              <Link
+                href="https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-resource-set.htm"
+                target="_blank"
+              >
+                create a resource set
+              </Link>{' '}
+              constrained to all Users, Groups, and Applications, then{' '}
+              <Link
+                href="https://support.okta.com/help/s/article/How-to-Create-Custom-Admin-Roles"
+                target="_blank"
+              >
+                create a custom admin role
+              </Link>{' '}
+              with the following permissions:
+            </Text>
+            <CollapsibleInfoSection
+              size="small"
+              openLabel="Show more"
+              closeLabel="Show less"
+            >
+              {requiredRolePermissions.map(([title, roles]) => (
+                <Box key={title}>
+                  <Text mb={1} bold>
+                    {title}
+                  </Text>
+                  <BulletList>
+                    {roles.map(role => (
+                      <ListItem key={role}>
+                        <Text>{role}</Text>
+                      </ListItem>
+                    ))}
+                  </BulletList>
+                </Box>
+              ))}
+            </CollapsibleInfoSection>
+          </ListItem>
+          <ListItem mb={0}>
+            <Text>
+              Go to the <b>Admin Roles</b> tab of your app. Click{' '}
+              <b>Edit Assignments</b>, and select the custom admin role you
+              created, along with the resource set you created. Click{' '}
+              <b>Save</b>.
+            </Text>
+          </ListItem>
+        </>
+      )}
+    </>
+  );
+};
 
 const OktaJwksStep = () => {
   const [showManualKeyInfo, setShowManualKeyInfo] = useState(false);
-  const [oktaJwksAttempt, fetchOktaJwks] = useAsync(
-    useCallback(
-      () =>
-        fetch(`${cfg.oss.baseUrl}/v1/.well-known/jwks-okta`)
-          .then(res => res.json())
-          .then(data => JSON.stringify(data.keys[0])),
-      []
-    )
-  );
 
-  useEffect(() => {
-    if (showManualKeyInfo && !oktaJwksAttempt?.data) {
-      void fetchOktaJwks();
-    }
-  }, [showManualKeyInfo, fetchOktaJwks]);
+  const jwks = useQuery({
+    queryKey: ['oktaJwks'],
+    queryFn: () =>
+      fetch(`${cfg.oss.baseUrl}/v1/.well-known/jwks-okta`)
+        .then(res => res.json())
+        .then(data => JSON.stringify(data.keys[0])),
+    enabled: showManualKeyInfo,
+  });
+
+  const refetch = useCallback(() => {
+    void jwks.refetch();
+  }, [jwks]);
 
   const shared = (
     <HelpButton
@@ -537,25 +552,25 @@ const OktaJwksStep = () => {
           Under <b>Public Keys</b>, choose <b>Save keys in Okta</b>. Click{' '}
           <b>Add Key</b>, then copy and paste the following key:
         </Text>
-        {oktaJwksAttempt.status === 'processing' && (
+        {jwks.isPending && (
           <Box textAlign="center" m={10}>
             <Indicator />
           </Box>
         )}
-        {oktaJwksAttempt.status === 'success' && (
-          <TextSelectCopy text={oktaJwksAttempt.data} bash={false} mb={2} />
+        {jwks.isSuccess && (
+          <TextSelectCopy text={jwks.data} bash={false} mb={2} />
         )}
-        {oktaJwksAttempt.status === 'error' && (
+        {jwks.isError && (
           <>
             <Alert
               kind="danger"
               mb={0}
               primaryAction={{
                 content: 'Retry',
-                onClick: () => fetchOktaJwks(),
+                onClick: refetch,
               }}
             >
-              Failed to fetch key: {getErrMessage(oktaJwksAttempt.error)}
+              Failed to fetch key: {getErrMessage(jwks.error)}
             </Alert>
             <Text>
               If fetching the key fails, you may manually retrieve it by

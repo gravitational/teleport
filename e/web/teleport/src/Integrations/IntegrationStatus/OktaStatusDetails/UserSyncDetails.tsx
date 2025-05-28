@@ -5,9 +5,9 @@ import { FeatureName } from 'design/constants';
 import { Edit, SyncAlt, User } from 'design/Icon';
 
 import {
-  OktaIntegrationLevel,
-  oktaIntegrationLevels,
+  OktaIntegrationStepType,
   UpsellBulletList,
+  USER_SYNC_CONFIG,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import cfg from 'teleport/config';
@@ -59,7 +59,7 @@ export function UserSyncDetails({
                   cfg.getIntegrationStatusRoute(
                     'okta',
                     'okta',
-                    OktaIntegrationLevel.USER_SYNC
+                    OktaIntegrationStepType.UserSync
                   )
                 ),
               Icon: Edit,
@@ -113,11 +113,7 @@ export function UserSyncDetails({
           </>
         ) : (
           <>
-            <UpsellBulletList
-              bullets={
-                oktaIntegrationLevels[OktaIntegrationLevel.USER_SYNC].bullets
-              }
-            />
+            <UpsellBulletList bullets={USER_SYNC_CONFIG.bullets} />
             {!hasIdentity && (
               <ButtonLockedFeature event={CtaEvent.CTA_OKTA_USER_SYNC} mt={1}>
                 Unlock with {FeatureName.IdentityGovernance}

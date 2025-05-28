@@ -6,7 +6,6 @@ import { Theme } from 'design/theme/themes/types';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { CustomSelectComponentProps, Option } from 'shared/components/Select';
 import { Validator } from 'shared/components/Validation';
-import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { FormDataField } from '../types';
 import { FilterOption, FormDataFilterField } from './types';
@@ -16,15 +15,13 @@ export const CreateFilters = ({
   validator,
   filterKind,
   onFilterChange,
-  importAttempt,
-  filterAttempt,
+  isDisabled,
 }: {
   filters: FilterOption[];
   validator: Validator;
   filterKind: FormDataFilterField;
   onFilterChange(o: FilterOption[], v: Validator, k: FormDataFilterField);
-  importAttempt: Attempt;
-  filterAttempt: Attempt;
+  isDisabled?: boolean;
 }) => {
   const theme = useTheme();
   return (
@@ -38,10 +35,7 @@ export const CreateFilters = ({
           isClearable
           isSearchable
           options={filters}
-          isDisabled={
-            filterAttempt.status === 'processing' ||
-            importAttempt.status === 'processing'
-          }
+          isDisabled={isDisabled}
           onChange={(o: FilterOption[]) =>
             onFilterChange(o, validator, filterKind)
           }

@@ -6,8 +6,8 @@ import { Application, Edit, SyncAlt, UserList } from 'design/Icon';
 
 import cfg from 'e-teleport/config';
 import {
-  OktaIntegrationLevel,
-  oktaIntegrationLevels,
+  APP_GROUP_SYNC_CONFIG,
+  OktaIntegrationStepType,
   UpsellBulletList,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
 import {
@@ -64,7 +64,7 @@ export function AppGroupSyncDetails({
                   cfg.oss.getIntegrationStatusRoute(
                     'okta',
                     'okta',
-                    OktaIntegrationLevel.APP_GROUP_SYNC
+                    OktaIntegrationStepType.AppGroupSync
                   )
                 ),
               Icon: Edit,
@@ -176,11 +176,7 @@ export function AppGroupSyncDetails({
           justifyContent="space-between"
           height="100%"
         >
-          <UpsellBulletList
-            bullets={
-              oktaIntegrationLevels[OktaIntegrationLevel.APP_GROUP_SYNC].bullets
-            }
-          />
+          <UpsellBulletList bullets={APP_GROUP_SYNC_CONFIG.bullets} />
           {!hasIdentity && (
             <ButtonLockedFeature event={CtaEvent.CTA_OKTA_USER_SYNC} mt={3}>
               Unlock with {FeatureName.IdentityGovernance}

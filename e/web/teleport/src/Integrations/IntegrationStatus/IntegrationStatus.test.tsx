@@ -1,5 +1,7 @@
 /* eslint-disable testing-library/no-node-access */
 import { within } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
 import { MemoryRouter, Route } from 'react-router';
 
 import {
@@ -11,24 +13,24 @@ import {
   userEvent,
 } from 'design/utils/testing';
 
-import { OktaIntegrationLevel } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
+import { OktaIntegrationStepType } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
 import { IntegrationStatus } from 'e-teleport/Integrations/IntegrationStatus/IntegrationStatus';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import { pluginsService } from 'e-teleport/services/plugins';
+import TeleportContextE from 'e-teleport/teleportContextE';
 import cfg from 'teleport/config';
 import {
   IntegrationKind,
   IntegrationStatusCode,
-  Plugin,
-  PluginOktaSpec,
 } from 'teleport/services/integrations';
-import {
-  PluginOktaSyncStatusCode,
-  PluginStatusOkta,
-} from 'teleport/services/integrations/oktaStatusTypes';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 const defaultIdentity = cfg.entitlements.Identity;
+
+const server = setupServer();
+
+beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
 
 describe('Okta status', () => {
   afterEach(() => {
@@ -37,17 +39,23 @@ describe('Okta status', () => {
   });
 
   test('does not show unsupported message', async () => {
-    jest
-      .spyOn(pluginsService, 'fetchPlugin')
-      .mockResolvedValue(stubOktaPluginOnlySSO);
+    server.use(
+      http.get('/v1/enterprise/plugin/some-name', () =>
+        HttpResponse.json(stubOktaPluginOnlySSO)
+      )
+    );
+
+    const ctx = createTeleportContextE();
 
     render(
       <MemoryRouter
         initialEntries={[`/web/integrations/status/okta/some-name`]}
       >
-        <Route path={cfg.routes.integrationStatus}>
-          <IntegrationStatus />
-        </Route>
+        <TeleportContextProvider ctx={ctx}>
+          <Route path={cfg.routes.integrationStatus}>
+            <IntegrationStatus />
+          </Route>
+        </TeleportContextProvider>
       </MemoryRouter>
     );
     await act(tick);
@@ -59,14 +67,16 @@ describe('Okta status', () => {
   });
 
   test('renders CTA without Identity entitlement', async () => {
-    jest
-      .spyOn(pluginsService, 'fetchPlugin')
-      .mockResolvedValue(stubOktaPluginOnlySSO);
+    server.use(
+      http.get('/v1/enterprise/plugin/okta', () =>
+        HttpResponse.json(stubOktaPluginOnlySSO)
+      )
+    );
 
     await renderOktaStatus();
 
     expect(
-      screen.getByText(stubOktaPluginOnlySSO.spec.orgUrl)
+      await screen.findByText(stubOktaPluginOnlySSO.spec.orgUrl)
     ).toBeInTheDocument();
     expect(
       screen.getByText(stubOktaPluginOnlySSO.spec.oktaAppId)
@@ -78,9 +88,35 @@ describe('Okta status', () => {
   });
 
   test('allows enabling SCIM, UserSync, and App/Group Sync after setup', async () => {
-    jest
-      .spyOn(pluginsService, 'fetchPlugin')
-      .mockResolvedValue(stubOktaPluginOnlySSO);
+    server.use(
+      http.get('/v1/enterprise/plugin/okta', () =>
+        HttpResponse.json(stubOktaPluginOnlySSO)
+      ),
+      http.put('/v1/enterprise/plugin', () =>
+        HttpResponse.json({
+          ...stubOktaPluginOnlySSO,
+          spec: {
+            ...stubOktaPluginOnlySSO.spec,
+            enableUserSync: true,
+          },
+          status: {
+            ...stubOktaPluginOnlySSO.status,
+            details: {
+              ...stubOktaPluginOnlySSO.status.details,
+              okta: {
+                ...stubOktaPluginOnlySSO.status.details.okta,
+                users_sync_details: {
+                  enabled: true,
+                  last_successful: new Date(Date.now() - 1000 * 60),
+                  last_failed: null,
+                  num_users_synced: 20,
+                },
+              },
+            },
+          },
+        })
+      )
+    );
 
     await renderOktaStatus(true);
 
@@ -96,31 +132,6 @@ describe('Okta status', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: /enable/i }));
 
     expect(screen.getByText(/sync users/i)).toBeInTheDocument();
-
-    jest.spyOn(pluginsService, 'updatePlugin').mockResolvedValueOnce({
-      ...stubOktaPluginOnlySSO,
-      spec: {
-        ...stubOktaPluginOnlySSO.spec,
-        enableUserSync: true,
-        credentialsInfo: {
-          hasConfiguredOauthCredentials: true,
-        },
-      },
-      status: {
-        ...stubOktaPluginOnlySSO.status,
-        details: {
-          ...stubOktaPluginOnlySSO.status.details,
-          usersSyncDetails: {
-            enabled: true,
-            statusCode: PluginOktaSyncStatusCode.Success,
-            lastSuccess: new Date(Date.now() - 1000 * 60 * 2),
-            lastFailed: undefined,
-            numUsers: 20,
-            error: undefined,
-          },
-        },
-      },
-    } satisfies Plugin<PluginOktaSpec, PluginStatusOkta>);
 
     fireEvent.change(screen.getByLabelText(/client id/i), {
       target: { value: 'some-client-id' },
@@ -138,11 +149,10 @@ describe('Okta status', () => {
 });
 
 const stubOktaPluginOnlySSO = {
-  resourceType: 'plugin',
   name: 'okta',
-  kind: 'okta',
-  statusCode: IntegrationStatusCode.Running,
   details: 'some-detail',
+  type: 'okta',
+  statusCode: IntegrationStatusCode.Running,
   spec: {
     teleportSsoConnector: 'okta-connector',
     scimBearerToken: undefined,
@@ -157,19 +167,21 @@ const stubOktaPluginOnlySSO = {
     lastRun: new Date(Date.now() - 1000 * 60 * 2),
     errorMessage: undefined,
     details: {
-      ssoDetails: {
-        enabled: true,
-        appName: undefined,
-        appId: 'some-app-id',
-        oktaGroupEveryoneMappedRoles: ['some-role'],
+      okta: {
+        sso_details: {
+          enabled: true,
+          app_name: undefined,
+          app_id: 'some-app-id',
+          okta_group_everyone_mapped_roles: ['some-role'],
+        },
       },
     },
   },
-} satisfies Plugin<PluginOktaSpec, PluginStatusOkta>;
+};
 
 const renderOktaStatus = async (
   identity = false,
-  page?: Exclude<OktaIntegrationLevel, OktaIntegrationLevel.SSO>
+  page?: Exclude<OktaIntegrationStepType, OktaIntegrationStepType.Sso>
 ) => {
   const ctx = createTeleportContextE();
   cfg.entitlements.Identity = { enabled: identity, limit: 0 };
@@ -224,14 +236,22 @@ test.each`
   ${'datadog'}
   ${'aws-identity-center'}
 `('unsupported plugin kind $type', async ({ type }) => {
+  server.use(
+    http.get('/v1/enterprise/plugin/some-name', () => HttpResponse.json({}))
+  );
+
+  const ctx = new TeleportContextE();
+
   render(
-    <MemoryRouter
-      initialEntries={[`/web/integrations/status/${type}/some-name`]}
-    >
-      <Route path={cfg.routes.integrationStatus}>
-        <IntegrationStatus />
-      </Route>
-    </MemoryRouter>
+    <TeleportContextProvider ctx={ctx}>
+      <MemoryRouter
+        initialEntries={[`/web/integrations/status/${type}/some-name`]}
+      >
+        <Route path={cfg.routes.integrationStatus}>
+          <IntegrationStatus />
+        </Route>
+      </MemoryRouter>
+    </TeleportContextProvider>
   );
 
   expect(

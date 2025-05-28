@@ -59,7 +59,7 @@ export const SsoDetails = ({
         <Flex alignItems="center" justifyContent="space-between" gap={2}>
           <PanelTitle>SSO Connector</PanelTitle>
         </Flex>
-        <StatusAndOptions enabled={spec.enabled} options={options} />
+        <StatusAndOptions enabled={spec?.enabled} options={options} />
       </Flex>
       <Flex flexDirection="column" gap={3} px={1} pt={1} height="100%">
         <Text color="text.slightlyMuted">
@@ -74,16 +74,16 @@ export const SsoDetails = ({
             >
               {orgUrl}
             </ExternalLink>{' '}
-            {formatMappedRoles(spec.oktaGroupEveryoneMappedRoles)}
+            {formatMappedRoles(spec?.oktaGroupEveryoneMappedRoles ?? [])}
           </span>
         </Text>
         <Flex flexDirection="column" gap={1}>
-          {spec.appId && (
+          {spec?.appId && (
             <Text color="text.slightlyMuted">
               SSO App ID: <b>{spec.appId}</b>
             </Text>
           )}
-          {spec.appName && (
+          {spec?.appName && (
             <Text color="text.slightlyMuted">
               SSO App Name: <b>{spec.appName}</b>
             </Text>

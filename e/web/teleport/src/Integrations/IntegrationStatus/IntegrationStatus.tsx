@@ -1,4 +1,5 @@
-import React, { PropsWithChildren, useEffect, useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import React, { PropsWithChildren, useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 import { Link, useHistory } from 'react-router-dom';
 
@@ -6,17 +7,17 @@ import { Alert, Box, ButtonIcon, Flex, Indicator, Label, Text } from 'design';
 import { ArrowLeft } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { getErrMessage } from 'shared/utils/errorType';
 import { capitalizeFirstLetter } from 'shared/utils/text';
 
 import { pluginsService } from 'e-teleport/services/plugins';
+import { useFetchPlugin } from 'e-teleport/services/plugins/hooks';
 import { FeatureBox } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
 import { IntegrationLike } from 'teleport/Integrations/IntegrationList';
 import { IntegrationStatus as OSSIntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
 import {
   IntegrationStatusCode,
-  Plugin,
   PluginKind,
 } from 'teleport/services/integrations';
 
@@ -26,76 +27,80 @@ import { OverallStatus } from './Shared';
 
 export function IntegrationStatus() {
   const history = useHistory();
-  const { attempt, run, setAttempt } = useAttempt('processing');
+
   const { type, name } = useParams<{
     type: PluginKind;
     name: string;
   }>();
 
-  const [plugin, setPlugin] = useState<Plugin>();
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const shouldFetchPlugin = type === 'okta';
 
-  useEffect(() => {
-    if (type === 'okta') {
-      run(() => pluginsService.fetchPlugin(name).then(setPlugin));
-    } else {
-      // If type is not supported in enterprise, we clear the attempt and default to the OSS Integration Status.
-      setAttempt({
-        status: 'success',
-        statusText: undefined,
-      });
-    }
-  }, []);
+  const plugin = useFetchPlugin(name, {
+    enabled: shouldFetchPlugin,
+  });
 
-  function onDelete() {
-    return pluginsService.deletePlugin(plugin.name).then(() => {
+  const deletePlugin = useMutation({
+    mutationFn: pluginsService.deletePlugin,
+    onSuccess: () => {
       // redirect to integrations page after deletion
       history.push(cfg.routes.integrations);
-    });
+    },
+  });
+
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  function onDelete() {
+    if (plugin.data?.name) {
+      return deletePlugin.mutateAsync(plugin.data.name);
+    }
   }
 
-  const props: FeatureContainerProps = {
-    pluginName: name,
-    pluginType: type,
-    statusCode: plugin?.statusCode,
-    status: plugin?.status,
-  };
+  const props: FeatureContainerProps = useMemo(
+    () => ({
+      pluginName: name,
+      pluginType: type,
+      statusCode: plugin.data?.statusCode,
+      status: plugin.data?.status,
+    }),
+    [name, type, plugin.data?.statusCode, plugin.data?.status]
+  );
 
-  if (attempt.status === 'failed') {
-    return (
-      <FeatureContainer {...props}>
-        <Alert children={attempt.statusText} />
-      </FeatureContainer>
-    );
-  }
+  if (shouldFetchPlugin) {
+    if (plugin.isError) {
+      return (
+        <FeatureContainer {...props}>
+          <Alert>{getErrMessage(plugin.error)}</Alert>
+        </FeatureContainer>
+      );
+    }
 
-  if (attempt.status === 'processing') {
-    return (
-      <FeatureContainer {...props}>
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      </FeatureContainer>
-    );
-  }
+    if (plugin.isPending) {
+      return (
+        <FeatureContainer {...props}>
+          <Box textAlign="center" m={10}>
+            <Indicator />
+          </Box>
+        </FeatureContainer>
+      );
+    }
 
-  if (plugin?.kind === 'okta') {
-    return (
-      <FeatureContainer {...props}>
-        <OktaStatusDetails
-          plugin={plugin}
-          setPlugin={setPlugin}
-          deletePlugin={() => setShowDeleteDialog(true)}
-        />
-        {showDeleteDialog && (
-          <PluginDelete
-            onClose={() => setShowDeleteDialog(false)}
-            onDelete={onDelete}
-            pluginKind={plugin.kind}
+    if (plugin.isSuccess && plugin.data?.kind === 'okta') {
+      return (
+        <FeatureContainer {...props}>
+          <OktaStatusDetails
+            plugin={plugin.data}
+            deletePlugin={() => setShowDeleteDialog(true)}
           />
-        )}
-      </FeatureContainer>
-    );
+          {showDeleteDialog && (
+            <PluginDelete
+              onClose={() => setShowDeleteDialog(false)}
+              onDelete={onDelete}
+              pluginKind={plugin.data.kind}
+            />
+          )}
+        </FeatureContainer>
+      );
+    }
   }
 
   return <OSSIntegrationStatus />;

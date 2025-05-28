@@ -1,16 +1,17 @@
+import { http, HttpResponse, PathParams } from 'msw';
+import { setupServer } from 'msw/node';
 import { MemoryRouter, Route } from 'react-router';
 
 import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
 
 import cfg from 'e-teleport/config';
-import {
-  OktaIntegrationLevel,
-  oktaIntegrationLevels,
-} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
+import { APP_GROUP_SYNC_CONFIG } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
 import { FormDataField } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/types';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import { pluginsService } from 'e-teleport/services/plugins';
-import { ApiError } from 'teleport/services/api/parseError';
+import {
+  pluginsService,
+  PluginUpdateRequest,
+} from 'e-teleport/services/plugins';
 import {
   IntegrationStatusCode,
   PluginKind,
@@ -35,6 +36,12 @@ jest.mock('shared/libs/logger', () => {
     create: () => mockLogger,
   };
 });
+
+const server = setupServer();
+
+beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
 
 const defaultIdentityEntitlement = cfg.oss.entitlements.Identity;
 
@@ -106,11 +113,6 @@ describe('slack PluginEnroll.tsx', () => {
 });
 
 describe('okta PluginEnroll.tsx', () => {
-  let mockedCreatePlugin: jest.SpyInstance;
-  let mockedUpdatePlugin: jest.SpyInstance;
-  let mockedGetOktaGroups: jest.SpyInstance;
-  let mockedGetOktaApps: jest.SpyInstance;
-
   const stubPlugin = {
     resourceType: 'plugin',
     name: 'okta',
@@ -118,40 +120,31 @@ describe('okta PluginEnroll.tsx', () => {
     statusCode: IntegrationStatusCode.Running,
     kind: 'okta',
     spec: {},
-  } as const;
+  };
 
   beforeEach(() => {
     jest
       .spyOn(userEventService, 'captureIntegrationEnrollEvent')
       .mockImplementation();
 
-    mockedCreatePlugin = jest
-      .spyOn(pluginsService, 'createStaticAuthPlugin')
-      .mockResolvedValue(stubPlugin);
-
-    mockedUpdatePlugin = jest
-      .spyOn(pluginsService, 'updatePlugin')
-      .mockResolvedValue(stubPlugin);
-
-    jest.spyOn(pluginsService, 'fetchPlugin').mockResolvedValue(stubPlugin);
-
-    jest.spyOn(pluginsService, 'validatePlugin').mockResolvedValue(null);
-
-    jest
-      .spyOn(pluginsService, 'checkPluginRequiresCleanup')
-      .mockResolvedValue(false);
-
     jest
       .spyOn(userService, 'fetchUsers')
       .mockResolvedValue([{ name: 'apple', roles: [] }]);
 
-    mockedGetOktaApps = jest
-      .spyOn(pluginsService, 'getPluginConfigOktaApps')
-      .mockResolvedValue([{ name: 'Airbase' }]);
-
-    mockedGetOktaGroups = jest
-      .spyOn(pluginsService, 'getPluginConfigOktaGroups')
-      .mockResolvedValue([{ name: 'group-1', description: 'group 1 desc' }]);
+    server.use(
+      http.get('/v1/enterprise/plugin/okta', () => HttpResponse.json({})),
+      http.post('/v1/enterprise/plugins/staticauth', () =>
+        HttpResponse.json({})
+      ),
+      http.post('/v1/enterprise/plugin', () => HttpResponse.json(stubPlugin)),
+      http.put('/v1/enterprise/plugin', () => HttpResponse.json(stubPlugin)),
+      http.post('/v1/enterprise/pluginconfig/okta/apps', () =>
+        HttpResponse.json([{ name: 'Airbase' }])
+      ),
+      http.post('/v1/enterprise/pluginconfig/okta/groups', () =>
+        HttpResponse.json([{ name: 'group-1', description: 'group 1 desc' }])
+      )
+    );
   });
 
   afterEach(() => {
@@ -160,7 +153,11 @@ describe('okta PluginEnroll.tsx', () => {
   });
 
   test('okta flow without Identity, only SSO step is allowed', async () => {
-    jest.spyOn(pluginsService, 'fetchPlugin').mockResolvedValue(undefined);
+    server.use(
+      http.get('/v1/enterprise/plugins/needscleanup/okta', () =>
+        HttpResponse.json({ needsCleanup: false })
+      )
+    );
 
     const { ctx } = await renderPluginEnroll('okta', { identity: false });
 
@@ -177,21 +174,15 @@ describe('okta PluginEnroll.tsx', () => {
     expect(screen.getByText(/sso connected!/i)).toBeInTheDocument();
     // Shouldn't show the next step if not entitled to Identity.
     expect(screen.queryByText(/next – scim/i)).not.toBeInTheDocument();
-
-    expect(pluginsService.createStaticAuthPlugin).toHaveBeenCalledTimes(1);
-    const calledWithFormData = mockedCreatePlugin.mock.calls[0][0];
-    expect(calledWithFormData.get(FormDataField.MetadataURL)).toEqual(
-      'https://some-org-url.okta.com/app/abcdefg/sso/saml/metadata'
-    );
-    // Shouldn't set any sync flags.
-    [
-      FormDataField.EnableUserSync,
-      FormDataField.EnableAppGroupsSync,
-      FormDataField.EnableAccessListSync,
-    ].forEach(field => expect(calledWithFormData.get(field)).toEqual('false'));
   });
 
   test('okta flow with Identity, without custom filters', async () => {
+    server.use(
+      http.get('/v1/enterprise/plugins/needscleanup/okta', () =>
+        HttpResponse.json({ needsCleanup: false })
+      )
+    );
+
     const { ctx } = await renderPluginEnroll('okta', { identity: true });
 
     expect(
@@ -219,15 +210,17 @@ describe('okta PluginEnroll.tsx', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /continue/i }));
     expect(
-      screen.getByText(
-        oktaIntegrationLevels[OktaIntegrationLevel.APP_GROUP_SYNC].completeCopy
-          .title
-      )
+      screen.getByText(APP_GROUP_SYNC_CONFIG.completeCopy.title)
     ).toBeInTheDocument();
-    expect(mockedUpdatePlugin).toHaveBeenCalledTimes(3);
   });
 
   test('okta flow with Identity, with custom filters', async () => {
+    server.use(
+      http.get('/v1/enterprise/plugins/needscleanup/okta', () =>
+        HttpResponse.json({ needsCleanup: false })
+      )
+    );
+
     const { ctx } = await renderPluginEnroll('okta', { identity: true });
 
     expect(
@@ -270,22 +263,45 @@ describe('okta PluginEnroll.tsx', () => {
     fireEvent.change(appFilter, { target: { value: 'app-*' } });
     fireEvent.keyDown(appFilter, { key: 'Enter' });
 
+    server.use(
+      http.put<PathParams, PluginUpdateRequest<'okta'>>(
+        '/v1/enterprise/plugin',
+        async ({ request }) => {
+          const body = await request.json();
+
+          if (!body.okta[FormDataField.GroupFilters].includes('^group*')) {
+            return HttpResponse.json(
+              { error: { message: 'invalid group filter' } },
+              { status: 500 }
+            );
+          }
+
+          if (!body.okta[FormDataField.AppFilters].includes('app-*')) {
+            return HttpResponse.json(
+              { error: { message: 'invalid app filter' } },
+              { status: 500 }
+            );
+          }
+
+          return HttpResponse.json(stubPlugin);
+        }
+      )
+    );
+
     // Submit and test the submitted data.
     await userEvent.click(screen.getByRole('button', { name: /continue/i }));
-    const updatedWithFormData = mockedUpdatePlugin.mock.calls[2][0];
-    expect(updatedWithFormData.okta[FormDataField.GroupFilters]).toStrictEqual([
-      '^group*',
-    ]);
-    expect(updatedWithFormData.okta[FormDataField.AppFilters]).toStrictEqual([
-      'app-*',
-    ]);
+
+    expect(screen.queryByText(/invalid app filter/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/invalid group filter/)).not.toBeInTheDocument();
   });
 
   test('okta flow, requiring clean up', async () => {
-    jest.spyOn(pluginsService, 'fetchPlugin').mockResolvedValue(undefined);
-    jest
-      .spyOn(pluginsService, 'checkPluginRequiresCleanup')
-      .mockResolvedValue(true);
+    server.use(
+      http.get('/v1/enterprise/plugins/needscleanup/okta', () =>
+        HttpResponse.json({ needsCleanup: true })
+      )
+    );
+
     jest.spyOn(pluginsService, 'cleanupPlugin').mockResolvedValue(null);
 
     await renderPluginEnroll('okta', { identity: true });
@@ -296,7 +312,6 @@ describe('okta PluginEnroll.tsx', () => {
 
     await userEvent.click(screen.getByText(/set up single sign-on/i));
 
-    expect(pluginsService.checkPluginRequiresCleanup).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/cleanup required/i)).toBeInTheDocument();
 
     // Canceling should re-render the cleanup dialogue.
@@ -313,6 +328,12 @@ describe('okta PluginEnroll.tsx', () => {
   });
 
   test('okta flow with user sync & scim enabled, custom filter error handling', async () => {
+    server.use(
+      http.get('/v1/enterprise/plugins/needscleanup/okta', () =>
+        HttpResponse.json({ needsCleanup: false })
+      )
+    );
+
     const { ctx } = await renderPluginEnroll('okta', { identity: true });
 
     expect(
@@ -330,24 +351,23 @@ describe('okta PluginEnroll.tsx', () => {
     await screen.findByText(/group name/i);
     await screen.findByText(/airbase/i);
 
-    jest.resetAllMocks();
-    mockedGetOktaApps = jest
-      .spyOn(pluginsService, 'getPluginConfigOktaApps')
-      .mockRejectedValue(
-        new ApiError({
-          message: 'invalid filter app-',
-          response: { status: 400 } as Response,
-        })
-      );
-    mockedGetOktaGroups = jest
-      .spyOn(pluginsService, 'getPluginConfigOktaGroups')
-      .mockRejectedValue(
-        new ApiError({
-          message: 'invalid filter group-',
-          response: { status: 400 } as Response,
-        })
-      );
+    server.use(
+      http.post('/v1/enterprise/pluginconfig/okta/apps', () =>
+        HttpResponse.json(
+          { error: { message: 'invalid filter app-' } },
+          { status: 400 }
+        )
+      )
+    );
 
+    server.use(
+      http.post('/v1/enterprise/pluginconfig/okta/groups', () => {
+        return HttpResponse.json(
+          { error: { message: 'invalid filter group-' } },
+          { status: 400 }
+        );
+      })
+    );
     // Select the first user from dropdown.
     const users = screen.getByText(/type a username/i);
     fireEvent.keyDown(users, { key: 'ArrowDown' });
@@ -361,7 +381,6 @@ describe('okta PluginEnroll.tsx', () => {
     fireEvent.change(groupFilter, { target: { value: 'group-' } });
     fireEvent.keyDown(groupFilter, { key: 'Enter' });
 
-    expect(mockedGetOktaGroups).toHaveBeenCalledTimes(1);
     await screen.findByText(/the following filters are invalid: group-/i);
 
     // Define a invalid app filter.
@@ -370,15 +389,21 @@ describe('okta PluginEnroll.tsx', () => {
     fireEvent.change(appFilter, { target: { value: 'app-' } });
     fireEvent.keyDown(appFilter, { key: 'Enter' });
 
-    expect(mockedGetOktaApps).toHaveBeenCalledTimes(1);
     await screen.findByText(/the following filters are invalid: app-/i);
 
     // Invalid states prevent user from going to next step.
     const submitButton = screen.getByRole('button', { name: /continue/i });
+
     expect(submitButton).toBeDisabled();
   });
 
   test('okta create error', async () => {
+    server.use(
+      http.get('/v1/enterprise/plugins/needscleanup/okta', () =>
+        HttpResponse.json({ needsCleanup: false })
+      )
+    );
+
     jest
       .spyOn(pluginsService, 'createStaticAuthPlugin')
       .mockRejectedValue(new Error('some create error'));

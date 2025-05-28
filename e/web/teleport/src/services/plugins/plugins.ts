@@ -33,9 +33,12 @@ export const pluginsService = {
     return api.get(cfg.api.plugin.list).then(makePlugins);
   },
 
-  checkPluginRequiresCleanup(kind: PluginKind): Promise<boolean> {
+  checkPluginRequiresCleanup(
+    kind: PluginKind,
+    signal?: AbortSignal
+  ): Promise<boolean> {
     return api
-      .get(cfg.getPluginNeedsCleanupUrl(kind))
+      .get(cfg.getPluginNeedsCleanupUrl(kind), signal)
       .then(resp => resp?.needsCleanup);
   },
 

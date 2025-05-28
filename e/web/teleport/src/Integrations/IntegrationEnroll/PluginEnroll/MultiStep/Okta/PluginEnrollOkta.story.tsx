@@ -6,11 +6,23 @@ import { MemoryRouter, Route } from 'react-router';
 import cfg from 'e-teleport/config';
 import PluginEnroll from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll';
 import { OktaIntegrationSetUpContextProvider } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/SetUpContext';
-import { OktaIntegrationLevel } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
+import {
+  APP_GROUP_SYNC_CONFIG,
+  IDENTITY_SECURITY_SYNC_CONFIG,
+  OktaIntegrationStepType,
+  SCIM_CONFIG,
+  SSO_CONFIG,
+  USER_SYNC_CONFIG,
+  type OktaIntegrationStepWithEnabled,
+} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
 import {
   AppGroupSyncForm,
   SetUpAppGroupSync as AppGroupSyncSetup,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpAppGroupSync';
+import {
+  SetupIdentitySecuritySync,
+  SetupIdentitySecuritySyncForm,
+} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetupIdentitySecuritySync';
 import {
   ScimForm,
   SetUpScim as ScimSetup,
@@ -113,7 +125,10 @@ export const SetUpSSO = {
       limit: 0,
     };
     return (
-      <RenderStep step={OktaIntegrationLevel.SSO} plugin={StubPluginNotSetUp} />
+      <RenderStep
+        step={OktaIntegrationStepType.Sso}
+        plugin={StubPluginNotSetUp}
+      />
     );
   },
 };
@@ -133,7 +148,7 @@ export const SetUpScim = {
     };
     return (
       <RenderStep
-        step={OktaIntegrationLevel.SCIM}
+        step={OktaIntegrationStepType.Scim}
         plugin={StubPluginSSOSetUp}
         isEditing={args.isEditing}
       />
@@ -160,7 +175,7 @@ export const SetUpUserSync = {
     };
     return (
       <RenderStep
-        step={OktaIntegrationLevel.USER_SYNC}
+        step={OktaIntegrationStepType.UserSync}
         plugin={StubPluginSCIMSetUp}
         isEditing={args.isEditing || args.hasSetClientID}
         hasSetClientID={args.hasSetClientID}
@@ -184,7 +199,7 @@ export const SetUpAppGroupSync = {
     };
     return (
       <RenderStep
-        step={OktaIntegrationLevel.APP_GROUP_SYNC}
+        step={OktaIntegrationStepType.AppGroupSync}
         plugin={StubPluginSCIMSetUp}
         isEditing={args.isEditing}
       />
@@ -260,13 +275,21 @@ type ComponentProps<T extends boolean> = T extends false
       setPlugin: (plugin: Plugin<PluginOktaSpec, PluginStatusOkta>) => void;
     };
 
+const steps = [
+  SSO_CONFIG,
+  SCIM_CONFIG,
+  USER_SYNC_CONFIG,
+  IDENTITY_SECURITY_SYNC_CONFIG,
+  APP_GROUP_SYNC_CONFIG,
+].map(step => ({ ...step, enabled: true }) as OktaIntegrationStepWithEnabled);
+
 const RenderStep = ({
   step,
   plugin,
   isEditing = false,
   hasSetClientID = false,
 }: {
-  step: OktaIntegrationLevel;
+  step: OktaIntegrationStepType;
   plugin: Plugin<PluginOktaSpec, PluginStatusOkta>;
   isEditing?: boolean;
   hasSetClientID?: boolean;
@@ -280,17 +303,22 @@ const RenderStep = ({
   let Component: StepComponent;
   switch (step) {
     default:
-    case OktaIntegrationLevel.SSO:
+    case OktaIntegrationStepType.Sso:
       Component = SSOSetup;
       break;
-    case OktaIntegrationLevel.SCIM:
+    case OktaIntegrationStepType.Scim:
       Component = isEditing ? ScimForm : ScimSetup;
       break;
-    case OktaIntegrationLevel.USER_SYNC:
+    case OktaIntegrationStepType.UserSync:
       Component = isEditing ? UserSyncForm : UserSyncSetup;
       break;
-    case OktaIntegrationLevel.APP_GROUP_SYNC:
+    case OktaIntegrationStepType.AppGroupSync:
       Component = isEditing ? AppGroupSyncForm : AppGroupSyncSetup;
+      break;
+    case OktaIntegrationStepType.IdentitySecuritySync:
+      Component = isEditing
+        ? SetupIdentitySecuritySyncForm
+        : SetupIdentitySecuritySync;
       break;
   }
 
@@ -301,9 +329,10 @@ const RenderStep = ({
       <Route path={cfg.oss.routes.integrationEnroll}>
         <ContextProvider ctx={ctx}>
           <OktaIntegrationSetUpContextProvider
+            completedStepTypes={[]}
             plugin={plugin}
-            setPlugin={() => {}}
             startFrom={undefined}
+            steps={steps}
             key={`${step}${isEditing}${hasSetClientID}`}
           >
             {isEditing ? (

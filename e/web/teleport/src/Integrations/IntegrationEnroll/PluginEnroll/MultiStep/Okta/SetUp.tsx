@@ -1,4 +1,5 @@
-import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { ReactNode, useCallback, useMemo, useState } from 'react';
 import { useHistory } from 'react-router';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
@@ -14,131 +15,135 @@ import {
   Indicator,
   Text,
 } from 'design';
-import { FeatureName } from 'design/constants';
 import * as Icons from 'design/Icon';
-import { useAsync } from 'shared/hooks/useAsync';
 import { getErrMessage } from 'shared/utils/errorType';
 
 import cfg from 'e-teleport/config';
 import { PluginIcon } from 'e-teleport/Integrations/IntegrationEnroll/IntegrationPick/PluginIcon';
 import { CleanupDialogue } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/CleanupDialogue';
-import { OktaIntegrationSetUpContextProvider } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/SetUpContext';
 import {
-  getCompletedOktaIntegrationLevel,
-  getNextOktaIntegrationLevel,
-  OktaIntegrationLabelValues,
-  OktaIntegrationLevel,
-  oktaIntegrationLevels,
+  OktaIntegrationSetUpContextProvider,
+  useOktaIntegrationSetUpContext,
+} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/SetUpContext';
+import {
+  getCompletedOktaIntegrationStepTypes,
+  getOktaIntegrationSteps,
+  OktaIntegrationStepType,
+  OktaLevelProductRequirement,
   StyledBox,
   UpsellBulletList,
+  type OktaIntegrationLevelStep,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
 import { SetUpAppGroupSync } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpAppGroupSync';
+import { SetupIdentitySecuritySync } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetupIdentitySecuritySync';
 import { SetUpScim } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpScim';
 import { SetUpSSO } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpSSO';
 import { SetUpUserSync } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpUserSync';
-import { pluginsService } from 'e-teleport/services/plugins';
+import {
+  createCheckPluginRequiresCleanupQuery,
+  useCheckPluginRequiresCleanup,
+  useFetchPlugin,
+} from 'e-teleport/services/plugins/hooks';
+import { useTeleport } from 'teleport';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { Route, Switch, useParams } from 'teleport/components/Router';
 import { addIndexToViews } from 'teleport/components/Wizard/flow';
 import { Navigation } from 'teleport/components/Wizard/Navigation';
 import { ApiError } from 'teleport/services/api/parseError';
-import type { Plugin, PluginOktaSpec } from 'teleport/services/integrations';
-import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
+import { storageService } from 'teleport/services/storageService';
 import { CtaEvent } from 'teleport/services/userEvent';
 
+function is404Error(error: unknown): boolean {
+  return error instanceof ApiError && error.response.status === 404;
+}
+
 export const OktaIntegrationSetUp = () => {
+  const ctx = useTeleport();
   const history = useHistory();
   const { subPage } = useParams<{ subPage?: string }>();
-  const [needsCleanupAttempt, fetchNeedsCleanup] = useAsync(
-    useCallback(() => pluginsService.checkPluginRequiresCleanup('okta'), [])
+
+  const accessGraphEnabled =
+    storageService.getAccessGraphEnabled() && ctx.getFeatureFlags().accessGraph;
+
+  const queryClient = useQueryClient();
+
+  const needsCleanup = useCheckPluginRequiresCleanup('okta', {
+    enabled: false,
+  });
+
+  const existingPlugin = useFetchPlugin<'okta'>('okta');
+
+  const completedStepTypes = useMemo(
+    () =>
+      existingPlugin.isSuccess
+        ? getCompletedOktaIntegrationStepTypes(existingPlugin.data)
+        : [],
+    [existingPlugin.data, existingPlugin.isSuccess]
   );
-  const [existingPluginAttempt, fetchExistingPlugin, setExistingPluginAttempt] =
-    useAsync(
-      useCallback(
-        () =>
-          pluginsService
-            .fetchPlugin('okta')
-            .then(pluginRes => {
-              setCompletedSteps(getCompletedOktaIntegrationLevel(pluginRes));
-              return pluginRes;
-            })
-            .catch(e => {
-              // If 404, plugin doesn't exist yet & we can ignore, as this fetch is just
-              // to check if the plugin already exists & what steps have been set up.
-              if (e instanceof ApiError && e.response.status === 404) {
-                return undefined;
-              }
-              throw e;
-            }),
-        []
-      )
-    );
-  const setExistingPlugin = (
-    plugin: Plugin<PluginOktaSpec, PluginStatusOkta>
-  ) =>
-    setExistingPluginAttempt({
-      status: 'success',
-      data: plugin,
-      statusText: '',
-    });
+
   const [showCleanUpModal, setShowCleanUpModal] = useState(false);
-  const [completedSteps, setCompletedSteps] = useState<
-    Record<OktaIntegrationLevel, boolean>
-  >({} as Record<OktaIntegrationLevel, boolean>);
-  const highestCompletedStep = useMemo<OktaIntegrationLevel | undefined>(() => {
-    for (const step of [
-      OktaIntegrationLevel.APP_GROUP_SYNC,
-      OktaIntegrationLevel.USER_SYNC,
-      OktaIntegrationLevel.SCIM,
-      OktaIntegrationLevel.SSO,
-    ]) {
-      if (completedSteps[step]) {
-        return step;
+
+  const oktaIntegrationSteps = useMemo(
+    () => getOktaIntegrationSteps(accessGraphEnabled),
+    [accessGraphEnabled]
+  );
+
+  const highestCompletedStepType = useMemo<
+    OktaIntegrationStepType | undefined
+  >(() => {
+    for (const step of oktaIntegrationSteps) {
+      if (completedStepTypes.includes(step.type)) {
+        return step.type;
       }
     }
+
     return undefined;
-  }, [completedSteps]);
+  }, [completedStepTypes, oktaIntegrationSteps]);
 
   const navigationViews = useMemo(
     () =>
       addIndexToViews(
-        Object.values(oktaIntegrationLevels).map(l => ({
-          title: l.shortName,
-          component: null,
-        }))
+        oktaIntegrationSteps
+          .filter(step => step.enabled)
+          .map(l => ({
+            component: null,
+            level: l.type,
+            title: l.shortName,
+          }))
       ),
-    []
+    [oktaIntegrationSteps]
   );
 
-  const onContinue = async (level: OktaIntegrationLevel) => {
-    // If SSO is already set up, plugin exists & doesn't require cleanup.
-    if (level !== OktaIntegrationLevel.SSO) {
-      history.push(cfg.oss.getIntegrationEnrollRoute('okta', level));
-      return;
-    }
+  const onContinue = useCallback(
+    async (level: OktaIntegrationStepType) => {
+      // If SSO is already set up, plugin exists & doesn't require cleanup.
+      if (level !== OktaIntegrationStepType.Sso) {
+        history.push(cfg.oss.getIntegrationEnrollRoute('okta', level));
+        return;
+      }
 
-    const [needsCleanup] = await fetchNeedsCleanup();
-    if (!needsCleanup) {
-      history.push(cfg.oss.getIntegrationEnrollRoute('okta', level));
-    } else {
-      setShowCleanUpModal(true);
-    }
-  };
+      const needsCleanup = await queryClient.fetchQuery(
+        createCheckPluginRequiresCleanupQuery('okta')
+      );
 
-  // On mount, fetch any existing Okta plugin
-  useEffect(() => {
-    if (existingPluginAttempt.status === '') {
-      void fetchExistingPlugin();
-    }
-  }, [existingPluginAttempt.status, fetchExistingPlugin]);
+      if (!needsCleanup) {
+        history.push(cfg.oss.getIntegrationEnrollRoute('okta', level));
+      } else {
+        setShowCleanUpModal(true);
+      }
+    },
+    [history, queryClient]
+  );
 
-  if (['', 'processing'].includes(existingPluginAttempt.status)) {
+  if (existingPlugin.isFetching) {
     return (
       <Box textAlign="center" m={10}>
         <Indicator />
       </Box>
     );
   }
+
+  const currentStep = navigationViews.find(step => step.level === subPage);
 
   return (
     <>
@@ -150,7 +155,7 @@ export const OktaIntegrationSetUp = () => {
       )}
       <Box my={4}>
         <Navigation
-          currentStep={(oktaIntegrationLevels[subPage]?.level ?? 0) - 1}
+          currentStep={currentStep ? currentStep.index : -1}
           views={navigationViews}
           startWithIcon={{
             title: 'Okta Integration',
@@ -159,54 +164,66 @@ export const OktaIntegrationSetUp = () => {
         />
       </Box>
       <Flex flexDirection="column" gap={4}>
-        {needsCleanupAttempt.status === 'error' && (
+        {needsCleanup.isError && (
           <Alert kind="danger" mb={0}>
-            {getErrMessage(needsCleanupAttempt.error)}
+            {getErrMessage(needsCleanup.error)}
           </Alert>
         )}
-        {existingPluginAttempt.status === 'error' && (
+        {existingPlugin.isError && !is404Error(existingPlugin.error) && (
           <Alert kind="danger" mb={0}>
-            {getErrMessage(existingPluginAttempt.error)}
+            {getErrMessage(existingPlugin.error)}
           </Alert>
         )}
         <OktaIntegrationSetUpContextProvider
-          plugin={existingPluginAttempt.data}
-          setPlugin={setExistingPlugin}
-          startFrom={highestCompletedStep}
+          completedStepTypes={completedStepTypes}
+          plugin={existingPlugin.data}
+          steps={oktaIntegrationSteps}
+          startFrom={highestCompletedStepType}
         >
           <Switch>
             <Route
               path={cfg.oss.getIntegrationEnrollRoute(
                 'okta',
-                OktaIntegrationLevel.SSO
+                OktaIntegrationStepType.Sso
               )}
               component={SetUpSSO}
               exact
             />
-            {cfg.oss.entitlements.Identity.enabled && [
+            {accessGraphEnabled && (
               <Route
-                key={OktaIntegrationLevel.SCIM}
+                key={OktaIntegrationStepType.IdentitySecuritySync}
                 path={cfg.oss.getIntegrationEnrollRoute(
                   'okta',
-                  OktaIntegrationLevel.SCIM
+                  OktaIntegrationStepType.IdentitySecuritySync
+                )}
+                component={SetupIdentitySecuritySync}
+                exact
+              />
+            )}
+            {cfg.oss.entitlements.Identity.enabled && [
+              <Route
+                key={OktaIntegrationStepType.Scim}
+                path={cfg.oss.getIntegrationEnrollRoute(
+                  'okta',
+                  OktaIntegrationStepType.Scim
                 )}
                 component={SetUpScim}
                 exact
               />,
               <Route
-                key={OktaIntegrationLevel.USER_SYNC}
+                key={OktaIntegrationStepType.UserSync}
                 path={cfg.oss.getIntegrationEnrollRoute(
                   'okta',
-                  OktaIntegrationLevel.USER_SYNC
+                  OktaIntegrationStepType.UserSync
                 )}
                 component={SetUpUserSync}
                 exact
               />,
               <Route
-                key={OktaIntegrationLevel.APP_GROUP_SYNC}
+                key={OktaIntegrationStepType.AppGroupSync}
                 path={cfg.oss.getIntegrationEnrollRoute(
                   'okta',
-                  OktaIntegrationLevel.APP_GROUP_SYNC
+                  OktaIntegrationStepType.AppGroupSync
                 )}
                 component={SetUpAppGroupSync}
                 exact
@@ -214,8 +231,8 @@ export const OktaIntegrationSetUp = () => {
             ]}
             <Route>
               <Overview
-                completedSteps={completedSteps}
-                highestCompletedStep={highestCompletedStep}
+                completedStepTypes={completedStepTypes}
+                highestCompletedStepType={highestCompletedStepType}
                 onContinue={onContinue}
               />
             </Route>
@@ -227,44 +244,49 @@ export const OktaIntegrationSetUp = () => {
 };
 
 const Overview = ({
-  completedSteps,
-  highestCompletedStep,
+  completedStepTypes,
+  highestCompletedStepType,
   onContinue,
 }: {
-  completedSteps: Record<OktaIntegrationLevel, boolean>;
-  highestCompletedStep: OktaIntegrationLevel;
-  onContinue: (level: OktaIntegrationLevel) => void;
+  completedStepTypes: OktaIntegrationStepType[];
+  highestCompletedStepType: OktaIntegrationStepType;
+  onContinue: (type: OktaIntegrationStepType) => void;
 }) => {
-  const hasIdentity = cfg.oss.entitlements.Identity.enabled;
-  const nextLevel = getNextOktaIntegrationLevel(highestCompletedStep);
+  const { steps, getNextStep } = useOktaIntegrationSetUpContext();
+
+  const enabledSteps = useMemo(
+    () => steps.filter(step => step.enabled),
+    [steps]
+  );
+
+  const nextStep = getNextStep(highestCompletedStepType);
 
   return (
     <>
       <Box maxWidth="800px">
         <H1 mb={2}>Okta Integration Overview</H1>
         <Text typography="subtitle1">
-          The Okta integration has 4 steps. We recommend the full integration,
-          which will enable you to manage app access within Teleport, but you
-          can set up each step at a time, as desired.
+          The Okta integration has {steps.length} steps. We recommend the full
+          integration, which will enable you to manage app access within
+          Teleport, but you can set up each step at a time, as desired.
         </Text>
       </Box>
       <Flex flexDirection="column" gap={3} width="100%">
-        {/* Show steps separately if user has Identity, otherwise show upsell */}
-        {OktaIntegrationLabelValues.map(level =>
-          hasIdentity || level === OktaIntegrationLevel.SSO ? (
-            <IntegrationLevelTile
-              key={level}
-              level={level}
-              completed={completedSteps[level]}
-            />
-          ) : null
-        )}
-        {!hasIdentity && <IntegrationLevelTile cta />}
+        {enabledSteps.map(config => (
+          <IntegrationLevelTile
+            key={config.type}
+            config={config}
+            completed={completedStepTypes.includes(config.type)}
+            completedStepTypes={completedStepTypes}
+          />
+        ))}
+
+        <IntegrationLevelCTA />
       </Flex>
       <Flex flexDirection="row" alignItems="center" gap={3}>
-        {nextLevel ? (
-          <ButtonPrimary onClick={() => onContinue(nextLevel)}>
-            Set up {oktaIntegrationLevels[nextLevel].shortName}
+        {nextStep ? (
+          <ButtonPrimary onClick={() => onContinue(nextStep.type)}>
+            Set up {nextStep.shortName}
           </ButtonPrimary>
         ) : (
           <ButtonPrimary
@@ -282,45 +304,137 @@ const Overview = ({
   );
 };
 
-const getIntegrationLevelTileDetails = (
-  cta: boolean,
-  level?: OktaIntegrationLevel
-) => {
-  if (cta) {
-    return {
-      bullets: Object.values(oktaIntegrationLevels).reduce(
-        (acc, level) => (level.level === 1 ? acc : [...acc, ...level.bullets]),
-        []
-      ),
-      title: 'SCIM, User Sync, and Apps and Group Assignments',
-    };
+function productNameToTitle(productName: OktaLevelProductRequirement) {
+  switch (productName) {
+    case OktaLevelProductRequirement.IdentitySecurity:
+      return 'Audit Log Sync with Identity Security';
+
+    case OktaLevelProductRequirement.IdentityGovernance:
+      return 'SCIM, User Sync, and Apps and Group Assignments';
   }
-  return {
-    bullets: oktaIntegrationLevels[level].bullets,
-    title: oktaIntegrationLevels[level].name,
-  };
-};
+}
+
+function productNameToCtaEvent(
+  productName: OktaLevelProductRequirement
+): CtaEvent {
+  switch (productName) {
+    case OktaLevelProductRequirement.IdentitySecurity:
+      return CtaEvent.CTA_IDENTITY_SECURITY;
+
+    case OktaLevelProductRequirement.IdentityGovernance:
+      return CtaEvent.CTA_OKTA_SCIM;
+  }
+}
+
+function productNameToLockedButtonText(
+  productName: OktaLevelProductRequirement
+) {
+  switch (productName) {
+    case OktaLevelProductRequirement.IdentitySecurity:
+      return `Unlock Audit Log syncing with ${productName}`;
+
+    case OktaLevelProductRequirement.IdentityGovernance:
+      return `Unlock the Full Integration with ${productName}`;
+  }
+}
+
+function IntegrationLevelCTA() {
+  const { completedStepTypes, steps } = useOktaIntegrationSetUpContext();
+
+  const items = useMemo(() => {
+    const productRequirementToBullets = new Map<
+      OktaLevelProductRequirement,
+      ReactNode[]
+    >();
+
+    for (const level of steps) {
+      if (level.enabled) {
+        continue;
+      }
+
+      const bullets =
+        productRequirementToBullets.get(level.productRequirement) ?? [];
+
+      bullets.push(...level.bullets);
+
+      productRequirementToBullets.set(level.productRequirement, bullets);
+    }
+
+    const content: ReactNode[] = [];
+
+    const hasCompletedIdentityGovernance = steps
+      .filter(
+        config =>
+          config.productRequirement ===
+          OktaLevelProductRequirement.IdentityGovernance
+      )
+      .every(config => completedStepTypes.some(step => step === config.type));
+
+    for (const [
+      productName,
+      bullets,
+    ] of productRequirementToBullets.entries()) {
+      let chip: ReactNode | null = null;
+
+      if (
+        (productName === OktaLevelProductRequirement.IdentityGovernance &&
+          !cfg.oss.entitlements.Identity.enabled) ||
+        (productName === OktaLevelProductRequirement.IdentitySecurity &&
+          hasCompletedIdentityGovernance)
+      ) {
+        chip = (
+          <Chip backgroundColor="interactive.solid.primary.default">
+            <Icons.ChatCircleSparkle size="small" color="text.primaryInverse" />
+            <Text color="text.primaryInverse" typography="body3">
+              Recommended
+            </Text>
+          </Chip>
+        );
+      }
+
+      content.push(
+        <StyledBox
+          key={productName}
+          gap={2}
+          header={
+            <Flex flexDirection="row" gap={2} alignItems="center">
+              <H2>{productNameToTitle(productName)}</H2>
+              {chip}
+            </Flex>
+          }
+        >
+          <UpsellBulletList bullets={bullets} color="text.muted" />
+
+          <ButtonLockedFeature
+            event={productNameToCtaEvent(productName)}
+            mt={3}
+            width="fit-content"
+          >
+            {productNameToLockedButtonText(productName)}
+          </ButtonLockedFeature>
+        </StyledBox>
+      );
+    }
+
+    return content;
+  }, [completedStepTypes, steps]);
+
+  return <>{items}</>;
+}
 
 const IntegrationLevelTile = ({
-  level,
+  config,
   completed,
-  cta,
-}:
-  | {
-      level: OktaIntegrationLevel;
-      completed?: boolean;
-      cta?: undefined;
-    }
-  | {
-      level?: undefined;
-      completed?: undefined;
-      cta: true;
-    }) => {
-  const { title, bullets } = getIntegrationLevelTileDetails(!!cta, level);
+  completedStepTypes,
+}: {
+  config: OktaIntegrationLevelStep;
+  completed: boolean;
+  completedStepTypes: OktaIntegrationStepType[];
+}) => {
   let chip: ReactNode = null;
   let bulletColor = 'text.muted';
 
-  if (!cta && completed) {
+  if (completed) {
     bulletColor = 'interactive.solid.success.default';
     chip = (
       <Chip backgroundColor="interactive.tonal.success.0">
@@ -333,7 +447,11 @@ const IntegrationLevelTile = ({
         </Text>
       </Chip>
     );
-  } else if (cta || level === OktaIntegrationLevel.APP_GROUP_SYNC) {
+  } else if (
+    config.type === OktaIntegrationStepType.AppGroupSync ||
+    (completedStepTypes.includes(OktaIntegrationStepType.AppGroupSync) &&
+      config.type === OktaIntegrationStepType.IdentitySecuritySync)
+  ) {
     chip = (
       <Chip backgroundColor="interactive.solid.primary.default">
         <Icons.ChatCircleSparkle size="small" color="text.primaryInverse" />
@@ -349,21 +467,12 @@ const IntegrationLevelTile = ({
       gap={2}
       header={
         <Flex flexDirection="row" gap={2} alignItems="center">
-          <H2>{title}</H2>
+          <H2>{config.name}</H2>
           {chip}
         </Flex>
       }
     >
-      <UpsellBulletList bullets={bullets} color={bulletColor} />
-      {cta && (
-        <ButtonLockedFeature
-          event={CtaEvent.CTA_OKTA_SCIM}
-          mt={3}
-          width="fit-content"
-        >
-          Unlock the Full Integration with {FeatureName.IdentityGovernance}
-        </ButtonLockedFeature>
-      )}
+      <UpsellBulletList bullets={config.bullets} color={bulletColor} />
     </StyledBox>
   );
 };

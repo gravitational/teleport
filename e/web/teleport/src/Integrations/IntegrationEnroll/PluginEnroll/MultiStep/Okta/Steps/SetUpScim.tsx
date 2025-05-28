@@ -1,10 +1,10 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { Alert, Box, ButtonPrimary, ButtonSecondary, Flex, Text } from 'design';
 import { Check } from 'design/Icon';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
-import { useAsync } from 'shared/hooks/useAsync';
 import { getErrMessage } from 'shared/utils/errorType';
 
 import cfg from 'e-teleport/config';
@@ -13,15 +13,16 @@ import {
   BulletList,
   ListItem,
   NumberedList,
-  OktaIntegrationLevel,
+  OktaIntegrationStepType,
   OktaSetupStepComplete,
+  SCIM_CONFIG,
   StyledBox,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
+import type { OktaIntegrationStepFormProps } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/props';
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
 import { pluginsService } from 'e-teleport/services/plugins';
+import { createFetchPluginQueryKey } from 'e-teleport/services/plugins/hooks';
 import { Redirect } from 'teleport/components/Router';
-import type { Plugin, PluginOktaSpec } from 'teleport/services/integrations';
-import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
 import { withUnsupportedOktaPluginUpdateErrorConversion } from 'teleport/services/version/unsupported';
 
 // TODO(lisa): this is hard coded for now and is equal to backend
@@ -30,68 +31,84 @@ import { withUnsupportedOktaPluginUpdateErrorConversion } from 'teleport/service
 const SSO_CONNECTOR_NAME = 'okta';
 
 export const SetUpScim = () => {
-  const { plugin, setPlugin, startFrom } = useOktaIntegrationSetUpContext();
+  const {
+    completedStepTypes,
+    plugin,
+    startFrom,
+    getNextStep,
+    getPreviousStep,
+  } = useOktaIntegrationSetUpContext();
 
-  if (startFrom !== undefined && startFrom !== OktaIntegrationLevel.SSO) {
+  if (startFrom !== undefined && startFrom !== OktaIntegrationStepType.Sso) {
     return <Redirect to={cfg.oss.getIntegrationEnrollRoute('okta')} />;
   }
 
-  return <ScimForm plugin={plugin} setPlugin={setPlugin} />;
+  const previousStep = getPreviousStep(OktaIntegrationStepType.Scim);
+  const previousStepType = completedStepTypes.includes(previousStep?.type)
+    ? undefined
+    : previousStep?.type;
+
+  return (
+    <ScimForm
+      plugin={plugin}
+      nextStepType={getNextStep(OktaIntegrationStepType.Scim).type}
+      previousStepType={previousStepType}
+    />
+  );
 };
 
 export const ScimForm = ({
+  nextStepType,
   plugin,
-  setPlugin,
-  isEditing = false,
-}: {
-  plugin: Plugin<PluginOktaSpec, PluginStatusOkta>;
-  setPlugin: (plugin: Plugin<PluginOktaSpec, PluginStatusOkta>) => void;
-  isEditing?: boolean;
-}) => {
+  previousStepType,
+  isEditing,
+}: OktaIntegrationStepFormProps) => {
   const scimToken = useRef(crypto.randomUUID());
   const [isComplete, setIsComplete] = useState(false);
-  const [updatePluginAttempt, updatePlugin] = useAsync(
-    useCallback(
-      () =>
-        pluginsService
-          .updatePlugin({
-            plugin: 'okta',
-            okta: {
-              scimToken: scimToken.current,
-              enableUserSync: !!plugin.spec?.enableUserSync,
-              assignDefaultRoles: !!plugin?.spec?.assignDefaultRoles,
-              enableAccessListSync: !!plugin.spec?.enableAccessListSync,
-              enableAppGroupSync: !!plugin.spec?.enableAppGroupSync,
-              enableBidirectionalSync: !!plugin.spec?.enableBidirectionalSync,
-              defaultOwners: plugin.spec?.defaultOwners,
-              appFilters:
-                plugin.status?.details?.accessListsSyncDetails?.appFilters,
-              groupFilters:
-                plugin.status?.details?.accessListsSyncDetails?.groupFilters,
-            },
-          })
-          .catch(withUnsupportedOktaPluginUpdateErrorConversion),
-      [plugin]
-    )
-  );
 
-  const onSubmit = async () => {
-    if (updatePluginAttempt.status === 'processing') {
+  const queryClient = useQueryClient();
+
+  const updatePlugin = useMutation({
+    mutationFn: () =>
+      pluginsService
+        .updatePlugin({
+          plugin: 'okta',
+          okta: {
+            scimToken: scimToken.current,
+            enableUserSync: !!plugin.spec?.enableUserSync,
+            assignDefaultRoles: !!plugin?.spec?.assignDefaultRoles,
+            enableAccessListSync: !!plugin.spec?.enableAccessListSync,
+            enableAppGroupSync: !!plugin.spec?.enableAppGroupSync,
+            enableSystemLogExport: !!plugin.spec?.enableSystemLogExport,
+            enableBidirectionalSync: !!plugin.spec?.enableBidirectionalSync,
+            defaultOwners: plugin.spec?.defaultOwners,
+            appFilters:
+              plugin.status?.details?.accessListsSyncDetails?.appFilters,
+            groupFilters:
+              plugin.status?.details?.accessListsSyncDetails?.groupFilters,
+          },
+        })
+        .catch(withUnsupportedOktaPluginUpdateErrorConversion),
+    onSuccess: data =>
+      queryClient.setQueryData(createFetchPluginQueryKey('okta'), data),
+  });
+
+  const onSubmit = useCallback(() => {
+    if (updatePlugin.isPending) {
       return;
     }
 
-    const [resp, err] = await updatePlugin();
-    if (!err) {
-      setPlugin(resp);
-    }
-  };
+    updatePlugin.mutate();
+  }, [updatePlugin]);
 
   if (isComplete) {
-    return isEditing ? (
-      <Redirect to={cfg.oss.getIntegrationStatusRoute('okta', 'okta')} />
-    ) : (
-      <OktaSetupStepComplete step={OktaIntegrationLevel.SCIM} />
-    );
+    if (isEditing) {
+      return (
+        <Redirect to={cfg.oss.getIntegrationStatusRoute('okta', 'okta')} />
+      );
+    }
+
+    return <OktaSetupStepComplete config={SCIM_CONFIG} />;
   }
 
   return (
@@ -196,25 +213,19 @@ export const ScimForm = ({
               </Text>
             </ListItem>
           </NumberedList>
-          {updatePluginAttempt.status === 'error' && (
+          {updatePlugin.isError && (
             <Alert kind="outline-danger" mb={0}>
-              {getErrMessage(updatePluginAttempt.error)}
+              {getErrMessage(updatePlugin.error)}
             </Alert>
           )}
           <ButtonPrimary
             onClick={onSubmit}
-            disabled={['success', 'processing'].includes(
-              updatePluginAttempt.status
-            )}
+            disabled={updatePlugin.isSuccess || updatePlugin.isPending}
             width="fit-content"
-            intent={
-              updatePluginAttempt.status === 'success' ? 'success' : 'primary'
-            }
+            intent={updatePlugin.isSuccess ? 'success' : 'primary'}
             px={3}
           >
-            {updatePluginAttempt.status === 'success' && (
-              <Check mr={2} size="small" />
-            )}
+            {updatePlugin.isSuccess && <Check mr={2} size="small" />}
             {`${isEditing ? 'Update' : 'Save'} SCIM Configuration`}
           </ButtonPrimary>
         </StyledBox>
@@ -252,7 +263,7 @@ export const ScimForm = ({
       <Flex flexDirection="row" alignItems="center" gap={3}>
         <ButtonPrimary
           onClick={() => setIsComplete(true)}
-          disabled={updatePluginAttempt.status !== 'success'}
+          disabled={!updatePlugin.isSuccess}
         >
           {isEditing ? 'Done' : 'Continue'}
         </ButtonPrimary>
@@ -261,20 +272,17 @@ export const ScimForm = ({
           to={
             isEditing
               ? cfg.oss.getIntegrationStatusRoute('okta', 'okta')
-              : cfg.oss.getIntegrationEnrollRoute('okta')
+              : cfg.oss.getIntegrationEnrollRoute('okta', previousStepType)
           }
-          disabled={updatePluginAttempt.status === 'processing'}
+          disabled={updatePlugin.isPending}
         >
           {isEditing ? 'Cancel' : 'Back'}
         </ButtonSecondary>
-        {!isEditing && updatePluginAttempt.status !== 'success' && (
+        {!isEditing && !updatePlugin.isSuccess && (
           <ButtonSecondary
             as={Link}
-            to={cfg.oss.getIntegrationEnrollRoute(
-              'okta',
-              OktaIntegrationLevel.USER_SYNC
-            )}
-            disabled={updatePluginAttempt.status === 'processing'}
+            to={cfg.oss.getIntegrationEnrollRoute('okta', nextStepType)}
+            disabled={updatePlugin.isPending}
           >
             Skip
           </ButtonSecondary>

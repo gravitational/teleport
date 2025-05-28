@@ -1,3 +1,4 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -16,15 +17,12 @@ import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import type { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-import { useAsync } from 'shared/hooks/useAsync';
-import useAttempt, { State as AttemptState } from 'shared/hooks/useAttemptNext';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 import { getErrMessage } from 'shared/utils/errorType';
 
 import type { UserOption } from 'e-teleport/AccessListManagement/Shared/Shared';
 import cfg from 'e-teleport/config';
 import { CreateFilters } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/ImportUserGroupsAndApps/CreateFilters';
-import { FailedAttempt } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/ImportUserGroupsAndApps/FailedAttempt';
 import {
   AppTable,
   UserGroupsTable,
@@ -35,62 +33,49 @@ import {
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/ImportUserGroupsAndApps/types';
 import { useOktaIntegrationSetUpContext } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/SetUpContext';
 import {
-  OktaIntegrationLevel,
+  APP_GROUP_SYNC_CONFIG,
+  OktaIntegrationStepType,
   OktaSetupStepComplete,
   StyledBox,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
+import type { OktaIntegrationStepFormProps } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/props';
 import { FormDataField } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/types';
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
-import {
-  PluginConfigOktaApp,
-  PluginConfigOktaGroup,
-  pluginsService,
-} from 'e-teleport/services/plugins';
+import { pluginsService } from 'e-teleport/services/plugins';
+import { createFetchPluginQueryKey } from 'e-teleport/services/plugins/hooks';
 import { Redirect } from 'teleport/components/Router';
 import { ApiError } from 'teleport/services/api/parseError';
-import type { Plugin, PluginOktaSpec } from 'teleport/services/integrations';
-import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
 import userService, { User } from 'teleport/services/user';
 import { withUnsupportedOktaPluginUpdateErrorConversion } from 'teleport/services/version/unsupported';
 import useTeleport from 'teleport/useTeleport';
 
 export const SetUpAppGroupSync = () => {
-  const { plugin, setPlugin, startFrom } = useOktaIntegrationSetUpContext();
+  const { completedStepTypes, getPreviousStep, plugin, startFrom } =
+    useOktaIntegrationSetUpContext();
 
-  if (startFrom === OktaIntegrationLevel.APP_GROUP_SYNC) {
+  const previousStep = getPreviousStep(OktaIntegrationStepType.UserSync);
+  const previousStepType = completedStepTypes.includes(previousStep?.type)
+    ? undefined
+    : previousStep?.type;
+
+  if (startFrom === OktaIntegrationStepType.AppGroupSync) {
     return <Redirect to={cfg.oss.getIntegrationEnrollRoute('okta')} />;
   }
 
-  return <AppGroupSyncForm plugin={plugin} setPlugin={setPlugin} />;
+  return (
+    <AppGroupSyncForm plugin={plugin} previousStepType={previousStepType} />
+  );
 };
 
 export const AppGroupSyncForm = ({
   plugin,
-  setPlugin,
   isEditing,
-}: {
-  plugin: Plugin<PluginOktaSpec, PluginStatusOkta>;
-  setPlugin: (plugin: Plugin<PluginOktaSpec, PluginStatusOkta>) => void;
-  isEditing?: boolean;
-}) => {
+  previousStepType,
+}: OktaIntegrationStepFormProps) => {
+  const queryClient = useQueryClient();
   const ctx = useTeleport();
   const userAccess = ctx.storeUser.getUserAccess();
   const canReadListUsers = userAccess.list && userAccess.read;
-
-  const { attempt: fetchUserAttempt, run: fetchUsersRun } = useAttempt(
-    canReadListUsers ? 'processing' : ''
-  );
-  const {
-    attempt: filterGroupsAttempt,
-    setAttempt: setFilterGroupsAttempt,
-    run: filterGroupsRun,
-  } = useAttempt('processing');
-
-  const {
-    attempt: filterAppsAttempt,
-    setAttempt: setFilterAppsAttempt,
-    run: filterAppsRun,
-  } = useAttempt('processing');
 
   const [appFilters, setAppFilters] = useState<FilterOption[]>(
     (plugin?.status?.details?.accessListsSyncDetails?.appFilters || []).map(
@@ -110,13 +95,10 @@ export const AppGroupSyncForm = ({
     (plugin?.status?.details?.accessListsSyncDetails?.groupFilters?.length ??
       0) === 0
   );
-  const [apps, setApps] = useState<PluginConfigOktaApp[]>([]);
-  const [userGroups, setUserGroups] = useState<PluginConfigOktaGroup[]>([]);
-  const [userOptions, setUserOptions] = useState<UserOption[]>([]);
-  const [selectedOwners, setSelectedOwners] = useState<UserOption[]>([]);
 
-  const getFetchAppsGroupsFormData = () => {
+  const getFetchAppsGroupsFormData = useCallback(() => {
     const data = new FormData();
+
     data.set(FormDataField.OrgUrl, plugin.spec.orgUrl);
     data.set(
       FormDataField.GroupFilters,
@@ -126,196 +108,211 @@ export const AppGroupSyncForm = ({
       FormDataField.AppFilters,
       syncAllApps ? '[]' : JSON.stringify(appFilters.map(o => o.value))
     );
+
     return data;
-  };
+  }, [
+    appFilters,
+    groupFilters,
+    plugin.spec.orgUrl,
+    syncAllApps,
+    syncAllGroups,
+  ]);
+
+  const [selectedOwners, setSelectedOwners] = useState<UserOption[]>([]);
+
+  const users = useQuery({
+    queryKey: ['users', 'fetch'],
+    queryFn: async () => {
+      const users = await userService.fetchUsers();
+
+      return users.map(u => ({
+        value: u,
+        label: u.name,
+      }));
+    },
+    enabled: canReadListUsers,
+  });
 
   useEffect(() => {
-    fetchApps();
-    fetchGroups();
-    canReadListUsers && fetchUsers();
-  }, []);
+    if (users.isSuccess && plugin?.spec?.defaultOwners?.length) {
+      const selectedOwners = plugin.spec.defaultOwners
+        .map(o => users.data.find(u => u.label === o))
+        .filter(Boolean);
 
-  const fetchUsers = () =>
-    fetchUsersRun(() =>
-      userService.fetchUsers().then(fetchedUsers => {
-        const userOptions = fetchedUsers.map(u => ({
-          value: u,
-          label: u.name,
-        }));
-        setUserOptions(userOptions);
-        if (plugin?.spec?.defaultOwners?.length) {
-          const selectedOwners = plugin.spec.defaultOwners
-            .map(o => userOptions.find(u => u.label === o))
-            .filter(Boolean);
-          setSelectedOwners(selectedOwners);
-        }
-      })
-    );
+      setSelectedOwners(selectedOwners);
+    }
+  }, [plugin.spec.defaultOwners, users.data, users.isSuccess]);
 
-  const fetchApps = () =>
-    filterAppsRun(() =>
+  const formData = getFetchAppsGroupsFormData();
+
+  const apps = useQuery({
+    queryKey: ['okta', 'apps'],
+    queryFn: () => pluginsService.getPluginConfigOktaApps(formData),
+  });
+
+  const groups = useQuery({
+    queryKey: ['okta', 'groups'],
+    queryFn: () => pluginsService.getPluginConfigOktaGroups(formData),
+  });
+
+  const updatePlugin = useMutation({
+    mutationFn: () =>
       pluginsService
-        .getPluginConfigOktaApps(getFetchAppsGroupsFormData())
-        .then(setApps)
-    );
+        .updatePlugin({
+          plugin: 'okta',
+          okta: {
+            enableAppGroupSync: true,
+            enableAccessListSync: true,
+            enableUserSync: true,
+            assignDefaultRoles: !!plugin?.spec?.assignDefaultRoles,
+            enableSystemLogExport: !!plugin?.spec?.enableSystemLogExport,
+            defaultOwners: selectedOwners.map(o => o.label),
+            enableBidirectionalSync: !!plugin?.spec?.enableBidirectionalSync,
+            // Providing an empty array is equivalent to an asterisk
+            [FormDataField.GroupFilters]: syncAllGroups
+              ? []
+              : groupFilters.map(o => o.value),
+            [FormDataField.AppFilters]: syncAllApps
+              ? []
+              : appFilters.map(o => o.value),
+          },
+        })
+        .catch(withUnsupportedOktaPluginUpdateErrorConversion),
+    onSuccess: data =>
+      queryClient.setQueryData(createFetchPluginQueryKey('okta'), data),
+  });
 
-  const fetchGroups = () =>
-    filterGroupsRun(() =>
-      pluginsService
-        .getPluginConfigOktaGroups(getFetchAppsGroupsFormData())
-        .then(setUserGroups)
-    );
+  const onSubmit = useCallback(
+    (validator: Validator) => {
+      if (
+        updatePlugin.isPending ||
+        apps.isPending ||
+        groups.isPending ||
+        !validator.validate()
+      ) {
+        return;
+      }
 
-  const [updatePluginAttempt, updatePlugin] = useAsync(
-    useCallback(
-      () =>
-        pluginsService
-          .updatePlugin({
-            plugin: 'okta',
-            okta: {
-              enableAppGroupSync: true,
-              enableAccessListSync: true,
-              enableUserSync: true,
-              assignDefaultRoles: !!plugin?.spec?.assignDefaultRoles,
-              defaultOwners: selectedOwners.map(o => o.label),
-              enableBidirectionalSync: !!plugin?.spec?.enableBidirectionalSync,
-              // Providing an empty array is equivalent to an asterisk
-              [FormDataField.GroupFilters]: syncAllGroups
-                ? []
-                : groupFilters.map(o => o.value),
-              [FormDataField.AppFilters]: syncAllApps
-                ? []
-                : appFilters.map(o => o.value),
-            },
-          })
-          .catch(withUnsupportedOktaPluginUpdateErrorConversion),
-      [
-        appFilters,
-        groupFilters,
-        plugin?.spec?.enableBidirectionalSync,
-        selectedOwners,
-        syncAllApps,
-        syncAllGroups,
-      ]
-    )
+      updatePlugin.mutate();
+    },
+    [apps.isPending, groups.isPending, updatePlugin]
   );
 
-  const onSubmit = async (validator: Validator) => {
-    if (
-      updatePluginAttempt.status === 'processing' ||
-      filterAppsAttempt.status === 'processing' ||
-      filterGroupsAttempt.status === 'processing' ||
-      !validator.validate() ||
-      !!filterAppsAttempt.statusText ||
-      !!filterGroupsAttempt.statusText
-    ) {
-      return;
-    }
+  const [invalidAppFilters, setInvalidAppFilters] = useState(false);
+  const [invalidGroupFilters, setInvalidGroupFilters] = useState(false);
 
-    const [resp, err] = await updatePlugin();
-    if (err) {
-      return;
-    }
-    setPlugin(resp);
-  };
+  const updateFilters = useCallback(
+    async ({
+      applyFilters,
+      queryKey,
+      setHasInvalidFilters,
+      setFilter,
+      formDataFilterField,
+      validator,
+      updatedFilters = [],
+    }: {
+      applyFilters: (formData: FormData) => Promise<unknown>;
+      queryKey: string[];
+      setHasInvalidFilters: (hasInvalidFilters: boolean) => void;
+      setFilter(f: FilterOption[]): void;
+      formDataFilterField: FormDataFilterField;
+      validator: Validator;
+      updatedFilters: FilterOption[];
+    }) => {
+      const filters = updatedFilters.map(o => o.value);
 
-  const updateFilters = async ({
-    applyFilters,
-    setAppliedFiltersResp,
-    setFilterAttempt,
-    setFilter,
-    formDataFilterField,
-    validator,
-    updatedFilters = [],
-  }: {
-    applyFilters(formData: FormData): Promise<unknown>;
-    setAppliedFiltersResp(results: unknown): void;
-    setFilterAttempt: AttemptState['setAttempt'];
-    setFilter(f: FilterOption[]): void;
-    formDataFilterField: FormDataFilterField;
-    validator: Validator;
-    updatedFilters: FilterOption[];
-  }) => {
-    const filters = updatedFilters.map(o => o.value);
-    setFilter(updatedFilters);
+      setFilter(updatedFilters);
+      setHasInvalidFilters(false);
 
-    const formData = getFetchAppsGroupsFormData();
-    formData.set(formDataFilterField, JSON.stringify(filters));
-    formData.set(FormDataField.OrgUrl, plugin.spec.orgUrl);
+      const formData = getFetchAppsGroupsFormData();
 
-    setFilterAttempt({ status: 'processing' });
+      formData.set(formDataFilterField, JSON.stringify(filters));
 
-    try {
-      const resp = await applyFilters(formData);
-      setAppliedFiltersResp(resp);
-      setFilterAttempt({ status: 'success' });
-    } catch (e) {
-      if (!(e instanceof ApiError) || e.response.status !== 400) {
-        setFilterAttempt({ status: 'failed', statusText: e.message });
-        return;
-      }
+      try {
+        await queryClient.fetchQuery({
+          queryKey,
+          queryFn: async () => {
+            try {
+              return await applyFilters(formData);
+            } catch (e) {
+              if (!(e instanceof ApiError) || e.response.status !== 400) {
+                throw e;
+              }
 
-      // Check if a filter is mentioned in the error message.
-      // Any offending filter will be returned.
-      let foundInvalidFilter = false;
-      const messages = e.messages.join(' ');
-      const markedFilters = updatedFilters.map(f => {
-        if (e.message.includes(f.value) || messages.includes(f.value)) {
-          foundInvalidFilter = true;
-          return { ...f, invalid: true };
-        }
-        return f;
-      });
-      if (foundInvalidFilter) {
-        setFilter(markedFilters);
-        // We will show the error on the created filters.
-        setFilterAttempt({ status: '', statusText: e.message });
-        // Highlight invalid filters.
-        validator.validate();
-        return;
-      }
+              // Check if a filter is mentioned in the error message.
+              // Any offending filter will be returned.
+              let foundInvalidFilter = false;
 
-      setFilterAttempt({ status: 'failed', statusText: e.message });
-    }
-  };
+              const messages = e.messages.join(' ');
+              const markedFilters = updatedFilters.map(f => {
+                if (e.message.includes(f.value) || messages.includes(f.value)) {
+                  foundInvalidFilter = true;
+                  return { ...f, invalid: true };
+                }
+                return f;
+              });
 
-  const handleFilterOnChange = (
-    opts: FilterOption[],
-    validator: Validator,
-    formDataFilterField: FormDataFilterField
-  ) => {
-    switch (formDataFilterField) {
-      case FormDataField.AppFilters:
-        return updateFilters({
-          applyFilters: pluginsService.getPluginConfigOktaApps,
-          setAppliedFiltersResp: setApps,
-          setFilterAttempt: setFilterAppsAttempt,
-          setFilter: setAppFilters,
-          formDataFilterField,
-          validator,
-          updatedFilters: opts,
+              if (foundInvalidFilter) {
+                setFilter(markedFilters);
+                // We will show the error on the created filters.
+                setHasInvalidFilters(true);
+                // Highlight invalid filters.
+                validator.validate();
+              }
+
+              throw e;
+            }
+          },
         });
-      case FormDataField.GroupFilters:
-        return updateFilters({
-          applyFilters: pluginsService.getPluginConfigOktaGroups,
-          setAppliedFiltersResp: setUserGroups,
-          setFilterAttempt: setFilterGroupsAttempt,
-          setFilter: setGroupFilters,
-          formDataFilterField,
-          validator,
-          updatedFilters: opts,
-        });
-      default:
-        assertUnreachable(formDataFilterField);
-    }
-  };
+      } catch {
+        // no need to handle the error here
+      }
+    },
+    [getFetchAppsGroupsFormData, queryClient]
+  );
 
-  if (updatePluginAttempt.status === 'success') {
-    return isEditing ? (
-      <Redirect to={cfg.oss.getIntegrationStatusRoute('okta', 'okta')} />
-    ) : (
-      <OktaSetupStepComplete step={OktaIntegrationLevel.APP_GROUP_SYNC} />
-    );
+  const handleFilterOnChange = useCallback(
+    (
+      opts: FilterOption[],
+      validator: Validator,
+      formDataFilterField: FormDataFilterField
+    ) => {
+      switch (formDataFilterField) {
+        case FormDataField.AppFilters:
+          return updateFilters({
+            applyFilters: pluginsService.getPluginConfigOktaApps,
+            queryKey: ['okta', 'apps'],
+            setHasInvalidFilters: setInvalidAppFilters,
+            setFilter: setAppFilters,
+            formDataFilterField,
+            validator,
+            updatedFilters: opts,
+          });
+        case FormDataField.GroupFilters:
+          return updateFilters({
+            applyFilters: pluginsService.getPluginConfigOktaGroups,
+            queryKey: ['okta', 'groups'],
+            setHasInvalidFilters: setInvalidGroupFilters,
+            setFilter: setGroupFilters,
+            formDataFilterField,
+            validator,
+            updatedFilters: opts,
+          });
+        default:
+          assertUnreachable(formDataFilterField);
+      }
+    },
+    [updateFilters]
+  );
+
+  if (updatePlugin.isSuccess) {
+    if (isEditing) {
+      return (
+        <Redirect to={cfg.oss.getIntegrationStatusRoute('okta', 'okta')} />
+      );
+    }
+
+    return <OktaSetupStepComplete config={APP_GROUP_SYNC_CONFIG} />;
   }
 
   return (
@@ -340,13 +337,18 @@ export const AppGroupSyncForm = ({
                 default owner to your imported access lists. You can edit owners
                 on individual lists, later.
               </Text>
-              {fetchUserAttempt.status === 'failed' && (
-                <FailedAttempt
-                  attempt={fetchUserAttempt}
-                  retry={() => fetchUsers()}
-                />
+              {users.isError && (
+                <Alert
+                  kind="danger"
+                  primaryAction={{
+                    content: 'Retry',
+                    onClick: () => void users.refetch(),
+                  }}
+                >
+                  {getErrMessage(users.error)}
+                </Alert>
               )}
-              {fetchUserAttempt.status !== 'processing' ? (
+              {!users.isPending ? (
                 <Box width="540px">
                   <FieldSelectCreatable
                     autoFocus={true}
@@ -354,8 +356,8 @@ export const AppGroupSyncForm = ({
                     isMulti
                     isClearable
                     isSearchable
-                    options={userOptions}
-                    isDisabled={updatePluginAttempt.status === 'processing'}
+                    options={users.data ?? []}
+                    isDisabled={updatePlugin.isPending}
                     onChange={(opts: Option<User>[]) => setSelectedOwners(opts)}
                     value={selectedOwners || []}
                     noOptionsMessage={() => 'Type a username and press enter'}
@@ -389,20 +391,20 @@ export const AppGroupSyncForm = ({
                 </Flex>
               }
             >
-              {filterGroupsAttempt.statusText && (
-                <FailedAttempt
-                  attempt={filterGroupsAttempt}
-                  retry={
-                    filterGroupsAttempt.status === 'failed'
-                      ? () =>
-                          handleFilterOnChange(
-                            groupFilters,
-                            validator,
-                            FormDataField.GroupFilters
-                          )
-                      : undefined
+              {groups.isError && (
+                <Alert
+                  kind="danger"
+                  primaryAction={
+                    invalidGroupFilters
+                      ? undefined
+                      : {
+                          content: 'Retry',
+                          onClick: () => void groups.refetch(),
+                        }
                   }
-                />
+                >
+                  {getErrMessage(groups.error)}
+                </Alert>
               )}
               {!syncAllGroups && (
                 <CreateFilters
@@ -410,19 +412,12 @@ export const AppGroupSyncForm = ({
                   validator={validator}
                   filterKind={FormDataField.GroupFilters}
                   onFilterChange={handleFilterOnChange}
-                  importAttempt={{
-                    statusText: updatePluginAttempt.statusText,
-                    status:
-                      updatePluginAttempt.status === 'error'
-                        ? 'failed'
-                        : updatePluginAttempt.status,
-                  }}
-                  filterAttempt={filterGroupsAttempt}
+                  isDisabled={updatePlugin.isPending || groups.isPending}
                 />
               )}
               <UserGroupsTable
-                userGroups={userGroups}
-                loading={filterGroupsAttempt.status === 'processing'}
+                userGroups={groups.data ?? []}
+                loading={groups.isPending}
               />
             </StyledBox>
             <StyledBox
@@ -450,20 +445,20 @@ export const AppGroupSyncForm = ({
                 assignments to Teleport Access Lists. You will not see an Access
                 List if there are no direct assignments.
               </Text>
-              {filterAppsAttempt.statusText && (
-                <FailedAttempt
-                  attempt={filterAppsAttempt}
-                  retry={
-                    filterAppsAttempt.status === 'failed'
-                      ? () =>
-                          handleFilterOnChange(
-                            appFilters,
-                            validator,
-                            FormDataField.AppFilters
-                          )
-                      : undefined
+              {apps.isError && (
+                <Alert
+                  kind="danger"
+                  primaryAction={
+                    invalidAppFilters
+                      ? undefined
+                      : {
+                          content: 'Retry',
+                          onClick: () => void apps.refetch(),
+                        }
                   }
-                />
+                >
+                  {getErrMessage(apps.error)}
+                </Alert>
               )}
               {!syncAllApps && (
                 <CreateFilters
@@ -471,36 +466,26 @@ export const AppGroupSyncForm = ({
                   validator={validator}
                   filterKind={FormDataField.AppFilters}
                   onFilterChange={handleFilterOnChange}
-                  importAttempt={{
-                    statusText: updatePluginAttempt.statusText,
-                    status:
-                      updatePluginAttempt.status === 'error'
-                        ? 'failed'
-                        : updatePluginAttempt.status,
-                  }}
-                  filterAttempt={filterAppsAttempt}
+                  isDisabled={updatePlugin.isPending || apps.isPending}
                 />
               )}
-              <AppTable
-                apps={apps}
-                loading={filterAppsAttempt.status === 'processing'}
-              />
+              <AppTable apps={apps.data ?? []} loading={apps.isPending} />
             </StyledBox>
-            {updatePluginAttempt.status === 'error' && (
+            {updatePlugin.isError && (
               <Alert kind="outline-danger" mb={0}>
-                {getErrMessage(updatePluginAttempt.error)}
+                {getErrMessage(updatePlugin.error)}
               </Alert>
             )}
             <Flex flexDirection="row" alignItems="center" gap={3}>
               <ButtonPrimary
                 onClick={() => onSubmit(validator)}
                 disabled={
-                  updatePluginAttempt.status === 'processing' ||
-                  filterAppsAttempt.status === 'processing' ||
-                  filterGroupsAttempt.status === 'processing' ||
+                  updatePlugin.isPending ||
+                  apps.isPending ||
+                  groups.isPending ||
                   !selectedOwners?.length ||
-                  !!filterAppsAttempt.statusText ||
-                  !!filterGroupsAttempt.statusText
+                  invalidAppFilters ||
+                  invalidGroupFilters
                 }
               >
                 {isEditing ? 'Save Changes' : 'Continue'}
@@ -510,9 +495,12 @@ export const AppGroupSyncForm = ({
                 to={
                   isEditing
                     ? cfg.oss.getIntegrationStatusRoute('okta', 'okta')
-                    : cfg.oss.getIntegrationEnrollRoute('okta')
+                    : cfg.oss.getIntegrationEnrollRoute(
+                        'okta',
+                        previousStepType
+                      )
                 }
-                disabled={updatePluginAttempt.status === 'processing'}
+                disabled={updatePlugin.isPending}
               >
                 {isEditing ? 'Cancel' : 'Back'}
               </ButtonSecondary>

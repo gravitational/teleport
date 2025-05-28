@@ -6,8 +6,8 @@ import { FeatureName } from 'design/constants';
 import { Edit, NewTab } from 'design/Icon';
 
 import {
-  OktaIntegrationLevel,
-  oktaIntegrationLevels,
+  OktaIntegrationStepType,
+  SCIM_CONFIG,
   UpsellBulletList,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
@@ -42,7 +42,7 @@ export function ScimDetails({
           cfg.getIntegrationStatusRoute(
             'okta',
             'okta',
-            OktaIntegrationLevel.SCIM
+            OktaIntegrationStepType.Scim
           )
         ),
       Icon: Edit,
@@ -93,9 +93,7 @@ export function ScimDetails({
           justifyContent="space-between"
           height="100%"
         >
-          <UpsellBulletList
-            bullets={oktaIntegrationLevels[OktaIntegrationLevel.SCIM].bullets}
-          />
+          <UpsellBulletList bullets={SCIM_CONFIG.bullets} />
           {!hasIdentity && (
             <ButtonLockedFeature event={CtaEvent.CTA_OKTA_SCIM} mt={1}>
               Unlock with {FeatureName.IdentityGovernance}

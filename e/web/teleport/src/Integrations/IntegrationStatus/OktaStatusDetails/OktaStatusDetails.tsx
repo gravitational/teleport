@@ -1,3 +1,4 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { useHistory } from 'react-router-dom';
 
@@ -16,22 +17,26 @@ import Dialog, {
   DialogTitle,
 } from 'design/Dialog';
 import { Trash } from 'design/Icon';
-import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import { getErrMessage } from 'shared/utils/errorType';
 
-import { OktaIntegrationLevel } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
+import { OktaIntegrationStepType } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
 import { AppGroupSyncForm } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpAppGroupSync';
+import { SetupIdentitySecuritySyncForm } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetupIdentitySecuritySync';
 import { ScimForm } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpScim';
 import { UserSyncForm } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpUserSync';
+import { IdentitySecuritySyncDetails } from 'e-teleport/Integrations/IntegrationStatus/OktaStatusDetails/IdentitySecuritySyncDetails';
 import {
   oktaPluginUpdate,
   pluginsService,
   PluginUpdateRequest,
 } from 'e-teleport/services/plugins';
+import { createFetchPluginQueryKey } from 'e-teleport/services/plugins/hooks';
+import { useTeleport } from 'teleport';
 import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import { Plugin, PluginOktaSpec } from 'teleport/services/integrations';
 import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
+import { storageService } from 'teleport/services/storageService';
 import { withUnsupportedOktaPluginUpdateErrorConversion } from 'teleport/services/version/unsupported';
 
 import { AppGroupSyncDetails } from './AppGroupSyncDetails';
@@ -49,6 +54,7 @@ enum UpdateSetting {
   // it alongside AccessListSync. It's just included here for completeness.
   AppGroupSync = 'AppGroupSync',
   AccessListSync = 'AccessListSync',
+  IdentitySecuritySync = 'IdentitySecuritySync',
 }
 
 type UpdateType = `${UpdateState}${UpdateSetting}`;
@@ -57,9 +63,16 @@ const handleUpdateType = (
   updateType: UpdateType,
   opts: NonNullable<PluginUpdateRequest['okta']>
 ): NonNullable<PluginUpdateRequest['okta']> => {
+  console.log(opts, updateType);
   switch (updateType) {
     case 'enableUserSync':
       opts.enableUserSync = true;
+      break;
+    case 'enableIdentitySecuritySync':
+      opts.enableSystemLogExport = true;
+      break;
+    case 'disableIdentitySecuritySync':
+      opts.enableSystemLogExport = false;
       break;
     case 'disableUserSync':
       opts.enableAccessListSync = false;
@@ -83,37 +96,70 @@ const handleUpdateType = (
 
 type ConfirmModalState = {
   updateState: UpdateState;
-  updateSetting: UpdateSetting.AccessListSync | UpdateSetting.UserSync;
+  updateSetting:
+    | UpdateSetting.AccessListSync
+    | UpdateSetting.UserSync
+    | UpdateSetting.IdentitySecuritySync;
   onConfirm: () => void | Promise<void>;
 };
+
+function updateSettingToTitle(updateSetting: UpdateSetting) {
+  switch (updateSetting) {
+    case UpdateSetting.UserSync:
+      return 'User Sync';
+    case UpdateSetting.AccessListSync:
+      return 'App and Group Sync';
+    case UpdateSetting.IdentitySecuritySync:
+      return 'Teleport Identity Security Sync';
+  }
+}
+
+function updateSettingToText(
+  updateState: string,
+  updateSetting: UpdateSetting,
+  suffix: string | undefined = ''
+) {
+  if (updateState === 'enable') {
+    switch (updateSetting) {
+      case UpdateSetting.AccessListSync:
+        return (
+          'Enabling App and Group Sync requires that User Sync be enabled. ' +
+          suffix
+        );
+      case UpdateSetting.IdentitySecuritySync:
+        return (
+          'Enabling Teleport Identity Security Sync requires that User Sync be enabled. ' +
+          suffix
+        );
+    }
+  }
+
+  if (updateState === 'disable') {
+    switch (updateSetting) {
+      case UpdateSetting.UserSync:
+        return 'This will also disable App and Group Sync. ' + suffix;
+    }
+  }
+}
 
 const ConfirmationModal = ({
   modal,
   setModal,
-  attempt,
+  disabled,
 }: {
   modal: ConfirmModalState;
   setModal: (state: ConfirmModalState | undefined) => void;
-  attempt: Attempt<unknown>;
+  disabled: boolean;
 }) => {
   const action = modal.updateState === 'disable' ? 'Disable' : 'Enable';
-  const setting =
-    modal.updateSetting === UpdateSetting.UserSync
-      ? 'User Sync'
-      : 'App and Group Sync';
-  let textContent = '';
-  if (modal.updateState === 'disable') {
-    if (modal.updateSetting === UpdateSetting.UserSync) {
-      textContent = 'This will also disable App and Group Sync. ';
-    }
-    textContent += `Your current configuration will be saved, and ${setting} may be re-enabled later.`;
-  }
-  if (modal.updateState === 'enable') {
-    if (modal.updateSetting === UpdateSetting.AccessListSync) {
-      textContent =
-        'Enabling App and Group Sync requires that User Sync be enabled.';
-    }
-  }
+  const setting = updateSettingToTitle(modal.updateSetting);
+  const text = updateSettingToText(
+    modal.updateState,
+    modal.updateSetting,
+    modal.updateState === 'disable'
+      ? `Your current configuration will be saved, and ${setting} may be re-enabled later.`
+      : undefined
+  );
 
   return (
     <Dialog open={true}>
@@ -123,14 +169,14 @@ const ConfirmationModal = ({
         </DialogTitle>
       </DialogHeader>
       <DialogContent flexDirection="column" gap={4} mb={0} maxWidth="400px">
-        <Text>{textContent}</Text>
+        <Text>{text}</Text>
         <Flex flexDirection="row" gap={3}>
           <ButtonSecondary onClick={() => setModal(undefined)}>
             Cancel
           </ButtonSecondary>
           <ButtonPrimary
             intent={modal.updateState === 'disable' ? 'danger' : 'primary'}
-            disabled={attempt.status === 'processing'}
+            disabled={disabled}
             onClick={() => {
               const res = modal.onConfirm();
               if (res && res.finally) {
@@ -150,61 +196,70 @@ const ConfirmationModal = ({
 
 export function OktaStatusDetails({
   plugin,
-  setPlugin,
   deletePlugin,
 }: {
   plugin: Plugin<PluginOktaSpec, PluginStatusOkta>;
-  setPlugin: (plugin: Plugin<PluginOktaSpec, PluginStatusOkta>) => void;
   deletePlugin(): void;
 }) {
+  const ctx = useTeleport();
+  const accessGraphEnabled =
+    storageService.getAccessGraphEnabled() && ctx.getFeatureFlags().accessGraph;
+
   return (
     <Switch>
-      ...
+      {accessGraphEnabled && (
+        <Route
+          exact
+          path={cfg.getIntegrationStatusRoute(
+            'okta',
+            'okta',
+            OktaIntegrationStepType.IdentitySecuritySync
+          )}
+        >
+          <SetupIdentitySecuritySyncForm plugin={plugin} isEditing />
+        </Route>
+      )}
       {cfg.entitlements.Identity.enabled
         ? [
             <Route
               exact
-              key={OktaIntegrationLevel.SCIM}
+              key={OktaIntegrationStepType.Scim}
               path={cfg.getIntegrationStatusRoute(
                 'okta',
                 'okta',
-                OktaIntegrationLevel.SCIM
+                OktaIntegrationStepType.Scim
               )}
             >
-              <ScimForm plugin={plugin} setPlugin={setPlugin} isEditing />
+              <ScimForm plugin={plugin} isEditing />
             </Route>,
             <Route
               exact
-              key={OktaIntegrationLevel.USER_SYNC}
+              key={OktaIntegrationStepType.UserSync}
               path={cfg.getIntegrationStatusRoute(
                 'okta',
                 'okta',
-                OktaIntegrationLevel.USER_SYNC
+                OktaIntegrationStepType.UserSync
               )}
             >
-              <UserSyncForm plugin={plugin} setPlugin={setPlugin} isEditing />
+              <UserSyncForm plugin={plugin} isEditing />
             </Route>,
             <Route
               exact
-              key={OktaIntegrationLevel.APP_GROUP_SYNC}
+              key={OktaIntegrationStepType.AppGroupSync}
               path={cfg.getIntegrationStatusRoute(
                 'okta',
                 'okta',
-                OktaIntegrationLevel.APP_GROUP_SYNC
+                OktaIntegrationStepType.AppGroupSync
               )}
             >
-              <AppGroupSyncForm
-                plugin={plugin}
-                setPlugin={setPlugin}
-                isEditing
-              />
+              <AppGroupSyncForm plugin={plugin} isEditing />
             </Route>,
           ]
         : []}
       <Route path={cfg.getIntegrationStatusRoute('okta', 'okta')}>
         <StatusDetails
+          accessGraphEnabled={accessGraphEnabled}
           plugin={plugin}
-          setPlugin={setPlugin}
           deletePlugin={deletePlugin}
         />
       </Route>
@@ -213,12 +268,12 @@ export function OktaStatusDetails({
 }
 
 const StatusDetails = ({
+  accessGraphEnabled,
   plugin,
-  setPlugin,
   deletePlugin,
 }: {
+  accessGraphEnabled: boolean;
   plugin: Plugin<PluginOktaSpec, PluginStatusOkta>;
-  setPlugin: (plugin: Plugin<PluginOktaSpec, PluginStatusOkta>) => void;
   deletePlugin: () => void;
 }) => {
   const history = useHistory();
@@ -231,110 +286,141 @@ const StatusDetails = ({
     enableUserSync: plugin.spec?.enableUserSync,
     assignDefaultRoles: plugin.spec?.assignDefaultRoles,
     enableBidirectionalSync: plugin.spec?.enableBidirectionalSync,
+    enableSystemLogExport: plugin.spec?.enableSystemLogExport,
     defaultOwners: plugin.spec?.defaultOwners ?? [],
     appFilters:
       plugin?.status?.details?.accessListsSyncDetails?.appFilters ?? [],
     groupFilters:
       plugin?.status?.details?.accessListsSyncDetails?.groupFilters ?? [],
   });
-  const [updatePluginAttempt, runUpdatePlugin] = useAsync(
-    useCallback(
-      (opts: NonNullable<PluginUpdateRequest['okta']>) =>
-        pluginsService
-          .updatePlugin({
-            plugin: 'okta',
-            okta: opts,
-          })
-          .catch(withUnsupportedOktaPluginUpdateErrorConversion),
-      []
-    )
+
+  const queryClient = useQueryClient();
+
+  const update = useMutation({
+    mutationFn: (opts: NonNullable<PluginUpdateRequest['okta']>) =>
+      pluginsService
+        .updatePlugin({
+          plugin: 'okta',
+          okta: opts,
+        })
+        .catch(withUnsupportedOktaPluginUpdateErrorConversion),
+    onSuccess: data =>
+      queryClient.setQueryData(createFetchPluginQueryKey('okta'), data),
+  });
+
+  const updatePlugin = useCallback(
+    async (opts: NonNullable<PluginUpdateRequest['okta']>) => {
+      if (update.isPending) {
+        return;
+      }
+
+      await update.mutateAsync(opts);
+
+      setLocalSettings(current => ({ ...current, ...opts }));
+    },
+    [update]
   );
 
-  const updatePlugin = async (
-    opts: NonNullable<PluginUpdateRequest['okta']>
-  ) => {
-    if (updatePluginAttempt.status === 'processing') {
-      return;
-    }
-
-    const [resp, err] = await runUpdatePlugin(opts);
-    if (err) {
-      return;
-    }
-    setPlugin(resp);
-    setLocalSettings(current => ({ ...current, ...opts }));
-  };
-
-  const handleToggleFeature = (
-    updateState: UpdateState,
-    updateSetting: Exclude<UpdateSetting, UpdateSetting.AppGroupSync>
-  ) => {
-    // SCIM can only be set up, not disabled.
-    if (updateSetting === UpdateSetting.SCIM) {
-      history.push(
-        cfg.getIntegrationStatusRoute('okta', 'okta', OktaIntegrationLevel.SCIM)
-      );
-      return;
-    }
-
-    // Confirm before disabling User Sync or App/Group Sync.
-    if (updateState === 'disable') {
-      setConfirmModal({
-        updateState,
-        updateSetting,
-        onConfirm: () =>
-          updatePlugin(
-            handleUpdateType(`disable${updateSetting}`, localSettings)
-          ),
-      });
-      return;
-    }
-
-    // User Sync and App/Group Sync require OAuth creds. If not present, prompt before redirecting to
-    // the UserSync setup page to add them.
-    if (!plugin.spec?.credentialsInfo?.hasConfiguredOauthCredentials) {
-      const goToSetup = () =>
+  const handleToggleFeature = useCallback(
+    (
+      updateState: UpdateState,
+      updateSetting: Exclude<UpdateSetting, UpdateSetting.AppGroupSync>
+    ) => {
+      // SCIM can only be set up, not disabled.
+      if (updateSetting === UpdateSetting.SCIM) {
         history.push(
           cfg.getIntegrationStatusRoute(
             'okta',
             'okta',
-            OktaIntegrationLevel.USER_SYNC
+            OktaIntegrationStepType.Scim
           )
         );
-      // Confirm before navigating to the User Sync setup to avoid any confusion
-      if (updateSetting === UpdateSetting.AccessListSync) {
+        return;
+      }
+
+      // Confirm before disabling User Sync or App/Group Sync.
+      if (updateState === 'disable') {
         setConfirmModal({
           updateState,
           updateSetting,
-          onConfirm: goToSetup,
+          onConfirm: () =>
+            updatePlugin(
+              handleUpdateType(`disable${updateSetting}`, localSettings)
+            ),
         });
-      } else {
-        goToSetup();
+        return;
       }
-      return;
-    }
 
-    // If defaultOwners or app/group filters are missing, we need to set up App/Group Sync first.
-    if (
-      updateSetting === UpdateSetting.AccessListSync &&
-      (!plugin.spec?.defaultOwners?.length ||
-        !!plugin.status?.details?.accessListsSyncDetails?.appFilters ||
-        !!plugin.status?.details?.accessListsSyncDetails?.groupFilters)
-    ) {
-      history.push(
-        cfg.getIntegrationStatusRoute(
-          'okta',
-          'okta',
-          OktaIntegrationLevel.APP_GROUP_SYNC
-        )
+      // User Sync and App/Group Sync require OAuth creds. If not present, prompt before redirecting to
+      // the UserSync setup page to add them.
+      if (!plugin.spec?.credentialsInfo?.hasConfiguredOauthCredentials) {
+        const goToSetup = () =>
+          history.push(
+            cfg.getIntegrationStatusRoute(
+              'okta',
+              'okta',
+              OktaIntegrationStepType.UserSync
+            )
+          );
+        // Confirm before navigating to the User Sync setup to avoid any confusion
+        if (
+          updateSetting === UpdateSetting.AccessListSync ||
+          updateSetting === UpdateSetting.IdentitySecuritySync
+        ) {
+          setConfirmModal({
+            updateState,
+            updateSetting,
+            onConfirm: goToSetup,
+          });
+        } else {
+          goToSetup();
+        }
+        return;
+      }
+
+      // If defaultOwners or app/group filters are missing, we need to set up App/Group Sync first.
+      if (
+        updateSetting === UpdateSetting.AccessListSync &&
+        (!plugin.spec?.defaultOwners?.length ||
+          !!plugin.status?.details?.accessListsSyncDetails?.appFilters ||
+          !!plugin.status?.details?.accessListsSyncDetails?.groupFilters)
+      ) {
+        history.push(
+          cfg.getIntegrationStatusRoute(
+            'okta',
+            'okta',
+            OktaIntegrationStepType.AppGroupSync
+          )
+        );
+        return;
+      }
+
+      // Go to the setup page for Identity Security Sync so we can show the additional scopes required.
+      if (updateSetting === UpdateSetting.IdentitySecuritySync) {
+        history.push(
+          cfg.getIntegrationStatusRoute(
+            'okta',
+            'okta',
+            OktaIntegrationStepType.IdentitySecuritySync
+          )
+        );
+        return;
+      }
+
+      return updatePlugin(
+        handleUpdateType(`enable${updateSetting}`, localSettings)
       );
-      return;
-    }
-
-    return updatePlugin(
-      handleUpdateType(`enable${updateSetting}`, localSettings)
-    );
-  };
+    },
+    [
+      localSettings,
+      updatePlugin,
+      history,
+      plugin.spec?.credentialsInfo?.hasConfiguredOauthCredentials,
+      plugin.spec?.defaultOwners,
+      plugin.status?.details?.accessListsSyncDetails?.appFilters,
+      plugin.status?.details?.accessListsSyncDetails?.groupFilters,
+    ]
+  );
 
   return (
     <Box>
@@ -342,13 +428,11 @@ const StatusDetails = ({
         <ConfirmationModal
           modal={confirmModal}
           setModal={setConfirmModal}
-          attempt={updatePluginAttempt}
+          disabled={update.isPending}
         />
       )}
-      {updatePluginAttempt.status === 'error' && (
-        <Alert kind="outline-danger">
-          {getErrMessage(updatePluginAttempt.error)}
-        </Alert>
+      {update.isError && (
+        <Alert kind="outline-danger">{getErrMessage(update.error)}</Alert>
       )}
       <FlexWrap
         css={`
@@ -371,7 +455,7 @@ const StatusDetails = ({
             plugin.spec.credentialsInfo?.hasSCIMToken ||
             plugin.status.details?.scimDetails?.enabled
           }
-          disabled={updatePluginAttempt.status === 'processing'}
+          disabled={update.isPending}
           // SCIM can't be disabled from Teleport – however, the user can re-save the SCIM settings
           // to generate and save a new bearer token.
           onToggle={() => handleToggleFeature('enable', UpdateSetting.SCIM)}
@@ -379,7 +463,7 @@ const StatusDetails = ({
         <UserSyncDetails
           spec={plugin.status.details?.usersSyncDetails}
           bidirectionalSync={!!plugin.spec?.enableBidirectionalSync}
-          disabled={updatePluginAttempt.status === 'processing'}
+          disabled={update.isPending}
           toggled={localSettings.enableUserSync}
           onToggle={() =>
             handleToggleFeature(
@@ -389,12 +473,31 @@ const StatusDetails = ({
           }
         />
       </FlexWrap>
-      <Flex gap={3} flexWrap="wrap" mb={3}>
+      <FlexWrap
+        css={`
+          gap: ${p => p.theme.space[3]}px;
+          margin-bottom: ${p => p.theme.space[3]}px;
+          @media screen and (max-width: ${p => p.theme.breakpoints.tablet}) {
+            gap: ${p => p.theme.space[4]}px;
+            margin-bottom: ${p => p.theme.space[4]}px;
+          }
+        `}
+      >
+        <IdentitySecuritySyncDetails
+          syncEnabled={plugin.spec?.enableSystemLogExport}
+          accessGraphEnabled={accessGraphEnabled}
+          onToggle={() =>
+            handleToggleFeature(
+              localSettings.enableSystemLogExport ? 'disable' : 'enable',
+              UpdateSetting.IdentitySecuritySync
+            )
+          }
+        />
         <AppGroupSyncDetails
           appGroupSpec={plugin.status.details?.appGroupSyncDetails}
           accessListSpec={plugin.status.details?.accessListsSyncDetails}
           defaultOwners={plugin.spec.defaultOwners}
-          disabled={updatePluginAttempt.status === 'processing'}
+          disabled={update.isPending}
           toggled={localSettings.enableAccessListSync}
           onToggle={() =>
             handleToggleFeature(
@@ -403,7 +506,7 @@ const StatusDetails = ({
             )
           }
         />
-      </Flex>
+      </FlexWrap>
       <ButtonWarning size="large" onClick={deletePlugin} mt={2}>
         <Trash mr={2} />
         <Text>Delete Integration</Text>

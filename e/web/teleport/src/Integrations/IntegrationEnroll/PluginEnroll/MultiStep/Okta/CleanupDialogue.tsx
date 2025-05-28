@@ -1,3 +1,5 @@
+import { useMutation } from '@tanstack/react-query';
+
 import { Alert, ButtonPrimary, ButtonSecondary } from 'design';
 import Dialog, {
   DialogContent,
@@ -5,7 +7,7 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { getErrMessage } from 'shared/utils/errorType';
 
 import { pluginsService } from 'e-teleport/services/plugins';
 import { PluginKind } from 'teleport/services/integrations';
@@ -17,18 +19,24 @@ export const CleanupDialogue = ({
   onClose(): void;
   pluginKind: PluginKind;
 }) => {
-  const { attempt, run } = useAttempt('');
+  const cleanUp = useMutation({
+    mutationFn: pluginsService.cleanupPlugin,
+    onSuccess: onClose,
+  });
 
   function cleanUpPlugin() {
-    run(() => pluginsService.cleanupPlugin(pluginKind).then(onClose));
+    cleanUp.mutate(pluginKind);
   }
+
   return (
     <Dialog open={true}>
       <DialogHeader>
         <DialogTitle>Cleanup Required</DialogTitle>
       </DialogHeader>
-      {attempt.status === 'failed' && (
-        <Alert kind="danger" children={attempt.statusText} mb={3} mt={3} />
+      {cleanUp.isError && (
+        <Alert kind="danger" mb={3} mt={3}>
+          {getErrMessage(cleanUp.error)}
+        </Alert>
       )}
       <DialogContent width="400px">
         Teleport has detected artifacts from a previous, disconnected Okta
@@ -44,14 +52,14 @@ export const CleanupDialogue = ({
         <ButtonPrimary
           mr={4}
           width="45%"
-          disabled={attempt.status === 'processing'}
+          disabled={cleanUp.isPending}
           onClick={cleanUpPlugin}
         >
           Clean Up
         </ButtonPrimary>
         <ButtonSecondary
           width="45%"
-          disabled={attempt.status === 'processing'}
+          disabled={cleanUp.isPending}
           onClick={onClose}
         >
           Cancel

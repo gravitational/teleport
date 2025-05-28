@@ -247,6 +247,7 @@ export type oktaPluginUpdate = {
   assignDefaultRoles: boolean;
   enableAppGroupSync: boolean;
   enableAccessListSync?: boolean;
+  enableSystemLogExport?: boolean;
   defaultOwners?: string[];
   scimToken?: string;
   clientID?: string;

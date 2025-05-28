@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 
 import {
@@ -17,19 +18,20 @@ import { FieldSelect } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import Validation, { type Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import { getErrMessage } from 'shared/utils/errorType';
 
 import cfg from 'e-teleport/config';
 import { useOktaIntegrationSetUpContext } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/SetUpContext';
 import {
   createOktaPlugin,
-  OktaIntegrationLevel,
   OktaSetupStepComplete,
+  SSO_CONFIG,
   StyledBox,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
 import { FormDataField } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/types';
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
+import { pluginsService } from 'e-teleport/services/plugins';
+import { createFetchPluginQueryKey } from 'e-teleport/services/plugins/hooks';
 import useTeleportE from 'e-teleport/useTeleportE';
 import { Redirect } from 'teleport/components/Router';
 import { Resource } from 'teleport/services/resources';
@@ -39,60 +41,61 @@ const NEW_AUTH_CONNECTOR_VALUE = crypto.randomUUID();
 
 export const SetUpSSO = () => {
   const ctx = useTeleportE();
-  const { startFrom, setPlugin } = useOktaIntegrationSetUpContext();
+  const { startFrom } = useOktaIntegrationSetUpContext();
   const [showPickConnector, setShowPickConnector] = useState(false);
-  const [updatePluginAttempt, updatePlugin] = useAsync(
-    useCallback(
-      ({
-        eventId,
-        metadataUrl,
-        connector,
-      }: {
-        eventId: string;
-        metadataUrl: string | undefined;
-        connector: Option | undefined;
-      }) =>
-        createOktaPlugin({
-          eventId,
-          enableAccessListSync: false,
-          enableAppGroupsSync: false,
-          enableUserSync: false,
-          metadataUrl: metadataUrl,
-          reuseConnector: connector?.value,
-        })
-          .catch(err => {
-            const msg = getErrMessage(err);
-            if (msg.includes('fetching SAML app entity metadata')) {
-              throw new Error(
-                'Failed to fetch SAML app entity metadata. Check the provided URL is valid and try again.'
-              );
-            }
-            throw err;
-          })
-          .catch(withUnsupportedOktaPluginCreateErrorConversion),
-      []
-    )
-  );
-  const [existingConnectorsAttempt, fetchExistingConnectors] = useAsync(
-    useCallback(
-      async () =>
-        await ctx.resourceService.fetchAuthConnectors().then(res => {
-          const samlConnectors = (res?.connectors?.filter(
-            conn => conn.kind === 'saml'
-          ) ?? []) as Resource<'saml'>[];
-          setShowPickConnector(samlConnectors?.length > 0);
-          return samlConnectors;
-        }),
-      [ctx.resourceService]
-    )
-  );
 
-  useEffect(() => {
-    if (existingConnectorsAttempt.status !== '') {
-      return;
-    }
-    void fetchExistingConnectors();
-  }, [existingConnectorsAttempt.status, fetchExistingConnectors]);
+  const queryClient = useQueryClient();
+
+  const updatePlugin = useMutation({
+    mutationFn: ({
+      eventId,
+      metadataUrl,
+      connector,
+    }: {
+      eventId: string;
+      metadataUrl: string | undefined;
+      connector: Option | undefined;
+    }) =>
+      createOktaPlugin({
+        eventId,
+        enableAccessListSync: false,
+        enableAppGroupsSync: false,
+        enableUserSync: false,
+        metadataUrl: metadataUrl,
+        reuseConnector: connector?.value,
+      })
+        .catch(err => {
+          const msg = getErrMessage(err);
+          if (msg.includes('fetching SAML app entity metadata')) {
+            throw new Error(
+              'Failed to fetch SAML app entity metadata. Check the provided URL is valid and try again.'
+            );
+          }
+          throw err;
+        })
+        .catch(withUnsupportedOktaPluginCreateErrorConversion)
+        // refetch the plugin to put into the cache because the create plugin endpoint doesn't return plugin.status.details
+        .then(() => pluginsService.fetchPlugin('okta')),
+    onSuccess: data =>
+      queryClient.setQueryData(createFetchPluginQueryKey('okta'), data),
+  });
+
+  const existingConnectors = useQuery({
+    queryKey: ['existingConnectors'],
+    queryFn: async ({ signal }) => {
+      const authConnectors =
+        await ctx.resourceService.fetchAuthConnectors(signal);
+
+      const samlConnectors = (authConnectors?.connectors?.filter(
+        conn => conn.kind === 'saml'
+      ) ?? []) as Resource<'saml'>[];
+
+      setShowPickConnector(samlConnectors?.length > 0);
+
+      return samlConnectors;
+    },
+    gcTime: 0,
+  });
 
   const onSubmit = useCallback(
     async ({
@@ -109,38 +112,30 @@ export const SetUpSSO = () => {
         setShowPickConnector(false);
         return;
       }
-      if (
-        updatePluginAttempt.status === 'processing' ||
-        (validator && !validator.validate())
-      ) {
+      if (updatePlugin.isPending || (validator && !validator.validate())) {
         return;
       }
 
       const eventId = crypto.randomUUID();
-      const [resp, err] = await updatePlugin({
+
+      updatePlugin.mutate({
         eventId,
         metadataUrl,
         connector,
       });
-      if (err) {
-        return;
-      }
-
-      setPlugin(resp);
-      // TODO(kiosion): Capture enrol event after event is updated for step-by-step enrolment
     },
-    [updatePluginAttempt.status, setPlugin, updatePlugin]
+    [updatePlugin]
   );
+
+  if (updatePlugin.isSuccess) {
+    return <OktaSetupStepComplete config={SSO_CONFIG} />;
+  }
 
   if (startFrom !== undefined) {
     return <Redirect to={cfg.oss.getIntegrationEnrollRoute('okta')} />;
   }
 
-  if (updatePluginAttempt.status === 'success') {
-    return <OktaSetupStepComplete step={OktaIntegrationLevel.SSO} />;
-  }
-
-  if (['', 'processing'].includes(existingConnectorsAttempt.status)) {
+  if (existingConnectors.isPending) {
     return (
       <Box textAlign="center" m={10}>
         <Indicator />
@@ -150,32 +145,42 @@ export const SetUpSSO = () => {
 
   return (
     <Flex flexDirection="column" gap={5} maxWidth={900}>
-      {existingConnectorsAttempt.status === 'error' && (
+      {existingConnectors.isError && (
         <Alert kind="outline-danger" mb={0}>
-          {getErrMessage(existingConnectorsAttempt.error)}
+          {getErrMessage(existingConnectors.error)}
         </Alert>
       )}
       {showPickConnector ? (
         <PickExistingConnector
-          connectors={existingConnectorsAttempt.data.map(conn => ({
+          connectors={(existingConnectors.data ?? []).map(conn => ({
             label: conn.name,
             value: conn.name,
           }))}
+          error={updatePlugin.error}
+          isError={updatePlugin.isError}
           onContinue={connector => onSubmit({ connector })}
-          attempt={updatePluginAttempt}
         />
       ) : (
-        <MetadataURLForm attempt={updatePluginAttempt} onSubmit={onSubmit} />
+        <MetadataURLForm
+          error={updatePlugin.error}
+          isDisabled={updatePlugin.isPending}
+          isError={updatePlugin.isError}
+          onSubmit={onSubmit}
+        />
       )}
     </Flex>
   );
 };
 
 const MetadataURLForm = ({
-  attempt,
+  error,
+  isDisabled,
+  isError,
   onSubmit,
 }: {
-  attempt: Attempt<unknown>;
+  error: unknown;
+  isDisabled: boolean;
+  isError: boolean;
   onSubmit: ({
     metadataUrl,
     validator,
@@ -191,9 +196,9 @@ const MetadataURLForm = ({
       <Box>
         <Header header="Configure SSO" />
       </Box>
-      {attempt.status === 'error' && (
+      {isError && (
         <Alert kind="outline-danger" mb={0}>
-          {getErrMessage(attempt.error)}
+          {getErrMessage(error)}
         </Alert>
       )}
       <StyledBox header="Step 1: Create an application in the Okta dashboard to allow Teleport to access Okta as an IdP provider">
@@ -232,20 +237,20 @@ const MetadataURLForm = ({
                 rule={requiredField('Please enter a valid Okta Metadata URL')}
                 onChange={e => setMetadataUrl(e.target.value)}
                 placeholder="https://your_okta_domain.okta.com/app/your_app_ID/sso/saml/metadata"
-                disabled={attempt.status === 'processing'}
+                disabled={isDisabled}
               />
             </StyledBox>
             <Flex flexDirection="row" alignItems="center" gap={3}>
               <ButtonPrimary
                 onClick={() => onSubmit({ metadataUrl, validator })}
-                disabled={attempt.status === 'processing'}
+                disabled={isDisabled}
               >
                 Continue
               </ButtonPrimary>
               <ButtonSecondary
                 as={RouterLink}
                 to={cfg.oss.getIntegrationEnrollRoute('okta')}
-                disabled={attempt.status === 'processing'}
+                disabled={isDisabled}
               >
                 Back
               </ButtonSecondary>
@@ -260,11 +265,13 @@ const MetadataURLForm = ({
 const PickExistingConnector = ({
   connectors,
   onContinue,
-  attempt,
+  isError,
+  error,
 }: {
   connectors: Option[];
   onContinue: (opt: Option) => void;
-  attempt: Attempt<unknown>;
+  isError: boolean;
+  error: unknown;
 }) => {
   const options = [...connectors];
   if (!options.some(o => o.value === 'okta')) {
@@ -280,9 +287,9 @@ const PickExistingConnector = ({
       <Box>
         <H1 mb={2}>Choose Your Auth Connector</H1>
       </Box>
-      {attempt.status === 'error' && (
+      {isError && (
         <Alert kind="danger" mb={0}>
-          {getErrMessage(attempt.error)}
+          {getErrMessage(error)}
         </Alert>
       )}
       <Flex flexDirection="column" gap={3} maxWidth={300}>
