@@ -66,8 +66,8 @@ func (id *IDTokenValidator) issuerURL() string {
 func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDTokenClaims, error) {
 	issuer := id.issuerURL()
 
-	// GCP does not the authorized party to one of the listed audiences, so we must skip the optional azp check.
-	// TODO(Joerger): Use [rp.ValidateToken] once the authorized party check is made optional upstream.
+	// GCP does not set the authorized party to one of the listed audiences, so we must skip the optional azp check.
+	// TODO(Joerger): Use [rp.ValidateToken] once the authorized party check is made optional upstream, e.g. with an opt.
 	claims, err := oidc.ValidateTokenNoAuthorizedPartyCheck[*IDTokenClaims](ctx, issuer, audience, token)
 	if err != nil {
 		return nil, trace.Wrap(err, "validating token")
