@@ -78,31 +78,11 @@ func WeakValidatedAssignableScopes(role *srpb.ScopedRole) iter.Seq[string] {
 	}
 }
 
-// WeakValidateRole valides a role to ensure it is free of obvious issues that would render it unusable and/or
-// induce serious unintended behavior. Prefer using this function for validating roles loaded from "internal" sources
-// (e.g. backend/control-plane), and [StrongValidateRole] for validating roles loaded from "external" sources (e.g. user input).
-func WeakValidateRole(role *srpb.ScopedRole) error {
-	if err := commonValidateRole(role); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := scopes.WeakValidate(role.GetScope()); err != nil {
-		return trace.BadParameter("scoped role %q has invalid scope: %v", role.GetMetadata().GetName(), err)
-	}
-
-	// NOTE: in strong validation, this is where we'd check that the assignable scopes are valid. In weak validation
-	// we don't do that and instead rely on invalid assignable scopes being filtered out
-	// and excluded during runtime assignment validation checks. This helps us ensure that outdated agents continue
-	// to be able to understand and process the subset of assignments that they are able to reason about.
-
-	return nil
-}
-
 // StrongValidateRole performs robust validation of a role to ensure it complies with all expected constraints. Prefer
-// using this function for validating roles loaded from "external" sources (e.g. user input), and [WeakValidateRole] for
+// using this function for validating roles loaded from "external" sources (e.g. user input), and [scopes.WeakValidateResource] for
 // validating roles loaded from "internal" sources (e.g. backend/control-plane).
 func StrongValidateRole(role *srpb.ScopedRole) error {
-	if err := commonValidateRole(role); err != nil {
+	if err := scopes.ValidateScopedResource(role, KindScopedRole, types.V1); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -140,39 +120,6 @@ func validateRoleName(name string) error {
 	// equivalent to what we would want from a standalone name requirement, and there may even be some future benefit
 	// if we ever need to encode a role assignment as a scope-like name.
 	return trace.Wrap(scopes.StrongValidateSegment(name))
-}
-
-// commonValidateRole performs the subset of role validation common to both weak and strong validation.
-func commonValidateRole(role *srpb.ScopedRole) error {
-	if role.GetMetadata().GetName() == "" {
-		return trace.BadParameter("scoped role is missing metadata.name")
-	}
-
-	if role.GetKind() == "" {
-		return trace.BadParameter("scoped role %q is missing kind", role.GetMetadata().GetName())
-	}
-
-	if role.GetKind() != KindScopedRole {
-		return trace.BadParameter("scoped role %q has invalid kind %q, expected %q", role.GetMetadata().GetName(), role.GetKind(), KindScopedRole)
-	}
-
-	if role.GetSubKind() != "" {
-		return trace.BadParameter("scoped role %q has unknown sub_kind %q", role.GetMetadata().GetName(), role.GetSubKind())
-	}
-
-	if role.GetVersion() == "" {
-		return trace.BadParameter("scoped role %q is missing version", role.GetMetadata().GetName())
-	}
-
-	if role.GetVersion() != types.V1 {
-		return trace.BadParameter("scoped role %q has unsupported version %q (expected %q)", role.GetMetadata().GetName(), role.GetVersion(), types.V1)
-	}
-
-	if role.GetScope() == "" {
-		return trace.BadParameter("scoped role %q is missing scope", role.GetMetadata().GetName())
-	}
-
-	return nil
 }
 
 // WeakValidatedSubAssignments is a helper for iterating all well formed sub-assignments within a given assignment. Note that the concept
@@ -271,32 +218,8 @@ func StrongValidateAssignment(assignment *srpb.ScopedRoleAssignment) error {
 }
 
 func commonValidateAssignment(assignment *srpb.ScopedRoleAssignment) error {
-	if assignment.GetMetadata().GetName() == "" {
-		return trace.BadParameter("scoped role assignment is missing metadata.name")
-	}
-
-	if assignment.GetKind() == "" {
-		return trace.BadParameter("scoped role assignment %q is missing kind", assignment.GetMetadata().GetName())
-	}
-
-	if assignment.GetKind() != KindScopedRoleAssignment {
-		return trace.BadParameter("scoped role assignment %q has invalid kind %q, expected %q", assignment.GetMetadata().GetName(), assignment.GetKind(), KindScopedRoleAssignment)
-	}
-
-	if assignment.GetSubKind() != "" {
-		return trace.BadParameter("scoped role assignment %q has unknown sub_kind %q", assignment.GetMetadata().GetName(), assignment.GetSubKind())
-	}
-
-	if assignment.GetVersion() == "" {
-		return trace.BadParameter("scoped role assignment %q is missing version", assignment.GetMetadata().GetName())
-	}
-
-	if assignment.GetVersion() != types.V1 {
-		return trace.BadParameter("scoped role assignment %q has unsupported version %q (expected %q)", assignment.GetMetadata().GetName(), assignment.GetVersion(), types.V1)
-	}
-
-	if assignment.GetScope() == "" {
-		return trace.BadParameter("scoped role assignment %q is missing scope", assignment.GetMetadata().GetName())
+	if err := scopes.ValidateScopedResource(assignment, KindScopedRoleAssignment, types.V1); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if assignment.GetSpec().GetUser() == "" {

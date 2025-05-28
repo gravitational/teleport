@@ -26,6 +26,7 @@ import (
 	headerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	srpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopedrole/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 // TestValidateRole verifies basic functionality of strong and weak role validation functions.
@@ -267,7 +268,7 @@ func TestValidateRole(t *testing.T) {
 				require.Error(t, err, "strong validation should fail")
 			}
 
-			err = WeakValidateRole(tt.role)
+			err = scopes.WeakValidateResource(tt.role, KindScopedRole, types.V1)
 			if tt.weakOk {
 				require.NoError(t, err, "weak validation should not fail")
 			} else {
