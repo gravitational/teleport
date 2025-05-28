@@ -517,7 +517,7 @@ func botIdentityFromToken(
 
 		log.DebugContext(ctx, "updating bound keypair client state")
 
-		if err := boundkeypair.StoreClientState(ctx, boundKeypairAdapter, boundKeypairState); err != nil {
+		if err := boundKeypairState.Store(ctx, boundKeypairAdapter); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

@@ -20,8 +20,13 @@ package boundkeypair
 
 import (
 	"context"
+	"crypto"
+	"encoding/json"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -32,32 +37,54 @@ import (
 )
 
 const (
-	PrivateKeyPath = "id_bkp"
-	PublicKeyPath  = PrivateKeyPath + ".pub"
-	JoinStatePath  = "bkp_state"
+	PrivateKeyPath   = "id_bkp"
+	PublicKeyPath    = PrivateKeyPath + ".pub"
+	JoinStatePath    = "bkp_state"
+	KeyHistoryPath   = "bkp_key_history.json"
+	KeyHistoryLength = 10
 
 	StandardFileWriteMode = 0600
 )
 
+// KeyHistoryEntry records
+type KeyHistoryEntry struct {
+	// Time is the time this key was inserted into the history.
+	Time time.Time `json:"time"`
+
+	// PublicKey is the public component of the key, in ssh authorized_keys
+	// format.
+	PublicKey string `json:"public_key"`
+
+	// PrivateKey is the private key, encoded in PEM format.
+	PrivateKey string `json:"private_key"`
+}
+
 // ClientState contains state parameters stored on disk needed to complete the
 // bound keypair join process.
 type ClientState struct {
+	mu sync.Mutex
+
 	// PrivateKey is the parsed private key.
 	PrivateKey *keys.PrivateKey
 
-	// PrivateKeyBytes contains the private key bytes. This value should always
-	// be nonempty.
+	// PrivateKeyBytes contains the active private key bytes. This value should
+	// always be nonempty.
 	PrivateKeyBytes []byte
 
-	// PublicKeyBytes contains the public key bytes. This value is not used at
-	// runtime, and is only set when a public key should be written to disk,
-	// like on first creation or during rotation. To consistently access the
-	// public key, use `.PrivateKey.Public()`.
+	// PublicKeyBytes contains the active public key bytes. This value is not
+	// used at runtime, and is only set when a public key should be written to
+	// disk, like on first creation or during rotation. To consistently access
+	// the public key, use `.PrivateKey.Public()`.
 	PublicKeyBytes []byte
 
 	// JoinStateBytes contains join state bytes. This value will be empty if
 	// this client has not yet joined.
 	JoinStateBytes []byte
+
+	// KeyHistory records previous keypairs. In the event of a cluster rollback,
+	// this history will allow clients to rejoin if the cluster requests a
+	// keypair not currently marked as active.
+	KeyHistory []KeyHistoryEntry
 }
 
 // ToJoinParams creates joining parameters for use with `join.Register()` from
@@ -70,11 +97,14 @@ func (c *ClientState) ToJoinParams(initialJoinSecret string) *join.BoundKeypairP
 	}
 
 	return &join.BoundKeypairParams{
-		// Note: pass the internal signer because go-jose does type assertions
-		// on the standard library types.
-		CurrentKey:        c.PrivateKey.Signer,
 		PreviousJoinState: c.JoinStateBytes,
 		InitialJoinSecret: initialJoinSecret,
+		GetSigner: func(pubKey string) (crypto.Signer, error) {
+			return c.SignerForPublicKey([]byte(pubKey))
+		},
+		RequestNewKeypair: func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
+			return c.GenerateKeypair(ctx, getSuite)
+		},
 	}
 }
 
@@ -84,15 +114,26 @@ func (c *ClientState) UpdateFromRegisterResult(result *join.RegisterResult) erro
 		return trace.BadParameter("register result is missing bound keypair parameters")
 	}
 
-	c.JoinStateBytes = result.BoundKeypair.JoinState
+	signer, err := c.SignerForPublicKey([]byte(result.BoundKeypair.BoundPublicKey))
+	if err != nil {
+		return trace.Wrap(err, "fetching key requested by auth")
+	}
 
-	// TODO: When implementing rotation, use the bound public key value to set
-	// the current public key.
+	if err := c.SetActiveKey(signer); err != nil {
+		return trace.Wrap(err, "setting new active key")
+	}
+
+	// The helpers above may lock the mutex, so don't lock it until we're
+	// touching fields directly.
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.JoinStateBytes = result.BoundKeypair.JoinState
 
 	return nil
 }
 
-// ToPublicKeyBytes returns the public key bytes in ssh authorized_keys format.
+// ToPublicKeyBytes returns the active public key in ssh authorized_keys format.
 func (c *ClientState) ToPublicKeyBytes() ([]byte, error) {
 	sshPubKey, err := ssh.NewPublicKey(c.PrivateKey.Public())
 	if err != nil {
@@ -100,6 +141,142 @@ func (c *ClientState) ToPublicKeyBytes() ([]byte, error) {
 	}
 
 	return ssh.MarshalAuthorizedKey(sshPubKey), nil
+}
+
+// pubKeyEqual compares the two public keys per their `Equal()` implementation.
+func pubKeyEqual(a, b crypto.PublicKey) (bool, error) {
+	aEq, ok := a.(interface {
+		Equal(x crypto.PublicKey) bool
+	})
+	if !ok {
+		return false, trace.BadParameter("unsupported key type %T", a)
+	}
+
+	return aEq.Equal(b), nil
+}
+
+// SignerForPublicKey attempts to resolve a signer for the given PEM encoded
+// public key.
+func (c *ClientState) SignerForPublicKey(desiredPubKeyBytes []byte) (crypto.Signer, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	desiredPubKey, err := keys.ParsePublicKey(desiredPubKeyBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Check the active key first.
+	activePubKeyBytes, err := c.ToPublicKeyBytes()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	equal, err := pubKeyEqual(desiredPubKey, activePubKeyBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	} else if equal {
+		// Parse a fresh copy of the key since this will escape the mutex and we
+		// can't be sure our local copy is thread safe.
+		key, err := keys.ParsePrivateKey(c.PrivateKeyBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return key.Signer, nil
+	}
+
+	// Otherwise, search through the key history. If a keypair rotation was
+	// requested an `GenerateKeypair` was called, the new keypair should have
+	// been inserted at the top of this list.
+	for _, entry := range c.KeyHistory {
+		pk, err := keys.ParsePrivateKey([]byte(entry.PrivateKey))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		equal, err := pubKeyEqual(desiredPubKey, pk.Signer.Public())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if equal {
+			return pk.Signer, nil
+		}
+	}
+
+	return nil, trace.NotFound("no matching key found")
+}
+
+// GenerateKeypair generates a new keypair, adds it to the key history, and
+// returns the resulting signer signer.
+func (c *ClientState) GenerateKeypair(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
+	key, err := cryptosuites.GenerateKey(ctx, getSuite, cryptosuites.BoundKeypairJoining)
+	if err != nil {
+		return nil, trace.Wrap(err, "generating keypair")
+	}
+
+	privateKeyBytes, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshallng private key")
+	}
+
+	sshPubKey, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err, "creating ssh public key")
+	}
+
+	publicKeyBytes := ssh.MarshalAuthorizedKey(sshPubKey)
+
+	// prepend the new key to the top of the list for faster lookup
+	c.KeyHistory = append([]KeyHistoryEntry{{
+		Time:       time.Now(),
+		PublicKey:  string(publicKeyBytes),
+		PrivateKey: string(privateKeyBytes),
+	}}, c.KeyHistory...)
+
+	return key, nil
+}
+
+// SetActiveKey updates the active keypair to reflect the given signer. Has no
+// effect if the active keypair's public key is already equal to the given
+// signer's public key, per its `Equals` implementation. Note that
+// `StoreClientState` still must be called after this to commit the changes to
+// the storage backend.
+func (c *ClientState) SetActiveKey(signer crypto.Signer) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	equal, err := pubKeyEqual(signer.Public(), c.PrivateKey.Public())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if equal {
+		// nothing to do; specified key is already the active key
+		return nil
+	}
+
+	key, err := keys.NewPrivateKey(signer)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	privateKeyBytes, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return trace.Wrap(err, "marshallng private key")
+	}
+
+	sshPubKey, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return trace.Wrap(err, "creating ssh public key")
+	}
+
+	c.PrivateKey = key
+	c.PrivateKeyBytes = privateKeyBytes
+	c.PublicKeyBytes = ssh.MarshalAuthorizedKey(sshPubKey)
+
+	return nil
 }
 
 type FS interface {
@@ -133,6 +310,15 @@ func NewStandardFS(parentDir string) FS {
 	}
 }
 
+func parseKeyHistory(data []byte) ([]KeyHistoryEntry, error) {
+	var history []KeyHistoryEntry
+	if err := json.Unmarshal(data, &history); err != nil {
+		return []KeyHistoryEntry{}, trace.Wrap(err)
+	}
+
+	return history, nil
+}
+
 // LoadClientState attempts to load bound keypair client state from the given
 // filesystem implementation. Callers should expect to handle NotFound errors
 // returned here if a private key is not found; this indicates no prior client
@@ -158,36 +344,61 @@ func LoadClientState(ctx context.Context, fs FS) (*ClientState, error) {
 		return nil, trace.Wrap(err, "parsing private key")
 	}
 
+	var keyHistory []KeyHistoryEntry
+	keyHistoryBytes, err := fs.Read(ctx, KeyHistoryPath)
+	if trace.IsNotFound(err) {
+		// No history, this is allowed.
+	} else if err != nil {
+		slog.WarnContext(ctx, "unable to read key history, may be unable to recover in the event of a cluster rollback", "error", err)
+	} else {
+		keyHistory, err = parseKeyHistory(keyHistoryBytes)
+		if err != nil {
+			slog.WarnContext(ctx, "unable to parse key history, may be unable to recovery in the event of a cluster rollback", "error", err)
+		}
+	}
+
 	return &ClientState{
 		PrivateKey: pk,
 
 		PrivateKeyBytes: privateKeyBytes,
 		JoinStateBytes:  joinStateBytes,
+		KeyHistory:      keyHistory,
 	}, nil
 }
 
 // StoreClientState writes bound keypair client state to the given filesystem
 // wrapper. Public keys and join state will only be written if
-func StoreClientState(ctx context.Context, fs FS, state *ClientState) error {
-	if err := fs.Write(ctx, PrivateKeyPath, state.PrivateKeyBytes); err != nil {
+func (c *ClientState) Store(ctx context.Context, fs FS) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if err := fs.Write(ctx, PrivateKeyPath, c.PrivateKeyBytes); err != nil {
 		return trace.Wrap(err, "writing private key")
 	}
 
-	// TODO: maybe consider just not writing the public key at all. End users
-	// aren't really meant to look in the internal storage, and we can just
-	// derive the public key whenever we want.
-
 	// Only write the public key if it was explicitly provided. This helps save
 	// an unnecessary file write.
-	if len(state.PublicKeyBytes) > 0 {
-		if err := fs.Write(ctx, PublicKeyPath, state.PublicKeyBytes); err != nil {
+	if len(c.PublicKeyBytes) > 0 {
+		if err := fs.Write(ctx, PublicKeyPath, c.PublicKeyBytes); err != nil {
 			return trace.Wrap(err, "writing public key")
 		}
 	}
 
-	if len(state.JoinStateBytes) > 0 {
-		if err := fs.Write(ctx, JoinStatePath, state.JoinStateBytes); err != nil {
+	if len(c.JoinStateBytes) > 0 {
+		if err := fs.Write(ctx, JoinStatePath, c.JoinStateBytes); err != nil {
 			return trace.Wrap(err, "writing previous join state")
+		}
+	}
+
+	if len(c.KeyHistory) > 0 {
+		// Keep only the first N elements to avoid excessive lookup times.
+		bytes, err := json.Marshal(c.KeyHistory[:KeyHistoryLength])
+		if err != nil {
+			return trace.Wrap(err, "marshaling key key history")
+		}
+
+		if err := fs.Write(ctx, KeyHistoryPath, bytes); err != nil {
+			return trace.Wrap(err, "writing key history")
 		}
 	}
 
@@ -220,9 +431,17 @@ func NewUnboundClientState(ctx context.Context, getSuite cryptosuites.GetSuiteFu
 		return nil, trace.Wrap(err)
 	}
 
+	history := []KeyHistoryEntry{
+		{
+			Time:       time.Now(),
+			PrivateKey: string(privateKeyBytes),
+		},
+	}
+
 	return &ClientState{
 		PrivateKeyBytes: privateKeyBytes,
 		PublicKeyBytes:  publicKeyBytes,
 		PrivateKey:      pk,
+		KeyHistory:      history,
 	}, nil
 }

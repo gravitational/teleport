@@ -127,7 +127,7 @@ func onKeypairCreateCommand(ctx context.Context, globals *cli.GlobalArgs, cmd *c
 		return trace.Wrap(err, "initializing new client state")
 	}
 
-	if err := boundkeypair.StoreClientState(ctx, fsAdapter, state); err != nil {
+	if err := state.Store(ctx, fsAdapter); err != nil {
 		return trace.Wrap(err, "writing bound keypair state")
 	}
 
