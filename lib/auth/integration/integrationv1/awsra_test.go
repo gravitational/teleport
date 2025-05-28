@@ -92,13 +92,4 @@ func TestGenerateAWSRACredentials(t *testing.T) {
 			require.NoError(t, err)
 		}
 	})
-
-	ctx = authz.ContextWithUser(ctx, authz.BuiltinRole{
-		Role:                  types.RoleInstance,
-		AdditionalSystemRoles: []types.SystemRole{types.RoleDiscovery},
-		Username:              string(types.RoleDiscovery),
-		Identity: tlsca.Identity{
-			Username: string(types.RoleDiscovery),
-		},
-	})
 }
