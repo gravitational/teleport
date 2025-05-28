@@ -24,7 +24,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -32,6 +34,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -590,6 +593,199 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	botConfig.Onboarding.TokenValue = ""
 	thirdBot := New(botConfig, log)
 	require.NoError(t, thirdBot.Run(ctx))
+}
+
+func TestBot_IdentityRenewalFails(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	log := utils.NewSlogLoggerForTests()
+
+	// Make a new auth server.
+	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
+
+	// Create bot user and join token
+	botParams, _ := makeBot(t, rootClient, "test", "access")
+
+	botConfig := defaultBotConfig(t, process, botParams, config.ServiceConfigs{},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+		},
+	)
+
+	dest := &config.DestinationDirectory{
+		Path:     t.TempDir(),
+		Symlinks: botfs.SymlinksInsecure,
+		ACLs:     botfs.ACLOff,
+	}
+	botConfig.Storage.Destination = dest
+
+	proxy := newFailureProxy(t, botConfig.AuthServer)
+	go proxy.run(t)
+	botConfig.AuthServer = proxy.addr()
+
+	// Run the bot a first time
+	firstBot := New(botConfig, log)
+	require.NoError(t, firstBot.Run(ctx))
+
+	// Block connections. Running the bot a second time should still succeed.
+	proxy.setFailing(true)
+
+	secondBot := New(botConfig, log)
+	require.NoError(t, secondBot.Run(ctx))
+
+	// Now run the bot again with a service that needs a working connection to
+	// the auth service, it should fail.
+	outputDest := newWriteNotifier(&config.DestinationMemory{})
+	require.NoError(t, outputDest.CheckAndSetDefaults())
+	botConfig.Services = append(botConfig.Services, &config.IdentityOutput{
+		Destination: outputDest,
+	})
+	thirdBot := New(botConfig, log)
+	require.ErrorContains(t, thirdBot.Run(ctx), "failed to renew bot identity on startup")
+
+	// Drain the notification channel so we can listen for new connections.
+	select {
+	case <-proxy.notif:
+	default:
+	}
+
+	// Run it again in long-running mode, and it should eventually succeed once
+	// the network partition has healed.
+	botConfig.Oneshot = false
+	fourthBoth := New(botConfig, log)
+
+	ctx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
+	go fourthBoth.Run(ctx)
+
+	// Wait for at least one failed connection, then heal the network partition.
+	select {
+	case <-proxy.notif:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for connection")
+	}
+	proxy.setFailing(false)
+
+	// Wait for the destination to be written to.
+	select {
+	case <-outputDest.ch:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for output to be written")
+	}
+}
+
+func newWriteNotifier(dst bot.Destination) *writeNotifier {
+	return &writeNotifier{
+		Destination: dst,
+		ch:          make(chan struct{}, 1),
+	}
+}
+
+type writeNotifier struct {
+	bot.Destination
+
+	ch chan struct{}
+}
+
+func (w writeNotifier) Write(ctx context.Context, name string, data []byte) error {
+	if name != identity.WriteTestKey {
+		defer func() {
+			select {
+			case w.ch <- struct{}{}:
+			default:
+			}
+		}()
+	}
+	return w.Destination.Write(ctx, name, data)
+}
+
+type failureProxy struct {
+	dst     string
+	lis     net.Listener
+	failing atomic.Bool
+	notif   chan struct{}
+}
+
+func newFailureProxy(t *testing.T, dst string) *failureProxy {
+	t.Helper()
+
+	lis, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		if err := lis.Close(); err != nil {
+			t.Logf("failed to close listener: %v", err)
+		}
+	})
+
+	return &failureProxy{
+		dst:   dst,
+		lis:   lis,
+		notif: make(chan struct{}, 1),
+	}
+}
+
+func (f *failureProxy) run(t *testing.T) {
+	t.Helper()
+
+	for {
+		conn, err := f.lis.Accept()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+		if err != nil {
+			t.Logf("accept failed: %v", err)
+			continue
+		}
+
+		select {
+		case f.notif <- struct{}{}:
+		default:
+		}
+
+		go f.handleConn(t, conn)
+	}
+}
+
+func (f *failureProxy) handleConn(t *testing.T, conn net.Conn) {
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Logf("failed to close connection: %v", err)
+		}
+	}()
+
+	// If we're failing, just close the connection immediately.
+	if f.failing.Load() {
+		return
+	}
+
+	upstream, err := net.Dial("tcp", f.dst)
+	if err != nil {
+		t.Logf("failed to dial upstream: %v", err)
+		return
+	}
+
+	done := make(chan struct{}, 1)
+	pipe := func(dst io.Writer, src io.Reader) {
+		_, _ = io.Copy(dst, src)
+		done <- struct{}{}
+	}
+
+	go pipe(upstream, conn)
+	go pipe(conn, upstream)
+
+	<-done
+}
+
+func (f *failureProxy) addr() string {
+	return f.lis.Addr().String()
+}
+
+func (f *failureProxy) setFailing(failing bool) {
+	f.failing.Store(failing)
 }
 
 func TestBot_InsecureViaProxy(t *testing.T) {
