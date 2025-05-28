@@ -89,7 +89,7 @@ type VersionStorage interface {
 // operations.
 type RecordingEncryptionManager interface {
 	services.RecordingEncryption
-	recordingencryption.RecordingEncryptionResolver
+	recordingencryption.Resolver
 	recordingencryption.DecryptionKeyFinder
 }
 
@@ -507,7 +507,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		asrv.logger.InfoContext(ctx, "Created reverse tunnel", "tunnel", tunnel.GetName())
 	}
 
-	recordingEncryptionWatchCfg := recordingencryption.RecordingEncryptionWatchConfig{
+	recordingEncryptionWatchCfg := recordingencryption.WatchConfig{
 		Events:        asrv.Events,
 		Resolver:      asrv,
 		ClusterConfig: asrv,

@@ -320,8 +320,8 @@ func GetAgeEncryptionKeys(keys []*recordingencryptionv1.WrappedKey) iter.Seq[*ty
 	}
 }
 
-// RecordingEncryptionResolver resolves RecordingEncryption state
-type RecordingEncryptionResolver interface {
+// Resolver resolves RecordingEncryption state
+type Resolver interface {
 	ResolveRecordingEncryption(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error)
 }
 
@@ -329,7 +329,7 @@ type RecordingEncryptionResolver interface {
 // automatically resolves state.
 type WatchConfig struct {
 	Events        types.Events
-	Resolver      RecordingEncryptionResolver
+	Resolver      Resolver
 	ClusterConfig services.ClusterConfiguration
 	Logger        *slog.Logger
 	LockConfig    *backend.RunWhileLockedConfig

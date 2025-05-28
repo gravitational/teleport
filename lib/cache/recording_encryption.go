@@ -23,7 +23,7 @@ import (
 	"github.com/gravitational/trace"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	recencpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
@@ -33,27 +33,27 @@ type recordingEncryptionIndex string
 
 const recordingEncryptionNameIndex recordingEncryptionIndex = "name"
 
-func newRecordingEncryptionCollection(upstream services.RecordingEncryption, w types.WatchKind) (*collection[*recencpb.RecordingEncryption, recordingEncryptionIndex], error) {
+func newRecordingEncryptionCollection(upstream services.RecordingEncryption, w types.WatchKind) (*collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter RecordingEncryption")
 	}
 
-	return &collection[*recencpb.RecordingEncryption, recordingEncryptionIndex]{
-		store: newStore(utils.CloneProtoMsg[*recencpb.RecordingEncryption], map[recordingEncryptionIndex]func(*recencpb.RecordingEncryption) string{
-			recordingEncryptionNameIndex: func(r *recencpb.RecordingEncryption) string {
+	return &collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]{
+		store: newStore(utils.CloneProtoMsg[*recordingencryptionv1.RecordingEncryption], map[recordingEncryptionIndex]func(*recordingencryptionv1.RecordingEncryption) string{
+			recordingEncryptionNameIndex: func(r *recordingencryptionv1.RecordingEncryption) string {
 				return r.GetMetadata().GetName()
 			},
 		}),
-		fetcher: func(ctx context.Context, loadSecrets bool) ([]*recencpb.RecordingEncryption, error) {
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*recordingencryptionv1.RecordingEncryption, error) {
 			recordingEncryption, err := upstream.GetRecordingEncryption(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			return []*recencpb.RecordingEncryption{recordingEncryption}, nil
+			return []*recordingencryptionv1.RecordingEncryption{recordingEncryption}, nil
 		},
-		headerTransform: func(hdr *types.ResourceHeader) *recencpb.RecordingEncryption {
-			return &recencpb.RecordingEncryption{
+		headerTransform: func(hdr *types.ResourceHeader) *recordingencryptionv1.RecordingEncryption {
+			return &recordingencryptionv1.RecordingEncryption{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
 				Metadata: &headerv1.Metadata{
@@ -66,15 +66,15 @@ func newRecordingEncryptionCollection(upstream services.RecordingEncryption, w t
 }
 
 // GetRecordingEncryption returns the cached RecordingEncryption for the cluster
-func (c *Cache) GetRecordingEncryption(ctx context.Context) (*recencpb.RecordingEncryption, error) {
+func (c *Cache) GetRecordingEncryption(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetRecordingEncryption")
 	defer span.End()
 
-	getter := genericGetter[*recencpb.RecordingEncryption, recordingEncryptionIndex]{
+	getter := genericGetter[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]{
 		cache:      c,
 		collection: c.collections.recordingEncryption,
 		index:      recordingEncryptionNameIndex,
-		upstreamGet: func(ctx context.Context, ident string) (*recencpb.RecordingEncryption, error) {
+		upstreamGet: func(ctx context.Context, ident string) (*recordingencryptionv1.RecordingEncryption, error) {
 			return c.Config.RecordingEncryption.GetRecordingEncryption(ctx)
 		},
 	}

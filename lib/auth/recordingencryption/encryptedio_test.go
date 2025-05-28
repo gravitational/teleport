@@ -14,6 +14,7 @@ import (
 )
 
 func TestEncryptedIO(t *testing.T) {
+	ctx := context.Background()
 	keyStore := newFakeKeyStore()
 	ident, err := keyStore.generateIdentity()
 	require.NoError(t, err)
@@ -28,7 +29,7 @@ func TestEncryptedIO(t *testing.T) {
 	encryptedIO := recordingencryption.NewEncryptedIO(srcGetter, keyStore)
 
 	out := bytes.NewBuffer(nil)
-	writer, err := encryptedIO.WithEncryption(&writeCloser{Writer: out})
+	writer, err := encryptedIO.WithEncryption(ctx, &writeCloser{Writer: out})
 	require.NoError(t, err)
 
 	msg := []byte("testing encrypted IO")

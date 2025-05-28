@@ -101,7 +101,7 @@ const (
 
 // An EncryptionWrapper wraps a given io.WriteCloser with encryption.
 type EncryptionWrapper interface {
-	WithEncryption(io.WriteCloser) (io.WriteCloser, error)
+	WithEncryption(context.Context, io.WriteCloser) (io.WriteCloser, error)
 }
 
 // A DecryptionWrapper wraps a given io.Reader with decryption.
@@ -706,7 +706,7 @@ func (w *sliceWriter) newSlice() (*slice, error) {
 	var writer io.WriteCloser = &bufferCloser{Buffer: buffer}
 	if w.encrypter != nil {
 		// we want to encrypt after compression, so gzip needs to be the outermost layer
-		writer, err = w.encrypter.WithEncryption(writer)
+		writer, err = w.encrypter.WithEncryption(w.proto.completeCtx, writer)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

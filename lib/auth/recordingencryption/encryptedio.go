@@ -9,7 +9,6 @@ import (
 	"filippo.io/age"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/events"
 )
 
 // SessionRecordingConfigGetter returns the types.SessionRecordingConfig used to determine if
@@ -25,9 +24,6 @@ type EncryptedIO struct {
 	keyFinder DecryptionKeyFinder
 }
 
-var _ events.EncryptionWrapper = (*EncryptedIO)(nil)
-var _ events.DecryptionWrapper = (*EncryptedIO)(nil)
-
 // NewEncryptedIO returns an EncryptedIO configured with the given SessionRecordingConfigGetter and
 // recordingencryption.DecryptionKeyFinder
 func NewEncryptedIO(srcgetter SessionRecordingConfigGetter, decryptionKeyGetter DecryptionKeyFinder) *EncryptedIO {
@@ -39,19 +35,18 @@ func NewEncryptedIO(srcgetter SessionRecordingConfigGetter, decryptionKeyGetter 
 
 // WithEncryption wraps the given io.WriteCloser with encryption using the keys present in the
 // retrieved types.SessionRecordingConfig
-func (e *EncryptedIO) WithEncryption(writer io.WriteCloser) (io.WriteCloser, error) {
+func (e *EncryptedIO) WithEncryption(ctx context.Context, writer io.WriteCloser) (io.WriteCloser, error) {
 	if e.srcGetter == nil {
 		return writer, nil
 	}
 
-	ctx := context.Background()
 	src, err := e.srcGetter.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	encrypter := NewEncryptionWrapper(src)
-	w, err := encrypter.WithEncryption(writer)
+	w, err := encrypter.WithEncryption(ctx, writer)
 	return w, trace.Wrap(err)
 }
 
@@ -78,8 +73,6 @@ type EncryptionWrapper struct {
 	config types.SessionRecordingConfig
 }
 
-var _ events.EncryptionWrapper = (*EncryptionWrapper)(nil)
-
 // NewEncryptionWrapper returns a new EncryptionWrapper backed by the given types.SessionRecordingConfig
 func NewEncryptionWrapper(sessionRecordingConfig types.SessionRecordingConfig) *EncryptionWrapper {
 	return &EncryptionWrapper{
@@ -89,13 +82,13 @@ func NewEncryptionWrapper(sessionRecordingConfig types.SessionRecordingConfig) *
 
 // WithEncryption wraps the given io.WriteCloser with encryption using the keys present in the
 // configured types.SessionRecordingConfig
-func (s *EncryptionWrapper) WithEncryption(writer io.WriteCloser) (io.WriteCloser, error) {
+func (s *EncryptionWrapper) WithEncryption(ctx context.Context, writer io.WriteCloser) (io.WriteCloser, error) {
 	if !s.config.GetEncrypted() {
 		return writer, nil
 	}
 
 	var recipients []age.Recipient
-	for _, key := range s.config.GetStatus().EncryptionKeys {
+	for _, key := range s.config.GetEncryptionKeys() {
 		recipient, err := ParseRecordingRecipient(string(key.PublicKey))
 		if err != nil {
 			return nil, trace.Wrap(err)
