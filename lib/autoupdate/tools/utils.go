@@ -159,6 +159,7 @@ func CleanUp(toolsDir string, tools []string) error {
 // if this package is optional, for such case download needs to be ignored if package
 // not found in CDN.
 type packageURL struct {
+	Version  string
 	Archive  string
 	Hash     string
 	Optional bool
@@ -192,13 +193,13 @@ func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, version s
 		}
 
 		return []packageURL{
-			{Archive: teleportURL, Hash: teleportURL + ".sha256"},
-			{Archive: tshURL, Hash: tshURL + ".sha256", Optional: true},
+			{Version: version, Archive: teleportURL, Hash: teleportURL + ".sha256"},
+			{Version: version, Archive: tshURL, Hash: tshURL + ".sha256", Optional: true},
 		}, nil
 	}
 
 	return []packageURL{
-		{Archive: teleportURL, Hash: teleportURL + ".sha256"},
+		{Version: version, Archive: teleportURL, Hash: teleportURL + ".sha256"},
 	}, nil
 }
 

@@ -742,6 +742,34 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		DTAuthnRunCeremony: dtauthn.NewCeremony().Run,
 		DTAutoEnroll:       dtenroll.AutoEnroll,
 	}
+	// configure CLI argument parser:
+	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(true)
+	app.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
+	login := app.Command("login", "Log in to a cluster and retrieve the session certificate.")
+	// We need to parse the arguments before executing managed updates to identify
+	// the profile name and the required version for the current cluster.
+	// All other commands and flags may change between versions, so full parsing
+	// should be performed only after managed updates are applied.
+	app.Parse(args)
+
+	// Check local update for specific proxy from configuration.
+	var err error
+	var name string
+	if cf.Proxy != "" {
+		name, err = utils.Host(cf.Proxy)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		profilePath := profile.FullProfilePath(filepath.Clean(os.Getenv(types.HomeEnvVar)))
+		name, err = profile.GetCurrentProfileName(profilePath)
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	if err := helper.CheckAndUpdateLocal(ctx, name, args); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// run early to enable debug logging if env var is set.
 	// this makes it possible to debug early startup functionality, particularly command aliases.
@@ -750,11 +778,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	moduleCfg := modules.GetModules()
 	var cpuProfile, memProfile, traceProfile string
 
-	// configure CLI argument parser:
-	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(true)
-
 	app.Flag("login", "Remote host login").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
-	app.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
 	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", "Teleport user, defaults to current local user").Envar(userEnvVar).StringVar(&cf.Username)
 	app.Flag("mem-profile", "Write memory profile to file").Hidden().StringVar(&memProfile)
@@ -1079,7 +1103,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
-	login := app.Command("login", "Log in to a cluster and retrieve the session certificate.")
 	login.Flag("out", "Identity output").Short('o').AllowDuplicate().StringVar(&cf.IdentityFileOut)
 	login.Flag("format", fmt.Sprintf("Identity format: %s, %s (for OpenSSH compatibility) or %s (for kubeconfig)",
 		identityfile.DefaultFormat,
@@ -1285,7 +1308,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		bench.Hidden()
 	}
 
-	var err error
 	cf.executablePath, err = os.Executable()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1328,14 +1350,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Identity file, a proxy must be passed on the command line as well.
 	if cf.IdentityFileIn != "" && cf.Proxy == "" {
 		return trace.BadParameter("tsh --identity also requires --proxy")
-	}
-
-	if p, err := cf.GetProfile(); err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	} else {
-		if err := helper.CheckAndUpdateLocal(ctx, p, args); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	// prevent Kingpin from calling os.Exit(), we want to handle errors ourselves.
@@ -1962,7 +1976,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 	// The user is not logged in and has typed in `tsh --proxy=... login`, if
 	// the running binary needs to be updated, update and re-exec.
 	if profile == nil {
-		if err := tc.CheckAndUpdateRemote(cf.Context, reExecArgs); err != nil {
+		if err := helper.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1980,7 +1994,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := tc.CheckAndUpdateRemote(cf.Context, reExecArgs); err != nil {
+			if err := helper.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1999,7 +2013,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := tc.CheckAndUpdateRemote(cf.Context, reExecArgs); err != nil {
+			if err := helper.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -2073,7 +2087,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		default:
 			// The user is logged in and has typed in `tsh --proxy=... login`, if
 			// the running binary needs to be updated, update and re-exec.
-			if err := tc.CheckAndUpdateRemote(cf.Context, reExecArgs); err != nil {
+			if err := helper.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 		}

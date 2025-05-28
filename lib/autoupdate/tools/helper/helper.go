@@ -27,9 +27,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
+	"github.com/gravitational/teleport/lib/utils"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 )
 
@@ -56,6 +56,11 @@ func NewDefaultUpdater() (*tools.Updater, error) {
 		baseURL = envBaseURL
 	}
 
+	// Create tools directory if it does not exist.
+	if err := os.MkdirAll(toolsDir, 0o755); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return tools.NewUpdater(toolsDir, version, tools.WithBaseURL(baseURL)), nil
 }
 
@@ -66,7 +71,7 @@ func NewDefaultUpdater() (*tools.Updater, error) {
 // with the updated version.
 // If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
 // using the version from the home directory.
-func CheckAndUpdateLocal(ctx context.Context, p *profile.Profile, reExecArgs []string) error {
+func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecArgs []string) error {
 	updater, err := NewDefaultUpdater()
 	if errors.Is(err, ErrDisabled) {
 		slog.WarnContext(ctx, "Client tools update is disabled")
@@ -80,7 +85,12 @@ func CheckAndUpdateLocal(ctx context.Context, p *profile.Profile, reExecArgs []s
 		return trace.Wrap(err)
 	}
 
-	if !resp.IsLocal && p != nil && p.ManagedUpdates != nil && p.ManagedUpdates.Disabled {
+	config, err := updater.LoadConfig(currentProfileName)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	if !resp.IsLocal && config != nil && config.Disabled {
 		return nil
 	}
 
@@ -91,6 +101,56 @@ func CheckAndUpdateLocal(ctx context.Context, p *profile.Profile, reExecArgs []s
 		}
 	}
 
+	return nil
+}
+
+// CheckAndUpdateRemote verifies client tools version is set for update in cluster
+// configuration by making the http request to `webapi/find` endpoint. The requested
+// version is compared with the current client tools version. If they differ, the version
+// package is downloaded, extracted to the client tools directory, and re-executed
+// with the updated version.
+// If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
+// using the version from the home directory.
+func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reExecArgs []string) error {
+	updater, err := NewDefaultUpdater()
+	if errors.Is(err, ErrDisabled) {
+		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
+		return nil
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+
+	resp, err := updater.CheckRemote(ctx, proxy, insecure)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	profileName, err := utils.Host(proxy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	config, err := updater.LoadConfig(profileName)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	if config == nil {
+		config = &tools.Config{}
+	}
+
+	config.Version = resp.Version
+	config.Disabled = resp.Disabled
+	if err := updater.SaveConfig(profileName, config); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !config.Disabled && resp.ReExec {
+		err := UpdateAndReExec(ctx, updater, resp.Version, reExecArgs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 

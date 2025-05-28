@@ -121,7 +121,7 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 func TestLoginWithUpdaterAndProfile(t *testing.T) {
 	ctx := context.Background()
 
-	rootServer, homeDir, installDir := bootstrapTestServer(t)
+	rootServer, _, installDir := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeDisabled, testVersions[1])
 
 	proxyAddr, err := rootServer.ProxyWebAddr()
@@ -135,7 +135,7 @@ func TestLoginWithUpdaterAndProfile(t *testing.T) {
 	// First login with set version during login process
 	t.Setenv("TELEPORT_TOOLS_VERSION", testVersions[1])
 	cmd := exec.CommandContext(ctx, executable,
-		"login", "--insecure", "--proxy", proxyAddr.String(), "--user", "alice", "--auth", constants.LocalConnector)
+		"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -144,11 +144,11 @@ func TestLoginWithUpdaterAndProfile(t *testing.T) {
 	require.NoError(t, os.Unsetenv("TELEPORT_TOOLS_VERSION"))
 
 	// Check profile, updates must be marked
-	profileStore := client.NewFSClientStore(homeDir)
-	p, err := profileStore.GetProfile(proxyAddr.Host())
-	require.NoError(t, err)
-	require.NotNil(t, p.ManagedUpdates)
-	require.False(t, p.ManagedUpdates.Disabled)
+	//profileStore := client.NewFSClientStore(homeDir)
+	//p, err := profileStore.GetProfile(proxyAddr.Host())
+	//require.NoError(t, err)
+	//require.NotNil(t, p.ManagedUpdates)
+	//require.False(t, p.ManagedUpdates.Disabled)
 
 	// Run version command to verify that login command executed auto update and
 	// tsh was upgraded to [v3.2.1].
@@ -172,7 +172,7 @@ func TestLoginWithUpdaterAndProfile(t *testing.T) {
 func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 	ctx := context.Background()
 
-	rootServer, homeDir, installDir := bootstrapTestServer(t)
+	rootServer, _, installDir := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeDisabled, testVersions[1])
 
 	proxyAddr, err := rootServer.ProxyWebAddr()
@@ -180,7 +180,7 @@ func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 	executable := filepath.Join(installDir, "tsh")
 
 	// Fetch compiled test binary and install to tools dir [v1.2.3].
-	err = tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL)).Update(ctx, testVersions[0])
+	err = tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL)).UpdateWithLock(ctx, testVersions[0])
 	require.NoError(t, err)
 
 	// Set env variable to forcibly request update on version command.
@@ -198,18 +198,11 @@ func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 
 	// Second login has to update profile and disable further managed updates.
 	cmd = exec.CommandContext(ctx, executable,
-		"login", "--insecure", "--proxy", proxyAddr.String(), "--user", "alice", "--auth", constants.LocalConnector)
+		"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	require.NoError(t, cmd.Run())
-
-	// Check profile, updates must be disabled.
-	profileStore := client.NewFSClientStore(homeDir)
-	p, err := profileStore.GetProfile(proxyAddr.Host())
-	require.NoError(t, err)
-	require.NotNil(t, p.ManagedUpdates)
-	require.True(t, p.ManagedUpdates.Disabled)
 
 	// Run version command to verify that login command executed auto update and
 	// tsh was upgraded to [v3.2.1].
@@ -219,6 +212,7 @@ func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 	// Check the version.
 	matches = pattern.FindStringSubmatch(string(out))
 	require.Len(t, matches, 2)
+	fmt.Println(string(out))
 	require.Equal(t, testVersions[0], matches[1])
 }
 
@@ -234,7 +228,7 @@ func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 	ctx := context.Background()
 
-	rootServer, homeDir, installDir := bootstrapTestServer(t)
+	rootServer, _, installDir := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeDisabled, testVersions[1])
 
 	proxyAddr, err := rootServer.ProxyWebAddr()
@@ -247,18 +241,11 @@ func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 
 	// Second login has to update profile and disable further managed updates.
 	cmd := exec.CommandContext(ctx, executable,
-		"login", "--insecure", "--proxy", proxyAddr.String(), "--user", "alice", "--auth", constants.LocalConnector)
+		"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	require.NoError(t, cmd.Run())
-
-	// Check profile, updates must be disabled.
-	profileStore := client.NewFSClientStore(homeDir)
-	p, err := profileStore.GetProfile(proxyAddr.Host())
-	require.NoError(t, err)
-	require.NotNil(t, p.ManagedUpdates)
-	require.True(t, p.ManagedUpdates.Disabled)
 
 	// Trying to forcibly use specific version not during login.
 	t.Setenv("TELEPORT_TOOLS_VERSION", testVersions[1])
@@ -269,6 +256,7 @@ func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 	// Check that version is used that requested from env variable.
 	matches := pattern.FindStringSubmatch(string(out))
 	require.Len(t, matches, 2)
+	fmt.Println(string(out))
 	require.Equal(t, testVersions[1], matches[1])
 	// Unset the version after update process.
 	require.NoError(t, os.Unsetenv("TELEPORT_TOOLS_VERSION"))
@@ -281,6 +269,7 @@ func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 	require.NoError(t, err)
 	matches = pattern.FindStringSubmatch(string(out))
 	require.Len(t, matches, 2)
+	fmt.Println(string(out))
 	require.Equal(t, testVersions[0], matches[1])
 }
 

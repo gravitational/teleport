@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/metadata"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
@@ -38,22 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
-
-// ReadCurrentProfile returns current profile data.
-func ReadCurrentProfile(home string) (*profile.Profile, error) {
-	profileStore := client.NewFSProfileStore(home)
-	current, err := profileStore.CurrentProfile()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	profile, err := profileStore.GetProfile(current)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return profile, nil
-}
 
 // LoadConfigFromProfile applies config from ~/.tsh/ profile if it's present
 func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {

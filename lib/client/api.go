@@ -712,11 +712,6 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		return trace.Wrap(err)
 	}
 
-	// Verifies managed updates and modifies client config before profile is saved.
-	if err := tc.CheckAndUpdateRemote(ctx, os.Args[1:]); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Save profile to record proxy credentials.
 	if err := tc.SaveProfile(opt.makeCurrentProfile); err != nil {
 		log.WarnContext(ctx, "Failed to save profile", "error", err)

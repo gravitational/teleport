@@ -188,6 +188,7 @@ func replacePkg(toolsDir string, archivePath string, extractDir string, execName
 		// if multiple processes are trying to operate on it.
 		command := exec.Command(path, "version")
 		command.Env = []string{"TELEPORT_TOOLS_VERSION=off"}
+		command.Stderr = os.Stderr
 		if err := command.Run(); err != nil {
 			return trace.WrapWithMessage(err, "failed to validate binary")
 		}

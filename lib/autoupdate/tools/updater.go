@@ -242,10 +242,6 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 // UpdateWithLock acquires filesystem lock, downloads requested version package,
 // unarchive and replace existing one.
 func (u *Updater) UpdateWithLock(ctx context.Context, updateToolsVersion string) (err error) {
-	// Create tools directory if it does not exist.
-	if err := os.MkdirAll(u.toolsDir, 0o755); err != nil {
-		return trace.Wrap(err)
-	}
 	// Lock concurrent client tools execution util requested version is updated.
 	unlock, err := utils.FSWriteLock(filepath.Join(u.toolsDir, lockFileName))
 	if err != nil {
@@ -343,6 +339,10 @@ func (u *Updater) update(ctx context.Context, pkg packageURL, pkgName string) er
 
 	// Perform atomic replace so concurrent exec do not fail.
 	if err := packaging.ReplaceToolsBinaries(u.toolsDir, f.Name(), extractDir, u.tools); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := u.SaveVersionPath(pkg.Version, extractDir); err != nil {
 		return trace.Wrap(err)
 	}
 
