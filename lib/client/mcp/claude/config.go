@@ -21,6 +21,7 @@ package claude
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"maps"
 	"os"
 	"path/filepath"
@@ -69,36 +70,27 @@ type MCPServer struct {
 // Config represents a Claude Desktop config.
 //
 // Config preserves unknown fields and ordering from the original JSON when
-// saving, by using the sjson lib. Outside changes to the config file after
-// LoadConfig will be ignored.
+// saving, by using the sjson lib.
 //
 // Config functions are not thread-safe.
 type Config struct {
 	mcpServers            map[string]MCPServer
 	configData            []byte
-	configPath            string
-	configExists          bool
 	isOriginalJSONCompact bool
 }
 
-// LoadConfig loads the Claude Desktop's config from the provided path.
-func LoadConfig(configPath string) (*Config, error) {
-	var configExists bool
+// NewConfig creates an empty config.
+func NewConfig() (*Config, error) {
+	return NewConfigFromJSON([]byte("{}"))
+}
+
+// NewConfigFromJSON creates a config from JSON.
+func NewConfigFromJSON(data []byte) (*Config, error) {
 	config := struct {
 		MCPServers map[string]MCPServer `json:"mcpServers"`
 	}{}
-
-	data, err := os.ReadFile(configPath)
-	switch {
-	case os.IsNotExist(err):
-		data = []byte("{}")
-	case err != nil:
-		return nil, trace.Wrap(trace.ConvertSystemError(err), "reading Claude Desktop config")
-	default:
-		configExists = true
-		if err := json.Unmarshal(data, &config); err != nil {
-			return nil, trace.Wrap(err, "parsing Claude Desktop config")
-		}
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, trace.Wrap(err, "parsing Claude Desktop config")
 	}
 
 	if config.MCPServers == nil {
@@ -111,27 +103,9 @@ func LoadConfig(configPath string) (*Config, error) {
 
 	return &Config{
 		mcpServers:            config.MCPServers,
-		configExists:          configExists,
 		configData:            data,
-		configPath:            configPath,
 		isOriginalJSONCompact: isOriginalJSONCompact,
 	}, nil
-}
-
-// LoadConfigFromDefaultPath loads the Claude Desktop's config from the default
-// path.
-func LoadConfigFromDefaultPath() (*Config, error) {
-	configPath, err := DefaultConfigPath()
-	if err != nil {
-		return nil, trace.Wrap(err, "finding Claude Desktop config path")
-	}
-	config, err := LoadConfig(configPath)
-	return config, trace.Wrap(err)
-}
-
-// Exists returns true if config file exists.
-func (c *Config) Exists() bool {
-	return c.configExists
 }
 
 // GetMCPServers returns a shallow copy of the MCP servers.
@@ -173,18 +147,81 @@ const (
 	FormatJSONAuto FormatJSONOption = "auto"
 )
 
-// Save saves the updated config to the config path. Format defaults to "auto"
-// if empty.
-func (c *Config) Save(format FormatJSONOption) error {
+// Write writes the config to provided writer.
+func (c *Config) Write(w io.Writer, format FormatJSONOption) error {
 	data, err := c.formatConfigData(format)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+// FileConfig represents a Config read from a file.
+//
+// Note that outside changes to the config file after LoadConfigFromFile will be
+// ignored when saving.
+type FileConfig struct {
+	*Config
+	configPath   string
+	configExists bool
+}
+
+// LoadConfigFromFile loads the Claude Desktop's config from the provided path.
+func LoadConfigFromFile(configPath string) (*FileConfig, error) {
+	var configExists bool
+	data, err := os.ReadFile(configPath)
+	switch {
+	case os.IsNotExist(err):
+		data = []byte("{}")
+	case err != nil:
+		return nil, trace.Wrap(trace.ConvertSystemError(err), "reading Claude Desktop config")
+	default:
+		configExists = true
+	}
+
+	config, err := NewConfigFromJSON(data)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &FileConfig{
+		Config:       config,
+		configPath:   configPath,
+		configExists: configExists,
+	}, nil
+}
+
+// LoadConfigFromDefaultPath loads the Claude Desktop's config from the default
+// path.
+func LoadConfigFromDefaultPath() (*FileConfig, error) {
+	configPath, err := DefaultConfigPath()
+	if err != nil {
+		return nil, trace.Wrap(err, "finding Claude Desktop config path")
+	}
+	config, err := LoadConfigFromFile(configPath)
+	return config, trace.Wrap(err)
+}
+
+// Exists returns true if config file exists.
+func (c *FileConfig) Exists() bool {
+	return c.configExists
+}
+
+// Save saves the updated config to the config path. Format defaults to "auto"
+// if empty.
+func (c *FileConfig) Save(format FormatJSONOption) error {
+	if c.configPath == "" {
+		return trace.BadParameter("Config not created with a config path")
+	}
+
 	// Claude Desktop creates the config with 0644.
-	if err := os.WriteFile(c.configPath, data, 0644); err != nil {
+	file, err := os.OpenFile(c.configPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	return nil
+	defer file.Close()
+	return trace.Wrap(c.Write(file, format))
 }
 
 func (c *Config) mcpServerJSONPath(serverName string) string {

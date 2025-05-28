@@ -19,6 +19,7 @@
 package claude
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -27,11 +28,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConfig_fileNotExists(t *testing.T) {
+func TestFileConfig_fileNotExists(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.json")
 
-	config, err := LoadConfig(configPath)
+	config, err := LoadConfigFromFile(configPath)
 	require.NoError(t, err)
 	require.NotNil(t, config)
 	require.False(t, config.Exists())
@@ -43,7 +44,7 @@ func TestConfig_fileNotExists(t *testing.T) {
 	requireFileWithData(t, configPath, `{"mcpServers":{"test":{"command":"command"}}}`)
 }
 
-func TestConfig_sampleFile(t *testing.T) {
+func TestFileConfig_sampleFile(t *testing.T) {
 	const sampleConfigJSON = `{
   "someUnknownField": "someUnknownValue",
   "mcpServers": {
@@ -81,7 +82,7 @@ func TestConfig_sampleFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(sampleConfigJSON), 0600))
 
 	// load
-	config, err := LoadConfig(configPath)
+	config, err := LoadConfigFromFile(configPath)
 	require.NoError(t, err)
 	require.NotNil(t, config)
 	require.True(t, config.Exists())
@@ -129,6 +130,19 @@ func TestConfig_sampleFile(t *testing.T) {
   }
 }
 `)
+}
+
+func TestConfig_Write(t *testing.T) {
+	config, err := NewConfig()
+	require.NoError(t, err)
+
+	require.NoError(t, config.PutMCPServer("test", MCPServer{
+		Command: "command",
+	}))
+	var buf bytes.Buffer
+
+	require.NoError(t, config.Write(&buf, FormatJSONCompact))
+	require.Equal(t, `{"mcpServers":{"test":{"command":"command"}}}`, buf.String())
 }
 
 func Test_isJSONCompact(t *testing.T) {
