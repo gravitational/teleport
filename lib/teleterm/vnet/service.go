@@ -392,6 +392,8 @@ func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.
 
 // UserTLSCert returns the user TLS certificate for the given profile.
 func (p *clientApplication) UserTLSCert(ctx context.Context, profileName string) (tls.Certificate, error) {
+	// We don't have easy access to the user TLS cert from here, the only way
+	// I've found is to reach through the ProxyClient as this does below.
 	clusterClient, err := p.getCachedClient(ctx, profileName, "")
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
@@ -408,10 +410,21 @@ func (p *clientApplication) UserTLSCert(ctx context.Context, profileName string)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "getting user TLS config")
 	}
-	if len(tlsConfig.Certificates) == 0 {
+	switch {
+	case len(tlsConfig.Certificates) > 0:
+		return tlsConfig.Certificates[0], nil
+	case tlsConfig.GetClientCertificate != nil:
+		// This is the actual path we currently take at the time of writing,
+		// api/client.configureTLS always sets tlsConfig.GetClientCertificate
+		// and unsets tlsConfig.Certificates.
+		tlsCert, err := tlsConfig.GetClientCertificate(nil)
+		if err != nil {
+			return tls.Certificate{}, trace.Wrap(err, "getting client TLS certificate")
+		}
+		return *tlsCert, nil
+	default:
 		return tls.Certificate{}, trace.Errorf("user TLS config has no certificates")
 	}
-	return tlsConfig.Certificates[0], nil
 }
 
 // GetDialOptions returns ALPN dial options for the profile.
