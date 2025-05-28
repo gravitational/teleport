@@ -65,7 +65,7 @@ func (g *roleV8TestingPrimitives) SetupTeleportFixtures(ctx context.Context) err
 }
 
 func (g *roleV8TestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
-	role, err := types.NewRoleWithVersion(name, types.V6, roleV6Spec)
+	role, err := types.NewRoleWithVersion(name, types.V8, roleV8Spec)
 	if err != nil {
 		return trace.Wrap(err)
 	}
