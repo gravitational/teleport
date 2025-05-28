@@ -2029,7 +2029,11 @@ func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
 			if elem.APIGroup == types.Wildcard {
 				elem.APIGroup = ""
 			}
-
+			// If we have a wildcard kind, only keep it if the namespace is also a wildcard.
+			if elem.Kind == types.Wildcard && elem.Namespace == types.Wildcard && elem.APIGroup == "" {
+				out = append(out, elem)
+				continue
+			}
 			// If Kind is known in v7 and group is known, remove it the api group and keep the resource.
 			if v, ok := defaultRBACResources[allowedResourcesKey{elem.APIGroup, elem.Kind}]; ok {
 				elem.APIGroup = ""
