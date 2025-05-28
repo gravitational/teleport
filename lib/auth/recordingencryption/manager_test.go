@@ -19,7 +19,6 @@ package recordingencryption_test
 import (
 	"context"
 	"crypto"
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
@@ -58,9 +57,14 @@ type fakeEncryptionKeyStore struct {
 }
 
 func (f *fakeEncryptionKeyStore) NewEncryptionKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.EncryptionKeyPair, error) {
-	private, err := rsa.GenerateKey(rand.Reader, 2048)
+	decrypter, err := cryptosuites.GenerateDecrypterWithAlgorithm(cryptosuites.RSA2048)
 	if err != nil {
 		return nil, err
+	}
+
+	private, ok := decrypter.(*rsa.PrivateKey)
+	if !ok {
+		return nil, errors.New("expected RSA private key")
 	}
 
 	privatePEM := pem.EncodeToMemory(&pem.Block{
@@ -139,7 +143,7 @@ func TestResolveRecordingEncryption(t *testing.T) {
 	require.NoError(t, err)
 	activeKeys := encryption.GetSpec().GetActiveKeys()
 
-	require.Equal(t, 1, len(activeKeys))
+	require.Len(t, activeKeys, 1)
 	firstKey := activeKeys[0]
 
 	// should generate a wrapped key with the initial recording encryption pair
@@ -151,7 +155,7 @@ func TestResolveRecordingEncryption(t *testing.T) {
 	require.NoError(t, err)
 
 	activeKeys = encryption.GetSpec().ActiveKeys
-	require.Equal(t, 2, len(activeKeys))
+	require.Len(t, activeKeys, 2)
 	for _, key := range activeKeys {
 		require.NotNil(t, key.KeyEncryptionPair)
 		if key.KeyEncryptionPair.PrivateKeyType == serviceAType {
@@ -165,7 +169,7 @@ func TestResolveRecordingEncryption(t *testing.T) {
 	encryption, err = serviceB.ResolveRecordingEncryption(ctx)
 	require.NoError(t, err)
 	activeKeys = encryption.GetSpec().ActiveKeys
-	require.Equal(t, 2, len(activeKeys))
+	require.Len(t, activeKeys, 2)
 	for _, key := range activeKeys {
 		require.NotNil(t, key.KeyEncryptionPair)
 		if key.KeyEncryptionPair.PrivateKeyType == serviceAType {
@@ -179,7 +183,7 @@ func TestResolveRecordingEncryption(t *testing.T) {
 	encryption, err = serviceA.ResolveRecordingEncryption(ctx)
 	require.NoError(t, err)
 	activeKeys = encryption.GetSpec().ActiveKeys
-	require.Equal(t, 2, len(activeKeys))
+	require.Len(t, activeKeys, 2)
 	for _, key := range activeKeys {
 		require.NotNil(t, key.KeyEncryptionPair)
 		require.NotNil(t, key.RecordingEncryptionPair)
