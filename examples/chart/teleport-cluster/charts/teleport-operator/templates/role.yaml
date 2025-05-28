@@ -46,6 +46,8 @@ rules:
       - teleportworkloadidentitiesv1/status
       - teleportappsv3
       - teleportappsv3/status
+      - teleportdatabasesv3
+      - teleportdatabasesv3/status
     verbs:
       - get
       - list
