@@ -12,25 +12,7 @@ For more details, read the corresponding [RFD](https://github.com/gravitational/
 
 ## Supported Resources
 
-The operator supports reconciling the following Kubernetes CRs:
-
-- TeleportUser
-- TeleportRole (creates role v5)
-- TeleportRoleV6 (creates role v6)
-- TeleportRoleV7 (creates role v7)
-- TeleportProvisionToken
-- TeleportGithubConnector
-- TeleportAccessList
-- TeleportOpenSSHEICEServerV2
-- TeleportOpenSSHServerV2
-- TeleportTrustedClusterV2
-- TeleportBotV1
-- TeleportSAMLConnector [1]
-- TeleportOIDCConnector [1]
-- TeleportLoginRule [1]
-- TeleportOktaImportRule [1]
-
-[1] Enterprise license required
+See the list of supported resources in the documentation: https://goteleport.com/docs/reference/operator-resources/
 
 ## Architecture
 Teleport Operator is a Kubernetes (K8s) operator based on the `operator-sdk`.
