@@ -2327,11 +2327,17 @@ func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
 	require.NoError(t, err)
 	require.IsType(t, tdp.ClientScreenSpec{}, msg)
 
+	msg, err = tdpConn.ReadMessage()
+	require.NoError(t, err)
+	require.IsType(t, tdp.ClientKeyboardLayout{}, msg, "%v", msg)
+
 	err = tdpConn.WriteMessage(tdp.Alert{Message: "test", Severity: tdp.SeverityWarning})
 	require.NoError(t, err)
 }
 
-func TestDesktopAccessMFARequiresMfa(t *testing.T) {
+func TestDesktopAccessMFA(t *testing.T) {
+	t.Setenv("TELEPORT_DISABLE_DESKTOP_LATENCY_DETECTOR_PING", "true")
+
 	tests := []struct {
 		name           string
 		authPref       types.AuthPreferenceSpecV2
@@ -2395,6 +2401,19 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 			dev := tc.registerDevice(t, ctx, clt)
 
 			ws := proxy.makeDesktopSession(t, pack)
+
+			// Before the session can proceed to the MFA ceremony, the proxy expects the
+			// web UI to send both the screen size and keyboard layout over the websocket.
+			ss, err := tdp.ClientScreenSpec{
+				Width:  1920,
+				Height: 1080,
+			}.Encode()
+			require.NoError(t, err)
+			require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, ss))
+			kl, err := tdp.ClientKeyboardLayout{}.Encode()
+			require.NoError(t, err)
+			require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, kl))
+
 			tc.mfaHandler(t, ws, dev)
 
 			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws})
@@ -2409,9 +2428,6 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
 	wsrwc := &WebsocketIO{Conn: ws}
 	tdpConn := tdp.NewConn(wsrwc)
-
-	// desktopConnectHandle first needs a ClientScreenSpec message in order to continue.
-	tdpConn.WriteMessage(tdp.ClientScreenSpec{Width: 100, Height: 100})
 
 	br := bufio.NewReader(wsrwc)
 	mt, err := br.ReadByte()
