@@ -1,0 +1,37 @@
+#!/bin/bash
+#
+# This script runs on the Teleport auth server and adds an IAM join token to the Teleport backend
+# to enable proxies running in the same AWS account to join the cluster without an alphanumeric token.
+# We have deliberately chosen to continue generating alphanumeric tokens on a timer for other service
+# types to preserve backward compatibility.
+
+set -e
+set -o pipefail
+
+# Source variables from user-data
+. /etc/teleport.d/conf
+
+TCTL=/usr/local/bin/tctl
+
+# Get AWS account ID for the account where the auth service is running
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+# Write IAM proxy join token to disk
+cat <<EOF > /tmp/teleport-iam-token-proxy.yaml
+kind: token
+version: v2
+metadata:
+    name: teleport-iam-token-proxy
+spec:
+    roles: [proxy]
+    join_method: iam
+    allow:
+    - aws_account: "${AWS_ACCOUNT_ID}"
+      aws_arn: "arn:aws:sts::${AWS_ACCOUNT_ID}:assumed-role/${TELEPORT_CLUSTER_NAME}-proxy/i-*"
+EOF
+
+# Register token with cluster
+${TCTL} create -f /tmp/teleport-iam-token-proxy.yaml
+
+# Delete token after creation
+rm -f /tmp/teleport-iam-token-proxy.yaml
