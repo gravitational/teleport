@@ -54,7 +54,7 @@ const (
 )
 
 // IntegrationGetter is an interface that indicates which APIs are
-// required to get an AWS integration.
+// required to get an integration.
 // Required when using integration credentials.
 type IntegrationGetter interface {
 	// GetIntegration returns the specified integration resource.

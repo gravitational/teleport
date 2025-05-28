@@ -43,7 +43,7 @@ func (s *Service) GenerateAWSRACredentials(ctx context.Context, req *integration
 		}
 	}
 
-	return nil, trace.AccessDenied("credential generation is only available to auth, proxy or discovery services")
+	return nil, trace.AccessDenied("credential generation is only available to auth or proxy services")
 }
 
 // generateAWSRACredentialsWithoutAuthZ generates a set of AWS credentials which uses the AWS Roles Anywhere integration.
