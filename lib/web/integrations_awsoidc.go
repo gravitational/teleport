@@ -609,7 +609,7 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	_, err = fmt.Fprint(w, script)
+	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
 }
@@ -642,8 +642,8 @@ func (h *Handler) awsOIDCConfigureAWSAppAccessIAM(w http.ResponseWriter, r *http
 	}
 
 	httplib.SetScriptHeaders(w.Header())
+	_, err = w.Write([]byte(script))
 
-	_, err = fmt.Fprint(w, script)
 	return nil, trace.Wrap(err)
 }
 
@@ -713,8 +713,8 @@ func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Reque
 	}
 
 	httplib.SetScriptHeaders(w.Header())
+	_, err = w.Write([]byte(script))
 
-	_, err = fmt.Fprint(w, script)
 	return nil, trace.Wrap(err)
 }
 
@@ -754,7 +754,7 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	_, err = fmt.Fprint(w, script)
+	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
 }
@@ -1261,7 +1261,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	_, err = fmt.Fprint(w, script)
+	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
 }
@@ -1302,7 +1302,7 @@ func (h *Handler) awsOIDCConfigureListDatabasesIAM(w http.ResponseWriter, r *htt
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	_, err = fmt.Fprint(w, script)
+	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
 }
@@ -1373,7 +1373,7 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	_, err = fmt.Fprint(w, script)
+	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
 }
