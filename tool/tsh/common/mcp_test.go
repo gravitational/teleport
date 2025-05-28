@@ -52,7 +52,12 @@ func TestMCPDBCommand(t *testing.T) {
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{
 				{
-					Name:     "postgres-local",
+					Name:     "postgres1",
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "external-pg:5432",
+				},
+				{
+					Name:     "postgres2",
 					Protocol: defaults.ProtocolPostgres,
 					URI:      "external-pg:5432",
 				},
@@ -85,7 +90,11 @@ func TestMCPDBCommand(t *testing.T) {
 	executionCh := make(chan error)
 	go func() {
 		executionCh <- Run(ctx, []string{
-			"mcp", "db", "start", "--insecure", "--db-user=postgres", "--db-name=postgres",
+			"mcp",
+			"db",
+			"start",
+			"teleport://databases/postgres1?dbUser=postgres&dbName=postgres",
+			"teleport://databases/postgres2?dbUser=postgres&dbName=postgres",
 		}, setHomePath(tmpHomePath), func(c *CLIConf) error {
 			c.overrideStdin = stdin
 			c.OverrideStdout = stdout
@@ -111,7 +120,6 @@ func TestMCPDBCommand(t *testing.T) {
 	}
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-
 		_, err = clt.Initialize(t.Context(), req)
 		require.NoError(collect, err)
 		require.NoError(collect, clt.Ping(t.Context()))

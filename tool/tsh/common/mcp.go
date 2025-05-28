@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
 	pgmcp "github.com/gravitational/teleport/lib/client/db/postgres/mcp"
+	"github.com/gravitational/teleport/lib/client/mcp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -50,21 +51,15 @@ func newMCPCommands(app *kingpin.Application) *mcpCommands {
 type mcpDBStartCommand struct {
 	*kingpin.CmdClause
 
-	databaseUser        string
-	databaseName        string
-	labels              string
-	predicateExpression string
+	databaseURIs []string
 }
 
 func newMCPDBCommand(parent *kingpin.CmdClause) *mcpDBStartCommand {
 	cmd := &mcpDBStartCommand{
-		CmdClause: parent.Command("start", "Start a local MCP server for database access"),
+		CmdClause: parent.Command("start", "Start a local MCP server for database access").Hidden(),
 	}
 
-	cmd.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cmd.databaseUser)
-	cmd.Flag("db-name", "Database name to log in to.").Short('n').StringVar(&cmd.databaseName)
-	cmd.Flag("labels", labelHelp).StringVar(&cmd.labels)
-	cmd.Flag("query", queryHelp).StringVar(&cmd.predicateExpression)
+	cmd.Arg("uris", "List of database MCP resource URIs that will be served by the server").Required().StringsVar(&cmd.databaseURIs)
 	return cmd
 }
 
@@ -79,9 +74,6 @@ func (c *mcpDBStartCommand) run(cf *CLIConf) error {
 		registry = cf.databaseMCPRegistryOverride
 	}
 
-	// Set the labels so it gets parsed when the client is created.
-	cf.Labels = c.labels
-	cf.PredicateExpression = c.predicateExpression
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -91,18 +83,22 @@ func (c *mcpDBStartCommand) run(cf *CLIConf) error {
 	// otherwise the MCP clients will be stuck waiting for a response.
 	tc.NonInteractive = false
 
-	sc, err := newSharedDatabaseExecClient(cf, tc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	uris := make([]*mcp.ResourceURI, len(c.databaseURIs))
+	for i, rawURI := range c.databaseURIs {
+		uri, err := mcp.ParseResourceURI(rawURI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	dbs, err := c.getDatabases(cf.Context, tc, sc)
-	if err != nil {
-		return trace.Wrap(err)
+		if !uri.IsDatabase() || uri.GetDatabaseUser() == "" || uri.GetDatabaseName() == "" {
+			return trace.BadParameter("resource must be a database with valid database user and database name values")
+		}
+
+		uris[i] = uri
 	}
 
 	server := dbmcp.NewRootServer(logger)
-	allDatabases, closeLocalProxies, err := c.prepareDatabases(cf.Context, registry, dbs, logger, tc, sc.profile, server)
+	allDatabases, closeLocalProxies, err := c.prepareDatabases(cf, tc, registry, uris, logger, server)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -134,32 +130,48 @@ type closeLocalProxyFunc func() error
 // prepareDatabases based on the available MCP servers, initialize the database
 // local proxy and generate the MCP database.
 func (c *mcpDBStartCommand) prepareDatabases(
-	ctx context.Context,
-	registry dbmcp.Registry,
-	dbs []types.Database,
-	logger *slog.Logger,
+	cf *CLIConf,
 	tc *client.TeleportClient,
-	profile *client.ProfileStatus,
+	registry dbmcp.Registry,
+	uris []*mcp.ResourceURI,
+	logger *slog.Logger,
 	server *dbmcp.RootServer,
 ) (map[string][]*dbmcp.Database, closeLocalProxyFunc, error) {
 	var (
+		ctx            = cf.Context
 		dbsPerProtocol = make(map[string][]*dbmcp.Database)
 		closeFuncs     []closeLocalProxyFunc
 	)
 
-	for _, db := range dbs {
-		if !registry.IsSupported(db.GetProtocol()) {
-			logger.InfoContext(ctx, "database protocol unsupported, skipping it", "database", db.GetName(), "protocol", db.GetProtocol())
+	for _, uri := range uris {
+		serviceName := uri.GetDatabaseServiceName()
+		dbUser := uri.GetDatabaseUser()
+		dbName := uri.GetDatabaseName()
+
+		route := tlsca.RouteToDatabase{
+			ServiceName: serviceName,
+			Username:    dbUser,
+			Database:    dbName,
+		}
+
+		info, err := getDatabaseInfo(cf, tc, []tlsca.RouteToDatabase{route})
+		if err != nil {
+			logger.InfoContext(ctx, "failed to retrieve database information", "database", serviceName, "error", err)
 			continue
 		}
 
-		route := tlsca.RouteToDatabase{
-			ServiceName: db.GetName(),
-			Protocol:    db.GetProtocol(),
-			Username:    c.databaseUser,
-			Database:    c.databaseName,
+		db, err := info.GetDatabase(ctx, tc)
+		if err != nil {
+			logger.InfoContext(ctx, "failed to load database information", "database", serviceName, "error", err)
+			continue
 		}
 
+		if !registry.IsSupported(db.GetProtocol()) {
+			logger.InfoContext(ctx, "database protocol unsupported, skipping it", "database", serviceName, "protocol", db.GetProtocol())
+			continue
+		}
+
+		route.Protocol = db.GetProtocol()
 		cc := client.NewDBCertChecker(tc, route, nil, client.WithTTL(tc.KeyTTL))
 		// This avoids having the middleware to refresh the certificate if there
 		// is a certificate available on disk.
@@ -189,8 +201,8 @@ func (c *mcpDBStartCommand) prepareDatabases(
 
 		mcpDB := &dbmcp.Database{
 			DB:                     db,
-			DatabaseUser:           c.databaseUser,
-			DatabaseName:           c.databaseName,
+			DatabaseUser:           dbUser,
+			DatabaseName:           dbName,
 			Addr:                   listener.Addr().String(),
 			ExternalErrorRetriever: cc,
 			// Since we're using in-memory listener we don't need to resolve the

@@ -67,4 +67,10 @@ try using it again.`
 establishing the database connection. You can verify the MCP logs for more
 details on what is causing this issue. After identifying and fixing the issue
 a restart on the MCP client might be necessary.`
+	// EmptyDatabasesListError is the message returned to the MCP client when
+	// the started database server is serving no databases.
+	EmptyDatabasesListError = `There are no active Teleport databases available
+for use on the MCP server. You can check the MCP server logs to see if any
+database was not included due to an error. You can also verify that the list
+of databases on the MCP command is correct.`
 )

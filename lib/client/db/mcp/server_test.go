@@ -101,6 +101,30 @@ func TestRegisterDatabase(t *testing.T) {
 	})
 }
 
+func TestEmptyDatabasesServer(t *testing.T) {
+	server := NewRootServer(slog.New(slog.DiscardHandler))
+
+	clt := buildClient(t, server)
+	t.Run("Resources", func(t *testing.T) {
+		_, err := clt.ListResources(t.Context(), mcp.ListResourcesRequest{})
+		require.Error(t, err)
+	})
+
+	t.Run("Tool", func(t *testing.T) {
+		req := mcp.CallToolRequest{}
+		req.Params.Name = listDatabasesToolName
+		res, err := clt.CallTool(t.Context(), req)
+		require.NoError(t, err)
+		require.True(t, res.IsError)
+
+		require.Len(t, res.Content, 1)
+		content := res.Content[0]
+		require.IsType(t, mcp.TextContent{}, content)
+		textError := content.(mcp.TextContent).Text
+		require.Contains(t, textError, EmptyDatabasesListError, "expected empty databases error but got: %s", textError)
+	})
+}
+
 func assertDatabaseResource(t *testing.T, db *Database, resource mcp.ResourceContents) {
 	t.Helper()
 	require.IsType(t, mcp.TextResourceContents{}, resource)
