@@ -146,17 +146,19 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
 								"frequency": {
-									Description: "frequency is the frequency of reviews. This represents the period in months between two reviews. Supported values are 0, 1, 3, 6, and 12.",
-									Required:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+									Computed:      true,
+									Description:   "frequency is the frequency of reviews. This represents the period in months between two reviews. Supported values are 0, 1, 3, 6, and 12.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
 							}),
 							Description: "recurrence is the recurrence definition",
-							Required:    true,
+							Optional:    true,
 						},
 					}),
 					Description: "audit describes the frequency that this Access List must be audited.",
-					Required:    true,
+					Optional:    true,
 				},
 				"description": {
 					Description: "description is an optional plaintext description of the Access List.",
@@ -263,7 +265,7 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 						},
 					}),
 					Description: "owners is a list of owners of the Access List.",
-					Required:    true,
+					Optional:    true,
 				},
 				"ownership_requires": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{

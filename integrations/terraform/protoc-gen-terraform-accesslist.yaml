@@ -46,17 +46,14 @@ computed_fields:
     - "AccessList.header.metadata.namespace"
     - "AccessList.header.metadata.revision"
     - "AccessList.spec.audit.next_audit_date"
+    - "AccessList.spec.audit.recurrence.frequency"
 
 
 # These fields will be marked as Required: true
 required_fields:
     - "Metadata.name"
     - "AccessList.header.version"
-    - "AccessList.spec.owners"
     - "AccessList.spec.grants"
-    - "AccessList.spec.audit"
-    - "AccessList.spec.audit.recurrence"
-    - "AccessList.spec.audit.recurrence.frequency"
 
 plan_modifiers:
     # Force to recreate resource if it's name changes

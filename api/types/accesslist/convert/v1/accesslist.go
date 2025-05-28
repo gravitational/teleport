@@ -40,30 +40,9 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	if msg.Spec == nil {
 		return nil, trace.BadParameter("spec is missing")
 	}
-	if msg.Spec.Audit == nil {
-		return nil, trace.BadParameter("audit is missing")
-	}
-	if msg.Spec.MembershipRequires == nil {
-		return nil, trace.BadParameter("membershipRequires is missing")
-	}
-	if msg.Spec.OwnershipRequires == nil {
-		return nil, trace.BadParameter("ownershipRequires is missing")
-	}
+
 	if msg.Spec.Grants == nil {
 		return nil, trace.BadParameter("grants is missing")
-	}
-
-	var recurrence accesslist.Recurrence
-	if msg.Spec.Audit.Recurrence != nil {
-		recurrence.Frequency = accesslist.ReviewFrequency(msg.Spec.Audit.Recurrence.Frequency)
-		recurrence.DayOfMonth = accesslist.ReviewDayOfMonth(msg.Spec.Audit.Recurrence.DayOfMonth)
-	}
-
-	var notifications accesslist.Notifications
-	if msg.Spec.Audit.Notifications != nil {
-		if msg.Spec.Audit.Notifications.Start != nil {
-			notifications.Start = msg.Spec.Audit.Notifications.Start.AsDuration()
-		}
 	}
 
 	owners := make([]accesslist.Owner, len(msg.Spec.Owners))
@@ -82,31 +61,13 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		}
 	}
 
-	// We map the zero protobuf time (nil) to the zero go time.
-	// NewAccessList will handle this properly and set a time in the future
-	// based on the recurrence rules.
-	var nextAuditDate time.Time
-	if msg.Spec.Audit.NextAuditDate != nil {
-		nextAuditDate = msg.Spec.Audit.NextAuditDate.AsTime()
-	}
-
 	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
-		Title:       msg.Spec.Title,
-		Description: msg.Spec.Description,
-		Owners:      owners,
-		Audit: accesslist.Audit{
-			NextAuditDate: nextAuditDate,
-			Recurrence:    recurrence,
-			Notifications: notifications,
-		},
-		MembershipRequires: accesslist.Requires{
-			Roles:  msg.Spec.MembershipRequires.Roles,
-			Traits: traitv1.FromProto(msg.Spec.MembershipRequires.Traits),
-		},
-		OwnershipRequires: accesslist.Requires{
-			Roles:  msg.Spec.OwnershipRequires.Roles,
-			Traits: traitv1.FromProto(msg.Spec.OwnershipRequires.Traits),
-		},
+		Title:              msg.Spec.Title,
+		Description:        msg.Spec.Description,
+		Owners:             owners,
+		Audit:              convertAuditFromProto(msg.Spec.Audit),
+		MembershipRequires: convertRequiresFromProto(msg.Spec.MembershipRequires),
+		OwnershipRequires:  convertRequiresFromProto(msg.Spec.OwnershipRequires),
 		Grants: accesslist.Grants{
 			Roles:  msg.Spec.Grants.Roles,
 			Traits: traitv1.FromProto(msg.Spec.Grants.Traits),
@@ -127,6 +88,43 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	}
 
 	return accessList, nil
+}
+
+func convertAuditFromProto(audit *accesslistv1.AccessListAudit) accesslist.Audit {
+	if audit == nil {
+		return accesslist.Audit{}
+	}
+	var nextAuditDate time.Time
+	if audit.NextAuditDate != nil {
+		nextAuditDate = audit.NextAuditDate.AsTime()
+	}
+	return accesslist.Audit{
+		NextAuditDate: nextAuditDate,
+		Recurrence: accesslist.Recurrence{
+			Frequency:  accesslist.ReviewFrequency(audit.Recurrence.Frequency),
+			DayOfMonth: accesslist.ReviewDayOfMonth(audit.Recurrence.DayOfMonth),
+		},
+		Notifications: convertNotificationsFromProto(audit.Notifications),
+	}
+}
+
+func convertNotificationsFromProto(notifications *accesslistv1.Notifications) accesslist.Notifications {
+	if notifications.GetStart() == nil {
+		return accesslist.Notifications{}
+	}
+	return accesslist.Notifications{
+		Start: notifications.Start.AsDuration(),
+	}
+}
+
+func convertRequiresFromProto(requires *accesslistv1.AccessListRequires) accesslist.Requires {
+	if requires == nil {
+		return accesslist.Requires{}
+	}
+	return accesslist.Requires{
+		Roles:  requires.Roles,
+		Traits: traitv1.FromProto(requires.Traits),
+	}
 }
 
 // ToProto converts an internal access list into a v1 access list object.

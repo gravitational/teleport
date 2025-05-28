@@ -301,10 +301,6 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("access list title required")
 	}
 
-	if len(a.Spec.Owners) == 0 {
-		return trace.BadParameter("owners are missing")
-	}
-
 	if a.Spec.Audit.Recurrence.Frequency == 0 {
 		a.Spec.Audit.Recurrence.Frequency = SixMonths
 	}
