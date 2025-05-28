@@ -24,7 +24,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -32,6 +34,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -590,6 +593,136 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	botConfig.Onboarding.TokenValue = ""
 	thirdBot := New(botConfig, log)
 	require.NoError(t, thirdBot.Run(ctx))
+}
+
+func TestBot_IdentityRenewalFails(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	log := utils.NewSlogLoggerForTests()
+
+	// Make a new auth server.
+	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
+
+	// Create bot user and join token
+	botParams, _ := makeBot(t, rootClient, "test", "access")
+
+	botConfig := defaultBotConfig(t, process, botParams, config.ServiceConfigs{},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+		},
+	)
+
+	dest := &config.DestinationDirectory{
+		Path:     t.TempDir(),
+		Symlinks: botfs.SymlinksInsecure,
+		ACLs:     botfs.ACLOff,
+	}
+	botConfig.Storage.Destination = dest
+
+	proxy := newFailureProxy(t, botConfig.AuthServer)
+	go proxy.run(t)
+	botConfig.AuthServer = proxy.addr()
+
+	// Run the bot a first time
+	firstBot := New(botConfig, log)
+	require.NoError(t, firstBot.Run(ctx))
+
+	// Block connections. Running the bot a second time should still succeed.
+	proxy.setFailing(true)
+
+	secondBot := New(botConfig, log)
+	require.NoError(t, secondBot.Run(ctx))
+
+	// Now run the bot again with a service that needs a working connection to
+	// the auth service.
+	outputDest := &config.DestinationMemory{}
+	require.NoError(t, outputDest.CheckAndSetDefaults())
+	botConfig.Services = append(botConfig.Services, &config.IdentityOutput{
+		Destination: outputDest,
+	})
+	thirdBot := New(botConfig, log)
+	require.ErrorContains(t, thirdBot.Run(ctx), "failed to renew bot identity on startup")
+}
+
+type failureProxy struct {
+	dst     string
+	lis     net.Listener
+	failing atomic.Bool
+}
+
+func newFailureProxy(t *testing.T, dst string) *failureProxy {
+	t.Helper()
+
+	lis, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		if err := lis.Close(); err != nil {
+			t.Logf("failed to close listener: %v", err)
+		}
+	})
+
+	return &failureProxy{
+		dst: dst,
+		lis: lis,
+	}
+}
+
+func (f *failureProxy) run(t *testing.T) {
+	t.Helper()
+
+	for {
+		conn, err := f.lis.Accept()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+		if err != nil {
+			t.Logf("accept failed: %v", err)
+			continue
+		}
+		go f.handleConn(t, conn)
+	}
+}
+
+func (f *failureProxy) handleConn(t *testing.T, conn net.Conn) {
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Logf("failed to close connection: %v", err)
+		}
+	}()
+
+	// If we're failing, just close the connection immediately.
+	if f.failing.Load() {
+		return
+	}
+
+	upstream, err := net.Dial("tcp", f.dst)
+	if err != nil {
+		t.Logf("failed to dial upstream: %v", err)
+		return
+	}
+
+	done := make(chan struct{}, 1)
+	pipe := func(dst io.Writer, src io.Reader) {
+		_, _ = io.Copy(dst, src)
+		done <- struct{}{}
+	}
+
+	go pipe(upstream, conn)
+	go pipe(conn, upstream)
+
+	<-done
+}
+
+func (f *failureProxy) addr() string {
+	return f.lis.Addr().String()
+}
+
+func (f *failureProxy) setFailing(failing bool) {
+	f.failing.Store(failing)
 }
 
 func TestBot_InsecureViaProxy(t *testing.T) {
