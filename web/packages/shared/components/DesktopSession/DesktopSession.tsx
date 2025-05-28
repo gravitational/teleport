@@ -246,7 +246,10 @@ export function DesktopSession({
     if (!shouldConnect) {
       return;
     }
-    void client.connect(keyboardLayout, canvasRendererRef.current.getSize());
+    void client.connect({
+      keyboardLayout,
+      screenSpec: canvasRendererRef.current.getSize(),
+    });
     return () => {
       client.shutdown();
     };

@@ -889,6 +889,15 @@ Add the following to enable read access to trusted clusters
     - [ ] macOS
     - [ ] Windows
     - [ ] Linux
+- Desktop access (find a desktop on asteroid.earth cluster or set it up manually
+  https://goteleport.com/docs/enroll-resources/desktop-access/getting-started/)
+  - [ ] Open a new desktop tab and verify that the remote machine is accessible.
+  - [ ] Share a local directory within the session and verify that basic operations like creating/deleting a file work.
+  - [ ] Verify clipboard sharing by copying and pasting text between the local and remote machine.
+  - Verify that all items from this section work on:
+    - [ ] macOS
+    - [ ] Windows
+    - [ ] Linux
 - State restoration from disk
   - [ ] Verify that the app asks about restoring previous tabs when launched and restores them
         properly.

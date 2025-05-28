@@ -49,7 +49,7 @@ func GroupListToGroupSet(groupList []string) GroupSet {
 // to commit it in the backend.
 // The function takes a desired State parameter to leave room for future canary
 // state support as specified in RFD 184.
-func TriggerGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, groupsToTrigger GroupSet, desiredState autoupdatev1pb.AutoUpdateAgentGroupState, now time.Time) error {
+func TriggerGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, reports []*autoupdatev1pb.AutoUpdateAgentReport, groupsToTrigger GroupSet, desiredState autoupdatev1pb.AutoUpdateAgentGroupState, now time.Time) error {
 	// Validation part, we look for everything not in order or unsupported.
 	if rollout == nil {
 		return trace.BadParameter("rollout cannot be nil")
@@ -71,6 +71,17 @@ func TriggerGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, groupsToTrigg
 	default:
 		return trace.BadParameter("unsupported desired state: %s, supported states are 'unspecified' and 'active'", desiredState)
 	}
+
+	// filter out expired reports
+	validReports := make([]*autoupdatev1pb.AutoUpdateAgentReport, len(reports))
+	for _, report := range reports {
+		// TODO replace time.minute by the auth periodic operation constant
+		if now.Sub(report.GetSpec().GetTimestamp().AsTime()) <= time.Minute {
+			validReports = append(validReports, report)
+		}
+	}
+
+	countByGroup, upToDateByGroup := countUpToDate(validReports, rollout.GetSpec().GetTargetVersion())
 
 	groups := rollout.GetStatus().GetGroups()
 	if len(groups) == 0 {
@@ -97,7 +108,17 @@ func TriggerGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, groupsToTrigg
 			return trace.BadParameter("group %q in unexpected state %s", groupName, group.GetState())
 		}
 
+		var initialCount, upToDateCount int
 		setGroupState(group, desiredState, updateReasonManualTrigger, now)
+		if groupName == groups[len(groups)-1].GetName() {
+			initialCount, upToDateCount = countCatchAll(rollout.GetStatus(), countByGroup, upToDateByGroup)
+		} else {
+			initialCount = countByGroup[groupName]
+			upToDateCount = upToDateByGroup[groupName]
+		}
+		group.UpToDateCount = uint64(upToDateCount)
+		group.InitialCount = uint64(initialCount)
+		group.PresentCount = uint64(initialCount)
 	}
 
 	return nil

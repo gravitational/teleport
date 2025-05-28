@@ -141,6 +141,8 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				types.NewRule(types.KindTrustedCluster, unrestricted),
 				types.NewRule(types.KindBot, unrestricted),
 				types.NewRule(types.KindWorkloadIdentity, unrestricted),
+				types.NewRule(types.KindAutoUpdateConfig, unrestricted),
+				types.NewRule(types.KindAutoUpdateVersion, unrestricted),
 			},
 		},
 	})

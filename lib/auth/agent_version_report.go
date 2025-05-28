@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/constants"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
@@ -55,7 +56,7 @@ func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
 
 	// We skip servers that joined less than a minute ago as they might have been
 	// connected to another auth instance a few seconds ago, which would lead to double-counting.
-	if ir.timestamp.Sub(handle.RegistrationTime()) < time.Minute {
+	if ir.timestamp.Sub(handle.RegistrationTime()) < constants.AutoUpdateAgentReportPeriod {
 		return
 	}
 	// We skip control planes instances because we don't update them.

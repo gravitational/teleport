@@ -107,7 +107,6 @@ type collections struct {
 	oktaImportRules                    *collection[types.OktaImportRule, oktaImportRuleIndex]
 	oktaAssignments                    *collection[types.OktaAssignment, oktaAssignmentIndex]
 	samlIdPServiceProviders            *collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex]
-	samlIdPSessions                    *collection[types.WebSession, samlIdPSessionIndex]
 	webSessions                        *collection[types.WebSession, webSessionIndex]
 	appSessions                        *collection[types.WebSession, appSessionIndex]
 	snowflakeSessions                  *collection[types.WebSession, snowflakeSessionIndex]
@@ -512,15 +511,6 @@ func setupCollections(c Config) (*collections, error) {
 
 				out.snowflakeSessions = collect
 				out.byKind[resourceKind] = out.snowflakeSessions
-			case types.KindSAMLIdPSession:
-				collect, err := newSAMLIdPSessionCollection(c.SAMLIdPSession, watch)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				out.samlIdPSessions = collect
-				out.byKind[resourceKind] = out.samlIdPSessions
-
 			case types.KindWebSession:
 				collect, err := newWebSessionCollection(c.WebSession, watch)
 				if err != nil {
