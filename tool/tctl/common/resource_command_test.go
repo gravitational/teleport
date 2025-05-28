@@ -2634,6 +2634,66 @@ func TestPluginResourceWrapper(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "entra_id",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: "entra_id",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_EntraId{
+						EntraId: &types.PluginEntraIDSettings{},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Details: &types.PluginStatusV1_EntraId{
+						EntraId: &types.PluginEntraIDStatusV1{},
+					},
+				},
+			},
+		},
+		{
+			name: "gitlab",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: "gitlab",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Gitlab{
+						Gitlab: &types.PluginGitlabSettings{},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Details: &types.PluginStatusV1_Gitlab{
+						Gitlab: &types.PluginGitlabStatusV1{},
+					},
+				},
+			},
+		},
+		{
+			name: "net_iq",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: "net_iq",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_NetIq{
+						NetIq: &types.PluginNetIQSettings{},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Details: &types.PluginStatusV1_NetIq{
+						NetIq: &types.PluginNetIQStatusV1{},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
