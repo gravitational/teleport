@@ -1727,7 +1727,7 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
       - [ ] For CLI.
       - [ ] For Web UI.
 
-  - [ ] Automatic Review Rules
+  - [ ] [Automatic Review Rules](https://goteleport.com/docs/ver/18.x/admin-guides/access-controls/access-requests/automatic-reviews/)
     - [ ] Create automatic review rule with `desired_state` and `automatic_review` spec.
     - [ ] Verify that `desired_state: review` is required to enable automatic reviews.
     - [ ] Verify that `automatic_review.integration` is required to enable automatic reviews.
