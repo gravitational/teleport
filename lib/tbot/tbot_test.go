@@ -637,20 +637,76 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	require.NoError(t, secondBot.Run(ctx))
 
 	// Now run the bot again with a service that needs a working connection to
-	// the auth service.
-	outputDest := &config.DestinationMemory{}
+	// the auth service, it should fail.
+	outputDest := newWriteNotifier(&config.DestinationMemory{})
 	require.NoError(t, outputDest.CheckAndSetDefaults())
 	botConfig.Services = append(botConfig.Services, &config.IdentityOutput{
 		Destination: outputDest,
 	})
 	thirdBot := New(botConfig, log)
 	require.ErrorContains(t, thirdBot.Run(ctx), "failed to renew bot identity on startup")
+
+	// Drain the notification channel so we can listen for new connections.
+	select {
+	case <-proxy.notif:
+	default:
+	}
+
+	// Run it again in long-running mode, and it should eventually succeed once
+	// the network partition has healed.
+	botConfig.Oneshot = false
+	fourthBoth := New(botConfig, log)
+
+	ctx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
+	go fourthBoth.Run(ctx)
+
+	// Wait for at least one failed connection, then heal the network partition.
+	select {
+	case <-proxy.notif:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for connection")
+	}
+	proxy.setFailing(false)
+
+	// Wait for the destination to be written to.
+	select {
+	case <-outputDest.ch:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for output to be written")
+	}
+}
+
+func newWriteNotifier(dst bot.Destination) *writeNotifier {
+	return &writeNotifier{
+		Destination: dst,
+		ch:          make(chan struct{}, 1),
+	}
+}
+
+type writeNotifier struct {
+	bot.Destination
+
+	ch chan struct{}
+}
+
+func (w writeNotifier) Write(ctx context.Context, name string, data []byte) error {
+	if name != identity.WriteTestKey {
+		defer func() {
+			select {
+			case w.ch <- struct{}{}:
+			default:
+			}
+		}()
+	}
+	return w.Destination.Write(ctx, name, data)
 }
 
 type failureProxy struct {
 	dst     string
 	lis     net.Listener
 	failing atomic.Bool
+	notif   chan struct{}
 }
 
 func newFailureProxy(t *testing.T, dst string) *failureProxy {
@@ -666,8 +722,9 @@ func newFailureProxy(t *testing.T, dst string) *failureProxy {
 	})
 
 	return &failureProxy{
-		dst: dst,
-		lis: lis,
+		dst:   dst,
+		lis:   lis,
+		notif: make(chan struct{}, 1),
 	}
 }
 
@@ -683,6 +740,12 @@ func (f *failureProxy) run(t *testing.T) {
 			t.Logf("accept failed: %v", err)
 			continue
 		}
+
+		select {
+		case f.notif <- struct{}{}:
+		default:
+		}
+
 		go f.handleConn(t, conn)
 	}
 }

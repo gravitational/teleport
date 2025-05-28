@@ -37,6 +37,7 @@ import (
 	workloadidentitypb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
@@ -69,9 +70,10 @@ type identityService struct {
 
 	conn grpcconn.ClientConn
 
-	mu      sync.Mutex
-	closeFn func() error
-	facade  *identity.Facade
+	mu          sync.Mutex
+	initialized bool
+	closeFn     func() error
+	facade      *identity.Facade
 }
 
 // GetIdentity returns the current Bot identity.
@@ -295,6 +297,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 	s.closeFn = c.Close
 	s.conn.SetConnection(c.GetConnection())
 	s.facade = facade
+	s.initialized = true
 	s.mu.Unlock()
 
 	s.log.InfoContext(ctx, "Identity initialized successfully")
@@ -316,12 +319,17 @@ func (s *identityService) Close() error {
 func (s *identityService) Run(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "identityService/Run")
 	defer span.End()
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
-	defer unsubscribe()
 
 	// Determine where the bot should write its internal data (renewable cert
 	// etc)
 	storageDestination := s.cfg.Storage.Destination
+
+	if err := s.retryFailedInitialization(ctx, storageDestination); err != nil {
+		return trace.Wrap(err)
+	}
+
+	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	defer unsubscribe()
 
 	s.log.InfoContext(
 		ctx,
@@ -344,6 +352,72 @@ func (s *identityService) Run(ctx context.Context) error {
 		waitBeforeFirstRun:   true,
 	})
 	return trace.Wrap(err)
+}
+
+func (s *identityService) retryFailedInitialization(ctx context.Context, storageDst bot.Destination) error {
+	// Note: we do not hold the mutex in this method because it'll never be
+	// called concurrently with Initialize.
+	if s.initialized {
+		return nil
+	}
+
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(1 * time.Second),
+		Max:    1 * time.Minute,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return trace.Wrap(err, "creating retry")
+	}
+
+	for {
+		retry.Inc()
+
+		select {
+		case <-retry.After():
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+
+		s.log.InfoContext(ctx, "Retrying failed bot identity initialization")
+
+		oldIdentity := s.facade.Get()
+		now := time.Now().UTC()
+
+		var newIdentity *identity.Identity
+		if now.After(oldIdentity.X509Cert.NotBefore) && now.Before(oldIdentity.X509Cert.NotAfter) {
+			// Old identity is still valid, try renewing it.
+			if newIdentity, err = renewIdentity(ctx, s.log, s.cfg, s.resolver, oldIdentity); err != nil {
+				s.log.WarnContext(ctx, "Failed to renew bot identity", "error", err)
+				continue
+			}
+		} else {
+			// Old identity has expired, try re-joining.
+			if newIdentity, err = botIdentityFromToken(ctx, s.log, s.cfg, nil); err != nil {
+				s.log.WarnContext(ctx, "Failed to re-join", "error", err)
+				continue
+			}
+		}
+
+		s.log.InfoContext(ctx, "Fetched new bot identity", "identity", describeTLSIdentity(ctx, s.log, newIdentity))
+		s.facade.Set(newIdentity)
+
+		if err := identity.SaveIdentity(ctx, newIdentity, storageDst, identity.BotKinds()...); err != nil {
+			s.log.ErrorContext(ctx, "Failed to save identity", "error", err)
+			continue
+		}
+
+		client, err := clientForFacade(ctx, s.log, s.cfg, s.facade, s.resolver)
+		if err != nil {
+			s.log.ErrorContext(ctx, "Failed to create client with new identity", "error", err)
+			continue
+		}
+
+		s.conn.SetConnection(client.GetConnection())
+		s.initialized = true
+
+		return nil
+	}
 }
 
 func (s *identityService) renew(
