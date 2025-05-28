@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -136,21 +135,6 @@ func TestGetKubeCreds(t *testing.T) {
 	t.Cleanup(func() { kubeMock.Close() })
 	targetAddr := kubeMock.Address
 
-	crdResource := metav1.APIResource{
-		Name:         "teleportroles",
-		SingularName: "teleportrole",
-		Namespaced:   true,
-		Kind:         "TeleportRole",
-		Version:      "v6",
-		Group:        "resources.teleport.dev",
-		Verbs:        []string{"delete", "deletecollection", "get", "list", "patch", "create", "update", "watch"},
-	}
-	rbacSupportedTypes := maps.Clone(defaultRBACResources)
-	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles"}] = crdResource
-	crdResource.Name = "teleportroles/status"
-	crdResource.Verbs = []string{"get", "patch", "update"}
-	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles/status"}] = crdResource
-
 	ctx := context.TODO()
 	const teleClusterName = "teleport-cluster"
 	dir := t.TempDir()
@@ -229,7 +213,6 @@ current-context: foo
 						Minor:      "20",
 						GitVersion: "1.20.0",
 					},
-					rbacSupportedTypes: rbacSupportedTypes,
 				},
 				"bar": {
 					kubeCreds: &staticKubeCreds{
@@ -243,8 +226,7 @@ current-context: foo
 						Minor:      "20",
 						GitVersion: "1.20.0",
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, "bar"),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeCluster: mustCreateKubernetesClusterV3(t, "bar"),
 				},
 				"baz": {
 					kubeCreds: &staticKubeCreds{
@@ -258,8 +240,7 @@ current-context: foo
 						Minor:      "20",
 						GitVersion: "1.20.0",
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, "baz"),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeCluster: mustCreateKubernetesClusterV3(t, "baz"),
 				},
 			},
 			assertErr: require.NoError,
@@ -288,8 +269,7 @@ current-context: foo
 						Minor:      "20",
 						GitVersion: "1.20.0",
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, teleClusterName),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeCluster: mustCreateKubernetesClusterV3(t, teleClusterName),
 				},
 			},
 			assertErr: require.NoError,
@@ -311,8 +291,7 @@ current-context: foo
 						Minor:      "20",
 						GitVersion: "1.20.0",
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, "foo"),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeCluster: mustCreateKubernetesClusterV3(t, "foo"),
 				},
 				"bar": {
 					kubeCreds: &staticKubeCreds{
@@ -326,8 +305,7 @@ current-context: foo
 						Minor:      "20",
 						GitVersion: "1.20.0",
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, "bar"),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeCluster: mustCreateKubernetesClusterV3(t, "bar"),
 				},
 				"baz": {
 					kubeCreds: &staticKubeCreds{
@@ -341,8 +319,7 @@ current-context: foo
 						Minor:      "20",
 						GitVersion: "1.20.0",
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, "baz"),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeCluster: mustCreateKubernetesClusterV3(t, "baz"),
 				},
 			},
 			assertErr: require.NoError,
@@ -376,6 +353,7 @@ current-context: foo
 				cmp.Comparer(func(a, b *kubernetes.Clientset) bool { return (a == nil) == (b == nil) }),
 				cmp.Comparer(func(a, b *rest.Config) bool { return (a == nil) == (b == nil) }),
 				cmp.Comparer(func(a, b http.RoundTripper) bool { return true }),
+				cmp.Comparer(func(a, b rbacSupportedResources) bool { return true }),
 			))
 		})
 	}

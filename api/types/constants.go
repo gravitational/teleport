@@ -141,9 +141,6 @@ const (
 	// KindSnowflakeSession represents a Snowflake specific web session.
 	KindSnowflakeSession = "snowflake_session"
 
-	// KindSAMLIdPSession represents a SAML IdP session.
-	KindSAMLIdPSession = "saml_idp_session"
-
 	// KindEvent is structured audit logging event
 	KindEvent = "event"
 
@@ -676,7 +673,7 @@ const (
 var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt, PackageNameEntFIPS}
 
 // WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.
@@ -1450,12 +1447,11 @@ var KubernetesResourcesV7KindGroups = map[string]string{
 // to their kubernetes name.
 // Used to upgrade roles <=v7 as well as to support existing access request
 // format.
-// TODO(@creack): Remove this, find a better way to handle the mapping.
+// NOTE: Namespace having a different behavior between versions, it is omitted from this map.
 var KubernetesResourcesKindsPlurals = map[string]string{
 	KindKubePod:                       "pods",
 	KindKubeSecret:                    "secrets",
 	KindKubeConfigmap:                 "configmaps",
-	KindKubeNamespace:                 "namespaces",
 	KindKubeService:                   "services",
 	KindKubeServiceAccount:            "serviceaccounts",
 	KindKubeNode:                      "nodes",
@@ -1521,7 +1517,7 @@ var KubernetesVerbs = []string{
 
 // KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
 // that are not namespaced.
-// TODO(@creack): Remove in favor of proper lookup.
+// Needed to maintain backward compatibility.
 var KubernetesClusterWideResourceKinds = []string{
 	KindKubeNamespace,
 	KindKubeNode,

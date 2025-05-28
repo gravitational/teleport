@@ -123,13 +123,9 @@ message OpenSSHCert {
 // UserCertRequest specifies certificate-generation parameters
 // for a user.
 message UserCertsRequest {
-  // PublicKey is a public key to be signed.
-  //
-  // Deprecated: Prefer SSHPublicKey and/or TLSPublicKey.
-  bytes PublicKey = 1 [
-    (gogoproto.jsontag) = "public_key",
-    deprecated = true
-  ];
+  reserved 1, 20;
+  reserved "PublicKey", "attestation_statement";
+
   // Username of key owner.
   string Username = 2 [(gogoproto.jsontag) = "username"];
   // Expires is a desired time of the expiry of the certificate, could
@@ -259,12 +255,6 @@ message UserCertsRequest {
   // This login is used when performing RBAC checks to determine if MFA is required
   // to access the resource.
   string SSHLogin = 19;
-
-  // AttestationStatement is an attestation statement for the given public key.
-  //
-  // Deprecated: prefer SSHPublicKeyAttestationStatement and/or
-  // TLSPublicKeyAttestationStatement.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 20 [deprecated = true];
 
   // CertPurpose complements CertUsage by informing Teleport of the intended use
   // for the certificates.

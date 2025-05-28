@@ -323,7 +323,6 @@ export enum ResourceKind {
   // refer to resource subkind names that are not used for access control.
   //
   // KindAppSession = "app_session"
-  // KindSAMLIdPSession = "saml_idp_session"
   // KindSnowflakeSession = "snowflake_session"
 }
 

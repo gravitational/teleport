@@ -45,6 +45,9 @@ There should be a cluster dropdown for:
       - [ ] Can login with added device
     - Recovery codes
       - [ ] Cloud only: can read and generate new recovery codes
+    - Windows Desktop Session Keyboard Layout
+      - [ ] Can change the keyboard layout
+      - [ ] Verify that the keyboard layout is saved upon relogin
   - [ ] Help & Support
     - [ ] Click on all the links and make sure they work (no 404) and are up to date
     - [ ] Renders cluster information
@@ -882,6 +885,15 @@ Add the following to enable read access to trusted clusters
     - [ ] Removes the connection
     - [ ] Logs out of the cluster
     - [ ] Closes Teleport Connect
+  - Verify that all items from this section work on:
+    - [ ] macOS
+    - [ ] Windows
+    - [ ] Linux
+- Desktop access (find a desktop on asteroid.earth cluster or set it up manually
+  https://goteleport.com/docs/enroll-resources/desktop-access/getting-started/)
+  - [ ] Open a new desktop tab and verify that the remote machine is accessible.
+  - [ ] Share a local directory within the session and verify that basic operations like creating/deleting a file work.
+  - [ ] Verify clipboard sharing by copying and pasting text between the local and remote machine.
   - Verify that all items from this section work on:
     - [ ] macOS
     - [ ] Windows

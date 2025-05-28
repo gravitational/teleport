@@ -153,7 +153,6 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
-		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
@@ -236,7 +235,6 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
-		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
@@ -521,9 +519,9 @@ func (c *Cache) setInitError(err error) {
 	})
 
 	if err == nil {
-		cacheHealth.WithLabelValues(c.Component).Set(1.0)
+		cacheHealth.WithLabelValues(c.target).Set(1.0)
 	} else {
-		cacheHealth.WithLabelValues(c.Component).Set(0.0)
+		cacheHealth.WithLabelValues(c.target).Set(0.0)
 	}
 }
 
@@ -637,8 +635,6 @@ type Config struct {
 	Databases services.Databases
 	// DatabaseObjects is a database object service.
 	DatabaseObjects services.DatabaseObjects
-	// SAMLIdPSession holds SAML IdP sessions.
-	SAMLIdPSession services.SAMLIdPSession
 	// SnowflakeSession holds Snowflake sessions.
 	SnowflakeSession services.SnowflakeSession
 	// AppSession holds application sessions.
@@ -1098,7 +1094,7 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //	we assume that this cache will eventually end up in a correct state
 //	potentially lagging behind the state of the database.
 func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) error {
-	cacheLastReset.WithLabelValues(c.Component).SetToCurrentTime()
+	cacheLastReset.WithLabelValues(c.target).SetToCurrentTime()
 	requestKinds := c.Config.Watches
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		Name:                c.Component,

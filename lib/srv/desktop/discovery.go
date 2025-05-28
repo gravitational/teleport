@@ -35,11 +35,11 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
 const (
@@ -140,11 +140,11 @@ func (s *WindowsService) startDesktopDiscovery() error {
 
 func (s *WindowsService) ldapSearchFilter(additionalFilters []string) string {
 	var filters = []string{
-		fmt.Sprintf("(%s=%s)", windows.AttrObjectClass, ClassComputer),
-		fmt.Sprintf("(!(%s=%s))", windows.AttrObjectClass, ClassGMSA),
+		fmt.Sprintf("(%s=%s)", winpki.AttrObjectClass, ClassComputer),
+		fmt.Sprintf("(!(%s=%s))", winpki.AttrObjectClass, ClassGMSA),
 	}
 	filters = append(filters, additionalFilters...)
-	return windows.CombineLDAPFilters(filters)
+	return winpki.CombineLDAPFilters(filters)
 }
 
 // getDesktopsFromLDAP discovers Windows hosts via LDAP

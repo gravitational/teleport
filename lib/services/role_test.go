@@ -187,7 +187,7 @@ func TestRoleParse(t *testing.T) {
 					}
 				}`,
 			error:        trace.BadParameter(""),
-			matchMessage: "KubernetesResource must include Namespace",
+			matchMessage: "KubernetesResource kind \"pod\" must include Namespace",
 		},
 		{
 			name: "validation error, invalid kubernetes_resources kind",

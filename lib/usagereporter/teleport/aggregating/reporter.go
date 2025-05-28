@@ -421,7 +421,7 @@ Ingest:
 				userRecord(te.UserName, te.UserKind).KubePortSessions++
 			case usagereporter.TCPSessionType:
 				userRecord(te.UserName, te.UserKind).AppTcpSessions++
-			case string(types.KindSAMLIdPSession):
+			case usagereporter.SAMLIdPSessionType:
 				userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).SamlIdpSessions++
 			}
 		case *usagereporter.KubeRequestEvent:

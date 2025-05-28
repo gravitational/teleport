@@ -353,26 +353,14 @@ func (r *GithubAuthRequest) Check() error {
 		return trace.BadParameter("ConnectorSpec cannot be nil for authenticated user")
 	case regularLoginFlow && r.ConnectorSpec != nil:
 		return trace.BadParameter("ConnectorSpec must be nil")
-	case len(r.PublicKey) != 0 && len(r.SshPublicKey) != 0:
-		return trace.BadParameter("illegal to set both PublicKey and SshPublicKey")
-	case len(r.PublicKey) != 0 && len(r.TlsPublicKey) != 0:
-		return trace.BadParameter("illegal to set both PublicKey and TlsPublicKey")
-	case r.AttestationStatement != nil && r.SshAttestationStatement != nil:
-		return trace.BadParameter("illegal to set both AttestationStatement and SshAttestationStatement")
-	case r.AttestationStatement != nil && r.TlsAttestationStatement != nil:
-		return trace.BadParameter("illegal to set both AttestationStatement and TlsAttestationStatement")
 	}
-	sshPubKey := r.PublicKey
-	if len(sshPubKey) == 0 {
-		sshPubKey = r.SshPublicKey
-	}
-	if len(sshPubKey) > 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(sshPubKey)
+	if len(r.SshPublicKey) > 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(r.SshPublicKey)
 		if err != nil {
 			return trace.BadParameter("bad SSH public key: %v", err)
 		}
 	}
-	if len(r.PublicKey)+len(r.SshPublicKey)+len(r.TlsPublicKey) > 0 &&
+	if (len(r.SshPublicKey) != 0 || len(r.TlsPublicKey) != 0) &&
 		(r.CertTTL > defaults.MaxCertDuration || r.CertTTL < defaults.MinCertDuration) {
 		return trace.BadParameter("wrong CertTTL")
 	}

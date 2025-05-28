@@ -199,6 +199,9 @@ func ReadHelloUpdaterInfo(ctx context.Context, log *slog.Logger, hostUUID string
 	}
 
 	info.UpdateGroup = cfg.Spec.Group
+	if info.UpdateGroup == "" {
+		info.UpdateGroup = defaultSetting
+	}
 	if p := cfg.Status.IDFile; p != "" {
 		machineID, err := os.ReadFile(systemdMachineIDFile)
 		if err != nil && !errors.Is(err, fs.ErrNotExist) {
