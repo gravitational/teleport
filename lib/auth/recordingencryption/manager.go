@@ -24,15 +24,16 @@ import (
 	"iter"
 	"log/slog"
 	"slices"
+	"time"
 
 	"filippo.io/age"
 	"github.com/gravitational/trace"
 
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -78,7 +79,6 @@ type Manager struct {
 
 	logger   *slog.Logger
 	keyStore EncryptionKeyStore
-	uploader events.MultipartUploader
 }
 
 // ensureActiveRecordingEncryption returns the configured RecordingEncryption resource if it exists with active keys. If it does not,
@@ -301,34 +301,56 @@ type RecordingEncryptionResolver interface {
 	ResolveRecordingEncryption(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error)
 }
 
-// WatchConfig captures required dependencies for building a RecordingEncyprtion watcher that
+// WatchConfig captures required dependencies for building a RecordingEncryption watcher that
 // automatically resolves state.
 type WatchConfig struct {
 	Events        types.Events
 	Resolver      RecordingEncryptionResolver
 	ClusterConfig services.ClusterConfiguration
 	Logger        *slog.Logger
-	LockConfig    backend.RunWhileLockedConfig
+	LockConfig    *backend.RunWhileLockedConfig
 }
 
-// Watch creates a watcher responsible for responding to changes in the RecordingEncryption
-// resource. This is how auth servers cooperate and ensure there are accessible wrapped keys for each unique
-// keystore configuration in a cluster.
-func Watch(ctx context.Context, cfg WatchConfig) error {
+// A Watcher watches for changes to the RecordingEncryption resource and resolves the state for the calling
+// auth server.
+type Watcher struct {
+	events        types.Events
+	resolver      RecordingEncryptionResolver
+	clusterConfig services.ClusterConfiguration
+	logger        *slog.Logger
+	lockConfig    *backend.RunWhileLockedConfig
+}
+
+// NewWatcher returns a new Watcher.
+func NewWatcher(cfg WatchConfig) (*Watcher, error) {
 	switch {
 	case cfg.Events == nil:
-		return trace.BadParameter("events is required")
+		return nil, trace.BadParameter("events is required")
 	case cfg.Resolver == nil:
-		return trace.BadParameter("recording encryption resolver is required")
+		return nil, trace.BadParameter("recording encryption resolver is required")
 	case cfg.ClusterConfig == nil:
-		return trace.BadParameter("cluster config backend is required")
+		return nil, trace.BadParameter("cluster config backend is required")
+	case cfg.LockConfig == nil:
+		return nil, trace.BadParameter("lock config is required")
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
 
-	cfg.Logger.DebugContext(ctx, "creating recording_encryption watcher")
-	w, err := cfg.Events.NewWatcher(ctx, types.Watch{
+	return &Watcher{
+		events:        cfg.Events,
+		resolver:      cfg.Resolver,
+		clusterConfig: cfg.ClusterConfig,
+		logger:        cfg.Logger,
+		lockConfig:    cfg.LockConfig,
+	}, nil
+}
+
+// Watch creates a watcher responsible for responding to changes in the RecordingEncryption resource.
+// This is how auth servers cooperate and ensure there are accessible wrapped keys for each unique keystore
+// configuration in a cluster.
+func (w *Watcher) Run(ctx context.Context) error {
+	watch, err := w.events.NewWatcher(ctx, types.Watch{
 		Name: "recording_encryption_watcher",
 		Kinds: []types.WatchKind{
 			{
@@ -340,55 +362,51 @@ func Watch(ctx context.Context, cfg WatchConfig) error {
 		return trace.Wrap(err)
 	}
 
-	go func() {
-		for {
-			select {
-			case ev := <-w.Events():
-				if ev.Type != types.OpPut {
-					continue
-				}
-				const retries = 3
-				for tries := range retries {
-					err := handleRecordingEncryptionChange(ctx, cfg)
-					if err == nil {
-						break
-					}
-
-					cfg.Logger.ErrorContext(ctx, "failed to handle session recording config change", "error", err, "remaining_tries", retries-tries-1)
-				}
-
-			case <-w.Done():
-				cfg.Logger.DebugContext(ctx, "no longer watching recording_encryption")
-				return
+	for {
+		select {
+		case ev := <-watch.Events():
+			if ev.Type != types.OpPut {
+				continue
 			}
-		}
-	}()
+			const retries = 3
+			for tries := range retries {
+				err := w.handleRecordingEncryptionChange(ctx)
+				if err == nil {
+					break
+				}
 
-	return nil
+				w.logger.ErrorContext(ctx, "failed to handle session recording config change", "error", err, "remaining_tries", retries-tries-1)
+				<-time.After(retryutils.SeventhJitter(time.Second * 10))
+			}
+
+		case <-watch.Done():
+			return trace.Wrap(watch.Error())
+		}
+	}
 }
 
 // this helper handles reacting to individual Put events on the RecordingEncryption resource and updates the
 // SessionRecordingConfig with the results, if necessary
-func handleRecordingEncryptionChange(ctx context.Context, cfg WatchConfig) error {
-	return trace.Wrap(backend.RunWhileLocked(ctx, cfg.LockConfig, func(ctx context.Context) error {
-		recConfig, err := cfg.ClusterConfig.GetSessionRecordingConfig(ctx)
+func (w *Watcher) handleRecordingEncryptionChange(ctx context.Context) error {
+	return trace.Wrap(backend.RunWhileLocked(ctx, *w.lockConfig, func(ctx context.Context) error {
+		recConfig, err := w.clusterConfig.GetSessionRecordingConfig(ctx)
 		if err != nil {
 			return trace.Wrap(err, "fetching recording config")
 		}
 
 		if !recConfig.GetEncrypted() {
-			cfg.Logger.DebugContext(ctx, "session recording encryption disabled, skip resolving keys")
+			w.logger.DebugContext(ctx, "session recording encryption disabled, skip resolving keys")
 			return nil
 		}
 
-		encryption, err := cfg.Resolver.ResolveRecordingEncryption(ctx)
+		encryption, err := w.resolver.ResolveRecordingEncryption(ctx)
 		if err != nil {
-			cfg.Logger.ErrorContext(ctx, "failed to resolve recording encryption state", "error", err)
+			w.logger.ErrorContext(ctx, "failed to resolve recording encryption state", "error", err)
 			return trace.Wrap(err, "resolving recording encryption")
 		}
 
 		if recConfig.SetEncryptionKeys(GetAgeEncryptionKeys(encryption.GetSpec().ActiveKeys)) {
-			_, err = cfg.ClusterConfig.UpdateSessionRecordingConfig(ctx, recConfig)
+			_, err = w.clusterConfig.UpdateSessionRecordingConfig(ctx, recConfig)
 			return trace.Wrap(err, "updating encryption keys")
 		}
 
