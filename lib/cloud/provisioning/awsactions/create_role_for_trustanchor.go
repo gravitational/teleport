@@ -47,6 +47,36 @@ type CreateRoleForTrustAnchorRequest struct {
 	Tags tags.AWSTags
 }
 
+type createRoleInput struct {
+	// AssumeRolePolicyDocument shadows the input's field of the same name
+	// to marshal the trust policy doc as unescaped JSON.
+	AssumeRolePolicyDocument *awslib.PolicyDocument
+	*iam.CreateRoleInput
+}
+
+func createRoleInputForTrustAnchorWithPlaceholders(req CreateRoleForTrustAnchorRequest) (*iam.CreateRoleInput, *awslib.PolicyDocument, error) {
+	return createRoleInputForTrustAnchor(req, "_Region_", "_TrustAnchorID_")
+}
+
+func createRoleInputForTrustAnchor(req CreateRoleForTrustAnchorRequest, region, trustAnhcorID string) (*iam.CreateRoleInput, *awslib.PolicyDocument, error) {
+	trustPolicy := awslib.NewPolicyDocument(
+		awslib.StatementForAWSRolesAnywhereSyncRoleTrustRelationship(region, req.AccountID, trustAnhcorID),
+	)
+	trustPolicyJSON, err := trustPolicy.Marshal()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	input := &iam.CreateRoleInput{
+		RoleName:                 &req.RoleName,
+		Description:              &req.RoleDescription,
+		AssumeRolePolicyDocument: &trustPolicyJSON,
+		Tags:                     req.Tags.ToIAMTags(),
+	}
+
+	return input, trustPolicy, nil
+}
+
 // CreateRole returns a [provisioning.Action] that creates or updates an IAM
 // role when invoked.
 func CreateRoleForTrustAnchor(
@@ -59,29 +89,17 @@ func CreateRoleForTrustAnchor(
 	},
 	req CreateRoleForTrustAnchorRequest,
 ) (*provisioning.Action, error) {
-	trustPolicy := awslib.NewPolicyDocument(
-		awslib.StatementForAWSRolesAnywhereSyncRoleTrustRelationship("_Region_", req.AccountID, "_TrustAnchorID_"),
-	)
-	trustPolicyJSON, err := trustPolicy.Marshal()
+
+	// At this point, we don't know the TrustAnchorID or region.
+	// We will use placeholders in the action description to indicate that they will be replaced when the action runs.
+	createRoleInputWithPlaceholders, trustPolicyWithPlaceholders, err := createRoleInputForTrustAnchorWithPlaceholders(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	input := &iam.CreateRoleInput{
-		RoleName:                 &req.RoleName,
-		Description:              &req.RoleDescription,
-		AssumeRolePolicyDocument: &trustPolicyJSON,
-		Tags:                     req.Tags.ToIAMTags(),
-	}
-	type createRoleInput struct {
-		// AssumeRolePolicyDocument shadows the input's field of the same name
-		// to marshal the trust policy doc as unescaped JSON.
-		AssumeRolePolicyDocument *awslib.PolicyDocument
-		*iam.CreateRoleInput
-	}
 	details, err := formatDetails(createRoleInput{
-		AssumeRolePolicyDocument: trustPolicy,
-		CreateRoleInput:          input,
+		AssumeRolePolicyDocument: trustPolicyWithPlaceholders,
+		CreateRoleInput:          createRoleInputWithPlaceholders,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -100,6 +118,7 @@ func CreateRoleForTrustAnchor(
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			trustAnchorID := aws.ToString(trustAnchorDetails.TrustAnchorId)
 
 			trustAnchorParsedARN, err := arn.Parse(aws.ToString(trustAnchorDetails.TrustAnchorArn))
 			if err != nil {
@@ -107,11 +126,7 @@ func CreateRoleForTrustAnchor(
 			}
 			region := trustAnchorParsedARN.Region
 
-			// Replace the placeholder in the trust policy with the actual Trust Anchor ID.
-			trustPolicy := awslib.NewPolicyDocument(
-				awslib.StatementForAWSRolesAnywhereSyncRoleTrustRelationship(region, req.AccountID, aws.ToString(trustAnchorDetails.TrustAnchorId)),
-			)
-			trustPolicyJSON, err = trustPolicy.Marshal()
+			createRoleInput, trustPolicy, err := createRoleInputForTrustAnchor(req, region, trustAnchorID)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -125,7 +140,7 @@ func CreateRoleForTrustAnchor(
 					return trace.Wrap(convertedErr)
 				}
 				slog.InfoContext(ctx, "Creating IAM role", "role", req.RoleName)
-				_, err = clt.CreateRole(ctx, input)
+				_, err = clt.CreateRole(ctx, createRoleInput)
 				if err != nil {
 					return trace.Wrap(awslib.ConvertIAMError(err))
 				}
