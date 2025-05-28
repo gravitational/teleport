@@ -2656,6 +2656,28 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	})
 
+	recordingEncryptionWatchCfg := recordingencryption.WatchConfig{
+		Events:        authServer.Events,
+		Resolver:      authServer,
+		ClusterConfig: authServer,
+		LockConfig: &backend.RunWhileLockedConfig{
+			LockConfiguration: backend.LockConfiguration{
+				Backend:            b,
+				LockNameComponents: []string{"resolve_recording_encryption"},
+				TTL:                30 * time.Second,
+			},
+			RefreshLockInterval: 20 * time.Second,
+		},
+	}
+
+	recordingEncryptionWatcher, err := recordingencryption.NewWatcher(recordingEncryptionWatchCfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	process.RegisterFunc("auth.recording_encryption_resolver", func() error {
+		return trace.Wrap(recordingEncryptionWatcher.Run(process.GracefulExitContext()))
+	})
+
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown

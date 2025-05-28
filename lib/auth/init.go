@@ -507,25 +507,6 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		asrv.logger.InfoContext(ctx, "Created reverse tunnel", "tunnel", tunnel.GetName())
 	}
 
-	recordingEncryptionWatchCfg := recordingencryption.WatchConfig{
-		Events:        asrv.Events,
-		Resolver:      asrv,
-		ClusterConfig: asrv,
-		Logger:        asrv.logger,
-		LockConfig: backend.RunWhileLockedConfig{
-			LockConfiguration: backend.LockConfiguration{
-				Backend:            cfg.Backend,
-				LockNameComponents: []string{"resolve_recording_encryption"},
-				TTL:                30 * time.Second,
-			},
-			RefreshLockInterval: 20 * time.Second,
-		},
-	}
-
-	if err := recordingencryption.Watch(asrv.closeCtx, recordingEncryptionWatchCfg); err != nil {
-		return trace.Wrap(err)
-	}
-
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		ctx, span := cfg.Tracer.Start(gctx, "auth/SetClusterAuditConfig")

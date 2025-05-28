@@ -339,7 +339,7 @@ type WatchConfig struct {
 // auth server.
 type Watcher struct {
 	events        types.Events
-	resolver      RecordingEncryptionResolver
+	resolver      Resolver
 	clusterConfig services.ClusterConfiguration
 	logger        *slog.Logger
 	lockConfig    *backend.RunWhileLockedConfig
