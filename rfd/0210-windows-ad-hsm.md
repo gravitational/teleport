@@ -70,7 +70,7 @@ and MS SQL database access. In both cases, Teleport generates an LDAP URL based
 on the configured Active Directory domain. It takes the form:
 
 ```
-ldap://CN=CLUSTER,CN=SIGNER,CN=CDP,CN=Public Key Services,CN=Configfuration,DC=example,DC=com
+ldap://CN=CLUSTER,CN=SIGNER,CN=CDP,CN=Public Key Services,CN=Configuration,DC=example,DC=com
 ```
 
 Where:
@@ -126,7 +126,7 @@ In this case, `IV4GC3LQNRSSAVDFNRSXA33SORJUWSKE` is Base32-encoded SKID of the i
 
 #### Publishing: `tctl auth crl --out`
 
-For `tctl` we will follow the precdedent set in
+For `tctl` we will follow the precedent set in
 [#51298](https://github.com/gravitational/teleport/pull/51298) for `tctl auth
 export`, and add a `--out` flag to `tctl auth crl`. This flag will cause `tctl`
 to write the CRL(s) (whether there is one or many) to disk rather than to emit a
@@ -159,10 +159,10 @@ directly in the `cert_authority` resource. This approach has several advantages:
 - Agents already set up a watch to monitor CA resources in order to implement CA rotation,
   so the entire resource (including the CRL) should always be present in the agent's cache
   and very cheap to look up.
-- It avoids a lot of boilerplate code required to add a new reosource and set up RBAC, caching, etc.
+- It avoids a lot of boilerplate code required to add a new resource and set up RBAC, caching, etc.
 
 Instead of calling an RPC to get a CRL, the agent will attempt to pull CRLs from
-the `cert_authority`. For backwards compatibliity, the agent will fall back to
+the `cert_authority`. For backwards compatibility, the agent will fall back to
 the original `Teleport` CDP if the CRL is not present in the `cert_authority`
 resource. This allows newer agents to maintain today's behavior even when running
 against older auth servers.
