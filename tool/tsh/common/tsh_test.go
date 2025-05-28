@@ -205,7 +205,7 @@ func handleReexec() {
 	// - Tests that generate OpenSSH config by tsh config command where
 	//   tsh proxy ssh command is used as ProxyCommand.
 	// - Fork after authentication.
-	if os.Getenv(tshBinMainTestEnv) != "" || slices.Contains(os.Args, "--fork-signal-fd") {
+	if os.Getenv(tshBinMainTestEnv) != "" || (len(os.Args) >= 2 && os.Args[1] == "--fork-signal-fd") {
 		if os.Getenv(tshBinMainTestOneshotEnv) != "" {
 			// unset this env var so child processes started by 'tsh ssh'
 			// will be executed correctly below.

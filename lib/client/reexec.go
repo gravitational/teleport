@@ -21,6 +21,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -103,6 +104,9 @@ func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 		}
 	}()
 
+	// Lock thread to honor Pdeathsig.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	if err := cmd.Start(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -120,7 +124,13 @@ func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 	case err := <-childFinished:
 		return trace.Wrap(err)
 	case err := <-disownReady:
-		return trace.Wrap(err)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := cmd.Process.Release(); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
 	case <-runCtx.Done():
 		if err := cmd.Process.Kill(); err != nil {
 			return trace.Wrap(err)

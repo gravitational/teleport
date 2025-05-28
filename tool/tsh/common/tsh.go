@@ -1390,7 +1390,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	// Handle fork after authentication.
-	if cf.ForkAfterAuthentication && cf.forkSignalFd == 0 {
+	if cf.ForkAfterAuthentication && !isValidForkSignalFd(cf.forkSignalFd) {
 		if len(cf.RemoteCommand) == 0 {
 			return trace.BadParameter("fork after authentication not allowed for interactive sessions")
 		}
@@ -4042,8 +4042,9 @@ func onResolve(cf *CLIConf) error {
 func onSSH(cf *CLIConf) error {
 	// Handle fork after authentication.
 	var disownSignal *os.File
-	if cf.forkSignalFd != 0 {
+	if isValidForkSignalFd(cf.forkSignalFd) {
 		disownSignal = newSignalFile(cf.forkSignalFd)
+		defer disownSignal.Close()
 	}
 
 	// If "tsh ssh -V" is invoked, tsh is in OpenSSH compatibility mode, show
@@ -4102,10 +4103,7 @@ func onSSH(cf *CLIConf) error {
 					tc.Stdin = devNull
 					// Write to unblock the parent.
 					_, err = disownSignal.Write([]byte{0x00})
-					if err != nil {
-						return trace.Wrap(err)
-					}
-					return trace.Wrap(disownSignal.Close())
+					return trace.Wrap(err)
 				}))
 			}
 
