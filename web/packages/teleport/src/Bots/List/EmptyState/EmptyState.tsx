@@ -238,4 +238,6 @@ const PreviewBox = styled(Box)<{ includeShadow?: boolean }>`
   box-shadow: ${p => {
     return p.includeShadow ? p.theme.boxShadow[1] : 'none';
   }};
+  border-radius: 8px;
+  overflow: hidden;
 `;
