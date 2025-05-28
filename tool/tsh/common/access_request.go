@@ -21,7 +21,6 @@ package common
 import (
 	"fmt"
 	"path"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -416,8 +415,8 @@ func onRequestSearch(cf *CLIConf) error {
 	if cf.KubernetesCluster == "" {
 		cf.KubernetesCluster, _ = kubeconfig.SelectedKubeCluster(getKubeConfigPath(cf, ""), tc.SiteName)
 	}
-	if slices.Contains(types.KubernetesResourcesKinds, cf.ResourceKind) && cf.KubernetesCluster == "" {
-		return trace.BadParameter("when searching for Pods, --kube-cluster cannot be empty")
+	if cf.KubernetesCluster == "" && cf.ResourceKind == types.KindKubernetesResource {
+		return trace.BadParameter("--kube-cluster is required when searching for Kubernetes resources")
 	}
 	// if --all-namespaces flag was provided we search in every namespace.
 	// This means sending an empty namespace to the ListResources API.
@@ -427,14 +426,17 @@ func onRequestSearch(cf *CLIConf) error {
 
 	var resources types.ResourcesWithLabels
 	var tableColumns []string
-	switch {
-	case slices.Contains(types.KubernetesResourcesKinds, cf.ResourceKind):
+	if cf.ResourceKind == types.KindKubernetesResource {
 		proxyGRPCClient, err := tc.NewKubernetesServiceClient(cf.Context, tc.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		resourceType := types.PrefixKindKube + cf.kubeResourceKind
+		if cf.kubeAPIGroup != "" {
+			resourceType = resourceType + "." + cf.kubeAPIGroup
+		}
 		req := kubeproto.ListKubernetesResourcesRequest{
-			ResourceType:        cf.ResourceKind,
+			ResourceType:        resourceType,
 			Labels:              tc.Labels,
 			PredicateExpression: cf.PredicateExpression,
 			SearchKeywords:      tc.SearchKeywords,
@@ -450,7 +452,7 @@ func onRequestSearch(cf *CLIConf) error {
 		}
 
 		tableColumns = []string{"Name", "Namespace", "Labels", "Resource ID"}
-	default:
+	} else {
 		// For all other resources, we need to connect to the auth server.
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
@@ -487,50 +489,50 @@ func onRequestSearch(cf *CLIConf) error {
 		case *types.KubernetesResourceV1:
 			resourceID := types.ResourceIDToString(types.ResourceID{
 				ClusterName:     tc.SiteName,
-				Kind:            resource.GetKind(),
+				Kind:            r.GetKind(),
 				Name:            cf.KubernetesCluster,
-				SubResourceName: path.Join(r.Spec.Namespace, resource.GetName()),
+				SubResourceName: path.Join(r.Spec.Namespace, r.GetName()),
 			})
-			if ignoreDuplicateResourceId(deduplicateResourceIDs, resourceID) {
+			if ignoreDuplicateResourceID(deduplicateResourceIDs, resourceID) {
 				continue
 			}
 			resourceIDs = append(resourceIDs, resourceID)
 
 			row = []string{
-				common.FormatResourceName(resource, cf.Verbose),
+				common.FormatResourceName(r, cf.Verbose),
 				r.Spec.Namespace,
-				common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
+				common.FormatLabels(r.GetAllLabels(), cf.Verbose),
 				resourceID,
 			}
 
 		default:
 			resourceID := types.ResourceIDToString(types.ResourceID{
 				ClusterName: tc.SiteName,
-				Kind:        resource.GetKind(),
-				Name:        resource.GetName(),
+				Kind:        r.GetKind(),
+				Name:        r.GetName(),
 			})
-			if ignoreDuplicateResourceId(deduplicateResourceIDs, resourceID) {
+			if ignoreDuplicateResourceID(deduplicateResourceIDs, resourceID) {
 				continue
 			}
 
 			resourceIDs = append(resourceIDs, resourceID)
 			hostName := ""
-			if r, ok := resource.(interface{ GetHostname() string }); ok {
-				hostName = r.GetHostname()
+			if r2, ok := r.(interface{ GetHostname() string }); ok {
+				hostName = r2.GetHostname()
 			}
 
 			switch cf.ResourceKind {
 			case types.KindDatabase:
 				row = []string{
-					common.FormatResourceName(resource, cf.Verbose),
-					common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
+					common.FormatResourceName(r, cf.Verbose),
+					common.FormatLabels(r.GetAllLabels(), cf.Verbose),
 					resourceID,
 				}
 			default:
 				row = []string{
-					common.FormatResourceName(resource, cf.Verbose),
+					common.FormatResourceName(r, cf.Verbose),
 					hostName,
-					common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
+					common.FormatLabels(r.GetAllLabels(), cf.Verbose),
 					resourceID,
 				}
 			}
@@ -560,10 +562,10 @@ To request access to these resources, run
 	return nil
 }
 
-// ignoreDuplicateResourceId returns true if the resource ID is a duplicate
+// ignoreDuplicateResourceID returns true if the resource ID is a duplicate
 // and should be ignored. Otherwise, it returns false and adds the resource ID
 // to the deduplicateResourceIDs map.
-func ignoreDuplicateResourceId(deduplicateResourceIDs map[string]struct{}, resourceID string) bool {
+func ignoreDuplicateResourceID(deduplicateResourceIDs map[string]struct{}, resourceID string) bool {
 	// Ignore duplicate resource IDs.
 	if _, ok := deduplicateResourceIDs[resourceID]; ok {
 		return true

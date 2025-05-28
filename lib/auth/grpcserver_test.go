@@ -5366,6 +5366,14 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 		Allow: types.RoleConditions{
 			KubernetesResources: []types.KubernetesResource{
 				{
+					// Full wildcard has the same behavior in v7 and v8, so we can keep it.
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+				{
 					Kind:      "pods",
 					Name:      types.Wildcard,
 					Namespace: types.Wildcard,
@@ -5460,6 +5468,7 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 		Allow: types.RoleConditions{
 			KubernetesResources: []types.KubernetesResource{
 				{
+					// In v17, this would also grant access to cluster-wide resources, so we need to reject.
 					Kind:      types.Wildcard,
 					Name:      "foo",
 					Namespace: "bar",
@@ -5473,6 +5482,7 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 		Allow: types.RoleConditions{
 			KubernetesResources: []types.KubernetesResource{
 				{
+					// In v17, this wasn't supported.
 					Kind:      types.Wildcard,
 					Name:      "bar",
 					Namespace: "", // Cluster wide.
@@ -5534,6 +5544,72 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 			},
 		},
 	})
+	downgradev7ValidAccessRequest := newRole("downgrade_v7_valid_access_request", types.V8, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{"test_role_1"},
+				KubernetesResources: []types.RequestKubernetesResource{
+					{
+						Kind: "pods",
+					},
+					{
+						Kind:     "clusterroles",
+						APIGroup: "rbac.authorization.k8s.io",
+					},
+					{
+						Kind:     "deployments",
+						APIGroup: "*",
+					},
+				},
+			},
+		},
+		Deny: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{"test_role_1"},
+				KubernetesResources: []types.RequestKubernetesResource{
+					{
+						Kind: "pods",
+					},
+					{
+						Kind:     "clusterroles",
+						APIGroup: "rbac.authorization.k8s.io",
+					},
+					{
+						Kind:     "deployments",
+						APIGroup: "*",
+					},
+				},
+			},
+		},
+	})
+
+	downgradeInvalidAccessRequestAllow := newRole("downgrade_v7_invalid_access_request_allow", types.V8, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{"test_role_1"},
+				KubernetesResources: []types.RequestKubernetesResource{
+					{
+						Kind:     "crontabs",
+						APIGroup: "stable.example.com",
+					},
+				},
+			},
+		},
+	})
+	downgradeInvalidAccessRequestDeny := newRole("downgrade_v7_invalid_access_request_deny", types.V8, types.RoleSpecV6{
+		Deny: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{"test_role_1"},
+				KubernetesResources: []types.RequestKubernetesResource{
+					{
+						Kind:     "crontabs",
+						APIGroup: "stable.example.com",
+					},
+				},
+			},
+		},
+	})
+
 	user, err := CreateUser(context.Background(), srv.Auth(), "user",
 		testRole1,
 		downgradev7comptibleK8sResourcesRole,
@@ -5542,6 +5618,9 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 		downgradev7incompatibleNamespacedWildcard,
 		downgradev7incompatibleClusterWideWildcard,
 		downgradev7mixedK8sResourcesRole,
+		downgradev7ValidAccessRequest,
+		downgradeInvalidAccessRequestAllow,
+		downgradeInvalidAccessRequestDeny,
 	)
 	require.NoError(t, err)
 
@@ -5572,6 +5651,12 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 			expectedRole: newRole(downgradev7comptibleK8sResourcesRole.GetName(), types.V7, types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					KubernetesResources: []types.KubernetesResource{
+						{
+							Kind:      types.Wildcard,
+							Name:      types.Wildcard,
+							Namespace: types.Wildcard,
+							Verbs:     []string{types.Wildcard},
+						},
 						{
 							Kind:      types.KindKubePod,
 							Name:      types.Wildcard,
@@ -5801,6 +5886,139 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 						types.NewRule(types.KindRole, services.RW()),
 					},
 				},
+				Options: types.RoleOptions{
+					IDP: &types.IdPOptions{
+						SAML: &types.IdPSAMLOptions{
+							Enabled: types.NewBoolOption(false),
+						},
+					},
+				},
+			}),
+			expectDowngraded: true,
+		},
+		{
+			desc: "downgrade valid access request role version to v7",
+			clientVersions: []string{
+				"17.2.7",
+			},
+			inputRole: downgradev7ValidAccessRequest,
+			expectedRole: newRole(downgradev7ValidAccessRequest.GetName(), types.V7, types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Request: &types.AccessRequestConditions{
+						SearchAsRoles: []string{"test_role_1"},
+						KubernetesResources: []types.RequestKubernetesResource{
+							{
+								Kind: types.KindKubePod,
+							},
+							{
+								Kind: types.KindKubeClusterRole,
+							},
+							{
+								Kind: types.KindKubeDeployment,
+							},
+						},
+					},
+				},
+				Deny: types.RoleConditions{
+					Request: &types.AccessRequestConditions{
+						SearchAsRoles: []string{"test_role_1"},
+						KubernetesResources: []types.RequestKubernetesResource{
+							{
+								Kind: types.KindKubePod,
+							},
+							{
+								Kind: types.KindKubeClusterRole,
+							},
+							{
+								Kind: types.KindKubeDeployment,
+							},
+						},
+					},
+				},
+
+				Options: types.RoleOptions{
+					IDP: &types.IdPOptions{
+						SAML: &types.IdPSAMLOptions{
+							Enabled: types.NewBoolOption(false),
+						},
+					},
+				},
+			}),
+			expectDowngraded: true,
+		},
+		{
+			desc: "downgrade invalid access request allow role version to v7",
+			clientVersions: []string{
+				"17.2.7",
+			},
+			inputRole: downgradeInvalidAccessRequestAllow,
+			expectedRole: newRole(downgradeInvalidAccessRequestAllow.GetName(), types.V7, types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Request: &types.AccessRequestConditions{
+						SearchAsRoles:       []string{"test_role_1"},
+						KubernetesResources: nil,
+					},
+				},
+				Deny: types.RoleConditions{
+					KubernetesLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					KubernetesResources: []types.KubernetesResource{
+						{
+							Kind:      types.Wildcard,
+							Name:      types.Wildcard,
+							Namespace: types.Wildcard,
+							Verbs:     []string{types.Wildcard},
+						},
+					},
+					Request: &types.AccessRequestConditions{
+						KubernetesResources: []types.RequestKubernetesResource{
+							{
+								Kind: types.Wildcard,
+							},
+						},
+					},
+				},
+
+				Options: types.RoleOptions{
+					IDP: &types.IdPOptions{
+						SAML: &types.IdPSAMLOptions{
+							Enabled: types.NewBoolOption(false),
+						},
+					},
+				},
+			}),
+			expectDowngraded: true,
+		},
+		{
+			desc: "downgrade invalid access request deny role version to v7",
+			clientVersions: []string{
+				"17.2.7",
+			},
+			inputRole: downgradeInvalidAccessRequestDeny,
+			expectedRole: newRole(downgradeInvalidAccessRequestDeny.GetName(), types.V7, types.RoleSpecV6{
+				Deny: types.RoleConditions{
+					KubernetesLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					KubernetesResources: []types.KubernetesResource{
+						{
+							Kind:      types.Wildcard,
+							Name:      types.Wildcard,
+							Namespace: types.Wildcard,
+							Verbs:     []string{types.Wildcard},
+						},
+					},
+					Request: &types.AccessRequestConditions{
+						SearchAsRoles: []string{"test_role_1"},
+						KubernetesResources: []types.RequestKubernetesResource{
+							{
+								Kind: types.Wildcard,
+							},
+						},
+					},
+				},
+
 				Options: types.RoleOptions{
 					IDP: &types.IdPOptions{
 						SAML: &types.IdPSAMLOptions{

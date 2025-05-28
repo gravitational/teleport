@@ -201,6 +201,8 @@ const (
 	KindCrownJewel = "crown_jewel"
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
+	// KindKubernetesResource is a Kubernetes resource within a cluster.
+	KindKubernetesResource = "kube_resource"
 
 	// KindKubePod is a Kubernetes Pod resource type.
 	KindKubePod = "pod"
@@ -1352,10 +1354,19 @@ const (
 var RequestableResourceKinds = []string{
 	KindNode,
 	KindKubernetesCluster,
+	KindKubernetesResource,
 	KindDatabase,
 	KindApp,
 	KindWindowsDesktop,
 	KindUserGroup,
+	KindSAMLIdPServiceProvider,
+	KindIdentityCenterAccount,
+	KindIdentityCenterAccountAssignment,
+	KindGitServer,
+}
+
+// TODO(@creack): Remove this list in v20.
+var LegacyRequestableKubeResourceKinds = []string{
 	KindKubePod,
 	KindKubeSecret,
 	KindKubeConfigmap,
@@ -1377,11 +1388,13 @@ var RequestableResourceKinds = []string{
 	KindKubeJob,
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
-	KindSAMLIdPServiceProvider,
-	KindIdentityCenterAccount,
-	KindIdentityCenterAccountAssignment,
-	KindGitServer,
 }
+
+const (
+	PrefixKindKube            = "kube:"                // Denote that the resource is a kubernetes one. Used for access requests.
+	PrefixKindKubeClusterWide = PrefixKindKube + "cw:" // Denote that the kube resource is cluster-wide.
+	PrefixKindKubeNamespaced  = PrefixKindKube + "ns:" // Denote that the kube resource is namespaced.
+)
 
 // The list below needs to be kept in sync with `kubernetesResourceKindOptions`
 // in `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`. (Keeping
@@ -1518,6 +1531,7 @@ var KubernetesVerbs = []string{
 // KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
 // that are not namespaced.
 // Needed to maintain backward compatibility.
+// TODO(@creack): Make this a map[string]struct{} to simplify lookups.
 var KubernetesClusterWideResourceKinds = []string{
 	KindKubeNamespace,
 	KindKubeNode,
