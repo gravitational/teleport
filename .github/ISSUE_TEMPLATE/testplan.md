@@ -1727,6 +1727,16 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
       - [ ] For CLI.
       - [ ] For Web UI.
 
+  - [ ] Automatic Review Rules
+    - [ ] Create automatic review rule with `desired_state` and `automatic_review` spec.
+    - [ ] Verify that `desired_state: review` is required to enable automatic reviews.
+    - [ ] Verify that `automatic_review.integration` is required to enable automatic reviews.
+    - [ ] Verify that `user.traits` in the condition expression is evaluated as expected.
+    - [ ] Verify that automatic approvals are submitted.
+    - [ ] Verify that automatic denials are submitted.
+    - [ ] Verify that if there are conflicting rules that apply, denials take precedence.
+    - [ ] Verify that `automatic_review` and `notification` can both be configured within the same rule.
+
 - [ ] Access Lists
   - [ ] Verify Access List membership/ownership/expiration date.
   - [ ] Verify permissions granted by Access List membership.
