@@ -745,8 +745,10 @@ func (k KubeResources) AsResources() ResourcesWithLabels {
 type KubeResource interface {
 	GetAPIGroup() string
 	GetKind() string
+	GetNamespace() string
 	SetAPIGroup(string)
 	SetKind(string)
+	SetNamespace(string)
 }
 
 // Setter/Getter to enable generics.
@@ -758,3 +760,7 @@ func (r RequestKubernetesResource) GetKind() string           { return r.Kind }
 func (r KubernetesResource) GetKind() string                  { return r.Kind }
 func (r *RequestKubernetesResource) SetKind(kind string)      { r.Kind = kind }
 func (r *KubernetesResource) SetKind(kind string)             { r.Kind = kind }
+func (r RequestKubernetesResource) GetNamespace() string      { return "" }
+func (r KubernetesResource) GetNamespace() string             { return r.Namespace }
+func (r *RequestKubernetesResource) SetNamespace(ns string)   {}
+func (r *KubernetesResource) SetNamespace(ns string)          { r.Namespace = ns }

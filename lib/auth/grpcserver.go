@@ -2145,13 +2145,17 @@ func downgradeSAMLIdPRBAC(downgradedRole *types.RoleV6) *types.RoleV6 {
 func downgradeKubeResources[T types.KubeResource](role *types.RoleV6, resources []T) []T {
 	var out []T
 	for _, elem := range resources {
-		apiGroup, kind := elem.GetAPIGroup(), elem.GetKind()
+		apiGroup, kind, namespace := elem.GetAPIGroup(), elem.GetKind(), elem.GetNamespace()
 		// If group is '*', simply remove it as the behavior in v7 would be the same.
 		if apiGroup == types.Wildcard {
 			elem.SetAPIGroup("")
 			apiGroup = ""
 		}
-
+		// If we have a wildcard kind, only keep it if the namespace is also a wildcard.
+		if kind == types.Wildcard && namespace == types.Wildcard && apiGroup == "" {
+			out = append(out, elem)
+			continue
+		}
 		// If Kind is known in v7 and group is known, remove it.
 		if v, ok := defaultRBACResources[allowedResourcesKey{apiGroup, kind}]; ok {
 			elem.SetAPIGroup("")
