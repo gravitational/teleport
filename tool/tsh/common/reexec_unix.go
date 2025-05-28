@@ -23,6 +23,11 @@ import (
 	"syscall"
 )
 
+func isValidForkSignalFd(fd uint64) bool {
+	// Don't allow stdin, stdout, or stderr.
+	return fd > 2
+}
+
 // newSignalFile creates a signaling file for --fork-after-authentication from
 // a file descriptor.
 func newSignalFile(fd uint64) *os.File {

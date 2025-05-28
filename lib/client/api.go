@@ -1978,7 +1978,9 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, opts ...fun
 
 	if len(nodeAddrs) > 1 {
 		if options.forkAfterAuthentication() {
-			return trace.BadParameter("fork after authentication not supported for commands on multiple nodes")
+			return &NonRetryableError{
+				Err: trace.BadParameter("fork after authentication not supported for commands on multiple nodes"),
+			}
 		}
 		return tc.runShellOrCommandOnMultipleNodes(ctx, clt, nodeAddrs, command)
 	}
