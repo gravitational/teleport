@@ -82,6 +82,9 @@ const (
 	// vnetKnownHosts is the file name of the known_hosts file trusted by
 	// third-party SSH clients connecting to VNet SSH.
 	vnetKnownHosts = "vnet_known_hosts"
+	// vnetSSHConfig is the file name of the generated OpenSSH-compatible config
+	// file to be used by third-party SSH clients connecting to VNet SSH.
+	vnetSSHConfig = "vnet_ssh_config"
 )
 
 // Here's the file layout of all these keypaths.
@@ -93,6 +96,7 @@ const (
 // ├── id_vnet                         --> SSH Private Key for third-party clients of VNet SSH
 // ├── id_vnet.pub                     --> SSH Public Key for third-party clients of VNet SSH
 // ├── vnet_known_hosts                --> trusted certificate authorities (their keys) for third-party clients of VNet SSH
+// ├── vnet_ssh_config                 --> OpenSSH-compatible config file for third-party clients of VNet SSH
 // └── keys							   --> session keys directory
 //    ├── one.example.com              --> Proxy hostname
 //    │   ├── certs.pem                --> TLS CA certs for the Teleport CA
@@ -454,6 +458,12 @@ func VNetClientSSHKeyPubPath(baseDir string) string {
 // VNetKnownHostsPath returns the path to the VNet known_hosts file.
 func VNetKnownHostsPath(baseDir string) string {
 	return filepath.Join(baseDir, vnetKnownHosts)
+}
+
+// VNetSSHConfigPath returns the path to VNet's generated OpenSSH-compatible
+// config file.
+func VNetSSHConfigPath(baseDir string) string {
+	return filepath.Join(baseDir, vnetSSHConfig)
 }
 
 // TrimKeyPathSuffix returns the given path with any key suffix/extension trimmed off.
