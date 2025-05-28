@@ -463,13 +463,13 @@ func botIdentityFromToken(
 	case config.AddressKindAuth:
 		parsed, err := utils.ParseAddr(addr)
 		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse addr")
+			return nil, trace.Wrap(err, "failed to parse auth addr")
 		}
 		params.AuthServers = []utils.NetAddr{*parsed}
 	case config.AddressKindProxy:
 		parsed, err := utils.ParseAddr(addr)
 		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse addr")
+			return nil, trace.Wrap(err, "failed to parse proxy addr")
 		}
 		params.ProxyServer = *parsed
 	default:
