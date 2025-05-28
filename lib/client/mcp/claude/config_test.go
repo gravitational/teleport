@@ -19,34 +19,42 @@
 package claude
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
-const sampleConfigJSON = `{
+func TestConfig_fileNotExists(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.json")
+
+	config, err := LoadConfig(configPath)
+	require.NoError(t, err)
+	require.NotNil(t, config)
+	require.False(t, config.Exists())
+
+	require.NoError(t, config.PutMCPServer("test", MCPServer{
+		Command: "command",
+	}))
+	require.NoError(t, config.Save(FormatJSONCompact))
+	requireFileWithData(t, configPath, `{"mcpServers":{"test":{"command":"command"}}}`)
+}
+
+func TestConfig_sampleFile(t *testing.T) {
+	const sampleConfigJSON = `{
   "someUnknownField": "someUnknownValue",
   "mcpServers": {
     "Puppeteer": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-puppeteer"
-      ],
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
       "someUnknownField": "someUnknownValue"
     },
     "teleport-my-mcp": {
       "command": "tsh",
-      "args": [
-        "mcp",
-        "connect",
-        "my-mcp"
-      ],
+      "args": ["mcp", "connect", "my-mcp"],
       "env": {
         "TELEPORT_HOME": "/tsh-home/"
       }
@@ -54,9 +62,7 @@ const sampleConfigJSON = `{
   }
 }
 `
-
-var sampleConfig = Config{
-	MCPServers: map[string]MCPServer{
+	var sampleMCPServers = map[string]MCPServer{
 		"Puppeteer": {
 			Command: "npx",
 			Args:    []string{"-y", "@modelcontextprotocol/server-puppeteer"},
@@ -68,79 +74,167 @@ var sampleConfig = Config{
 				"TELEPORT_HOME": "/tsh-home/",
 			},
 		},
-	},
+	}
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.json")
+	require.NoError(t, os.WriteFile(configPath, []byte(sampleConfigJSON), 0600))
+
+	// load
+	config, err := LoadConfig(configPath)
+	require.NoError(t, err)
+	require.NotNil(t, config)
+	require.True(t, config.Exists())
+	require.Equal(t, sampleMCPServers, config.GetMCPServers())
+
+	// remove
+	require.True(t, trace.IsNotFound(config.RemoveMCPServer("not-found")))
+	require.NoError(t, config.RemoveMCPServer("teleport-my-mcp"))
+	require.NoError(t, config.Save(FormatJSONPretty))
+	requireFileWithData(t, configPath, `{
+  "someUnknownField": "someUnknownValue",
+  "mcpServers": {
+    "Puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+      "someUnknownField": "someUnknownValue"
+    }
+  }
+}
+`)
+
+	// add it back
+	require.NoError(t, config.PutMCPServer("teleport-my-mcp", sampleMCPServers["teleport-my-mcp"]))
+	require.NoError(t, config.Save(FormatJSONAuto))
+	requireFileWithData(t, configPath, sampleConfigJSON)
+
+	// replace
+	require.NoError(t, config.PutMCPServer("Puppeteer", MCPServer{
+		Command: "custom-script",
+	}))
+	require.NoError(t, config.Save(""))
+	requireFileWithData(t, configPath, `{
+  "someUnknownField": "someUnknownValue",
+  "mcpServers": {
+    "Puppeteer": {
+      "command": "custom-script"
+    },
+    "teleport-my-mcp": {
+      "command": "tsh",
+      "args": ["mcp", "connect", "my-mcp"],
+      "env": {
+        "TELEPORT_HOME": "/tsh-home/"
+      }
+    }
+  }
+}
+`)
 }
 
-func TestConfig_marshaling(t *testing.T) {
+func Test_isJSONCompact(t *testing.T) {
 	tests := []struct {
-		name       string
-		input      string
-		wantConfig Config
+		name           string
+		in             string
+		checkError     require.ErrorAssertionFunc
+		checkIsCompact require.BoolAssertionFunc
 	}{
 		{
-			name:       "empty",
-			input:      "{}",
-			wantConfig: Config{},
+			name:           "bad JSON",
+			in:             "{",
+			checkError:     require.Error,
+			checkIsCompact: require.False,
 		},
 		{
-			name:       "sample",
-			input:      sampleConfigJSON,
-			wantConfig: sampleConfig,
+			name:           "empty object",
+			in:             "{}",
+			checkError:     require.NoError,
+			checkIsCompact: require.False,
+		},
+		{
+			name:           "compact",
+			in:             `{"a":"b"}`,
+			checkError:     require.NoError,
+			checkIsCompact: require.True,
+		},
+		{
+			name: "not compact",
+			in: `{
+  "a": "b"
+}`,
+			checkError:     require.NoError,
+			checkIsCompact: require.False,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var config Config
-			err := json.Unmarshal([]byte(tt.input), &config)
-			require.NoError(t, err)
-
-			require.Empty(t, diffConfig(&tt.wantConfig, &config))
-
-			output, err := json.Marshal(config)
-			require.NoError(t, err)
-			require.JSONEq(t, tt.input, string(output))
+			isCompact, err := isJSONCompact([]byte(tt.in))
+			tt.checkError(t, err)
+			tt.checkIsCompact(t, isCompact)
 		})
 	}
 }
 
-func TestConfig_file(t *testing.T) {
-	dir := t.TempDir()
-	orgPath := filepath.Join(dir, "config_org.json")
-	require.NoError(t, os.WriteFile(orgPath, []byte(sampleConfigJSON), 0600))
-	savePath := filepath.Join(dir, "config_save.json")
+func Test_formatJSON(t *testing.T) {
+	notFormatted := `{"a":       "b"}`
+	compact := `{"a":"b"}`
+	pretty := `{
+  "a": "b"
+}
+`
+	tests := []struct {
+		name              string
+		in                string
+		format            FormatJSONOption
+		isOriginalCompact bool
+		out               string
+	}{
+		{
+			name:   "to compact",
+			in:     notFormatted,
+			format: FormatJSONCompact,
+			out:    compact,
+		},
+		{
+			name:   "to pretty",
+			in:     notFormatted,
+			format: FormatJSONPretty,
+			out:    pretty,
+		},
+		{
+			name:   "none",
+			in:     notFormatted,
+			format: FormatJSONNone,
+			out:    notFormatted,
+		},
+		{
+			name:              "auto compact",
+			in:                notFormatted,
+			format:            FormatJSONAuto,
+			isOriginalCompact: true,
+			out:               compact,
+		},
+		{
+			name:              "auto pretty",
+			in:                notFormatted,
+			format:            FormatJSONAuto,
+			isOriginalCompact: false,
+			out:               pretty,
+		},
+	}
 
-	t.Run("LoadConfig no file exists", func(t *testing.T) {
-		_, err := LoadConfig("no_exist.json")
-		require.Error(t, err)
-	})
-
-	var config *Config
-	t.Run("LoadConfig", func(t *testing.T) {
-		var err error
-		config, err = LoadConfig(orgPath)
-		require.NoError(t, err)
-		require.NotNil(t, config)
-		require.Empty(t, diffConfig(&sampleConfig, config))
-	})
-
-	t.Run("SaveConfig", func(t *testing.T) {
-		err := SaveConfig(config, savePath)
-		require.NoError(t, err)
-
-		// Double check all fields are preserved.
-		orgData, err := os.ReadFile(orgPath)
-		require.NoError(t, err)
-		savedData, err := os.ReadFile(savePath)
-		require.NoError(t, err)
-		require.JSONEq(t, string(orgData), string(savedData))
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			formatted, err := formatJSON([]byte(tt.in), tt.format, tt.isOriginalCompact)
+			require.NoError(t, err)
+			require.Equal(t, tt.out, string(formatted))
+		})
+	}
 }
 
-func diffConfig(a, b *Config) string {
-	return cmp.Diff(a, b,
-		cmpopts.EquateEmpty(),
-		cmpopts.IgnoreFields(Config{}, "AllFields"),
-		cmpopts.IgnoreFields(MCPServer{}, "AllFields"),
-	)
+func requireFileWithData(t *testing.T, path string, want string) {
+	t.Helper()
+	read, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, want, string(read))
 }

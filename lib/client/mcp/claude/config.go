@@ -19,6 +19,7 @@
 package claude
 
 import (
+	"bytes"
 	"encoding/json"
 	"maps"
 	"os"
@@ -26,58 +27,36 @@ import (
 	"runtime"
 
 	"github.com/gravitational/trace"
+	"github.com/tidwall/pretty"
+	"github.com/tidwall/sjson"
 )
 
-// Config represents the Claude Desktop config.
-type Config struct {
-	// MCPServers specifies a list of MCP servers.
-	MCPServers map[string]MCPServer `json:"mcpServers,omitempty"`
-	// AllFields preserves all fields of the config.
-	AllFields map[string]any `json:"-"`
-}
+// DefaultConfigPath returns the default path for the Claude Desktop config.
+//
+// https://modelcontextprotocol.io/quickstart/user
+//
+// macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
+// Windows: %APPDATA%\Claude\claude_desktop_config.json
+func DefaultConfigPath() (string, error) {
+	switch runtime.GOOS {
+	case "darwin", "windows":
+		// os.UserConfigDir:
+		// On Darwin, it returns $HOME/Library/Application Support.
+		// On Windows, it returns %AppData%.
+		configDir, err := os.UserConfigDir()
+		if err != nil {
+			return "", trace.ConvertSystemError(err)
+		}
+		return filepath.Join(configDir, "Claude", "claude_desktop_config.json"), nil
 
-// AddMCPServer adds a new MCP server to the config.
-func (c *Config) AddMCPServer(name string, mcpServer MCPServer) {
-	if c.MCPServers == nil {
-		c.MCPServers = make(map[string]MCPServer)
-	}
-	c.MCPServers[name] = mcpServer
-}
-
-// MarshalJSON implements json.Marshaler.
-func (c Config) MarshalJSON() ([]byte, error) {
-	// Shallow copy.
-	c.AllFields = maps.Clone(c.AllFields)
-	c.updateFields()
-	data, err := json.Marshal(c.AllFields)
-	return data, trace.Wrap(err)
-}
-
-func (c *Config) updateFields() {
-	if c.AllFields == nil {
-		c.AllFields = make(map[string]any)
-	}
-	if len(c.MCPServers) != 0 {
-		c.AllFields["mcpServers"] = c.MCPServers
+	default:
+		return "", trace.NotImplemented("Claude Desktop is not supported on OS %s", runtime.GOOS)
 	}
 }
 
-// UnmarshalJSON implements json.Unmarshaler.
-func (c *Config) UnmarshalJSON(data []byte) error {
-	type Alias Config
-	if err := json.Unmarshal(data, (*Alias)(c)); err != nil {
-		return trace.Wrap(err)
-	}
-	var allFields map[string]any
-	if err := json.Unmarshal(data, &allFields); err != nil {
-		return trace.Wrap(err)
-	}
-	c.AllFields = allFields
-	c.updateFields()
-	return nil
-}
-
-// MCPServer contains details to launch a MCP server.
+// MCPServer contains details to launch an MCP server.
+//
+// https://modelcontextprotocol.io/quickstart/user
 type MCPServer struct {
 	// Command specifies the command to execute.
 	Command string `json:"command"`
@@ -85,46 +64,58 @@ type MCPServer struct {
 	Args []string `json:"args,omitempty"`
 	// Envs specifies extra environment variable.
 	Envs map[string]string `json:"env,omitempty"`
-	// AllFields preserves all fields of the MCPServer.
-	AllFields map[string]any `json:"-"`
 }
 
-// MarshalJSON implements json.Marshaler.
-func (s MCPServer) MarshalJSON() ([]byte, error) {
-	// Shallow copy.
-	s.AllFields = maps.Clone(s.AllFields)
-	s.updateFields()
-	data, err := json.Marshal(s.AllFields)
-	return data, trace.Wrap(err)
+// Config represents a Claude Desktop config.
+//
+// Config preserves unknown fields and ordering from the original JSON when
+// saving, by using the sjson lib. Outside changes to the config file after
+// LoadConfig will be ignored.
+//
+// Config functions are not thread-safe.
+type Config struct {
+	mcpServers            map[string]MCPServer
+	configData            []byte
+	configPath            string
+	configExists          bool
+	isOriginalJSONCompact bool
 }
 
-func (s *MCPServer) updateFields() {
-	if s.AllFields == nil {
-		s.AllFields = make(map[string]any)
-	}
-	s.AllFields["command"] = s.Command
-	if len(s.Args) > 0 {
-		s.AllFields["args"] = s.Args
-	}
-	if len(s.Envs) > 0 {
-		s.AllFields["env"] = s.Envs
-	}
-}
+// LoadConfig loads the Claude Desktop's config from the provided path.
+func LoadConfig(configPath string) (*Config, error) {
+	var configExists bool
+	config := struct {
+		MCPServers map[string]MCPServer `json:"mcpServers"`
+	}{}
 
-// UnmarshalJSON implements json.Unmarshaler.
-func (s *MCPServer) UnmarshalJSON(data []byte) error {
-	type Alias MCPServer
-	if err := json.Unmarshal(data, (*Alias)(s)); err != nil {
-		return trace.Wrap(err)
+	data, err := os.ReadFile(configPath)
+	switch {
+	case os.IsNotExist(err):
+		data = []byte("{}")
+	case err != nil:
+		return nil, trace.Wrap(trace.ConvertSystemError(err), "reading Claude Desktop config")
+	default:
+		configExists = true
+		if err := json.Unmarshal(data, &config); err != nil {
+			return nil, trace.Wrap(err, "parsing Claude Desktop config")
+		}
 	}
 
-	var allFields map[string]any
-	if err := json.Unmarshal(data, &allFields); err != nil {
-		return trace.Wrap(err)
+	if config.MCPServers == nil {
+		config.MCPServers = map[string]MCPServer{}
 	}
-	s.AllFields = allFields
-	s.updateFields()
-	return nil
+	isOriginalJSONCompact, err := isJSONCompact(data)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing Claude Desktop config")
+	}
+
+	return &Config{
+		mcpServers:            config.MCPServers,
+		configExists:          configExists,
+		configData:            data,
+		configPath:            configPath,
+		isOriginalJSONCompact: isOriginalJSONCompact,
+	}, nil
 }
 
 // LoadConfigFromDefaultPath loads the Claude Desktop's config from the default
@@ -138,74 +129,103 @@ func LoadConfigFromDefaultPath() (*Config, error) {
 	return config, trace.Wrap(err)
 }
 
-// LoadConfig loads the Claude Desktop's config from the provided path.
-func LoadConfig(configPath string) (*Config, error) {
-	var config Config
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, trace.Wrap(err, "reading Claude Desktop config")
-	}
-	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, trace.Wrap(err, "parsing Claude Desktop config")
-	}
-	return &config, nil
+// Exists returns true if config file exists.
+func (c *Config) Exists() bool {
+	return c.configExists
 }
 
-// SaveConfigToDefaultPath saves the Claude Desk config to the default path.
-func SaveConfigToDefaultPath(config *Config) error {
-	configPath, err := DefaultConfigPath()
-	if err != nil {
-		return trace.Wrap(err, "finding Claude Desktop config path")
-	}
-
-	return trace.Wrap(SaveConfig(config, configPath))
+// GetMCPServers returns a shallow copy of the MCP servers.
+func (c *Config) GetMCPServers() map[string]MCPServer {
+	return maps.Clone(c.mcpServers)
 }
 
-// SaveConfig saves the Claude Desktop config to specified path.
-func SaveConfig(config *Config, configPath string) error {
-	if config == nil {
-		return trace.BadParameter("config is nil")
+// PutMCPServer adds a new MCP server or replace an existing one.
+func (c *Config) PutMCPServer(serverName string, server MCPServer) (err error) {
+	c.mcpServers[serverName] = server
+	c.configData, err = sjson.SetBytes(c.configData, c.mcpServerJSONPath(serverName), server)
+	return trace.Wrap(err)
+}
+
+// RemoveMCPServer removes an MCP server by name.
+func (c *Config) RemoveMCPServer(serverName string) (err error) {
+	if _, ok := c.mcpServers[serverName]; !ok {
+		return trace.NotFound("mcp server %v not found", serverName)
 	}
-	data, err := json.MarshalIndent(config, "", "  ")
+
+	delete(c.mcpServers, serverName)
+	c.configData, err = sjson.DeleteBytes(c.configData, c.mcpServerJSONPath(serverName))
+	return trace.Wrap(err)
+}
+
+// FormatJSONOption specifies the option on how to format the JSON output.
+type FormatJSONOption string
+
+const (
+	// FormatJSONPretty prettifies the JSON output.
+	FormatJSONPretty FormatJSONOption = "pretty"
+	// FormatJSONCompact minifies the JSON output.
+	FormatJSONCompact FormatJSONOption = "compact"
+	// FormatJSONNone skips formatting.
+	FormatJSONNone FormatJSONOption = "none"
+	// FormatJSONAuto minifies the JSON output if the original JSON is already
+	// minified. Otherwise, the JSON output is prettified. If the original JSON
+	// is "{}", the JSON output is also prettified.
+	FormatJSONAuto FormatJSONOption = "auto"
+)
+
+// Save saves the updated config to the config path. Format defaults to "auto"
+// if empty.
+func (c *Config) Save(format FormatJSONOption) error {
+	data, err := c.formatConfigData(format)
 	if err != nil {
-		return trace.Wrap(err, "marshalling Claude Desktop config")
+		return trace.Wrap(err)
 	}
 	// Claude Desktop creates the config with 0644.
-	file, err := os.OpenFile(configPath, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
-	if err != nil {
-		return trace.Wrap(err, "opening Claude Desktop config")
-	}
-	defer file.Close()
-	if _, err := file.Write(data); err != nil {
-		return trace.Wrap(err, "writing Claude Desktop config")
+	if err := os.WriteFile(c.configPath, data, 0644); err != nil {
+		return trace.ConvertSystemError(err)
 	}
 	return nil
 }
 
-// DefaultConfigPath returns the default path for the Claude Desktop config.
-// https://modelcontextprotocol.io/quickstart/user
-//
-// Windows: %APPDATA%\Claude\claude_desktop_config.json
-func DefaultConfigPath() (string, error) {
-	switch runtime.GOOS {
-	// macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
-	case "darwin":
-		userHome, err := os.UserHomeDir()
-		if err != nil {
-			return "", trace.Wrap(err)
+func (c *Config) mcpServerJSONPath(serverName string) string {
+	return "mcpServers." + serverName
+}
+
+func (c *Config) formatConfigData(format FormatJSONOption) ([]byte, error) {
+	return formatJSON(c.configData, format, c.isOriginalJSONCompact)
+}
+
+func formatJSON(data []byte, format FormatJSONOption, isOriginalCompact bool) ([]byte, error) {
+	switch format {
+	case FormatJSONPretty:
+		// pretty.Pretty is more human-readable than json.Indent.
+		return pretty.Pretty(data), nil
+	case FormatJSONCompact:
+		return pretty.Ugly(data), nil
+	case FormatJSONNone:
+		return data, nil
+	case FormatJSONAuto, "":
+		if isOriginalCompact {
+			return pretty.Ugly(data), nil
 		}
-		return filepath.Join(userHome, "Library", "Application Support", "Claude", "claude_desktop_config.json"), nil
-
-	// windows: %APPDATA%\Claude\claude_desktop_config.json
-	case "windows":
-		appData := os.Getenv("APPDATA")
-		if appData == "" {
-			return "", trace.BadParameter("APPDATA environment variable not found")
-		}
-
-		return filepath.Join(appData, "Claude", "claude_desktop_config.json"), nil
-
+		return pretty.Pretty(data), nil
 	default:
-		return "", trace.NotImplemented("Claude Desktop is not supported on OS %s", runtime.GOOS)
+		return nil, trace.BadParameter("invalid JSON format option %q", format)
 	}
+}
+
+func isJSONCompact(data []byte) (bool, error) {
+	data = bytes.TrimSpace(data)
+
+	// Do not treat empty object as compact.
+	if bytes.Equal(data, []byte("{}")) {
+		return false, nil
+	}
+
+	var buf bytes.Buffer
+	err := json.Compact(&buf, data)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return bytes.Equal(buf.Bytes(), data), nil
 }
