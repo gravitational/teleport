@@ -136,7 +136,7 @@ func (h *Handler) awsRolesAnywhereConfigureTrustAnchor(w http.ResponseWriter, r 
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	_, err = fmt.Fprint(w, script)
+	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
 }
