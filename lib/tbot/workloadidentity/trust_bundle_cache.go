@@ -34,6 +34,8 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"go.opentelemetry.io/otel"
 
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -157,8 +159,22 @@ func (b *BundleSet) GetJWTBundleForTrustDomain(trustDomain spiffeid.TrustDomain)
 	return nil, trace.NotFound("trust domain %q not found", trustDomain.Name())
 }
 
-type eventsWatcher interface {
+// EventsClient is used to watch cluster events.
+type EventsClient interface {
+	// NewWatcher creates a watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+}
+
+// NewEventsClient creates an EventsClient from the given gRPC auth service client.
+func NewEventsClient(authClient proto.AuthServiceClient) EventsClient {
+	return &eventsClient{authClient: authClient}
+}
+
+type eventsClient struct{ authClient proto.AuthServiceClient }
+
+// NewWatcher satisfies the EventsClient interface.
+func (c *eventsClient) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	return client.StreamWatcherWithClient(ctx, c.authClient, watch)
 }
 
 // TrustBundleCache maintains a local, subscribable cache of trust domains and
@@ -172,7 +188,7 @@ type eventsWatcher interface {
 type TrustBundleCache struct {
 	federationClient machineidv1pb.SPIFFEFederationServiceClient
 	trustClient      trustv1.TrustServiceClient
-	eventsClient     eventsWatcher
+	eventsClient     EventsClient
 	clusterName      string
 
 	logger *slog.Logger
@@ -193,7 +209,7 @@ func (m *TrustBundleCache) String() string {
 type TrustBundleCacheConfig struct {
 	FederationClient machineidv1pb.SPIFFEFederationServiceClient
 	TrustClient      trustv1.TrustServiceClient
-	EventsClient     eventsWatcher
+	EventsClient     EventsClient
 	ClusterName      string
 	Logger           *slog.Logger
 }

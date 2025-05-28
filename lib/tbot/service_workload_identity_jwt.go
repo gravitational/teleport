@@ -26,9 +26,10 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -38,12 +39,13 @@ import (
 // WorkloadIdentityJWTService is a service that retrieves JWT workload identity
 // credentials for WorkloadIdentity resources.
 type WorkloadIdentityJWTService struct {
-	botAuthClient  *authclient.Client
-	botCfg         *config.BotConfig
-	cfg            *config.WorkloadIdentityJWTService
-	getBotIdentity getBotIdentityFn
-	log            *slog.Logger
-	resolver       reversetunnelclient.Resolver
+	authClient          proto.AuthServiceClient
+	clusterConfigClient clusterconfigpb.ClusterConfigServiceClient
+	botCfg              *config.BotConfig
+	cfg                 *config.WorkloadIdentityJWTService
+	getBotIdentity      getBotIdentityFn
+	log                 *slog.Logger
+	resolver            reversetunnelclient.Resolver
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
 	trustBundleCache *workloadidentity.TrustBundleCache
@@ -148,14 +150,15 @@ func (s *WorkloadIdentityJWTService) requestJWTSVID(
 	)
 	defer span.End()
 
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
+	roles, err := fetchDefaultRoles(ctx, s.authClient, s.getBotIdentity())
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching roles")
 	}
 
 	id, err := generateIdentity(
 		ctx,
-		s.botAuthClient,
+		s.authClient,
+		s.clusterConfigClient,
 		s.getBotIdentity(),
 		roles,
 		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,

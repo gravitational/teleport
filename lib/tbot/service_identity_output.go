@@ -28,8 +28,11 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
@@ -45,17 +48,19 @@ import (
 // IdentityOutputService produces credentials which can be used to connect to
 // Teleport's API or SSH.
 type IdentityOutputService struct {
-	// botAuthClient should be an auth client using the bots internal identity.
+	// authClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.IdentityOutput
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	proxyPingCache    *proxyPingCache
-	reloadBroadcaster *channelBroadcaster
-	resolver          reversetunnelclient.Resolver
+	authClient          proto.AuthServiceClient
+	clusterConfigClient clusterconfigpb.ClusterConfigServiceClient
+	trustClient         trustpb.TrustServiceClient
+	botCfg              *config.BotConfig
+	cfg                 *config.IdentityOutput
+	getBotIdentity      getBotIdentityFn
+	log                 *slog.Logger
+	proxyPingCache      *proxyPingCache
+	reloadBroadcaster   *channelBroadcaster
+	resolver            reversetunnelclient.Resolver
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
 	executablePath   func() (string, error)
@@ -109,7 +114,7 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 	var err error
 	roles := s.cfg.Roles
 	if len(roles) == 0 {
-		roles, err = fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
+		roles, err = fetchDefaultRoles(ctx, s.authClient, s.getBotIdentity())
 		if err != nil {
 			return trace.Wrap(err, "fetching default roles")
 		}
@@ -118,7 +123,8 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	id, err := generateIdentity(
 		ctx,
-		s.botAuthClient,
+		s.authClient,
+		s.clusterConfigClient,
 		s.getBotIdentity(),
 		roles,
 		effectiveLifetime.TTL,
@@ -141,7 +147,8 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 	if s.cfg.Cluster != "" {
 		id, err = generateIdentity(
 			ctx,
-			s.botAuthClient,
+			s.authClient,
+			s.clusterConfigClient,
 			id,
 			roles,
 			cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
@@ -157,15 +164,15 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 
 	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
 
-	hostCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.HostCA, false)
+	hostCAs, err := getCertAuthorities(ctx, s.trustClient, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	userCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.UserCA, false)
+	userCAs, err := getCertAuthorities(ctx, s.trustClient, types.UserCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	databaseCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	databaseCAs, err := getCertAuthorities(ctx, s.trustClient, types.DatabaseCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -189,7 +196,7 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 			proxyPing,
 			clusterNames,
 			s.cfg.Destination,
-			s.botAuthClient,
+			s.trustClient,
 			s.executablePath,
 			s.alpnUpgradeCache,
 			s.botCfg,
@@ -233,16 +240,16 @@ func (s *IdentityOutputService) render(
 	return nil
 }
 
-type certAuthGetter interface {
-	GetCertAuthority(
-		ctx context.Context,
-		id types.CertAuthID,
-		includeSigningKeys bool,
-	) (types.CertAuthority, error)
-}
-
 type alpnTester interface {
 	isUpgradeRequired(ctx context.Context, addr string, insecure bool) (bool, error)
+}
+
+type certAuthorityGetter interface {
+	GetCertAuthority(
+		ctx context.Context,
+		in *trustpb.GetCertAuthorityRequest,
+		opts ...grpc.CallOption,
+	) (*types.CertAuthorityV2, error)
 }
 
 func renderSSHConfig(
@@ -251,7 +258,7 @@ func renderSSHConfig(
 	proxyPing *proxyPingResponse,
 	clusterNames []string,
 	dest bot.Destination,
-	certAuthGetter certAuthGetter,
+	trustClient certAuthorityGetter,
 	getExecutablePath func() (string, error),
 	alpnTester alpnTester,
 	botCfg *config.BotConfig,
@@ -278,7 +285,7 @@ func renderSSHConfig(
 	// useful alongside a manually-written ssh_config.
 	knownHosts, clusterKnownHosts, err := ssh.GenerateKnownHosts(
 		ctx,
-		certAuthGetter,
+		trustClient,
 		clusterNames,
 		proxyHost,
 	)

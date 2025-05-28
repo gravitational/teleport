@@ -29,8 +29,9 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -44,13 +45,15 @@ import (
 // an authenticating tunnel and will automatically issue and renew certificates
 // as needed.
 type ApplicationTunnelService struct {
-	botCfg         *config.BotConfig
-	cfg            *config.ApplicationTunnelService
-	proxyPingCache *proxyPingCache
-	log            *slog.Logger
-	resolver       reversetunnelclient.Resolver
-	botClient      *authclient.Client
-	getBotIdentity getBotIdentityFn
+	botCfg              *config.BotConfig
+	cfg                 *config.ApplicationTunnelService
+	proxyPingCache      *proxyPingCache
+	log                 *slog.Logger
+	resolver            reversetunnelclient.Resolver
+	authClient          proto.AuthServiceClient
+	clusterConfigClient clusterconfigpb.ClusterConfigServiceClient
+	trustClient         trustpb.TrustServiceClient
+	getBotIdentity      getBotIdentityFn
 }
 
 func (s *ApplicationTunnelService) Run(ctx context.Context) error {
@@ -123,7 +126,7 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 	// back to all the roles the bot has if none are configured.
 	roles := s.cfg.Roles
 	if len(roles) == 0 {
-		roles, err = fetchDefaultRoles(ctx, s.botClient, s.getBotIdentity())
+		roles, err = fetchDefaultRoles(ctx, s.authClient, s.getBotIdentity())
 		if err != nil {
 			return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "fetching default roles")
 		}
@@ -199,7 +202,8 @@ func (s *ApplicationTunnelService) issueCert(
 	// routeToApp once.
 	impersonatedIdentity, err := generateIdentity(
 		ctx,
-		s.botClient,
+		s.authClient,
+		s.clusterConfigClient,
 		s.getBotIdentity(),
 		roles,
 		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
@@ -231,7 +235,8 @@ func (s *ApplicationTunnelService) issueCert(
 	s.log.DebugContext(ctx, "Requesting issuance of certificate for tunnel proxy.")
 	routedIdent, err := generateIdentity(
 		ctx,
-		s.botClient,
+		s.authClient,
+		s.clusterConfigClient,
 		s.getBotIdentity(),
 		roles,
 		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,

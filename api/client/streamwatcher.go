@@ -28,12 +28,19 @@ import (
 
 // NewWatcher returns a new streamWatcher
 func (c *Client) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	return StreamWatcherWithClient(ctx, c.grpc, watch)
+}
+
+// StreamWatcherWithClient creates a streamWatcher using the given auth service
+// client. In most cases you should prefer Client.NewWatcher, but this method is
+// useful when managing your own gRPC clients.
+func StreamWatcherWithClient(ctx context.Context, client proto.AuthServiceClient, watch types.Watch) (types.Watcher, error) {
 	cancelCtx, cancel := context.WithCancel(ctx)
 	protoWatch := proto.Watch{
 		Kinds:               watch.Kinds,
 		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}
-	stream, err := c.grpc.WatchEvents(cancelCtx, &protoWatch)
+	stream, err := client.WatchEvents(cancelCtx, &protoWatch)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)

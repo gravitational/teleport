@@ -31,16 +31,18 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -279,6 +281,36 @@ func describeTLSIdentity(ctx context.Context, log *slog.Logger, ident *identity.
 // identityConfigurator is a function that alters a cert request
 type identityConfigurator = func(req *proto.UserCertsRequest)
 
+type authPreferenceGetter struct {
+	client clusterconfigv1.ClusterConfigServiceClient
+}
+
+func (g authPreferenceGetter) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+	return g.client.GetAuthPreference(ctx, &clusterconfigv1.GetAuthPreferenceRequest{})
+}
+
+func getCertAuthorities(
+	ctx context.Context,
+	trustClient trustpb.TrustServiceClient,
+	caType types.CertAuthType,
+	loadKeys bool,
+) ([]types.CertAuthority, error) {
+	rsp, err := trustClient.
+		GetCertAuthorities(ctx, &trustpb.GetCertAuthoritiesRequest{
+			Type:       string(caType),
+			IncludeKey: loadKeys,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cas := make([]types.CertAuthority, 0, len(rsp.CertAuthoritiesV2))
+	for _, ca := range rsp.CertAuthoritiesV2 {
+		cas = append(cas, ca)
+	}
+	return cas, nil
+}
+
 // generateIdentity uses an identity to retrieve an impersonated identity.
 // The `configurator` function, if not nil, can be used to add additional
 // requests to the certificate request, for example to add `RouteToDatabase`
@@ -288,7 +320,8 @@ type identityConfigurator = func(req *proto.UserCertsRequest)
 // certs.
 func generateIdentity(
 	ctx context.Context,
-	client *authclient.Client,
+	authClient proto.AuthServiceClient,
+	clusterConfigClient clusterconfigv1.ClusterConfigServiceClient,
 	currentIdentity *identity.Identity,
 	roles []string,
 	ttl time.Duration,
@@ -328,7 +361,7 @@ func generateIdentity(
 	// reuse keys here, constantly rotate private keys to limit their effective
 	// lifetime.
 	key, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(client),
+		cryptosuites.GetCurrentSuiteFromAuthPreference(authPreferenceGetter{clusterConfigClient}),
 		keyPurpose)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -347,14 +380,14 @@ func generateIdentity(
 
 	// First, ask the auth server to generate a new set of certs with a new
 	// expiration date.
-	certs, err := client.GenerateUserCerts(ctx, req)
+	certs, err := authClient.GenerateUserCerts(ctx, &req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// The root CA included with the returned user certs will only contain the
 	// Teleport User CA. We'll also need the host CA for future API calls.
-	localCA, err := client.GetClusterCACert(ctx)
+	localCA, err := authClient.GetClusterCACert(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -446,8 +479,8 @@ func warnOnEarlyExpiration(
 
 // fetchDefaultRoles requests the bot's own role from the auth server and
 // extracts its full list of allowed roles.
-func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, identity *identity.Identity) ([]string, error) {
-	role, err := roleGetter.GetRole(ctx, identity.X509Cert.Subject.CommonName)
+func fetchDefaultRoles(ctx context.Context, roleGetter proto.AuthServiceClient, identity *identity.Identity) ([]string, error) {
+	role, err := roleGetter.GetRole(ctx, &proto.GetRoleRequest{Name: identity.X509Cert.Subject.CommonName})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

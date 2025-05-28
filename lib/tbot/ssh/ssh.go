@@ -25,7 +25,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 )
@@ -41,9 +43,9 @@ const (
 type certAuthorityGetter interface {
 	GetCertAuthority(
 		ctx context.Context,
-		id types.CertAuthID,
-		includeSigningKeys bool,
-	) (types.CertAuthority, error)
+		in *trustpb.GetCertAuthorityRequest,
+		opts ...grpc.CallOption,
+	) (*types.CertAuthorityV2, error)
 }
 
 // GenerateKnownHosts generates a known_hosts file for the provided cluster
@@ -61,10 +63,11 @@ func GenerateKnownHosts(
 ) (string, map[string]string, error) {
 	certAuthorities := make([]types.CertAuthority, 0, len(clusterNames))
 	for _, cn := range clusterNames {
-		ca, err := bot.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       types.HostCA,
-			DomainName: cn,
-		}, false)
+		ca, err := bot.GetCertAuthority(ctx, &trustpb.GetCertAuthorityRequest{
+			Type:       string(types.HostCA),
+			Domain:     cn,
+			IncludeKey: false,
+		})
 		if err != nil {
 			return "", nil, trace.Wrap(err)
 		}

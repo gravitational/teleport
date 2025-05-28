@@ -24,22 +24,24 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/api/client/proto"
+	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 // ClientCredentialOutputService produces credentials which can be used to
 // connect to Teleport's API or SSH.
 type ClientCredentialOutputService struct {
-	// botAuthClient should be an auth client using the bots internal identity.
+	// authClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.UnstableClientCredentialOutput
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	reloadBroadcaster *channelBroadcaster
+	authClient          proto.AuthServiceClient
+	clusterConfigClient clusterconfigv1.ClusterConfigServiceClient
+	botCfg              *config.BotConfig
+	cfg                 *config.UnstableClientCredentialOutput
+	getBotIdentity      getBotIdentityFn
+	log                 *slog.Logger
+	reloadBroadcaster   *channelBroadcaster
 }
 
 func (s *ClientCredentialOutputService) String() string {
@@ -74,14 +76,15 @@ func (s *ClientCredentialOutputService) generate(ctx context.Context) error {
 	defer span.End()
 	s.log.InfoContext(ctx, "Generating output")
 
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
+	roles, err := fetchDefaultRoles(ctx, s.authClient, s.getBotIdentity())
 	if err != nil {
 		return trace.Wrap(err, "fetching default roles")
 	}
 
 	id, err := generateIdentity(
 		ctx,
-		s.botAuthClient,
+		s.authClient,
+		s.clusterConfigClient,
 		s.getBotIdentity(),
 		roles,
 		s.botCfg.CredentialLifetime.TTL,

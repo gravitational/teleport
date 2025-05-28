@@ -51,6 +51,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/gravitational/teleport"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -75,12 +76,14 @@ import (
 type SPIFFEWorkloadAPIService struct {
 	workloadpb.UnimplementedSpiffeWorkloadAPIServer
 
-	svcIdentity      *config.UnstableClientCredentialOutput
-	botCfg           *config.BotConfig
-	cfg              *config.SPIFFEWorkloadAPIService
-	log              *slog.Logger
-	resolver         reversetunnelclient.Resolver
-	trustBundleCache *workloadidentity.TrustBundleCache
+	svcIdentity            *config.UnstableClientCredentialOutput
+	botCfg                 *config.BotConfig
+	cfg                    *config.SPIFFEWorkloadAPIService
+	log                    *slog.Logger
+	resolver               reversetunnelclient.Resolver
+	trustBundleCache       *workloadidentity.TrustBundleCache
+	clusterConfigClient    clusterconfigpb.ClusterConfigServiceClient
+	workloadIdentityClient machineidv1pb.WorkloadIdentityServiceClient
 
 	// client holds the impersonated client for the service
 	client           *authclient.Client
@@ -114,6 +117,9 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 	s.client = client
+	s.clusterConfigClient = client.ClusterConfigClient()
+	s.workloadIdentityClient = client.WorkloadIdentityServiceClient()
+
 	// Closure is managed by the caller if this function succeeds. But if it
 	// fails, we need to close the client.
 	defer func() {
@@ -320,7 +326,8 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 	// every request.
 	res, privateKey, err := generateSVID(
 		ctx,
-		s.client,
+		s.clusterConfigClient,
+		s.workloadIdentityClient,
 		svidRequests,
 		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 	)
@@ -776,7 +783,7 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 		})
 	}
 
-	res, err := s.client.WorkloadIdentityServiceClient().SignJWTSVIDs(ctx, &machineidv1pb.SignJWTSVIDsRequest{
+	res, err := s.workloadIdentityClient.SignJWTSVIDs(ctx, &machineidv1pb.SignJWTSVIDsRequest{
 		Svids: reqs,
 	})
 	if err != nil {

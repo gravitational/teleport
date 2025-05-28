@@ -32,9 +32,11 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -53,12 +55,15 @@ const (
 // SVIDs to a destination. It produces an output compatible with the
 // `spiffe-helper` tool.
 type SPIFFESVIDOutputService struct {
-	botAuthClient  *authclient.Client
-	botCfg         *config.BotConfig
-	cfg            *config.SPIFFESVIDOutput
-	getBotIdentity getBotIdentityFn
-	log            *slog.Logger
-	resolver       reversetunnelclient.Resolver
+	authClient             proto.AuthServiceClient
+	clusterConfigClient    clusterconfigpb.ClusterConfigServiceClient
+	spiffeFederationClient machineidv1pb.SPIFFEFederationServiceClient
+	trustClient            trustpb.TrustServiceClient
+	botCfg                 *config.BotConfig
+	cfg                    *config.SPIFFESVIDOutput
+	getBotIdentity         getBotIdentityFn
+	log                    *slog.Logger
+	resolver               reversetunnelclient.Resolver
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
 	trustBundleCache *workloadidentity.TrustBundleCache
@@ -76,8 +81,8 @@ func (s *SPIFFESVIDOutputService) OneShot(ctx context.Context) error {
 	bundleSet, err := workloadidentity.FetchInitialBundleSet(
 		ctx,
 		s.log,
-		s.botAuthClient.SPIFFEFederationServiceClient(),
-		s.botAuthClient.TrustClient(),
+		s.spiffeFederationClient,
+		s.trustClient,
 		s.cfg.IncludeFederatedTrustBundles,
 		s.getBotIdentity().ClusterName,
 	)
@@ -174,7 +179,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 	)
 	defer span.End()
 
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
+	roles, err := fetchDefaultRoles(ctx, s.authClient, s.getBotIdentity())
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err, "fetching roles")
 	}
@@ -182,7 +187,8 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	id, err := generateIdentity(
 		ctx,
-		s.botAuthClient,
+		s.authClient,
+		s.clusterConfigClient,
 		s.getBotIdentity(),
 		roles,
 		effectiveLifetime.TTL,
@@ -205,7 +211,8 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 
 	res, privateKey, err := generateSVID(
 		ctx,
-		impersonatedClient,
+		impersonatedClient.ClusterConfigClient(),
+		impersonatedClient.WorkloadIdentityServiceClient(),
 		[]config.SVIDRequest{s.cfg.SVID},
 		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 	)
@@ -215,7 +222,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 
 	jwtSvids, err := generateJWTSVIDs(
 		ctx,
-		impersonatedClient,
+		impersonatedClient.WorkloadIdentityServiceClient(),
 		s.cfg.SVID,
 		s.cfg.JWTs,
 		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL)
@@ -311,7 +318,7 @@ func (s *SPIFFESVIDOutputService) render(
 
 func generateJWTSVIDs(
 	ctx context.Context,
-	clt *authclient.Client,
+	workloadIdentityClient machineidv1pb.WorkloadIdentityServiceClient,
 	svid config.SVIDRequest,
 	reqs []config.JWTSVID,
 	ttl time.Duration,
@@ -340,7 +347,7 @@ func generateJWTSVIDs(
 		return nil, nil
 	}
 
-	jwtRes, err := clt.WorkloadIdentityServiceClient().SignJWTSVIDs(ctx, &machineidv1pb.SignJWTSVIDsRequest{
+	jwtRes, err := workloadIdentityClient.SignJWTSVIDs(ctx, &machineidv1pb.SignJWTSVIDsRequest{
 		Svids: jwtReqs,
 	})
 	if err != nil {
@@ -363,7 +370,8 @@ func generateJWTSVIDs(
 // call.
 func generateSVID(
 	ctx context.Context,
-	clt *authclient.Client,
+	clusterConfigClient clusterconfigpb.ClusterConfigServiceClient,
+	workloadIdentityClient machineidv1pb.WorkloadIdentityServiceClient,
 	reqs []config.SVIDRequest,
 	ttl time.Duration,
 ) (*machineidv1pb.SignX509SVIDsResponse, crypto.Signer, error) {
@@ -373,7 +381,7 @@ func generateSVID(
 	)
 	defer span.End()
 	privateKey, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(clt),
+		cryptosuites.GetCurrentSuiteFromAuthPreference(authPreferenceGetter{clusterConfigClient}),
 		cryptosuites.BotSVID)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -395,7 +403,7 @@ func generateSVID(
 		})
 	}
 
-	res, err := clt.WorkloadIdentityServiceClient().SignX509SVIDs(ctx,
+	res, err := workloadIdentityClient.SignX509SVIDs(ctx,
 		&machineidv1pb.SignX509SVIDsRequest{
 			Svids: svids,
 		},

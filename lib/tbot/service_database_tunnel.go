@@ -29,7 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth/authclient"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -64,13 +64,14 @@ func (a alpnProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalPro
 // connections to a remote database service. It is an authenticating tunnel and
 // will automatically issue and renew certificates as needed.
 type DatabaseTunnelService struct {
-	botCfg         *config.BotConfig
-	cfg            *config.DatabaseTunnelService
-	proxyPingCache *proxyPingCache
-	log            *slog.Logger
-	resolver       reversetunnelclient.Resolver
-	botClient      *authclient.Client
-	getBotIdentity getBotIdentityFn
+	botCfg              *config.BotConfig
+	cfg                 *config.DatabaseTunnelService
+	proxyPingCache      *proxyPingCache
+	log                 *slog.Logger
+	resolver            reversetunnelclient.Resolver
+	authClient          proto.AuthServiceClient
+	clusterConfigClient clusterconfigpb.ClusterConfigServiceClient
+	getBotIdentity      getBotIdentityFn
 }
 
 // buildLocalProxyConfig initializes the service, fetching any initial information and setting
@@ -83,7 +84,7 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 	// back to all the roles the bot has if none are configured.
 	roles := s.cfg.Roles
 	if len(roles) == 0 {
-		roles, err = fetchDefaultRoles(ctx, s.botClient, s.getBotIdentity())
+		roles, err = fetchDefaultRoles(ctx, s.authClient, s.getBotIdentity())
 		if err != nil {
 			return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "fetching default roles")
 		}
@@ -238,7 +239,8 @@ func (s *DatabaseTunnelService) getRouteToDatabaseWithImpersonation(ctx context.
 
 	impersonatedIdentity, err := generateIdentity(
 		ctx,
-		s.botClient,
+		s.authClient,
+		s.clusterConfigClient,
 		s.getBotIdentity(),
 		roles,
 		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
@@ -278,7 +280,8 @@ func (s *DatabaseTunnelService) issueCert(
 	s.log.DebugContext(ctx, "Requesting issuance of certificate for tunnel proxy.")
 	ident, err := generateIdentity(
 		ctx,
-		s.botClient,
+		s.authClient,
+		s.clusterConfigClient,
 		s.getBotIdentity(),
 		roles,
 		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
