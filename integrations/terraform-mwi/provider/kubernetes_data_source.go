@@ -6,8 +6,8 @@ import (
 	"log/slog"
 
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
-	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
-	"github.com/hashicorp/terraform-plugin-framework/ephemeral/schema"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -15,29 +15,15 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
-var _ ephemeral.EphemeralResourceWithConfigure = &KubernetesEphemeralResource{}
-
-func NewKubernetesEphemeralResource() ephemeral.EphemeralResource {
-	return &KubernetesEphemeralResource{}
+func NewKubernetesDataSource() datasource.DataSource {
+	return &KubernetesDataSource{}
 }
 
-type KubernetesEphemeralResource struct {
-	pd *providerData
-}
-
-func (r *KubernetesEphemeralResource) Metadata(
-	_ context.Context,
-	req ephemeral.MetadataRequest,
-	resp *ephemeral.MetadataResponse,
-) {
-	resp.TypeName = req.ProviderTypeName + "_kubernetes"
-}
-
-type KubernetesEphemeralResourceModelSelector struct {
+type KubernetesDataSourceModelSelector struct {
 	Name types.String `tfsdk:"name"`
 }
 
-type KubernetesEphemeralResourceModel struct {
+type KubernetesDataSourceModel struct {
 	// Input
 	Selector      KubernetesEphemeralResourceModelSelector `tfsdk:"selector"`
 	CredentialTTL timetypes.GoDuration                     `tfsdk:"credential_ttl"`
@@ -50,10 +36,22 @@ type KubernetesEphemeralResourceModel struct {
 	ClusterCACertificate types.String `tfsdk:"cluster_ca_certificate"`
 }
 
-func (r *KubernetesEphemeralResource) Schema(
+type KubernetesDataSource struct {
+	pd *providerData
+}
+
+func (d *KubernetesDataSource) Metadata(
+	ctx context.Context,
+	req datasource.MetadataRequest,
+	resp *datasource.MetadataResponse,
+) {
+	resp.TypeName = req.ProviderTypeName + "_kubernetes"
+}
+
+func (d *KubernetesDataSource) Schema(
 	_ context.Context,
-	_ ephemeral.SchemaRequest,
-	resp *ephemeral.SchemaResponse,
+	_ datasource.SchemaRequest,
+	resp *datasource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
 		// TODO
@@ -98,10 +96,10 @@ func (r *KubernetesEphemeralResource) Schema(
 	}
 }
 
-func (d *KubernetesEphemeralResource) Configure(
+func (d *KubernetesDataSource) Configure(
 	ctx context.Context,
-	req ephemeral.ConfigureRequest,
-	resp *ephemeral.ConfigureResponse,
+	req datasource.ConfigureRequest,
+	resp *datasource.ConfigureResponse,
 ) {
 	// TODO: wrap in helper?
 	if req.ProviderData == nil {
@@ -123,12 +121,12 @@ func (d *KubernetesEphemeralResource) Configure(
 	d.pd = pd
 }
 
-func (r *KubernetesEphemeralResource) Open(
+func (d *KubernetesDataSource) Read(
 	ctx context.Context,
-	req ephemeral.OpenRequest,
-	resp *ephemeral.OpenResponse,
+	req datasource.ReadRequest,
+	resp *datasource.ReadResponse,
 ) {
-	var data KubernetesEphemeralResourceModel
+	var data KubernetesDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -139,7 +137,7 @@ func (r *KubernetesEphemeralResource) Open(
 		panic("boo")
 		return
 	}
-	botCfg := r.pd.newBotConfig()
+	botCfg := d.pd.newBotConfig()
 	botCfg.Services = config.ServiceConfigs{
 		&config.KubernetesV2Output{
 			Destination: dest,
@@ -198,5 +196,5 @@ func (r *KubernetesEphemeralResource) Open(
 	data.ClientCertificate = types.StringValue(string(user.ClientCertificateData))
 	data.ClusterCACertificate = types.StringValue(string(cluster.CertificateAuthorityData))
 
-	resp.Diagnostics.Append(resp.Result.Set(ctx, &data)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
