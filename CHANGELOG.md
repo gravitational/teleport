@@ -1,7 +1,8 @@
 # Changelog
 
-## 18.0.0 (xx/xx/xx)
+## 18.0.0 (06/xx/25)
 
+** Not yet released **
 ### Breaking changes
 
 #### TLS Cipher Suites
