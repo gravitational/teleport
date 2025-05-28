@@ -153,7 +153,7 @@ func TestConfigureRolesAnywhereIAMReqDefaults(t *testing.T) {
 	}
 }
 
-func TestConfigureIdPIAM(t *testing.T) {
+func TestConfigureRolesAnywhereTrustAnchor(t *testing.T) {
 	ctx := context.Background()
 
 	baseRolesAnywhereConfigReq := func() TrustAnchorConfigureRequest {
@@ -176,13 +176,46 @@ func TestConfigureIdPIAM(t *testing.T) {
 		existingProfiles       []ratypes.ProfileDetail
 		existingRAResourceTags map[string][]ratypes.Tag
 		existingRoles          []mockRole
+		trustAnchorID          string
 		errCheck               require.ErrorAssertionFunc
 		externalStateCheck     func(*testing.T, mockIAMRolesAnywhereClient)
 	}{
 		{
-			name:     "valid",
-			req:      baseRolesAnywhereConfigReq,
-			errCheck: require.NoError,
+			name:          "valid",
+			req:           baseRolesAnywhereConfigReq,
+			errCheck:      require.NoError,
+			trustAnchorID: "my-trust-anchor-uuid",
+			externalStateCheck: func(t *testing.T, clt mockIAMRolesAnywhereClient) {
+				trustAnchors, err := clt.ListTrustAnchors(ctx, &rolesanywhere.ListTrustAnchorsInput{})
+				require.NoError(t, err)
+				require.Len(t, trustAnchors.TrustAnchors, 1)
+				require.Equal(t, "mytrustanchor", aws.ToString(trustAnchors.TrustAnchors[0].Name))
+				require.Equal(t, "my-trust-anchor-uuid", aws.ToString(trustAnchors.TrustAnchors[0].TrustAnchorId))
+
+				syncRoleTrustPolicy := clt.mockIAMRoles.existingRoles["mysyncrole"].assumeRolePolicyDoc
+				expectedSyncRoleTrustPolicy := `{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "sts:AssumeRole",
+                "sts:SetSourceIdentity",
+                "sts:TagSession"
+            ],
+            "Principal": {
+                "Service": "rolesanywhere.amazonaws.com"
+            },
+            "Condition": {
+                "ArnEquals": {
+                    "aws:SourceArn": "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/my-trust-anchor-uuid"
+                }
+            }
+        }
+    ]
+}`
+				require.Equal(t, expectedSyncRoleTrustPolicy, aws.ToString(syncRoleTrustPolicy))
+			},
 		},
 		{
 			name: "trust anchor already exists but is missing the required ownership tags",
@@ -235,6 +268,7 @@ func TestConfigureIdPIAM(t *testing.T) {
 					trustAnchorsByID: existingTrustAnchors,
 					profilesByID:     existingProfiles,
 					resourceTags:     existingResourceTags,
+					trustAnchorID:    tt.trustAnchorID,
 				},
 				mockIAMRoles: mockIAMRoles{
 					existingRoles: make(map[string]mockRole),
@@ -252,6 +286,7 @@ func TestConfigureIdPIAM(t *testing.T) {
 }
 
 type mockIAMRolesAnywhere struct {
+	trustAnchorID    string
 	trustAnchorsByID map[string]ratypes.TrustAnchorDetail
 	profilesByID     map[string]ratypes.ProfileDetail
 	resourceTags     map[string][]ratypes.Tag
@@ -265,6 +300,9 @@ func (m *mockIAMRolesAnywhere) ListTrustAnchors(ctx context.Context, params *rol
 
 func (m *mockIAMRolesAnywhere) CreateTrustAnchor(ctx context.Context, params *rolesanywhere.CreateTrustAnchorInput, optFns ...func(*rolesanywhere.Options)) (*rolesanywhere.CreateTrustAnchorOutput, error) {
 	newTrustAnchorID := uuid.NewString()
+	if m.trustAnchorID != "" {
+		newTrustAnchorID = m.trustAnchorID
+	}
 	newTrustAnchorARN := "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/" + newTrustAnchorID
 
 	m.trustAnchorsByID[newTrustAnchorID] = ratypes.TrustAnchorDetail{
@@ -386,6 +424,7 @@ func (m *mockIAMRoles) CreateRole(ctx context.Context, params *iam.CreateRoleInp
 			Message: &alreadyExistsMessage,
 		}
 	}
+	fmt.Println("===========Creating role:", *params.RoleName)
 	m.existingRoles[*params.RoleName] = mockRole{
 		tags:                params.Tags,
 		assumeRolePolicyDoc: params.AssumeRolePolicyDocument,
