@@ -69,9 +69,9 @@ type identityService struct {
 
 	conn grpcconn.ClientConn
 
-	mu     sync.Mutex
-	client *authclient.Client
-	facade *identity.Facade
+	mu      sync.Mutex
+	closeFn func() error
+	facade  *identity.Facade
 }
 
 // GetIdentity returns the current Bot identity.
@@ -95,14 +95,6 @@ type Clients struct {
 	TrustService                      trustpb.TrustServiceClient
 	WorkloadIdentityRevocationService workloadidentitypb.WorkloadIdentityRevocationServiceClient
 	WorkloadIdentityService           machineidpb.WorkloadIdentityServiceClient
-}
-
-// GetClient returns the facaded client for the Bot identity for use by other
-// components of `tbot`. Consumers should not call `Close` on the client.
-func (s *identityService) GetClient() *authclient.Client {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.client
 }
 
 // GetClients returns the gRPC clients tbot depends on.
@@ -270,7 +262,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	s.mu.Lock()
-	s.client = c
+	s.closeFn = c.Close
 	s.conn.SetConnection(c.GetConnection())
 	s.facade = facade
 	s.mu.Unlock()
@@ -280,11 +272,15 @@ func (s *identityService) Initialize(ctx context.Context) error {
 }
 
 func (s *identityService) Close() error {
-	c := s.GetClient()
-	if c == nil {
-		return nil
+	s.mu.Lock()
+	closeFn := s.closeFn
+	s.mu.Unlock()
+
+	if closeFn != nil {
+		return trace.Wrap(closeFn())
 	}
-	return trace.Wrap(c.Close())
+
+	return nil
 }
 
 func (s *identityService) Run(ctx context.Context) error {
