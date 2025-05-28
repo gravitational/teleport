@@ -31,9 +31,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
 // debouncer accepts a duration, and a function. When `attempt` is called on
@@ -129,7 +130,7 @@ const caRotationRetryBackoff = time.Second * 2
 type caRotationService struct {
 	log               *slog.Logger
 	reloadBroadcaster *channelBroadcaster
-	botClient         *authclient.Client
+	authClient        proto.AuthServiceClient
 	getBotIdentity    getBotIdentityFn
 }
 
@@ -189,7 +190,7 @@ func (s *caRotationService) watchCARotations(ctx context.Context, queueReload fu
 
 	ident := s.getBotIdentity()
 	clusterName := ident.ClusterName
-	watcher, err := s.botClient.NewWatcher(ctx, types.Watch{
+	watcher, err := client.StreamWatcherWithClient(ctx, s.authClient, types.Watch{
 		Kinds: []types.WatchKind{{
 			Kind: types.KindCertAuthority,
 			Filter: types.CertAuthorityFilter{

@@ -279,7 +279,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 
 	services = append(services, &caRotationService{
 		getBotIdentity: b.botIdentitySvc.GetIdentity,
-		botClient:      b.botIdentitySvc.GetClient(),
+		authClient:     clients.AuthService,
 		log: b.log.With(
 			teleport.ComponentKey, teleport.Component(componentTBot, "ca-rotation"),
 		),
@@ -298,7 +298,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		trustBundleCache, err = workloadidentity.NewTrustBundleCache(workloadidentity.TrustBundleCacheConfig{
 			FederationClient: clients.SPIFFEFederationService,
 			TrustClient:      clients.TrustService,
-			EventsClient:     b.botIdentitySvc.GetClient(),
+			EventsClient:     workloadidentity.NewEventsClient(clients.AuthService),
 			ClusterName:      b.botIdentitySvc.GetIdentity().ClusterName,
 			Logger: b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "spiffe-trust-bundle-cache"),
