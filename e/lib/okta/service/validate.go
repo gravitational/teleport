@@ -17,6 +17,10 @@ import (
 func validateCreateIntegrationRequest(req *oktapb.CreateIntegrationRequest, samlConnector types.SAMLConnector) error {
 	var err error
 
+	if samlConnector == nil && req.GetSsoMetadataUrl() == "" {
+		return trace.BadParameter("SSO metadata URL must be provided if SAML connector %q is not pre-created", getSAMLConnectorName(req))
+	}
+
 	if req.GetOktaOrganizationUrl() != "" {
 		req.OktaOrganizationUrl, err = validateAndSanitizeUrl(req.GetOktaOrganizationUrl())
 		if err != nil {

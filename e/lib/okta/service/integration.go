@@ -203,6 +203,7 @@ func newOktaPlugin(req *oktapb.CreateIntegrationRequest, connectorInfo *sso.SAML
 			DisableBidirectionalSync:  !req.GetEnableBidirectionalSync(),
 			SsoConnectorId:            connectorInfo.Connector.GetName(),
 			AppId:                     connectorInfo.OktaAppID,
+			AppName:                   connectorInfo.OktaAppName,
 
 			GroupFilters:          req.GetAccessListSettings().GetGroupFilters(),
 			AppFilters:            req.GetAccessListSettings().GetAppFilters(),

@@ -38,6 +38,10 @@ func validateOrganization(req *oktapb.CreateIntegrationRequest, connector *sso.S
 }
 
 func (s *Service) pluginInstallCreateSAMLConnector(ctx context.Context, req *oktapb.CreateIntegrationRequest, connectorName string) (*sso.SAMLConnectorInfo, error) {
+	if req.GetSsoMetadataUrl() == "" {
+		return nil, trace.BadParameter("SSO metadata URL must be provided to create the SAML connector")
+	}
+
 	// Remove the MFA resp from the context before getting the connector.
 	// Otherwise, it will be consumed before the Create which actually
 	// requires the MFA.
@@ -55,42 +59,20 @@ func (s *Service) pluginInstallCreateSAMLConnector(ctx context.Context, req *okt
 		return nil, trace.Wrap(err)
 	}
 
-	if req.GetSsoMetadataUrl() != "" {
-		// Create a new SAML connector from the metadata URL.
-		// This is the flow where the SAML application is pre-created in the Okta organization.
-		// And Teleport just needs to create a SAML connector from the metadata.
-		connInfo, err := sso.CreateSAMLConnectorFromMetadataURL(ctx, sso.ConnectorArgs{
-			ConnectorName:        connectorName,
-			SAMLConnectorService: s.authService,
-			ClusterName:          pingInfo.ClusterName,
-			PublicURL:            publicURL,
-			Logger:               s.logger,
-			MetadataURL:          req.GetSsoMetadataUrl(),
-			HTTPClient:           s.roundTripper,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err, "creating new SAML connector")
-		}
-		return connInfo, nil
-	}
-	oktaClient, err := s.createOktaClient(ctx, req, nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Create a Teleport SAML application in the Okta organization.
-	// and corresponding SAML connector in Teleport.
-	// For that the okta.apps.manage is required to create the SAML app in Okta organization.
-	// Also, the flow tries to Assign okta Groups Everyone and created Okta SAML app.
-	connInfo, err := sso.CreateSAMLConnector(ctx, sso.ConnectorArgs{
+	// Create a new SAML connector from the metadata URL.  The SAML application must be
+	// pre-created in Okta and Teleport just needs to create a SAML connector from the
+	// metadata.
+	connInfo, err := sso.CreateSAMLConnectorFromMetadataURL(ctx, sso.ConnectorArgs{
 		ConnectorName:        connectorName,
-		OktaClient:           oktaClient,
 		SAMLConnectorService: s.authService,
 		ClusterName:          pingInfo.ClusterName,
 		PublicURL:            publicURL,
 		Logger:               s.logger,
+		MetadataURL:          req.GetSsoMetadataUrl(),
+		HTTPClient:           s.roundTripper,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "creating new SAML connector")
 	}
 	return connInfo, nil
 }
@@ -175,42 +157,16 @@ func (s *Service) ensureSAMLConnector(ctx context.Context, req *oktapb.CreateInt
 	// SAML app are the users that are being synchronized if user sync is enabled and user sync
 	// is the minimal level of sync.
 	if req.GetApiCredentials() != nil {
-		err := s.setAppId(ctx, connInfo, req)
+		oktaClient, err := s.createOktaClient(ctx, req, nil)
 		if err != nil {
-			return nil, trace.Wrap(err, "fetching Okta SAML app ID")
+			return nil, trace.Wrap(err, "creating Okta client")
 		}
+		connInfo, err := sso.FetchOktaSAMLConnectorInfo(ctx, oktaClient, connInfo.Connector)
+		if err != nil {
+			return nil, trace.Wrap(err, "fetching Okta SAML app info")
+		}
+		return connInfo, nil
 	}
 
 	return connInfo, nil
-}
-
-// setAppId fetches the Okta SAML app ID for the connector and sets it in the connector info if it
-// isn't already set.
-func (s *Service) setAppId(ctx context.Context, info *sso.SAMLConnectorInfo, req *oktapb.CreateIntegrationRequest) error {
-	if info.OktaAppID != "" {
-		// App ID already set.
-		return nil
-	}
-	if info.Connector == nil {
-		return trace.BadParameter("connector missing in the connector info")
-	}
-	if req.GetApiCredentials() == nil {
-		return trace.BadParameter("API credentials missing in create integration request")
-	}
-	if req.GetOktaOrganizationUrl() == "" {
-		return trace.BadParameter("Okta organization URL missing in the create integration request")
-	}
-
-	oktaClient, err := s.createOktaClient(ctx, req, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	appId, err := sso.FetchOktaAppIdFromConnector(ctx, oktaClient, info.Connector)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	info.OktaAppID = appId
-	return nil
 }

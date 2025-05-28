@@ -47,6 +47,7 @@ func Test_validateCreateIntegrationRequest(t *testing.T) {
 			name: "Okta org URL with invalid scheme",
 			req: &oktapb.CreateIntegrationRequest{
 				OktaOrganizationUrl: "http://example.com",
+				SsoMetadataUrl:      "https://example.com/sso",
 			},
 			expectedErr: "required https scheme",
 		},
@@ -54,6 +55,7 @@ func Test_validateCreateIntegrationRequest(t *testing.T) {
 			name: "it is ok to provide URL with no scheme",
 			req: &oktapb.CreateIntegrationRequest{
 				OktaOrganizationUrl: "example.com",
+				SsoMetadataUrl:      "example.com/sso",
 			},
 			expectedErr: "",
 		},
@@ -79,7 +81,7 @@ func Test_validateCreateIntegrationRequest(t *testing.T) {
 		{
 			name:        "SSO metadata URL and Okta org URL empty",
 			req:         &oktapb.CreateIntegrationRequest{},
-			expectedErr: "Okta org URL or SSO metadata URL missing",
+			expectedErr: "SSO metadata URL must be provided if SAML connector \"okta\" is not pre-created",
 		},
 		{
 			name: "API credentials are required when sync is enabled",

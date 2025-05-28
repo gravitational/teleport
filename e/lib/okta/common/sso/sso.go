@@ -15,10 +15,8 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta/query"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
-	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -103,144 +101,6 @@ type SAMLConnectorInfo struct {
 	OktaOrg      string
 }
 
-// CreateSAMLConnector automates the creation of an Okta SAML app and
-// corresponding SAML SSO connector in Teleport.
-func CreateSAMLConnector(ctx context.Context, args ConnectorArgs) (*SAMLConnectorInfo, error) {
-	if err := args.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := oktacommon.CheckClientOAuthScopes(ctx, args.OktaClient, oktaapi.ScopeAppsManage); err != nil {
-		return nil, trace.BadParameter(
-			"Unable to automatically create an Okta SAML Application due to missing permissions. " +
-				"Your Okta API credentials lack the required 'okta.apps.manage' scope needed for this operation. " +
-				"Please review your Okta API Service permissions to ensure you have the necessary scopes, and try again.")
-	}
-
-	// Remove the MFA resp from the context before getting the connector.
-	// Otherwise, it will be consumed before the Create which actually
-	// requires the MFA.
-	// TODO(Joerger): Explicitly provide MFA response only where it is
-	// needed instead of removing it like this.
-	getConnectorCtx := mfa.ContextWithMFAResponse(ctx, nil)
-	_, err := args.SAMLConnectorService.GetSAMLConnector(getConnectorCtx, args.ConnectorName, false)
-	if err == nil {
-		return nil, trace.AlreadyExists("SAML SSO connector %q already exists", args.ConnectorName)
-	}
-
-	// First, we create the Okta side of the connection: an Okta app that will
-	// allow members of the upstream Okta organization to log into Teleport via
-	// SAML.
-	app, err := createOktaSAMLApp(ctx, args.OktaClient, args.ClusterName, args.PublicURL, args.ConnectorName, args.Logger)
-	if err != nil {
-		if trace.IsAccessDenied(err) {
-			return nil, trace.AccessDenied(
-				"The provided Okta API credentials do not have the necessary permissions to create SSO SAML applications in you Okta organization.\n"+
-					"Please check your permissions and try again.\n"+
-					"Okta API Error: %v", err)
-		}
-		return nil, trace.Wrap(err, "creating Okta SAML app")
-	}
-
-	// The "Everyone" group exists in all Okta instances, and contains all users
-	// in the system. By assigning this group to our new Okta SAML app, we grant
-	// all Okta users in the upstream Okta system the right to log into Teleport
-	// using their Okta credentials.
-	//
-	//  See also: https://support.okta.com/help/s/article/The-Everyone-Group-in-Okta
-
-	everyone, err := findOktaBuiltinGroup(ctx, args.OktaClient, oktaapi.OktaGroupEveryone)
-	if trace.IsNotFound(err) {
-		args.Logger.WarnContext(ctx, "Skipping assigning Everyone built-in group to Okta app because it was not found - probably not allowed by Okta resource sets",
-			"app_name", app.Name, "app_id", app.Id)
-	} else if err != nil {
-		return nil, trace.Wrap(err, "finding Okta group Everyone")
-	} else {
-		args.Logger.InfoContext(ctx, "Assigning Everyone built-in group to Okta app",
-			"app_name", app.Name, "app_id", app.Id, "group_id", everyone.Id)
-
-		err := args.OktaClient.AssignGroupToApplication(ctx, oktaapi.OktaGroupID(everyone.Id), oktaapi.OktaAppID(app.Id))
-		if err != nil {
-			return nil, trace.Wrap(err, "assigning everyone to app")
-		}
-	}
-
-	// Now that we have configured the Okta side of the SSO connection, we need
-	// to create the corresponding Teleport side. This will allow the Teleport
-	// cluster to offer SSO logins via Okta, and to receive profile information
-	// from the Okta users via SAML.
-
-	metadataURL, metadataContentType, err := extractMetadataURL(app.Links)
-	if err != nil {
-		return nil, trace.Wrap(err, "extracting SAML app entity metadata link")
-	}
-
-	args.Logger.InfoContext(ctx, "Downloading entity metadata for app",
-		"app_id", app.Id,
-		"metadata_url", metadataURL,
-		"content_type", metadataContentType,
-	)
-	var acceptableContentTypes []string
-	if metadataContentType != "" {
-		acceptableContentTypes = append(acceptableContentTypes, metadataContentType)
-	}
-	metadata, err := args.OktaClient.DoHttp(ctx, http.MethodGet, metadataURL,
-		acceptableContentTypes)
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching SAML app entity metadata")
-	}
-
-	args.Logger.DebugContext(ctx, "Generating connector display name from Okta Organization")
-	connectorDisplayName, err := generateConnectorName(ctx, args.OktaClient)
-	if err != nil {
-		return nil, trace.Wrap(err, "generating connector name")
-	}
-
-	// Note that we create the SSO connector with a role mapping gives all users
-	// in the Okta Everyone group the "okta-requester" role so that they can at least log
-	// into the Teleport cluster, but the only thing they can do is request
-	// access from an admin.
-	args.Logger.DebugContext(ctx, "Constructing SAML connector resource")
-	connector, err := types.NewSAMLConnector(args.ConnectorName, types.SAMLConnectorSpecV2{
-		AssertionConsumerService: args.PublicURL.JoinPath("/v1/webapi/saml/acs", args.ConnectorName).String(),
-		Display:                  connectorDisplayName,
-		EntityDescriptor:         string(metadata),
-		SigningKeyPair:           args.SigningKeypair,
-		AttributesToRoles: []types.AttributeMapping{
-			{
-				Name:  "groups",
-				Value: oktaapi.OktaGroupEveryone,
-				Roles: []string{teleport.SystemOktaRequesterRoleName},
-			},
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	meta := connector.GetMetadata()
-	meta.Labels = map[string]string{
-		types.OriginLabel:         types.OriginOkta,
-		eteleport.OktaOrgURLLabel: args.OktaClient.GetOrgUrl(),
-		eteleport.OktaAppIDLabel:  app.Id,
-	}
-	connector.SetMetadata(meta)
-
-	args.Logger.InfoContext(ctx, "Creating new SAML connector", "connector_name", connector.GetName())
-	if _, err := args.SAMLConnectorService.CreateSAMLConnector(ctx, connector); err != nil {
-		return nil, trace.Wrap(err, "creating Okta SAML connector")
-	}
-
-	info := &SAMLConnectorInfo{
-		Connector:    connector,
-		OktaAppID:    app.Id,
-		OktaAppName:  app.Name,
-		OktaAppLabel: app.Label,
-		OktaOrg:      args.OktaClient.GetOrgUrl(),
-	}
-
-	return info, nil
-}
-
 // CreateSAMLConnectorFromMetadataURL creates a new SAML connector in Teleport based on the OKta SAML Application metadataURL.
 func CreateSAMLConnectorFromMetadataURL(ctx context.Context, args ConnectorArgs) (*SAMLConnectorInfo, error) {
 	idpMetadata, err := fetchSSOIdPMetadata(ctx, args.MetadataURL, args.HTTPClient)
@@ -278,6 +138,7 @@ func CreateSAMLConnectorFromMetadataURL(ctx context.Context, args ConnectorArgs)
 	if _, err := args.SAMLConnectorService.CreateSAMLConnector(ctx, connector); err != nil {
 		return nil, trace.Wrap(err, "creating Okta SAML connector")
 	}
+
 	info := &SAMLConnectorInfo{
 		Connector: connector,
 		OktaOrg:   oktaOrg,
@@ -285,23 +146,20 @@ func CreateSAMLConnectorFromMetadataURL(ctx context.Context, args ConnectorArgs)
 	return info, nil
 }
 
-// FetchOktaAppIdFromConnector tries to extract Okta app ID for the Okta SAML app for the given
+// FetchOktaSAMLConnectorInfo tries to extract Okta app ID for the Okta SAML app for the given
 // connector. It first tries to get it from annotation but if not available it tries to extract the
 // Okta app name it from SAML connector SSO URL and then query Okta to retrieve tha app ID.
-func FetchOktaAppIdFromConnector(ctx context.Context, oktaClient oktaapi.Interface, samlConnector types.SAMLConnector) (string, error) {
-	if oktaAppId := samlConnector.GetMetadata().Labels[eteleport.OktaAppIDLabel]; oktaAppId != "" {
-		return oktaAppId, nil
-	}
-
+func FetchOktaSAMLConnectorInfo(ctx context.Context, oktaClient oktaapi.Interface, samlConnector types.SAMLConnector) (*SAMLConnectorInfo, error) {
 	if samlConnector.GetSSO() == "" {
-		return "", trace.BadParameter("SAML connector %q has not SSO URL set", samlConnector.GetName())
+		return nil, trace.BadParameter("SAML connector %q has not SSO URL set", samlConnector.GetName())
 	}
-	oktaAppName, err := extractOktaAppNameFromSsoUrl(samlConnector.GetSSO())
+	oktaAppName, err := ExtractOktaAppNameFromSsoUrl(samlConnector.GetSSO())
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	oktaAppId := ""
+	oktaAppLabel := ""
 	err = oktaClient.IterateApps(
 		ctx,
 		func(a okta.App) error {
@@ -314,28 +172,35 @@ func FetchOktaAppIdFromConnector(ctx context.Context, oktaClient oktaapi.Interfa
 				return trace.BadParameter("this is a bug: more than one Okta App [%q, %q] found for App name = %q", app.Id, oktaAppId, oktaAppName)
 			}
 			oktaAppId = app.Id
+			oktaAppLabel = app.Label
 			return nil
 		},
 		query.WithQ(oktaAppName),
 	)
 	if trace.IsAccessDenied(err) {
 		// The scopes are checked on top of this function so it's probably admin role permission.
-		return "", trace.Wrap(err, `Insufficient Okta API permissions to list Okta apps. Ensure "View application and their details" permission is set to the custom admin role assigned to the provided Okta credential.`)
+		return nil, trace.Wrap(err, `Insufficient Okta API permissions to list Okta apps. Ensure "View application and their details" permission is set to the custom admin role assigned to the provided Okta credential.`)
 	} else if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if oktaAppId == "" {
-		return "", trace.NotFound("No Okta App for Okta App name = %q found. This could be a problem with the app excluded from the Okta resource set.", oktaAppName)
+		return nil, trace.NotFound("No Okta App for Okta App name = %q found. This could be a problem with the app excluded from the Okta resource set.", oktaAppName)
 	}
-	return oktaAppId, trace.Wrap(err)
+	return &SAMLConnectorInfo{
+		Connector:    samlConnector,
+		OktaOrg:      oktaClient.GetOrgUrl(),
+		OktaAppID:    oktaAppId,
+		OktaAppName:  oktaAppName,
+		OktaAppLabel: oktaAppLabel,
+	}, nil
 }
 
-// extractOktaAppNameFromSsoUrl extracts Okta app name from SAML location URL stored in saml.spec.sso field.
+// ExtractOktaAppNameFromSsoUrl extracts Okta app name from SAML location URL stored in saml.spec.sso field.
 //
 // Example SSO URL for Okta:
 // https://example.com/app/trial-123456_teleportsamlconnectorapp_1/exkmtd8mclmbcpx01697/sso/saml
-func extractOktaAppNameFromSsoUrl(ssoUrlText string) (string, error) {
+func ExtractOktaAppNameFromSsoUrl(ssoUrlText string) (string, error) {
 	ssoUrl, err := url.Parse(ssoUrlText)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -388,17 +253,6 @@ func fetchSSOIdPMetadata(ctx context.Context, metadataURL string, rt http.RoundT
 // ValidateSAMLConnector examines SAML Auth connector to see if it is configured
 // for use with the Okta integration and extracts the appropriate metadata.
 func ValidateSAMLConnector(ctx context.Context, oktaClient oktaapi.Interface, connector types.SAMLConnector) (*SAMLConnectorInfo, error) {
-	labels := connector.GetMetadata().Labels
-
-	connectorAppID, present := labels[eteleport.OktaAppIDLabel]
-	if !present {
-		var err error
-		connectorAppID, err = FetchOktaAppIdFromConnector(ctx, oktaClient, connector)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	oktaOrg, err := getOktaOrgFromSAMLConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -407,28 +261,27 @@ func ValidateSAMLConnector(ctx context.Context, oktaClient oktaapi.Interface, co
 		return nil, trace.BadParameter("SAML connector %q bound to %q Okta organization but expected %q", connector.GetName(), oktaOrg, oktaClient.GetOrgUrl())
 	}
 
-	app, err := oktaClient.GetApplication(ctx, oktaapi.OktaAppID(connectorAppID), &okta.SamlApplication{})
+	info, err := FetchOktaSAMLConnectorInfo(ctx, oktaClient, connector)
 	if err != nil {
-		return nil, trace.Wrap(err, "fetching Okta App ID %s", connectorAppID)
+		return nil, trace.Wrap(err)
 	}
 
-	samlApp, ok := app.(*okta.SamlApplication)
-	if !ok {
-		return nil, trace.BadParameter("invalid Okta App type: %T", app)
+	labels := connector.GetMetadata().Labels
+	connectorAppID, present := labels[eteleport.OktaAppIDLabel]
+	if present && info.OktaAppID != connectorAppID {
+		return nil, trace.BadParameter("SAML connector app ID label value is %q but found Okta SAML app ID is %q", connectorAppID, info.OktaAppID)
 	}
 
-	info := &SAMLConnectorInfo{
-		Connector:    connector,
-		OktaAppID:    connectorAppID,
-		OktaAppName:  samlApp.Name,
-		OktaAppLabel: samlApp.Label,
-		OktaOrg:      oktaOrg,
-	}
+	// It would be nice to check if the app is of type *okta.SamlApplication here, but it will
+	// cost us another request and doesn't bring that much value.
 
 	return info, nil
 }
 
 func getOktaOrgFromSAMLConnector(connector types.SAMLConnector) (string, error) {
+	if connector.GetSSO() == "" {
+		return "", trace.BadParameter("SAML connector %q has not SSO URL set", connector.GetName())
+	}
 	labels := connector.GetMetadata().Labels
 	if org, ok := labels[eteleport.OktaOrgURLLabel]; ok {
 		return org, nil
@@ -438,132 +291,6 @@ func getOktaOrgFromSAMLConnector(connector types.SAMLConnector) (string, error) 
 		return "", trace.Wrap(err)
 	}
 	return org, nil
-}
-
-// box creates a "boxed" (i.e. heap-allocated) copy of any value. Helpful when
-// filling out optional REST API fields.
-func box[T any](v T) *T {
-	boxed := new(T)
-	(*boxed) = v
-	return boxed
-}
-
-// createOktaSAMLApp creates the Okta-side of the SAML SSO connector: a SAML app
-// that will let used log in via Okta SSO.
-func createOktaSAMLApp(ctx context.Context, oktaClient oktaapi.Interface, clusterName string, publicURL *url.URL, connectorName string, logger *slog.Logger) (*okta.SamlApplication, error) {
-	teleportEndpoint := publicURL.JoinPath("v1/webapi/saml/acs", connectorName).String()
-
-	oktaAppRequest := &okta.SamlApplication{
-		Label:         "Teleport " + clusterName,
-		Accessibility: &okta.ApplicationAccessibility{},
-		Visibility: &okta.ApplicationVisibility{
-			Hide: &okta.ApplicationVisibilityHide{},
-		},
-		Features:   []string{},
-		SignOnMode: "SAML_2_0",
-		Credentials: &okta.ApplicationCredentials{
-			UserNameTemplate: &okta.ApplicationCredentialsUsernameTemplate{
-				Template: "${source.login}",
-				Type:     "BUILT_IN",
-			},
-			Signing: &okta.ApplicationCredentialsSigning{},
-		},
-		Settings: &okta.SamlApplicationSettings{
-			Notifications: &okta.ApplicationSettingsNotifications{
-				Vpn: &okta.ApplicationSettingsNotificationsVpn{
-					Network: &okta.ApplicationSettingsNotificationsVpnNetwork{
-						Connection: "DISABLED",
-					},
-				},
-			},
-			SignOn: &okta.SamlApplicationSettingsSignOn{
-				SsoAcsUrl:             teleportEndpoint,
-				Destination:           teleportEndpoint,
-				Recipient:             teleportEndpoint,
-				Audience:              teleportEndpoint,
-				IdpIssuer:             "http://www.okta.com/${org.externalKey}",
-				SubjectNameIdFormat:   "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
-				SubjectNameIdTemplate: "${user.userName}",
-				SignatureAlgorithm:    "RSA_SHA256",
-				DigestAlgorithm:       "SHA256",
-				AuthnContextClassRef:  "urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport",
-				AssertionSigned:       box(true),
-				ResponseSigned:        box(true),
-				AttributeStatements: []*okta.SamlAttributeStatement{
-					{
-						Type:      "EXPRESSION",
-						Name:      "username",
-						Namespace: "urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified",
-						Values:    []string{"user.login"},
-					}, {
-						Type:        "GROUP",
-						Name:        "groups",
-						Namespace:   "urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified",
-						FilterType:  "REGEX",
-						FilterValue: ".*",
-					},
-				},
-			},
-		},
-	}
-
-	logger.InfoContext(ctx, "Creating Okta App for Teleport SSO endpoint",
-		"app", oktaAppRequest.Label,
-		"endpoint", teleportEndpoint,
-	)
-
-	appResponse, err := oktaClient.CreateApplication(ctx, oktaAppRequest)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	actualApp, ok := appResponse.(*okta.SamlApplication)
-	if !ok {
-		return nil, trace.BadParameter("Okta API returned unexpected application type: %t", appResponse)
-	}
-
-	logger.InfoContext(ctx, "Created Okta App", "app_id", actualApp.Id, "app_label", actualApp.Label)
-	return actualApp, nil
-}
-
-func generateConnectorName(ctx context.Context, oktaClient oktaapi.Interface) (string, error) {
-	orgName, err := oktaClient.OrgName(ctx)
-	switch {
-	case err == nil:
-		return orgName, nil
-
-	case trace.IsAccessDenied(err):
-		// The user does not have the rights to fetch okta settings, so fall
-		// back try to trying to generate a name based on the base endpoint url
-		url, err := url.Parse(oktaClient.GetOrgUrl())
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		return strings.Split(url.Host, ".")[0], nil
-
-	default:
-		return "", trace.Wrap(err)
-	}
-}
-
-func findOktaBuiltinGroup(ctx context.Context, oktaClient oktaapi.Interface, name string) (*okta.Group, error) {
-	result := (*okta.Group)(nil)
-	err := oktaClient.IterateGroups(ctx, func(g *okta.Group) error {
-		if g.Type == "BUILT_IN" && g.Profile.Name == name {
-			result = g
-			return trace.Wrap(oktaapi.ErrStopIteration)
-		}
-		return nil
-	})
-
-	switch {
-	case err != nil:
-		return nil, trace.Wrap(err)
-	case result == nil:
-		return nil, trace.NotFound("%s", name)
-	default:
-		return result, nil
-	}
 }
 
 func extractMetadataURL(input any) (*url.URL, string, error) {

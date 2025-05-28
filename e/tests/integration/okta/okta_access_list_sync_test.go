@@ -27,8 +27,6 @@ import (
 func TestAccessListSync(t *testing.T) {
 	ctx := context.Background()
 
-	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
-
 	httpMock := RoundTripperFunc(func(request *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(request.URL.Path, "/sso/saml/metadata") {
 			return &http.Response{
@@ -41,7 +39,13 @@ func TestAccessListSync(t *testing.T) {
 			StatusCode: http.StatusNotFound,
 		}, nil
 	})
+
+	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
 	oktaApiClient.setRoundTripper(httpMock)
+
+	// The value from app name is  taken from idp.EntityDescriptor returned by the httpMock
+	// above.
+	createOktaSAMLAPP(t, ctx, oktaApiClient, "example_test-okta-app-name")
 
 	// Create a user in Okta.
 	user, _ := createOktaUser(t, ctx, oktaApiClient, "oktan@test.com")
@@ -62,12 +66,13 @@ func TestAccessListSync(t *testing.T) {
 		common.WithSAMLConnector(idp.SAMLConnector),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(httpMock),
 	)
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
 
 	_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
 		ApiCredentials:            apiCredentials,
-		OktaOrganizationUrl:       oktaApiClient.GetOrgUrl(),
+		SsoMetadataUrl:            oktaApiClient.GetOrgUrl() + "/app/123487988/sso/saml/metadata",
 		EnableUserSync:            true,
 		DisableAssignDefaultRoles: false,
 		EnableAppGroupSync:        true,

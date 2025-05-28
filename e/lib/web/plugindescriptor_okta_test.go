@@ -12,13 +12,13 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
@@ -36,12 +36,15 @@ import (
 )
 
 const (
-	oktaTestOrg         = "https://test-okta-org.example.com"
-	oktaTestClusterName = "okta-test.teleport.com"
-	oktaAPIToken        = "001ABCdefGh_IJkLmnoPQRst23UVwxyz456"
-	oktaAppID           = "0oafxqCAJWWGELFTYASJ"
-	oktaSCIMToken       = "Ce n'est pas un jeton, pas du tout"
-	oktaEveryoneGroupID = "00gb0c5lmzAl5GbZc5d7"
+	oktaTestOrg            = "https://test-okta-org.example.com"
+	oktaSSOMetadataURLPath = "/app/123487988/sso/saml/metadata"
+	oktaSSOMetadataURL     = oktaTestOrg + oktaSSOMetadataURLPath
+	oktaSAMLAppName        = "okta_app_name_1" // taken from testEntityDescriptor
+	oktaTestClusterName    = "okta-test.teleport.com"
+	oktaAPIToken           = "001ABCdefGh_IJkLmnoPQRst23UVwxyz456"
+	oktaAppID              = "0oafxqCAJWWGELFTYASJ"
+	oktaSCIMToken          = "Ce n'est pas un jeton, pas du tout"
+	oktaEveryoneGroupID    = "00gb0c5lmzAl5GbZc5d7"
 )
 
 // premadeSAMLSigningKeypair is a keypair used for testing. Reduces test time by
@@ -124,7 +127,7 @@ var _ pluginDescriptor = testOktaDescriptor{}
 var _ pluginUpdateHandler = testOktaDescriptor{}
 
 // newTestOktaPluginFixture creates a set of related
-func newTestOktaPluginFixture(t *testing.T, opts ...webSuiteOption) (*webSuite, *authWebPack, *mockRoundTripper) {
+func newTestOktaPluginFixture(t *testing.T, opts ...webSuiteOption) (*webSuite, *authWebPack) {
 	// Enable SAML/SSO for testing
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
@@ -146,11 +149,9 @@ func newTestOktaPluginFixture(t *testing.T, opts ...webSuiteOption) (*webSuite, 
 
 	// Patch the Web Plugin's plugin descriptor map so that any request for the
 	// Okta descriptor will use our test descriptor instead
-	mockta := &mockRoundTripper{}
-	s.webPlugin.pluginDescriptors[types.PluginTypeOkta] =
-		testOktaDescriptor{&http.Client{Transport: mockta}}
+	s.webPlugin.pluginDescriptors[types.PluginTypeOkta] = testOktaDescriptor{}
 
-	return s, webPack, mockta
+	return s, webPack
 }
 
 //nolint:bodyclose // The http.Requests created in this function are cleaned up by the request consumers
@@ -160,8 +161,63 @@ func TestOktaPluginUpdate(t *testing.T) {
 		mockClientID   = "SOME_CLIENT_ID"
 	)
 
-	mockta := &mockRoundTripper{}
-	s, webPack, _ := newTestOktaPluginFixture(t, withRoundTripper(mockta))
+	mockta := newRoundTripper(func(req *http.Request) (*http.Response, error) {
+		switch {
+
+		// Expect the Okta credentials test request
+		case withPath(req, "GET", "/api/v1/users"):
+			return jsonResponse(http.StatusOK, []map[string]any{
+				{
+					"id":     "00ub0c5ls7iixvj6j5d7",
+					"status": "ACTIVE",
+					"profile": map[string]any{
+						"firstName": "Norville",
+						"lastName":  "Rogers",
+						"nickName":  "Shaggy",
+						"login":     "shaggy@mystery-machine.org",
+						"email":     "shaggy@mystery-machine.org",
+					},
+				},
+			})
+
+		// Expect SSO metadata request
+		case withPath(req, "GET", oktaSSOMetadataURLPath):
+			return response(http.StatusOK, "application/xml", []byte(testEntityDescriptor))
+
+		// Expect a request to list apps to find info about the SAML app
+		case withPath(req, "GET", "/api/v1/apps") && withURLParam(req, "q", oktaSAMLAppName):
+			return jsonResponse(http.StatusOK, []map[string]any{
+				{
+					"id":     oktaAppID,
+					"name":   oktaSAMLAppName,
+					"label":  "Teleport App",
+					"status": "ACTIVE",
+					"_links": map[string]any{
+						"metadata": map[string]any{
+							"href": fmt.Sprintf("%s/api/v1/apps/%s/sso/saml/metadata", oktaTestOrg, oktaAppID),
+							"type": "application/xml",
+						},
+					},
+				},
+			})
+
+		// Expect the OAuth token request
+		case withPath(req, "POST", "/oauth2/v1/token"):
+			scopes := req.URL.Query().Get("scope")
+			resp := okta.RequestAccessToken{
+				AccessToken: mockOauthToken,
+				Scope:       scopes,
+				TokenType:   "Bearer",
+				ExpiresIn:   3600,
+			}
+			return jsonResponse(http.StatusOK, resp)
+
+		default:
+			return nil, nil
+		}
+	})
+
+	s, webPack := newTestOktaPluginFixture(t, withRoundTripper(mockta))
 
 	pluginsSvc := s.authPlugin.PluginsService()
 	pluginCredsSvc := s.authPlugin.PluginStaticCredentialsService()
@@ -197,35 +253,12 @@ func TestOktaPluginUpdate(t *testing.T) {
 	_, err = authSvc.UpsertRole(s.ctx, services.NewSystemOktaRequesterRole())
 	require.NoError(t, err)
 
-	// Expect the Okta MetadataURL request for the SAML entity descriptor
-	mockta.
-		On("RoundTrip", requestForPath(
-			"GET", fmt.Sprintf("/app/%s/sso/saml/metadata", oktaAppID))).
-		Return(func(*http.Request) (*http.Response, error) {
-			metadata := response(t, http.StatusOK, "application/xml", []byte(testEntityDescriptor))
-			return metadata, nil
-		})
-
-	// Expect the OAuth token request
-	mockta.
-		On("RoundTrip", requestForPath("POST", "/oauth2/v1/token")).
-		Return(func(r *http.Request) (*http.Response, error) {
-			scopes := r.URL.Query().Get("scope")
-			resp := okta.RequestAccessToken{
-				AccessToken: mockOauthToken,
-				Scope:       scopes,
-				TokenType:   "Bearer",
-				ExpiresIn:   3600,
-			}
-			return jsonResponse(t, http.StatusOK, resp), nil
-		})
-
 	// Set up an existing Okta plugin
 	createPluginEndpoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 	form := url.Values{
 		"type":                  {"okta"},
 		"name":                  {"okta"},
-		"metadataURL":           {fmt.Sprintf("%s/app/%s/sso/saml/metadata", oktaTestOrg, oktaAppID)},
+		"metadataURL":           {oktaSSOMetadataURL},
 		"enableUserSync":        {"false"},
 		"enableAppGroupsSync":   {"false"},
 		"enableAccessListSync":  {"false"},
@@ -262,46 +295,6 @@ func TestOktaPluginUpdate(t *testing.T) {
 	_, err = pluginsSvc.GetPlugin(s.ctx, types.PluginTypeOkta, false)
 	require.NoError(t, err)
 
-	mockta.
-		On("RoundTrip", requestForPath("GET", "/api/v1/apps")).
-		Return(jsonResponse(t, http.StatusOK, []map[string]any{
-			{
-				"id":     oktaAppID,
-				"name":   "Teleport_App_plus_index",
-				"label":  "Teleport App",
-				"status": "ACTIVE",
-				"_links": map[string]any{
-					"metadata": map[string]any{
-						"href": fmt.Sprintf("%s/api/v1/apps/%s/sso/saml/metadata", oktaTestOrg, oktaAppID),
-						"type": "application/xml",
-					},
-				},
-			},
-		}), nil)
-
-	// Expect the Okta credentials test request (list users)
-	mockta.
-		On("RoundTrip", requestForPath(
-			"GET", "/api/v1/users")).
-		Run(func(args mock.Arguments) {
-			req, ok := args.Get(0).(*http.Request)
-			require.True(t, ok, "Unexpected request type: %T", args.Get(0))
-			require.Equal(t, "Bearer "+mockOauthToken, req.Header.Get("Authorization"))
-		}).
-		Return(jsonResponse(t, http.StatusOK, []map[string]any{
-			{
-				"id":     "00ub0c5ls7iixvj6j5d7",
-				"status": "ACTIVE",
-				"profile": map[string]any{
-					"firstName": "Norville",
-					"lastName":  "Rogers",
-					"nickName":  "Shaggy",
-					"login":     "shaggy@mystery-machine.org",
-					"email":     "shaggy@mystery-machine.org",
-				},
-			},
-		}), nil)
-
 	// Update req to set ClientID and enable User Sync
 	updateReq := ui.PluginUpdateRequest{
 		Plugin: types.PluginTypeOkta,
@@ -327,6 +320,7 @@ func TestOktaPluginUpdate(t *testing.T) {
 	expectedOktaSpec = &ui.OktaPluginSpec{
 		OktaOrgURL:            oktaTestOrg,
 		OktaAppID:             oktaAppID,
+		OktaAppName:           oktaSAMLAppName,
 		TeleportSSOConnector:  common.OktaSSOConnectorName,
 		EnableUserSync:        true,
 		AssignDefaultRoles:    true,
@@ -349,6 +343,7 @@ func TestOktaPluginUpdate(t *testing.T) {
 		OrgUrl: oktaTestOrg,
 		SyncSettings: &types.PluginOktaSyncSettings{
 			AppId:                     oktaAppID,
+			AppName:                   oktaSAMLAppName,
 			SyncUsers:                 true,
 			DisableAssignDefaultRoles: false,
 			SyncAccessLists:           false,
@@ -405,7 +400,7 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 			orgURL:                    "test-okta-org.example.com",
 			enableOktaSCIMEntitlement: true,
 			enabledAccessListSync:     false,
-			correctedOrgURL:           "https://test-okta-org.example.com",
+			correctedOrgURL:           oktaTestOrg,
 			expectSCIMToken:           requireEqualTo(oktaSCIMToken),
 			expectSCIMTokenCred:       require.NoError,
 			expectAppFilters:          require.Empty,
@@ -426,8 +421,52 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 		},
 	}
 
-	mockta := &mockRoundTripper{}
-	s, webPack, _ := newTestOktaPluginFixture(t, withRoundTripper(mockta))
+	mockta := newRoundTripper(func(req *http.Request) (*http.Response, error) {
+		switch {
+
+		// Expect the Okta credentials test request
+		case withPath(req, "GET", "/api/v1/users"):
+			return jsonResponse(http.StatusOK, []map[string]any{
+				{
+					"id":     "00ub0c5ls7iixvj6j5d7",
+					"status": "ACTIVE",
+					"profile": map[string]any{
+						"firstName": "Norville",
+						"lastName":  "Rogers",
+						"nickName":  "Shaggy",
+						"login":     "shaggy@mystery-machine.org",
+						"email":     "shaggy@mystery-machine.org",
+					},
+				},
+			})
+
+		// Expect SSO metadata request
+		case withPath(req, "GET", oktaSSOMetadataURLPath):
+			return response(http.StatusOK, "application/xml", []byte(testEntityDescriptor))
+
+		// Expect a request to list apps to find info about the SAML app
+		case withPath(req, "GET", "/api/v1/apps") && withURLParam(req, "q", oktaSAMLAppName):
+			return jsonResponse(http.StatusOK, []map[string]any{
+				{
+					"id":     oktaAppID,
+					"name":   oktaSAMLAppName,
+					"label":  "Teleport App",
+					"status": "ACTIVE",
+					"_links": map[string]any{
+						"metadata": map[string]any{
+							"href": fmt.Sprintf("%s/api/v1/apps/%s/sso/saml/metadata", oktaTestOrg, oktaAppID),
+							"type": "application/xml",
+						},
+					},
+				},
+			})
+
+		default:
+			return nil, nil
+		}
+	})
+
+	s, webPack := newTestOktaPluginFixture(t, withRoundTripper(mockta))
 	pluginsSvc := s.authPlugin.PluginsService()
 	pluginCredsSvc := s.authPlugin.PluginStaticCredentialsService()
 	authSvc := s.testAuthServer.AuthServer.AuthServer.Services
@@ -436,80 +475,6 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 	require.NoError(t, err)
 	_, err = authSvc.UpsertRole(ctx, services.NewSystemOktaRequesterRole())
 	require.NoError(t, err)
-
-	// Expect the Okta credentials test request
-	mockta.
-		On("RoundTrip", requestForPath(
-			"GET", "/api/v1/users")).
-		Run(requireCreds(t, oktaAPIToken)).
-		Return(jsonResponse(t, http.StatusOK, []map[string]any{
-			{
-				"id":     "00ub0c5ls7iixvj6j5d7",
-				"status": "ACTIVE",
-				"profile": map[string]any{
-					"firstName": "Norville",
-					"lastName":  "Rogers",
-					"nickName":  "Shaggy",
-					"login":     "shaggy@mystery-machine.org",
-					"email":     "shaggy@mystery-machine.org",
-				},
-			},
-		}), nil)
-
-	// Expect the Okta SAML App creation request
-	mockta.
-		On("RoundTrip", requestForPath(
-			"POST", "/api/v1/apps")).
-		Return(jsonResponse(t, http.StatusOK, map[string]any{
-			"id":     oktaAppID,
-			"name":   "Teleport_App_plus_index",
-			"label":  "Teleport App",
-			"status": "ACTIVE",
-			"_links": map[string]any{
-				"metadata": map[string]any{
-					"href": fmt.Sprintf("%s/api/v1/apps/%s/sso/saml/metadata", oktaTestOrg, oktaAppID),
-					"type": "application/xml",
-				},
-			},
-		}), nil)
-
-	// Expect the Okta group listing request
-	mockta.
-		On("RoundTrip", requestForPath(
-			"GET", "/api/v1/groups")).
-		Return(jsonResponse(t, http.StatusOK, []map[string]any{
-			{
-				"id":   oktaEveryoneGroupID,
-				"type": "BUILT_IN",
-				"profile": map[string]any{
-					"name": "Everyone",
-				},
-			},
-		}), nil)
-
-	// Expect a request assigning the Everyone group to the new App
-	mockta.
-		On("RoundTrip", requestForPath(
-			"PUT", fmt.Sprintf("/api/v1/apps/%s/groups/%s", oktaAppID, oktaEveryoneGroupID))).
-		Return(jsonResponse(t, http.StatusOK, map[string]any{}), nil)
-
-	// Expect a request for the SAML entity metadata XML
-	mockta.
-		On("RoundTrip", requestForPath(
-			"GET", fmt.Sprintf("/api/v1/apps/%s/sso/saml/metadata", oktaAppID))).
-		Return(func(*http.Request) (*http.Response, error) {
-			metadata := response(t, http.StatusOK, "application/xml", []byte(testEntityDescriptor))
-			return metadata, nil
-		})
-
-	// Expect a request for the Org metadata
-	mockta.
-		On("RoundTrip", requestForPath(
-			"GET", "/api/v1/org")).
-		Return(
-			jsonResponse(t, http.StatusOK, map[string]any{
-				"companyName": "testOrg",
-			}), nil)
 
 	// When I invoke the installer via the web interface...
 	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
@@ -544,9 +509,10 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 			})
 
 			form := url.Values{
-				"type":     {"okta"},
-				"orgURL":   {testCase.orgURL},
-				"apiToken": {oktaAPIToken},
+				"type":        {"okta"},
+				"orgURL":      {testCase.orgURL},
+				"metadataURL": {oktaSSOMetadataURL},
+				"apiToken":    {oktaAPIToken},
 			}
 			if testCase.enableOktaSCIMEntitlement {
 				form.Set("scimToken", oktaSCIMToken)
@@ -583,7 +549,7 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 			require.IsType(t, &ui.OktaPluginSpec{}, plugin.Spec)
 			spec := plugin.Spec.(*ui.OktaPluginSpec)
 			require.Equal(t, oktaAppID, spec.OktaAppID)
-			require.Equal(t, "Teleport_App_plus_index", spec.OktaAppName)
+			require.Equal(t, oktaSAMLAppName, spec.OktaAppName)
 			require.Equal(t, "Teleport App", spec.OktaAppLabel)
 			require.Equal(t, common.OktaSSOConnectorName, spec.TeleportSSOConnector)
 			testCase.expectSCIMToken(t, spec.SCIMBearerToken)
@@ -623,7 +589,6 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 			require.NoError(t, err, "failed to load expected plugin")
 			require.Equal(t, types.OriginOkta, ssoCtor.Origin())
 			labels := ssoCtor.GetMetadata().Labels
-			require.Equal(t, oktaAppID, labels[eteleport.OktaAppIDLabel])
 			require.Equal(t, oktaTestOrg, labels[eteleport.OktaOrgURLLabel])
 		})
 	}
@@ -631,8 +596,48 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 
 //nolint:bodyclose // The http.Requests created in this function are cleaned up by the request consumers
 func TestOktaPluginInstallWorksWithLegacySAMLConnector(t *testing.T) {
-	mockta := &mockRoundTripper{}
-	s, webPack, _ := newTestOktaPluginFixture(t, withRoundTripper(mockta))
+	mockta := newRoundTripper(func(req *http.Request) (*http.Response, error) {
+		switch {
+
+		// Expect the Okta credentials test request
+		case withPath(req, "GET", "/api/v1/users"):
+			return jsonResponse(http.StatusOK, []map[string]any{
+				{
+					"id":     "00ub0c5ls7iixvj6j5d7",
+					"status": "ACTIVE",
+					"profile": map[string]any{
+						"firstName": "Norville",
+						"lastName":  "Rogers",
+						"nickName":  "Shaggy",
+						"login":     "shaggy@mystery-machine.org",
+						"email":     "shaggy@mystery-machine.org",
+					},
+				},
+			})
+
+		// Expect a request to list apps to find info about the SAML app
+		case withPath(req, "GET", "/api/v1/apps") && withURLParam(req, "q", oktaSAMLAppName):
+			return jsonResponse(http.StatusOK, []map[string]any{
+				{
+					"id":     oktaAppID,
+					"name":   oktaSAMLAppName,
+					"label":  "Teleport App",
+					"status": "ACTIVE",
+					"_links": map[string]any{
+						"metadata": map[string]any{
+							"href": fmt.Sprintf("%s/api/v1/apps/%s/sso/saml/metadata", oktaTestOrg, oktaAppID),
+							"type": "application/xml",
+						},
+					},
+				},
+			})
+
+		default:
+			return nil, nil
+		}
+	})
+
+	s, webPack := newTestOktaPluginFixture(t, withRoundTripper(mockta))
 
 	// Given a cluster with an existing SAML connector that does not have the
 	// labels that identify the App it talks to
@@ -657,57 +662,6 @@ func TestOktaPluginInstallWorksWithLegacySAMLConnector(t *testing.T) {
 	require.NoError(t, samlConnector.CheckAndSetDefaults())
 	_, err := s.testAuthServer.Auth().CreateSAMLConnector(s.ctx, samlConnector)
 	require.NoError(t, err)
-
-	mockta.
-		On("RoundTrip", requestForPath(
-			"GET", "/api/v1/apps/"+oktaAppID)).
-		Return(jsonResponse(t, http.StatusOK, map[string]any{
-			"id":     oktaAppID,
-			"name":   "Teleport_App_plus_index",
-			"label":  "Teleport App",
-			"status": "ACTIVE",
-			"_links": map[string]any{
-				"metadata": map[string]any{
-					"href": fmt.Sprintf("%s/api/v1/apps/%s/sso/saml/metadata", oktaTestOrg, oktaAppID),
-					"type": "application/xml",
-				},
-			},
-		}), nil)
-
-	mockta.
-		On("RoundTrip", requestForPath("GET", "/api/v1/apps")).
-		Return(jsonResponse(t, http.StatusOK, []map[string]any{
-			{
-				"id":     oktaAppID,
-				"name":   "Teleport_App_plus_index",
-				"label":  "Teleport App",
-				"status": "ACTIVE",
-				"_links": map[string]any{
-					"metadata": map[string]any{
-						"href": fmt.Sprintf("%s/api/v1/apps/%s/sso/saml/metadata", oktaTestOrg, oktaAppID),
-						"type": "application/xml",
-					},
-				},
-			},
-		}), nil)
-
-	mockta.
-		On("RoundTrip", requestForPath(
-			"GET", "/api/v1/users")).
-		Run(requireCreds(t, oktaAPIToken)).
-		Return(jsonResponse(t, http.StatusOK, []map[string]any{
-			{
-				"id":     "00ub0c5ls7iixvj6j5d7",
-				"status": "ACTIVE",
-				"profile": map[string]any{
-					"firstName": "Norville",
-					"lastName":  "Rogers",
-					"nickName":  "Shaggy",
-					"login":     "shaggy@mystery-machine.org",
-					"email":     "shaggy@mystery-machine.org",
-				},
-			},
-		}), nil)
 
 	// When I invoke the Okta installer via the WebUI
 	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
@@ -756,8 +710,49 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 		},
 	}
 
-	mockta := &mockRoundTripper{}
-	s, webPack, _ := newTestOktaPluginFixture(t, withRoundTripper(mockta))
+	mockta := newRoundTripper(func(req *http.Request) (*http.Response, error) {
+		switch {
+
+		// Expect the Okta credentials test request
+		case withPath(req, "GET", "/api/v1/users"):
+			return jsonResponse(http.StatusOK, []map[string]any{
+				{
+					"id":     "00ub0c5ls7iixvj6j5d7",
+					"status": "ACTIVE",
+					"profile": map[string]any{
+						"firstName": "Norville",
+						"lastName":  "Rogers",
+						"nickName":  "Shaggy",
+						"login":     "shaggy@mystery-machine.org",
+						"email":     "shaggy@mystery-machine.org",
+					},
+				},
+			})
+
+		// Expect a request to list apps to find info about the SAML app
+		case withPath(req, "GET", "/api/v1/apps") && withURLParam(req, "q", oktaSAMLAppName):
+			return jsonResponse(http.StatusOK, []map[string]any{
+				{
+					"id":     oktaAppID,
+					"name":   oktaSAMLAppName,
+					"label":  "Teleport App",
+					"status": "ACTIVE",
+					"_links": map[string]any{
+						"metadata": map[string]any{
+							"href": fmt.Sprintf("%s/api/v1/apps/%s/sso/saml/metadata", oktaTestOrg, oktaAppID),
+							"type": "application/xml",
+						},
+					},
+				},
+			})
+
+		default:
+			err := fmt.Errorf("unmatched HTTP call method=%q url=%q req=%v", req.Method, req.URL, req)
+			t.Log(err.Error())
+			return nil, err
+		}
+	})
+	s, webPack := newTestOktaPluginFixture(t, withRoundTripper(mockta))
 	samlConnector := &types.SAMLConnectorV2{
 		Metadata: types.Metadata{
 			Name: common.OktaSSOConnectorName,
@@ -787,40 +782,6 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 	authSvc := s.testAuthServer.AuthServer.AuthServer.Services
 	createdSAMLConn, err := authSvc.CreateSAMLConnector(s.ctx, samlConnector)
 	require.NoError(t, err)
-
-	mockta.
-		On("RoundTrip", requestForPath(
-			"GET", "/api/v1/users")).
-		Run(requireCreds(t, oktaAPIToken)).
-		Return(jsonResponse(t, http.StatusOK, []map[string]any{
-			{
-				"id":     "00ub0c5ls7iixvj6j5d7",
-				"status": "ACTIVE",
-				"profile": map[string]any{
-					"firstName": "Norville",
-					"lastName":  "Rogers",
-					"nickName":  "Shaggy",
-					"login":     "shaggy@mystery-machine.org",
-					"email":     "shaggy@mystery-machine.org",
-				},
-			},
-		}), nil)
-
-	mockta.
-		On("RoundTrip", requestForPath(
-			"GET", "/api/v1/apps/"+oktaAppID)).
-		Return(jsonResponse(t, http.StatusOK, map[string]any{
-			"id":     oktaAppID,
-			"name":   "Teleport_App_plus_index",
-			"label":  "Teleport App",
-			"status": "ACTIVE",
-			"_links": map[string]any{
-				"metadata": map[string]any{
-					"href": fmt.Sprintf("%s/api/v1/apps/%s/sso/saml/metadata", oktaTestOrg, oktaAppID),
-					"type": "application/xml",
-				},
-			},
-		}), nil)
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -864,7 +825,7 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 			// Expect that both the HTTP round trip AND succeeded operation succeeded
 			// the request itself succeeded
 			require.NoError(t, err)
-			require.Equal(t, http.StatusOK, resp.Code())
+			require.Equal(t, http.StatusOK, resp.Code(), "resp.Body = %s", resp.Bytes())
 
 			// Expect that the response is a JSON-encoded ui.Plugin with a trailing
 			// ui.OktaPluginSpec
@@ -878,7 +839,7 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 			require.IsType(t, &ui.OktaPluginSpec{}, plugin.Spec)
 			spec := plugin.Spec.(*ui.OktaPluginSpec)
 			require.Equal(t, oktaAppID, spec.OktaAppID)
-			require.Equal(t, "Teleport_App_plus_index", spec.OktaAppName)
+			require.Equal(t, oktaSAMLAppName, spec.OktaAppName)
 			require.Equal(t, "Teleport App", spec.OktaAppLabel)
 			require.Equal(t, common.OktaSSOConnectorName, spec.TeleportSSOConnector)
 			testCase.expectSCIMToken(t, spec.SCIMBearerToken)
@@ -958,8 +919,30 @@ func TestOktaPluginInstallFailsWithInvalidFormValues(t *testing.T) {
 		},
 	}
 
-	mockta := &mockRoundTripper{}
-	s, webPack, _ := newTestOktaPluginFixture(t, withRoundTripper(mockta))
+	mockta := newRoundTripper(func(req *http.Request) (*http.Response, error) {
+		switch {
+
+		// Expect the Okta credentials test request
+		case withPath(req, "GET", "/api/v1/users"):
+			return jsonResponse(http.StatusOK, []map[string]any{
+				{
+					"id":     "00ub0c5ls7iixvj6j5d7",
+					"status": "ACTIVE",
+					"profile": map[string]any{
+						"firstName": "Norville",
+						"lastName":  "Rogers",
+						"nickName":  "Shaggy",
+						"login":     "shaggy@mystery-machine.org",
+						"email":     "shaggy@mystery-machine.org",
+					},
+				},
+			})
+
+		default:
+			return nil, fmt.Errorf("unmatched HTTP call method=%q url=%q req=%v", req.Method, req.URL, req)
+		}
+	})
+	s, webPack := newTestOktaPluginFixture(t, withRoundTripper(mockta))
 	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 
 	features := s.webPlugin.h.GetClusterFeatures()
@@ -976,23 +959,6 @@ func TestOktaPluginInstallFailsWithInvalidFormValues(t *testing.T) {
 		},
 	})
 
-	mockta.On("RoundTrip", requestForPath("GET", "/api/v1/users")).
-		Maybe().
-		Run(requireCreds(t, oktaAPIToken)).
-		Return(jsonResponse(t, http.StatusOK, []map[string]any{
-			{
-				"id":     "00ub0c5ls7iixvj6j5d7",
-				"status": "ACTIVE",
-				"profile": map[string]any{
-					"firstName": "Norville",
-					"lastName":  "Rogers",
-					"nickName":  "Shaggy",
-					"login":     "shaggy@mystery-machine.org",
-					"email":     "shaggy@mystery-machine.org",
-				},
-			},
-		}), nil)
-
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			form := maps.Clone(testCase.form)
@@ -1008,40 +974,42 @@ func TestOktaPluginInstallFailsWithInvalidFormValues(t *testing.T) {
 //nolint:bodyclose // The http.Requests created in this function are cleaned up by the request consumers
 func TestOktaPluginInstallInvalidOktaConfig(t *testing.T) {
 	testCases := []struct {
-		name            string
-		roundTripResult []any
+		name              string
+		roundTripResponse *http.Response
+		roundTripErr      error
 	}{
 		{
 			name: "invalid token",
-			roundTripResult: []any{
-				jsonResponse(t, http.StatusUnauthorized, map[string]any{
-					"errorCode":    "E0000011",
-					"errorSummary": "Invalid token provided",
-					"errorLink":    "E0000011",
-					"errorId":      "...oaeb7TuItptQcq47JYCaTB-7Q",
-					"errorCauses":  []string{},
-				}),
-				nil,
-			},
+			roundTripResponse: mustJSONResponse(t, http.StatusUnauthorized, map[string]any{
+				"errorCode":    "E0000011",
+				"errorSummary": "Invalid token provided",
+				"errorLink":    "E0000011",
+				"errorId":      "...oaeb7TuItptQcq47JYCaTB-7Q",
+				"errorCauses":  []string{},
+			}),
+			roundTripErr: nil,
 		}, {
-			name: "invalid org url",
-			roundTripResult: []any{
-				nil,
-				&net.OpError{Err: errors.New("something bad happened")},
-			},
+			name:              "invalid org url",
+			roundTripResponse: nil,
+			roundTripErr:      &net.OpError{Err: errors.New("something bad happened")},
 		},
 	}
-	mockta := &mockRoundTripper{}
-	s, webPack, _ := newTestOktaPluginFixture(t, withRoundTripper(mockta))
+	mockta := newRoundTripper(nil)
+	s, webPack := newTestOktaPluginFixture(t, withRoundTripper(mockta))
 	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			// reset the mock
-			mockta.Mock = mock.Mock{}
-			mockta.
-				On("RoundTrip", requestForPath("GET", "/api/v1/users")).
-				Return(testCase.roundTripResult...)
+			// setup the mock
+			mockta.RoundTripFn = func(req *http.Request) (*http.Response, error) {
+				switch {
+				// Expect the Okta credentials test request
+				case withPath(req, "GET", "/api/v1/users"):
+					return testCase.roundTripResponse, testCase.roundTripErr
+				default:
+					return nil, nil
+				}
+			}
 
 			resp, err := webPack.clt.PostForm(s.ctx, installPluginEndPoint, url.Values{
 				"type":      {"okta"},
@@ -1058,10 +1026,11 @@ func TestOktaPluginInstallInvalidOktaConfig(t *testing.T) {
 //nolint:bodyclose // The http.Requests created in this function are cleaned up by the request consumers
 func TestOktaConfigValidate(t *testing.T) {
 	testCases := []struct {
-		name           string
-		form           url.Values
-		credTestResult []any
-		expectedStatus int
+		name             string
+		form             url.Values
+		credTestResponse *http.Response
+		credTestErr      error
+		expectedStatus   int
 	}{
 		{
 			name: "valid-config",
@@ -1070,22 +1039,20 @@ func TestOktaConfigValidate(t *testing.T) {
 				"apiToken": {oktaAPIToken},
 				"orgURL":   {oktaTestOrg},
 			},
-			credTestResult: []any{
-				jsonResponse(t, http.StatusOK, []map[string]any{
-					{
-						"id":     "00ub0c5ls7iixvj6j5d7",
-						"status": "ACTIVE",
-						"profile": map[string]any{
-							"firstName": "Norville",
-							"lastName":  "Rogers",
-							"nickName":  "Shaggy",
-							"login":     "shaggy@mystery-machine.org",
-							"email":     "shaggy@mystery-machine.org",
-						},
+			credTestResponse: mustJSONResponse(t, http.StatusOK, []map[string]any{
+				{
+					"id":     "00ub0c5ls7iixvj6j5d7",
+					"status": "ACTIVE",
+					"profile": map[string]any{
+						"firstName": "Norville",
+						"lastName":  "Rogers",
+						"nickName":  "Shaggy",
+						"login":     "shaggy@mystery-machine.org",
+						"email":     "shaggy@mystery-machine.org",
 					},
-				}),
-				nil,
-			},
+				},
+			}),
+			credTestErr:    nil,
 			expectedStatus: http.StatusOK,
 		}, {
 			name: "missing-org-url",
@@ -1116,16 +1083,14 @@ func TestOktaConfigValidate(t *testing.T) {
 				"apiToken": {oktaAPIToken},
 				"orgURL":   {oktaTestOrg},
 			},
-			credTestResult: []any{
-				jsonResponse(t, http.StatusUnauthorized, map[string]any{
-					"errorCode":    "E0000011",
-					"errorSummary": "Invalid token provided",
-					"errorLink":    "E0000011",
-					"errorId":      "...oaeb7TuItptQcq47JYCaTB-7Q",
-					"errorCauses":  []string{},
-				}),
-				nil,
-			},
+			credTestResponse: mustJSONResponse(t, http.StatusUnauthorized, map[string]any{
+				"errorCode":    "E0000011",
+				"errorSummary": "Invalid token provided",
+				"errorLink":    "E0000011",
+				"errorId":      "...oaeb7TuItptQcq47JYCaTB-7Q",
+				"errorCauses":  []string{},
+			}),
+			credTestErr:    nil,
 			expectedStatus: http.StatusBadRequest,
 		}, {
 			name: "bad network",
@@ -1134,27 +1099,27 @@ func TestOktaConfigValidate(t *testing.T) {
 				"apiToken": {oktaAPIToken},
 				"orgURL":   {oktaTestOrg},
 			},
-			credTestResult: []any{
-				nil,
-				&net.OpError{Err: errors.New("something bad happened")},
-			},
-			expectedStatus: http.StatusBadRequest,
+			credTestResponse: nil,
+			credTestErr:      &net.OpError{Err: errors.New("something bad happened")},
+			expectedStatus:   http.StatusBadRequest,
 		},
 	}
 
-	mockta := &mockRoundTripper{}
-	s, webPack, _ := newTestOktaPluginFixture(t, withRoundTripper(mockta))
+	mockta := newRoundTripper(nil)
+	s, webPack := newTestOktaPluginFixture(t, withRoundTripper(mockta))
 	validateEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "validate")
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			mockta.Mock = mock.Mock{}
-
-			if len(testCase.credTestResult) > 0 {
-				mockta.
-					On("RoundTrip", requestForPath("GET", "/api/v1/users")).
-					Run(requireCreds(t, oktaAPIToken)).
-					Return(testCase.credTestResult...)
+			// setup the mock
+			mockta.RoundTripFn = func(req *http.Request) (*http.Response, error) {
+				switch {
+				// Expect the Okta credentials test request
+				case withPath(req, "GET", "/api/v1/users"):
+					return testCase.credTestResponse, testCase.credTestErr
+				default:
+					return nil, nil
+				}
 			}
 
 			form := maps.Clone(testCase.form)
@@ -1166,54 +1131,50 @@ func TestOktaConfigValidate(t *testing.T) {
 	}
 }
 
-func requireCreds(innerT *testing.T, token string) func(args mock.Arguments) {
-	return func(args mock.Arguments) {
-		req, ok := args.Get(0).(*http.Request)
-		require.True(innerT, ok, "Unexpected request type: %T", args.Get(0))
-		require.Equal(innerT, "SSWS "+token, req.Header.Get("Authorization"))
+type roundTripper struct {
+	RoundTripFn func(req *http.Request) (*http.Response, error)
+}
+
+func newRoundTripper(fn func(req *http.Request) (*http.Response, error)) *roundTripper {
+	return &roundTripper{fn}
+}
+
+func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := rt.RoundTripFn(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-}
-
-type mockRoundTripper struct {
-	mock.Mock
-}
-
-// RoundTrip implements the RoundTripper interface for the mockRoundTripper
-func (m *mockRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
-	args := m.Called(request)
-
-	// Sometimes we want to invoke a function and return the result of that
-	// function as the mock call result. Testify doesn't let us do that out of
-	// the box but, by convention, we simulate it by allowing the test to supply
-	// a function with the same signature as the mocked-put method as a `Return()`
-	// value.
-	fn, isDelegate := args.Get(0).(func(request *http.Request) (*http.Response, error))
-	if isDelegate {
-		return fn(request)
+	if resp == nil {
+		return nil, fmt.Errorf("unmatched HTTP call method=%q url=%q req=%v", req.Method, req.URL, req)
 	}
-
-	maybeResponse := args.Get(0)
-	if maybeResponse == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*http.Response), args.Error(1)
+	return resp, nil
 }
 
-// requestForPath returns a testify mock argument matcher that will match any
-// HTTP request with the given method and path
-func requestForPath(method, path string) interface{} {
-	return mock.MatchedBy(func(req *http.Request) bool {
-		return req.Method == method && req.URL.Path == path
-	})
+func withPath(req *http.Request, method, path string) bool {
+	return req.Method == method && req.URL.Path == path
 }
 
-func jsonResponse(t *testing.T, statusCode int, body any) *http.Response {
+func withURLParam(req *http.Request, name string, value ...string) bool {
+	return slices.Equal(req.URL.Query()[name], value)
+}
+
+func jsonResponse(statusCode int, body any) (*http.Response, error) {
 	bodyBytes, err := json.Marshal(body)
-	require.NoError(t, err, "formatting response body")
-	return response(t, statusCode, "application/json", bodyBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	r, err := response(statusCode, "application/json", bodyBytes)
+	return r, trace.Wrap(err)
 }
 
-func response(t *testing.T, statusCode int, contentType string, body []byte) *http.Response {
+func mustJSONResponse(t *testing.T, statusCode int, body any) *http.Response {
+	t.Helper()
+	r, err := jsonResponse(statusCode, body)
+	require.NoError(t, err, "jsonResponse")
+	return r
+}
+
+func response(statusCode int, contentType string, body []byte) (*http.Response, error) {
 	resp := &http.Response{
 		StatusCode: statusCode,
 		Status:     http.StatusText(statusCode),
@@ -1227,7 +1188,7 @@ func response(t *testing.T, statusCode int, contentType string, body []byte) *ht
 		Body:          io.NopCloser(bytes.NewReader(body)),
 		ContentLength: int64(len(body)),
 	}
-	return resp
+	return resp, nil
 }
 
 func requireNotFound(t require.TestingT, err error, _ ...interface{}) {

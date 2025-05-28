@@ -39,8 +39,9 @@ var apiCredentials = &oktav1.OktaAPICredentials{
 // Additionally, it tests the filtering of apps and groups.
 func TestPluginEnrolmentFullIntegration(t *testing.T) {
 	ctx := context.Background()
+
 	oktaApiClientMock := newMockOktaAPIClient("https://trial-1234567.okta.com")
-	oktaInfra := createOktaSetup(t, ctx, oktaApiClientMock, withAppsGroupsUsersCount(1, 10, 7))
+	oktaInfra := createOktaSetup(t, ctx, oktaApiClientMock, withAppsGroupsUsersCount(1, 1, 1))
 	httpMock := RoundTripperFunc(func(request *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(request.URL.Path, "/sso/saml/metadata") {
 			return &http.Response{
@@ -53,8 +54,13 @@ func TestPluginEnrolmentFullIntegration(t *testing.T) {
 			StatusCode: http.StatusNotFound,
 		}, nil
 	})
-	oktaApiClientMock.setRoundTripper(httpMock)
 
+	// The value from app name is  taken from idp.EntityDescriptor returned by the httpMock
+	// above.
+	samlApp := oktaInfra.Apps[0]
+	samlApp.Name = "example_test-okta-app-name"
+
+	oktaInfra.client.setRoundTripper(httpMock)
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.SAMLConnector),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
@@ -88,87 +94,6 @@ func TestPluginEnrolmentFullIntegration(t *testing.T) {
 		require.True(t, strings.HasPrefix(resp.GetGroups()[0].GetName(), "group-0"))
 	})
 
-	t.Run("enroll okta integration", func(t *testing.T) {
-		mustCreateOktaEveryoneGroupAndAssignOktaUsers(t, oktaInfra.client, oktaInfra.Users...)
-
-		resp, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-			OktaOrganizationUrl:       oktaApiClientMock.GetOrgUrl(),
-			ApiCredentials:            apiCredentials,
-			EnableUserSync:            true,
-			DisableAssignDefaultRoles: false,
-			EnableAppGroupSync:        true,
-			EnableBidirectionalSync:   true,
-			EnableAccessListSync:      true,
-			AccessListSettings: &oktav1.AccessListSettings{
-				DefaultOwner: []string{"alice-admin"},
-			},
-		})
-		require.NoError(t, err)
-
-		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
-			Name: types.PluginTypeOkta,
-		})
-		require.NoError(t, err)
-		expectedOktaPluginSettings := &types.PluginOktaSettings{
-			OrgUrl: oktaApiClientMock.GetOrgUrl(),
-			SyncSettings: &types.PluginOktaSyncSettings{
-				SsoConnectorId:           "okta",
-				AppId:                    resp.GetConnectorInfo().GetOktaAppId(),
-				SyncUsers:                true,
-				UserSyncSource:           "saml_app",
-				DisableSyncAppGroups:     false,
-				DisableBidirectionalSync: false,
-				SyncAccessLists:          true,
-				DefaultOwners:            []string{"alice-admin"},
-			},
-			CredentialsInfo: &types.PluginOktaCredentialsInfo{
-				HasOauthCredentials: true,
-			},
-		}
-		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
-
-		require.NotEmpty(t, resp.GetConnectorInfo().GetOktaAppId())
-		_, _, err = oktaInfra.client.GetApplication(ctx, resp.GetConnectorInfo().GetOktaAppId(), &okta.SamlApplication{}, nil)
-		require.NoError(t, err)
-		_, err = sut.Teleport.Process.GetAuthServer().GetSAMLConnector(ctx, "okta", false)
-		require.NoError(t, err)
-	})
-}
-
-// TestPluginEnrolmentSSOMetadataURL tests the enrolment of the Okta plugin where the SSO metadata URL is provided
-// and the SAML connector is created based on the provided metadata URL.
-func TestPluginEnrolmentSSOMetadataURL(t *testing.T) {
-	ctx := context.Background()
-
-	oktaApiClientMock := newMockOktaAPIClient("https://trial-1234567.okta.com")
-	oktaInfra := createOktaSetup(t, ctx, oktaApiClientMock, withAppsGroupsUsersCount(1, 1, 1))
-	httpMock := RoundTripperFunc(func(request *http.Request) (*http.Response, error) {
-		if strings.HasSuffix(request.URL.Path, "/sso/saml/metadata") {
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(idp.EntityDescriptor)),
-				Header:     http.Header{"Content-Type": []string{"application/xml"}},
-			}, nil
-		}
-		return &http.Response{
-			StatusCode: http.StatusNotFound,
-		}, nil
-	})
-
-	// The value from app name is  taken from idp.EntityDescriptor returned by the httpMock
-	// above.
-	oktaInfra.Apps[0].Name = "example_test-okta-app-name"
-
-	oktaInfra.client.setRoundTripper(httpMock)
-	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
-		common.WithLicense("../../../fixtures/license-eub.pem"),
-		common.WithUser(t, "alice-admin", "editor"),
-		common.WithHTTPClient(httpMock),
-	)
-	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
-	pluginClient := pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
-
 	resp, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
 		ApiCredentials:            apiCredentials,
 		EnableAccessListSync:      true,
@@ -191,7 +116,8 @@ func TestPluginEnrolmentSSOMetadataURL(t *testing.T) {
 		OrgUrl: oktaApiClientMock.GetOrgUrl(),
 		SyncSettings: &types.PluginOktaSyncSettings{
 			SsoConnectorId:           "okta",
-			AppId:                    resp.GetConnectorInfo().GetOktaAppId(),
+			AppId:                    samlApp.Id,
+			AppName:                  samlApp.Name,
 			SyncUsers:                true,
 			UserSyncSource:           "saml_app",
 			DisableSyncAppGroups:     false,
@@ -330,11 +256,12 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
 				SsoConnectorId:           "okta-pre-created-test",
+				AppId:                    samlApp.Id,
+				AppName:                  samlApp.Name,
 				SyncUsers:                true,
 				UserSyncSource:           "saml_app",
 				DisableSyncAppGroups:     true,
 				DisableBidirectionalSync: true,
-				AppId:                    samlApp.Id,
 			},
 			CredentialsInfo: &types.PluginOktaCredentialsInfo{
 				HasOauthCredentials: true,
@@ -385,6 +312,7 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 			SyncSettings: &types.PluginOktaSyncSettings{
 				SsoConnectorId:           "okta-pre-created-test",
 				AppId:                    samlApp.Id,
+				AppName:                  samlApp.Name,
 				SyncUsers:                true,
 				UserSyncSource:           "saml_app",
 				SyncAccessLists:          true,
@@ -437,13 +365,14 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
 				SsoConnectorId:           "okta-pre-created-test",
+				AppId:                    samlApp.Id,
+				AppName:                  samlApp.Name,
 				SyncUsers:                true,
 				UserSyncSource:           "saml_app",
 				DisableSyncAppGroups:     false,
 				DisableBidirectionalSync: false,
 				SyncAccessLists:          true,
 				DefaultOwners:            []string{"alice-admin"},
-				AppId:                    samlApp.Id,
 			},
 			CredentialsInfo: &types.PluginOktaCredentialsInfo{
 				HasOauthCredentials: true,
@@ -482,6 +411,8 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
 				SsoConnectorId:           "okta-pre-created-test",
+				AppId:                    samlApp.Id,
+				AppName:                  samlApp.Name,
 				SyncUsers:                true,
 				UserSyncSource:           "saml_app",
 				DisableSyncAppGroups:     false,
@@ -490,7 +421,6 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 				GroupFilters:             []string{oktaInfra.Groups[0].Profile.Name},
 				AppFilters:               []string{"__none__"},
 				DefaultOwners:            []string{"alice-admin"},
-				AppId:                    samlApp.Id,
 			},
 			CredentialsInfo: &types.PluginOktaCredentialsInfo{
 				HasOauthCredentials: true,
@@ -744,6 +674,7 @@ func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
 			SyncSettings: &types.PluginOktaSyncSettings{
 				SsoConnectorId:           legacyConnectorName,
 				AppId:                    samlAPP.Id,
+				AppName:                  samlAPP.Name,
 				SyncUsers:                true,
 				UserSyncSource:           "saml_app",
 				DisableSyncAppGroups:     true,
@@ -778,6 +709,7 @@ func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
 			SyncSettings: &types.PluginOktaSyncSettings{
 				SsoConnectorId:           legacyConnectorName,
 				AppId:                    samlAPP.Id,
+				AppName:                  samlAPP.Name,
 				SyncUsers:                true,
 				UserSyncSource:           "saml_app",
 				DisableSyncAppGroups:     true,
@@ -825,6 +757,7 @@ func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
 			SyncSettings: &types.PluginOktaSyncSettings{
 				SsoConnectorId:           legacyConnectorName,
 				AppId:                    samlAPP.Id,
+				AppName:                  samlAPP.Name,
 				SyncUsers:                true,
 				UserSyncSource:           "org",
 				DisableSyncAppGroups:     true,
