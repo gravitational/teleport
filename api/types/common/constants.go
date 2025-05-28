@@ -92,4 +92,5 @@ var OriginValues = []string{
 	OriginDiscoveryKubernetes,
 	OriginEntraID,
 	OriginAWSIdentityCenter,
+	OriginIntegrationAWSRolesAnywhere,
 }
