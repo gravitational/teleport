@@ -94,6 +94,9 @@ type ServiceConfig struct {
 	Clock           clockwork.Clock
 	Emitter         apievents.Emitter
 
+	// awsRolesAnywhereCreateSessionFn is a function that creates an AWS Roles Anywhere session.
+	// This is used to allow mocking in tests, because the real implementation does
+	// If not set, the default implementation is used.
 	awsRolesAnywhereCreateSessionFn func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
 }
 
