@@ -127,8 +127,7 @@ func (cfg *UnifiedResourceCacheConfig) CheckAndSetDefaults() error {
 func (c *UnifiedResourceCache) putLocked(resource resource) {
 	key := resourceKey(resource)
 	sortKey := makeResourceSortKey(resource)
-	collection, exists := c.resources[key]
-	if exists {
+	if collection, exists := c.resources[key]; exists {
 		// If the resource has changed in such a way that the sort keys
 		// for the nameTree or typeTree change, remove the old entries
 		// from those trees before adding a new one. This can happen
@@ -139,8 +138,7 @@ func (c *UnifiedResourceCache) putLocked(resource resource) {
 		}
 		collection.put(resource)
 	} else {
-		collection = newResourceCollection(resource)
-		c.resources[key] = collection
+		c.resources[key] = newResourceCollection(resource)
 	}
 	c.nameTree.ReplaceOrInsert(&item{Key: sortKey.byName, Value: key})
 	c.typeTree.ReplaceOrInsert(&item{Key: sortKey.byType, Value: key})
@@ -308,40 +306,40 @@ type UnifiedResourcesIterateParams struct {
 
 // Nodes iterates over all cached nodes starting from the provided key.
 func (c *UnifiedResourceCache) Nodes(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.Server, error] {
-	return iterateUnifiedResourceCache[types.Server](ctx, c, params, types.KindNode)
+	return iterateUnifiedResourceCache(ctx, c, params, types.KindNode, types.Server.DeepCopy)
 }
 
 // AppServers iterates over all cached app servers starting from the provided key.
 func (c *UnifiedResourceCache) AppServers(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.AppServer, error] {
-	return iterateUnifiedResourceCache[types.AppServer](ctx, c, params, types.KindAppServer)
+	return iterateUnifiedResourceCache(ctx, c, params, types.KindAppServer, types.AppServer.Copy)
 }
 
 // DatabaseServers iterates over all cached database servers starting from the provided key.
 func (c *UnifiedResourceCache) DatabaseServers(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.DatabaseServer, error] {
-	return iterateUnifiedResourceCache[types.DatabaseServer](ctx, c, params, types.KindDatabaseServer)
+	return iterateUnifiedResourceCache(ctx, c, params, types.KindDatabaseServer, types.DatabaseServer.Copy)
 }
 
 // KubernetesServers iterates over all cached Kubernetes servers starting from the provided key.
 func (c *UnifiedResourceCache) KubernetesServers(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.KubeServer, error] {
-	return iterateUnifiedResourceCache[types.KubeServer](ctx, c, params, types.KindKubeServer)
+	return iterateUnifiedResourceCache(ctx, c, params, types.KindKubeServer, types.KubeServer.Copy)
 }
 
 // WindowsDesktops iterates over all cached windows desktops starting from the provided key.
 func (c *UnifiedResourceCache) WindowsDesktops(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.WindowsDesktop, error] {
-	return iterateUnifiedResourceCache[types.WindowsDesktop](ctx, c, params, types.KindWindowsDesktop)
+	return iterateUnifiedResourceCache(ctx, c, params, types.KindWindowsDesktop, types.WindowsDesktop.Copy)
 }
 
 // GitServers iterates over all cached git servers starting from the provided key.
 func (c *UnifiedResourceCache) GitServers(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.Server, error] {
-	return iterateUnifiedResourceCache[types.Server](ctx, c, params, types.KindGitServer)
+	return iterateUnifiedResourceCache(ctx, c, params, types.KindGitServer, types.Server.DeepCopy)
 }
 
 // SAMLIdPServiceProviders iterates over all cached sAML IdP service providers starting from the provided key.
 func (c *UnifiedResourceCache) SAMLIdPServiceProviders(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.SAMLIdPServiceProvider, error] {
-	return iterateUnifiedResourceCache[types.SAMLIdPServiceProvider](ctx, c, params, types.KindSAMLIdPServiceProvider)
+	return iterateUnifiedResourceCache(ctx, c, params, types.KindSAMLIdPServiceProvider, types.SAMLIdPServiceProvider.Copy)
 }
 
-func iterateUnifiedResourceCache[T any](ctx context.Context, c *UnifiedResourceCache, params UnifiedResourcesIterateParams, kind string) iter.Seq2[T, error] {
+func iterateUnifiedResourceCache[T resource](ctx context.Context, c *UnifiedResourceCache, params UnifiedResourcesIterateParams, kind string, cloneFn func(T) T) iter.Seq2[T, error] {
 	return func(yield func(T, error) bool) {
 		sortBy := types.SortBy{IsDesc: params.Descending, Field: SortByName}
 		for i, err := range c.iterateItems(ctx, params.Start, sortBy, kind) {
@@ -351,14 +349,21 @@ func iterateUnifiedResourceCache[T any](ctx context.Context, c *UnifiedResourceC
 				return
 			}
 
-			clone := i.resource.CloneResource()
-			if r, ok := clone.(T); !ok {
+			switch r := i.resource.(type) {
+			case T:
+				if !yield(cloneFn(r), nil) {
+					return
+				}
+			case *aggregatedHealthResource[T]:
+				if !yield(cloneFn(r.healthCheckResource.(T)), nil) {
+					return
+				}
+			default:
 				var t T
-				yield(t, trace.BadParameter("expected type %T, got %T", t, clone))
-				return
-			} else if !yield(r, nil) {
+				yield(t, trace.BadParameter("expected type %T, got %T", t, r))
 				return
 			}
+
 		}
 	}
 }
@@ -1035,7 +1040,7 @@ func (c *healthCheckResourceCollection[R]) remove(r types.Resource) bool {
 // aggregatedHealthResource wraps a server resource with aggregated health status.
 // This type exists to avoid cloning the resource unnecessarily, yet still
 // prevent data races.
-type aggregatedHealthResource[R healthCheckResource] struct {
+type aggregatedHealthResource[R any] struct {
 	healthCheckResource
 	status types.TargetHealthStatus
 }
