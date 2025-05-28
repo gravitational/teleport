@@ -23,7 +23,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
 	pgmcp "github.com/gravitational/teleport/lib/client/db/postgres/mcp"
@@ -225,11 +224,6 @@ func (c *mcpDBStartCommand) prepareDatabases(
 
 		return trace.NewAggregate(errs...)
 	}, nil
-}
-
-func (c *mcpDBStartCommand) getDatabases(ctx context.Context, tc *client.TeleportClient, sc *sharedDatabaseExecClient) ([]types.Database, error) {
-	dbsList, err := sc.listDatabasesWithFilter(ctx, tc.ResourceFilter(types.KindDatabaseServer))
-	return dbsList, trace.Wrap(err)
 }
 
 var (
