@@ -119,10 +119,10 @@ When generating certificates, Teleport will use the subject key ID of the signer
 generate a CDP that is unique to that signer.
 
 ```
-ldap://CN=xyz,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com
+ldap://CN=IV4GC3LQNRSSAVDFNRSXA33SORJUWSKE,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com
 ```
 
-In this case, `xyz` is (TODO: derived from SKID)
+In this case, `IV4GC3LQNRSSAVDFNRSXA33SORJUWSKE` is Base32-encoded SKID of the issuer
 
 #### Publishing: `tctl auth crl --out`
 
@@ -191,8 +191,31 @@ updated independently and don't need to update in any particular order.
 
 ### Proto Specification
 
-TODO: changes to `cert_authority`
+New field will be added to `TLSKeyPair` resource:
+
+```protobuf
+bytes CRL = 4 [(gogoproto.jsontag) = "crl"];
+```
+
+This field will store empty DER-encoded revocation list for `cert_authorities` that require it.
 
 ### Audit Events
 
-TODO: update cert.create event with signer SKID?
+New message will be added to `events.proto` which will hold information about authority used to create certificate:
+
+```protobuf
+message CertificateCreate {
+  // ...
+  
+  // CertificateAuthority holds information about creator of certificate    
+  CertificateAuthority CertificateAuthority = 5 [(gogoproto.jsontag) = "certificate_authority"];
+}
+
+// CertificateAuthority holds information about creator of certificate
+message CertificateAuthority {
+  // ID is identifier of the cert authority (type and domain)
+  string ID = 1 [(gogoproto.jsontag) = "id,omitempty"];
+  // SubjectKeyID is BASE32-encoded subject key ID from authority certificate
+  string SubjectKeyID = 2 [(gogoproto.jsontag) = "subject_key_id,omitempty"];
+}
+```
