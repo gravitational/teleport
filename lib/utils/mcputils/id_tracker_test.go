@@ -41,14 +41,18 @@ func TestIDTracker(t *testing.T) {
 
 	t.Run("request tracked", func(t *testing.T) {
 		require.True(t, tracker.PushRequest(&JSONRPCRequest{
-			ID:     0,
+			ID:     mcp.NewRequestId(0),
 			Method: mcp.MethodToolsList,
 		}))
 		require.Equal(t, 1, tracker.Len())
 	})
 
 	t.Run("pop unknown id", func(t *testing.T) {
-		unknownIDs := []mcp.RequestId{5, "0", nil}
+		unknownIDs := []mcp.RequestId{
+			mcp.NewRequestId(5),
+			mcp.NewRequestId("0"),
+			mcp.NewRequestId(nil),
+		}
 		for id := range slices.Values(unknownIDs) {
 			t.Run(fmt.Sprintf("%T", id), func(t *testing.T) {
 				_, ok := tracker.PopByID(id)
@@ -59,7 +63,7 @@ func TestIDTracker(t *testing.T) {
 	})
 
 	t.Run("pop tracked id", func(t *testing.T) {
-		method, ok := tracker.PopByID(0)
+		method, ok := tracker.PopByID(mcp.NewRequestId(0))
 		require.True(t, ok)
 		require.Equal(t, mcp.MethodToolsList, method)
 		require.Empty(t, tracker.Len())
@@ -68,13 +72,13 @@ func TestIDTracker(t *testing.T) {
 	t.Run("track last 5", func(t *testing.T) {
 		for i := range 20 {
 			tracker.PushRequest(&JSONRPCRequest{
-				ID:     i + 1,
+				ID:     mcp.NewRequestId(i + 1),
 				Method: mcp.MethodToolsCall,
 			})
 			require.LessOrEqual(t, tracker.Len(), 10)
 		}
 		for i := range 5 {
-			method, ok := tracker.PopByID(20 - i)
+			method, ok := tracker.PopByID(mcp.NewRequestId(20 - i))
 			require.True(t, ok)
 			require.Equal(t, mcp.MethodToolsCall, method)
 		}
@@ -88,7 +92,7 @@ func BenchmarkIDTracker(b *testing.B) {
 
 	for i := 0; i < 100; i++ {
 		idTracker.PushRequest(&JSONRPCRequest{
-			ID:     i,
+			ID:     mcp.NewRequestId(i),
 			Method: mcp.MethodToolsList,
 		})
 	}
@@ -97,9 +101,9 @@ func BenchmarkIDTracker(b *testing.B) {
 	// BenchmarkIDTracker-12    	12267649	        81.85 ns/op
 	for b.Loop() {
 		idTracker.PushRequest(&JSONRPCRequest{
-			ID:     2000,
+			ID:     mcp.NewRequestId(2000),
 			Method: mcp.MethodToolsList,
 		})
-		idTracker.PopByID(2000)
+		idTracker.PopByID(mcp.NewRequestId(2000))
 	}
 }

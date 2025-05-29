@@ -215,7 +215,7 @@ func (r *StdioMessageReader) processNextLine(ctx context.Context, lineReader *bu
 
 	var base baseJSONRPCMessage
 	if parseError := json.Unmarshal([]byte(line), &base); parseError != nil {
-		rpcError := mcp.NewJSONRPCError(nil, mcp.PARSE_ERROR, parseError.Error(), nil)
+		rpcError := mcp.NewJSONRPCError(mcp.NewRequestId(nil), mcp.PARSE_ERROR, parseError.Error(), nil)
 		if err := r.cfg.OnParseError(ctx, &rpcError); err != nil {
 			return trace.Wrap(err, "handling JSON unmarshal error")
 		}

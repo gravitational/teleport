@@ -20,7 +20,6 @@ package mcputils
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -33,15 +32,6 @@ import (
 //
 // TODO(greedy52) switch to official golang lib or official go SDK if they offer
 // the level of handling we need. Same goes for other helpers like StdioXXX.
-
-// IDToString converts ID to its string representation.
-// ID should only be string, number, or nil.
-func IDToString(id mcp.RequestId) string {
-	if idStr, ok := id.(string); ok {
-		return idStr
-	}
-	return fmt.Sprintf("%v", id)
-}
 
 // JSONRPCParams defines params for request or notification.
 // TODO(greedy52) handle metadata
@@ -88,13 +78,13 @@ type baseJSONRPCMessage struct {
 }
 
 func (m *baseJSONRPCMessage) isNotification() bool {
-	return m.ID == nil
+	return m.ID.IsNil()
 }
 func (m *baseJSONRPCMessage) isRequest() bool {
-	return m.ID != nil && m.Method != ""
+	return !m.ID.IsNil() && m.Method != ""
 }
 func (m *baseJSONRPCMessage) isResponse() bool {
-	return m.ID != nil && (m.Result != nil || m.Error != nil)
+	return !m.ID.IsNil() && (m.Result != nil || m.Error != nil)
 }
 
 func (m *baseJSONRPCMessage) makeNotification() *JSONRPCNotification {
@@ -140,11 +130,6 @@ type JSONRPCRequest struct {
 	Params  JSONRPCParams `json:"params,omitempty"`
 }
 
-// GetIDString returns the string representation of the ID.
-func (r *JSONRPCRequest) GetIDString() string {
-	return IDToString(r.ID)
-}
-
 // JSONRPCResponse defines an MCP response.
 //
 // By protocol spec, responses are further sub-categorized as either successful
@@ -157,11 +142,6 @@ type JSONRPCResponse struct {
 	ID      mcp.RequestId   `json:"id"`
 	Result  json.RawMessage `json:"result,omitempty"`
 	Error   json.RawMessage `json:"error,omitempty"`
-}
-
-// GetIDString returns the string representation of the ID.
-func (r *JSONRPCResponse) GetIDString() string {
-	return IDToString(r.ID)
 }
 
 // GetListToolResult assumes the result is for mcp.MethodToolsList and returns

@@ -81,7 +81,7 @@ func TestJSONRPCRequest(t *testing.T) {
 	m := base.makeRequest()
 	require.NotNil(t, m)
 	assert.Equal(t, mcp.MethodToolsCall, m.Method)
-	assert.Equal(t, "2", m.GetIDString())
+	assert.Equal(t, "int64:2", m.ID.String())
 	name, ok := m.Params.GetName()
 	assert.True(t, ok)
 	assert.Equal(t, "get_weather", name)
@@ -123,7 +123,7 @@ func TestJSONRPCResponse(t *testing.T) {
 
 	m := base.makeResponse()
 	require.NotNil(t, m)
-	assert.Equal(t, "2", m.GetIDString())
+	assert.Equal(t, "int64:2", m.ID.String())
 
 	outputJSON, err := json.MarshalIndent(m, "", "  ")
 	require.NoError(t, err)
