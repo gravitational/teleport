@@ -293,6 +293,7 @@ func (e *Exporter) run(ctx context.Context) {
 		Duration:      e.cfg.PollInterval,
 		FirstDuration: retryutils.FullJitter(e.cfg.PollInterval / 2),
 		Jitter:        retryutils.SeventhJitter,
+		Clock:         e.cfg.Clock,
 	})
 	defer poll.Stop()
 
