@@ -218,12 +218,29 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.DynamicAccessExt == nil {
 		cfg.DynamicAccessExt = local.NewDynamicAccessService(cfg.Backend)
 	}
+	if cfg.RecordingEncryption == nil {
+		localRecordingEncryption, err := local.NewRecordingEncryptionService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		recordingEncryptionManager, err := recordingencryption.NewManager(recordingencryption.ManagerConfig{
+			Backend:  localRecordingEncryption,
+			KeyStore: cfg.KeyStore,
+			Logger:   cfg.Logger,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		cfg.RecordingEncryption = recordingEncryptionManager
+	}
 	if cfg.ClusterConfiguration == nil {
 		clusterConfig, err := local.NewClusterConfigurationService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cfg.ClusterConfiguration = clusterConfig
+		cfg.ClusterConfiguration = recordingencryption.NewClusterConfigService(clusterConfig, cfg.RecordingEncryption)
 	}
 	if cfg.AutoUpdateService == nil {
 		cfg.AutoUpdateService, err = local.NewAutoUpdateService(cfg.Backend)
@@ -487,24 +504,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	}
-
-	if cfg.RecordingEncryption == nil {
-		localRecordingEncryption, err := local.NewRecordingEncryptionService(cfg.Backend)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		recordingEncryptionManager, err := recordingencryption.NewManager(recordingencryption.ManagerConfig{
-			Backend:  localRecordingEncryption,
-			KeyStore: cfg.KeyStore,
-			Logger:   cfg.Logger,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		cfg.RecordingEncryption = recordingEncryptionManager
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -8094,49 +8093,4 @@ func (s *Server) GetSigstorePolicyEvaluator() workloadidentityv1.SigstorePolicyE
 		return e
 	}
 	return workloadidentityv1.OSSSigstorePolicyEvaluator{}
-}
-
-// CreateSessionRecordingConfig evaluates RecordingEncryption state before creating the SessionRecordingConfig.
-func (s *Server) CreateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
-	if cfg.GetEncrypted() {
-		encryption, err := s.ResolveRecordingEncryption(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		cfg.SetEncryptionKeys(recordingencryption.GetAgeEncryptionKeys(encryption.GetSpec().ActiveKeys))
-	}
-
-	res, err := s.Services.CreateSessionRecordingConfig(ctx, cfg)
-	return res, trace.Wrap(err)
-}
-
-// UpdateSessionRecordingConfig evaluates RecordingEncryption state before updating the SessionRecordingConfig.
-func (s *Server) UpdateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
-	if cfg.GetEncrypted() {
-		encryption, err := s.ResolveRecordingEncryption(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		cfg.SetEncryptionKeys(recordingencryption.GetAgeEncryptionKeys(encryption.GetSpec().ActiveKeys))
-	}
-
-	res, err := s.Services.UpdateSessionRecordingConfig(ctx, cfg)
-	return res, trace.Wrap(err)
-}
-
-// UpsertSessionRecordingConfig evaluates RecordingEncryption state before upserting the SessionRecordingConfig.
-func (s *Server) UpsertSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
-	if cfg.GetEncrypted() {
-		encryption, err := s.ResolveRecordingEncryption(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		cfg.SetEncryptionKeys(recordingencryption.GetAgeEncryptionKeys(encryption.GetSpec().ActiveKeys))
-	}
-
-	res, err := s.Services.UpsertSessionRecordingConfig(ctx, cfg)
-	return res, trace.Wrap(err)
 }

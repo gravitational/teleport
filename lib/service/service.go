@@ -2116,6 +2116,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
+	cfg.ClusterConfiguration = recordingencryption.NewClusterConfigService(cfg.ClusterConfiguration, recordingEncryptionManager)
 	var emitter apievents.Emitter
 	var streamer events.Streamer
 	var uploadHandler events.MultipartHandler
