@@ -138,6 +138,11 @@ func (f *fakeIDP) issueToken(
 		NotBefore: jwt.NewNumericDate(issuedAt),
 		Expiry:    jwt.NewNumericDate(expiry),
 	}
+	// GCP ID tokens have an "azp" claim that is the same as the "sub" claim.
+	// This azp is not included in the "aud" claim. It's a little murky whether
+	// this is spec-compliant. We should explicitly reproduce this in our tests
+	// since zealous oidc validation implementations may reject it.
+	claims.AuthorizedParty = sub
 	token, err := jwt.Signed(f.signer).
 		Claims(stdClaims).
 		Claims(claims).
