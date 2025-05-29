@@ -1,0 +1,61 @@
+---
+title: TeleportAutoupdateConfigV1
+description: Provides a comprehensive list of fields in the TeleportAutoupdateConfigV1 resource available through the Teleport Kubernetes operator
+tocDepth: 3
+---
+
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
+
+This guide is a comprehensive reference to the fields in the `TeleportAutoupdateConfigV1`
+resource, which you can apply after installing the Teleport Kubernetes operator.
+
+
+## resources.teleport.dev/v1
+
+**apiVersion:** resources.teleport.dev/v1
+
+|Field|Type|Description|
+|---|---|---|
+|apiVersion|string|APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources|
+|kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
+|metadata|object||
+|spec|[object](#spec)|AutoupdateConfig resource definition v1 from Teleport|
+
+### spec
+
+|Field|Type|Description|
+|---|---|---|
+|agents|[object](#specagents)||
+|tools|[object](#spectools)||
+
+### spec.agents
+
+|Field|Type|Description|
+|---|---|---|
+|maintenance_window_duration|string|maintenance_window_duration is the maintenance window duration. This can only be set if `strategy` is "time-based". Once the window is over, the group transitions to the done state. Existing agents won't be updated until the next maintenance window.|
+|mode|string|mode specifies whether agent autoupdates are enabled, disabled, or paused.|
+|schedules|[object](#specagentsschedules)|schedules specifies schedules for updates of grouped agents.|
+|strategy|string|strategy to use for updating the agents.|
+
+### spec.agents.schedules
+
+|Field|Type|Description|
+|---|---|---|
+|regular|[][object](#specagentsschedulesregular-items)|regular schedules for non-critical versions.|
+
+### spec.agents.schedules.regular items
+
+|Field|Type|Description|
+|---|---|---|
+|days|[]string|days when the update can run. Supported values are "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" and "*"|
+|name|string|name of the group|
+|start_hour|integer|start_hour to initiate update|
+|wait_hours|integer|wait_hours after last group succeeds before this group can run. This can only be used when the strategy is "halt-on-failure". This field must be positive.|
+
+### spec.tools
+
+|Field|Type|Description|
+|---|---|---|
+|mode|string|Mode defines state of the client tools auto update.|
+

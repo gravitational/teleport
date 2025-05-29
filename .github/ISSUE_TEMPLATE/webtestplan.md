@@ -381,6 +381,14 @@ Not available for OSS
 - [ ] Test deleting all rules, notifications fallbacks to the default (deleted rules should not be notified)
 - [ ] Test pre-defined predicate expressions from default editor work as match condition
 
+### Access Request Automatic Review Rule (cloud only)
+
+- [ ] Verify rules created in standard editor automatically set `spec.desired_state: review`.
+- [ ] Verify rules created in standard editor automatically set `spec.automatic_review.integration: builtin`.
+- [ ] Verify selected traits are correctly configured.
+- [ ] Verify selected review decision is correctly configured.
+- [ ] Verify automatic reviews and notifications can be configured within the same rule.
+
 ### Creating Access Requests (Role Based)
 
 Create a role with limited permissions `allow-roles-and-nodes`. This role allows you to see the Role screen and ssh into all nodes.
@@ -885,6 +893,15 @@ Add the following to enable read access to trusted clusters
     - [ ] Removes the connection
     - [ ] Logs out of the cluster
     - [ ] Closes Teleport Connect
+  - Verify that all items from this section work on:
+    - [ ] macOS
+    - [ ] Windows
+    - [ ] Linux
+- Desktop access (find a desktop on asteroid.earth cluster or set it up manually
+  https://goteleport.com/docs/enroll-resources/desktop-access/getting-started/)
+  - [ ] Open a new desktop tab and verify that the remote machine is accessible.
+  - [ ] Share a local directory within the session and verify that basic operations like creating/deleting a file work.
+  - [ ] Verify clipboard sharing by copying and pasting text between the local and remote machine.
   - Verify that all items from this section work on:
     - [ ] macOS
     - [ ] Windows

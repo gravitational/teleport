@@ -42,6 +42,7 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		{"TeleportRole", NewRoleReconciler},
 		{"TeleportRoleV6", NewRoleV6Reconciler},
 		{"TeleportRoleV7", NewRoleV7Reconciler},
+		{"TeleportRoleV8", NewRoleV8Reconciler},
 		{"TeleportUser", NewUserReconciler},
 		{"TeleportGithubConnector", NewGithubConnectorReconciler},
 		{"TeleportProvisionToken", NewProvisionTokenReconciler},
@@ -50,6 +51,8 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		{"TeleportTrustedClusterV2", NewTrustedClusterV2Reconciler},
 		{"TeleportBotV1", NewBotV1Reconciler},
 		{"TeleportWorkloadIdentityV1", NewWorkloadIdentityV1Reconciler},
+		{"TeleportAutoupdateConfigV1", NewAutoUpdateConfigV1Reconciler},
+		{"TeleportAutoupdateVersionV1", NewAutoUpdateVersionV1Reconciler},
 	}
 
 	oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)

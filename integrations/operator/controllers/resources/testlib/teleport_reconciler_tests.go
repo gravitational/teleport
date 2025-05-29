@@ -69,7 +69,11 @@ func ResourceCreationTest[T reconcilers.Resource, K reconcilers.KubernetesCR[T]]
 		return !trace.IsNotFound(err)
 	})
 	require.NoError(t, err)
-	require.Equal(t, resourceName, test.GetResourceName(tResource))
+
+	// We get the kube resource to get the resourceName as it might have been changed if this is a singleton resource
+	kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
+	require.NoError(t, err)
+	require.Equal(t, kubeResource.GetName(), test.GetResourceName(tResource))
 	require.Equal(t, types.OriginKubernetes, test.GetResourceOrigin(tResource))
 
 	err = test.DeleteKubernetesResource(ctx, resourceName)
@@ -85,7 +89,7 @@ func ResourceDeletionDriftTest[T reconcilers.Resource, K reconcilers.KubernetesC
 	ctx := context.Background()
 	setup := SetupTestEnv(t, opts...)
 	test.Init(setup)
-	resourceName := ValidRandomResourceName("user-")
+	resourceName := ValidRandomResourceName("resource-")
 
 	err := test.SetupTeleportFixtures(ctx)
 	require.NoError(t, err)
@@ -100,8 +104,10 @@ func ResourceDeletionDriftTest[T reconcilers.Resource, K reconcilers.KubernetesC
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, resourceName, test.GetResourceName(tResource))
-
+	// We get the kube resource to get the resourceName as it might have been changed if this is a singleton resource
+	kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
+	require.NoError(t, err)
+	require.Equal(t, kubeResource.GetName(), test.GetResourceName(tResource))
 	require.Equal(t, types.OriginKubernetes, test.GetResourceOrigin(tResource))
 
 	// We cause a drift by altering the Teleport resource.
@@ -133,7 +139,7 @@ func ResourceUpdateTest[T reconcilers.Resource, K reconcilers.KubernetesCR[T]](t
 	ctx := context.Background()
 	setup := SetupTestEnv(t, opts...)
 	test.Init(setup)
-	resourceName := ValidRandomResourceName("user-")
+	resourceName := ValidRandomResourceName("resource-")
 
 	err := test.SetupTeleportFixtures(ctx)
 	require.NoError(t, err)

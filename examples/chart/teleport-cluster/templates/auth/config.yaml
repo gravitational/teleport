@@ -155,6 +155,22 @@ data:
               - read
               - update
               - delete
+          - resources:
+              - autoupdate_version
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - autoupdate_config
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
       deny: {}
     version: v7
     ---

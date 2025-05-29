@@ -307,6 +307,19 @@ interactive sessions the 12 combinations are below.
   - [ ] Connect using Teleport from root cluster.
   - [ ] Connect using the Web UI from root cluster.
 
+### With SELinux module installed
+
+Install the official SELinux module for Teleport SSH service using `install-selinux.sh` included in the linux amd64 release tarball
+and test on RHEL 8 && 9. You will need to pass the `--enable-selinux` flag to `teleport start`, you can also pass
+`--ensure-selinux-enforcing` as well to ensure SELinux is configured correctly and will enforce Teleport SSH.
+
+- [ ] Verify that connecting to a node with tsh works.
+- [ ] Verify that connecting to a node with the Web UI works.
+- [ ] Verify that enhanced session recording captures commands as expected.
+- [ ] Verify that SSH agent forwarding works as expected.
+- [ ] Verify that auditd logging works as expected.
+- [ ] Verify that SSH connections succeed with PAM authentication enabled.
+
 ### Teleport with EKS/GKE
 
 * [ ] Deploy Teleport on a single EKS cluster
@@ -1713,6 +1726,16 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
     - [ ] When there is a role with spec.options.request_access: always it effectively becomes role.spec.options.request_access: reason (i.e.) requires reason:
       - [ ] For CLI.
       - [ ] For Web UI.
+
+  - [ ] [Automatic Review Rules](https://goteleport.com/docs/ver/18.x/admin-guides/access-controls/access-requests/automatic-reviews/)
+    - [ ] Create automatic review rule with `desired_state` and `automatic_review` spec.
+    - [ ] Verify that `desired_state: review` is required to enable automatic reviews.
+    - [ ] Verify that `automatic_review.integration` is required to enable automatic reviews.
+    - [ ] Verify that `user.traits` in the condition expression is evaluated as expected.
+    - [ ] Verify that automatic approvals are submitted.
+    - [ ] Verify that automatic denials are submitted.
+    - [ ] Verify that if there are conflicting rules that apply, denials take precedence.
+    - [ ] Verify that `automatic_review` and `notification` can both be configured within the same rule.
 
 - [ ] Access Lists
   - [ ] Verify Access List membership/ownership/expiration date.

@@ -36,18 +36,23 @@ const (
 
 type timeBasedStrategy struct {
 	log *slog.Logger
+	clt Client
 }
 
 func (h *timeBasedStrategy) name() string {
 	return update.AgentsStrategyTimeBased
 }
 
-func newTimeBasedStrategy(log *slog.Logger) (rolloutStrategy, error) {
+func newTimeBasedStrategy(log *slog.Logger, clt Client) (rolloutStrategy, error) {
 	if log == nil {
 		return nil, trace.BadParameter("missing log")
 	}
+	if clt == nil {
+		return nil, trace.BadParameter("missing Client")
+	}
 	return &timeBasedStrategy{
 		log: log.With("strategy", update.AgentsStrategyTimeBased),
+		clt: clt,
 	}, nil
 }
 
@@ -57,10 +62,26 @@ func (h *timeBasedStrategy) progressRollout(ctx context.Context, spec *autoupdat
 	if windowDuration == 0 {
 		windowDuration = haltOnErrorWindowDuration
 	}
+	reports, err := getAllValidReports(ctx, h.clt, now)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	countByGroup, upToDateByGroup := countUpToDate(reports, spec.GetTargetVersion())
 
 	// We always process every group regardless of the order.
 	var errs []error
-	for _, group := range status.Groups {
+	for i, group := range status.Groups {
+		var agentCount, agentUpToDateCount int
+		if i == len(status.Groups)-1 {
+			agentCount, agentUpToDateCount = countCatchAll(status, countByGroup, upToDateByGroup)
+		} else {
+			agentCount = countByGroup[group.GetName()]
+			agentUpToDateCount = upToDateByGroup[group.GetName()]
+		}
+
+		group.PresentCount = uint64(agentCount)
+		group.UpToDateCount = uint64(agentUpToDateCount)
 		switch group.State {
 		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 			autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:

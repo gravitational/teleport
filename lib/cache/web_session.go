@@ -33,7 +33,7 @@ const webSessionNameIndex webSessionIndex = "name"
 
 func newWebSessionCollection(upstream types.WebSessionInterface, w types.WatchKind) (*collection[types.WebSession, webSessionIndex], error) {
 	if upstream == nil {
-		return nil, trace.BadParameter("missing parameter SAMLIdPSession")
+		return nil, trace.BadParameter("missing parameter WebSession")
 	}
 
 	return &collection[types.WebSession, webSessionIndex]{

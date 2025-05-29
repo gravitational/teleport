@@ -605,6 +605,10 @@ build-archive: | $(RELEASE_DIR)
 		CHANGELOG.md \
 		build.assets/LICENSE-community \
 		teleport/
+	# add SELinux install script for Linux archives
+	$(if $(filter linux,$(OS)), \
+		cp assets/install-scripts/install-selinux.sh teleport/ \
+	)
 	echo $(GITTAG) > teleport/VERSION
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	cp $(RELEASE).tar.gz $(RELEASE_DIR)

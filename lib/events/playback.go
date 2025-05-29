@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -72,12 +73,6 @@ func DetectFormat(r io.ReadSeeker) (*Header, error) {
 
 // Export converts session files from binary/protobuf to text/JSON.
 func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat string) error {
-	switch exportFormat {
-	case teleport.JSON:
-	default:
-		return trace.BadParameter("unsupported format %q, %q is the only supported format", exportFormat, teleport.JSON)
-	}
-
 	format, err := DetectFormat(rs)
 	if err != nil {
 		return trace.Wrap(err)
@@ -105,6 +100,23 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 				}
 				_, err = fmt.Fprintln(w, string(data))
 				if err != nil {
+					return trace.ConvertSystemError(err)
+				}
+			case teleport.YAML:
+				_, err := fmt.Fprintln(w, "---")
+				if err != nil {
+					return trace.ConvertSystemError(err)
+				}
+				if err := utils.WriteYAML(w, event); err != nil {
+					return trace.ConvertSystemError(err)
+				}
+			case teleport.Text:
+				printEvent, ok := event.(*apievents.SessionPrint)
+				if !ok {
+					continue
+				}
+				// write bytes to writer
+				if _, err := w.Write(printEvent.Data); err != nil {
 					return trace.ConvertSystemError(err)
 				}
 			default:

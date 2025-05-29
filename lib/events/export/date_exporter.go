@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -68,6 +69,8 @@ type DateExporterConfig struct {
 	MaxBackoff time.Duration
 	// PollInterval optionally overrides the default poll interval used to fetch event chunks.
 	PollInterval time.Duration
+	// Clock is an optional parameter used to provide a clock for testing purposes.
+	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults validates configuration and sets default values for optional parameters.
@@ -94,6 +97,7 @@ func (cfg *DateExporterConfig) CheckAndSetDefaults() error {
 		cfg.BatchExport.MaxDelay = cmp.Or(cfg.BatchExport.MaxDelay, 5*time.Second)
 		cfg.BatchExport.MaxSize = cmp.Or(cfg.BatchExport.MaxSize, 2*1024*1024 /* 2MiB */)
 	}
+	cfg.Clock = cmp.Or(cfg.Clock, clockwork.NewRealClock())
 	return nil
 }
 
@@ -525,7 +529,7 @@ func (e *DateExporter) batchExportEvents(ctx context.Context, stream stream.Stre
 		chunk:   chunk,
 		entry:   entry,
 	}
-	timer := time.NewTimer(e.cfg.BatchExport.MaxDelay)
+	timer := e.cfg.Clock.NewTimer(e.cfg.BatchExport.MaxDelay)
 	defer timer.Stop()
 loop:
 	for {
@@ -540,7 +544,7 @@ loop:
 				continue
 			}
 			unprocessedEvent = exportEvent
-		case <-timer.C:
+		case <-timer.Chan():
 			if batch.isEmpty() {
 				timer.Reset(e.cfg.BatchExport.MaxDelay)
 				continue
