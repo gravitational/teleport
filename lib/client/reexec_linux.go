@@ -22,24 +22,19 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
-
-	"github.com/gravitational/trace"
 )
 
 // getExecutable gets the path to the executable that should be used for re-exec.
 func getExecutable() (string, error) {
-	executable, err := os.Readlink("/proc/self/exe")
-	return executable, trace.Wrap(err)
+	return "/proc/self/exe", nil
 }
 
-// configureReexecForOS adds a file for the child process to inherit and adds
-// OS-specific attributes. It returns the file descriptor that should be reported
-// to the child.
-func configureReexecForOS(cmd *exec.Cmd, signal *os.File) uint64 {
+// configureReexecForOS configures the command with files to inherit and
+// os-specific tweaks.
+func configureReexecForOS(cmd *exec.Cmd, signal, kill *os.File) (signalFd, killFd uint64) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setsid:    true,
-		Pdeathsig: syscall.SIGQUIT,
+		Setsid: true,
 	}
-	cmd.ExtraFiles = []*os.File{signal}
-	return 3
+	cmd.ExtraFiles = []*os.File{signal, kill}
+	return 3, 4
 }

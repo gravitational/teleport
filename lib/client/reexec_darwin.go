@@ -32,13 +32,12 @@ func getExecutable() (string, error) {
 	return executable, trace.Wrap(err)
 }
 
-// configureReexecForOS adds a file for the child process to inherit and adds
-// OS-specific attributes. It returns the file descriptor that should be reported
-// to the child.
-func configureReexecForOS(cmd *exec.Cmd, signal *os.File) uint64 {
+// configureReexecForOS configures the command with files to inherit and
+// os-specific tweaks.
+func configureReexecForOS(cmd *exec.Cmd, signal, kill *os.File) (signalFd, killFd uint64) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setsid: true,
 	}
-	cmd.ExtraFiles = []*os.File{signal}
-	return 3
+	cmd.ExtraFiles = []*os.File{signal, kill}
+	return 3, 4
 }

@@ -89,7 +89,7 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		# Wait to ensure the fd closure is caught before the process ends.
 		sleep 1
 		`
-		getArgs := func(signalFd uint64) []string {
+		getArgs := func(signalFd, killFd uint64) []string {
 			return []string{"-c", fmt.Sprintf(script, signalFd, signalFd)}
 		}
 		stdout := newSyncBuffer()
@@ -120,7 +120,7 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		# Exit with error.
 		exit 42
 		`
-		getArgs := func(signalFd uint64) []string {
+		getArgs := func(signalFd, killFd uint64) []string {
 			return []string{"-c", script}
 		}
 		stdout := newSyncBuffer()
@@ -144,7 +144,7 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 
 	t.Run("context canceled", func(t *testing.T) {
 		t.Parallel()
-		getArgs := func(_ uint64) []string {
+		getArgs := func(_, _ uint64) []string {
 			return []string{"-c", `
 			# Make sure stdin/out/err work.
 			read
