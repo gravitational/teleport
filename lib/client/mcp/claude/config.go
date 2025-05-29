@@ -51,6 +51,8 @@ func DefaultConfigPath() (string, error) {
 		return filepath.Join(configDir, "Claude", "claude_desktop_config.json"), nil
 
 	default:
+		// TODO(greedy52) there is no official Claude Desktop for linux yet. The
+		// unofficial one uses the same path as above.
 		return "", trace.NotImplemented("Claude Desktop is not supported on OS %s", runtime.GOOS)
 	}
 }
@@ -80,8 +82,12 @@ type Config struct {
 }
 
 // NewConfig creates an empty config.
-func NewConfig() (*Config, error) {
-	return NewConfigFromJSON([]byte("{}"))
+func NewConfig() *Config {
+	return &Config{
+		mcpServers:            make(map[string]MCPServer),
+		configData:            []byte("{}"),
+		isOriginalJSONCompact: false,
+	}
 }
 
 // NewConfigFromJSON creates a config from JSON.
@@ -169,27 +175,30 @@ type FileConfig struct {
 
 // LoadConfigFromFile loads the Claude Desktop's config from the provided path.
 func LoadConfigFromFile(configPath string) (*FileConfig, error) {
-	var configExists bool
 	data, err := os.ReadFile(configPath)
 	switch {
 	case os.IsNotExist(err):
-		data = []byte("{}")
+		return &FileConfig{
+			Config:       NewConfig(),
+			configPath:   configPath,
+			configExists: false,
+		}, nil
+
 	case err != nil:
 		return nil, trace.Wrap(trace.ConvertSystemError(err), "reading Claude Desktop config")
+
 	default:
-		configExists = true
-	}
+		config, err := NewConfigFromJSON(data)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	config, err := NewConfigFromJSON(data)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		return &FileConfig{
+			Config:       config,
+			configPath:   configPath,
+			configExists: true,
+		}, nil
 	}
-
-	return &FileConfig{
-		Config:       config,
-		configPath:   configPath,
-		configExists: configExists,
-	}, nil
 }
 
 // LoadConfigFromDefaultPath loads the Claude Desktop's config from the default
@@ -211,10 +220,6 @@ func (c *FileConfig) Exists() bool {
 // Save saves the updated config to the config path. Format defaults to "auto"
 // if empty.
 func (c *FileConfig) Save(format FormatJSONOption) error {
-	if c.configPath == "" {
-		return trace.BadParameter("Config not created with a config path")
-	}
-
 	// Claude Desktop creates the config with 0644.
 	file, err := os.OpenFile(c.configPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {

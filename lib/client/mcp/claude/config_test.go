@@ -133,8 +133,7 @@ func TestFileConfig_sampleFile(t *testing.T) {
 }
 
 func TestConfig_Write(t *testing.T) {
-	config, err := NewConfig()
-	require.NoError(t, err)
+	config := NewConfig()
 
 	require.NoError(t, config.PutMCPServer("test", MCPServer{
 		Command: "command",
