@@ -33,12 +33,10 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/linux"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
 const (
-	productionAPTPublicKeyEndpoint = "https://apt.releases.teleport.dev/gpg"
-	aptRepoEndpoint                = "https://apt.releases.teleport.dev/"
-
 	aptTeleportSourceListFileRelative = "/etc/apt/sources.list.d/teleport.list"
 
 	aptKeyringsLocation      = "/etc/apt/keyrings"
@@ -75,7 +73,7 @@ func (p *APTConfig) CheckAndSetDefaults() error {
 	}
 
 	if p.aptPublicKeyEndpoint == "" {
-		p.aptPublicKeyEndpoint = productionAPTPublicKeyEndpoint
+		p.aptPublicKeyEndpoint = teleportassets.AptRepoGPGURL()
 	}
 
 	p.bins.CheckAndSetDefaults()
@@ -135,7 +133,7 @@ func (pm *APT) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRel
 	if err := os.MkdirAll(filepath.Join(pm.fsRootPrefix, aptKeyringsLocation), aptKeyringsLocationPerms); err != nil {
 		return trace.Wrap(err)
 	}
-	teleportRepoMetadata := fmt.Sprintf("deb [signed-by=%s] %s%s %s %s", aptTeleportPublicKeyFile, aptRepoEndpoint, linuxInfo.ID, linuxInfo.VersionCodename, repoChannel)
+	teleportRepoMetadata := fmt.Sprintf("deb [signed-by=%s] %s%s %s %s", aptTeleportPublicKeyFile, teleportassets.AptRepoURL(), linuxInfo.ID, linuxInfo.VersionCodename, repoChannel)
 
 	switch {
 	case pm.legacy:
@@ -146,7 +144,7 @@ func (pm *APT) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRel
 		if err != nil {
 			return trace.Wrap(err, string(aptKeyAddCMDOutput))
 		}
-		teleportRepoMetadata = fmt.Sprintf("deb %s %s %s", aptRepoEndpoint, linuxInfo.VersionCodename, repoChannel)
+		teleportRepoMetadata = fmt.Sprintf("deb %s %s %s", teleportassets.AptRepoURL(), linuxInfo.VersionCodename, repoChannel)
 
 	default:
 		pm.logger.InfoContext(ctx, "Writing Teleport repository key", "destination", aptTeleportPublicKeyFile)

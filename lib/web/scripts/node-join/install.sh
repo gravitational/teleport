@@ -23,6 +23,7 @@ TELEPORT_CONFIG_PATH="/etc/teleport.yaml"
 TELEPORT_DATA_DIR="/var/lib/teleport"
 TELEPORT_DOCS_URL="https://goteleport.com/docs/"
 TELEPORT_CDN_BASE_URL="{{.cdnBaseURL}}"
+TELEPORT_REPO_BASE_DOMAIN="{{.repoBaseDomain}}"
 # TELEPORT_FORMAT contains the Teleport installation formats.
 # The value is dynamically computed unless OVERRIDE_FORMAT it set.
 # Possible values are:
@@ -970,14 +971,14 @@ install_from_repo() {
             ($ID == "debian" && $VERSION_ID == "9" )
         ]]; then
             apt install apt-transport-https gnupg -y
-            curl -fsSL https://apt.releases.teleport.dev/gpg | apt-key add -
-            echo "deb https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
+            curl -fsSL "https://apt.${TELEPORT_REPO_BASE_DOMAIN}/gpg" | apt-key add -
+            echo "deb https://apt.${TELEPORT_REPO_BASE_DOMAIN}/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         else
             mkdir -p /etc/apt/keyrings
-            curl -fsSL https://apt.releases.teleport.dev/gpg \
+            curl -fsSL "https://apt.${TELEPORT_REPO_BASE_DOMAIN}/gpg" \
                 -o /etc/apt/keyrings/teleport-archive-keyring.asc
             echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] \
-            https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
+            https://apt.${TELEPORT_REPO_BASE_DOMAIN}/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         fi
         apt-get update
         apt-get install -y ${PACKAGE_LIST}
@@ -990,7 +991,7 @@ install_from_repo() {
         fi
         yum install -y yum-utils
         yum-config-manager --add-repo \
-        "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/${REPO_CHANNEL}/teleport.repo")"
+        "$(rpm --eval "https://yum.${TELEPORT_REPO_BASE_DOMAIN}/$ID/$VERSION_ID/Teleport/%{_arch}/${REPO_CHANNEL}/teleport.repo")"
 
         # Remove metadata cache to prevent cache from other channel (eg, prior version)
         # See: https://github.com/gravitational/teleport/issues/22581
@@ -1003,8 +1004,8 @@ install_from_repo() {
         else
           VERSION_ID="${VERSION_ID//.*/}" # convert version numbers like '7.2' to only include the major version
         fi
-        sudo rpm --import "https://zypper.releases.teleport.dev/gpg"
-        sudo zypper --non-interactive addrepo "$(rpm --eval "https://zypper.releases.teleport.dev/sles/$VERSION_ID/Teleport/%{_arch}/${REPO_CHANNEL}/teleport.repo")"
+        sudo rpm --import "https://zypper.${TELEPORT_REPO_BASE_DOMAIN}/gpg"
+        sudo zypper --non-interactive addrepo "$(rpm --eval "https://zypper.${TELEPORT_REPO_BASE_DOMAIN}/sles/$VERSION_ID/Teleport/%{_arch}/${REPO_CHANNEL}/teleport.repo")"
         sudo zypper --gpg-auto-import-keys refresh
         sudo zypper --non-interactive install ${PACKAGE_LIST}
     else

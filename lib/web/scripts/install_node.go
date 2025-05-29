@@ -38,6 +38,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
 // appURIPattern is a regexp excluding invalid characters from application URIs.
@@ -193,6 +194,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 		"discoveryInstallMode":       strconv.FormatBool(opts.DiscoveryServiceEnabled),
 		"discoveryGroup":             shsprintf.EscapeDefaultContext(opts.DiscoveryGroup),
 		"cdnBaseURL":                 cdnBaseURL,
+		"repoBaseDomain":             teleportassets.RepoBaseDomain(),
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
