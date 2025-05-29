@@ -23,7 +23,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/session"
@@ -55,6 +55,6 @@ func (s *Server) newSessionRecorder(sessionCtx *common.Session) (libevents.Sessi
 		// Session stream is using server context, not session context,
 		// to make sure that session is uploaded even after it is closed
 		Context:   s.connContext,
-		Encrypter: auth.NewEncryptedIO(s.cfg.AccessPoint, nil),
+		Encrypter: recordingencryption.NewEncryptedIO(s.cfg.AccessPoint, nil),
 	})
 }

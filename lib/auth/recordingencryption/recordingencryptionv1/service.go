@@ -24,7 +24,7 @@ type ServiceConfig struct {
 // NewService returns a new [Service] based on the given [ServiceConfig].
 func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.Logger == nil {
-		cfg.Logger = slog.New(slog.DiscardHandler)
+		cfg.Logger = slog.Default()
 	}
 
 	return &Service{
@@ -33,7 +33,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}, nil
 }
 
-// Service implements the gRPC interface for interacting with RecordingEncryption resources.
+// Service implements a gRPC server for interacting with encrypted recordings.
 type Service struct {
 	recordingencryptionv1.UnimplementedRecordingEncryptionServiceServer
 
@@ -41,7 +41,7 @@ type Service struct {
 	uploader events.EncryptedRecordingUploader
 }
 
-// UploadEncryptedRecording responds to requests to upload recordings that have already been encrypted using the
+// UploadEncryptedRecording responds to requests to upload recordings that have already been encrypted using an
 // async recording mode.
 func (s *Service) UploadEncryptedRecording(stream grpc.ClientStreamingServer[recordingencryptionv1.UploadEncryptedRecordingRequest, recordingencryptionv1.UploadEncryptedRecordingResponse]) (err error) {
 	ctx, cancel := context.WithCancel(stream.Context())

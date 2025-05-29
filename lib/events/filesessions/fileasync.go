@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -67,7 +66,7 @@ type UploaderConfig struct {
 	// Component is used for logging purposes
 	Component string
 	// EncryptedRecordingUploader
-	EncryptedRecordingUploader services.EncryptedRecordingUploader
+	EncryptedRecordingUploader events.EncryptedRecordingUploader
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
