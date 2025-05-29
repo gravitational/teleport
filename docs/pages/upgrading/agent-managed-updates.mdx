@@ -221,7 +221,7 @@ Two update rollout strategies are available:
   for a group, regardless of the status of other groups. This strategy does not
   provide ordering guarantees across groups.
 
-You can find more information in [the Managed Updates v2 resource reference](../managed-updates-v2.mdx)
+You can find more information in [the Managed Updates v2 resource reference](../reference/managed-updates-v2.mdx)
 
 Except for `autoupdate_config.agents.mode`, changes to `autoupdate_config` fields
 take effect during the next version rollout. A new rollout happens when
@@ -230,7 +230,7 @@ Version is automatically updated for Cloud-hosted Teleport clusters; for
 self-hosted ones you have to update the version manually, see
 [the dedicated guide section](#setting-the-version-self-hosted-only).
 
-### Configuring the version (self-hosted only)
+### Setting the version (self-hosted only)
 
 For cloud-hosted Teleport Enterprise, Managed Updates are enabled by default.
 The `autoupdate_version` resource is managed for you and cannot be edited.
