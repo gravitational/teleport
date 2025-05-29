@@ -3,6 +3,13 @@ title: "SELinux Module for Teleport SSH"
 description: "How to configure SELinux to enforce Teleport SSH."
 ---
 
+<Admonition type="note">
+
+This feature is currently a preview feature and is in active development. It will be stable
+in a future release of Teleport.
+
+</Admonition>
+
 ## What is SELinux?
 
 SELinux (Security-Enhanced Linux) is a Linux kernel security module that provides a robust, mandatory access control (MAC) framework. Unlike traditional discretionary controls (DAC), which rely on user identity and group membership, SELinux policies define strict rules that govern how processes, files, and other system objects interact.
@@ -15,24 +22,43 @@ By enforcing fine-grained access controls, SELinux helps:
 
 The Teleport SSH SELinux module builds on this foundation by confining the Teleport SSH service. It ensures that Teleport SSH processes can only perform explicitly allowed operations, reducing the attack surface and preventing unauthorized actions even if the Teleport binary was compromised.
 
-## Supported Platforms
+## Supported features
+
+The Teleport SSH SELinux module supports the following Teleport SSH features:
+
+- handling SSH connections
+- PAM support
+- SSH agent forwarding
+- auditd logging
+- enhanced session recording
+
+## Supported platforms
 
 The SELinux policy module for Teleport SSH is officially supported on Red Hat Enterprise Linux (RHEL) **8 and 9 only**.
 
 ## Installation
 
-To install the SELinux module, run the included `install-selinux.sh` script as `root`:
+To install the SELinux module, run the `install-selinux.sh` script included in Linux tarballs as `root`:
 
 ```code
-$ sudo bash install-selinux.sh
-# or teleport is not in your PATH
-$ sudo bash install-selinux.sh -t /path/to/teleport
+$ sudo ./install-selinux.sh
+# if teleport is not in your PATH
+$ sudo ./install-selinux.sh -t /path/to/teleport
 ```
 
-This script is bundled with Linux tarballs. It performs the following:
+This script performs the following:
 
+1. Extracts the SELinux module from the installed Teleport binary.
+1. Customizes the module based on the Teleport configuration.
 1. Compiles and installs the `teleport_ssh` SELinux module into the system policy.
 1. Labels any existing Teleport SSH binaries and directories.
+
+The script needs to read the configuration file of Teleport SSH in order to customize the module
+and label files and directories correctly. It will read `/etc/teleport.yaml` by default, but you can specify a different location for the configuration file using the `-c` flag:
+
+```code
+$ sudo ./install-selinux.sh -c /path/to/teleport.yaml
+```
 
 <Admonition type="note">
 
@@ -40,7 +66,9 @@ You must re-run `install-selinux.sh` whenever your Teleport SSH agents are updat
 
 </Admonition>
 
-## SELinux Modes
+Future versions of Teleport will make managed updates with `teleport-update` the primary way to manage the SELinux module.
+
+## SELinux modes
 
 SELinux can operate in three modes:
 
@@ -74,7 +102,24 @@ The `--ensure-selinux-enforcing` flag causes Teleport to exit with an error if:
 
 This provides a safety check to guarantee that Teleport SSH is always running under the protection of SELinux policy enforcement. It may be necessary to run Teleport without this flag when testing SELinux configuration or diagnosing issues.
 
-## Customizing the SELinux Module
+## Inspecting the SELinux module source
+
+The module source consists of two files, the type enforcement file and the file contexts file.
+
+The type enforcement file is the heart of the module and contains statements that define what Teleport SSH processes are allowed to do.
+
+The file contexts file maps files and directories Teleport SSH uses to the appropriate SELinux labels. For more information on SELinux labels refer to the Red Hat article [SELinux Contexts - Labeling Files](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/7/html/selinux_users_and_administrators_guide/sect-security-enhanced_linux-working_with_selinux-selinux_contexts_labeling_files).
+
+The customized module source can be printed using Teleport:
+
+```code
+# print type enforcement file
+$ teleport selinux-ssh module-source 
+# print file contexts file
+$ teleport selinux-ssh file-contexts
+```
+
+## Customizing the SELinux module
 
 If you need to grant additional permissions beyond the defaults, you can create and install your own SELinux policy module targeting the `teleport_ssh_t` domain (used by the official module).
 
