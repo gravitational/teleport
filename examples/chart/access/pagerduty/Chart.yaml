@@ -1,4 +1,4 @@
-.version: &version "17.4.8-dev.scim"
+.version: &version "17.4.8-dev.scim.1"
 
 apiVersion: v2
 name: teleport-plugin-pagerduty
