@@ -40,10 +40,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/client/debug"
+	"github.com/gravitational/teleport/lib/config"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -141,7 +143,6 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			Log:                     cfg.Log,
 			ReservedFreeTmpDisk:     reservedFreeDisk,
 			ReservedFreeInstallDisk: reservedFreeDisk,
-			TransformService:        ns.ReplaceTeleportService,
 			ValidateBinary:          validator.IsBinary,
 			Template:                autoupdate.DefaultCDNURITemplate,
 		},
@@ -151,6 +152,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			Ready:       debugClient,
 			Log:         cfg.Log,
 		},
+		WriteTeleportService: ns.WriteTeleportService,
 		ReexecSetup: func(ctx context.Context, pathDir string, reload bool) error {
 			name := filepath.Join(pathDir, BinaryName)
 			if cfg.SelfSetup && runtime.GOOS == constants.LinuxOS {
@@ -231,6 +233,9 @@ type Updater struct {
 	Installer Installer
 	// Process manages a running instance of Teleport.
 	Process Process
+	// WriteTeleportService writes the teleport systemd service for the version of Telport
+	// matching the currently running updater.
+	WriteTeleportService func(ctx context.Context, path string, flags autoupdate.InstallFlags) error
 	// ReexecSetup re-execs teleport-update with the setup command.
 	// This configures the updater service, verifies the installation, and optionally reloads Teleport.
 	ReexecSetup func(ctx context.Context, path string, reload bool) error
@@ -1046,6 +1051,11 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 // If restart is true, Setup also restarts Teleport.
 // Setup is safe to run concurrently with other Updater commands.
 func (u *Updater) Setup(ctx context.Context, path string, restart bool) error {
+
+	if err := u.WriteTeleportService(ctx, path); err != nil {
+		return trace.Wrap(err, "failed to write teleport systemd service")
+	}
+
 	// Setup teleport-updater configuration and sync systemd.
 
 	err := u.SetupNamespace(ctx, path)

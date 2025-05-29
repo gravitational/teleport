@@ -35,6 +35,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/autoupdate"
+	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	libutils "github.com/gravitational/teleport/lib/utils"
 )
@@ -220,6 +221,22 @@ func (ns *Namespace) Init() (lockFile string, err error) {
 		return "", trace.Wrap(err)
 	}
 	return filepath.Join(ns.Dir(), lockFileName), nil
+}
+
+func (ns *Namespace) WriteTeleportService(_ context.Context, pathDir string, flags autoupdate.InstallFlags) error {
+	if pathDir == "" {
+		pathDir = ns.defaultPathDir
+	}
+	return trace.Wrap(writeAtomicWithinDir(ns.serviceFile, configFileMode, func(w io.Writer) error {
+		return trace.Wrap(config.WriteSystemdUnitFile(config.SystemdFlags{
+			EnvironmentFile:          config.SystemdDefaultEnvironmentFile,
+			PIDFile:                  ns.pidFile,
+			FileDescriptorLimit:      config.SystemdDefaultFileDescriptorLimit,
+			TeleportInstallationFile: filepath.Join(pathDir, "teleport"),
+			TeleportConfigPath:       ns.configFile,
+			FIPS:                     flags&autoupdate.FlagFIPS != 0,
+		}, w))
+	}))
 }
 
 // Setup installs service and timer files for the teleport-update binary.

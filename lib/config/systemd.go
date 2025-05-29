@@ -47,7 +47,7 @@ Type=simple
 Restart=always
 RestartSec=5
 EnvironmentFile=-{{ .EnvironmentFile }}
-ExecStart={{ .TeleportInstallationFile }} start --config {{ .TeleportConfigPath }} --pid-file={{ .PIDFile }}
+ExecStart={{ .TeleportInstallationFile }} start {{ if .FIPS }}--fips{{ end }} --config {{ .TeleportConfigPath }} --pid-file={{ .PIDFile }}
 # systemd before 239 needs an absolute path
 ExecReload=/bin/sh -c "exec pkill -HUP -L -F {{ .PIDFile }}"
 PIDFile={{ .PIDFile }}
@@ -69,6 +69,8 @@ type SystemdFlags struct {
 	TeleportInstallationFile string
 	// TeleportConfigPath is the path to the teleport config file (as set by Teleport defaults)
 	TeleportConfigPath string
+	// FIPS configures teleport to run in a FIPS compliant mode.
+	FIPS bool
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.
@@ -81,8 +83,9 @@ func (f *SystemdFlags) CheckAndSetDefaults() error {
 		f.TeleportInstallationFile = teleportPath
 	}
 	// set Teleport config path to the default
-	f.TeleportConfigPath = defaults.ConfigFilePath
-
+	if f.TeleportConfigPath == "" {
+		f.TeleportConfigPath = defaults.ConfigFilePath
+	}
 	return nil
 }
 
