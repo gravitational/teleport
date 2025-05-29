@@ -179,6 +179,24 @@ spec:
                   present, the Application must use the Integration's credentials
                   instead of ambient credentials to access Cloud APIs.
                 type: string
+              mcp:
+                description: MCP contains MCP server related configurations.
+                nullable: true
+                properties:
+                  args:
+                    description: Args to execute with the command.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  command:
+                    description: Command to launch stdio-based MCP servers.
+                    type: string
+                  run_as_host_user:
+                    description: RunAsHostUser is the host user account under which
+                      the command will be executed. Required for stdio-based MCP servers.
+                    type: string
+                type: object
               public_addr:
                 description: PublicAddr is the public address the application is accessible
                   at.
