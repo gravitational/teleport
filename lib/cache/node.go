@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -112,6 +113,28 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server,
 
 	return out, nil
 
+}
+
+func (c *Cache) BlockingUnorderedNodesVisit() stream.Stream[types.Server] {
+	return func(yield func(types.Server, error) bool) {
+		rg, err := acquireReadGuard(c, c.collections.nodes)
+		if err != nil {
+			yield(nil, trace.Wrap(err))
+			return
+		}
+		defer rg.Release()
+
+		if !rg.ReadCache() {
+			yield(nil, trace.ConnectionProblem(nil, "cache not ready"))
+			return
+		}
+
+		for v := range rg.store.blockingUnorderedVisit() {
+			if !yield(v, nil) {
+				return
+			}
+		}
+	}
 }
 
 // getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer

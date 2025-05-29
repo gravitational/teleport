@@ -30,6 +30,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/srv"
 )
 
@@ -52,6 +53,12 @@ func (process *TeleportProcess) runRelayService() error {
 		return trace.Wrap(err)
 	}
 	defer conn.Close()
+
+	dangerousCache, err := process.NewLocalCache(conn.Client, cache.ForRelay(), []string{teleport.ComponentRelay})
+	if err != nil {
+		return err
+	}
+	defer dangerousCache.Close()
 
 	nonce := uuid.NewString()
 	var relayServer atomic.Pointer[presencev1.RelayServer]
@@ -91,6 +98,36 @@ func (process *TeleportProcess) runRelayService() error {
 	log.InfoContext(process.ExitContext(), "The relay service has successfully started.",
 		"nonce", nonce,
 	)
+
+	go func() {
+		ctx := process.GracefulExitContext()
+		tick := time.NewTicker(5 * time.Second)
+		defer tick.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+			}
+
+			for node, err := range dangerousCache.BlockingUnorderedNodesVisit() {
+				if err != nil {
+					log.WarnContext(ctx, "Failed to visit nodes from the cache", "error", err)
+					break
+				}
+				log.InfoContext(ctx, "Visited node", "name", node.GetName())
+			}
+
+			if _, err := dangerousCache.GetKubernetesServers(ctx); err != nil {
+				log.WarnContext(ctx, "Failed to get kube servers from the cache", "error", err)
+			}
+
+			if _, _, err := dangerousCache.ListRelayServers(ctx, 0, ""); err != nil {
+				log.WarnContext(ctx, "Failed to get relay servers from the cache", "error", err)
+			}
+		}
+
+	}()
 
 	exitEvent, _ := process.WaitForEvent(process.ExitContext(), TeleportExitEvent)
 	ctx, _ := exitEvent.Payload.(context.Context)

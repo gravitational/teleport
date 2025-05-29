@@ -272,6 +272,19 @@ func ForProxy(cfg Config) Config {
 	return cfg
 }
 
+func ForRelay() SetupConfigFn {
+	return func(cfg Config) Config {
+		cfg.target = "relay"
+		cfg.Watches = []types.WatchKind{
+			{Kind: types.KindNode},
+			{Kind: types.KindKubeServer},
+			{Kind: types.KindRelayServer},
+		}
+		cfg.QueueSize = defaults.RelayQueueSize
+		return cfg
+	}
+}
+
 // ForRemoteProxy sets up watch configuration for remote proxies.
 func ForRemoteProxy(cfg Config) Config {
 	cfg.target = "remote-proxy"
