@@ -33,6 +33,7 @@ const (
 	defaultAWSSessionDuration        = 6 * time.Hour
 	maxAWSSessionDuration            = 12 * time.Hour
 	defaultAWSSessionRenewalInterval = 1 * time.Hour
+	defaultAWSRAX509SVIDTTL          = 10 * time.Minute
 )
 
 var (
@@ -48,6 +49,15 @@ type WorkloadIdentityAWSRAService struct {
 	Selector WorkloadIdentitySelector `yaml:"selector"`
 	// Destination is where the credentials should be written to.
 	Destination bot.Destination `yaml:"destination"`
+	// Cache is the destination where SVIDs will be cached for re-use in case
+	// the auth server is unavailable. When setting this, it's advisable to also
+	// increase the value of X509SVIDTTL.
+	Cache bot.Destination `yaml:"cache,omitempty"`
+	// X509SVIDTTL controls the lifetime of the X509-SVID that is generated and
+	// exchanged for AWS credentials. When unset, this defaults to 10 minutes
+	// but if you're setting Cache you should increase it to something greater
+	// than SessionRenewalInterval.
+	X509SVIDTTL time.Duration `yaml:"x509_svid_ttl,omitempty"`
 
 	// RoleARN is the ARN of the role to assume.
 	// Example: `arn:aws:iam::123456789012:role/example-role`
@@ -96,9 +106,12 @@ type WorkloadIdentityAWSRAService struct {
 	EndpointOverride string `yaml:"-"`
 }
 
-// Init initializes the destination.
+// Init initializes the output and cache destinations.
 func (o *WorkloadIdentityAWSRAService) Init(ctx context.Context) error {
-	return trace.Wrap(o.Destination.Init(ctx, []string{}))
+	return trace.NewAggregate(
+		o.Destination.Init(ctx, []string{}),
+		o.Cache.Init(ctx, []string{}),
+	)
 }
 
 // CheckAndSetDefaults checks the WorkloadIdentityAWSRAService values and sets any defaults.
@@ -145,6 +158,23 @@ func (o *WorkloadIdentityAWSRAService) CheckAndSetDefaults() error {
 	if o.SessionRenewalInterval >= o.SessionDuration {
 		return trace.BadParameter("session_renewal_interval: must be less than session_duration")
 	}
+	if o.X509SVIDTTL == 0 {
+		o.X509SVIDTTL = defaultAWSRAX509SVIDTTL
+	}
+
+	if o.Cache != nil && o.X509SVIDTTL < o.SessionRenewalInterval {
+		log.WarnContext(context.TODO(),
+			"When using the workload-identity-aws-roles-anywhere service's 'cache' option, 'x509_svid_ttl' must be greater than 'session_renewal_interval' for the cached certificate to be usable across renewals",
+			"x509_svid_ttl", o.X509SVIDTTL,
+			"session_renewal_interval", o.SessionRenewalInterval,
+		)
+	}
+	if o.Cache == nil {
+		o.Cache = &DestinationMemory{}
+	}
+	if err := o.Cache.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating cache destination")
+	}
 
 	return nil
 }
@@ -175,12 +205,17 @@ func (o *WorkloadIdentityAWSRAService) UnmarshalYAML(node *yaml.Node) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	cache, err := extractDestinationField(node, "cache")
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw WorkloadIdentityAWSRAService
 	if err := node.Decode((*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
 	o.Destination = dest
+	o.Cache = cache
 	return nil
 }
 
