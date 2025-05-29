@@ -25,13 +25,14 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/trace"
 )
 
 type BoundKeypairCommand struct {
