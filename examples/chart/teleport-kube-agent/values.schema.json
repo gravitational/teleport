@@ -522,7 +522,7 @@
         "topologySpreadConstraints": {
             "$id": "#/properties/topologySpreadConstraints",
             "type": "array",
-            "default": {}
+            "default": []
         },
         "dnsConfig": {
             "$id": "#/properties/dnsConfig",
