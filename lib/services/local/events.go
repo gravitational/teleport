@@ -2362,8 +2362,9 @@ type headlessAuthenticationParser struct {
 func (p *headlessAuthenticationParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(headlessAuthenticationPrefix)).String()
-		if name == "" {
+		// Key should look like [headlessAuthenticationPrefix]/[usersPrefix]/{user_id}/{headless_id}
+		components := event.Item.Key.Components()
+		if len(components) != 4 || components[0] != headlessAuthenticationPrefix || components[1] != usersPrefix {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
 
@@ -2371,7 +2372,7 @@ func (p *headlessAuthenticationParser) parse(event backend.Event) (types.Resourc
 			Kind:    types.KindHeadlessAuthentication,
 			Version: types.V1,
 			Metadata: types.Metadata{
-				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Name:      components[3],
 				Namespace: apidefaults.Namespace,
 			},
 		}, nil
