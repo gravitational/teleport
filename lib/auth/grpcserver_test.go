@@ -5366,6 +5366,14 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 		Allow: types.RoleConditions{
 			KubernetesResources: []types.KubernetesResource{
 				{
+					// Full wildcard has the same behavior in v7 and v8, so we can keep it.
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+				{
 					Kind:      "pods",
 					Name:      types.Wildcard,
 					Namespace: types.Wildcard,
@@ -5460,6 +5468,7 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 		Allow: types.RoleConditions{
 			KubernetesResources: []types.KubernetesResource{
 				{
+					// In v17, this would also grant access to cluster-wide resources, so we need to reject.
 					Kind:      types.Wildcard,
 					Name:      "foo",
 					Namespace: "bar",
@@ -5473,6 +5482,7 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 		Allow: types.RoleConditions{
 			KubernetesResources: []types.KubernetesResource{
 				{
+					// In v17, this wasn't supported.
 					Kind:      types.Wildcard,
 					Name:      "bar",
 					Namespace: "", // Cluster wide.
@@ -5572,6 +5582,12 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 			expectedRole: newRole(downgradev7comptibleK8sResourcesRole.GetName(), types.V7, types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					KubernetesResources: []types.KubernetesResource{
+						{
+							Kind:      types.Wildcard,
+							Name:      types.Wildcard,
+							Namespace: types.Wildcard,
+							Verbs:     []string{types.Wildcard},
+						},
 						{
 							Kind:      types.KindKubePod,
 							Name:      types.Wildcard,
