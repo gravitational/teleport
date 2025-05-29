@@ -723,14 +723,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.secReportsStates = collect
 			out.byKind[resourceKind] = out.secReportsStates
-		// case types.KindRecordingEncryption:
-		// 	collect, err := newRecordingEncryptionCollection(c.RecordingEncryption, watch)
-		// 	if err != nil {
-		// 		return nil, trace.Wrap(err)
-		// 	}
+		case types.KindRecordingEncryption:
+			collect, err := newRecordingEncryptionCollection(c.RecordingEncryption, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 
-		// 	out.recordingEncryption = collect
-		// 	out.byKind[resourceKind] = out.recordingEncryption
+			out.recordingEncryption = collect
+			out.byKind[resourceKind] = out.recordingEncryption
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)

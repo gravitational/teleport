@@ -21,11 +21,11 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -39,7 +39,7 @@ func newRecordingEncryptionCollection(upstream services.RecordingEncryption, w t
 	}
 
 	return &collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]{
-		store: newStore(utils.CloneProtoMsg[*recordingencryptionv1.RecordingEncryption], map[recordingEncryptionIndex]func(*recordingencryptionv1.RecordingEncryption) string{
+		store: newStore(proto.CloneOf[*recordingencryptionv1.RecordingEncryption], map[recordingEncryptionIndex]func(*recordingencryptionv1.RecordingEncryption) string{
 			recordingEncryptionNameIndex: func(r *recordingencryptionv1.RecordingEncryption) string {
 				return r.GetMetadata().GetName()
 			},
@@ -65,6 +65,10 @@ func newRecordingEncryptionCollection(upstream services.RecordingEncryption, w t
 	}, nil
 }
 
+type recordingEncryptionCacheKey struct {
+	kind string
+}
+
 // GetRecordingEncryption returns the cached RecordingEncryption for the cluster
 func (c *Cache) GetRecordingEncryption(ctx context.Context) (*recordingencryptionv1.RecordingEncryption, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetRecordingEncryption")
@@ -75,7 +79,8 @@ func (c *Cache) GetRecordingEncryption(ctx context.Context) (*recordingencryptio
 		collection: c.collections.recordingEncryption,
 		index:      recordingEncryptionNameIndex,
 		upstreamGet: func(ctx context.Context, ident string) (*recordingencryptionv1.RecordingEncryption, error) {
-			return c.Config.RecordingEncryption.GetRecordingEncryption(ctx)
+			encryption, err := c.Config.RecordingEncryption.GetRecordingEncryption(ctx)
+			return encryption, trace.Wrap(err)
 		},
 	}
 

@@ -91,6 +91,7 @@ type RecordingEncryptionManager interface {
 	services.RecordingEncryption
 	recordingencryption.Resolver
 	recordingencryption.DecryptionKeyFinder
+	SetCache(recordingencryption.Cache)
 }
 
 // InitConfig is auth server init config
