@@ -2091,6 +2091,15 @@ func GenSchemaSessionRecordingConfigV2(ctx context.Context) (github_com_hashicor
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"encryption": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": {
+						Description: "Enabled controls whether or not session recordings should be encrypted.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+					}}),
+					Description: "Encryption configures if and how session recordings should be encrypted.",
+					Optional:    true,
+				},
 				"mode": {
 					Computed:      true,
 					Description:   "Mode controls where (or if) the session is recorded.",
@@ -2104,6 +2113,19 @@ func GenSchemaSessionRecordingConfigV2(ctx context.Context) (github_com_hashicor
 				}),
 			}),
 			Description: "Spec is a SessionRecordingConfig specification",
+			Optional:    true,
+		},
+		"status": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"encryption_keys": {
+				Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"public_key": {
+					Description: "PublicKey is a Bech32 encoded age X25519 public key.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				}}),
+				Description: "EncryptionKeys contain the currently active age encryption keys used for encrypted session recording.",
+				Optional:    true,
+			}}),
+			Description: "Status is the SessionRecordingConfig status containing active encryption keys",
 			Optional:    true,
 		},
 		"sub_kind": {
@@ -22302,6 +22324,105 @@ func CopySessionRecordingConfigV2FromTerraform(_ context.Context, tf github_com_
 						}
 						CopyFromBoolOption(diags, a, &obj.ProxyChecksHostKeys)
 					}
+					{
+						a, ok := tf.Attrs["encryption"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"SessionRecordingConfigV2.Spec.encryption"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"SessionRecordingConfigV2.Spec.encryption", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.Encryption = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.Encryption = &github_com_gravitational_teleport_api_types.SessionRecordingEncryptionConfig{}
+									obj := obj.Encryption
+									{
+										a, ok := tf.Attrs["enabled"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"SessionRecordingConfigV2.Spec.encryption.enabled"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"SessionRecordingConfigV2.Spec.encryption.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.Null && !v.Unknown {
+													t = bool(v.Value)
+												}
+												obj.Enabled = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	{
+		a, ok := tf.Attrs["status"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"SessionRecordingConfigV2.Status"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"SessionRecordingConfigV2.Status", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+			} else {
+				obj.Status = nil
+				if !v.Null && !v.Unknown {
+					tf := v
+					obj.Status = &github_com_gravitational_teleport_api_types.SessionRecordingConfigStatus{}
+					obj := obj.Status
+					{
+						a, ok := tf.Attrs["encryption_keys"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"SessionRecordingConfigV2.Status.encryption_keys"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"SessionRecordingConfigV2.Status.encryption_keys", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+							} else {
+								obj.EncryptionKeys = make([]*github_com_gravitational_teleport_api_types.AgeEncryptionKey, len(v.Elems))
+								if !v.Null && !v.Unknown {
+									for k, a := range v.Elems {
+										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										if !ok {
+											diags.Append(attrReadConversionFailureDiag{"SessionRecordingConfigV2.Status.encryption_keys", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+										} else {
+											var t *github_com_gravitational_teleport_api_types.AgeEncryptionKey
+											if !v.Null && !v.Unknown {
+												tf := v
+												t = &github_com_gravitational_teleport_api_types.AgeEncryptionKey{}
+												obj := t
+												{
+													a, ok := tf.Attrs["public_key"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"SessionRecordingConfigV2.Status.encryption_keys.public_key"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"SessionRecordingConfigV2.Status.encryption_keys.public_key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														} else {
+															var t []byte
+															if !v.Null && !v.Unknown {
+																t = []byte(v.Value)
+															}
+															obj.PublicKey = t
+														}
+													}
+												}
+											}
+											obj.EncryptionKeys[k] = t
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -22611,9 +22732,175 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 							tf.Attrs["proxy_checks_host_keys"] = v
 						}
 					}
+					{
+						a, ok := tf.AttrTypes["encryption"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"SessionRecordingConfigV2.Spec.encryption"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"SessionRecordingConfigV2.Spec.encryption", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["encryption"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.Encryption == nil {
+									v.Null = true
+								} else {
+									obj := obj.Encryption
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["enabled"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"SessionRecordingConfigV2.Spec.encryption.enabled"})
+										} else {
+											v, ok := tf.Attrs["enabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"SessionRecordingConfigV2.Spec.encryption.enabled", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"SessionRecordingConfigV2.Spec.encryption.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												}
+												v.Null = bool(obj.Enabled) == false
+											}
+											v.Value = bool(obj.Enabled)
+											v.Unknown = false
+											tf.Attrs["enabled"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["encryption"] = v
+							}
+						}
+					}
 				}
 				v.Unknown = false
 				tf.Attrs["spec"] = v
+			}
+		}
+	}
+	{
+		a, ok := tf.AttrTypes["status"]
+		if !ok {
+			diags.Append(attrWriteMissingDiag{"SessionRecordingConfigV2.Status"})
+		} else {
+			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			if !ok {
+				diags.Append(attrWriteConversionFailureDiag{"SessionRecordingConfigV2.Status", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+			} else {
+				v, ok := tf.Attrs["status"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+				if !ok {
+					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+						AttrTypes: o.AttrTypes,
+						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+					}
+				} else {
+					if v.Attrs == nil {
+						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+					}
+				}
+				if obj.Status == nil {
+					v.Null = true
+				} else {
+					obj := obj.Status
+					tf := &v
+					{
+						a, ok := tf.AttrTypes["encryption_keys"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"SessionRecordingConfigV2.Status.encryption_keys"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"SessionRecordingConfigV2.Status.encryption_keys", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+							} else {
+								c, ok := tf.Attrs["encryption_keys"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+								if !ok {
+									c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+										ElemType: o.ElemType,
+										Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.EncryptionKeys)),
+										Null:     true,
+									}
+								} else {
+									if c.Elems == nil {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.EncryptionKeys))
+									}
+								}
+								if obj.EncryptionKeys != nil {
+									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+									if len(obj.EncryptionKeys) != len(c.Elems) {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.EncryptionKeys))
+									}
+									for k, a := range obj.EncryptionKeys {
+										v, ok := tf.Attrs["encryption_keys"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										if !ok {
+											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+												AttrTypes: o.AttrTypes,
+												Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+											}
+										} else {
+											if v.Attrs == nil {
+												v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+											}
+										}
+										if a == nil {
+											v.Null = true
+										} else {
+											obj := a
+											tf := &v
+											{
+												t, ok := tf.AttrTypes["public_key"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"SessionRecordingConfigV2.Status.encryption_keys.public_key"})
+												} else {
+													v, ok := tf.Attrs["public_key"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+													if !ok {
+														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+														if err != nil {
+															diags.Append(attrWriteGeneralError{"SessionRecordingConfigV2.Status.encryption_keys.public_key", err})
+														}
+														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrWriteConversionFailureDiag{"SessionRecordingConfigV2.Status.encryption_keys.public_key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
+														v.Null = string(obj.PublicKey) == ""
+													}
+													v.Value = string(obj.PublicKey)
+													v.Unknown = false
+													tf.Attrs["public_key"] = v
+												}
+											}
+										}
+										v.Unknown = false
+										c.Elems[k] = v
+									}
+									if len(obj.EncryptionKeys) > 0 {
+										c.Null = false
+									}
+								}
+								c.Unknown = false
+								tf.Attrs["encryption_keys"] = c
+							}
+						}
+					}
+				}
+				v.Unknown = false
+				tf.Attrs["status"] = v
 			}
 		}
 	}
