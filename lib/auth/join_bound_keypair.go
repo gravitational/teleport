@@ -206,7 +206,7 @@ func shouldRequestBoundKeypairRotation(rotateAfter, lastRotatedAt *time.Time, no
 		return false
 	}
 
-	if rotateAfter.Before(now) {
+	if rotateAfter.After(now) {
 		// We haven't reached the rotation threshold, nothing to do.
 		return false
 	}
@@ -261,6 +261,8 @@ func (a *Server) requestBoundKeypairRotation(
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+
+	a.logger.InfoContext(ctx, "requesting bound keypair rotation", "suite", cap.GetSignatureAlgorithmSuite())
 
 	// Request a new marshalled public key from the client.
 	response, err := challengeResponse(&proto.RegisterUsingBoundKeypairMethodResponse{
@@ -355,13 +357,20 @@ func mutateStatusBoundBotInstance(newBotInstance, expectPreviousBotInstance stri
 // mutateStatusLastRotatedAt updates the `status.LastRotatedAt` field to
 // indicate a keypair rotation has taken place. It ensures the previous value
 // has not changed before performing the update.
-func mutateStatusLastRotatedAt(newValue, expectPrevValue time.Time) boundKeypairStatusMutator {
+func mutateStatusLastRotatedAt(newValue, expectPrevValue *time.Time) boundKeypairStatusMutator {
 	return func(_ *types.ProvisionTokenSpecV2BoundKeypair, status *types.ProvisionTokenStatusV2BoundKeypair) error {
-		if *status.LastRotatedAt != expectPrevValue {
+		switch {
+		case expectPrevValue == nil && status.LastRotatedAt == nil:
+			// no issue
+		case expectPrevValue != nil && status.LastRotatedAt == nil:
+			fallthrough
+		case expectPrevValue == nil && status.LastRotatedAt != nil:
+			fallthrough
+		case !expectPrevValue.Equal(*status.LastRotatedAt):
 			return trace.AccessDenied("unexpected backend state")
 		}
 
-		status.LastRotatedAt = &newValue
+		status.LastRotatedAt = newValue
 
 		return nil
 	}
@@ -609,7 +618,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 
 		mutators = append(mutators,
 			mutateStatusBoundPublicKey(newPubKey, boundPublicKey),
-			mutateStatusLastRotatedAt(now, *status.LastRotatedAt),
+			mutateStatusLastRotatedAt(&now, status.LastRotatedAt),
 		)
 
 		boundPublicKey = newPubKey
