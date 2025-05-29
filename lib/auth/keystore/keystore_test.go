@@ -541,13 +541,15 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
+	fakeKMS := newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", 100)
 
 	baseOpts := Options{
 		ClusterName:          clusterName,
 		HostUUID:             hostUUID,
 		Logger:               logger,
 		AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-		awsKMSClient:         newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", 100),
+		awsKMSClient:         fakeKMS,
+		mrkClient:            fakeKMS,
 		awsSTSClient: &fakeAWSSTSClient{
 			account: "123456789012",
 		},
@@ -683,7 +685,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 			AWSKMS: &servicecfg.AWSKMSConfig{
 				AWSAccount: "123456789012",
 				AWSRegion:  "us-west-2",
-				MultiRegion: struct{ Enabled bool }{
+				MultiRegion: servicecfg.MultiRegionKeyStore{
 					Enabled: multiRegion,
 				},
 			},

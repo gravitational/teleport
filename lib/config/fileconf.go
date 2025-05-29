@@ -921,10 +921,7 @@ type AWSKMS struct {
 	// Region is the AWS region to use.
 	Region string `yaml:"region"`
 	// MultiRegion contains configuration for multi-region AWS KMS.
-	MultiRegion struct {
-		// Enabled configures new keys to be multi-region.
-		Enabled bool
-	} `yaml:"multi_region,omitempty"`
+	MultiRegion servicecfg.MultiRegionKeyStore `yaml:"multi_region,omitempty"`
 	// Tags are key/value pairs used as AWS resource tags. The 'TeleportCluster'
 	// tag is added automatically if not specified in the set of tags. Changing tags
 	// after Teleport has already created KMS keys may require manually updating
