@@ -52,7 +52,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -83,7 +82,7 @@ type SPIFFEWorkloadAPIService struct {
 	trustBundleCache *workloadidentity.TrustBundleCache
 
 	// client holds the impersonated client for the service
-	client           *authclient.Client
+	client           Client
 	attestor         *workloadattest.Attestor
 	localTrustDomain spiffeid.TrustDomain
 }
@@ -107,7 +106,7 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	client, err := clientForFacade(
+	client, err := temporaryClient(
 		ctx, s.log, s.botCfg, facade, s.resolver,
 	)
 	if err != nil {
@@ -776,7 +775,7 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 		})
 	}
 
-	res, err := s.client.WorkloadIdentityServiceClient().SignJWTSVIDs(ctx, &machineidv1pb.SignJWTSVIDsRequest{
+	res, err := s.client.SignJWTSVIDs(ctx, &machineidv1pb.SignJWTSVIDsRequest{
 		Svids: reqs,
 	})
 	if err != nil {

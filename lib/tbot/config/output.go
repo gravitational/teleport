@@ -34,8 +34,12 @@ import (
 // If there's no destination in the provided yaml node, then this will return
 // nil, nil.
 func extractOutputDestination(node *yaml.Node) (bot.Destination, error) {
+	return extractDestinationField(node, "destination")
+}
+
+func extractDestinationField(node *yaml.Node, name string) (bot.Destination, error) {
 	for i, subNode := range node.Content {
-		if subNode.Value == "destination" {
+		if subNode.Value == name {
 			// Next node will be the contents
 			dest, err := unmarshalDestination(node.Content[i+1])
 			if err != nil {

@@ -33,6 +33,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"go.opentelemetry.io/otel"
+	"google.golang.org/grpc"
 
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
@@ -41,6 +42,14 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+type SPIFFEFederationServiceClient interface {
+	ListSPIFFEFederations(ctx context.Context, in *machineidv1pb.ListSPIFFEFederationsRequest, opts ...grpc.CallOption) (*machineidv1pb.ListSPIFFEFederationsResponse, error)
+}
+
+type TrustServiceClient interface {
+	GetTrustCertAuthority(ctx context.Context, in *trustv1.GetCertAuthorityRequest, opts ...grpc.CallOption) (*types.CertAuthorityV2, error)
+}
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/spiffe")
 
@@ -170,8 +179,8 @@ type eventsWatcher interface {
 // preferable to serve the last-good value than to disrupt subscribed workloads
 // ability to communicate.
 type TrustBundleCache struct {
-	federationClient machineidv1pb.SPIFFEFederationServiceClient
-	trustClient      trustv1.TrustServiceClient
+	federationClient SPIFFEFederationServiceClient
+	trustClient      TrustServiceClient
 	eventsClient     eventsWatcher
 	clusterName      string
 
@@ -191,8 +200,8 @@ func (m *TrustBundleCache) String() string {
 
 // TrustBundleCacheConfig is the configuration for a TrustBundleCache.
 type TrustBundleCacheConfig struct {
-	FederationClient machineidv1pb.SPIFFEFederationServiceClient
-	TrustClient      trustv1.TrustServiceClient
+	FederationClient SPIFFEFederationServiceClient
+	TrustClient      TrustServiceClient
 	EventsClient     eventsWatcher
 	ClusterName      string
 	Logger           *slog.Logger
@@ -525,8 +534,8 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 func FetchInitialBundleSet(
 	ctx context.Context,
 	log *slog.Logger,
-	federationClient machineidv1pb.SPIFFEFederationServiceClient,
-	trustClient trustv1.TrustServiceClient,
+	federationClient SPIFFEFederationServiceClient,
+	trustClient TrustServiceClient,
 	fetchFederatedBundles bool,
 	clusterName string,
 ) (*BundleSet, error) {
@@ -539,7 +548,7 @@ func FetchInitialBundleSet(
 	bs := &BundleSet{
 		Federated: make(map[string]*spiffebundle.Bundle),
 	}
-	spiffeCA, err := trustClient.GetCertAuthority(ctx, &trustv1.GetCertAuthorityRequest{
+	spiffeCA, err := trustClient.GetTrustCertAuthority(ctx, &trustv1.GetCertAuthorityRequest{
 		Type:       string(types.SPIFFECA),
 		Domain:     clusterName,
 		IncludeKey: false,
@@ -579,7 +588,7 @@ func FetchInitialBundleSet(
 
 func listAllSPIFFEFederations(
 	ctx context.Context,
-	client machineidv1pb.SPIFFEFederationServiceClient,
+	client SPIFFEFederationServiceClient,
 ) ([]*machineidv1pb.SPIFFEFederation, error) {
 	var spiffeFeds []*machineidv1pb.SPIFFEFederation
 	var token string

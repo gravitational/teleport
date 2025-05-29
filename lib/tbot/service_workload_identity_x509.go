@@ -32,7 +32,6 @@ import (
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -42,7 +41,7 @@ import (
 // WorkloadIdentityX509Service is a service that retrieves X.509 certificates
 // for WorkloadIdentity resources.
 type WorkloadIdentityX509Service struct {
-	botAuthClient  *authclient.Client
+	botAuthClient  Client
 	botCfg         *config.BotConfig
 	cfg            *config.WorkloadIdentityX509Service
 	getBotIdentity getBotIdentityFn
@@ -69,8 +68,8 @@ func (s *WorkloadIdentityX509Service) OneShot(ctx context.Context) error {
 	bundleSet, err := workloadidentity.FetchInitialBundleSet(
 		ctx,
 		s.log,
-		s.botAuthClient.SPIFFEFederationServiceClient(),
-		s.botAuthClient.TrustClient(),
+		s.botAuthClient,
+		s.botAuthClient,
 		s.cfg.IncludeFederatedTrustBundles,
 		s.getBotIdentity().ClusterName,
 	)
@@ -79,7 +78,7 @@ func (s *WorkloadIdentityX509Service) OneShot(ctx context.Context) error {
 	}
 	crlSet, err := workloadidentity.FetchCRLSet(
 		ctx,
-		s.botAuthClient.WorkloadIdentityRevocationServiceClient(),
+		s.botAuthClient,
 	)
 	if err != nil {
 		return trace.Wrap(err, "fetching CRL set")
@@ -210,7 +209,7 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
 	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
+	impersonatedClient, err := temporaryClient(ctx, s.log, s.botCfg, facade, s.resolver)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
