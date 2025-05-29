@@ -1018,8 +1018,6 @@ func registerUsingBoundKeypairMethod(
 
 				slog.InfoContext(ctx, "Server has requested keypair rotation", "suite", kind.Rotation.SignatureAlgorithmSuite)
 
-				// TODO: need to tweak things to make sure the new keypair is
-				// committed to disk by this point.
 				newSigner, err := bkParams.RequestNewKeypair(ctx, cryptosuites.StaticAlgorithmSuite(kind.Rotation.SignatureAlgorithmSuite))
 				if err != nil {
 					return nil, trace.Wrap(err, "requesting new keypair")
