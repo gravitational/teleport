@@ -1164,6 +1164,25 @@ message JWTKeyPair {
   PrivateKeyType PrivateKeyType = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
 }
 
+// EncryptionKeyPair is a PEM encoded keypair used for encrypting and decrypting data.
+message EncryptionKeyPair {
+  // PublicKey is a PEM encoded public key.
+  bytes public_key = 1 [(gogoproto.jsontag) = "public_key,omitempty"];
+  // PrivateKey is a PEM encoded private key.
+  bytes private_key = 2 [(gogoproto.jsontag) = "private_key,omitempty"];
+  // PrivateKeyType is the type of the PrivateKey.
+  PrivateKeyType private_key_type = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
+  // Hash function used during OAEP encryption/decryption. It maps directly to the possible
+  // values of [crypto.Hash] in the go crypto package.
+  uint32 hash = 4 [(gogoproto.jsontag) = "hash,omitempty"];
+}
+
+// AgeEncryptionKey is a Bech32 encoded age X25519 public key.
+message AgeEncryptionKey {
+  // PublicKey is a Bech32 encoded age X25519 public key.
+  bytes public_key = 1 [(gogoproto.jsontag) = "public_key"];
+}
+
 // CertAuthorityV2 is version 2 resource spec for Cert Authority
 message CertAuthorityV2 {
   option (gogoproto.goproto_stringer) = false;
@@ -2298,6 +2317,18 @@ message SessionRecordingConfigV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // Status is the SessionRecordingConfig status containing active encryption keys
+  SessionRecordingConfigStatus Status = 6 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "status"
+  ];
+}
+
+// SessionRecordingEncryptionConfig configures if and how session recordings
+// should be encrypted.
+message SessionRecordingEncryptionConfig {
+  // Enabled controls whether or not session recordings should be encrypted.
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled"];
 }
 
 // SessionRecordingConfigSpecV2 is the actual data we care about
@@ -2313,6 +2344,20 @@ message SessionRecordingConfigSpecV2 {
     (gogoproto.jsontag) = "proxy_checks_host_keys",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // Encryption configures if and how session recordings should be encrypted.
+  SessionRecordingEncryptionConfig encryption = 3 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "encryption"
+  ];
+}
+
+// SessionRecordingConfigStatus contains the currently active age encryption keys used
+// for encrypted session recording.
+message SessionRecordingConfigStatus {
+  // EncryptionKeys contain the currently active age encryption keys used for
+  // encrypted session recording.
+  repeated AgeEncryptionKey encryption_keys = 1 [(gogoproto.jsontag) = "encryption_keys"];
 }
 
 // AuthPreferenceV2 implements the AuthPreference interface.
