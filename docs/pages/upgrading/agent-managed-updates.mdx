@@ -559,3 +559,40 @@ $ journalctl -u teleport-update
    $ sudo teleport-update update --now
    ```
 
+### Using a different CDN URL
+
+If your agents cannot reach the default Teleport CDN URL (`cdn.teleport.dev`), they will be unable to download updates.
+
+Here are a couple of potential solutions to this issue:
+
+#### Use an HTTP CONNECT proxy
+
+If you configure the `HTTPS_PROXY` variable in the `teleport-update` process's environment, it will use this proxy to pull updates.
+
+The easiest way to configure a proxy with a default install is to add this variable to `/etc/systemd/system/teleport-update.service.d/override.conf`:
+
+```bash
+$ sudo mkdir -p /etc/systemd/system/teleport-update.service.d
+$ sudo tee -a /etc/systemd/system/teleport-update.service.d/override.conf > /dev/null <<'EOF'
+[Service]
+Environment=HTTPS_PROXY=http://proxy-url:3128
+EOF
+```
+
+You can view the `teleport-update` process logs with `sudo journalctl -u teleport-update.service`.
+
+#### Mirror the Teleport tarball packages and change the base-url
+
+If you can mirror the Teleport tarball installers somewhere that your agents are able to access, you can change the `base-url`
+used by Teleport updaters so they can pull them directly.
+
+To change the `base-url`, you should add the `-b` or `--base-url` flag to the `teleport-update enable` command:
+
+```bash
+$ sudo teleport-update enable --base-url https://teleport.artifactory.company.local
+```
+
+It is safe to re-run `sudo teleport-update enable` to modify the base URL.
+Existing updater settings will be preserved if not explicitly overridden by flags.
+
+More information about flags that can be used with `teleport-update enable` can be found [here](../reference/cli/teleport-update.mdx#teleport-update-enable)
