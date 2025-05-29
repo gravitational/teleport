@@ -68,6 +68,16 @@ You must re-run `install-selinux.sh` whenever your Teleport SSH agents are updat
 
 Future versions of Teleport will make managed updates with `teleport-update` the primary way to manage the SELinux module.
 
+### Labeling Teleport SSH binaries
+
+The SELinux module assumes Teleport is installed using managed updates in `/opt/teleport/default/versions/*/bin/teleport`, installed by the RPM package in `/opt/teleport/system/bin/teleport`, or simply at `/usr/bin/teleport`. If the Teleport binary is in none of these locations, you will need to label the binary manually:
+
+```code
+$ sudo semanage fcontext -a -t teleport_ssh_exec_t /path/to/teleport
+```
+
+This will ensure SELinux recognizes the binary as Teleport SSH.
+
 ## SELinux modes
 
 SELinux can operate in three modes:
