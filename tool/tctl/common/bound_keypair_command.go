@@ -20,10 +20,12 @@ package common
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -67,6 +69,18 @@ func (c *BoundKeypairCommand) TryRun(ctx context.Context, cmd string, clientFunc
 }
 
 func (c *BoundKeypairCommand) RequestRotation(ctx context.Context, client *authclient.Client) error {
+	// Perform MFA checks now since we'll otherwise need to prompt twice.
+	if _, err := mfa.MFAResponseFromContext(ctx); err == nil {
+		// Nothing to do.
+	} else {
+		mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
+		if err == nil {
+			ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+		} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+			return trace.Wrap(err)
+		}
+	}
+
 	token, err := client.GetToken(ctx, c.token)
 	if err != nil {
 		return trace.Wrap(err)
