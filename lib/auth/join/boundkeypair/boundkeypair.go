@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/sshutils"
 )
 
 const (
@@ -51,10 +52,6 @@ type KeyHistoryEntry struct {
 	// Time is the time this key was inserted into the history.
 	Time time.Time `json:"time"`
 
-	// PublicKey is the public component of the key, in ssh authorized_keys
-	// format.
-	PublicKey string `json:"public_key"`
-
 	// PrivateKey is the private key, encoded in PEM format.
 	PrivateKey string `json:"private_key"`
 }
@@ -63,6 +60,7 @@ type KeyHistoryEntry struct {
 // bound keypair join process.
 type ClientState struct {
 	mu sync.Mutex
+	fs FS
 
 	// PrivateKey is the parsed private key.
 	PrivateKey *keys.PrivateKey
@@ -103,7 +101,21 @@ func (c *ClientState) ToJoinParams(initialJoinSecret string) *join.BoundKeypairP
 			return c.SignerForPublicKey([]byte(pubKey))
 		},
 		RequestNewKeypair: func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-			return c.GenerateKeypair(ctx, getSuite)
+			signer, err := c.GenerateKeypair(ctx, getSuite)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// Make sure to store the intermediate state. We don't want to risk
+			// losing a private key if an error occurs between here and the end
+			// of the join process, but also don't want to force
+			// `GenerateKeypair()` to trigger a `Store()` on every call, so it's
+			// reasonably done here.
+			if err := c.Store(ctx); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return signer, nil
 		},
 	}
 }
@@ -155,13 +167,13 @@ func pubKeyEqual(a, b crypto.PublicKey) (bool, error) {
 	return aEq.Equal(b), nil
 }
 
-// SignerForPublicKey attempts to resolve a signer for the given PEM encoded
-// public key.
-func (c *ClientState) SignerForPublicKey(desiredPubKeyBytes []byte) (crypto.Signer, error) {
+// SignerForPublicKey attempts to resolve a signer for the given public key
+// encoded in authorized_keys format.
+func (c *ClientState) SignerForPublicKey(authorizedKeysBytes []byte) (crypto.Signer, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	desiredPubKey, err := keys.ParsePublicKey(desiredPubKeyBytes)
+	desiredPubKey, err := sshutils.CryptoPublicKey(authorizedKeysBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -221,19 +233,18 @@ func (c *ClientState) GenerateKeypair(ctx context.Context, getSuite cryptosuites
 		return nil, trace.Wrap(err, "marshallng private key")
 	}
 
+	// prepend the new key to the top of the list for faster lookup
+	c.KeyHistory = append([]KeyHistoryEntry{{
+		Time:       time.Now(),
+		PrivateKey: string(privateKeyBytes),
+	}}, c.KeyHistory...)
+
 	sshPubKey, err := ssh.NewPublicKey(key.Public())
 	if err != nil {
 		return nil, trace.Wrap(err, "creating ssh public key")
 	}
 
-	publicKeyBytes := ssh.MarshalAuthorizedKey(sshPubKey)
-
-	// prepend the new key to the top of the list for faster lookup
-	c.KeyHistory = append([]KeyHistoryEntry{{
-		Time:       time.Now(),
-		PublicKey:  string(publicKeyBytes),
-		PrivateKey: string(privateKeyBytes),
-	}}, c.KeyHistory...)
+	slog.InfoContext(ctx, "Generated new keypair", "public_key", string(ssh.MarshalAuthorizedKey(sshPubKey)))
 
 	return key, nil
 }
@@ -262,7 +273,7 @@ func (c *ClientState) SetActiveKey(signer crypto.Signer) error {
 		return trace.Wrap(err)
 	}
 
-	privateKeyBytes, err := keys.MarshalPrivateKey(key)
+	privateKeyBytes, err := keys.MarshalPrivateKey(key.Signer)
 	if err != nil {
 		return trace.Wrap(err, "marshallng private key")
 	}
@@ -275,6 +286,8 @@ func (c *ClientState) SetActiveKey(signer crypto.Signer) error {
 	c.PrivateKey = key
 	c.PrivateKeyBytes = privateKeyBytes
 	c.PublicKeyBytes = ssh.MarshalAuthorizedKey(sshPubKey)
+
+	slog.InfoContext(context.Background(), "Set new active keypair", "public_key", string(c.PublicKeyBytes))
 
 	return nil
 }
@@ -350,16 +363,25 @@ func LoadClientState(ctx context.Context, fs FS) (*ClientState, error) {
 		// No history, this is allowed.
 	} else if err != nil {
 		slog.WarnContext(ctx, "unable to read key history, may be unable to recover in the event of a cluster rollback", "error", err)
-	} else {
+	} else if len(keyHistoryBytes) > 0 {
 		keyHistory, err = parseKeyHistory(keyHistoryBytes)
 		if err != nil {
 			slog.WarnContext(ctx, "unable to parse key history, may be unable to recovery in the event of a cluster rollback", "error", err)
 		}
 	}
 
-	return &ClientState{
-		PrivateKey: pk,
+	// If the key history is empty, initialize it with just the current key.
+	if len(keyHistory) == 0 {
+		keyHistory = []KeyHistoryEntry{{
+			Time:       time.Now(),
+			PrivateKey: string(privateKeyBytes),
+		}}
+	}
 
+	return &ClientState{
+		fs: fs,
+
+		PrivateKey:      pk,
 		PrivateKeyBytes: privateKeyBytes,
 		JoinStateBytes:  joinStateBytes,
 		KeyHistory:      keyHistory,
@@ -368,39 +390,41 @@ func LoadClientState(ctx context.Context, fs FS) (*ClientState, error) {
 
 // StoreClientState writes bound keypair client state to the given filesystem
 // wrapper. Public keys and join state will only be written if
-func (c *ClientState) Store(ctx context.Context, fs FS) error {
+func (c *ClientState) Store(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if err := fs.Write(ctx, PrivateKeyPath, c.PrivateKeyBytes); err != nil {
+	if err := c.fs.Write(ctx, PrivateKeyPath, c.PrivateKeyBytes); err != nil {
 		return trace.Wrap(err, "writing private key")
 	}
 
 	// Only write the public key if it was explicitly provided. This helps save
 	// an unnecessary file write.
 	if len(c.PublicKeyBytes) > 0 {
-		if err := fs.Write(ctx, PublicKeyPath, c.PublicKeyBytes); err != nil {
+		if err := c.fs.Write(ctx, PublicKeyPath, c.PublicKeyBytes); err != nil {
 			return trace.Wrap(err, "writing public key")
 		}
 	}
 
 	if len(c.JoinStateBytes) > 0 {
-		if err := fs.Write(ctx, JoinStatePath, c.JoinStateBytes); err != nil {
+		if err := c.fs.Write(ctx, JoinStatePath, c.JoinStateBytes); err != nil {
 			return trace.Wrap(err, "writing previous join state")
 		}
 	}
 
 	if len(c.KeyHistory) > 0 {
 		// Keep only the first N elements to avoid excessive lookup times.
-		bytes, err := json.Marshal(c.KeyHistory[:KeyHistoryLength])
+		bytes, err := json.Marshal(c.KeyHistory[:min(len(c.KeyHistory), KeyHistoryLength)])
 		if err != nil {
 			return trace.Wrap(err, "marshaling key key history")
 		}
 
-		if err := fs.Write(ctx, KeyHistoryPath, bytes); err != nil {
+		if err := c.fs.Write(ctx, KeyHistoryPath, bytes); err != nil {
 			return trace.Wrap(err, "writing key history")
 		}
 	}
+
+	slog.DebugContext(ctx, "stored new bound keypair client state")
 
 	return nil
 }
@@ -408,7 +432,7 @@ func (c *ClientState) Store(ctx context.Context, fs FS) error {
 // NewUnboundClientState creates a new client state that has not yet been bound,
 // i.e. a new keypair that has not been registered with Auth, and no prior join
 // state.
-func NewUnboundClientState(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (*ClientState, error) {
+func NewUnboundClientState(ctx context.Context, fs FS, getSuite cryptosuites.GetSuiteFunc) (*ClientState, error) {
 	key, err := cryptosuites.GenerateKey(ctx, getSuite, cryptosuites.BoundKeypairJoining)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating keypair")
@@ -439,6 +463,8 @@ func NewUnboundClientState(ctx context.Context, getSuite cryptosuites.GetSuiteFu
 	}
 
 	return &ClientState{
+		fs: fs,
+
 		PrivateKeyBytes: privateKeyBytes,
 		PublicKeyBytes:  publicKeyBytes,
 		PrivateKey:      pk,
