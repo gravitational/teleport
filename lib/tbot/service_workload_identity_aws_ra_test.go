@@ -299,14 +299,15 @@ func TestBotWorkloadIdentityAWSRA(t *testing.T) {
 
 			tmpDir := t.TempDir()
 			onboarding, _ := makeBot(t, rootClient, "ra-test", role.GetName())
+			outputDest := newWriteNotifier(&config.DestinationDirectory{
+				Path: tmpDir,
+			})
 			botConfig := defaultBotConfig(t, process, onboarding, config.ServiceConfigs{
 				&config.WorkloadIdentityAWSRAService{
 					Selector: config.WorkloadIdentitySelector{
 						Name: workloadIdentity.GetMetadata().GetName(),
 					},
-					Destination: &config.DestinationDirectory{
-						Path: tmpDir,
-					},
+					Destination:            outputDest,
 					RoleARN:                roleArn,
 					ProfileARN:             profileArn,
 					TrustAnchorARN:         trustAnchorArn,
@@ -319,6 +320,10 @@ func TestBotWorkloadIdentityAWSRA(t *testing.T) {
 				useAuthServer: true,
 				insecure:      true,
 			})
+
+			proxy := newFailureProxy(t, botConfig.AuthServer)
+			go proxy.run(t)
+			botConfig.AuthServer = proxy.addr()
 
 			botConfig.Oneshot = true
 			b := New(botConfig, log)
@@ -333,6 +338,26 @@ func TestBotWorkloadIdentityAWSRA(t *testing.T) {
 				golden.Set(t, got)
 			}
 			require.Equal(t, string(golden.Get(t)), string(got))
+
+			// Now block the connection to the auth server and run the bot again
+			// to test it uses the SVID it cached in the first run.
+			proxy.setFailing(true)
+
+			// Drain the channel from the previous run.
+			select {
+			case <-outputDest.ch:
+			default:
+			}
+
+			b = New(botConfig, log)
+			require.NoError(t, b.Run(ctx))
+
+			// Check the output was written to.
+			select {
+			case <-outputDest.ch:
+			default:
+				t.Fatal("output was not written")
+			}
 		})
 	}
 }

@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"cmp"
 	"context"
-	"crypto"
 	"crypto/x509"
 	"fmt"
 	"log/slog"
@@ -85,24 +84,17 @@ func (s *WorkloadIdentityAWSRAService) Run(ctx context.Context) error {
 }
 
 func (s *WorkloadIdentityAWSRAService) generate(ctx context.Context) error {
-	res, privateKey, err := s.requestSVID(ctx)
-	if err != nil {
-		return trace.Wrap(err, "requesting SVID")
-	}
-	pkcs8, err := x509.MarshalPKCS8PrivateKey(privateKey)
-	if err != nil {
-		return trace.Wrap(err, "marshaling private key")
-	}
-	certWithChain := new(bytes.Buffer)
-	_, _ = certWithChain.Write(res.GetX509Svid().GetCert())
-	// If external PKI is configured, we need to append the chain to the leaf
-	// certificate before calling x509svid.ParseRaw.
-	for _, cert := range res.GetX509Svid().GetChain() {
-		_, _ = certWithChain.Write(cert)
-	}
-	svid, err := x509svid.ParseRaw(certWithChain.Bytes(), pkcs8)
-	if err != nil {
-		return trace.Wrap(err, "parsing x509 svid")
+	svid, err := s.requestSVID(ctx)
+	if err == nil {
+		if cacheErr := s.writeSVIDToCache(ctx, svid); cacheErr != nil {
+			s.log.WarnContext(ctx, "Failed to write SVID to cache", "error", cacheErr)
+		}
+	} else {
+		var cacheErr error
+		if svid, cacheErr = s.loadSVIDFromCache(ctx); cacheErr != nil || svid == nil {
+			return trace.Wrap(err, "requesting SVID")
+		}
+		s.log.WarnContext(ctx, "Failed to obtain new SVID, falling back to cached SVID", "error", err)
 	}
 
 	s.log.InfoContext(
@@ -124,6 +116,34 @@ func (s *WorkloadIdentityAWSRAService) generate(ctx context.Context) error {
 	)
 
 	return s.renderAWSCreds(ctx, creds)
+}
+
+func (s *WorkloadIdentityAWSRAService) writeSVIDToCache(ctx context.Context, svid *x509svid.SVID) error {
+	certs, key, err := svid.Marshal()
+	if err != nil {
+		return trace.Wrap(err, "marshaling SVID to PEM")
+	}
+	if err := s.cfg.Cache.Write(ctx, "svid", append(certs, key...)); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *WorkloadIdentityAWSRAService) loadSVIDFromCache(ctx context.Context) (*x509svid.SVID, error) {
+	pem, err := s.cfg.Cache.Read(ctx, "svid")
+	if trace.IsNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, trace.Wrap(err, "reaching cached SVID")
+	}
+	// Note: you can pass the same PEM data as both certBytes and keyBytes to
+	// Parse and it'll correctly separate them out based on the block type.
+	svid, err := x509svid.Parse(pem, pem)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing SVID PEM")
+	}
+	return svid, nil
 }
 
 // exchangeSVID will exchange the X.509 SVID for AWS credentials using the
@@ -154,13 +174,7 @@ func (s *WorkloadIdentityAWSRAService) exchangeSVID(
 	return &credentials, nil
 }
 
-func (s *WorkloadIdentityAWSRAService) requestSVID(
-	ctx context.Context,
-) (
-	*workloadidentityv1pb.Credential,
-	crypto.Signer,
-	error,
-) {
+func (s *WorkloadIdentityAWSRAService) requestSVID(ctx context.Context) (*x509svid.SVID, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"WorkloadIdentityAWSRAService/requestSVID",
@@ -169,7 +183,7 @@ func (s *WorkloadIdentityAWSRAService) requestSVID(
 
 	roles, err := fetchDefaultRoles(ctx, s.authClient, s.getBotIdentity())
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "fetching roles")
+		return nil, trace.Wrap(err, "fetching roles")
 	}
 
 	id, err := generateIdentity(
@@ -178,20 +192,20 @@ func (s *WorkloadIdentityAWSRAService) requestSVID(
 		s.clusterConfigClient,
 		s.getBotIdentity(),
 		roles,
-		// We only need this to issue the X509 SVID, so we don't need the full
+		// We only need this to issue the X510 SVID, so we don't need the full
 		// lifetime.
 		time.Minute*10,
 		nil,
 	)
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "generating identity")
+		return nil, trace.Wrap(err, "generating identity")
 	}
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
 	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
 	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer impersonatedClient.Close()
 
@@ -200,18 +214,16 @@ func (s *WorkloadIdentityAWSRAService) requestSVID(
 		s.log,
 		impersonatedClient,
 		s.cfg.Selector,
-		// We only use this SVID to exchange for AWS credentials, so we don't
-		// need the full lifetime.
-		time.Minute*10,
+		s.cfg.X509SVIDTTL,
 		nil,
 	)
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "generating X509 SVID")
+		return nil, trace.Wrap(err, "generating X509 SVID")
 	}
 	var x509Credential *workloadidentityv1pb.Credential
 	switch len(x509Credentials) {
 	case 0:
-		return nil, nil, trace.BadParameter("no X509 SVIDs returned")
+		return nil, trace.BadParameter("no X509 SVIDs returned")
 	case 1:
 		x509Credential = x509Credentials[0]
 	default:
@@ -227,12 +239,29 @@ func (s *WorkloadIdentityAWSRAService) requestSVID(
 				),
 			)
 		}
-		return nil, nil, trace.BadParameter(
+		return nil, trace.BadParameter(
 			"multiple X509 SVIDs received: %v", received,
 		)
 	}
 
-	return x509Credential, privateKey, nil
+	pkcs8, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshaling private key")
+	}
+
+	certWithChain := new(bytes.Buffer)
+	_, _ = certWithChain.Write(x509Credential.GetX509Svid().GetCert())
+	// If external PKI is configured, we need to append the chain to the leaf
+	// certificate before calling x509svid.ParseRaw.
+	for _, cert := range x509Credential.GetX509Svid().GetChain() {
+		_, _ = certWithChain.Write(cert)
+	}
+
+	svid, err := x509svid.ParseRaw(certWithChain.Bytes(), pkcs8)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing x509 svid")
+	}
+	return svid, nil
 }
 
 func loadExistingAWSCredentialFile(
