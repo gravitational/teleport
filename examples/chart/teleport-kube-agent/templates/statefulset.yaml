@@ -2,6 +2,7 @@
 # Warning to maintainers, any changes to this file that are not specific to the StatefulSet need to also be duplicated
 # in the deployment.yaml file.
 #
+{{- $topologySpreadConstraints := and (semverCompare ">=1.18.0-0" .Capabilities.KubeVersion.Version) (not .Values.disableTopologySpreadConstraints) }}
 {{- $replicaCount := (coalesce .Values.replicaCount .Values.highAvailability.replicaCount "1") }}
 apiVersion: apps/v1
 kind: StatefulSet
@@ -84,6 +85,25 @@ spec:
         {{- end }}
         {{- end }}
       {{- end }}
+{{- if $topologySpreadConstraints }}
+  {{- if .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{- toYaml .Values.topologySpreadConstraints | nindent 8 }}
+  {{- else }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: {{ .Release.Name }}
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: {{ .Release.Name }}
+  {{- end }}
+{{- end }}
       {{- if .Values.tolerations }}
       tolerations:
         {{- toYaml .Values.tolerations | nindent 6 }}

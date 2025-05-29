@@ -64,6 +64,19 @@ sets Pod annotations when specified:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -137,6 +150,19 @@ sets Pod labels when specified:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -234,6 +260,19 @@ sets StatefulSet labels when specified:
             fsGroup: 9807
           serviceAccountName: RELEASE-NAME
           terminationGracePeriodSeconds: 30
+          topologySpreadConstraints:
+          - labelSelector:
+              matchLabels:
+                app: RELEASE-NAME
+            maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+          - labelSelector:
+              matchLabels:
+                app: RELEASE-NAME
+            maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: ScheduleAnyway
           volumes:
           - configMap:
               name: RELEASE-NAME
@@ -339,6 +378,19 @@ should add insecureSkipProxyTLSVerify to args when set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -412,6 +464,19 @@ should add volumeClaimTemplate for data volume when using StatefulSet and action
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -505,6 +570,19 @@ should add volumeClaimTemplate for data volume when using StatefulSet and is Fre
             fsGroup: 9807
           serviceAccountName: RELEASE-NAME
           terminationGracePeriodSeconds: 30
+          topologySpreadConstraints:
+          - labelSelector:
+              matchLabels:
+                app: RELEASE-NAME
+            maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+          - labelSelector:
+              matchLabels:
+                app: RELEASE-NAME
+            maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: ScheduleAnyway
           volumes:
           - configMap:
               name: RELEASE-NAME
@@ -588,6 +666,19 @@ should add volumeMount for data volume when using StatefulSet:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -661,6 +752,19 @@ should expose diag port:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -734,6 +838,19 @@ should generate Statefulset when storage is disabled and mode is a Upgrade:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -821,6 +938,19 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -906,6 +1036,19 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -979,6 +1122,19 @@ should have one replica when replicaCount is not set:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1052,6 +1208,19 @@ should install Statefulset when storage is disabled and mode is a Fresh Install:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1129,6 +1298,19 @@ should mount extraVolumes and extraVolumeMounts:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1208,6 +1390,19 @@ should mount jamfCredentialsSecret if it already exists and when role is jamf:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1289,6 +1484,19 @@ should mount jamfCredentialsSecret.name when role is jamf:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1372,6 +1580,19 @@ should mount tls.existingCASecretName and set environment when set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1457,6 +1678,19 @@ should mount tls.existingCASecretName and set extra environment when set in valu
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1535,6 +1769,19 @@ should not add emptyDir for data when using StatefulSet:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1646,6 +1893,19 @@ should provision initContainer correctly when set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1739,6 +1999,19 @@ should set affinity when set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1812,6 +2085,19 @@ should set default serviceAccountName when not set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1898,6 +2184,19 @@ should set environment when extraEnv set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1971,6 +2270,19 @@ should set image and tag correctly:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2044,6 +2356,19 @@ should set imagePullPolicy when set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2119,6 +2444,19 @@ should set nodeSelector if set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2204,6 +2542,19 @@ should set preferred affinity when more than one replica is used:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2277,6 +2628,19 @@ should set probeTimeoutSeconds when set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2360,6 +2724,19 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2440,6 +2817,19 @@ should set resources when set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2513,6 +2903,19 @@ should set serviceAccountName when set in values:
       fsGroup: 9807
     serviceAccountName: teleport-kube-agent-sa
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2586,6 +2989,19 @@ should set storage.requests when set in values and action is an Upgrade:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2659,6 +3075,19 @@ should set storage.storageClassName when set in values and action is an Upgrade:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2741,6 +3170,19 @@ should set tolerations when set in values:
       key: dedicated
       operator: Equal
       value: teleport
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app: RELEASE-NAME
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
