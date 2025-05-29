@@ -305,3 +305,15 @@ func (c *SortCache[T, I]) Len() int {
 	defer c.rw.RUnlock()
 	return len(c.values)
 }
+
+func (c *SortCache[T, I]) BlockingUnorderedVisit() iter.Seq[T] {
+	return func(yield func(T) bool) {
+		c.rw.RLock()
+		defer c.rw.RUnlock()
+		for _, v := range c.values {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}

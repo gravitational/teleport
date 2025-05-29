@@ -102,3 +102,7 @@ func (s *store[T, I]) count(index I, start, stop string) int {
 
 	return n
 }
+
+func (s *store[T, I]) blockingUnorderedVisit() iter.Seq[T] {
+	return s.cache.BlockingUnorderedVisit()
+}
