@@ -42,6 +42,8 @@ export interface SharedDirectoryAccess {
 /**
  * Enables directory sharing using FileSystem API.
  * Most of the methods can potentially throw errors and so should be wrapped in try/catch blocks.
+ * Should be kept in sync with lib/teleterm/services/desktop/directorysharing.go
+ * where file system events are handled for Connect.
  */
 export class BrowserFileSystem implements SharedDirectoryAccess {
   private dir: FileSystemDirectoryHandle | undefined;
@@ -98,7 +100,7 @@ export class BrowserFileSystem implements SharedDirectoryAccess {
       // If dir contains any files or directories, it will
       // enter the loop below and we can register it as not
       // empty. If it doesn't, it will skip over the loop.
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // eslint-disable-next-line unused-imports/no-unused-vars
       for await (const _ of dir.keys()) {
         isEmpty = false;
         break;

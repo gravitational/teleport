@@ -24,9 +24,8 @@ import (
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
-// remoteOSConfigProvider implements [targetOSConfigProvider] when the admin
-// service fetches cluster DNS zones and CIDR ranges from the client application
-// process over gRPC.
+// remoteOSConfigProvider fetches a target OS configuration based on cluster
+// configuration fetched via the client application process available over gRPC.
 type remoteOSConfigProvider struct {
 	clt     targetOSConfigGetter
 	tunName string

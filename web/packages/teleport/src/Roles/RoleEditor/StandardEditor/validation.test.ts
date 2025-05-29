@@ -20,7 +20,7 @@ import { ResourceKind, RoleVersion } from 'teleport/services/resources';
 
 import {
   defaultRoleVersion,
-  kubernetesResourceKindOptionsMap,
+  kubernetesResourceKindOptionsMapV7,
   kubernetesVerbOptionsMap,
   newKubernetesResourceModel,
   ResourceAccess,
@@ -35,11 +35,11 @@ import {
 } from './validation';
 import { withDefaults } from './withDefaults';
 
-const minimalRoleModel = () =>
+const minimalRoleModel = (version = defaultRoleVersion) =>
   roleToRoleEditorModel(
     withDefaults({
       metadata: { name: 'role-name' },
-      version: defaultRoleVersion,
+      version: version,
     })
   );
 
@@ -70,10 +70,11 @@ describe('validateRoleEditorModel', () => {
         resources: [
           {
             id: 'dummy-id',
-            kind: { label: 'pod', value: 'pod' },
+            kind: { label: 'pods', value: 'pods' },
             name: 'res-name',
             namespace: 'dummy-namespace',
             verbs: [],
+            apiGroup: '*',
             roleVersion: defaultRoleVersion,
           },
         ],
@@ -252,6 +253,133 @@ describe('validateRoleEditorModel', () => {
     expect(validity(result.resources)).toEqual([false]);
   });
 
+  test('forbids v7 kind in v8', () => {
+    const model = minimalRoleModel(RoleVersion.V8);
+    model.resources = [
+      {
+        kind: 'kube_cluster',
+        groups: [],
+        labels: [],
+        users: [],
+        resources: [
+          {
+            ...newKubernetesResourceModel(RoleVersion.V8),
+            kind: kubernetesResourceKindOptionsMapV7.get('job'),
+          },
+        ],
+        roleVersion: RoleVersion.V8,
+        hideValidationErrors: false,
+      },
+    ];
+    const result = validateRoleEditorModel(model, undefined, undefined);
+    expect(validity(result.resources)).toEqual([false]);
+  });
+
+  test('forbids v8 kind in v7', () => {
+    const model = minimalRoleModel(RoleVersion.V7);
+    model.resources = [
+      {
+        kind: 'kube_cluster',
+        groups: [],
+        labels: [],
+        users: [],
+        resources: [
+          {
+            ...newKubernetesResourceModel(RoleVersion.V7),
+            kind: { value: 'pods', label: 'pods' },
+          },
+        ],
+        roleVersion: RoleVersion.V7,
+        hideValidationErrors: false,
+      },
+    ];
+    const result = validateRoleEditorModel(model, undefined, undefined);
+    expect(validity(result.resources)).toEqual([false]);
+  });
+
+  test('force api group in v8', () => {
+    const model = minimalRoleModel(RoleVersion.V8);
+    model.resources = [
+      {
+        kind: 'kube_cluster',
+        groups: [],
+        labels: [],
+        users: [],
+        resources: [
+          {
+            ...newKubernetesResourceModel(RoleVersion.V8),
+            kind: { value: 'pods', label: 'pods' },
+            apiGroup: '',
+          },
+        ],
+        roleVersion: RoleVersion.V8,
+        hideValidationErrors: false,
+      },
+    ];
+
+    const result = validateRoleEditorModel(model, undefined, undefined);
+    expect(validity(result.resources)).toEqual([false]);
+  });
+
+  test('forbids api group in v7', () => {
+    const model = minimalRoleModel(RoleVersion.V7);
+    model.resources = [
+      {
+        kind: 'kube_cluster',
+        groups: [],
+        labels: [],
+        users: [],
+        resources: [
+          {
+            ...newKubernetesResourceModel(RoleVersion.V7),
+            kind: kubernetesResourceKindOptionsMapV7.get('pod'),
+            apiGroup: 'core',
+          },
+        ],
+        roleVersion: RoleVersion.V7,
+        hideValidationErrors: false,
+      },
+    ];
+    const result = validateRoleEditorModel(model, undefined, undefined);
+    expect(validity(result.resources)).toEqual([false]);
+  });
+
+  test('correct v8 kinds', () => {
+    const model = minimalRoleModel(RoleVersion.V8);
+    model.resources = [
+      {
+        kind: 'kube_cluster',
+        groups: [],
+        labels: [],
+        users: [],
+        resources: [
+          {
+            ...newKubernetesResourceModel(RoleVersion.V8),
+            kind: { value: 'pods', label: 'pods' },
+          },
+        ],
+        roleVersion: RoleVersion.V8,
+        hideValidationErrors: false,
+      },
+      {
+        kind: 'kube_cluster',
+        groups: [],
+        labels: [],
+        users: [],
+        resources: [
+          {
+            ...newKubernetesResourceModel(RoleVersion.V8),
+            kind: { value: 'mycustomresources', label: 'stable.example.com' },
+          },
+        ],
+        roleVersion: RoleVersion.V8,
+        hideValidationErrors: false,
+      },
+    ];
+    const result = validateRoleEditorModel(model, undefined, undefined);
+    expect(validity(result.resources)).toEqual([true, true]);
+  });
+
   test.each`
     roleVersion | results
     ${'v3'}     | ${[false, true, false]}
@@ -259,6 +387,7 @@ describe('validateRoleEditorModel', () => {
     ${'v5'}     | ${[false, true, false]}
     ${'v6'}     | ${[false, true, false]}
     ${'v7'}     | ${[true, true, true]}
+    ${'v8'}     | ${[false, false, false]}
   `(
     'correct types of resources allowed for $roleVersion',
     ({ roleVersion, results }) => {
@@ -272,18 +401,18 @@ describe('validateRoleEditorModel', () => {
           roleVersion,
           resources: [
             {
-              ...newKubernetesResourceModel(defaultRoleVersion),
-              kind: kubernetesResourceKindOptionsMap.get('job'),
+              ...newKubernetesResourceModel(roleVersion),
+              kind: kubernetesResourceKindOptionsMapV7.get('job'),
               roleVersion,
             },
             {
-              ...newKubernetesResourceModel(defaultRoleVersion),
-              kind: kubernetesResourceKindOptionsMap.get('pod'),
+              ...newKubernetesResourceModel(roleVersion),
+              kind: kubernetesResourceKindOptionsMapV7.get('pod'),
               roleVersion,
             },
             {
-              ...newKubernetesResourceModel(defaultRoleVersion),
-              kind: kubernetesResourceKindOptionsMap.get('service'),
+              ...newKubernetesResourceModel(roleVersion),
+              kind: kubernetesResourceKindOptionsMapV7.get('service'),
               roleVersion,
             },
           ],

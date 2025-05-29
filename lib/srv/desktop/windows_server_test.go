@@ -34,12 +34,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/windows"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
 func TestMain(m *testing.M) {
@@ -49,13 +50,17 @@ func TestMain(m *testing.M) {
 
 func TestConfigWildcardBaseDN(t *testing.T) {
 	cfg := &WindowsServiceConfig{
-		DiscoveryBaseDN: "*",
-		LDAPConfig: windows.LDAPConfig{
+		Discovery: []servicecfg.LDAPDiscoveryConfig{
+			{
+				BaseDN: "*",
+			},
+		},
+		LDAPConfig: winpki.LDAPConfig{
 			Domain: "test.goteleport.com",
 		},
 	}
 	require.NoError(t, cfg.checkAndSetDiscoveryDefaults())
-	require.Equal(t, "DC=test,DC=goteleport,DC=com", cfg.DiscoveryBaseDN)
+	require.Equal(t, "DC=test,DC=goteleport,DC=com", cfg.Discovery[0].BaseDN)
 }
 
 func TestConfigDesktopDiscovery(t *testing.T) {
@@ -95,8 +100,12 @@ func TestConfigDesktopDiscovery(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			cfg := &WindowsServiceConfig{
-				DiscoveryBaseDN:      test.baseDN,
-				DiscoveryLDAPFilters: test.filters,
+				Discovery: []servicecfg.LDAPDiscoveryConfig{
+					{
+						BaseDN:  test.baseDN,
+						Filters: test.filters,
+					},
+				},
 			}
 			test.assert(t, cfg.checkAndSetDiscoveryDefaults())
 		})
@@ -164,7 +173,7 @@ func TestGenerateCredentials(t *testing.T) {
 		w := &WindowsService{
 			clusterName: clusterName,
 			cfg: WindowsServiceConfig{
-				LDAPConfig: windows.LDAPConfig{
+				LDAPConfig: winpki.LDAPConfig{
 					Domain: domain,
 				},
 				AuthClient: client,
@@ -196,11 +205,11 @@ func TestGenerateCredentials(t *testing.T) {
 		foundAdUserMapping := false
 		for _, extension := range cert.Extensions {
 			switch {
-			case extension.Id.Equal(windows.EnhancedKeyUsageExtensionOID):
+			case extension.Id.Equal(winpki.EnhancedKeyUsageExtensionOID):
 				foundKeyUsage = true
-			case extension.Id.Equal(windows.SubjectAltNameExtensionOID):
+			case extension.Id.Equal(winpki.SubjectAltNameExtensionOID):
 				foundAltName = true
-			case extension.Id.Equal(windows.ADUserMappingExtensionOID):
+			case extension.Id.Equal(winpki.ADUserMappingExtensionOID):
 				foundAdUserMapping = true
 			}
 		}

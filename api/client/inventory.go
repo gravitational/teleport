@@ -206,13 +206,13 @@ func (c *Client) InventoryControlStream(ctx context.Context) (DownstreamInventor
 	return newDownstreamInventoryControlStream(stream, cancel), nil
 }
 
-func (c *Client) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
-	rsp, err := c.grpc.GetInventoryStatus(ctx, &req)
+func (c *Client) GetInventoryStatus(ctx context.Context, req *proto.InventoryStatusRequest) (*proto.InventoryStatusSummary, error) {
+	rsp, err := c.grpc.GetInventoryStatus(ctx, req)
 	if err != nil {
-		return proto.InventoryStatusSummary{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return *rsp, nil
+	return rsp, nil
 }
 
 func (c *Client) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
@@ -296,11 +296,11 @@ func (i *downstreamICS) runRecvLoop(stream proto.AuthService_InventoryControlStr
 
 		switch {
 		case oneOf.GetHello() != nil:
-			msg = *oneOf.GetHello()
+			msg = oneOf.GetHello()
 		case oneOf.GetPing() != nil:
-			msg = *oneOf.GetPing()
+			msg = oneOf.GetPing()
 		case oneOf.GetUpdateLabels() != nil:
-			msg = *oneOf.GetUpdateLabels()
+			msg = oneOf.GetUpdateLabels()
 		default:
 			slog.WarnContext(stream.Context(), "received unknown downstream message", "message", oneOf)
 			continue
@@ -321,33 +321,33 @@ func (i *downstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStr
 	for {
 		select {
 		case sendMsg := <-i.sendC:
-			var oneOf proto.UpstreamInventoryOneOf
+			oneOf := new(proto.UpstreamInventoryOneOf)
 			switch msg := sendMsg.msg.(type) {
-			case proto.UpstreamInventoryHello:
+			case *proto.UpstreamInventoryHello:
 				oneOf.Msg = &proto.UpstreamInventoryOneOf_Hello{
-					Hello: &msg,
+					Hello: msg,
 				}
-			case proto.InventoryHeartbeat:
+			case *proto.InventoryHeartbeat:
 				oneOf.Msg = &proto.UpstreamInventoryOneOf_Heartbeat{
-					Heartbeat: &msg,
+					Heartbeat: msg,
 				}
-			case proto.UpstreamInventoryPong:
+			case *proto.UpstreamInventoryPong:
 				oneOf.Msg = &proto.UpstreamInventoryOneOf_Pong{
-					Pong: &msg,
+					Pong: msg,
 				}
-			case proto.UpstreamInventoryAgentMetadata:
+			case *proto.UpstreamInventoryAgentMetadata:
 				oneOf.Msg = &proto.UpstreamInventoryOneOf_AgentMetadata{
-					AgentMetadata: &msg,
+					AgentMetadata: msg,
 				}
-			case proto.UpstreamInventoryGoodbye:
+			case *proto.UpstreamInventoryGoodbye:
 				oneOf.Msg = &proto.UpstreamInventoryOneOf_Goodbye{
-					Goodbye: &msg,
+					Goodbye: msg,
 				}
 			default:
 				sendMsg.errC <- trace.BadParameter("cannot send unexpected upstream msg type: %T", msg)
 				continue
 			}
-			err := stream.Send(&oneOf)
+			err := stream.Send(oneOf)
 			sendMsg.errC <- err
 			if err != nil {
 				// preserve EOF errors
@@ -475,15 +475,15 @@ func (i *upstreamICS) runRecvLoop(stream proto.AuthService_InventoryControlStrea
 
 		switch {
 		case oneOf.GetHello() != nil:
-			msg = *oneOf.GetHello()
+			msg = oneOf.GetHello()
 		case oneOf.GetHeartbeat() != nil:
-			msg = *oneOf.GetHeartbeat()
+			msg = oneOf.GetHeartbeat()
 		case oneOf.GetPong() != nil:
-			msg = *oneOf.GetPong()
+			msg = oneOf.GetPong()
 		case oneOf.GetAgentMetadata() != nil:
-			msg = *oneOf.GetAgentMetadata()
+			msg = oneOf.GetAgentMetadata()
 		case oneOf.GetGoodbye() != nil:
-			msg = *oneOf.GetGoodbye()
+			msg = oneOf.GetGoodbye()
 		default:
 			slog.WarnContext(stream.Context(), "received unknown upstream message", "message", oneOf)
 			continue
@@ -504,25 +504,25 @@ func (i *upstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStrea
 	for {
 		select {
 		case sendMsg := <-i.sendC:
-			var oneOf proto.DownstreamInventoryOneOf
+			oneOf := new(proto.DownstreamInventoryOneOf)
 			switch msg := sendMsg.msg.(type) {
-			case proto.DownstreamInventoryHello:
+			case *proto.DownstreamInventoryHello:
 				oneOf.Msg = &proto.DownstreamInventoryOneOf_Hello{
-					Hello: &msg,
+					Hello: msg,
 				}
-			case proto.DownstreamInventoryPing:
+			case *proto.DownstreamInventoryPing:
 				oneOf.Msg = &proto.DownstreamInventoryOneOf_Ping{
-					Ping: &msg,
+					Ping: msg,
 				}
-			case proto.DownstreamInventoryUpdateLabels:
+			case *proto.DownstreamInventoryUpdateLabels:
 				oneOf.Msg = &proto.DownstreamInventoryOneOf_UpdateLabels{
-					UpdateLabels: &msg,
+					UpdateLabels: msg,
 				}
 			default:
 				sendMsg.errC <- trace.BadParameter("cannot send unexpected downstream msg type: %T", msg)
 				continue
 			}
-			err := stream.Send(&oneOf)
+			err := stream.Send(oneOf)
 			sendMsg.errC <- err
 			if err != nil {
 				// preserve eof errors

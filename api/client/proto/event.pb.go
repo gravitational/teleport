@@ -190,6 +190,7 @@ type Event struct {
 	//	*Event_WorkloadIdentity
 	//	*Event_WorkloadIdentityX509Revocation
 	//	*Event_HealthCheckConfig
+	//	*Event_AutoUpdateAgentReport
 	Resource      isEvent_Resource `protobuf_oneof:"Resource"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -896,6 +897,15 @@ func (x *Event) GetHealthCheckConfig() *v116.HealthCheckConfig {
 	return nil
 }
 
+func (x *Event) GetAutoUpdateAgentReport() *v111.AutoUpdateAgentReport {
+	if x != nil {
+		if x, ok := x.Resource.(*Event_AutoUpdateAgentReport); ok {
+			return x.AutoUpdateAgentReport
+		}
+	}
+	return nil
+}
+
 type isEvent_Resource interface {
 	isEvent_Resource()
 }
@@ -1230,7 +1240,7 @@ type Event_ProvisioningPrincipalState struct {
 }
 
 type Event_AutoUpdateAgentRollout struct {
-	// AutoUpdateVersion is a resource for controlling the autoupdate agent rollout.
+	// AutoUpdateAgentRollout is a resource for controlling the autoupdate agent rollout.
 	AutoUpdateAgentRollout *v111.AutoUpdateAgentRollout `protobuf:"bytes,71,opt,name=AutoUpdateAgentRollout,proto3,oneof"`
 }
 
@@ -1269,6 +1279,11 @@ type Event_WorkloadIdentityX509Revocation struct {
 type Event_HealthCheckConfig struct {
 	// HealthCheckConfig is a resource for configuring health checks.
 	HealthCheckConfig *v116.HealthCheckConfig `protobuf:"bytes,78,opt,name=HealthCheckConfig,proto3,oneof"`
+}
+
+type Event_AutoUpdateAgentReport struct {
+	// AutoUpdateAgentReport is a resource for counting agents connected to an auth instance.
+	AutoUpdateAgentReport *v111.AutoUpdateAgentReport `protobuf:"bytes,79,opt,name=AutoUpdateAgentReport,proto3,oneof"`
 }
 
 func (*Event_ResourceHeader) isEvent_Resource() {}
@@ -1417,11 +1432,13 @@ func (*Event_WorkloadIdentityX509Revocation) isEvent_Resource() {}
 
 func (*Event_HealthCheckConfig) isEvent_Resource() {}
 
+func (*Event_AutoUpdateAgentReport) isEvent_Resource() {}
+
 var File_teleport_legacy_client_proto_event_proto protoreflect.FileDescriptor
 
 const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a-teleport/notifications/v1/notifications.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xf6+\n" +
+	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a-teleport/notifications/v1/notifications.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xdd,\n" +
 	"\x05Event\x12$\n" +
 	"\x04Type\x18\x01 \x01(\x0e2\x10.proto.OperationR\x04Type\x12?\n" +
 	"\x0eResourceHeader\x18\x02 \x01(\v2\x15.types.ResourceHeaderH\x00R\x0eResourceHeader\x12>\n" +
@@ -1507,7 +1524,8 @@ const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\x17PluginStaticCredentials\x18K \x01(\v2 .types.PluginStaticCredentialsV1H\x00R\x17PluginStaticCredentials\x12\\\n" +
 	"\x10WorkloadIdentity\x18L \x01(\v2..teleport.workloadidentity.v1.WorkloadIdentityH\x00R\x10WorkloadIdentity\x12\x86\x01\n" +
 	"\x1eWorkloadIdentityX509Revocation\x18M \x01(\v2<.teleport.workloadidentity.v1.WorkloadIdentityX509RevocationH\x00R\x1eWorkloadIdentityX509Revocation\x12`\n" +
-	"\x11HealthCheckConfig\x18N \x01(\v20.teleport.healthcheckconfig.v1.HealthCheckConfigH\x00R\x11HealthCheckConfigB\n" +
+	"\x11HealthCheckConfig\x18N \x01(\v20.teleport.healthcheckconfig.v1.HealthCheckConfigH\x00R\x11HealthCheckConfig\x12e\n" +
+	"\x15AutoUpdateAgentReport\x18O \x01(\v2-.teleport.autoupdate.v1.AutoUpdateAgentReportH\x00R\x15AutoUpdateAgentReportB\n" +
 	"\n" +
 	"\bResourceJ\x04\b\a\x10\bJ\x04\b1\x102J\x04\b?\x10@J\x04\bD\x10ER\x12ExternalCloudAuditR\x0eStaticHostUserR\x13AutoUpdateAgentPlan**\n" +
 	"\tOperation\x12\b\n" +
@@ -1603,6 +1621,7 @@ var file_teleport_legacy_client_proto_event_proto_goTypes = []any{
 	(*v115.WorkloadIdentity)(nil),               // 69: teleport.workloadidentity.v1.WorkloadIdentity
 	(*v115.WorkloadIdentityX509Revocation)(nil), // 70: teleport.workloadidentity.v1.WorkloadIdentityX509Revocation
 	(*v116.HealthCheckConfig)(nil),              // 71: teleport.healthcheckconfig.v1.HealthCheckConfig
+	(*v111.AutoUpdateAgentReport)(nil),          // 72: teleport.autoupdate.v1.AutoUpdateAgentReport
 }
 var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	0,  // 0: proto.Event.Type:type_name -> proto.Operation
@@ -1679,11 +1698,12 @@ var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	69, // 71: proto.Event.WorkloadIdentity:type_name -> teleport.workloadidentity.v1.WorkloadIdentity
 	70, // 72: proto.Event.WorkloadIdentityX509Revocation:type_name -> teleport.workloadidentity.v1.WorkloadIdentityX509Revocation
 	71, // 73: proto.Event.HealthCheckConfig:type_name -> teleport.healthcheckconfig.v1.HealthCheckConfig
-	74, // [74:74] is the sub-list for method output_type
-	74, // [74:74] is the sub-list for method input_type
-	74, // [74:74] is the sub-list for extension type_name
-	74, // [74:74] is the sub-list for extension extendee
-	0,  // [0:74] is the sub-list for field type_name
+	72, // 74: proto.Event.AutoUpdateAgentReport:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReport
+	75, // [75:75] is the sub-list for method output_type
+	75, // [75:75] is the sub-list for method input_type
+	75, // [75:75] is the sub-list for extension type_name
+	75, // [75:75] is the sub-list for extension extendee
+	0,  // [0:75] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_event_proto_init() }
@@ -1765,6 +1785,7 @@ func file_teleport_legacy_client_proto_event_proto_init() {
 		(*Event_WorkloadIdentity)(nil),
 		(*Event_WorkloadIdentityX509Revocation)(nil),
 		(*Event_HealthCheckConfig)(nil),
+		(*Event_AutoUpdateAgentReport)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

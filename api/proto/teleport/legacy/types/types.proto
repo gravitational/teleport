@@ -629,6 +629,10 @@ message AD {
   string LDAPCert = 5 [(gogoproto.jsontag) = "ldap_cert,omitempty"];
   // KDCHostName is the host name for a KDC for x509 Authentication.
   string KDCHostName = 6 [(gogoproto.jsontag) = "kdc_host_name,omitempty"];
+  // LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+  string LDAPServiceAccountName = 7 [(gogoproto.jsontag) = "ldap_service_account_name,omitempty"];
+  // LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+  string LDAPServiceAccountSID = 8 [(gogoproto.jsontag) = "ldap_service_account_sid,omitempty"];
 }
 
 // DatabaseTLSMode represents the level of TLS verification performed by
@@ -1118,6 +1122,19 @@ message AppSpecV3 {
   // want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec,
   // setting this value to true will overwrite that public address in the web UI.
   bool UseAnyProxyPublicAddr = 14 [(gogoproto.jsontag) = "use_any_proxy_public_addr,omitempty"];
+  // MCP contains MCP server related configurations.
+  MCP MCP = 15 [(gogoproto.jsontag) = "mcp,omitempty"];
+}
+
+// MCP contains MCP server-related configurations.
+message MCP {
+  // Command to launch stdio-based MCP servers.
+  string command = 1;
+  // Args to execute with the command.
+  repeated string args = 2;
+  // RunAsHostUser is the host user account under which the command will be
+  // executed. Required for stdio-based MCP servers.
+  string run_as_host_user = 3;
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -2824,6 +2841,18 @@ message PromotedAccessList {
   string Title = 2 [(gogoproto.jsontag) = "title"];
 }
 
+// AccessRequestDryRunEnrichment contains the extra info added in a response to a dry run request.
+message AccessRequestDryRunEnrichment {
+  // ReasonMode specifies the reason mode for this Access Request as defined in
+  // [AccessRequestConditionsReason].reason.
+  string ReasonMode = 1 [
+    (gogoproto.jsontag) = "reason_mode,omitempty",
+    (gogoproto.casttype) = "RequestReasonMode"
+  ];
+  // ReasonPrompts is a sorted and deduplicated list of reason prompts for this Access Request.
+  repeated string ReasonPrompts = 2 [(gogoproto.jsontag) = "reason_prompt,omitempty"];
+}
+
 // AccessReview is a review to be applied to an Access Request.
 message AccessReview {
   // Author is the teleport username of the review author.
@@ -3045,6 +3074,9 @@ message AccessRequestSpecV3 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expiry,omitempty"
   ];
+
+  // DryRunEnrichment contains the extra info added in response to a dry run request.
+  AccessRequestDryRunEnrichment DryRunEnrichment = 23 [(gogoproto.jsontag) = "dry_run_enrichment,omitempty"];
 }
 
 enum AccessRequestScope {
@@ -3133,6 +3165,8 @@ message AccessCapabilitiesRequest {
 message RequestKubernetesResource {
   // kind specifies the Kubernetes Resource type.
   string kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
+  // APIGroup specifies the Kubernetes Resource API group.
+  string APIGroup = 2 [(gogoproto.jsontag) = "api_group,omitempty"];
 }
 
 // ResourceID is a unique identifier for a teleport resource.
@@ -5150,6 +5184,8 @@ message OIDCConnectorSpecV3 {
   SSOClientRedirectSettings ClientRedirectSettings = 18 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
   // MFASettings contains settings to enable SSO MFA checks through this auth connector.
   OIDCConnectorMFASettings MFASettings = 19 [(gogoproto.jsontag) = "mfa,omitempty"];
+  // PKCEMode represents the configuration state for PKCE (Proof Key for Code Exchange). It can be "enabled" or "disabled"
+  string PKCEMode = 20 [(gogoproto.jsontag) = "pkce_mode,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
@@ -5194,6 +5230,8 @@ message OIDCConnectorMFASettings {
 // OIDCAuthRequest is a request to authenticate with OIDC
 // provider, the state about request is managed by Auth Service
 message OIDCAuthRequest {
+  reserved 7, 17;
+  reserved "PublicKey", "attestation_statement";
   // ConnectorID is ID of OIDC connector this request uses
   string ConnectorID = 1 [(gogoproto.jsontag) = "connector_id"];
 
@@ -5213,15 +5251,6 @@ message OIDCAuthRequest {
   // RedirectURL will be used to route the user back to a
   // Teleport Proxy after the oidc login attempt in the browser.
   string RedirectURL = 6 [(gogoproto.jsontag) = "redirect_url"];
-
-  // PublicKey is an optional public key, users want these keys to be signed by
-  // the Auth Service's user CA in case of successful auth.
-  //
-  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
-  bytes PublicKey = 7 [
-    (gogoproto.jsontag) = "public_key",
-    deprecated = true
-  ];
 
   // CertTTL is the TTL of the certificate user wants to get
   int64 CertTTL = 8 [
@@ -5258,14 +5287,6 @@ message OIDCAuthRequest {
   // url will be used.
   string ProxyAddress = 16 [(gogoproto.jsontag) = "proxy_address,omitempty"];
 
-  // attestation_statement is an attestation statement for the given public key.
-  //
-  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 17 [
-    (gogoproto.jsontag) = "attestation_statement,omitempty",
-    deprecated = true
-  ];
-
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 18 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
 
@@ -5283,6 +5304,8 @@ message OIDCAuthRequest {
   teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 22 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
   // TlsAttestationStatement is an attestation statement for the given TLS public key.
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 23 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
+  // pkce_verifier is used to verified a generated code challenge.
+  string pkce_verifier = 24 [(gogoproto.jsontag) = "pkce_verifier"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -5368,6 +5391,14 @@ message SAMLConnectorSpecV2 {
   // ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED
   // is treated as NO.
   SAMLForceAuthn ForceAuthn = 18 [(gogoproto.jsontag) = "force_authn,omitempty"];
+  // PreferredRequestBinding is a preferred SAML request binding method.
+  // Value must be either "http-post" or "http-redirect".
+  // In general, the SAML identity provider lists request binding methods it supports.
+  // And the SAML service provider uses one of the IdP supported request binding method that it prefers.
+  // But we never honored request binding value provided by the IdP and always used http-redirect
+  // binding as a default. Setting up PreferredRequestBinding value lets us preserve existing
+  // auth connector behavior and only use http-post binding if it is explicitly configured.
+  string PreferredRequestBinding = 19 [(gogoproto.jsontag) = "preferred_request_binding,omitempty"];
 }
 
 // SAMLConnectorMFASettings contains SAML MFA settings.
@@ -5407,6 +5438,9 @@ enum SAMLForceAuthn {
 // SAMLAuthRequest is a request to authenticate with SAML
 // provider, the state about request is managed by the Auth Service
 message SAMLAuthRequest {
+  reserved 6, 16;
+  reserved "PublicKey", "attestation_statement";
+
   // ID is a unique request ID.
   string ID = 1 [(gogoproto.jsontag) = "id"];
 
@@ -5420,17 +5454,8 @@ message SAMLAuthRequest {
   bool CheckUser = 4 [(gogoproto.jsontag) = "check_user"];
 
   // RedirectURL will be used by browser.
+  // Value only set if the PreferredRequestBinding "http-redirect".
   string RedirectURL = 5 [(gogoproto.jsontag) = "redirect_url"];
-
-  // PublicKey is an optional public key, users want these
-  // keys to be signed by Auth Service's user CA in case
-  // of successful auth.
-  //
-  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
-  bytes PublicKey = 6 [
-    (gogoproto.jsontag) = "public_key",
-    deprecated = true
-  ];
 
   // CertTTL is the TTL of the certificate user wants to get.
   int64 CertTTL = 7 [
@@ -5464,11 +5489,6 @@ message SAMLAuthRequest {
   // ConnectorSpec is embedded connector spec for use in test flow.
   SAMLConnectorSpecV2 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
 
-  // attestation_statement is an attestation statement for the given public key.
-  //
-  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
-
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
 
@@ -5486,6 +5506,12 @@ message SAMLAuthRequest {
   teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
   // TlsAttestationStatement is an attestation statement for the given TLS public key.
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
+  // PostForm is the HTML form value that contains the SAML authentication request data.
+  // Value is only set if the PreferredRequestBinding in the SAMLConnectorSpecV2
+  // is "http-post". In any other case, RedirectURL field will be populated.
+  bytes PostForm = 23 [(gogoproto.jsontag) = "post_form,omitempty"];
+  // ClientVersion is the version of tsh or Proxy that is sending the SAMLAuthRequest request.
+  string ClientVersion = 24 [(gogoproto.jsontag) = "client_version,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -5569,6 +5595,9 @@ message GithubConnectorSpecV3 {
 
 // GithubAuthRequest is the request to start Github OAuth2 flow.
 message GithubAuthRequest {
+  reserved 5, 16;
+  reserved "PublicKey", "attestation_statement";
+
   // ConnectorID is the name of the connector to use.
   string ConnectorID = 1 [(gogoproto.jsontag) = "connector_id"];
   // Type is opaque string that helps callbacks identify the request type.
@@ -5577,13 +5606,6 @@ message GithubAuthRequest {
   string StateToken = 3 [(gogoproto.jsontag) = "state_token"];
   // CSRFToken is used to protect against CSRF attacks.
   string CSRFToken = 4 [(gogoproto.jsontag) = "csrf_token"];
-  // PublicKey is an optional public key to sign in case of successful auth.
-  //
-  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
-  bytes PublicKey = 5 [
-    (gogoproto.jsontag) = "public_key",
-    deprecated = true
-  ];
   // CertTTL is TTL of the cert that's generated in case of successful auth.
   int64 CertTTL = 6 [
     (gogoproto.jsontag) = "cert_ttl",
@@ -5613,13 +5635,6 @@ message GithubAuthRequest {
   bool SSOTestFlow = 14 [(gogoproto.jsontag) = "sso_test_flow"];
   // ConnectorSpec is embedded connector spec for use in test flow or authenticated user flow.
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
-  // AttestationStatement is an attestation statement for the given public key.
-  //
-  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 16 [
-    (gogoproto.jsontag) = "attestation_statement,omitempty",
-    deprecated = true
-  ];
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
   // ClientUserAgent is the user agent of the Web browser, used for issuing
@@ -6167,7 +6182,7 @@ message RegisterUsingTokenRequest {
     (gogoproto.jsontag) = "expires,omitempty"
   ];
   // BotInstanceID is a trusted instance identifier for a Machine ID bot,
-  // provided when rejoining. This parameters may only be provided by the join
+  // provided when rejoining. This parameter may only be provided by the join
   // service and is ignored otherwise; bots should otherwise rejoin with their
   // existing client certificate to prove their instance identity.
   string BotInstanceID = 13 [(gogoproto.jsontag) = "bot_instance_id"];
@@ -6176,6 +6191,10 @@ message RegisterUsingTokenRequest {
   // join method. Rejoining bots supply this value via a client certificate
   // extension; it is ignored from other sources.
   int32 BotGeneration = 14 [(gogoproto.jsontag) = "bot_generation"];
+  // PreviousBotInstanceID is a trusted previous instance identifier for a
+  // Machine ID bot. This parameter may only be set internally during certain
+  // join processes and is ignored otherwise.
+  string PreviousBotInstanceID = 15 [(gogoproto.jsontag) = "previous_bot_instance_id"];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
@@ -6812,6 +6831,10 @@ message PluginSpecV1 {
     PluginNetIQSettings net_iq = 19;
     // Settings for the GitHub plugin.
     PluginGithubSettings github = 20;
+
+    // Note: If you add a new settings type, please also update the custom JSON for oneof filed
+    // in the `tctl get/edit plugin` plugin command. You can find it in:
+    // https://github.com/gravitational/teleport/blob/master/tool/tctl/common/collection.go
   }
 
   // generation contains a unique ID that should:
@@ -6967,8 +6990,8 @@ message PluginOktaSettings {
   // CredentialsInfo contains information about the Okta credentials.
   PluginOktaCredentialsInfo credentials_info = 5;
 
-  // EnableSiemIntegration enables SIEM (Security Information and Event Management).
-  bool enable_system_log_export = 6;
+  reserved 6;
+  reserved "enable_system_log_export";
 }
 
 // PluginOktaCredentialsInfo contains information about the Okta credentials.
@@ -7046,6 +7069,14 @@ message PluginOktaSyncSettings {
   // that has not been yet updated and during the next update the value will be set to "org" if
   // AppID is empty or "saml_app" if not.
   string user_sync_source = 11;
+
+  // EnableSystemLogExport enables the Teleport Identity Security SIEM integration for Okta.
+  bool enable_system_log_export = 12;
+
+  // DisableAssignDefaultRoles prevents the builtin okta-requester role from being assigned to all
+  // synchronized users. This is allows for a more advanced RBAC setup where not all
+  // Okta-originated users are allowed request all Okta-originated resources.
+  bool disable_assign_default_roles = 13;
 }
 
 // Defines a set of discord channel IDs
@@ -7284,6 +7315,15 @@ message AWSICResourceFilter {
     // the supplied regex.
     string name_regex = 2 [(gogoproto.jsontag) = "name_regex,omitempty"];
   }
+
+  // Exclude specifies which AWS resources should be explicitly excluded.
+  oneof exclude {
+    // ExcludeId indicates that a resource should be excluded by exact ID.
+    string exclude_id = 3 [(gogoproto.jsontag) = "id,omitempty"];
+
+    // ExcludeNameRegex excludes resources whose name matches this regex.
+    string exclude_name_regex = 4 [(gogoproto.jsontag) = "name_regex,omitempty"];
+  }
 }
 
 // UserSyncFilter is a map of key-value pairs used to filter users based on their metadata labels.
@@ -7442,6 +7482,10 @@ message PluginStatusV1 {
     PluginAWSICStatusV1 aws_ic = 8;
     // NetIQ holds status details for the NetIQ plugin.
     PluginNetIQStatusV1 net_iq = 9;
+
+    // Note: If you add a new settings type, please also update the custom JSON for oneof filed
+    // in the `tctl get/edit plugin` plugin command. You can find it in:
+    // https://github.com/gravitational/teleport/blob/master/tool/tctl/common/collection.go
   }
 
   // last_raw_error variable stores the most recent raw error message received from an API or service.
@@ -8196,6 +8240,9 @@ message AWSRolesAnywhereProfileSyncConfig {
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.
 message HeadlessAuthentication {
+  reserved 3;
+  reserved "public_key";
+
   // Header is the resource header.
   ResourceHeader header = 1 [
     (gogoproto.nullable) = false,
@@ -8204,11 +8251,6 @@ message HeadlessAuthentication {
 
   // User is a teleport user name.
   string user = 2;
-
-  // PublicKey is an ssh public key to sign in case of successful auth.
-  //
-  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
-  bytes public_key = 3 [deprecated = true];
 
   // State is the headless authentication request state.
   HeadlessAuthenticationState state = 4;

@@ -40,7 +40,7 @@ terraform {
   required_providers {
     teleport = {
       source  = "terraform.releases.teleport.dev/gravitational/teleport"
-      version = "~> 15.0"
+      version = "~> (=teleport.major_version=).0"
     }
   }
 }
@@ -61,7 +61,7 @@ terraform {
   required_providers {
     teleport = {
       source  = "terraform.releases.teleport.dev/gravitational/teleport"
-      version = "~> 15.0"
+      version = "~> (=cloud.major_version=).0"
     }
   }
 }

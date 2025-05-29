@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/secreports"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -72,7 +71,25 @@ var (
 		[]string{teleport.TagCacheComponent},
 	)
 
-	cacheCollectors = []prometheus.Collector{cacheEventsReceived, cacheStaleEventsReceived}
+	cacheHealth = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "cache",
+			Name:      "health",
+			Help:      "Whether the cache for a particular Teleport service is healthy.",
+		},
+		[]string{teleport.TagCacheComponent},
+	)
+
+	cacheLastReset = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "cache",
+			Name:      "last_reset_seconds",
+			Help:      "The unix time in seconds that the last cache reset was performed.",
+		},
+		[]string{teleport.TagCacheComponent},
+	)
 )
 
 // highVolumeResources is the set of cached resources that tend to produce high
@@ -136,7 +153,6 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
-		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
@@ -179,6 +195,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAutoUpdateVersion},
 		{Kind: types.KindAutoUpdateConfig},
 		{Kind: types.KindAutoUpdateAgentRollout},
+		{Kind: types.KindAutoUpdateAgentReport},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindProvisioningPrincipalState},
 		{Kind: types.KindIdentityCenterAccount},
@@ -218,7 +235,6 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
-		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
@@ -478,9 +494,6 @@ type Cache struct {
 	// cancel triggers exit context closure
 	cancel context.CancelFunc
 
-	// legacyCacheCollections is a registry of resource legacyCollections
-	legacyCacheCollections *legacyCollections
-
 	// collections is a registry of resource collections.
 	collections *collections
 
@@ -492,20 +505,8 @@ type Cache struct {
 	// regularly called methods.
 	fnCache *utils.FnCache
 
-	trustCache                   services.Trust
-	clusterConfigCache           services.ClusterConfigurationInternal
-	provisionerCache             services.Provisioner
-	usersCache                   services.UsersService
-	accessCache                  services.Access
-	dynamicAccessCache           services.DynamicAccessExt
-	presenceCache                services.Presence
-	userGroupsCache              services.UserGroups
-	headlessAuthenticationsCache services.HeadlessAuthenticationService
-	secReportsCache              services.SecReports
-	eventsFanout                 *services.FanoutV2
-	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
-	pluginStaticCredentialsCache *local.PluginStaticCredentialsService
-	gitServersCache              *local.GitServerService
+	eventsFanout          *services.FanoutV2
+	lowVolumeEventsFanout *utils.RoundRobin[*services.FanoutV2]
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -516,6 +517,12 @@ func (c *Cache) setInitError(err error) {
 		c.initErr = err
 		close(c.initC)
 	})
+
+	if err == nil {
+		cacheHealth.WithLabelValues(c.target).Set(1.0)
+	} else {
+		cacheHealth.WithLabelValues(c.target).Set(0.0)
+	}
 }
 
 // setReadStatus updates Cache.ok, which determines whether the
@@ -531,15 +538,6 @@ func (c *Cache) setReadStatus(ok bool, confirmedKinds map[resourceKind]types.Wat
 	defer c.rw.Unlock()
 	c.ok = ok
 	c.confirmedKinds = confirmedKinds
-}
-
-// readLegacyCollectionCache acquires the cache read lock and uses getReader() to select the appropriate target for read
-// operations on resources of the specified collection. The returned guard *must* be released to prevent deadlocks.
-func readLegacyCollectionCache[R any](cache *Cache, collection collectionReader[R]) (legacyReadGuard[R], error) {
-	if collection == nil {
-		return legacyReadGuard[R]{}, trace.BadParameter("cannot read from an uninitialized cache collection")
-	}
-	return legacyReadCache(cache, collection.watchKind(), collection.getReader)
 }
 
 // acquireReadGuard provides a readGuard that may be used to determine how
@@ -566,55 +564,8 @@ func acquireReadGuard[T any, I comparable](cache *Cache, c *collection[T, I]) (r
 	}, nil
 }
 
-// legacyReadCache acquires the cache read lock and uses getReader() to select the appropriate target for read operations
-// on resources of the specified kind. The returned guard *must* be released to prevent deadlocks.
-func legacyReadCache[R any](cache *Cache, kind types.WatchKind, getReader func(cacheOK bool) R) (legacyReadGuard[R], error) {
-	if cache.closed.Load() {
-		return legacyReadGuard[R]{}, trace.Errorf("cache is closed")
-	}
-	cache.rw.RLock()
-
-	if cache.ok {
-		if _, kindOK := cache.confirmedKinds[resourceKind{kind: kind.Kind, subkind: kind.SubKind}]; kindOK {
-			return legacyReadGuard[R]{
-				reader:  getReader(true),
-				release: cache.rw.RUnlock,
-			}, nil
-		}
-	}
-
-	cache.rw.RUnlock()
-	return legacyReadGuard[R]{
-		reader:  getReader(false),
-		release: nil,
-	}, nil
-}
-
-// legacyReadGuard holds a reference to a read-only "backend" R. If the referenced backed is the cache, then legacyReadGuard
-// also holds the release function for the read lock, and ensures that it is not double-called.
-type legacyReadGuard[R any] struct {
-	reader  R
-	once    sync.Once
-	release func()
-}
-
-// Release releases the read lock if it is held. This method
-// can be called multiple times.
-func (r *legacyReadGuard[R]) Release() {
-	r.once.Do(func() {
-		if r.release == nil {
-			return
-		}
-
-		r.release()
-	})
-}
-
-// IsCacheRead checks if this readGuard holds a cache reference.
-func (r *legacyReadGuard[R]) IsCacheRead() bool {
-	return r.release != nil
-}
-
+// readGuard holds a reference to a read-only "collection" T. If the referenced resource is in the cache,
+// then readGuard also holds the release function for the read lock, and ensures that it is not double-called.
 type readGuard[T any, I comparable] struct {
 	cacheRead bool
 	store     *store[T, I]
@@ -622,6 +573,7 @@ type readGuard[T any, I comparable] struct {
 	release   func()
 }
 
+// ReadCache checks if this readGuard holds a cache reference.
 func (r *readGuard[T, I]) ReadCache() bool {
 	return r.cacheRead
 }
@@ -683,8 +635,6 @@ type Config struct {
 	Databases services.Databases
 	// DatabaseObjects is a database object service.
 	DatabaseObjects services.DatabaseObjects
-	// SAMLIdPSession holds SAML IdP sessions.
-	SAMLIdPSession services.SAMLIdPSession
 	// SnowflakeSession holds Snowflake sessions.
 	SnowflakeSession services.SnowflakeSession
 	// AppSession holds application sessions.
@@ -868,15 +818,16 @@ const (
 
 // New creates a new instance of Cache
 func New(config Config) (*Cache, error) {
-	if err := metrics.RegisterPrometheusCollectors(cacheCollectors...); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := config.CheckAndSetDefaults(); err != nil {
+	if err := metrics.RegisterPrometheusCollectors(
+		cacheEventsReceived,
+		cacheStaleEventsReceived,
+		cacheHealth,
+		cacheLastReset,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterConfigCache, err := local.NewClusterConfigurationService(config.Backend)
-	if err != nil {
+	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -891,80 +842,32 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	userGroupsCache, err := local.NewUserGroupService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	secReportsCache, err := local.NewSecReportsService(config.Backend, config.Clock)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
 	for i := 0; i < config.FanoutShards; i++ {
 		lowVolumeFanouts = append(lowVolumeFanouts, services.NewFanoutV2(services.FanoutV2Config{}))
 	}
 
-	identityService, err := local.NewIdentityService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	pluginStaticCredentialsCache, err := local.NewPluginStaticCredentialsService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	gitServersCache, err := local.NewGitServerService(config.Backend)
+	collections, err := setupCollections(config)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
 	}
 
 	cs := &Cache{
-		ctx:                          ctx,
-		cancel:                       cancel,
-		Config:                       config,
-		initC:                        make(chan struct{}),
-		fnCache:                      fnCache,
-		trustCache:                   local.NewCAService(config.Backend),
-		clusterConfigCache:           clusterConfigCache,
-		provisionerCache:             local.NewProvisioningService(config.Backend),
-		accessCache:                  local.NewAccessService(config.Backend),
-		dynamicAccessCache:           local.NewDynamicAccessService(config.Backend),
-		presenceCache:                local.NewPresenceService(config.Backend),
-		userGroupsCache:              userGroupsCache,
-		headlessAuthenticationsCache: identityService,
-		secReportsCache:              secReportsCache,
-		eventsFanout:                 fanout,
-		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
-		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
-		gitServersCache:              gitServersCache,
+		ctx:                   ctx,
+		cancel:                cancel,
+		Config:                config,
+		initC:                 make(chan struct{}),
+		fnCache:               fnCache,
+		eventsFanout:          fanout,
+		collections:           collections,
+		lowVolumeEventsFanout: utils.NewRoundRobin(lowVolumeFanouts),
 		Logger: slog.With(
 			teleport.ComponentKey, config.Component,
 			"target", config.target,
 		),
 	}
-
-	legacyCollections, err := setupLegacyCollections(cs, config.Watches)
-	if err != nil {
-		cs.Close()
-		return nil, trace.Wrap(err)
-	}
-	cs.legacyCacheCollections = legacyCollections
-
-	collections, err := setupCollections(config, legacyCollections.byKind)
-	if err != nil {
-		cs.Close()
-		return nil, trace.Wrap(err)
-	}
-	cs.collections = collections
 
 	if config.Unstarted {
 		return cs, nil
@@ -1191,6 +1094,7 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //	we assume that this cache will eventually end up in a correct state
 //	potentially lagging behind the state of the database.
 func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) error {
+	cacheLastReset.WithLabelValues(c.target).SetToCurrentTime()
 	requestKinds := c.Config.Watches
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		Name:                c.Component,
@@ -1579,33 +1483,8 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(fetchLimit(c.target))
-	applyfns := make([]applyFn, len(c.legacyCacheCollections.byKind)+len(c.collections.byKind))
+	applyfns := make([]applyFn, len(c.collections.byKind))
 	i := 0
-	for kind, collection := range c.legacyCacheCollections.byKind {
-		kind, collection := kind, collection
-		ii := i
-		i++
-
-		g.Go(func() (err error) {
-			ctx, span := c.Tracer.Start(
-				ctx,
-				fmt.Sprintf("cache/fetch/%s", kind.String()),
-				oteltrace.WithAttributes(
-					attribute.String("target", c.target),
-				),
-			)
-			defer func() { apitracing.EndSpan(span, err) }()
-
-			_, cacheOK := confirmedKinds[resourceKind{kind: kind.kind, subkind: kind.subkind}]
-			applyfn, err := collection.fetch(ctx, cacheOK)
-			if err != nil {
-				return trace.Wrap(err, "failed to fetch resource: %q", kind)
-			}
-
-			applyfns[ii] = tracedApplyFn(fetchSpan, c.Tracer, kind, applyfn)
-			return nil
-		})
-	}
 
 	for kind, handler := range c.collections.byKind {
 		ii := i
@@ -1652,14 +1531,9 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	resourceKind := resourceKindFromResource(event.Resource)
 
-	legacyCollection, legacyFound := c.legacyCacheCollections.byKind[resourceKind]
 	handler, handlerFound := c.collections.byKind[resourceKind]
 
 	switch {
-	case legacyFound:
-		if err := legacyCollection.processEvent(ctx, event); err != nil {
-			return trace.Wrap(err)
-		}
 	case handlerFound:
 		switch event.Type {
 		case types.OpDelete:
@@ -1686,123 +1560,6 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	}
 
 	return nil
-}
-
-// GetSecurityAuditQuery returns the specified audit query resource.
-func (c *Cache) GetSecurityAuditQuery(ctx context.Context, name string) (*secreports.AuditQuery, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityAuditQuery")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.auditQueries)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetSecurityAuditQuery(ctx, name)
-}
-
-// GetSecurityAuditQueries returns a list of all audit query resources.
-func (c *Cache) GetSecurityAuditQueries(ctx context.Context) ([]*secreports.AuditQuery, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityAuditQueries")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.auditQueries)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetSecurityAuditQueries(ctx)
-}
-
-// ListSecurityAuditQueries returns a paginated list of all audit query resources.
-func (c *Cache) ListSecurityAuditQueries(ctx context.Context, pageSize int, nextKey string) ([]*secreports.AuditQuery, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListSecurityAuditQueries")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.auditQueries)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListSecurityAuditQueries(ctx, pageSize, nextKey)
-}
-
-// GetSecurityReport returns the specified security report resource.
-func (c *Cache) GetSecurityReport(ctx context.Context, name string) (*secreports.Report, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReport")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReports)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetSecurityReport(ctx, name)
-}
-
-// GetSecurityReports returns a list of all security report resources.
-func (c *Cache) GetSecurityReports(ctx context.Context) ([]*secreports.Report, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReports")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReports)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetSecurityReports(ctx)
-}
-
-// ListSecurityReports returns a paginated list of all security report resources.
-func (c *Cache) ListSecurityReports(ctx context.Context, pageSize int, nextKey string) ([]*secreports.Report, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListSecurityReports")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReports)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListSecurityReports(ctx, pageSize, nextKey)
-}
-
-// GetSecurityReportState returns the specified security report state resource.
-func (c *Cache) GetSecurityReportState(ctx context.Context, name string) (*secreports.ReportState, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReportState")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReportsStates)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetSecurityReportState(ctx, name)
-}
-
-// GetSecurityReportsStates returns a list of all security report resources.
-func (c *Cache) GetSecurityReportsStates(ctx context.Context) ([]*secreports.ReportState, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReportsStates")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReportsStates)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetSecurityReportsStates(ctx)
-}
-
-// ListSecurityReportsStates returns a paginated list of all security report resources.
-func (c *Cache) ListSecurityReportsStates(ctx context.Context, pageSize int, nextKey string) ([]*secreports.ReportState, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListSecurityReportsStates")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReportsStates)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListSecurityReportsStates(ctx, pageSize, nextKey)
 }
 
 // ListResources is a part of auth.Cache implementation

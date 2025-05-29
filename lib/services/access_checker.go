@@ -92,17 +92,11 @@ type AccessChecker interface {
 	// CheckGCPServiceAccounts returns a list of GCP service accounts the user is allowed to assume.
 	CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error)
 
-	// CheckAccessToSAMLIdP checks access to the SAML IdP.
-	//
-	//nolint:revive // Because we want this to be IdP.
-	// TODO(sshah): Delete after enterprise changes is merged to use v2.
-	CheckAccessToSAMLIdP(readonly.AuthPreference, AccessState) error
-
-	// CheckAccessToSAMLIdPV2 checks access to SAML IdP service provider resource.
+	// CheckAccessToSAMLIdP checks access to SAML IdP service provider resource.
 	// It checks for both the legacy RBAC (role v7 and below) that checks for IDP
 	// role option and MFA, as well as non-legacy RBAC (role v8 and above) that checks
 	// for labels, MFA and Device Trust.
-	CheckAccessToSAMLIdPV2(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error
+	CheckAccessToSAMLIdP(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error
 
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
@@ -498,16 +492,16 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 	return trace.Wrap(a.RoleSet.checkAccess(r, a.info.Traits, state, matchers...))
 }
 
-// CheckAccessToSAMLIdPV2 checks access to SAML IdP service provider resource.
+// CheckAccessToSAMLIdP checks access to SAML IdP service provider resource.
 // It checks for both the legacy RBAC (role v7 and below) that checks for IDP
 // role option and MFA, as well as non-legacy RBAC (role v8 and above) that checks
 // for labels, MFA and Device Trust.
-func (a *accessChecker) CheckAccessToSAMLIdPV2(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
+func (a *accessChecker) CheckAccessToSAMLIdP(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
 	if err := a.checkAllowedResources(r); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(a.RoleSet.CheckAccessToSAMLIdPV2(r, a.info.Traits, authPref, state, matchers...))
+	return trace.Wrap(a.RoleSet.CheckAccessToSAMLIdP(r, a.info.Traits, authPref, state, matchers...))
 }
 
 // GetKubeResources returns the allowed and denied Kubernetes Resources configured
@@ -518,11 +512,26 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 	}
 	var err error
 	rolesAllowed, rolesDenied := a.RoleSet.GetKubeResources(cluster, a.info.Traits)
+
+	// If we have a legacy 'namespace' in the allowedResourceIDs, we need to add the new 'namespaces' one.
+	// The old one will get mapped to wildcard later.
+	allowedResourceIDs := slices.Clone(a.info.AllowedResourceIDs)
+	for _, elem := range a.info.AllowedResourceIDs {
+		if elem.Kind == types.KindKubeNamespace {
+			allowedResourceIDs = append(allowedResourceIDs, types.ResourceID{
+				ClusterName:     elem.ClusterName,
+				Kind:            "namespaces",
+				SubResourceName: elem.SubResourceName,
+				Name:            elem.Name,
+			})
+		}
+	}
+
 	// Allways append the denied resources from the roles. This is because
 	// the denied resources from the roles take precedence over the allowed
 	// resources from the certificate.
 	denied = rolesDenied
-	for _, r := range a.info.AllowedResourceIDs {
+	for _, r := range allowedResourceIDs {
 		if r.Name != cluster.GetName() || r.ClusterName != a.localCluster {
 			continue
 		}
@@ -530,6 +539,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 		case slices.Contains(types.KubernetesResourcesKinds, r.Kind):
 			namespace := ""
 			name := ""
+			// TODO(@creack): Make sure this gets handled in the AccessRequest PR.
 			if slices.Contains(types.KubernetesClusterWideResourceKinds, r.Kind) {
 				// Cluster wide resources do not have a namespace.
 				name = r.SubResourceName
@@ -544,10 +554,28 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 				name = splitted[1]
 			}
 
+			// TODO(@creack): Find a better way. For now this only enables support for existing access requests.
+			// It doesnt support CRDs.
+			kind := types.KubernetesResourcesKindsPlurals[r.Kind]
+			if kind == "" {
+				kind = r.Kind
+			}
+			// NOTE: The 'namespace' behavior changed, to maintain backwards compatibility,
+			// map the legacy value to wildcard.
+			if r.Kind == types.KindKubeNamespace {
+				kind = types.Wildcard
+				namespace = name
+				if namespace == types.Wildcard {
+					namespace = "^" + types.Wildcard + "$"
+				}
+				name = types.Wildcard
+			}
 			r := types.KubernetesResource{
-				Kind:      r.Kind,
+				Kind:      kind,
 				Namespace: namespace,
 				Name:      name,
+				// TODO(@creack): Add support for CRDs in AccessRequests.
+				APIGroup: types.Wildcard,
 			}
 			// matchKubernetesResource checks if the Kubernetes Resource matches the tuple
 			// (kind, namespace, kame) from the allowed/denied list and does not match the resource
@@ -564,7 +592,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 			return rolesAllowed, rolesDenied
 		}
 	}
-	return
+	return allowed, denied
 }
 
 // matchKubernetesResource checks if the Kubernetes Resource does not match any
@@ -816,17 +844,21 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 		wildcardAllowed := false
 		wildcardDenied := false
 
-		// For allow, only update entries and wildcardAllowed when the role
-		// matches the resources without any matcher.
-		var roleMatchResource bool
+		// Only append allowed entries and update wildcardAllowed if the role
+		// allows the resource without any matcher. In the real CheckAccess,
+		// RoleMatchers(matchers).MatchAll(role, types.Allow) is only run when
+		// namespace and label matching passes on this resource. Checking
+		// if the role allows the resource without any matcher confirms
+		// namespace and label matching has passed.
+		var resourceAllowedByRole bool
 		if err := NewRoleSet(role).checkAccess(resource, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
-			roleMatchResource = true
+			resourceAllowedByRole = true
 		}
 
 		for _, e := range listFn(role, types.Allow) {
 			if e == types.Wildcard {
 				wildcardAllowed = true
-			} else if roleMatchResource {
+			} else if resourceAllowedByRole {
 				entities = append(entities, e)
 			}
 		}
@@ -841,7 +873,7 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 
 		result.wildcardDenied = result.wildcardDenied || wildcardDenied
 
-		if roleMatchResource {
+		if resourceAllowedByRole {
 			result.wildcardAllowed = result.wildcardAllowed || wildcardAllowed
 		}
 	}

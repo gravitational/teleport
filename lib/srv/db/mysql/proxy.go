@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"log/slog"
 	"net"
+	"runtime/debug"
 	"time"
 
 	"github.com/go-mysql-org/go-mysql/mysql"
@@ -81,7 +82,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	// has a chance to close the connection from its side.
 	defer func() {
 		if r := recover(); r != nil {
-			p.Log.WarnContext(ctx, "Recovered in MySQL proxy while handling connectionv.", "from", clientConn.RemoteAddr(), "to", r)
+			p.Log.WarnContext(ctx, "Recovered in MySQL proxy while handling connectionv.", "from", clientConn.RemoteAddr(), "problem", r, "stack", debug.Stack())
 			err = trace.BadParameter("failed to handle MySQL client connection")
 		}
 		if err != nil {

@@ -8,10 +8,10 @@ tocDepth: 3
 This guide demonstrates how to connect an Active Directory domain and how to log
 into a Windows desktop from the connected domain.
 
-You should note that Teleport requires the Kerberos authentication protocol to support
-certificate-based authentication for Active Directory. Because Azure Active Directory
-doesn't use Kerberos, you can't use the Teleport Windows Desktop Service for
-Azure Active Directory.
+You should note that Teleport requires the Kerberos authentication protocol to
+support certificate-based authentication for Active Directory. Because Microsoft
+Entra ID doesn't use Kerberos, you can't use the Teleport Windows Desktop
+Service for Microsoft Entra ID.
 
 ## Prerequisites
 
@@ -556,9 +556,9 @@ To export a CA certificate:
 
 {/* Adapted from https://www.ibm.com/docs/it/rds/5.2.1?topic=security-exporting-certificate-from-active-directory-server */}
 
-1. Click Start, Control Panel, and Administrative Tools to select **Certificate Authority**.
+1. Click Start, Control Panel, and Administrative Tools to select **Certification Authority**.
 1. Select your CA computer, right-click, then select **Properties**.
-1. One the General tab, click **View Certificate**.
+1. On the General tab, click **View Certificate**.
 1. Select **Details**, then click **Copy to File**.
 1. Click *Next* in the Certificate Export Wizard, and ensure that **DER encoded binary X.509 (.CER)**
    is selected.
@@ -607,8 +607,8 @@ To configure Teleport to protect access to Windows desktops:
        sid: "$LDAP_USER_SID"
        # Path to the certificate you exported.
        der_ca_file: "path/to/exported/cert"
-     discovery:
-       base_dn: "*"
+     discovery_configs:
+       - base_dn: "*"
    auth_service:
      enabled: false
    proxy_service:
@@ -656,6 +656,7 @@ To create a role for accessing Windows desktops:
    a role that allows Teleport users to connect to Windows computers, you can
    use the Teleport user assigned the `windows-desktop-admins` role
    to connect to Windows desktops from the Teleport Web UI.
+   Alternatively, you can connect using Teleport Connect.
 
 To connect to a Windows desktop:
 
@@ -681,16 +682,22 @@ To connect to a Windows desktop:
 ## LDAP Discovery
 
 In Active Directory environments, Teleport can be configured to discover hosts
-via LDAP. LDAP discovery is enabled by setting the `discovery.base_dn` field in
-the Teleport Windows Desktop Service configuration. You can set `base_dn` to a
-wildcard `'*` to search from the root of the domain, or you can specify an alternate
-base distinguished name to search from.
+via LDAP. LDAP discovery is enabled by adding one or more discovery configs to
+the `discovery_configs` field in the Teleport Windows Desktop Service
+configuration. You can set `base_dn` to a wildcard `'*` to search from the root
+of the domain, or you can specify an alternate base distinguished name to search
+from.
+
+By default, all hosts discovered via LDAP will be registered with a port of 3389.
+You can override the RDP port for each discovery configuration.
 
 ```yaml
 windows_desktop_service:
   enabled: true
-  discovery:
-    base_dn: '*'
+  discovery_configs:
+    - base_dn: 'OU=prod,DC=example,DC=com'
+    - base_dn: 'OU=staging,DC=example,DC=com'
+      rdp_port: 9989
 ```
 
 ### Filters
@@ -703,28 +710,27 @@ compute a logical AND of all filters specified.
 ```yaml
 windows_desktop_service:
   enabled: true
-  discovery:
-    base_dn: '*'
-    filters:
-    - '(location=Oakland)'
-    - '(!(primaryGroupID=516))'
+  discovery_configs:
+    - base_dn: '*'
+      filters:
+        - '(location=Oakland)'
+        - '(!(primaryGroupID=516))'
 ```
 
 ### Labeling
 
 It is often necessary to apply labels to discovered hosts to control access. You
 can configure Teleport to convert LDAP attributes to Teleport labels by setting
-the `discovery.label_attributes` field in the Teleport Windows Desktop Service
-configuration.
+the `label_attributes` field in the discovery configuration.
 
 ```yaml
 windows_desktop_service:
   enabled: true
-  discovery:
-    base_dn: '*'
-    label_attributes:
-      - 'location'
-      - 'department'
+  discovery_configs:
+    - base_dn: '*'
+      label_attributes:
+        - 'location'
+        - 'department'
 ```
 
 Each of the specified attributes will be placed in a Teleport label prefixed with `ldap/`.

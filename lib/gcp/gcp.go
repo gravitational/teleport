@@ -19,6 +19,8 @@
 package gcp
 
 import (
+	"github.com/zitadel/oidc/v3/pkg/oidc"
+
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
@@ -46,6 +48,7 @@ type Google struct {
 // claims can be found at
 // https://cloud.google.com/compute/docs/instances/verifying-instance-identity#payload
 type IDTokenClaims struct {
+	oidc.TokenClaims
 	// The email of the service account that this token was issued for.
 	Email  string `json:"email"`
 	Google Google `json:"google"`

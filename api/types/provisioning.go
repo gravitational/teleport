@@ -83,6 +83,9 @@ const (
 	// JoinMethodAzureDevops indicates that the node will join using the Azure
 	// Devops join method.
 	JoinMethodAzureDevops JoinMethod = "azure_devops"
+	// JoinMethodBoundKeypair indicates the node will join using the Bound
+	// Keypair join method. See lib/boundkeypair for more.
+	JoinMethodBoundKeypair JoinMethod = "bound_keypair"
 )
 
 var JoinMethods = []JoinMethod{
@@ -101,6 +104,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodTPM,
 	JoinMethodTerraformCloud,
 	JoinMethodOracle,
+	JoinMethodBoundKeypair,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -186,6 +190,26 @@ func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTo
 			Expires: &expires,
 		},
 		Spec: spec,
+	}
+	if err := t.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return t, nil
+}
+
+// NewProvisionTokenFromSpecAndStatus returns a new provision token with the given spec.
+func NewProvisionTokenFromSpecAndStatus(
+	token string, expires time.Time,
+	spec ProvisionTokenSpecV2,
+	status *ProvisionTokenStatusV2,
+) (ProvisionToken, error) {
+	t := &ProvisionTokenV2{
+		Metadata: Metadata{
+			Name:    token,
+			Expires: &expires,
+		},
+		Spec:   spec,
+		Status: status,
 	}
 	if err := t.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -415,6 +439,18 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.azure_devops: failed validation")
+		}
+	case JoinMethodBoundKeypair:
+		providerCfg := p.Spec.BoundKeypair
+		if providerCfg == nil {
+			return trace.BadParameter(
+				"spec.bound_keypair: must be configured for the join method %q",
+				JoinMethodBoundKeypair,
+			)
+		}
+
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "spec.bound_keypair: failed validation")
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
@@ -992,5 +1028,32 @@ func (a *ProvisionTokenSpecV2AzureDevops) checkAndSetDefaults() error {
 			)
 		}
 	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2BoundKeypair) checkAndSetDefaults() error {
+	// Note: don't attempt to initialize onboarding - at least for now - as it
+	// has required keys. This behavior may be relaxed when we add
+	// server-generated joining secrets.
+	if a.Onboarding == nil {
+		return trace.BadParameter("spec.bound_keypair.onboarding is required")
+	}
+
+	if a.Onboarding.RegistrationSecret == "" && a.Onboarding.InitialPublicKey == "" {
+		return trace.BadParameter("at least one of [initial_join_secret, " +
+			"initial_public_key] is required in spec.bound_keypair.onboarding")
+	}
+
+	if a.Recovery == nil {
+		a.Recovery = &ProvisionTokenSpecV2BoundKeypair_RecoverySpec{}
+	}
+
+	if a.Recovery.Limit == 0 {
+		a.Recovery.Limit = 1
+	}
+
+	// Note: Recovery.Mode will be interpreted at joining time; it's zero value
+	// ("") is mapped to RecoveryModeStandard.
+
 	return nil
 }

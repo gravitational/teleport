@@ -132,6 +132,16 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"ldap_service_account_name": {
+							Description: "LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"ldap_service_account_sid": {
+							Description: "LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 						"spn": {
 							Description: "SPN is the service principal name for the database.",
 							Optional:    true,
@@ -973,6 +983,27 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 					Description: "Integration is the integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"mcp": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"args": {
+							Description: "Args to execute with the command.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"command": {
+							Description: "Command to launch stdio-based MCP servers.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"run_as_host_user": {
+							Description: "RunAsHostUser is the host user account under which the command will be executed. Required for stdio-based MCP servers.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "MCP contains MCP server related configurations.",
+					Optional:    true,
 				},
 				"public_addr": {
 					Description: "PublicAddr is the public address the application is accessible at.",
@@ -2681,11 +2712,18 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 									Optional:    true,
 								},
 								"kubernetes_resources": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"kind": {
-										Description: "kind specifies the Kubernetes Resource type.",
-										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-									}}),
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"api_group": {
+											Description: "APIGroup specifies the Kubernetes Resource API group.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"kind": {
+											Description: "kind specifies the Kubernetes Resource type.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
 									Description: "kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind \"kube_cluster\" or any of its subresources like \"namespaces\". This field can be defined such that it prevents a user from requesting \"kube_cluster\" and enforce requesting any of its subresources.",
 									Optional:    true,
 								},
@@ -3180,11 +3218,18 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 									Optional:    true,
 								},
 								"kubernetes_resources": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"kind": {
-										Description: "kind specifies the Kubernetes Resource type.",
-										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-									}}),
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"api_group": {
+											Description: "APIGroup specifies the Kubernetes Resource API group.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"kind": {
+											Description: "kind specifies the Kubernetes Resource type.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
 									Description: "kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind \"kube_cluster\" or any of its subresources like \"namespaces\". This field can be defined such that it prevents a user from requesting \"kube_cluster\" and enforce requesting any of its subresources.",
 									Optional:    true,
 								},
@@ -4018,6 +4063,11 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 					Description: "MFASettings contains settings to enable SSO MFA checks through this auth connector.",
 					Optional:    true,
 				},
+				"pkce_mode": {
+					Description: "PKCEMode represents the configuration state for PKCE (Proof Key for Code Exchange). It can be \"enabled\" or \"disabled\"",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
 				"prompt": {
 					Description: "Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.",
 					Optional:    true,
@@ -4268,6 +4318,11 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 					}),
 					Description: "MFASettings contains settings to enable SSO MFA checks through this auth connector.",
 					Optional:    true,
+				},
+				"preferred_request_binding": {
+					Description: "PreferredRequestBinding is a preferred SAML request binding method. Value must be either \"http-post\" or \"http-redirect\". In general, the SAML identity provider lists request binding methods it supports. And the SAML service provider uses one of the IdP supported request binding method that it prefers. But we never honored request binding value provided by the IdP and always used http-redirect binding as a default. Setting up PreferredRequestBinding value lets us preserve existing auth connector behavior and only use http-post binding if it is explicitly configured.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"provider": {
 					Description: "Provider is the external identity provider.",
@@ -6535,6 +6590,40 @@ func CopyDatabaseV3FromTerraform(_ context.Context, tf github_com_hashicorp_terr
 													t = string(v.Value)
 												}
 												obj.KDCHostName = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["ldap_service_account_name"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountName"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.LDAPServiceAccountName = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["ldap_service_account_sid"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountSID"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountSID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.LDAPServiceAccountSID = t
 											}
 										}
 									}
@@ -8919,6 +9008,50 @@ func CopyDatabaseV3ToTerraform(ctx context.Context, obj *github_com_gravitationa
 											v.Value = string(obj.KDCHostName)
 											v.Unknown = false
 											tf.Attrs["kdc_host_name"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["ldap_service_account_name"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountName"})
+										} else {
+											v, ok := tf.Attrs["ldap_service_account_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.AD.LDAPServiceAccountName", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.LDAPServiceAccountName) == ""
+											}
+											v.Value = string(obj.LDAPServiceAccountName)
+											v.Unknown = false
+											tf.Attrs["ldap_service_account_name"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["ldap_service_account_sid"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountSID"})
+										} else {
+											v, ok := tf.Attrs["ldap_service_account_sid"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.AD.LDAPServiceAccountSID", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.AD.LDAPServiceAccountSID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.LDAPServiceAccountSID) == ""
+											}
+											v.Value = string(obj.LDAPServiceAccountSID)
+											v.Unknown = false
+											tf.Attrs["ldap_service_account_sid"] = v
 										}
 									}
 								}
@@ -11967,6 +12100,85 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["mcp"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.MCP = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.MCP = &github_com_gravitational_teleport_api_types.MCP{}
+									obj := obj.MCP
+									{
+										a, ok := tf.Attrs["command"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.command"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.command", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Command = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["args"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.args"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.args", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.Args = make([]string, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.args", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.Args[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["run_as_host_user"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.run_as_host_user"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.run_as_host_user", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.RunAsHostUser = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -13560,6 +13772,135 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 							v.Value = bool(obj.UseAnyProxyPublicAddr)
 							v.Unknown = false
 							tf.Attrs["use_any_proxy_public_addr"] = v
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["mcp"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["mcp"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.MCP == nil {
+									v.Null = true
+								} else {
+									obj := obj.MCP
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["command"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.command"})
+										} else {
+											v, ok := tf.Attrs["command"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.command", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.command", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Command) == ""
+											}
+											v.Value = string(obj.Command)
+											v.Unknown = false
+											tf.Attrs["command"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["args"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.args"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.args", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["args"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Args)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Args))
+													}
+												}
+												if obj.Args != nil {
+													t := o.ElemType
+													if len(obj.Args) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Args))
+													}
+													for k, a := range obj.Args {
+														v, ok := tf.Attrs["args"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+															if err != nil {
+																diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.args", err})
+															}
+															v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.args", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
+															v.Null = string(a) == ""
+														}
+														v.Value = string(a)
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.Args) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["args"] = c
+											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["run_as_host_user"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.run_as_host_user"})
+										} else {
+											v, ok := tf.Attrs["run_as_host_user"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.run_as_host_user", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.run_as_host_user", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.RunAsHostUser) == ""
+											}
+											v.Value = string(obj.RunAsHostUser)
+											v.Unknown = false
+											tf.Attrs["run_as_host_user"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["mcp"] = v
+							}
 						}
 					}
 				}
@@ -25582,6 +25923,23 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																						}
 																					}
 																				}
+																				{
+																					a, ok := tf.Attrs["api_group"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources.APIGroup"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						} else {
+																							var t string
+																							if !v.Null && !v.Unknown {
+																								t = string(v.Value)
+																							}
+																							obj.APIGroup = t
+																						}
+																					}
+																				}
 																			}
 																			obj.KubernetesResources[k] = t
 																		}
@@ -27669,6 +28027,23 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																								t = string(v.Value)
 																							}
 																							obj.Kind = t
+																						}
+																					}
+																				}
+																				{
+																					a, ok := tf.Attrs["api_group"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources.APIGroup"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						} else {
+																							var t string
+																							if !v.Null && !v.Unknown {
+																								t = string(v.Value)
+																							}
+																							obj.APIGroup = t
 																						}
 																					}
 																				}
@@ -31457,6 +31832,28 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 																					tf.Attrs["kind"] = v
 																				}
 																			}
+																			{
+																				t, ok := tf.AttrTypes["api_group"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources.APIGroup"})
+																				} else {
+																					v, ok := tf.Attrs["api_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																					if !ok {
+																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																						if err != nil {
+																							diags.Append(attrWriteGeneralError{"RoleV6.Spec.Allow.Request.kubernetes_resources.APIGroup", err})
+																						}
+																						v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.Request.kubernetes_resources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						}
+																						v.Null = string(obj.APIGroup) == ""
+																					}
+																					v.Value = string(obj.APIGroup)
+																					v.Unknown = false
+																					tf.Attrs["api_group"] = v
+																				}
+																			}
 																		}
 																		v.Unknown = false
 																		c.Elems[k] = v
@@ -35100,6 +35497,28 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 																					v.Value = string(obj.Kind)
 																					v.Unknown = false
 																					tf.Attrs["kind"] = v
+																				}
+																			}
+																			{
+																				t, ok := tf.AttrTypes["api_group"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources.APIGroup"})
+																				} else {
+																					v, ok := tf.Attrs["api_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																					if !ok {
+																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																						if err != nil {
+																							diags.Append(attrWriteGeneralError{"RoleV6.Spec.Deny.Request.kubernetes_resources.APIGroup", err})
+																						}
+																						v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.Request.kubernetes_resources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						}
+																						v.Null = string(obj.APIGroup) == ""
+																					}
+																					v.Value = string(obj.APIGroup)
+																					v.Unknown = false
+																					tf.Attrs["api_group"] = v
 																				}
 																			}
 																		}
@@ -40067,6 +40486,23 @@ func CopyOIDCConnectorV3FromTerraform(_ context.Context, tf github_com_hashicorp
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["pkce_mode"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.PKCEMode"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.PKCEMode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.PKCEMode = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -41174,6 +41610,28 @@ func CopyOIDCConnectorV3ToTerraform(ctx context.Context, obj *github_com_gravita
 							}
 						}
 					}
+					{
+						t, ok := tf.AttrTypes["pkce_mode"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.PKCEMode"})
+						} else {
+							v, ok := tf.Attrs["pkce_mode"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.PKCEMode", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.PKCEMode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.PKCEMode) == ""
+							}
+							v.Value = string(obj.PKCEMode)
+							v.Unknown = false
+							tf.Attrs["pkce_mode"] = v
+						}
+					}
 				}
 				v.Unknown = false
 				tf.Attrs["spec"] = v
@@ -42000,6 +42458,23 @@ func CopySAMLConnectorV2FromTerraform(_ context.Context, tf github_com_hashicorp
 									t = github_com_gravitational_teleport_api_types.SAMLForceAuthn(v.Value)
 								}
 								obj.ForceAuthn = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["preferred_request_binding"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.PreferredRequestBinding"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.PreferredRequestBinding", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.PreferredRequestBinding = t
 							}
 						}
 					}
@@ -43216,6 +43691,28 @@ func CopySAMLConnectorV2ToTerraform(ctx context.Context, obj *github_com_gravita
 							v.Value = int64(obj.ForceAuthn)
 							v.Unknown = false
 							tf.Attrs["force_authn"] = v
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["preferred_request_binding"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.PreferredRequestBinding"})
+						} else {
+							v, ok := tf.Attrs["preferred_request_binding"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.PreferredRequestBinding", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.PreferredRequestBinding", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.PreferredRequestBinding) == ""
+							}
+							v.Value = string(obj.PreferredRequestBinding)
+							v.Unknown = false
+							tf.Attrs["preferred_request_binding"] = v
 						}
 					}
 				}

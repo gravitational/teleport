@@ -20,8 +20,8 @@ Enrolling the Okta integration is a guided process and contains four components:
 2. **System for Cross-domain Identity Management (SCIM) integration:** Uses the
    [SCIM standard](https://developer.okta.com/docs/concepts/scim/) to
    allow nearly instant provisioning of Okta users in Teleport. This is
-   available only if Teleport Identity is enabled. The SCIM integration is
-   optional for enabling user, application, and group sync.
+   available only if Teleport Identity Governance is enabled. The SCIM
+   integration is optional for enabling user, application, and group sync.
 3. **User sync:** Imports Okta users as Teleport users via a continuous
    reconciliation loop. It is usually slower than SCIM, but but more reliable,
    and does not require a publicly accessible Teleport cluster. Combined with

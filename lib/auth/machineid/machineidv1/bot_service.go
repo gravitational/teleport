@@ -47,6 +47,7 @@ import (
 // lib/tbot/config
 var SupportedJoinMethods = []types.JoinMethod{
 	types.JoinMethodAzure,
+	types.JoinMethodAzureDevops,
 	types.JoinMethodCircleCI,
 	types.JoinMethodGCP,
 	types.JoinMethodGitHub,
@@ -58,6 +59,7 @@ var SupportedJoinMethods = []types.JoinMethod{
 	types.JoinMethodTPM,
 	types.JoinMethodTerraformCloud,
 	types.JoinMethodBitbucket,
+	types.JoinMethodBoundKeypair,
 }
 
 // BotResourceName returns the default name for resources associated with the

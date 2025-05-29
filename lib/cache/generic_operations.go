@@ -35,8 +35,6 @@ type genericGetter[T any, I comparable] struct {
 	// upstreamGet is used to retrieve the item if the
 	// cache is not healthy.
 	upstreamGet func(context.Context, string) (T, error)
-	// clone is used to make a copy of the item returned.
-	clone func(T) T
 }
 
 // get retrieves a single item by an identifier from
@@ -60,7 +58,8 @@ func (g genericGetter[T, I]) get(ctx context.Context, identifier string) (T, err
 	if err != nil {
 		return t, trace.Wrap(err)
 	}
-	return g.clone(out), nil
+
+	return g.collection.store.clone(out), nil
 }
 
 // genericLister is a helper to retrieve a page of items from a cache collection.
@@ -81,8 +80,6 @@ type genericLister[T any, I comparable] struct {
 	// nextToken is used to derive the next token returned from
 	// the item at which the next page should start from.
 	nextToken func(T) string
-	// clone is used to make a copy of the item returned.
-	clone func(T) T
 	// filter is an optional function used to exclude items from
 	// cache reads.
 	filter func(T) bool
@@ -121,7 +118,7 @@ func (l genericLister[T, I]) list(ctx context.Context, pageSize int, startToken 
 		if l.filter != nil && !l.filter(sf) {
 			continue
 		}
-		out = append(out, l.clone(sf))
+		out = append(out, l.collection.store.clone(sf))
 	}
 
 	return out, "", nil

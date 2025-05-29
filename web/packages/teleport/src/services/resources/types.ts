@@ -128,41 +128,12 @@ export type DefaultAuthConnector = {
 };
 
 export type KubernetesResource = {
-  kind?: KubernetesResourceKind;
+  kind?: string;
   name?: string;
   namespace?: string;
   verbs?: KubernetesVerb[];
+  api_group?: string;
 };
-
-/**
- * Supported Kubernetes resource kinds. This type needs to be kept in sync with
- * `KubernetesResourcesKinds` in `api/types/constants.go, as well as
- * `kubernetesResourceKindOptions` in
- * `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`.
- */
-export type KubernetesResourceKind =
-  | '*'
-  | 'pod'
-  | 'secret'
-  | 'configmap'
-  | 'namespace'
-  | 'service'
-  | 'serviceaccount'
-  | 'kube_node'
-  | 'persistentvolume'
-  | 'persistentvolumeclaim'
-  | 'deployment'
-  | 'replicaset'
-  | 'statefulset'
-  | 'daemonset'
-  | 'clusterrole'
-  | 'kube_role'
-  | 'clusterrolebinding'
-  | 'rolebinding'
-  | 'cronjob'
-  | 'job'
-  | 'certificatesigningrequest'
-  | 'ingress';
 
 /**
  * Supported Kubernetes resource verbs. This type needs to be kept in sync with
@@ -353,7 +324,6 @@ export enum ResourceKind {
   // refer to resource subkind names that are not used for access control.
   //
   // KindAppSession = "app_session"
-  // KindSAMLIdPSession = "saml_idp_session"
   // KindSnowflakeSession = "snowflake_session"
 }
 
