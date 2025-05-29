@@ -1,0 +1,140 @@
+---
+title: "SELinux Module for Teleport SSH"
+description: "How to configure SELinux to enforce Teleport SSH."
+---
+
+## What is SELinux?
+
+SELinux (Security-Enhanced Linux) is a Linux kernel security module that provides a robust, mandatory access control (MAC) framework. Unlike traditional discretionary controls (DAC), which rely on user identity and group membership, SELinux policies define strict rules that govern how processes, files, and other system objects interact.
+
+By enforcing fine-grained access controls, SELinux helps:
+
+* **Limit the impact of compromised services** by restricting what an exploited process can do.
+* **Prevent unauthorized access** at the kernel level, even if file permissions are misconfigured.
+* **Provide detailed audit logs** for policy violations, aiding in forensic analysis and compliance.
+
+The Teleport SSH SELinux module builds on this foundation by confining the Teleport SSH service. It ensures that Teleport SSH processes can only perform explicitly allowed operations, reducing the attack surface and preventing unauthorized actions even if the Teleport binary was compromised.
+
+## Supported Platforms
+
+The SELinux policy module for Teleport SSH is officially supported on **Red Hat Enterprise Linux (RHEL) 8** and **RHEL 9** only.
+
+## Installation
+
+To install the SELinux module, run the included `install-selinux.sh` script as `root`:
+
+```code
+sudo bash install-selinux.sh
+# or teleport is not in your PATH
+sudo bash install-selinux.sh -t /path/to/teleport
+```
+
+This script is bundled with Linux tarballs. It performs the following:
+
+1. Compiles and installs the `teleport_ssh` SELinux module into the system policy.
+2. Labels any existing Teleport SSH binaries and directories.
+
+<Admonition type="note">
+
+You must re-run `install-selinux.sh` whenever your Teleport SSH agents are updated. This ensures the SELinux module matches the version of the binaries in use.
+
+</Admonition>
+
+## SELinux Modes
+
+SELinux can operate in three modes:
+
+| Mode           | Description                                                          |
+| -------------- | -------------------------------------------------------------------- |
+| **Enforcing**  | SELinux policy is enforced. Violations are blocked and logged.       |
+| **Permissive** | SELinux policy is not enforced, but violations are logged (allowed). |
+| **Disabled**   | SELinux is turned off entirely; no policy is loaded or logged.       |
+
+Use `getenforce` or `sestatus` to check the current mode. To change the mode, use `setenforce` or `semanage`. Teleport SSH will work if SELinux is in permissive mode, but this is not recommended for
+production use. Permissive mode is only recommended for testing and development, as it only logs policy violations and does not enforce them. For production use, SELinux should be set to the **enforcing** mode.
+
+## Configuring Teleport to use SELinux
+
+Once the module is installed, Teleport must be explicitly told to use SELinux by adding the `--enable-selinux` flag when starting:
+
+```code
+teleport start --enable-selinux
+```
+
+<Admonition type="note">
+
+Only the SSH service supports SELinux enforcement, if you try and start Teleport with `--enable-selinux` passed with other services enabled or the SSH service not enabled, Teleport will exit with an error.
+
+</Admonition>
+
+The `--ensure-selinux-enforcing` flag causes Teleport to exit with an error if:
+
+* SELinux is not in **enforcing** mode (e.g., it is **permissive** or **disabled**).
+* The required `teleport_ssh` module is disabled or permissive.
+
+This provides a safety check to guarantee that Teleport SSH is always running under the protection of SELinux policy enforcement. It may be necessary to run Teleport without this flag when testing SELinux configuration or diagnosing issues.
+
+## Customizing the SELinux Module
+
+If you need to grant additional permissions beyond the defaults, you can create and install your own SELinux policy module targeting the `teleport_ssh_t` domain (used by the official module).
+
+<Admonition type="warning">
+
+The official Teleport SSH module is named `teleport_ssh`. The install script will overwrite any module of that name. Be sure to name your custom policy module **something else** (e.g., `my_teleport_ssh_extras`).
+
+</Admonition>
+
+1. Install the `selinux-policy-devel` package if not already installed
+2. Write a new `.te` file defining the extra rules for `teleport_ssh_t`.
+3. Compile and package your module:
+
+   ```code
+   make -f /usr/share/selinux/devel/Makefile my_teleport_ssh_extras.pp
+   ```
+4. Install it:
+
+   ```code
+   semodule -i my_teleport_ssh_extras.pp
+   ```
+
+For detailed guidance on writing SELinux modules, refer to the Red Hat article:
+
+* [How to write SELinux policy modules](https://access.redhat.com/articles/6999267)
+
+## Troubleshooting SELinux and Teleport SSH
+
+When Teleport SSH is blocked by SELinux, use the following tools to diagnose and resolve policy issues:
+
+1. **sealert** (from the `setroubleshoot-server` package):
+
+   ```code
+   sudo sealert -a /var/log/audit/audit.log
+   ```
+
+   This generates a human-readable report of SELinux denials and recommendations for policy adjustments.
+
+2. **audit2why** (from the `policycoreutils-python-utils` package):
+
+   ```code
+   ausearch -m AVC -c teleport | audit2why
+   ```
+
+   This explains why a denial occurred and suggests which policy rules are missing.
+
+3. **audit2allow** (to generate a custom policy module):
+
+   ```code
+   ausearch -m AVC -c teleport | audit2allow -M my_teleport_fix
+   ```
+
+   Use this approach to create a small, targeted module to grant the necessary permissions.
+
+If Teleport fails to start with `--enable-selinux --ensure-selinux-enforcing`, check:
+
+* That SELinux is in **enforcing** mode (`getenforce`).
+* That the `teleport_ssh` module is listed:
+
+  ```code
+  semodule -l | grep teleport_ssh
+  ```
+* The audit log (`/var/log/audit/audit.log`) for detailed AVC messages.
