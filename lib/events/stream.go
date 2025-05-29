@@ -733,7 +733,14 @@ func (w *sliceWriter) completeStream() {
 		}
 
 		if w.proto.cfg.CompletionHook != nil {
-			w.proto.cfg.CompletionHook(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
+			err := w.proto.cfg.CompletionHook(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
+			if err != nil {
+				slog.WarnContext(w.proto.cancelCtx, "Completion hook failed",
+					"error", err,
+					"upload", w.proto.cfg.Upload.ID,
+					"session", w.proto.cfg.Upload.SessionID,
+				)
+			}
 		}
 	}
 }
