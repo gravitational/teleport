@@ -33,14 +33,16 @@ func getExecutable() (string, error) {
 	return executable, trace.Wrap(err)
 }
 
-// configureReexecForOS adds a file for the child process to inherit and adds
-// OS-specific attributes. It returns the file descriptor that should be reported
-// to the child.
-func configureReexecForOS(cmd *exec.Cmd, signal *os.File) uint64 {
+// configureReexecForOS configures the command with files to inherit and
+// os-specific tweaks.
+func configureReexecForOS(cmd *exec.Cmd, signal, kill *os.File) (signalFd, killFd uint64) {
 	// Prevent handle from being closed when signal is garbage collected.
 	runtime.SetFinalizer(signal, nil)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		AdditionalInheritedHandles: []syscall.Handle{syscall.Handle(signal.Fd())},
+		AdditionalInheritedHandles: []syscall.Handle{
+			syscall.Handle(signal.Fd()),
+			syscall.Handle(kill.Fd()),
+		},
 	}
-	return uint64(signal.Fd())
+	return uint64(signal.Fd()), uint64(kill.Fd())
 }

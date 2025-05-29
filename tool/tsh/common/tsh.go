@@ -624,6 +624,13 @@ type CLIConf struct {
 	// forkSignalFd is the file descriptor for the child process to signal the
 	// parent when re-execing.
 	forkSignalFd uint64
+	// forkKillFd is the file descriptor for the child process to check the
+	// parent's state when re-execing.
+	forkKillFd uint64
+}
+
+func (c *CLIConf) isForkAuthChild() bool {
+	return isValidForkSignalFd(c.forkSignalFd) && isValidForkSignalFd(c.forkKillFd)
 }
 
 // Stdout returns the stdout writer.
@@ -821,6 +828,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// This flag only applies to tsh ssh; it's defined here to make configuring
 	// the re-exec command easier.
 	app.Flag("fork-signal-fd", "File descriptor to signal parent on when forked. Overrides --fork-after-authentication. For internal use only.").Hidden().Uint64Var(&cf.forkSignalFd)
+	app.Flag("fork-kill-fd", "File descriptor to check parent health on when forked. For internal use only.").Hidden().Uint64Var(&cf.forkKillFd)
 
 	if !moduleCfg.IsBoringBinary() {
 		// The user is *never* allowed to do this in FIPS mode.
@@ -1390,15 +1398,16 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	// Handle fork after authentication.
-	if cf.ForkAfterAuthentication && !isValidForkSignalFd(cf.forkSignalFd) {
+	if cf.ForkAfterAuthentication && !cf.isForkAuthChild() {
 		if len(cf.RemoteCommand) == 0 {
 			return trace.BadParameter("fork after authentication not allowed for interactive sessions")
 		}
 		forkParams := client.ForkAuthenticateParams{
-			GetArgs: func(signalFd uint64) []string {
+			GetArgs: func(signalFd, killFd uint64) []string {
 				return append([]string{
-					// --fork-signal-fd goes immediately after `tsh`.
+					// fd flags go immediately after `tsh`.
 					"--fork-signal-fd", strconv.FormatUint(signalFd, 10),
+					"--fork-kill-fd", strconv.FormatUint(killFd, 10),
 				}, args...)
 			},
 			Stdin:  cf.Stdin(),
@@ -4042,9 +4051,23 @@ func onResolve(cf *CLIConf) error {
 func onSSH(cf *CLIConf) error {
 	// Handle fork after authentication.
 	var disownSignal *os.File
-	if isValidForkSignalFd(cf.forkSignalFd) {
+	forkAuthSuccessful := &atomic.Bool{}
+	if cf.isForkAuthChild() {
+		// Prep files.
 		disownSignal = newSignalFile(cf.forkSignalFd)
 		defer disownSignal.Close()
+		killSignal := newSignalFile(cf.forkKillFd)
+		defer killSignal.Close()
+
+		// Watch kill signal to check when parent exits. If the read returns before
+		// the child finishes authentication, the parent has died and the child
+		// needs to die too.
+		go func() {
+			_, err := killSignal.Read(make([]byte, 1))
+			if err != nil && !forkAuthSuccessful.Load() {
+				os.Exit(1)
+			}
+		}()
 	}
 
 	// If "tsh ssh -V" is invoked, tsh is in OpenSSH compatibility mode, show
@@ -4101,6 +4124,7 @@ func onSSH(cf *CLIConf) error {
 						return trace.Wrap(err)
 					}
 					tc.Stdin = devNull
+					forkAuthSuccessful.Store(true)
 					// Write to unblock the parent.
 					_, err = disownSignal.Write([]byte{0x00})
 					return trace.Wrap(err)

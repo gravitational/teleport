@@ -21,7 +21,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"runtime"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -31,7 +30,7 @@ import (
 type ForkAuthenticateParams struct {
 	// GetArgs gets the arguments to re-exec with, excluding the executable
 	// (equivalent to os.Args[1:]).
-	GetArgs func(signalFd uint64) []string
+	GetArgs func(signalFd, killFd uint64) []string
 	// Stdin is the child process' stdin.
 	Stdin io.Reader
 	// Stdout is the child process' stdout.
@@ -42,7 +41,7 @@ type ForkAuthenticateParams struct {
 
 type forkAuthCmd struct {
 	*exec.Cmd
-	disownSignal *os.File
+	signalR, signalW, killR, killW *os.File
 }
 
 // RunForkAuthenticate re-execs the current executable and waits for any of
@@ -69,16 +68,25 @@ func buildForkAuthenticateCommand(params ForkAuthenticateParams) (*forkAuthCmd, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signalFd := configureReexecForOS(cmd, signalW)
+	killR, killW, err := os.Pipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signalFd, killFd := configureReexecForOS(cmd, signalW, killR)
 
-	cmd.Args = append(cmd.Args, params.GetArgs(signalFd)...)
+	cmd.Args = append(cmd.Args, params.GetArgs(signalFd, killFd)...)
+	cmd.Args[0] = os.Args[0]
 	cmd.Stdin = params.Stdin
 	cmd.Stdout = params.Stdout
 	cmd.Stderr = params.Stderr
 
 	return &forkAuthCmd{
-		Cmd:          cmd,
-		disownSignal: signalR,
+		Cmd: cmd,
+		// Keep all pipes around to prevent them from being garbage collected.
+		signalR: signalR,
+		signalW: signalW,
+		killR:   killR,
+		killW:   killW,
 	}, nil
 }
 
@@ -86,12 +94,15 @@ func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	defer cmd.disownSignal.Close()
+	defer cmd.signalR.Close()
+	defer cmd.killW.Close()
+	defer cmd.killW.Write([]byte{0x00})
+
 	disownReady := make(chan error, 1)
 	go func() {
 		// The child process will write to the pipe when it has authenticated
 		// and is ready to be disowned.
-		_, err := cmd.disownSignal.Read(make([]byte, 1))
+		_, err := cmd.signalR.Read(make([]byte, 1))
 		if err == nil {
 			disownReady <- nil
 		}
@@ -104,9 +115,6 @@ func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 		}
 	}()
 
-	// Lock thread to honor Pdeathsig.
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
 	if err := cmd.Start(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -124,13 +132,14 @@ func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 	case err := <-childFinished:
 		return trace.Wrap(err)
 	case err := <-disownReady:
+		// Check if child finished at the same time.
+		if finishedErr, ok := <-childFinished; ok {
+			return trace.Wrap(finishedErr)
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := cmd.Process.Release(); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
+		return trace.Wrap(cmd.Process.Release())
 	case <-runCtx.Done():
 		if err := cmd.Process.Kill(); err != nil {
 			return trace.Wrap(err)
