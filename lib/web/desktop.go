@@ -24,7 +24,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"log/slog"
-	"net"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -50,7 +49,7 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>
+// GET /webapi/sites/:site/desktops/:desktopName/connect?username=<username>
 func (h *Handler) desktopConnectHandle(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -101,21 +100,33 @@ func (h *Handler) createDesktopConnection(
 		return err
 	}
 
+	readClientMessage := func() (tdp.Message, error) {
+		typ, data, err := ws.ReadMessage()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if typ != websocket.BinaryMessage {
+			return nil, trace.BadParameter("expected binary websocket message, got %v", typ)
+		}
+
+		msg, err := tdp.Decode(data)
+		return msg, trace.Wrap(err)
+	}
+
 	username, err := readUsername(r)
 	if err != nil {
 		return sendTDPError(err)
 	}
 	log.DebugContext(ctx, "Attempting to connect to desktop", "username", username)
 
-	// Read the tdp.ClientScreenSpec from the websocket.
-	// This is always the first thing sent by the client.
-	// Certificate issuance may rely on the client sending
-	// a subsequent tdp.MFA message, hence we need to make
-	// sure that this message has been read from the wire
-	// beforehand.
-	screenSpec, err := readClientScreenSpec(ws)
+	// The first thing we expect from the client is the screen spec.
+	msg, err := readClientMessage()
 	if err != nil {
-		return sendTDPError(err)
+		return trace.Wrap(err)
+	}
+	screenSpec, ok := msg.(tdp.ClientScreenSpec)
+	if !ok {
+		return sendTDPError(trace.BadParameter("client sent unexpected message %T", msg))
 	}
 
 	width, height := screenSpec.Width, screenSpec.Height
@@ -126,11 +137,21 @@ func (h *Handler) createDesktopConnection(
 		))
 	}
 
-	log.DebugContext(ctx, "Attempting to connect to desktop",
-		"username", username,
-		"width", width,
-		"height", height,
-	)
+	log = log.With("username", username, "width", width, "height", height)
+
+	// Holds any messages withheld while issuing certs.
+	var withheld []tdp.Message
+
+	// Try to read the keyboard layout, which is sent by v18+ clients.
+	msg, err = readClientMessage()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	keyboardLayout, gotKeyboardLayout := msg.(tdp.ClientKeyboardLayout)
+	if !gotKeyboardLayout {
+		log.InfoContext(ctx, "client did not send keyboard layout", "message_type", logutils.TypeAttr(msg))
+		withheld = append(withheld, msg)
+	}
 
 	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
@@ -149,8 +170,6 @@ func (h *Handler) createDesktopConnection(
 		return sendTDPError(err)
 	}
 
-	// Holds any messages withheld while issuing certs.
-	var withheld []tdp.Message
 	// Issue certificate for the user/desktop combination and perform MFA ceremony if required.
 	certs, err := h.issueCerts(ctx, ws, sctx, mfaRequired, certsReq, &withheld)
 	if err != nil {
@@ -199,6 +218,16 @@ func (h *Handler) createDesktopConnection(
 	if err != nil {
 		return sendTDPError(err)
 	}
+
+	// Forward the user's keyboard layout to the agent, as long as the agent is new enough.
+	if keyboardLayoutSupported, _ := utils.MinVerWithoutPreRelease(version, "18.0.0"); keyboardLayoutSupported && gotKeyboardLayout {
+		if err := tdpConn.WriteMessage(keyboardLayout); err != nil {
+			return sendTDPError(err)
+		}
+	} else {
+		log.DebugContext(ctx, "Client sent keyboard layout but agent is too old", "agent_version", version)
+	}
+
 	for _, msg := range withheld {
 		log.DebugContext(ctx, "Sending withheld message", "message", logutils.TypeAttr(msg))
 		if err := tdpConn.WriteMessage(msg); err != nil {
@@ -209,7 +238,7 @@ func (h *Handler) createDesktopConnection(
 	// for the rest of the connection
 	withheld = nil
 
-	// tdp.ProxyConn hangs here until connection is closed.
+	// this blocks until the connection is closed
 	handleProxyWebsocketConnErr(
 		ctx,
 		proxyWebsocketConn(ctx, ws, serviceConnTLS, log, version),
@@ -378,6 +407,15 @@ func (h *Handler) performSessionMFACeremony(
 					return nil, trace.Wrap(err)
 				}
 
+				// Special case: if we've already received an MFA response (because an old web UI
+				// that doesn't send the keyboard layout is connected), then we're done.
+				if len(*withheld) > 0 {
+					mfaResp, ok := (*withheld)[0].(*tdp.MFA)
+					if ok {
+						return mfaResp.MFAAuthenticateResponse, nil
+					}
+				}
+
 				span.AddEvent("waiting for user to complete mfa ceremony")
 				var buf []byte
 				// Loop through incoming messages until we receive an MFA message that lets us
@@ -448,28 +486,18 @@ func readUsername(r *http.Request) (string, error) {
 	return username, nil
 }
 
-func readClientScreenSpec(ws *websocket.Conn) (*tdp.ClientScreenSpec, error) {
-	tdpConn := tdp.NewConn(&WebsocketIO{Conn: ws})
-	return tdpConn.ReadClientScreenSpec()
-}
-
 // desktopPinger measures latency between proxy and the desktop by sending tdp.Ping messages
 // Windows Desktop Service and measuring the time it takes to receive message with the same UUID back.
 type desktopPinger struct {
-	wds net.Conn
-	ch  <-chan tdp.Ping
+	proxy *tdp.ConnProxy
+	ch    <-chan tdp.Ping
 }
 
 func (d desktopPinger) Ping(ctx context.Context) error {
 	ping := tdp.Ping{
 		UUID: uuid.New(),
 	}
-	buf, err := ping.Encode()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = d.wds.Write(buf)
-	if err != nil {
+	if err := d.proxy.SendToServer(ping); err != nil {
 		return trace.Wrap(err)
 	}
 	for {
@@ -487,7 +515,7 @@ func (d desktopPinger) Ping(ctx context.Context) error {
 // proxyWebsocketConn does a bidrectional copy between the websocket
 // connection to the browser (ws) and the mTLS connection to Windows
 // Desktop Serivce (wds)
-func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, log *slog.Logger, version string) error {
+func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, log *slog.Logger, version string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		cancel()
@@ -504,25 +532,28 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, l
 
 	tdpConnProxy := tdp.NewConnProxy(&WebsocketIO{Conn: ws}, wds, func(_ *tdp.Conn, msg tdp.Message) (tdp.Message, error) {
 		if ping, ok := msg.(tdp.Ping); ok {
-			pings <- ping
+			if !latencySupported {
+				return nil, trace.BadParameter("received unexpected Ping message from server (this is a bug)")
+			}
+			select {
+			case pings <- ping:
+			case <-ctx.Done():
+			}
 			return nil, nil
-		}
-
-		if ls, ok := msg.(tdp.LatencyStats); ok {
-			log.DebugContext(ctx, "sending latency stats", "client", ls.ClientLatency, "server", ls.ServerLatency)
 		}
 		return msg, nil
 	})
 
 	if latencySupported {
 		pinger := desktopPinger{
-			wds: wds,
-			ch:  pings,
+			proxy: tdpConnProxy,
+			ch:    pings,
 		}
 
 		go monitorLatency(ctx, clockwork.NewRealClock(), ws, pinger,
 			latency.ReporterFunc(func(ctx context.Context, stats latency.Statistics) error {
-				return trace.Wrap(tdpConnProxy.SendToClient(ctx, tdp.LatencyStats{
+				log.DebugContext(ctx, "sending latency stats", "client", stats.Client, "server", stats.Server)
+				return trace.Wrap(tdpConnProxy.SendToClient(tdp.LatencyStats{
 					ClientLatency: uint32(stats.Client),
 					ServerLatency: uint32(stats.Server),
 				}))
@@ -531,7 +562,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, l
 
 	}
 
-	return trace.Wrap(tdpConnProxy.Run(ctx))
+	return trace.Wrap(tdpConnProxy.Run())
 }
 
 // handleProxyWebsocketConnErr handles the error returned by proxyWebsocketConn by

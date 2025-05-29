@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -36,30 +37,37 @@ func newUserGroupCollection(u services.UserGroups, w types.WatchKind) (*collecti
 	}
 
 	return &collection[types.UserGroup, userGroupIndex]{
-		store: newStore(map[userGroupIndex]func(types.UserGroup) string{
-			userGroupNameIndex: func(r types.UserGroup) string {
-				return r.GetName()
-			},
-		}),
+		store: newStore(
+			types.UserGroup.Clone,
+			map[userGroupIndex]func(types.UserGroup) string{
+				userGroupNameIndex: types.UserGroup.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.UserGroup, error) {
 			var startKey string
 			var groups []types.UserGroup
 			for {
-				resp, startKey, err := u.ListUserGroups(ctx, 0, startKey)
+				resp, next, err := u.ListUserGroups(ctx, 0, startKey)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 
 				groups = append(groups, resp...)
-				if startKey == "" {
+				if next == "" {
 					break
 				}
+				startKey = next
 			}
 			return groups, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.UserGroup {
 			return &types.UserGroupV1{
-				ResourceHeader: *hdr,
+				ResourceHeader: types.ResourceHeader{
+					Kind:    hdr.Kind,
+					Version: hdr.Version,
+					Metadata: types.Metadata{
+						Name: hdr.Metadata.Name,
+					},
+				},
 			}
 		},
 		watch: w,
@@ -81,6 +89,9 @@ func (c *Cache) ListUserGroups(ctx context.Context, pageSize int, nextKey string
 		group, nextKey, err := c.Config.UserGroups.ListUserGroups(ctx, pageSize, nextKey)
 		return group, nextKey, trace.Wrap(err)
 	}
+
+	// TODO(tross): DELETE IN V20.0.0
+	nextKey = strings.TrimPrefix(nextKey, "/")
 
 	// Adjust page size, so it can't be too large.
 	if pageSize <= 0 || pageSize > local.GroupMaxPageSize {

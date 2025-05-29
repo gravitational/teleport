@@ -1,0 +1,464 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  creationTimestamp: null
+  name: teleportdatabasesv3.resources.teleport.dev
+spec:
+  group: resources.teleport.dev
+  names:
+    kind: TeleportDatabaseV3
+    listKind: TeleportDatabaseV3List
+    plural: teleportdatabasesv3
+    shortNames:
+    - databasev3
+    - databasesv3
+    singular: teleportdatabasev3
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: DatabaseV3 is the Schema for the databasesv3 API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Database resource definition v3 from Teleport
+            properties:
+              ad:
+                description: AD is the Active Directory configuration for the database.
+                properties:
+                  domain:
+                    description: Domain is the Active Directory domain the database
+                      resides in.
+                    type: string
+                  kdc_host_name:
+                    description: KDCHostName is the host name for a KDC for x509 Authentication.
+                    type: string
+                  keytab_file:
+                    description: KeytabFile is the path to the Kerberos keytab file.
+                    type: string
+                  krb5_file:
+                    description: Krb5File is the path to the Kerberos configuration
+                      file. Defaults to /etc/krb5.conf.
+                    type: string
+                  ldap_cert:
+                    description: LDAPCert is a certificate from Windows LDAP/AD, optional;
+                      only for x509 Authentication.
+                    type: string
+                  ldap_service_account_name:
+                    description: LDAPServiceAccountName is the name of service account
+                      for performing LDAP queries. Required for x509 Auth / PKINIT.
+                    type: string
+                  ldap_service_account_sid:
+                    description: LDAPServiceAccountSID is the SID of service account
+                      for performing LDAP queries. Required for x509 Auth / PKINIT.
+                    type: string
+                  spn:
+                    description: SPN is the service principal name for the database.
+                    type: string
+                type: object
+              admin_user:
+                description: AdminUser is the database admin user for automatic user
+                  provisioning.
+                nullable: true
+                properties:
+                  default_database:
+                    description: DefaultDatabase is the database that the privileged
+                      database user logs into by default.  Depending on the database
+                      type, this database may be used to store procedures or data
+                      for managing database users.
+                    type: string
+                  name:
+                    description: Name is the username of the privileged database user.
+                    type: string
+                type: object
+              aws:
+                description: AWS contains AWS specific settings for RDS/Aurora/Redshift
+                  databases.
+                properties:
+                  account_id:
+                    description: AccountID is the AWS account ID this database belongs
+                      to.
+                    type: string
+                  assume_role_arn:
+                    description: AssumeRoleARN is an optional AWS role ARN to assume
+                      when accessing a database. Set this field and ExternalID to
+                      enable access across AWS accounts.
+                    type: string
+                  docdb:
+                    description: DocumentDB contains AWS DocumentDB specific metadata.
+                    properties:
+                      cluster_id:
+                        description: ClusterID is the cluster identifier.
+                        type: string
+                      endpoint_type:
+                        description: EndpointType is the type of the endpoint.
+                        type: string
+                      instance_id:
+                        description: InstanceID is the instance identifier.
+                        type: string
+                    type: object
+                  elasticache:
+                    description: ElastiCache contains AWS ElastiCache Redis specific
+                      metadata.
+                    properties:
+                      endpoint_type:
+                        description: EndpointType is the type of the endpoint.
+                        type: string
+                      replication_group_id:
+                        description: ReplicationGroupID is the Redis replication group
+                          ID.
+                        type: string
+                      transit_encryption_enabled:
+                        description: TransitEncryptionEnabled indicates whether in-transit
+                          encryption (TLS) is enabled.
+                        type: boolean
+                      user_group_ids:
+                        description: UserGroupIDs is a list of user group IDs.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                    type: object
+                  external_id:
+                    description: ExternalID is an optional AWS external ID used to
+                      enable assuming an AWS role across accounts.
+                    type: string
+                  iam_policy_status:
+                    description: 'IAMPolicyStatus indicates whether the IAM Policy
+                      is configured properly for database access. If not, the user
+                      must update the AWS profile identity to allow access to the
+                      Database. Eg for an RDS Database: the underlying AWS profile
+                      allows for `rds-db:connect` for the Database.'
+                    x-kubernetes-int-or-string: true
+                  memorydb:
+                    description: MemoryDB contains AWS MemoryDB specific metadata.
+                    properties:
+                      acl_name:
+                        description: ACLName is the name of the ACL associated with
+                          the cluster.
+                        type: string
+                      cluster_name:
+                        description: ClusterName is the name of the MemoryDB cluster.
+                        type: string
+                      endpoint_type:
+                        description: EndpointType is the type of the endpoint.
+                        type: string
+                      tls_enabled:
+                        description: TLSEnabled indicates whether in-transit encryption
+                          (TLS) is enabled.
+                        type: boolean
+                    type: object
+                  opensearch:
+                    description: OpenSearch contains AWS OpenSearch specific metadata.
+                    properties:
+                      domain_id:
+                        description: DomainID is the ID of the domain.
+                        type: string
+                      domain_name:
+                        description: DomainName is the name of the domain.
+                        type: string
+                      endpoint_type:
+                        description: EndpointType is the type of the endpoint.
+                        type: string
+                    type: object
+                  rds:
+                    description: RDS contains RDS specific metadata.
+                    properties:
+                      cluster_id:
+                        description: ClusterID is the RDS cluster (Aurora) identifier.
+                        type: string
+                      iam_auth:
+                        description: IAMAuth indicates whether database IAM authentication
+                          is enabled.
+                        type: boolean
+                      instance_id:
+                        description: InstanceID is the RDS instance identifier.
+                        type: string
+                      resource_id:
+                        description: ResourceID is the RDS instance resource identifier
+                          (db-xxx).
+                        type: string
+                      security_groups:
+                        description: SecurityGroups is a list of attached security
+                          groups for the RDS instance.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                      subnets:
+                        description: Subnets is a list of subnets for the RDS instance.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                      vpc_id:
+                        description: VPCID is the VPC where the RDS is running.
+                        type: string
+                    type: object
+                  rdsproxy:
+                    description: RDSProxy contains AWS Proxy specific metadata.
+                    properties:
+                      custom_endpoint_name:
+                        description: CustomEndpointName is the identifier of an RDS
+                          Proxy custom endpoint.
+                        type: string
+                      name:
+                        description: Name is the identifier of an RDS Proxy.
+                        type: string
+                      resource_id:
+                        description: ResourceID is the RDS instance resource identifier
+                          (prx-xxx).
+                        type: string
+                    type: object
+                  redshift:
+                    description: Redshift contains Redshift specific metadata.
+                    properties:
+                      cluster_id:
+                        description: ClusterID is the Redshift cluster identifier.
+                        type: string
+                    type: object
+                  redshift_serverless:
+                    description: RedshiftServerless contains AWS Redshift Serverless
+                      specific metadata.
+                    properties:
+                      endpoint_name:
+                        description: EndpointName is the VPC endpoint name.
+                        type: string
+                      workgroup_id:
+                        description: WorkgroupID is the workgroup ID.
+                        type: string
+                      workgroup_name:
+                        description: WorkgroupName is the workgroup name.
+                        type: string
+                    type: object
+                  region:
+                    description: Region is a AWS cloud region.
+                    type: string
+                  secret_store:
+                    description: SecretStore contains secret store configurations.
+                    properties:
+                      key_prefix:
+                        description: KeyPrefix specifies the secret key prefix.
+                        type: string
+                      kms_key_id:
+                        description: KMSKeyID specifies the AWS KMS key for encryption.
+                        type: string
+                    type: object
+                  session_tags:
+                    description: SessionTags is a list of AWS STS session tags.
+                    nullable: true
+                    properties:
+                      key:
+                        type: string
+                      value:
+                        type: string
+                    type: object
+                type: object
+              azure:
+                description: Azure contains Azure specific database metadata.
+                properties:
+                  is_flexi_server:
+                    description: IsFlexiServer is true if the database is an Azure
+                      Flexible server.
+                    type: boolean
+                  name:
+                    description: Name is the Azure database server name.
+                    type: string
+                  redis:
+                    description: Redis contains Azure Cache for Redis specific database
+                      metadata.
+                    properties:
+                      clustering_policy:
+                        description: ClusteringPolicy is the clustering policy for
+                          Redis Enterprise.
+                        type: string
+                    type: object
+                  resource_id:
+                    description: ResourceID is the Azure fully qualified ID for the
+                      resource.
+                    type: string
+                type: object
+              ca_cert:
+                description: 'CACert is the PEM-encoded database CA certificate.  DEPRECATED:
+                  Moved to TLS.CACert. DELETE IN 10.0.'
+                type: string
+              dynamic_labels:
+                description: DynamicLabels is the database dynamic labels.
+                properties:
+                  key:
+                    type: string
+                  value:
+                    nullable: true
+                    properties:
+                      command:
+                        description: Command is a command to run
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                      period:
+                        description: Period is a time between command runs
+                        format: duration
+                        type: string
+                      result:
+                        description: Result captures standard output
+                        type: string
+                    type: object
+                type: object
+              gcp:
+                description: GCP contains parameters specific to GCP Cloud SQL databases.
+                properties:
+                  instance_id:
+                    description: InstanceID is the Cloud SQL instance ID.
+                    type: string
+                  project_id:
+                    description: ProjectID is the GCP project ID the Cloud SQL instance
+                      resides in.
+                    type: string
+                type: object
+              mongo_atlas:
+                description: MongoAtlas contains Atlas metadata about the database.
+                properties:
+                  name:
+                    description: Name is the Atlas database instance name.
+                    type: string
+                type: object
+              mysql:
+                description: MySQL is an additional section with MySQL database options.
+                properties:
+                  server_version:
+                    description: ServerVersion is the server version reported by DB
+                      proxy if the runtime information is not available.
+                    type: string
+                type: object
+              oracle:
+                description: Oracle is an additional Oracle configuration options.
+                properties:
+                  audit_user:
+                    description: AuditUser is the Oracle database user privilege to
+                      access internal Oracle audit trail.
+                    type: string
+                type: object
+              protocol:
+                description: 'Protocol is the database protocol: postgres, mysql,
+                  mongodb, etc.'
+                type: string
+              tls:
+                description: TLS is the TLS configuration used when establishing connection
+                  to target database. Allows to provide custom CA cert or override
+                  server name.
+                properties:
+                  ca_cert:
+                    description: CACert is an optional user provided CA certificate
+                      used for verifying database TLS connection.
+                    type: string
+                  mode:
+                    description: Mode is a TLS connection mode. 0 is "verify-full";
+                      1 is "verify-ca", 2 is "insecure".
+                    x-kubernetes-int-or-string: true
+                  server_name:
+                    description: ServerName allows to provide custom hostname. This
+                      value will override the servername/hostname on a certificate
+                      during validation.
+                    type: string
+                  trust_system_cert_pool:
+                    description: TrustSystemCertPool allows Teleport to trust certificate
+                      authorities available on the host system. If not set (by default),
+                      Teleport only trusts self-signed databases with TLS certificates
+                      signed by Teleport's Database Server CA or the ca_cert specified
+                      in this TLS setting. For cloud-hosted databases, Teleport downloads
+                      the corresponding required CAs for validation.
+                    type: boolean
+                type: object
+              uri:
+                description: URI is the database connection endpoint.
+                type: string
+            type: object
+          status:
+            description: Status defines the observed state of the Teleport resource
+            properties:
+              conditions:
+                description: Conditions represent the latest available observations
+                  of an object's state
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              teleportResourceID:
+                format: int64
+                type: integer
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null

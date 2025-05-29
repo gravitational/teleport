@@ -86,7 +86,7 @@ func (r resourceTeleportClusterNetworkingConfig) Create(ctx context.Context, req
 		return
 	}
 
-	err = r.p.Client.SetClusterNetworkingConfig(ctx, clusterNetworkingConfig)
+	_, err = r.p.Client.UpsertClusterNetworkingConfig(ctx, clusterNetworkingConfig)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating ClusterNetworkingConfig", trace.Wrap(err), "cluster_networking_config"))
 		return
@@ -210,7 +210,7 @@ func (r resourceTeleportClusterNetworkingConfig) Update(ctx context.Context, req
 		return
 	}
 
-	err = r.p.Client.SetClusterNetworkingConfig(ctx, clusterNetworkingConfig)
+	_, err = r.p.Client.UpsertClusterNetworkingConfig(ctx, clusterNetworkingConfig)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating ClusterNetworkingConfig", trace.Wrap(err), "cluster_networking_config"))
 		return

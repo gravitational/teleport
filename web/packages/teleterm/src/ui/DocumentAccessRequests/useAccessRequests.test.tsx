@@ -155,6 +155,8 @@ test('makeUiAccessRequest', async () => {
     user: 'sevy',
     assumeStartTime: new Date('2024-03-07T23:20:50.520Z'),
     assumeStartTimeDuration: 'now',
+    reasonMode: 'optional',
+    reasonPrompts: [],
   };
 
   expect(makeUiAccessRequest(request)).toStrictEqual(processedRequest);

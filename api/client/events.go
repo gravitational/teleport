@@ -123,6 +123,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_AutoUpdateAgentRollout{
 			AutoUpdateAgentRollout: r.UnwrapT(),
 		}
+	case types.Resource153UnwrapperT[*autoupdate.AutoUpdateAgentReport]:
+		out.Resource = &proto.Event_AutoUpdateAgentReport{
+			AutoUpdateAgentReport: r.UnwrapT(),
+		}
 	case types.Resource153UnwrapperT[*identitycenterv1.Account]:
 		out.Resource = &proto.Event_IdentityCenterAccount{
 			IdentityCenterAccount: r.UnwrapT(),
@@ -208,10 +212,6 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		case types.KindSnowflakeSession:
 			out.Resource = &proto.Event_SnowflakeSession{
 				SnowflakeSession: r,
-			}
-		case types.KindSAMLIdPSession:
-			out.Resource = &proto.Event_SAMLIdPSession{
-				SAMLIdPSession: r,
 			}
 		default:
 			return nil, trace.BadParameter("only %q supported", types.WebSessionSubKinds)
@@ -605,6 +605,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetAutoUpdateAgentRollout(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetAutoUpdateAgentReport(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetUserTask(); r != nil {

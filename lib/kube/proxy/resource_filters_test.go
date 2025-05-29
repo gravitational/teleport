@@ -155,6 +155,7 @@ func Test_filterBuffer(t *testing.T) {
 			allowedResources := []types.KubernetesResource{
 				{
 					Kind:      r,
+					APIGroup:  "*",
 					Namespace: "default",
 					Name:      "*",
 					Verbs:     []string{types.KubeVerbList},
@@ -175,7 +176,7 @@ func Test_filterBuffer(t *testing.T) {
 
 				buf, decompress := newMemoryResponseWriter(t, data.Bytes(), tt.args.contentEncoding)
 
-				err = filterBuffer(newResourceFilterer(r, types.KubeVerbList, &globalKubeCodecs, allowedResources, nil, utils.NewSlogLoggerForTests()), buf)
+				err = filterBuffer(newResourceFilterer(r, "", types.KubeVerbList, false, &globalKubeCodecs, allowedResources, nil, utils.NewSlogLoggerForTests()), buf)
 				require.NoError(t, err)
 
 				// Decompress the buffer to compare the result.
@@ -235,7 +236,7 @@ func Test_filterBuffer(t *testing.T) {
 							require.NoError(t, err)
 						}
 
-						resource, err := getKubeResourcePartialMetadataObject(r, "list", row.Object.Object)
+						resource, err := getKubeResourcePartialMetadataObject(r, "", "list", row.Object.Object)
 						require.NoError(t, err)
 						resources = append(resources, resource.Namespace+"/"+resource.Name)
 					}
