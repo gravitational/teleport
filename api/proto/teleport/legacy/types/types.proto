@@ -1267,6 +1267,19 @@ message JWTKeyPair {
   PrivateKeyType PrivateKeyType = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
 }
 
+// EncryptionKeyPair is a PEM encoded keypair used for encrypting and decrypting data.
+message EncryptionKeyPair {
+  // PublicKey is a PEM encoded public key.
+  bytes public_key = 1 [(gogoproto.jsontag) = "public_key,omitempty"];
+  // PrivateKey is a PEM encoded private key.
+  bytes private_key = 2 [(gogoproto.jsontag) = "private_key,omitempty"];
+  // PrivateKeyType is the type of the PrivateKey.
+  PrivateKeyType private_key_type = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
+  // Hash function used during OAEP encryption/decryption. It maps directly to the possible
+  // values of [crypto.Hash] in the go crypto package.
+  uint32 hash = 4 [(gogoproto.jsontag) = "hash,omitempty"];
+}
+
 // CertAuthorityV2 is version 2 resource spec for Cert Authority
 message CertAuthorityV2 {
   option (gogoproto.goproto_stringer) = false;
