@@ -1297,7 +1297,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 			types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Rules: []types.Rule{
-						// TODO
+						types.NewRule(types.KindRelayServer, services.RO()),
 					},
 				},
 			},

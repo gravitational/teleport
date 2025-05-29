@@ -101,3 +101,7 @@ func (s *store[T, I]) count(index I, start, stop string) int {
 
 	return n
 }
+
+func (s *store[T, I]) subtleUnorderedVisit() iter.Seq[T] {
+	return s.cache.SubtleUnorderedVisit()
+}

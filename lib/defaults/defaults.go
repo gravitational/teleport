@@ -359,6 +359,8 @@ const (
 
 	// DiscoveryQueueSize is discovery service queue size.
 	DiscoveryQueueSize = 128
+
+	RelayQueueSize = 8192
 )
 
 var (

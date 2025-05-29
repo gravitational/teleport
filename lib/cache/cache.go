@@ -449,6 +449,19 @@ func ForOkta(cfg Config) Config {
 	return cfg
 }
 
+func ForRelay() SetupConfigFn {
+	return func(cfg Config) Config {
+		cfg.target = "relay"
+		cfg.Watches = []types.WatchKind{
+			{Kind: types.KindNode},
+			{Kind: types.KindKubeServer},
+			{Kind: types.KindRelayServer},
+		}
+		cfg.QueueSize = defaults.RelayQueueSize
+		return cfg
+	}
+}
+
 // SetupConfigFn is a function that sets up configuration
 // for cache
 type SetupConfigFn func(c Config) Config
