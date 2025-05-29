@@ -211,8 +211,8 @@ func NewSoftwareKeystoreForTests(_ *testing.T, opts ...TestKeystoreOption) *Mana
 	}
 	softwareBackend := newSoftwareKeyStore(&softwareConfig{rsaKeyPairSource: options.rsaKeyPairSource})
 	return &Manager{
-		backendForNewKeys:     softwareBackend,
-		usableSigningBackends: []backend{softwareBackend},
+		backendForNewKeys: softwareBackend,
+		usableBackends:    []backend{softwareBackend},
 		currentSuiteGetter: cryptosuites.GetSuiteFunc(func(context.Context) (types.SignatureAlgorithmSuite, error) {
 			return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
 		}),
