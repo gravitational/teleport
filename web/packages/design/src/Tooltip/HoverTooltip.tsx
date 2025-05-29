@@ -173,6 +173,9 @@ export const HoverTooltip = ({
         onMouseLeave: () => setOpen(false),
       })}
       className={className}
+      css={`
+        display: inline-flex;
+      `}
     >
       {children}
       {isMounted && (
