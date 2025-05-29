@@ -218,7 +218,8 @@ spec:
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
-    - kind: pod
+    - api_group: '*'
+      kind: pods
       name: '*'
       namespace: '*'
     logins:
@@ -253,7 +254,7 @@ version: v8
 			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -294,7 +295,7 @@ version: v2
 	}, item)
 }
 
-func TestGetRoles(t *testing.T) {
+func TestListRoles(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockListRoles = func(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {

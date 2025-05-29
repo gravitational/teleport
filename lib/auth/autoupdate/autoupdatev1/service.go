@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/autoupdate/rollout"
 	"github.com/gravitational/teleport/lib/events"
@@ -658,6 +659,25 @@ func (s *Service) DeleteAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 	return &emptypb.Empty{}, nil
 }
 
+func (s *Service) getAllReports(ctx context.Context) ([]*autoupdate.AutoUpdateAgentReport, error) {
+	var reports []*autoupdate.AutoUpdateAgentReport
+
+	// this is an in-memory client, we go for the default page size
+	const pageSize = 0
+	var pageToken string
+	for {
+		page, nextToken, err := s.cache.ListAutoUpdateAgentReports(ctx, pageSize, pageToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		reports = append(reports, page...)
+		if nextToken == "" {
+			return reports, nil
+		}
+		pageToken = nextToken
+	}
+}
+
 // TriggerAutoUpdateAgentGroup triggers automatic updates for one or many groups
 // in the rollout.
 func (s *Service) TriggerAutoUpdateAgentGroup(ctx context.Context, req *autoupdate.TriggerAutoUpdateAgentGroupRequest) (result *autoupdate.AutoUpdateAgentRollout, err error) {
@@ -701,10 +721,14 @@ func (s *Service) TriggerAutoUpdateAgentGroup(ctx context.Context, req *autoupda
 	for range maxTries {
 		existingRollout, err = s.backend.GetAutoUpdateAgentRollout(ctx)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "getting rollout")
+		}
+		reports, err := s.getAllReports(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting reports")
 		}
 
-		err = rollout.TriggerGroups(existingRollout, rollout.GroupListToGroupSet(req.Groups), req.DesiredState, s.clock.Now())
+		err = rollout.TriggerGroups(existingRollout, reports, rollout.GroupListToGroupSet(req.Groups), req.DesiredState, s.clock.Now())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1073,11 +1097,12 @@ func validateServerSideAgentConfig(config *autoupdate.AutoUpdateConfig) error {
 		return trace.Wrap(err, "validating autoupdate config")
 	}
 
-	var maxGroups int
-	isCloud := modules.GetModules().Features().Cloud
+	isLimitedCloud := modules.GetModules().Features().Cloud &&
+		!modules.GetModules().Features().Entitlements[entitlements.UnrestrictedManagedUpdates].Enabled
 
+	var maxGroups int
 	switch {
-	case isCloud && agentsSpec.GetStrategy() == update.AgentsStrategyHaltOnError:
+	case isLimitedCloud && agentsSpec.GetStrategy() == update.AgentsStrategyHaltOnError:
 		maxGroups = maxGroupsHaltOnErrorStrategyCloud
 	case agentsSpec.GetStrategy() == update.AgentsStrategyHaltOnError:
 		maxGroups = maxGroupsHaltOnErrorStrategy
@@ -1091,7 +1116,7 @@ func validateServerSideAgentConfig(config *autoupdate.AutoUpdateConfig) error {
 		return trace.BadParameter("max groups (%d) exceeded for strategy %s, %s schedule contains %d groups", maxGroups, agentsSpec.GetStrategy(), update.AgentsScheduleRegular, len(agentsSpec.GetSchedules().GetRegular()))
 	}
 
-	if !isCloud {
+	if !isLimitedCloud {
 		return nil
 	}
 
@@ -1109,7 +1134,6 @@ func validateServerSideAgentConfig(config *autoupdate.AutoUpdateConfig) error {
 		if !maps.Equal(cloudWeekdays, weekdays) {
 			return trace.BadParameter("weekdays must be set to %v in cloud", cloudGroupUpdateDays)
 		}
-
 	}
 
 	if duration := computeMinRolloutTime(agentsSpec.GetSchedules().GetRegular()); duration > maxRolloutDurationCloudHours {

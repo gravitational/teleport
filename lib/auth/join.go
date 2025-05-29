@@ -445,6 +445,7 @@ func (a *Server) generateCertsBot(
 		renewable,
 		auth,
 		req.BotInstanceID,
+		req.PreviousBotInstanceID,
 		req.BotGeneration,
 		attrs,
 	)

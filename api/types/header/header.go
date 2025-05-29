@@ -17,6 +17,7 @@ limitations under the License.
 package header
 
 import (
+	"maps"
 	"slices"
 	"time"
 
@@ -48,6 +49,19 @@ type ResourceHeader struct {
 	Version string `json:"version,omitempty"`
 	// Metadata is metadata for the resource.
 	Metadata Metadata `json:"metadata,omitempty"`
+}
+
+func (h *ResourceHeader) Clone() *ResourceHeader {
+	if h == nil {
+		return nil
+	}
+
+	return &ResourceHeader{
+		Kind:     h.Kind,
+		SubKind:  h.SubKind,
+		Version:  h.Version,
+		Metadata: *h.Metadata.Clone(),
+	}
 }
 
 // GetVersion returns the resource version.
@@ -177,6 +191,20 @@ type Metadata struct {
 	// over time. Clients should ignore and not alter its value but must return
 	// the revision in any updates of a resource.
 	Revision string `json:"revision,omitempty" yaml:"revision,omitempty"`
+}
+
+func (m *Metadata) Clone() *Metadata {
+	if m == nil {
+		return nil
+	}
+
+	return &Metadata{
+		Name:        m.Name,
+		Description: m.Description,
+		Labels:      maps.Clone(m.Labels),
+		Expires:     m.Expires,
+		Revision:    m.Revision,
+	}
 }
 
 // GetRevision returns the revision

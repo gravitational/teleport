@@ -605,6 +605,10 @@ build-archive: | $(RELEASE_DIR)
 		CHANGELOG.md \
 		build.assets/LICENSE-community \
 		teleport/
+	# add SELinux install script for Linux archives
+	$(if $(filter linux,$(OS)), \
+		cp assets/install-scripts/install-selinux.sh teleport/ \
+	)
 	echo $(GITTAG) > teleport/VERSION
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	cp $(RELEASE).tar.gz $(RELEASE_DIR)
@@ -1593,7 +1597,7 @@ protos-up-to-date/host: must-start-clean/host grpc/host
 .PHONY: must-start-clean/host
 must-start-clean/host:
 	@if ! git diff --quiet; then \
-		@echo 'This must be run from a repo with no unstaged commits.'; \
+		echo 'This must be run from a repo with no unstaged commits.'; \
 		git diff; \
 		exit 1; \
 	fi
@@ -1601,7 +1605,7 @@ must-start-clean/host:
 # crds-up-to-date checks if the generated CRDs from the protobuf stubs are up to date.
 .PHONY: crds-up-to-date
 crds-up-to-date: must-start-clean/host
-	$(MAKE) -C integrations/operator manifests
+	$(MAKE) -C integrations/operator crd-manifests
 	@if ! git diff --quiet; then \
 		./build.assets/please-run.sh "operator CRD manifests" "make -C integrations/operator crd"; \
 		exit 1; \

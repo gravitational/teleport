@@ -24,19 +24,27 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types/autoupdate"
 )
 
 func TestTriggerGroups(t *testing.T) {
 	now := time.Now()
 	nowPb := timestamppb.New(now)
+	fewSecondsAgo := now.Add(-3 * time.Second)
+	fewMinutesAgo := now.Add(-6 * time.Minute)
+	startVersion := "1.2.3"
+	targetVersion := "1.2.4"
+	otherVersion := "1.2.5"
+
 	spec := &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
-		StartVersion:   "1.2.3",
-		TargetVersion:  "1.2.4",
+		StartVersion:   startVersion,
+		TargetVersion:  targetVersion,
 		Schedule:       autoupdate.AgentsScheduleRegular,
 		AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 		Strategy:       autoupdate.AgentsStrategyHaltOnError,
@@ -65,12 +73,58 @@ func TestTriggerGroups(t *testing.T) {
 			},
 		},
 	}
+	testReports := []*autoupdatev1pb.AutoUpdateAgentReport{
+		{
+			Metadata: &headerv1.Metadata{Name: "auth1"},
+			Spec: &autoupdatev1pb.AutoUpdateAgentReportSpec{
+				Timestamp: timestamppb.New(fewSecondsAgo),
+				Groups: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroup{
+					"blue": {
+						Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
+							startVersion:  {Count: 4},
+							targetVersion: {Count: 5},
+							otherVersion:  {Count: 1},
+						},
+					},
+					"dev": {
+						Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
+							startVersion:  {Count: 5},
+							targetVersion: {Count: 5},
+						},
+					},
+				},
+			},
+		},
+		{
+			// This report is expired, it must be ignored
+			Metadata: &headerv1.Metadata{Name: "auth2"},
+			Spec: &autoupdatev1pb.AutoUpdateAgentReportSpec{
+				Timestamp: timestamppb.New(fewMinutesAgo),
+				Groups: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroup{
+					"blue": {
+						Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
+							startVersion:  {Count: 123},
+							targetVersion: {Count: 123},
+							otherVersion:  {Count: 123},
+						},
+					},
+					"stage": {
+						Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
+							startVersion:  {Count: 123},
+							targetVersion: {Count: 123},
+						},
+					},
+				},
+			},
+		},
+	}
 
 	tests := []struct {
 		name           string
 		rollout        *autoupdatev1pb.AutoUpdateAgentRollout
 		groupNames     []string
 		desiredState   autoupdatev1pb.AutoUpdateAgentGroupState
+		reports        []*autoupdatev1pb.AutoUpdateAgentReport
 		expectedStatus *autoupdatev1pb.AutoUpdateAgentRolloutStatus
 		expectErr      require.ErrorAssertionFunc
 	}{
@@ -78,7 +132,7 @@ func TestTriggerGroups(t *testing.T) {
 			name: "valid transition",
 			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
 				Spec:   spec,
-				Status: status,
+				Status: proto.CloneOf(status),
 			},
 			groupNames:   []string{"blue", "prod", "backup"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
@@ -91,6 +145,54 @@ func TestTriggerGroups(t *testing.T) {
 						StartTime:        nowPb,
 						LastUpdateTime:   nowPb,
 						LastUpdateReason: updateReasonManualTrigger,
+					},
+					{
+						Name:  "dev",
+						State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
+					},
+					{
+						Name:  "stage",
+						State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
+					},
+					{
+						Name:             "prod",
+						State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
+						StartTime:        nowPb,
+						LastUpdateTime:   nowPb,
+						LastUpdateReason: updateReasonManualTrigger,
+					},
+					{
+						Name:             "backup",
+						State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
+						StartTime:        nowPb,
+						LastUpdateTime:   nowPb,
+						LastUpdateReason: updateReasonManualTrigger,
+					},
+				},
+			},
+		},
+		{
+			name: "valid transition, with reports",
+			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
+				Spec:   spec,
+				Status: proto.CloneOf(status),
+			},
+			groupNames:   []string{"blue", "prod", "backup"},
+			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
+			reports:      testReports,
+			expectErr:    require.NoError,
+			expectedStatus: &autoupdatev1pb.AutoUpdateAgentRolloutStatus{
+				Groups: []*autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup{
+					{
+						Name:             "blue",
+						State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
+						StartTime:        nowPb,
+						LastUpdateTime:   nowPb,
+						LastUpdateReason: updateReasonManualTrigger,
+						// The group transitioned, the count must be set
+						InitialCount:  10,
+						PresentCount:  10,
+						UpToDateCount: 5,
 					},
 					{
 						Name:  "dev",
@@ -133,7 +235,7 @@ func TestTriggerGroups(t *testing.T) {
 			name: "unsupported desired state",
 			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
 				Spec:   spec,
-				Status: status,
+				Status: proto.CloneOf(status),
 			},
 			groupNames:   []string{"prod", "backup"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
@@ -145,13 +247,13 @@ func TestTriggerGroups(t *testing.T) {
 			name: "unsupported strategy",
 			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
 				Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
-					StartVersion:   "1.2.3",
-					TargetVersion:  "1.2.4",
+					StartVersion:   startVersion,
+					TargetVersion:  targetVersion,
 					Schedule:       autoupdate.AgentsScheduleRegular,
 					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 					Strategy:       autoupdate.AgentsStrategyTimeBased,
 				},
-				Status: status,
+				Status: proto.CloneOf(status),
 			},
 			groupNames:   []string{"prod", "backup"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
@@ -163,12 +265,12 @@ func TestTriggerGroups(t *testing.T) {
 			name: "unsupported schedule",
 			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
 				Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
-					StartVersion:   "1.2.3",
-					TargetVersion:  "1.2.4",
+					StartVersion:   startVersion,
+					TargetVersion:  targetVersion,
 					Schedule:       autoupdate.AgentsScheduleImmediate,
 					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 				},
-				Status: nil,
+				Status: proto.CloneOf(status),
 			},
 			groupNames:   []string{"prod", "backup"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
@@ -203,7 +305,7 @@ func TestTriggerGroups(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := TriggerGroups(tt.rollout, GroupListToGroupSet(tt.groupNames), tt.desiredState, now)
+			err := TriggerGroups(tt.rollout, tt.reports, GroupListToGroupSet(tt.groupNames), tt.desiredState, now)
 			tt.expectErr(t, err)
 
 			if err == nil {

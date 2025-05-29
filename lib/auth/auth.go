@@ -63,6 +63,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -646,9 +647,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	if as.ghaIDTokenValidator == nil {
 		as.ghaIDTokenValidator = githubactions.NewIDTokenValidator(
-			githubactions.IDTokenValidatorConfig{
-				Clock: as.clock,
-			},
+			githubactions.IDTokenValidatorConfig{},
 		)
 	}
 	if as.ghaIDTokenJWKSValidator == nil {
@@ -656,9 +655,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if as.spaceliftIDTokenValidator == nil {
 		as.spaceliftIDTokenValidator = spacelift.NewIDTokenValidator(
-			spacelift.IDTokenValidatorConfig{
-				Clock: as.clock,
-			},
+			spacelift.IDTokenValidatorConfig{},
 		)
 	}
 	if as.gitlabIDTokenValidator == nil {
@@ -680,7 +677,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			ctx context.Context, organizationID, token string,
 		) (*circleci.IDTokenClaims, error) {
 			return circleci.ValidateToken(
-				ctx, as.clock, circleci.IssuerURLTemplate, organizationID, token,
+				ctx, circleci.IssuerURLTemplate, organizationID, token,
 			)
 		}
 	}
@@ -696,20 +693,16 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	if as.gcpIDTokenValidator == nil {
 		as.gcpIDTokenValidator = gcp.NewIDTokenValidator(
-			gcp.IDTokenValidatorConfig{
-				Clock: as.clock,
-			},
+			gcp.IDTokenValidatorConfig{},
 		)
 	}
 
 	if as.terraformIDTokenValidator == nil {
-		as.terraformIDTokenValidator = terraformcloud.NewIDTokenValidator(terraformcloud.IDTokenValidatorConfig{
-			Clock: as.clock,
-		})
+		as.terraformIDTokenValidator = terraformcloud.NewIDTokenValidator(terraformcloud.IDTokenValidatorConfig{})
 	}
 
 	if as.bitbucketIDTokenValidator == nil {
-		as.bitbucketIDTokenValidator = bitbucket.NewIDTokenValidator(as.clock)
+		as.bitbucketIDTokenValidator = bitbucket.NewIDTokenValidator()
 	}
 
 	if as.createBoundKeypairValidator == nil {
@@ -1461,6 +1454,7 @@ const (
 	upgradeWindowCheckKey
 	roleCountKey
 	accessListReminderNotificationsKey
+	autoUpdateAgentReportKey
 )
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1549,6 +1543,12 @@ func (a *Server) runPeriodicOperations() {
 			Duration:      10 * time.Minute,
 			FirstDuration: retryutils.HalfJitter(10 * time.Second),
 			Jitter:        retryutils.HalfJitter,
+		})
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           autoUpdateAgentReportKey,
+			Duration:      constants.AutoUpdateAgentReportPeriod,
+			FirstDuration: retryutils.FullJitter(constants.AutoUpdateAgentReportPeriod),
+			// No jitter here, this is intentional and required for accurate tracking across auths.
 		})
 	}
 
@@ -1674,6 +1674,8 @@ func (a *Server) runPeriodicOperations() {
 				go a.tallyRoles(a.closeCtx)
 			case accessListReminderNotificationsKey:
 				go a.CreateAccessListReminderNotifications(a.closeCtx)
+			case autoUpdateAgentReportKey:
+				go a.reportAgentVersions(a.closeCtx)
 			}
 		}
 	}
@@ -4947,12 +4949,12 @@ func (a *Server) GetSystemRoleAssertions(ctx context.Context, serverID string, a
 	return set, trace.Wrap(err)
 }
 
-func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) error {
+func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello *proto.UpstreamInventoryHello) error {
 	// upstream hello is pulled and checked at rbac layer. we wait to send the downstream hello until we get here
 	// in order to simplify creation of in-memory streams when dealing with local auth (note: in theory we could
 	// send hellos simultaneously to slightly improve perf, but there is a potential benefit to having the
 	// downstream hello serve double-duty as an indicator of having successfully transitioned the rbac layer).
-	downstreamHello := proto.DownstreamInventoryHello{
+	downstreamHello := &proto.DownstreamInventoryHello{
 		Version:  teleport.Version,
 		ServerID: a.ServerID,
 		Capabilities: &proto.DownstreamInventoryHello_SupportedCapabilities{
@@ -4979,7 +4981,7 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 	go func() {
 		select {
 		case msg := <-upstream.Recv():
-			hello, ok := msg.(proto.UpstreamInventoryHello)
+			hello, ok := msg.(*proto.UpstreamInventoryHello)
 			if !ok {
 				upstream.CloseWithError(trace.BadParameter("expected upstream hello, got: %T", msg))
 				return
@@ -4996,8 +4998,8 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 	return downstream
 }
 
-func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
-	var rsp proto.InventoryStatusSummary
+func (a *Server) GetInventoryStatus(ctx context.Context, req *proto.InventoryStatusRequest) (*proto.InventoryStatusSummary, error) {
+	rsp := new(proto.InventoryStatusSummary)
 	if req.Connected {
 		a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 			rsp.Connected = append(rsp.Connected, handle.Hello())
@@ -5069,12 +5071,12 @@ func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingReque
 
 // UpdateLabels updates the labels on an instance over the inventory control
 // stream.
-func (a *Server) UpdateLabels(ctx context.Context, req proto.InventoryUpdateLabelsRequest) error {
-	stream, ok := a.inventory.GetControlStream(req.ServerID)
+func (a *Server) UpdateLabels(ctx context.Context, req *proto.InventoryUpdateLabelsRequest) error {
+	stream, ok := a.inventory.GetControlStream(req.GetServerID())
 	if !ok {
-		return trace.NotFound("no control stream found for server %q", req.ServerID)
+		return trace.NotFound("no control stream found for server %q", req.GetServerID())
 	}
-	return trace.Wrap(stream.UpdateLabels(ctx, req.Kind, req.Labels))
+	return trace.Wrap(stream.UpdateLabels(ctx, req.GetKind(), req.GetLabels()))
 }
 
 // TokenExpiredOrNotFound is a special message returned by the auth server when provisioning
@@ -5292,8 +5294,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 
 	req.SetCreationTime(now)
 
-	// Always perform variable expansion on creation only; this ensures the
-	// access request that is reviewed is the same that is approved.
+	// Always perform variable expansion on creation.
 	expandOpts := services.WithExpandVars(true)
 	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
 		return nil, trace.Wrap(err)
@@ -5311,11 +5312,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	if req.GetDryRun() {
+		// NOTE: Some dry-run options are set in [services.ValidateAccessRequestForUser].
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
-		// update the request with additional reviewers if possible.
 		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessLists, promotions)
-		// Made it this far with no errors, return before creating the request
-		// if this is a dry run.
+		// Return before creating the request if this is a dry run.
 		return req, nil
 	}
 
@@ -5340,7 +5340,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 			a.logger.DebugContext(ctx, "Failed to encode access request annotations", "error", err)
 		}
 	}
-
+	resourceNames, err := accessrequest.GetResourceNames(ctx, a.Services, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
@@ -5352,6 +5355,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		},
 		Roles:                req.GetRoles(),
 		RequestedResourceIDs: apievents.ResourceIDs(req.GetRequestedResourceIDs()),
+		ResourceNames:        resourceNames,
 		RequestID:            req.GetName(),
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),

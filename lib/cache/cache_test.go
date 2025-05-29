@@ -114,7 +114,6 @@ type testPack struct {
 	presenceS               *local.PresenceService
 	appSessionS             *local.IdentityService
 	snowflakeSessionS       *local.IdentityService
-	samlIdPSessionsS        *local.IdentityService
 	restrictions            *local.RestrictionsService
 	apps                    *local.AppService
 	kubernetes              *local.KubernetesService
@@ -289,7 +288,6 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.appSessionS = idService
 	p.webSessionS = idService.WebSessions()
 	p.snowflakeSessionS = idService
-	p.samlIdPSessionsS = idService
 	p.webTokenS = idService.WebTokens()
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
@@ -452,7 +450,6 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		SnowflakeSession:        p.snowflakeSessionS,
-		SAMLIdPSession:          p.samlIdPSessionsS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -725,7 +722,6 @@ func TestCompletenessInit(t *testing.T) {
 			AppSession:              p.appSessionS,
 			WebSession:              p.webSessionS,
 			SnowflakeSession:        p.snowflakeSessionS,
-			SAMLIdPSession:          p.samlIdPSessionsS,
 			WebToken:                p.webTokenS,
 			Restrictions:            p.restrictions,
 			Apps:                    p.apps,
@@ -813,7 +809,6 @@ func TestCompletenessReset(t *testing.T) {
 		AppSession:              p.appSessionS,
 		WebSession:              p.webSessionS,
 		SnowflakeSession:        p.snowflakeSessionS,
-		SAMLIdPSession:          p.samlIdPSessionsS,
 		WebToken:                p.webTokenS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
@@ -972,7 +967,6 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		SnowflakeSession:        p.snowflakeSessionS,
-		SAMLIdPSession:          p.samlIdPSessionsS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -1069,7 +1063,6 @@ func initStrategy(t *testing.T) {
 		Presence:                p.presenceS,
 		AppSession:              p.appSessionS,
 		SnowflakeSession:        p.snowflakeSessionS,
-		SAMLIdPSession:          p.samlIdPSessionsS,
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		Restrictions:            p.restrictions,
@@ -1246,87 +1239,6 @@ func newUserTasks(t *testing.T) *usertasksv1.UserTask {
 	require.NoError(t, err)
 
 	return ut
-}
-
-// TestAuditQuery tests that CRUD operations on access list rule resources are
-// replicated from the backend to the cache.
-func TestAuditQuery(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[*secreports.AuditQuery]{
-		newResource: func(name string) (*secreports.AuditQuery, error) {
-			return newAuditQuery(t, name), nil
-		},
-		create: func(ctx context.Context, item *secreports.AuditQuery) error {
-			err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
-			return trace.Wrap(err)
-		},
-		list:      p.secReports.GetSecurityAuditQueries,
-		cacheGet:  p.cache.GetSecurityAuditQuery,
-		cacheList: p.cache.GetSecurityAuditQueries,
-		update: func(ctx context.Context, item *secreports.AuditQuery) error {
-			err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
-			return trace.Wrap(err)
-		},
-		deleteAll: p.secReports.DeleteAllSecurityAuditQueries,
-	})
-}
-
-// TestSecurityReportState tests that CRUD operations on security report state resources are
-// replicated from the backend to the cache.
-func TestSecurityReports(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[*secreports.Report]{
-		newResource: func(name string) (*secreports.Report, error) {
-			return newSecurityReport(t, name), nil
-		},
-		create: func(ctx context.Context, item *secreports.Report) error {
-			err := p.secReports.UpsertSecurityReport(ctx, item)
-			return trace.Wrap(err)
-		},
-		list:      p.secReports.GetSecurityReports,
-		cacheGet:  p.cache.GetSecurityReport,
-		cacheList: p.cache.GetSecurityReports,
-		update: func(ctx context.Context, item *secreports.Report) error {
-			err := p.secReports.UpsertSecurityReport(ctx, item)
-			return trace.Wrap(err)
-		},
-		deleteAll: p.secReports.DeleteAllSecurityReports,
-	})
-}
-
-// TestSecurityReportState tests that CRUD operations on security report state resources are
-// replicated from the backend to the cache.
-func TestSecurityReportState(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[*secreports.ReportState]{
-		newResource: func(name string) (*secreports.ReportState, error) {
-			return newSecurityReportState(t, name), nil
-		},
-		create: func(ctx context.Context, item *secreports.ReportState) error {
-			err := p.secReports.UpsertSecurityReportsState(ctx, item)
-			return trace.Wrap(err)
-		},
-		list:      p.secReports.GetSecurityReportsStates,
-		cacheGet:  p.cache.GetSecurityReportState,
-		cacheList: p.cache.GetSecurityReportsStates,
-		update: func(ctx context.Context, item *secreports.ReportState) error {
-			err := p.secReports.UpsertSecurityReportsState(ctx, item)
-			return trace.Wrap(err)
-		},
-		deleteAll: p.secReports.DeleteAllSecurityReportsStates,
-	})
 }
 
 // testResources is a generic tester for resources.
@@ -1893,7 +1805,6 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWebSession:                        &types.WebSessionV2{SubKind: types.KindWebSession},
 		types.KindAppSession:                        &types.WebSessionV2{SubKind: types.KindAppSession},
 		types.KindSnowflakeSession:                  &types.WebSessionV2{SubKind: types.KindSnowflakeSession},
-		types.KindSAMLIdPSession:                    &types.WebSessionV2{SubKind: types.KindSAMLIdPServiceProvider},
 		types.KindWebToken:                          &types.WebTokenV3{},
 		types.KindRemoteCluster:                     &types.RemoteClusterV3{},
 		types.KindKubeServer:                        &types.KubernetesServerV3{},

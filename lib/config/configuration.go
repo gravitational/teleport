@@ -515,6 +515,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.AccessGraph.CA = fc.AccessGraph.CA
 		// TODO(tigrato): change this behavior when we drop support for plain text connections
 		cfg.AccessGraph.Insecure = fc.AccessGraph.Insecure
+		cfg.AccessGraph.AuditLog = servicecfg.AuditLogConfig(fc.AccessGraph.AuditLog)
 	}
 
 	applyString(fc.NodeName, &cfg.Hostname)
@@ -1056,9 +1057,10 @@ func applyAWSKMSConfig(kmsConfig *AWSKMS, cfg *servicecfg.Config) error {
 	cfg.Auth.KeyStore.AWSKMS = &servicecfg.AWSKMSConfig{
 		AWSAccount:  kmsConfig.Account,
 		AWSRegion:   kmsConfig.Region,
-		MultiRegion: kmsConfig.MultiRegion,
 		Tags:        kmsConfig.Tags,
+		MultiRegion: kmsConfig.MultiRegion,
 	}
+
 	return nil
 }
 
@@ -1637,9 +1639,18 @@ kubernetes matchers are present`)
 					ExternalID: awsMatcher.ExternalID,
 				}
 			}
+			var cloudTrailLogs *types.AccessGraphAWSSyncCloudTrailLogs
+			if awsMatcher.CloudTrailLogs != nil {
+				cloudTrailLogs = &types.AccessGraphAWSSyncCloudTrailLogs{
+					SQSQueue: awsMatcher.CloudTrailLogs.QueueURL,
+					Region:   awsMatcher.CloudTrailLogs.QueueRegion,
+				}
+			}
+
 			tMatcher.AWS = append(tMatcher.AWS, &types.AccessGraphAWSSync{
-				Regions:    regions,
-				AssumeRole: assumeRole,
+				Regions:        regions,
+				AssumeRole:     assumeRole,
+				CloudTrailLogs: cloudTrailLogs,
 			})
 		}
 		for _, azureMatcher := range fc.Discovery.AccessGraph.Azure {

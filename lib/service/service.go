@@ -63,6 +63,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -1260,11 +1261,16 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 	upgraderKind, externalUpgrader, upgraderVersion := process.detectUpgrader()
 
-	getHello := func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
-		hello := proto.UpstreamInventoryHello{
+	getHello := func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+		instanceRoles := process.getInstanceRoles()
+		services := make([]string, 0, len(instanceRoles))
+		for _, r := range instanceRoles {
+			services = append(services, string(r))
+		}
+		hello := &proto.UpstreamInventoryHello{
 			ServerID:         cfg.HostUUID,
 			Version:          teleport.Version,
-			Services:         process.getInstanceRoles(),
+			Services:         services,
 			Hostname:         cfg.Hostname,
 			ExternalUpgrader: externalUpgrader,
 		}
@@ -1297,14 +1303,14 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		return nil, trace.Wrap(err, "building inventory handle")
 	}
 
-	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
+	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping *proto.DownstreamInventoryPing) {
 		systemClock := process.Clock.Now().UTC()
 		process.logger.InfoContext(process.ExitContext(), "Handling incoming inventory ping.",
-			"id", ping.ID,
+			"id", ping.GetID(),
 			"clock", systemClock)
-		err := sender.Send(process.ExitContext(), proto.UpstreamInventoryPong{
-			ID:          ping.ID,
-			SystemClock: systemClock,
+		err := sender.Send(process.ExitContext(), &proto.UpstreamInventoryPong{
+			ID:          ping.GetID(),
+			SystemClock: timestamppb.New(systemClock),
 		})
 		if err != nil {
 			process.logger.WarnContext(process.ExitContext(), "Failed to respond to inventory ping.", "id", ping.ID, "error", err)
@@ -2678,7 +2684,6 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.Provisioner = services.Provisioner
 	cfg.Restrictions = services.Restrictions
 	cfg.SAMLIdPServiceProviders = services.SAMLIdPServiceProviders
-	cfg.SAMLIdPSession = services.Identity
 	cfg.SecReports = services.SecReports
 	cfg.SnowflakeSession = services.Identity
 	cfg.SPIFFEFederations = services.SPIFFEFederations
@@ -2732,7 +2737,6 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.Provisioner = client
 	cfg.Restrictions = client
 	cfg.SAMLIdPServiceProviders = client
-	cfg.SAMLIdPSession = client
 	cfg.SecReports = client.SecReportsClient()
 	cfg.SnowflakeSession = client
 	cfg.StaticHostUsers = client.StaticHostUserClient()
