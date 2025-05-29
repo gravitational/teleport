@@ -1400,7 +1400,8 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 
 	for _, kind := range requested {
 		if _, ok := supportedUnifiedResourceKinds[kind]; !ok {
-			return nil, trace.BadParameter("Unsupported kind %q requested", kind)
+			resourceAccess.kindAccessMap[kind] = trace.AccessDenied("Unsupported kind %q requested", kind)
+			continue
 		}
 
 		actionVerbs := []string{types.VerbList, types.VerbRead}
