@@ -55,8 +55,8 @@ func (s TargetHealthStatus) Canonical() TargetHealthStatus {
 	}
 }
 
-// Aggregates health statuses into a single status. If there are a mix of
-// different statuses then the aggregate status is "mixed".
+// AggregateHealthStatus health statuses into a single status. If there are a
+// mix of different statuses then the aggregate status is "mixed".
 func AggregateHealthStatus(statuses iter.Seq[TargetHealthStatus]) TargetHealthStatus {
 	first := true
 	out := TargetHealthStatusUnknown
