@@ -366,7 +366,7 @@ func LoadClientState(ctx context.Context, fs FS) (*ClientState, error) {
 	} else if len(keyHistoryBytes) > 0 {
 		keyHistory, err = parseKeyHistory(keyHistoryBytes)
 		if err != nil {
-			slog.WarnContext(ctx, "unable to parse key history, may be unable to recovery in the event of a cluster rollback", "error", err)
+			slog.WarnContext(ctx, "unable to parse key history, may be unable to recover in the event of a cluster rollback", "error", err)
 		}
 	}
 
