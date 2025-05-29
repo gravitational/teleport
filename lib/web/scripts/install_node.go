@@ -152,6 +152,11 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 		}
 	}
 
+	cdnBaseURL := teleportUpdateDefaultCDN
+	if opts.InstallOptions.CDNBaseURL != "" {
+		cdnBaseURL = opts.InstallOptions.CDNBaseURL
+	}
+
 	var buf bytes.Buffer
 
 	// TODO(hugoShaka): burn this map and replace it by something saner in a future PR.
@@ -187,6 +192,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 		"db_service_resource_labels": dbServiceResourceLabels,
 		"discoveryInstallMode":       strconv.FormatBool(opts.DiscoveryServiceEnabled),
 		"discoveryGroup":             shsprintf.EscapeDefaultContext(opts.DiscoveryGroup),
+		"cdnBaseURL":                 cdnBaseURL,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
