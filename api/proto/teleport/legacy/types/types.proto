@@ -2209,7 +2209,7 @@ message ClusterAuditConfigSpecV2 {
   string Type = 1 [(gogoproto.jsontag) = "type,omitempty"];
   // Region is a region setting for audit sessions used by cloud providers
   string Region = 2 [(gogoproto.jsontag) = "region,omitempty"];
-  // AuditSessionsURI is a parameter where to upload sessions
+  // AuditSessionsURI indicates where to upload sessions
   string AuditSessionsURI = 3 [(gogoproto.jsontag) = "audit_sessions_uri,omitempty"];
   // AuditEventsURI is a parameter with all supported outputs
   // for audit events
@@ -2254,6 +2254,9 @@ message ClusterAuditConfigSpecV2 {
   }
   // UseFIPSEndpoint configures AWS endpoints to use FIPS.
   FIPSEndpointState UseFIPSEndpoint = 15 [(gogoproto.jsontag) = "use_fips_endpoint,omitempty"];
+
+  // SessoinRecordingSummariesURI indicates where to upload session recording summaries
+  string SessionRecordingSummariesURI = 16 [(gogoproto.jsontag) = "session_recording_summaries_uri,omitempty"];
 }
 
 // ClusterNetworkingConfigV2 contains cluster-wide networking configuration.

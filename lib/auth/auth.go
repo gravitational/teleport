@@ -1348,6 +1348,7 @@ func (a *Server) CallUploadCompletionHooks(ctx context.Context, sessionID sessio
 	completionHooks := make([]events.UploadCompletionHook, len(a.uploadCompletionHooks))
 	copy(completionHooks, a.uploadCompletionHooks)
 	a.uploadCompletionHooksMu.RUnlock()
+	a.logger.DebugContext(ctx, "Calling hooks", "number of hooks", len(completionHooks))
 
 	if len(completionHooks) == 0 {
 		return nil
