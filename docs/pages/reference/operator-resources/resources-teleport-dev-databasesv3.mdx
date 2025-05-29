@@ -1,0 +1,228 @@
+---
+title: TeleportDatabaseV3
+description: Provides a comprehensive list of fields in the TeleportDatabaseV3 resource available through the Teleport Kubernetes operator
+tocDepth: 3
+---
+
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
+
+This guide is a comprehensive reference to the fields in the `TeleportDatabaseV3`
+resource, which you can apply after installing the Teleport Kubernetes operator.
+
+
+## resources.teleport.dev/v1
+
+**apiVersion:** resources.teleport.dev/v1
+
+|Field|Type|Description|
+|---|---|---|
+|apiVersion|string|APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources|
+|kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
+|metadata|object||
+|spec|[object](#spec)|Database resource definition v3 from Teleport|
+
+### spec
+
+|Field|Type|Description|
+|---|---|---|
+|ad|[object](#specad)|AD is the Active Directory configuration for the database.|
+|admin_user|[object](#specadmin_user)|AdminUser is the database admin user for automatic user provisioning.|
+|aws|[object](#specaws)|AWS contains AWS specific settings for RDS/Aurora/Redshift databases.|
+|azure|[object](#specazure)|Azure contains Azure specific database metadata.|
+|ca_cert|string|CACert is the PEM-encoded database CA certificate.  DEPRECATED: Moved to TLS.CACert. DELETE IN 10.0.|
+|dynamic_labels|[object](#specdynamic_labels)|DynamicLabels is the database dynamic labels.|
+|gcp|[object](#specgcp)|GCP contains parameters specific to GCP Cloud SQL databases.|
+|mongo_atlas|[object](#specmongo_atlas)|MongoAtlas contains Atlas metadata about the database.|
+|mysql|[object](#specmysql)|MySQL is an additional section with MySQL database options.|
+|oracle|[object](#specoracle)|Oracle is an additional Oracle configuration options.|
+|protocol|string|Protocol is the database protocol: postgres, mysql, mongodb, etc.|
+|tls|[object](#spectls)|TLS is the TLS configuration used when establishing connection to target database. Allows to provide custom CA cert or override server name.|
+|uri|string|URI is the database connection endpoint.|
+
+### spec.ad
+
+|Field|Type|Description|
+|---|---|---|
+|domain|string|Domain is the Active Directory domain the database resides in.|
+|kdc_host_name|string|KDCHostName is the host name for a KDC for x509 Authentication.|
+|keytab_file|string|KeytabFile is the path to the Kerberos keytab file.|
+|krb5_file|string|Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.|
+|ldap_cert|string|LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.|
+|ldap_service_account_name|string|LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.|
+|ldap_service_account_sid|string|LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.|
+|spn|string|SPN is the service principal name for the database.|
+
+### spec.admin_user
+
+|Field|Type|Description|
+|---|---|---|
+|default_database|string|DefaultDatabase is the database that the privileged database user logs into by default.  Depending on the database type, this database may be used to store procedures or data for managing database users.|
+|name|string|Name is the username of the privileged database user.|
+
+### spec.aws
+
+|Field|Type|Description|
+|---|---|---|
+|account_id|string|AccountID is the AWS account ID this database belongs to.|
+|assume_role_arn|string|AssumeRoleARN is an optional AWS role ARN to assume when accessing a database. Set this field and ExternalID to enable access across AWS accounts.|
+|docdb|[object](#specawsdocdb)|DocumentDB contains AWS DocumentDB specific metadata.|
+|elasticache|[object](#specawselasticache)|ElastiCache contains AWS ElastiCache Redis specific metadata.|
+|external_id|string|ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.|
+|iam_policy_status|string or integer|IAMPolicyStatus indicates whether the IAM Policy is configured properly for database access. If not, the user must update the AWS profile identity to allow access to the Database. Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database. Can be either the string or the integer representation of each option.|
+|memorydb|[object](#specawsmemorydb)|MemoryDB contains AWS MemoryDB specific metadata.|
+|opensearch|[object](#specawsopensearch)|OpenSearch contains AWS OpenSearch specific metadata.|
+|rds|[object](#specawsrds)|RDS contains RDS specific metadata.|
+|rdsproxy|[object](#specawsrdsproxy)|RDSProxy contains AWS Proxy specific metadata.|
+|redshift|[object](#specawsredshift)|Redshift contains Redshift specific metadata.|
+|redshift_serverless|[object](#specawsredshift_serverless)|RedshiftServerless contains AWS Redshift Serverless specific metadata.|
+|region|string|Region is a AWS cloud region.|
+|secret_store|[object](#specawssecret_store)|SecretStore contains secret store configurations.|
+|session_tags|[object](#specawssession_tags)|SessionTags is a list of AWS STS session tags.|
+
+### spec.aws.docdb
+
+|Field|Type|Description|
+|---|---|---|
+|cluster_id|string|ClusterID is the cluster identifier.|
+|endpoint_type|string|EndpointType is the type of the endpoint.|
+|instance_id|string|InstanceID is the instance identifier.|
+
+### spec.aws.elasticache
+
+|Field|Type|Description|
+|---|---|---|
+|endpoint_type|string|EndpointType is the type of the endpoint.|
+|replication_group_id|string|ReplicationGroupID is the Redis replication group ID.|
+|transit_encryption_enabled|boolean|TransitEncryptionEnabled indicates whether in-transit encryption (TLS) is enabled.|
+|user_group_ids|[]string|UserGroupIDs is a list of user group IDs.|
+
+### spec.aws.memorydb
+
+|Field|Type|Description|
+|---|---|---|
+|acl_name|string|ACLName is the name of the ACL associated with the cluster.|
+|cluster_name|string|ClusterName is the name of the MemoryDB cluster.|
+|endpoint_type|string|EndpointType is the type of the endpoint.|
+|tls_enabled|boolean|TLSEnabled indicates whether in-transit encryption (TLS) is enabled.|
+
+### spec.aws.opensearch
+
+|Field|Type|Description|
+|---|---|---|
+|domain_id|string|DomainID is the ID of the domain.|
+|domain_name|string|DomainName is the name of the domain.|
+|endpoint_type|string|EndpointType is the type of the endpoint.|
+
+### spec.aws.rds
+
+|Field|Type|Description|
+|---|---|---|
+|cluster_id|string|ClusterID is the RDS cluster (Aurora) identifier.|
+|iam_auth|boolean|IAMAuth indicates whether database IAM authentication is enabled.|
+|instance_id|string|InstanceID is the RDS instance identifier.|
+|resource_id|string|ResourceID is the RDS instance resource identifier (db-xxx).|
+|security_groups|[]string|SecurityGroups is a list of attached security groups for the RDS instance.|
+|subnets|[]string|Subnets is a list of subnets for the RDS instance.|
+|vpc_id|string|VPCID is the VPC where the RDS is running.|
+
+### spec.aws.rdsproxy
+
+|Field|Type|Description|
+|---|---|---|
+|custom_endpoint_name|string|CustomEndpointName is the identifier of an RDS Proxy custom endpoint.|
+|name|string|Name is the identifier of an RDS Proxy.|
+|resource_id|string|ResourceID is the RDS instance resource identifier (prx-xxx).|
+
+### spec.aws.redshift
+
+|Field|Type|Description|
+|---|---|---|
+|cluster_id|string|ClusterID is the Redshift cluster identifier.|
+
+### spec.aws.redshift_serverless
+
+|Field|Type|Description|
+|---|---|---|
+|endpoint_name|string|EndpointName is the VPC endpoint name.|
+|workgroup_id|string|WorkgroupID is the workgroup ID.|
+|workgroup_name|string|WorkgroupName is the workgroup name.|
+
+### spec.aws.secret_store
+
+|Field|Type|Description|
+|---|---|---|
+|key_prefix|string|KeyPrefix specifies the secret key prefix.|
+|kms_key_id|string|KMSKeyID specifies the AWS KMS key for encryption.|
+
+### spec.aws.session_tags
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.azure
+
+|Field|Type|Description|
+|---|---|---|
+|is_flexi_server|boolean|IsFlexiServer is true if the database is an Azure Flexible server.|
+|name|string|Name is the Azure database server name.|
+|redis|[object](#specazureredis)|Redis contains Azure Cache for Redis specific database metadata.|
+|resource_id|string|ResourceID is the Azure fully qualified ID for the resource.|
+
+### spec.azure.redis
+
+|Field|Type|Description|
+|---|---|---|
+|clustering_policy|string|ClusteringPolicy is the clustering policy for Redis Enterprise.|
+
+### spec.dynamic_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[object](#specdynamic_labelsvalue)||
+
+### spec.dynamic_labels.value
+
+|Field|Type|Description|
+|---|---|---|
+|command|[]string|Command is a command to run|
+|period|string|Period is a time between command runs|
+|result|string|Result captures standard output|
+
+### spec.gcp
+
+|Field|Type|Description|
+|---|---|---|
+|instance_id|string|InstanceID is the Cloud SQL instance ID.|
+|project_id|string|ProjectID is the GCP project ID the Cloud SQL instance resides in.|
+
+### spec.mongo_atlas
+
+|Field|Type|Description|
+|---|---|---|
+|name|string|Name is the Atlas database instance name.|
+
+### spec.mysql
+
+|Field|Type|Description|
+|---|---|---|
+|server_version|string|ServerVersion is the server version reported by DB proxy if the runtime information is not available.|
+
+### spec.oracle
+
+|Field|Type|Description|
+|---|---|---|
+|audit_user|string|AuditUser is the Oracle database user privilege to access internal Oracle audit trail.|
+
+### spec.tls
+
+|Field|Type|Description|
+|---|---|---|
+|ca_cert|string|CACert is an optional user provided CA certificate used for verifying database TLS connection.|
+|mode|string or integer|Mode is a TLS connection mode. 0 is "verify-full"; 1 is "verify-ca", 2 is "insecure". Can be either the string or the integer representation of each option.|
+|server_name|string|ServerName allows to provide custom hostname. This value will override the servername/hostname on a certificate during validation.|
+|trust_system_cert_pool|boolean|TrustSystemCertPool allows Teleport to trust certificate authorities available on the host system. If not set (by default), Teleport only trusts self-signed databases with TLS certificates signed by Teleport's Database Server CA or the ca_cert specified in this TLS setting. For cloud-hosted databases, Teleport downloads the corresponding required CAs for validation.|
+

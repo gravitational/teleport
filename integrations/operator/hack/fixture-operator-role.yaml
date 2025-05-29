@@ -10,6 +10,8 @@ spec:
       "*": ["*"]
     app_labels:
       "*": ["*"]
+    db_labels:
+      "*": ["*"]
     rules:
       - resources:
           - role
@@ -117,6 +119,14 @@ spec:
           - delete
       - resources:
           - autoupdate_config
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - db
         verbs:
           - list
           - create
