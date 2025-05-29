@@ -48,6 +48,8 @@ rules:
       - teleportautoupdateconfigsv1/status
       - teleportautoupdateversionsv1
       - teleportautoupdateversionsv1/status
+      - teleportappsv3
+      - teleportappsv3/status
     verbs:
       - get
       - list
