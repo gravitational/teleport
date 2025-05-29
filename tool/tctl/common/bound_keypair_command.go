@@ -21,7 +21,7 @@ package common
 import (
 	"context"
 	"errors"
-	"log/slog"
+	"fmt"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -105,7 +105,7 @@ func (c *BoundKeypairCommand) RequestRotation(ctx context.Context, client *authc
 		return trace.Wrap(err)
 	}
 
-	slog.InfoContext(ctx, "Token rotation flag has been set, rotation will be required during the next authentication attempt.")
+	fmt.Printf("Token rotation flag has been set, rotation will be required during the next authentication attempt.\n")
 
 	return nil
 }
