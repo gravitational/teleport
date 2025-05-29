@@ -129,6 +129,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 			// the operator has wildcard noe labs to be able to see them
 			// but has no login allowed, so it cannot SSH into them
 			NodeLabels: types.Labels{"*": []string{"*"}},
+			AppLabels:  types.Labels{"*": []string{"*"}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, unrestricted),
 				types.NewRule(types.KindUser, unrestricted),
@@ -143,6 +144,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				types.NewRule(types.KindWorkloadIdentity, unrestricted),
 				types.NewRule(types.KindAutoUpdateConfig, unrestricted),
 				types.NewRule(types.KindAutoUpdateVersion, unrestricted),
+				types.NewRule(types.KindApp, unrestricted),
 			},
 		},
 	})
