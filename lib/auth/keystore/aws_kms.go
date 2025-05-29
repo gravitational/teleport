@@ -574,8 +574,16 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 	}
 
 	client := a.mrk
-	describeKeyOut, err := client.DescribeKey(ctx, &kms.DescribeKeyInput{
-		KeyId: aws.String(key.id),
+	var describeKeyOut *kms.DescribeKeyOutput
+	err := a.retryOnConsistencyError(ctx, func(ctx context.Context) error {
+		var err error
+		describeKeyOut, err = client.DescribeKey(ctx, &kms.DescribeKeyInput{
+			KeyId: aws.String(key.id),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
