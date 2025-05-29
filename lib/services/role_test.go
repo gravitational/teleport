@@ -4562,9 +4562,10 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 		Metadata: types.Metadata{Name: "allow_deny_same", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				Namespaces:    []string{apidefaults.Namespace},
-				DatabaseUsers: []string{"root"},
-				DatabaseNames: []string{"root"},
+				DatabaseLabels: types.Labels{"env": []string{"stage"}},
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseUsers:  []string{"root"},
+				DatabaseNames:  []string{"root"},
 			},
 			Deny: types.RoleConditions{
 				Namespaces:    []string{apidefaults.Namespace},
@@ -9965,6 +9966,104 @@ func TestCheckAccessToGitServer(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(test.roles)
 			err := accessChecker.CheckAccess(githubOrgServer, AccessState{})
 			test.requireErr(t, err)
+		})
+	}
+}
+
+func TestMCPToolMatcher(t *testing.T) {
+	roleWithSpecificAllow := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:      "ai_user",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				MCP: &types.MCPPermissions{
+					Tools: []string{
+						"allow_literal",
+						"^allow(_regex)+$",
+						"allow_glob*",
+					},
+				},
+			},
+		},
+	}
+
+	roleWithWildcardAllow := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:      "ai_user",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				MCP: &types.MCPPermissions{
+					Tools: []string{"*"},
+				},
+			},
+			Deny: types.RoleConditions{
+				MCP: &types.MCPPermissions{
+					Tools: []string{"deny_literal"},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		testToolName  string
+		testRole      types.Role
+		testCondition types.RoleConditionType
+		requireMatch  require.BoolAssertionFunc
+	}{
+		{
+			testToolName:  "deny_empty",
+			testRole:      roleWithSpecificAllow,
+			testCondition: types.Deny,
+			requireMatch:  require.False,
+		},
+		{
+			testToolName:  "allow_literal",
+			testRole:      roleWithSpecificAllow,
+			testCondition: types.Allow,
+			requireMatch:  require.True,
+		},
+		{
+			testToolName:  "allow_regex_regex",
+			testRole:      roleWithSpecificAllow,
+			testCondition: types.Allow,
+			requireMatch:  require.True,
+		},
+		{
+			testToolName:  "allow_globbb",
+			testRole:      roleWithSpecificAllow,
+			testCondition: types.Allow,
+			requireMatch:  require.True,
+		},
+		{
+			testToolName:  "allow_wildcard",
+			testRole:      roleWithWildcardAllow,
+			testCondition: types.Allow,
+			requireMatch:  require.True,
+		},
+		{
+			testToolName:  "deny_literal",
+			testRole:      roleWithWildcardAllow,
+			testCondition: types.Deny,
+			requireMatch:  require.True,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testToolName, func(t *testing.T) {
+			matcher := MCPToolMatcher{
+				Name: tt.testToolName,
+			}
+			match, err := matcher.Match(tt.testRole, tt.testCondition)
+			require.NoError(t, err)
+			tt.requireMatch(t, match)
 		})
 	}
 }

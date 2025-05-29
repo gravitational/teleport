@@ -466,15 +466,17 @@ const validateAppAccess = (a: AppAccess): AppAccessValidationResult => {
     a.labels.length === 0 &&
     a.awsRoleARNs.length === 0 &&
     a.azureIdentities.length === 0 &&
-    a.gcpServiceAccounts.length === 0
+    a.gcpServiceAccounts.length === 0 &&
+    a.mcpTools.length === 0
   ) {
     result.valid = false;
     result.message =
-      'At least one label, AWS role ARN, Azure identity, or GCP service account required';
+      'At least one label, AWS role ARN, Azure identity, GCP service account, or MCP tools required';
     result.fields.labels.valid = false;
     result.fields.awsRoleARNs.valid = false;
     result.fields.azureIdentities.valid = false;
     result.fields.gcpServiceAccounts.valid = false;
+    result.fields.mcpTools.valid = false;
   }
   return result;
 };
@@ -488,6 +490,7 @@ const appAccessValidationRules = {
   gcpServiceAccounts: arrayOf(
     noWildcard('Wildcard is not allowed in GCP service accounts')
   ),
+  mcpTools: alwaysValid,
 };
 export type AppAccessValidationResult = RuleSetValidationResult<
   typeof appAccessValidationRules
