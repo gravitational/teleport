@@ -61,6 +61,33 @@ func createUsersExtension(groups []string) (pkix.Extension, error) {
 	}, nil
 }
 
+var (
+	dcOID = asn1.ObjectIdentifier{0, 9, 2342, 19200300, 100, 1, 25}
+	ouOID = asn1.ObjectIdentifier{2, 5, 4, 11}
+	cnOID = asn1.ObjectIdentifier{2, 5, 4, 3}
+)
+
+func dc(value string) pkix.AttributeTypeAndValue {
+	return pkix.AttributeTypeAndValue{
+		Type:  dcOID,
+		Value: value,
+	}
+}
+
+func cn(value string) pkix.AttributeTypeAndValue {
+	return pkix.AttributeTypeAndValue{
+		Type:  cnOID,
+		Value: value,
+	}
+}
+
+func ou(value string) pkix.AttributeTypeAndValue {
+	return pkix.AttributeTypeAndValue{
+		Type:  ouOID,
+		Value: value,
+	}
+}
+
 func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	// Important: rdpclient currently only supports 2048-bit RSA keys.
 	// If you switch the key type here, update handle_general_authentication in
@@ -87,23 +114,15 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	name := pkix.Name{CommonName: upn}
 
 	if strings.Contains(upn, "charles") {
-		DomainComponent := asn1.ObjectIdentifier{0, 9, 2342, 19200300, 100, 1, 25}
 		name = pkix.Name{
-			CommonName:         "charles.xavier_contractor.net",
-			OrganizationalUnit: []string{"B2B Guests", "Accounts", "NREL"},
 			ExtraNames: []pkix.AttributeTypeAndValue{
-				{
-					Type:  DomainComponent,
-					Value: "gov",
-				},
-				{
-					Type:  DomainComponent,
-					Value: "nrel",
-				},
-				{
-					Type:  DomainComponent,
-					Value: "ext",
-				},
+				dc("gov"),
+				dc("nrel"),
+				dc("ext"),
+				ou("B2B Guests"),
+				ou("Accounts"),
+				ou("NREL"),
+				cn("charles.xavier_contractor.net"),
 			},
 		}
 	}
