@@ -984,6 +984,27 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
+				"mcp": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"args": {
+							Description: "Args to execute with the command.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"command": {
+							Description: "Command to launch stdio-based MCP servers.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"run_as_host_user": {
+							Description: "RunAsHostUser is the host user account under which the command will be executed. Required for stdio-based MCP servers.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "MCP contains MCP server related configurations.",
+					Optional:    true,
+				},
 				"public_addr": {
 					Description: "PublicAddr is the public address the application is accessible at.",
 					Optional:    true,
@@ -12061,6 +12082,85 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["mcp"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.MCP = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.MCP = &github_com_gravitational_teleport_api_types.MCP{}
+									obj := obj.MCP
+									{
+										a, ok := tf.Attrs["command"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.command"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.command", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Command = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["args"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.args"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.args", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.Args = make([]string, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.args", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.Args[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["run_as_host_user"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.run_as_host_user"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.run_as_host_user", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.RunAsHostUser = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -13654,6 +13754,135 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 							v.Value = bool(obj.UseAnyProxyPublicAddr)
 							v.Unknown = false
 							tf.Attrs["use_any_proxy_public_addr"] = v
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["mcp"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["mcp"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.MCP == nil {
+									v.Null = true
+								} else {
+									obj := obj.MCP
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["command"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.command"})
+										} else {
+											v, ok := tf.Attrs["command"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.command", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.command", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Command) == ""
+											}
+											v.Value = string(obj.Command)
+											v.Unknown = false
+											tf.Attrs["command"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["args"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.args"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.args", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["args"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Args)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Args))
+													}
+												}
+												if obj.Args != nil {
+													t := o.ElemType
+													if len(obj.Args) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Args))
+													}
+													for k, a := range obj.Args {
+														v, ok := tf.Attrs["args"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+															if err != nil {
+																diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.args", err})
+															}
+															v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.args", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
+															v.Null = string(a) == ""
+														}
+														v.Value = string(a)
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.Args) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["args"] = c
+											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["run_as_host_user"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.run_as_host_user"})
+										} else {
+											v, ok := tf.Attrs["run_as_host_user"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.run_as_host_user", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.run_as_host_user", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.RunAsHostUser) == ""
+											}
+											v.Value = string(obj.RunAsHostUser)
+											v.Unknown = false
+											tf.Attrs["run_as_host_user"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["mcp"] = v
+							}
 						}
 					}
 				}

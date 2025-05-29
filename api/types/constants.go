@@ -180,6 +180,14 @@ const (
 	// KindApp is a web app resource.
 	KindApp = "app"
 
+	// SubKindMCP represents an MCP server as a subkind of app.
+	SubKindMCP = KindMCP
+
+	// KindMCP is an MCP server resource.
+	// Currently, MCP servers are accessed through apps.
+	// In the future, they may become a standalone resource kind.
+	KindMCP = "mcp"
+
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
@@ -895,6 +903,11 @@ const (
 	CloudAzure = "Azure"
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
+
+	// SchemaMCPStdio is a URI schema for MCP servers using stdio transport.
+	SchemaMCPStdio = "mcp+stdio://"
+	// MCPTransportStdio indicates the MCP server uses stdio transport.
+	MCPTransportStdio = "stdio"
 
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"

@@ -34,6 +34,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |identity_center|[object](#specidentity_center)|IdentityCenter encasulates AWS identity-center specific information. Only valid for Identity Center account apps.|
 |insecure_skip_verify|boolean|InsecureSkipVerify disables app's TLS certificate verification.|
 |integration|string|Integration is the integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.|
+|mcp|[object](#specmcp)|MCP contains MCP server related configurations.|
 |public_addr|string|PublicAddr is the public address the application is accessible at.|
 |required_app_names|[]string|RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate along side this app.|
 |rewrite|[object](#specrewrite)|Rewrite is a list of rewriting rules to apply to requests and responses.|
@@ -95,6 +96,14 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |arn|string|ARN is the fully-formed ARN of the Permission Set.|
 |assignment_name|string|AssignmentID is the ID of the Teleport Account Assignment resource that represents this permission being assigned on the enclosing Account.|
 |name|string|Name is the human-readable name of the Permission Set.|
+
+### spec.mcp
+
+|Field|Type|Description|
+|---|---|---|
+|args|[]string|Args to execute with the command.|
+|command|string|Command to launch stdio-based MCP servers.|
+|run_as_host_user|string|RunAsHostUser is the host user account under which the command will be executed. Required for stdio-based MCP servers.|
 
 ### spec.rewrite
 
