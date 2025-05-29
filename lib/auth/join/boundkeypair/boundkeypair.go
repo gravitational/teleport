@@ -47,7 +47,7 @@ const (
 	StandardFileWriteMode = 0600
 )
 
-// KeyHistoryEntry records
+// KeyHistoryEntry records a private key and the timestamp it was generated.
 type KeyHistoryEntry struct {
 	// Time is the time this key was inserted into the history.
 	Time time.Time `json:"time"`
