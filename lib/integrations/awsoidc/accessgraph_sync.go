@@ -21,7 +21,9 @@ package awsoidc
 import (
 	"context"
 	"io"
+	"regexp"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/gravitational/trace"
@@ -53,8 +55,25 @@ type AccessGraphAWSIAMConfigureRequest struct {
 	// AutoConfirm skips user confirmation of the operation plan if true.
 	AutoConfirm bool
 
+	// SQSQueueURL is the URL of the SQS queue to use for the Identity Security Activity Center.
+	SQSQueueURL string
+	// CloudTrailBucket is the name of the S3 bucket to use for the Identity Security Activity Center.
+	CloudTrailBucket string
+	// KMSKeyARNs is the ARN of the KMS key to use for decrypting the Identity Security Activity Center data.
+	KMSKeyARNs []string
+
 	// stdout is used to override stdout output in tests.
 	stdout io.Writer
+}
+
+var (
+	sqsQueueRegex = regexp.MustCompile(`^https://sqs\.([a-z0-9-]+)\.amazonaws\.com\/[0-9]{12}\/([a-zA-Z0-9_-]+)$`)
+)
+
+// IsValidSQSURL checks if the provided URL is a valid SQS queue URL.
+// The URL must be in the format: https://sqs.<region>.amazonaws.com/<account-id>/<queue-name>
+func IsValidSQSURL(url string) bool {
+	return sqsQueueRegex.MatchString(url)
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -65,6 +84,25 @@ func (r *AccessGraphAWSIAMConfigureRequest) CheckAndSetDefaults() error {
 
 	if r.IntegrationRoleTAGPolicy == "" {
 		r.IntegrationRoleTAGPolicy = defaultPolicyNameForTAGSync
+	}
+
+	if r.SQSQueueURL != "" || r.CloudTrailBucket != "" {
+		if r.SQSQueueURL == "" || r.CloudTrailBucket == "" {
+			return trace.BadParameter("if CloudTrailBucket is set, SQSQueueURL must also be set")
+		}
+		if !IsValidSQSURL(r.SQSQueueURL) {
+			return trace.BadParameter("SQSQueueURL must be a valid SQS URL in the format https://sqs.<region>.amazonaws.com/<account-id>/<queue-name>")
+		}
+
+		if a, err := arn.Parse(r.CloudTrailBucket); err != nil || a.Service != "s3" || a.Resource == "" {
+			return trace.BadParameter("CloudTrailBucket must be a valid S3 bucket ARN")
+		}
+
+		for _, kmsKeyARN := range r.KMSKeyARNs {
+			if a, err := arn.Parse(kmsKeyARN); err != nil || a.Service != "kms" || a.Resource == "" {
+				return trace.BadParameter("KMSKeyARNs %q must be valid KMS key ARNs", kmsKeyARN)
+			}
+		}
 	}
 
 	return nil
@@ -109,8 +147,37 @@ func ConfigureAccessGraphSyncIAM(ctx context.Context, clt AccessGraphIAMConfigur
 		return trace.Wrap(err)
 	}
 
+	statements := []*awslib.Statement{awslib.StatementAccessGraphAWSSync()}
+
+	if req.SQSQueueURL != "" {
+		// Extract the region and queue name from the SQS URL.
+		matches := sqsQueueRegex.FindStringSubmatch(req.SQSQueueURL)
+		if len(matches) != 3 {
+			return trace.BadParameter("invalid SQSQueueURL format")
+		}
+		region := matches[1]
+		queueName := matches[2]
+
+		arnString := arn.ARN{
+			Partition: "aws",
+			Service:   "sqs",
+			Region:    region,
+			AccountID: req.AccountID,
+			Resource:  queueName,
+		}.String()
+
+		statements = append(statements, awslib.StatementAccessGraphAWSSyncSQS(arnString))
+	}
+	if req.CloudTrailBucket != "" {
+		statements = append(statements, awslib.StatementAccessGraphAWSSyncS3BucketDownload(req.CloudTrailBucket))
+	}
+
+	if len(req.KMSKeyARNs) > 0 {
+		statements = append(statements, awslib.StatementKMSDecrypt(req.KMSKeyARNs))
+	}
+
 	policy := awslib.NewPolicyDocument(
-		awslib.StatementAccessGraphAWSSync(),
+		statements...,
 	)
 	putRolePolicy, err := awsactions.PutRolePolicy(clt, req.IntegrationRoleTAGPolicy, req.IntegrationRole, policy)
 	if err != nil {
