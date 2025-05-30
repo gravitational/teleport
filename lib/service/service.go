@@ -2299,6 +2299,7 @@ func (process *TeleportProcess) initAuthService() error {
 				return trace.Wrap(err)
 			}
 			as.Cache = cache
+			recordingEncryptionManager.SetCache(cache)
 
 			return nil
 		})
