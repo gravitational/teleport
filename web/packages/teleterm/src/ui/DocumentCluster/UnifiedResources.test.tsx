@@ -417,25 +417,23 @@ it('passes props with stable identity to <Resources>', async () => {
   );
 
   const { rerender } = render(<Component />, { wrapper: Wrapper });
-
   act(mio.enterAll);
-
   // Wait for resources to render.
   await expect(
     screen.findByText(serverResource.hostname)
   ).resolves.toBeInTheDocument();
+  // Disabled because of a false positive.
+  // eslint-disable-next-line testing-library/render-result-naming-convention
+  const renderCountBeforeRerender = renderCount;
 
-  // When <Resources> is properly memoized and all params passed to it have stable identity, there
-  // are 8 renders within the Profiler tree before the resources are rendered to screen.
-  expect(renderCount).toEqual(8);
-
-  // Rerender the tree. Verify that it causes only one extra render within the tree, which is the
-  // render caused by the call to `rerender`.
-  //
-  // If <Resources> is properly memoized, this should not cause any extra renders.
   rerender(<Component />);
   await expect(
     screen.findByText(serverResource.hostname)
   ).resolves.toBeInTheDocument();
-  expect(renderCount).toEqual(9);
+  const renderCountDelta = renderCount - renderCountBeforeRerender;
+
+  // When <Resources> is properly memoized and all params passed to it have stable identity,
+  // rerendering the outer <UnifiedResources> with no prop changes should cause only one render
+  // within the tree.
+  expect(renderCountDelta).toEqual(1);
 });
