@@ -143,7 +143,9 @@ type Client struct {
 	// dialer is the ContextDialer for a successfully connected client.
 	dialer ContextDialer
 	// conn is a grpc connection to the auth server.
-	conn *grpc.ClientConn
+	conn grpc.ClientConnInterface
+	// closer will be closed when the Close method is called.
+	closer io.Closer
 	// grpc is the gRPC client specification for the auth server.
 	grpc AuthServiceClient
 	// JoinServiceClient is a client for the JoinService, which runs on both the
@@ -152,6 +154,34 @@ type Client struct {
 	// closedFlag is set to indicate that the connection is closed.
 	// It's a pointer to allow the Client struct to be copied.
 	closedFlag *int32
+}
+
+// NewWithConnection creates a Client from an existing gRPC client connection.
+//
+// If conn implements io.Closer, its Close method will be called when the client
+// is closed. Otherwise, the caller is responsible for closing the connection.
+func NewWithConnection(conn grpc.ClientConnInterface) *Client {
+	closer, _ := conn.(io.Closer)
+
+	clt := &Client{
+		closer:     closer,
+		closedFlag: new(int32),
+	}
+	clt.setConn(conn)
+
+	return clt
+}
+
+// Dial a gRPC connection to a Teleport server.
+//
+// It can be used with NewWithConnection for callers who need to wrap the
+// low-level connection.
+func Dial(ctx context.Context, cfg Config) (*grpc.ClientConn, error) {
+	client, err := New(ctx, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return client.GetConnection(), nil
 }
 
 // New creates a new Client with an open connection to a Teleport server.
@@ -532,6 +562,13 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		return trace.Wrap(err)
 	}
 
+	c.setConn(conn)
+	c.closer = conn
+
+	return nil
+}
+
+func (c *Client) setConn(conn grpc.ClientConnInterface) {
 	c.conn = conn
 	c.grpc = AuthServiceClient{
 		AuthServiceClient:            proto.NewAuthServiceClient(c.conn),
@@ -540,8 +577,6 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		NotificationServiceClient:    notificationsv1pb.NewNotificationServiceClient(c.conn),
 	}
 	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
-
-	return nil
 }
 
 // We wrap the creation of the otelgrpc interceptors in a sync.Once - this is
@@ -597,16 +632,20 @@ func (c *Client) grpcDialer() func(ctx context.Context, addr string) (net.Conn, 
 // alongside the DialInBackground client config option to wait until background dialing has completed.
 func (c *Client) waitForConnectionReady(ctx context.Context) error {
 	for {
-		if c.conn == nil {
+		conn, ok := c.conn.(*grpc.ClientConn)
+		if !ok {
+			return fmt.Errorf("conn is not a *grpc.ClientConn, it's a %T", c.conn)
+		}
+		if conn == nil {
 			return errors.New("conn was closed")
 		}
-		switch state := c.conn.GetState(); state {
+		switch state := conn.GetState(); state {
 		case connectivity.Ready:
 			return nil
 		case connectivity.TransientFailure, connectivity.Connecting, connectivity.Idle:
 			// Wait for expected state transitions. For details about grpc.ClientConn state changes
 			// see https://github.com/grpc/grpc/blob/master/doc/connectivity-semantics-and-api.md
-			if !c.conn.WaitForStateChange(ctx, state) {
+			if !conn.WaitForStateChange(ctx, state) {
 				// ctx canceled
 				return trace.Wrap(ctx.Err())
 			}
@@ -720,6 +759,8 @@ func (c *Config) CheckAndSetDefaults() error {
 }
 
 // Config returns the tls.Config the client connected with.
+//
+// Note: this method returns nil if the client was created with NewWithConnection.
 func (c *Client) Config() *tls.Config {
 	return c.tlsConfig
 }
@@ -730,24 +771,37 @@ func (c *Client) Dialer() ContextDialer {
 }
 
 // GetConnection returns gRPC connection.
+//
+// Deprecated: GetConnection will return nil if the connection was wrapped, use
+// GetConnectionInterface instead.
 func (c *Client) GetConnection() *grpc.ClientConn {
+	conn, _ := c.conn.(*grpc.ClientConn)
+	return conn
+}
+
+// GetConnectionInterface returns the gRPC connection.
+func (c *Client) GetConnectionInterface() grpc.ClientConnInterface {
 	return c.conn
 }
 
 // SetMFAPromptConstructor sets the MFA prompt constructor for this client.
+//
+// Note: this method is a no-op if the client was created with NewWithConnection.
 func (c *Client) SetMFAPromptConstructor(pc mfa.PromptConstructor) {
 	c.c.MFAPromptConstructor = pc
 }
 
 // SetSSOMFACeremonyConstructor sets the SSO MFA ceremony constructor for this client.
+//
+// Note: this method is a no-op if the client was created with NewWithConnection.
 func (c *Client) SetSSOMFACeremonyConstructor(scc mfa.SSOMFACeremonyConstructor) {
 	c.c.SSOMFACeremonyConstructor = scc
 }
 
 // Close closes the Client connection to the auth server.
 func (c *Client) Close() error {
-	if c.setClosed() && c.conn != nil {
-		return trace.Wrap(c.conn.Close())
+	if c.setClosed() && c.closer != nil {
+		return trace.Wrap(c.closer.Close())
 	}
 	return nil
 }
