@@ -16,9 +16,9 @@
 // versions:
 // 	protoc-gen-go v1.36.6
 // 	protoc        (unknown)
-// source: teleport/scopedtoken/v1/token.proto
+// source: teleport/scopes/joining/v1/token.proto
 
-package scopedtoken
+package joiningv1
 
 import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -60,7 +60,7 @@ type ScopedToken struct {
 
 func (x *ScopedToken) Reset() {
 	*x = ScopedToken{}
-	mi := &file_teleport_scopedtoken_v1_token_proto_msgTypes[0]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -72,7 +72,7 @@ func (x *ScopedToken) String() string {
 func (*ScopedToken) ProtoMessage() {}
 
 func (x *ScopedToken) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopedtoken_v1_token_proto_msgTypes[0]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -85,7 +85,7 @@ func (x *ScopedToken) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScopedToken.ProtoReflect.Descriptor instead.
 func (*ScopedToken) Descriptor() ([]byte, []int) {
-	return file_teleport_scopedtoken_v1_token_proto_rawDescGZIP(), []int{0}
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ScopedToken) GetKind() string {
@@ -141,7 +141,7 @@ type ScopedTokenSpec struct {
 
 func (x *ScopedTokenSpec) Reset() {
 	*x = ScopedTokenSpec{}
-	mi := &file_teleport_scopedtoken_v1_token_proto_msgTypes[1]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -153,7 +153,7 @@ func (x *ScopedTokenSpec) String() string {
 func (*ScopedTokenSpec) ProtoMessage() {}
 
 func (x *ScopedTokenSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopedtoken_v1_token_proto_msgTypes[1]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -166,7 +166,7 @@ func (x *ScopedTokenSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScopedTokenSpec.ProtoReflect.Descriptor instead.
 func (*ScopedTokenSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_scopedtoken_v1_token_proto_rawDescGZIP(), []int{1}
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ScopedTokenSpec) GetAssignedScope() string {
@@ -176,42 +176,42 @@ func (x *ScopedTokenSpec) GetAssignedScope() string {
 	return ""
 }
 
-var File_teleport_scopedtoken_v1_token_proto protoreflect.FileDescriptor
+var File_teleport_scopes_joining_v1_token_proto protoreflect.FileDescriptor
 
-const file_teleport_scopedtoken_v1_token_proto_rawDesc = "" +
+const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\n" +
-	"#teleport/scopedtoken/v1/token.proto\x12\x17teleport.scopedtoken.v1\x1a!teleport/header/v1/metadata.proto\"\xe4\x01\n" +
+	"&teleport/scopes/joining/v1/token.proto\x12\x1ateleport.scopes.joining.v1\x1a!teleport/header/v1/metadata.proto\"\xe7\x01\n" +
 	"\vScopedToken\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
-	"\x05scope\x18\x05 \x01(\tR\x05scope\x12<\n" +
-	"\x04spec\x18\x06 \x01(\v2(.teleport.scopedtoken.v1.ScopedTokenSpecR\x04spec\"8\n" +
+	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
+	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\"8\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
-	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScopeBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopedtoken/v1;scopedtokenb\x06proto3"
+	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScopeBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
 
 var (
-	file_teleport_scopedtoken_v1_token_proto_rawDescOnce sync.Once
-	file_teleport_scopedtoken_v1_token_proto_rawDescData []byte
+	file_teleport_scopes_joining_v1_token_proto_rawDescOnce sync.Once
+	file_teleport_scopes_joining_v1_token_proto_rawDescData []byte
 )
 
-func file_teleport_scopedtoken_v1_token_proto_rawDescGZIP() []byte {
-	file_teleport_scopedtoken_v1_token_proto_rawDescOnce.Do(func() {
-		file_teleport_scopedtoken_v1_token_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_scopedtoken_v1_token_proto_rawDesc), len(file_teleport_scopedtoken_v1_token_proto_rawDesc)))
+func file_teleport_scopes_joining_v1_token_proto_rawDescGZIP() []byte {
+	file_teleport_scopes_joining_v1_token_proto_rawDescOnce.Do(func() {
+		file_teleport_scopes_joining_v1_token_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_scopes_joining_v1_token_proto_rawDesc), len(file_teleport_scopes_joining_v1_token_proto_rawDesc)))
 	})
-	return file_teleport_scopedtoken_v1_token_proto_rawDescData
+	return file_teleport_scopes_joining_v1_token_proto_rawDescData
 }
 
-var file_teleport_scopedtoken_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_teleport_scopedtoken_v1_token_proto_goTypes = []any{
-	(*ScopedToken)(nil),     // 0: teleport.scopedtoken.v1.ScopedToken
-	(*ScopedTokenSpec)(nil), // 1: teleport.scopedtoken.v1.ScopedTokenSpec
+var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_teleport_scopes_joining_v1_token_proto_goTypes = []any{
+	(*ScopedToken)(nil),     // 0: teleport.scopes.joining.v1.ScopedToken
+	(*ScopedTokenSpec)(nil), // 1: teleport.scopes.joining.v1.ScopedTokenSpec
 	(*v1.Metadata)(nil),     // 2: teleport.header.v1.Metadata
 }
-var file_teleport_scopedtoken_v1_token_proto_depIdxs = []int32{
-	2, // 0: teleport.scopedtoken.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
-	1, // 1: teleport.scopedtoken.v1.ScopedToken.spec:type_name -> teleport.scopedtoken.v1.ScopedTokenSpec
+var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
+	2, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
+	1, // 1: teleport.scopes.joining.v1.ScopedToken.spec:type_name -> teleport.scopes.joining.v1.ScopedTokenSpec
 	2, // [2:2] is the sub-list for method output_type
 	2, // [2:2] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name
@@ -219,26 +219,26 @@ var file_teleport_scopedtoken_v1_token_proto_depIdxs = []int32{
 	0, // [0:2] is the sub-list for field type_name
 }
 
-func init() { file_teleport_scopedtoken_v1_token_proto_init() }
-func file_teleport_scopedtoken_v1_token_proto_init() {
-	if File_teleport_scopedtoken_v1_token_proto != nil {
+func init() { file_teleport_scopes_joining_v1_token_proto_init() }
+func file_teleport_scopes_joining_v1_token_proto_init() {
+	if File_teleport_scopes_joining_v1_token_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopedtoken_v1_token_proto_rawDesc), len(file_teleport_scopedtoken_v1_token_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_joining_v1_token_proto_rawDesc), len(file_teleport_scopes_joining_v1_token_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_teleport_scopedtoken_v1_token_proto_goTypes,
-		DependencyIndexes: file_teleport_scopedtoken_v1_token_proto_depIdxs,
-		MessageInfos:      file_teleport_scopedtoken_v1_token_proto_msgTypes,
+		GoTypes:           file_teleport_scopes_joining_v1_token_proto_goTypes,
+		DependencyIndexes: file_teleport_scopes_joining_v1_token_proto_depIdxs,
+		MessageInfos:      file_teleport_scopes_joining_v1_token_proto_msgTypes,
 	}.Build()
-	File_teleport_scopedtoken_v1_token_proto = out.File
-	file_teleport_scopedtoken_v1_token_proto_goTypes = nil
-	file_teleport_scopedtoken_v1_token_proto_depIdxs = nil
+	File_teleport_scopes_joining_v1_token_proto = out.File
+	file_teleport_scopes_joining_v1_token_proto_goTypes = nil
+	file_teleport_scopes_joining_v1_token_proto_depIdxs = nil
 }

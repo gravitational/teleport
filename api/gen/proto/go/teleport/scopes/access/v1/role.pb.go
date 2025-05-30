@@ -16,9 +16,9 @@
 // versions:
 // 	protoc-gen-go v1.36.6
 // 	protoc        (unknown)
-// source: teleport/scopedrole/v1/role.proto
+// source: teleport/scopes/access/v1/role.proto
 
-package scopedrole
+package accessv1
 
 import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -59,7 +59,7 @@ type ScopedRole struct {
 
 func (x *ScopedRole) Reset() {
 	*x = ScopedRole{}
-	mi := &file_teleport_scopedrole_v1_role_proto_msgTypes[0]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -71,7 +71,7 @@ func (x *ScopedRole) String() string {
 func (*ScopedRole) ProtoMessage() {}
 
 func (x *ScopedRole) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopedrole_v1_role_proto_msgTypes[0]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -84,7 +84,7 @@ func (x *ScopedRole) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScopedRole.ProtoReflect.Descriptor instead.
 func (*ScopedRole) Descriptor() ([]byte, []int) {
-	return file_teleport_scopedrole_v1_role_proto_rawDescGZIP(), []int{0}
+	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ScopedRole) GetKind() string {
@@ -140,7 +140,7 @@ type ScopedRoleSpec struct {
 
 func (x *ScopedRoleSpec) Reset() {
 	*x = ScopedRoleSpec{}
-	mi := &file_teleport_scopedrole_v1_role_proto_msgTypes[1]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -152,7 +152,7 @@ func (x *ScopedRoleSpec) String() string {
 func (*ScopedRoleSpec) ProtoMessage() {}
 
 func (x *ScopedRoleSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopedrole_v1_role_proto_msgTypes[1]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -165,7 +165,7 @@ func (x *ScopedRoleSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScopedRoleSpec.ProtoReflect.Descriptor instead.
 func (*ScopedRoleSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_scopedrole_v1_role_proto_rawDescGZIP(), []int{1}
+	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ScopedRoleSpec) GetAssignableScopes() []string {
@@ -175,43 +175,43 @@ func (x *ScopedRoleSpec) GetAssignableScopes() []string {
 	return nil
 }
 
-var File_teleport_scopedrole_v1_role_proto protoreflect.FileDescriptor
+var File_teleport_scopes_access_v1_role_proto protoreflect.FileDescriptor
 
-const file_teleport_scopedrole_v1_role_proto_rawDesc = "" +
+const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\n" +
-	"!teleport/scopedrole/v1/role.proto\x12\x16teleport.scopedrole.v1\x1a!teleport/header/v1/metadata.proto\"\xe1\x01\n" +
+	"$teleport/scopes/access/v1/role.proto\x12\x19teleport.scopes.access.v1\x1a!teleport/header/v1/metadata.proto\"\xe4\x01\n" +
 	"\n" +
 	"ScopedRole\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
-	"\x05scope\x18\x05 \x01(\tR\x05scope\x12:\n" +
-	"\x04spec\x18\x06 \x01(\v2&.teleport.scopedrole.v1.ScopedRoleSpecR\x04spec\"=\n" +
+	"\x05scope\x18\x05 \x01(\tR\x05scope\x12=\n" +
+	"\x04spec\x18\x06 \x01(\v2).teleport.scopes.access.v1.ScopedRoleSpecR\x04spec\"=\n" +
 	"\x0eScopedRoleSpec\x12+\n" +
-	"\x11assignable_scopes\x18\x01 \x03(\tR\x10assignableScopesBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopedrole/v1;scopedroleb\x06proto3"
+	"\x11assignable_scopes\x18\x01 \x03(\tR\x10assignableScopesBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
 
 var (
-	file_teleport_scopedrole_v1_role_proto_rawDescOnce sync.Once
-	file_teleport_scopedrole_v1_role_proto_rawDescData []byte
+	file_teleport_scopes_access_v1_role_proto_rawDescOnce sync.Once
+	file_teleport_scopes_access_v1_role_proto_rawDescData []byte
 )
 
-func file_teleport_scopedrole_v1_role_proto_rawDescGZIP() []byte {
-	file_teleport_scopedrole_v1_role_proto_rawDescOnce.Do(func() {
-		file_teleport_scopedrole_v1_role_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_scopedrole_v1_role_proto_rawDesc), len(file_teleport_scopedrole_v1_role_proto_rawDesc)))
+func file_teleport_scopes_access_v1_role_proto_rawDescGZIP() []byte {
+	file_teleport_scopes_access_v1_role_proto_rawDescOnce.Do(func() {
+		file_teleport_scopes_access_v1_role_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_role_proto_rawDesc), len(file_teleport_scopes_access_v1_role_proto_rawDesc)))
 	})
-	return file_teleport_scopedrole_v1_role_proto_rawDescData
+	return file_teleport_scopes_access_v1_role_proto_rawDescData
 }
 
-var file_teleport_scopedrole_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_teleport_scopedrole_v1_role_proto_goTypes = []any{
-	(*ScopedRole)(nil),     // 0: teleport.scopedrole.v1.ScopedRole
-	(*ScopedRoleSpec)(nil), // 1: teleport.scopedrole.v1.ScopedRoleSpec
+var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
+	(*ScopedRole)(nil),     // 0: teleport.scopes.access.v1.ScopedRole
+	(*ScopedRoleSpec)(nil), // 1: teleport.scopes.access.v1.ScopedRoleSpec
 	(*v1.Metadata)(nil),    // 2: teleport.header.v1.Metadata
 }
-var file_teleport_scopedrole_v1_role_proto_depIdxs = []int32{
-	2, // 0: teleport.scopedrole.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
-	1, // 1: teleport.scopedrole.v1.ScopedRole.spec:type_name -> teleport.scopedrole.v1.ScopedRoleSpec
+var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
+	2, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
+	1, // 1: teleport.scopes.access.v1.ScopedRole.spec:type_name -> teleport.scopes.access.v1.ScopedRoleSpec
 	2, // [2:2] is the sub-list for method output_type
 	2, // [2:2] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name
@@ -219,26 +219,26 @@ var file_teleport_scopedrole_v1_role_proto_depIdxs = []int32{
 	0, // [0:2] is the sub-list for field type_name
 }
 
-func init() { file_teleport_scopedrole_v1_role_proto_init() }
-func file_teleport_scopedrole_v1_role_proto_init() {
-	if File_teleport_scopedrole_v1_role_proto != nil {
+func init() { file_teleport_scopes_access_v1_role_proto_init() }
+func file_teleport_scopes_access_v1_role_proto_init() {
+	if File_teleport_scopes_access_v1_role_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopedrole_v1_role_proto_rawDesc), len(file_teleport_scopedrole_v1_role_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_role_proto_rawDesc), len(file_teleport_scopes_access_v1_role_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_teleport_scopedrole_v1_role_proto_goTypes,
-		DependencyIndexes: file_teleport_scopedrole_v1_role_proto_depIdxs,
-		MessageInfos:      file_teleport_scopedrole_v1_role_proto_msgTypes,
+		GoTypes:           file_teleport_scopes_access_v1_role_proto_goTypes,
+		DependencyIndexes: file_teleport_scopes_access_v1_role_proto_depIdxs,
+		MessageInfos:      file_teleport_scopes_access_v1_role_proto_msgTypes,
 	}.Build()
-	File_teleport_scopedrole_v1_role_proto = out.File
-	file_teleport_scopedrole_v1_role_proto_goTypes = nil
-	file_teleport_scopedrole_v1_role_proto_depIdxs = nil
+	File_teleport_scopes_access_v1_role_proto = out.File
+	file_teleport_scopes_access_v1_role_proto_goTypes = nil
+	file_teleport_scopes_access_v1_role_proto_depIdxs = nil
 }
