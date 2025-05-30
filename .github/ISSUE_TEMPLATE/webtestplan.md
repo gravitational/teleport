@@ -1035,7 +1035,6 @@ Add the following to enable read access to trusted clusters
         - [ ] Windows
         - [ ] Linux
     - Verify that after successfully logging in:
-      - [ ] The cluster info is synced.
       - [ ] The first connection wasn't dropped; try executing `select now();`, the client should
             be able to automatically reinstantiate the connection.
       - [ ] The database proxy is able to handle new connections; click "Run" in the db tab and
@@ -1046,10 +1045,11 @@ Add the following to enable read access to trusted clusters
     the cert to expire, then attempt to make a connection through the proxy; log in.
     - [ ] Verify that psql shows an appropriate access denied error ("access to db denied. User
           does not have permissions. Confirm database user and name").
-  - Log in, open a cluster tab, wait for the cert to expire. Switch from a servers view to
-    databases view.
+  - Log in, open a cluster tab, wait for the cert to expire. Make sure the client connection is
+    closed (by e.g., restarting the cluster or having `auth_server.disconnect_expired_cert` set to
+    true). Hit the refresh button.
     - [ ] Verify that a login modal was shown.
-    - [ ] Verify that after logging in, the database list is shown.
+    - [ ] Verify that after logging in, the resources list is refreshed.
   - Log in, set up two db connections. Wait for the cert to expire. Attempt to connect to the first
     proxy, then without logging in proceed to connect to the second proxy.
     - [ ] Verify that an error notification was shown related to another login attempt being in
@@ -1077,8 +1077,6 @@ Add the following to enable read access to trusted clusters
     - [ ] Verify that you can mix adding resources from the root and leaf clusters.
     - [ ] Verify that you can't mix roles and resources into the same request.
     - [ ] Verify that you can request resources from both the unified view and the search bar.
-    - Change `show_resources` to `accessible_only` in [the UI config](https://goteleport.com/docs/reference/resources/#ui-config) of the root cluster.
-      - [ ] Verify that you can now only request resources from the new request tab.
   - **Viewing & Approving/Denying Requests**
     - To setup a test environment, follow the steps laid out in `Viewing & Approving/Denying Requests` from the Web UI testplan and then verify the tasks below.
     - [ ] Verify you can view access request from request list
@@ -1088,15 +1086,15 @@ Add the following to enable read access to trusted clusters
           (red cross)
     - [ ] Verify deleting the denied request is removed from list
   - **Assuming Approved Requests (Role Based)**
-    - [ ] Verify that assuming `allow-roles-and-nodes` allows you to see roles screen and ssh into
-          nodes
+    - [ ] Verify that assuming `allow-roles-and-nodes` allows you to ssh into nodes.
     - [ ] After assuming `allow-roles-and-nodes`, verify that assuming `allow-users-with-short-ttl`
-          allows you to see users screen, and denies access to nodes
-    - [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it
-          expires
-    - [ ] Verify `switching back` goes back to your default static role
-    - [ ] Verify after re-assuming `allow-users-with-short-ttl` role, the user is automatically logged
-          out after the expiry is met (4 minutes)
+          denies access to nodes.
+    - [ ] Verify that in the top right there's "Access Requests" menu which shows available requests
+          and a count down of when each of them it expires.
+    - [ ] Verify that dropping all assumed roles goes back to your default static role (roles are
+          listed in the identity picker in the top right).
+    - [ ] Verify that after re-assuming `allow-users-with-short-ttl` role and waiting until the
+          request expires (up to 4 minutes), the Access Requests menu says that the request has expired.
   - **Assuming Approved Requests (Search Based)**
     - [ ] Verify that assuming approved request, allows you to see the resources you've requested.
   - **Assuming Approved Requests (Both)**
@@ -1134,13 +1132,14 @@ Add the following to enable read access to trusted clusters
         the second one after closing the modal for the first request.
 - Per-session MFA
   - The easiest way to test it is to enable [cluster-wide per-session
-    MFA](https://goteleport.com/docs/access-controls/guides/per-session-mfa/#cluster-wide).
+    MFA](https://goteleport.com/docs/admin-guides/access-controls/guides/per-session-mfa/#cluster-wide).
   - [ ] Verify that connecting to a Kube cluster prompts for MFA.
     - [ ] Re-execute `kubectl exec --stdin --tty shell-demo -- /bin/bash` mentioned above to
           verify that Kube access is working with MFA.
   - [ ] Verify that Connect prompts for MFA during Connect My Computer setup.
+    - See the Connect My Computer section below on how to perform the setup during a test plan.
 - Hardware key support
-  - You will need a YubiKey 4.3+ and Teleport Enterprise. 
+  - You will need a YubiKey 4.3+ and Teleport Enterprise.
     The easiest way to test it is to enable [cluster-wide hardware keys enforcement](https://goteleport.com/docs/admin-guides/access-controls/guides/hardware-key-support/#step-12-enforce-hardware-key-support)
     (set `require_session_mfa: hardware_key_touch_and_pin` to get both touch and PIN prompts).
   - [ ] Log in. Verify that you were asked for both PIN and touch.
@@ -1151,24 +1150,25 @@ Add the following to enable read access to trusted clusters
     - [ ] macOS
     - [ ] Windows
     - [ ] Linux
-
 - Connect My Computer
+  - Until [#42348](https://github.com/gravitational/teleport/issues/42348) is fixed, you need to
+    copy a teleport binary into `~/Library/Caches/Teleport\ Connect/teleport/teleport` before
+    starting the setup of Connect My Computer.
   - [ ] Verify the happy path from clean slate (no existing role) setup: set up the node and then
         connect to it.
-  - Kill the agent while its joining the cluster and verify that the logs from the agent process
-    are shown in the UI.
-    - The easiest way to do this is by following the agent cleanup daemon logs (`tail -F ~/Library/Application\ Support/Teleport\ Connect/logs/cleanup.log`) and then `kill -s KILL <agent PID>`.
-    - [ ] During setup.
-    - [ ] After setup in the status view. Verify that the page says that the process exited with
-          SIGKILL.
-  - [ ] Open the node config, change the proxy address to an incorrect one to simulate problems
-        with connection. Verify that the app kills the agent after the agent is not able to join the
+  - [ ] When the agent is running, kill it and verify that the logs from the agent process are shown
+    in the status tab. Verify that the page says that the process exited with SIGKILL.
+    - The easiest way to do this is by following the agent cleanup daemon logs (`tail -F
+      ~/Library/Application\ Support/Teleport\ Connect/logs/agent-cleanup.log`) and then `kill -s
+      KILL <agent PID>`.
+  - [ ] Open the agent config (CMC status tab, three dots, "Open agent logs directory", go one up,
+        edit config.yaml), change the proxy address to an incorrect one to simulate problems with
+        connection. Verify that the app kills the agent after the agent is not able to join the
         cluster within the timeout.
   - [ ] Verify autostart behavior. The agent should automatically start on app start unless it was
         manually stopped before exiting the app.
   - Verify that all items from this section work on:
     - [ ] macOS
-    - [ ] Windows
     - [ ] Linux
 - VNet
   - VNet doesn't work with local clusters made available under custom domains through entries in
