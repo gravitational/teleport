@@ -243,9 +243,7 @@ func TestCreateTable(t *testing.T) {
 func TestContinuousBackups(t *testing.T) {
 	ensureTestsEnabled(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	// Create new backend with continuous backups enabled.
-	b, err := New(ctx, map[string]interface{}{
+	b, err := New(t.Context(), map[string]interface{}{
 		"table_name":         uuid.NewString() + "-test",
 		"continuous_backups": true,
 	})
@@ -253,7 +251,6 @@ func TestContinuousBackups(t *testing.T) {
 
 	// Remove table after tests are done.
 	t.Cleanup(func() {
-		cancel()
 		back := backoff.NewDecorr(500*time.Millisecond, 20*time.Second, clockwork.NewRealClock())
 		for {
 			err := deleteTable(context.Background(), b.svc, b.Config.TableName)
