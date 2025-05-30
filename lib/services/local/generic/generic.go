@@ -20,6 +20,7 @@ package generic
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -28,7 +29,9 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Resource represents a Teleport resource that may be generically
@@ -185,6 +188,34 @@ func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 	}
 
 	return out, nil
+}
+
+// Resources returns a stream of resources.
+func (s *Service[T]) Resources(ctx context.Context, startKey string, limit int) stream.Stream[T] {
+	return func(yield func(T, error) bool) {
+		for item, err := range s.backend.Items(ctx, backend.ItemsParams{
+			StartKey: s.backendPrefix.AppendKey(backend.KeyFromString(startKey)),
+			EndKey:   backend.RangeEnd(s.backendPrefix.ExactKey()),
+			Limit:    limit,
+		}) {
+			if err != nil {
+				var t T
+				yield(t, trace.Wrap(err))
+				return
+			}
+
+			resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
+			if err != nil {
+				// unmarshal errors are logged and skipped
+				slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
+				return
+			}
+
+			if !yield(resource, nil) {
+				return
+			}
+		}
+	}
 }
 
 // ListResources returns a paginated list of resources.

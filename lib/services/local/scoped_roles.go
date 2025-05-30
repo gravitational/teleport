@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	srpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopedrole/v1"
+	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -94,7 +95,7 @@ func (s *ScopedRoleService) GetScopedRole(ctx context.Context, req *srpb.GetScop
 		return nil, trace.Wrap(err)
 	}
 
-	if err := sr.WeakValidateRole(role); err != nil {
+	if err := scopes.WeakValidateResource(role, sr.KindScopedRole, types.V1); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -127,7 +128,7 @@ func (s *ScopedRoleService) StreamScopedRoles(ctx context.Context) stream.Stream
 				continue
 			}
 
-			if err := sr.WeakValidateRole(role); err != nil {
+			if err := scopes.WeakValidateResource(role, sr.KindScopedRole, types.V1); err != nil {
 				// per-role errors are logged and skipped
 				s.logger.WarnContext(ctx, "skipping scoped role due to validation error", "error", err, "key", logutils.StringerAttr(item.Key))
 				continue

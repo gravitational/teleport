@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -148,4 +149,21 @@ func (s ServiceWrapper[T]) ListResourcesWithFilter(ctx context.Context, pageSize
 		out = append(out, adapter.resource)
 	}
 	return out, nextToken, trace.Wrap(err)
+}
+
+// Resources returns a stream of resources.
+func (s ServiceWrapper[T]) Resources(ctx context.Context, startKey string, limit int) stream.Stream[T] {
+	return func(yield func(T, error) bool) {
+		for adapter, err := range s.service.Resources(ctx, startKey, limit) {
+			if err != nil {
+				var t T
+				yield(t, err)
+				return
+			}
+
+			if yield(adapter.resource, nil) {
+				return
+			}
+		}
+	}
 }
