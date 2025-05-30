@@ -14,16 +14,16 @@
 
 syntax = "proto3";
 
-package teleport.scopedrole.v1;
+package teleport.scopes.access.v1;
 
-import "teleport/scopedrole/v1/assignment.proto";
-import "teleport/scopedrole/v1/role.proto";
+import "teleport/scopes/access/v1/assignment.proto";
+import "teleport/scopes/access/v1/role.proto";
 import "teleport/scopes/v1/scopes.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopedrole/v1;scopedrole";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1";
 
-// ScopedRoleService provides an API for managing scoped role resources and their assignments.
-service ScopedRoleService {
+// ScopedAccessService provides an API for managing scoped access-control resources.
+service ScopedAccessService {
   // GetScopedRole gets a scoped role by name.
   rpc GetScopedRole(GetScopedRoleRequest) returns (GetScopedRoleResponse);
 

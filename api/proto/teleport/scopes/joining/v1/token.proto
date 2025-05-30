@@ -14,16 +14,17 @@
 
 syntax = "proto3";
 
-package teleport.scopedrole.v1;
+package teleport.scopes.joining.v1;
 
 import "teleport/header/v1/metadata.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopedrole/v1;scopedrole";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1";
 
-// ScopedRole is a role whose resource and permissions are scoped. Scoped roles implement a subset of role
-// features tailored to the usecases of scoped access and scoped access administration. Scoped roles may be
-// assigned to the same user multiple times at various scopes. Scoped roles do not contain deny rules.
-message ScopedRole {
+// ScopedToken is a token whose resource and permissions are scoped. Scoped tokens are used for the provisioning
+// of teleport agents locked to specific scopes. Scoped tokens implement a subset of the functionality of standard
+// provisioning tokens, specifically tailored to the usecase of limited admins/users provisioning resources within
+// sub-scopes over which they have been granted elevated privileges.
+message ScopedToken {
   // Kind is the resource kind.
   string kind = 1;
 
@@ -36,17 +37,17 @@ message ScopedRole {
   // Metadata contains the resource metadata.
   teleport.header.v1.Metadata metadata = 4;
 
-  // Scope is the scope of the role resource.
+  // Scope is the scope of the token resource.
   string scope = 5;
 
-  // Spec is the role specification.
-  ScopedRoleSpec spec = 6;
+  // Spec is the token specification.
+  ScopedTokenSpec spec = 6;
 }
 
-// ScopedRoleSpec is the specification of a scoped role.
-message ScopedRoleSpec {
-  // AssignableScopes is a list of scopes to which this role can be assigned.
-  repeated string assignable_scopes = 1;
+// ScopedTokenSpec is the specification of a scoped token.
+message ScopedTokenSpec {
+  // AssignedScope is the scope to which this token is assigned.
+  string assigned_scope = 1;
 
-  // TODO(fspmarshall): port relevant role features to scoped roles.
+  // TODO(fspmarshall): port relevant token features to scoped tokens.
 }

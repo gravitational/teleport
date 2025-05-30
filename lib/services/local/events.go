@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	scopedrole "github.com/gravitational/teleport/lib/scopes/roles"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -108,6 +109,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newNamespaceParser(kind.Name)
 		case types.KindRole:
 			parser = newRoleParser()
+		case scopedrole.KindScopedRole:
+			parser = newScopedRoleParser()
+		case scopedrole.KindScopedRoleAssignment:
+			parser = newScopedRoleAssignmentParser()
 		case types.KindUser:
 			parser = newUserParser()
 		case types.KindNode:
@@ -991,6 +996,74 @@ func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.Wrap(err)
 		}
 		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newScopedRoleParser() *scopedRoleParser {
+	return &scopedRoleParser{
+		baseParser: newBaseParser(scopedRoleWatchPrefix()),
+	}
+}
+
+type scopedRoleParser struct {
+	baseParser
+}
+
+func (p *scopedRoleParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := strings.TrimPrefix(event.Item.Key.TrimPrefix(scopedRoleWatchPrefix()).String(), backend.SeparatorString)
+		if name == "" || strings.Contains(name, "/") {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		return &types.ResourceHeader{
+			Kind: scopedrole.KindScopedRole,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+		}, nil
+	case types.OpPut:
+		role, err := scopedRoleFromItem(&event.Item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(role), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newScopedRoleAssignmentParser() *scopedRoleAssignmentParser {
+	return &scopedRoleAssignmentParser{
+		baseParser: newBaseParser(scopedRoleAssignmentWatchPrefix()),
+	}
+}
+
+type scopedRoleAssignmentParser struct {
+	baseParser
+}
+
+func (p *scopedRoleAssignmentParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := strings.TrimPrefix(event.Item.Key.TrimPrefix(scopedRoleAssignmentWatchPrefix()).String(), backend.SeparatorString)
+		if name == "" || strings.Contains(name, "/") {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		return &types.ResourceHeader{
+			Kind: scopedrole.KindScopedRoleAssignment,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+		}, nil
+	case types.OpPut:
+		assignment, err := scopedRoleAssignmentFromItem(&event.Item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(assignment), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
