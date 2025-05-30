@@ -313,9 +313,16 @@ const (
 	// KindSessionRecordingConfig is the resource for session recording configuration.
 	KindSessionRecordingConfig = "session_recording_config"
 
+	// KindRecordingEncryption is the collection of active session recording encryption keys.
+	KindRecordingEncryption = "recording_encryption"
+
 	// MetaNameSessionRecordingConfig is the exact name of the singleton resource for
 	// session recording configuration.
 	MetaNameSessionRecordingConfig = "session-recording-config"
+
+	// MetaNameRecordingEncryption is the exact name of the singleton resource for
+	// session recording configuration.
+	MetaNameRecordingEncryption = "recording-encryption"
 
 	// KindExternalAuditStorage the resource kind for External Audit Storage
 	// configuration.
