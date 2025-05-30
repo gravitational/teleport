@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/grpcconn"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -62,6 +63,8 @@ type identityService struct {
 	cfg               *config.BotConfig
 	resolver          reversetunnelclient.Resolver
 
+	conn grpcconn.ClientConn
+
 	mu     sync.Mutex
 	client *authclient.Client
 	facade *identity.Facade
@@ -72,6 +75,11 @@ func (s *identityService) GetIdentity() *identity.Identity {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.facade.Get()
+}
+
+// GetConnection returns the gRPC client connection.
+func (s *identityService) GetConnection() *grpcconn.ClientConn {
+	return &s.conn
 }
 
 // GetClient returns the facaded client for the Bot identity for use by other
@@ -235,6 +243,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 	}
 	s.mu.Lock()
 	s.client = c
+	s.conn.SetConnection(c.GetConnection())
 	s.facade = facade
 	s.mu.Unlock()
 
