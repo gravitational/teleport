@@ -114,8 +114,7 @@ as well as an upgrade of the previous version of Teleport.
       - [ ] Host key checking disabled allows connection
 
 - [ ] Enhanced Session Recording
-  - [ ] `disk`, `command` and `network` events are being logged.
-  - [ ] Recorded events can be enforced by the `enhanced_recording` role option.
+  - [ ] Setting the `enhanced_recording` role option determine which types of events (`disk`, `command`, `network`) are logged on nodes with `enhanced_recording.enabled: true`
   - [ ] Enhanced session recording can be enabled on CentOS 7 with kernel 5.8+.
 
 - [ ] Auditd
