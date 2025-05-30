@@ -120,95 +120,131 @@ func SerializeTerminal(vt vt10x.Terminal, theme *Theme) TerminalState {
 		state.Lines[y] = line
 	}
 
-	state.Dump = generateDumpSequence(vt, theme)
+	state.Dump = dumpTerminalWithANSI(vt)
 
 	return state
 }
 
-func generateDumpSequence(vt vt10x.Terminal, theme *Theme) string {
-	var seq strings.Builder
-
+func dumpTerminalWithANSI(vt vt10x.Terminal) string {
 	cols, rows := vt.Size()
-	cursor := vt.Cursor()
+	var output strings.Builder
+	var lastFG, lastBG vt10x.Color
+	var lastMode int16
+	needReset := true
 
-	seq.WriteString("\033[H\033[2J")
+	cursor := vt.Cursor()
+	output.WriteString("\x1b[s")
+
+	if vt.CursorVisible() {
+		output.WriteString("\x1b[?25h")
+	} else {
+		output.WriteString("\x1b[?25l")
+	}
 
 	for y := 0; y < rows; y++ {
-		seq.WriteString(fmt.Sprintf("\033[%d;1H", y+1))
-
-		var lastAttrs textAttrs
-		var lastFG, lastBG vt10x.Color = vt10x.DefaultFG, vt10x.DefaultBG
-
 		for x := 0; x < cols; x++ {
-			cell := vt.Cell(x, y)
+			glyph := vt.Cell(x, y)
 
-			attrs := getTextAttrs(&cell, cursor, x, y, theme)
+			if glyph.Mode != lastMode || glyph.FG != lastFG || glyph.BG != lastBG || needReset {
+				var codes []string
 
-			if !attrsAreEqual(&lastAttrs, &attrs) || cell.FG != lastFG || cell.BG != lastBG {
-				seq.WriteString("\033[0m")
-
-				if attrs.bold {
-					seq.WriteString("\033[1m")
-				}
-				if attrs.faint {
-					seq.WriteString("\033[2m")
-				}
-				if attrs.italic {
-					seq.WriteString("\033[3m")
-				}
-				if attrs.underline {
-					seq.WriteString("\033[4m")
-				}
-				if attrs.blink {
-					seq.WriteString("\033[5m")
-				}
-				if attrs.reverse {
-					seq.WriteString("\033[7m")
+				// Reset all attributes if mode changes or at start
+				if (glyph.Mode != lastMode && lastMode != 0) || needReset {
+					codes = append(codes, "0")
+					lastMode = 0
+					lastFG = vt10x.DefaultFG
+					lastBG = vt10x.DefaultBG
 				}
 
-				if fg := colorToANSI(cell.FG, true); fg != "" {
-					seq.WriteString(fg)
-				}
-				if bg := colorToANSI(cell.BG, false); bg != "" {
-					seq.WriteString(bg)
+				// Apply mode attributes
+				if glyph.Mode != lastMode {
+					if glyph.Mode&(1<<0) != 0 {
+						codes = append(codes, "1")
+					} // Bold
+					if glyph.Mode&(1<<1) != 0 {
+						codes = append(codes, "2")
+					} // Dim
+					if glyph.Mode&(1<<2) != 0 {
+						codes = append(codes, "4")
+					} // Underline
+					if glyph.Mode&(1<<3) != 0 {
+						codes = append(codes, "5")
+					} // Blink
+					if glyph.Mode&(1<<4) != 0 {
+						codes = append(codes, "7")
+					} // Reverse
+					if glyph.Mode&(1<<5) != 0 {
+						codes = append(codes, "8")
+					} // Hidden
+					lastMode = glyph.Mode
 				}
 
-				lastAttrs = attrs
-				lastFG = cell.FG
-				lastBG = cell.BG
+				// Handle foreground color
+				if glyph.FG != lastFG {
+					if glyph.FG == vt10x.DefaultFG {
+						codes = append(codes, "39") // Default foreground
+					} else if glyph.FG < 16 {
+						if glyph.FG < 8 {
+							codes = append(codes, fmt.Sprintf("%d", 30+glyph.FG))
+						} else {
+							codes = append(codes, fmt.Sprintf("%d", 90+glyph.FG-8))
+						}
+					} else if glyph.FG < 256 {
+						codes = append(codes, "38", "5", fmt.Sprintf("%d", glyph.FG))
+					} else {
+						r := (glyph.FG >> 16) & 0xFF
+						g := (glyph.FG >> 8) & 0xFF
+						b := glyph.FG & 0xFF
+						codes = append(codes, "38", "2", fmt.Sprintf("%d", r), fmt.Sprintf("%d", g), fmt.Sprintf("%d", b))
+					}
+					lastFG = glyph.FG
+				}
+
+				// Handle background color
+				if glyph.BG != lastBG {
+					if glyph.BG == vt10x.DefaultBG {
+						codes = append(codes, "49") // Default background
+					} else if glyph.BG < 16 {
+						if glyph.BG < 8 {
+							codes = append(codes, fmt.Sprintf("%d", 40+glyph.BG))
+						} else {
+							codes = append(codes, fmt.Sprintf("%d", 100+glyph.BG-8))
+						}
+					} else if glyph.BG < 256 {
+						codes = append(codes, "48", "5", fmt.Sprintf("%d", glyph.BG))
+					} else {
+						r := (glyph.BG >> 16) & 0xFF
+						g := (glyph.BG >> 8) & 0xFF
+						b := glyph.BG & 0xFF
+						codes = append(codes, "48", "2", fmt.Sprintf("%d", r), fmt.Sprintf("%d", g), fmt.Sprintf("%d", b))
+					}
+					lastBG = glyph.BG
+				}
+
+				if len(codes) > 0 {
+					output.WriteString("\x1b[")
+					output.WriteString(strings.Join(codes, ";"))
+					output.WriteString("m")
+				}
+				needReset = false
 			}
 
-			if cell.Char != 0 {
-				seq.WriteRune(cell.Char)
+			if glyph.Char == 0 {
+				output.WriteRune(' ')
 			} else {
-				seq.WriteRune(' ')
+				output.WriteRune(glyph.Char)
 			}
 		}
-	}
 
-	seq.WriteString(fmt.Sprintf("\033[%d;%dH", vt.Cursor().Y+1, vt.Cursor().X+1))
-
-	if !vt.CursorVisible() {
-		seq.WriteString("\033[?25l")
-	}
-
-	return seq.String()
-}
-
-func colorToANSI(c vt10x.Color, isForeground bool) string {
-	base := 30
-	if !isForeground {
-		base = 40
-	}
-
-	if c < 8 {
-		return fmt.Sprintf("\033[%dm", base+int(c))
-	} else if c < 16 {
-		return fmt.Sprintf("\033[%d;1m", base+int(c)-8)
-	} else {
-		if isForeground {
-			return fmt.Sprintf("\033[38;5;%dm", c)
+		// Reset at end of each line to ensure clean line breaks
+		if y < rows-1 {
+			output.WriteString("\x1b[0m\r\n")
+			needReset = true
 		}
-		return fmt.Sprintf("\033[48;5;%dm", c)
 	}
+
+	output.WriteString("\x1b[0m")
+	output.WriteString(fmt.Sprintf("\x1b[%d;%dH", cursor.Y+1, cursor.X+1))
+
+	return output.String()
 }
