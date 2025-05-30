@@ -21,15 +21,17 @@ package helper
 import (
 	"context"
 	"errors"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
-	"github.com/gravitational/teleport/lib/utils"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 )
 
@@ -72,6 +74,15 @@ func NewDefaultUpdater() (*tools.Updater, error) {
 // If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
 // using the version from the home directory.
 func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecArgs []string) error {
+	var err error
+	if currentProfileName == "" {
+		profilePath := profile.FullProfilePath(filepath.Clean(os.Getenv(types.HomeEnvVar)))
+		currentProfileName, err = profile.GetCurrentProfileName(profilePath)
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
 	updater, err := NewDefaultUpdater()
 	if errors.Is(err, ErrDisabled) {
 		slog.WarnContext(ctx, "Client tools update is disabled")
@@ -80,19 +91,19 @@ func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecA
 		return trace.Wrap(err)
 	}
 
-	resp, err := updater.CheckLocal()
+	resp, err := updater.CheckLocal(currentProfileName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	config, err := updater.LoadConfig(currentProfileName)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
-	if !resp.IsLocal && config != nil && config.Disabled {
-		return nil
-	}
+	//config, err := updater.LoadConfig(currentProfileName)
+	//if err != nil && !trace.IsNotFound(err) {
+	//	return trace.Wrap(err)
+	//}
+	//
+	//if !resp.IsLocal && config != nil && config.Disabled {
+	//	return nil
+	//}
 
 	if resp.ReExec {
 		err := UpdateAndReExec(ctx, updater, resp.Version, reExecArgs)
@@ -125,27 +136,7 @@ func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reEx
 		return trace.Wrap(err)
 	}
 
-	profileName, err := utils.Host(proxy)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	config, err := updater.LoadConfig(profileName)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
-	if config == nil {
-		config = &tools.Config{}
-	}
-
-	config.Version = resp.Version
-	config.Disabled = resp.Disabled
-	if err := updater.SaveConfig(profileName, config); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if !config.Disabled && resp.ReExec {
+	if !resp.Disabled && resp.ReExec {
 		err := UpdateAndReExec(ctx, updater, resp.Version, reExecArgs)
 		if err != nil {
 			return trace.Wrap(err)

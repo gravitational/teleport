@@ -32,7 +32,6 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/autoupdate/tools/helper"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -113,16 +112,10 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 	}
 
 	var name string
-	var err error
 	if len(ccf.AuthServerAddr) != 0 {
+		var err error
 		name, err = utils.Host(ccf.AuthServerAddr[0])
 		if err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		profilePath := profile.FullProfilePath(cfg.TeleportHome)
-		name, err = profile.GetCurrentProfileName(profilePath)
-		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 	}

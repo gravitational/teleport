@@ -760,12 +760,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	} else {
-		profilePath := profile.FullProfilePath(filepath.Clean(os.Getenv(types.HomeEnvVar)))
-		name, err = profile.GetCurrentProfileName(profilePath)
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
 	}
 	if err := helper.CheckAndUpdateLocal(ctx, name, args); err != nil {
 		return trace.Wrap(err)

@@ -144,7 +144,7 @@ func NewUpdater(toolsDir, localVersion string, options ...Option) *Updater {
 // CheckLocal is run at client tool startup and will only perform local checks.
 // Returns the version needs to be updated and re-executed, by re-execution flag we
 // understand that update and re-execute is required.
-func (u *Updater) CheckLocal() (*UpdateResponse, error) {
+func (u *Updater) CheckLocal(profileName string) (*UpdateResponse, error) {
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	switch requestedVersion {
@@ -172,6 +172,15 @@ func (u *Updater) CheckLocal() (*UpdateResponse, error) {
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	config, err := u.LoadConfig(profileName)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	if config != nil && config.Disabled {
+		return &UpdateResponse{Version: toolsVersion, ReExec: false}, nil
 	}
 
 	return &UpdateResponse{Version: toolsVersion, ReExec: true}, nil
@@ -224,19 +233,41 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		return nil, trace.Wrap(err)
 	}
 
+	updateResp := &UpdateResponse{Version: toolsVersion, ReExec: true}
+
 	switch {
 	case !resp.AutoUpdate.ToolsAutoUpdate || resp.AutoUpdate.ToolsVersion == "":
+		updateResp = &UpdateResponse{Version: toolsVersion, ReExec: true, Disabled: true}
 		if toolsVersion == "" {
-			return &UpdateResponse{Version: u.localVersion, ReExec: false, Disabled: true}, nil
+			updateResp = &UpdateResponse{Version: u.localVersion, ReExec: false, Disabled: true}
 		}
-		return &UpdateResponse{Version: toolsVersion, ReExec: true, Disabled: true}, nil
 	case u.localVersion == resp.AutoUpdate.ToolsVersion:
-		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil
+		updateResp = &UpdateResponse{Version: u.localVersion, ReExec: false}
 	case resp.AutoUpdate.ToolsVersion != toolsVersion:
-		return &UpdateResponse{Version: resp.AutoUpdate.ToolsVersion, ReExec: true}, nil
+		updateResp = &UpdateResponse{Version: resp.AutoUpdate.ToolsVersion, ReExec: true}
 	}
 
-	return &UpdateResponse{Version: toolsVersion, ReExec: true}, nil
+	profileName, err := utils.Host(proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	config, err := u.LoadConfig(profileName)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	if config == nil {
+		config = &Config{}
+	}
+
+	config.Version = updateResp.Version
+	config.Disabled = updateResp.Disabled
+	if err := u.SaveConfig(profileName, config); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return updateResp, nil
 }
 
 // UpdateWithLock acquires filesystem lock, downloads requested version package,
