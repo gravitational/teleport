@@ -616,7 +616,7 @@ export function roleToRoleEditorModel(
   // We use destructuring to strip fields from objects and assert that nothing
   // has been left. Therefore, we don't want Lint to warn us that we didn't use
   // some of the fields.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { kind, metadata, spec, version, ...unsupported } = role;
   conversionErrors.push(...unsupportedFieldErrorsFromObject('', unsupported));
 
