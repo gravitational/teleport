@@ -291,16 +291,15 @@ const IncludedResourcesSelector = ({
         onClose={handleClose}
       >
         <AccessRequestsToggleItem>
-          <Text mr={2} mb={1}>
-            Show requestable resources
-          </Text>
           <Toggle
             isToggled={
               availabilityFilter.mode === 'requestable' ||
               availabilityFilter.mode === 'all'
             }
             onToggle={handleToggle}
-          />
+          >
+            <Text ml={2}>Show requestable resources</Text>
+          </Toggle>
         </AccessRequestsToggleItem>
       </Menu>
     </Flex>
