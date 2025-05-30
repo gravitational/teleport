@@ -124,6 +124,7 @@ func newManagerConfig(bk backend.Backend, local services.RecordingEncryption, ke
 		Backend:  local,
 		KeyStore: &fakeEncryptionKeyStore{keyType: keyType},
 		Logger:   utils.NewSlogLoggerForTests(),
+		Cache:    local,
 		LockConfig: backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
 				Backend:            bk,
