@@ -18,9 +18,16 @@
 
 import { act } from '@testing-library/react';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
-import { createRef, forwardRef, useImperativeHandle } from 'react';
+import {
+  createRef,
+  FC,
+  forwardRef,
+  Profiler,
+  PropsWithChildren,
+  useImperativeHandle,
+} from 'react';
 
-import { render, screen } from 'design/utils/testing';
+import { Providers, render, screen } from 'design/utils/testing';
 import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import {
   AvailableResourceMode,
@@ -358,4 +365,75 @@ const Refresher = forwardRef<
     requestResourcesRefresh: resourcesContext.requestResourcesRefresh,
   }));
   return null;
+});
+
+it('passes props with stable identity to <Resources>', async () => {
+  const rootCluster = makeRootCluster();
+  const doc = makeDocumentCluster({
+    clusterUri: rootCluster.uri,
+  });
+  const serverResource = makeServer();
+  const appContext = new MockAppContext();
+  appContext.addRootClusterWithDoc(rootCluster, doc);
+
+  jest
+    .spyOn(appContext.resourcesService, 'listUnifiedResources')
+    .mockResolvedValue({
+      resources: [
+        {
+          kind: 'server',
+          resource: serverResource,
+          requiresRequest: false,
+        },
+      ],
+      nextKey: '',
+    });
+
+  let renderCount = 0;
+  const onRender = () => (renderCount += 1);
+
+  const Wrapper: FC<PropsWithChildren> = ({ children }) => (
+    <Providers>
+      <MockAppContextProvider appContext={appContext}>
+        <MockWorkspaceContextProvider>
+          <ResourcesContextProvider>
+            <ConnectMyComputerContextProvider rootClusterUri={doc.clusterUri}>
+              {children}
+            </ConnectMyComputerContextProvider>
+          </ResourcesContextProvider>
+        </MockWorkspaceContextProvider>
+      </MockAppContextProvider>
+    </Providers>
+  );
+
+  const Component = () => (
+    <Profiler id="unifiedResources" onRender={onRender}>
+      <UnifiedResources
+        clusterUri={doc.clusterUri}
+        docUri={doc.uri}
+        queryParams={doc.queryParams}
+      />
+    </Profiler>
+  );
+
+  const { rerender } = render(<Component />, { wrapper: Wrapper });
+  act(mio.enterAll);
+  // Wait for resources to render.
+  await expect(
+    screen.findByText(serverResource.hostname)
+  ).resolves.toBeInTheDocument();
+  // Disabled because of a false positive.
+  // eslint-disable-next-line testing-library/render-result-naming-convention
+  const renderCountBeforeRerender = renderCount;
+
+  rerender(<Component />);
+  await expect(
+    screen.findByText(serverResource.hostname)
+  ).resolves.toBeInTheDocument();
+  const renderCountDelta = renderCount - renderCountBeforeRerender;
+
+  // When <Resources> is properly memoized and all params passed to it have stable identity,
+  // rerendering the outer <UnifiedResources> with no prop changes should cause only one render
+  // within the tree.
+  expect(renderCountDelta).toEqual(1);
 });
