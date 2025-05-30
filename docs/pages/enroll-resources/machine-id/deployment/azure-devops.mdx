@@ -2,3 +2,104 @@
 title: Deploying Machine ID on Azure DevOps
 description: How to install and configure Machine ID on Azure DevOps.
 ---
+
+In this guide, you will configure Machine ID's agent, `tbot`, to run within a
+Azure DevOps pipeline run. The bot will be configured to use the `azure_devops`
+delegated joining method to eliminate the need for long-lived secrets.
+
+This mitigates the risk of long-lived secrets such as passwords or SSH private
+keys being exfiltrated from your Azure DevOps organization and provides many of
+the other benefits of Teleport such as auditing and finely-grained access
+control.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/5. Determine your Azure DevOps organization ID
+
+Before we can grant access to a `tbot` running within an Azure DevOps pipeline,
+we must determine the ID of the Azure DevOps organization that the pipeline
+runs within. This will be used later to configure the join token.
+
+To determine the organization ID, add a step to a new or existing pipeline that
+exists within the organization that echoes the `System.CollectionId` variable.
+
+For example:
+
+```yaml
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- script: |
+    echo "Organization ID: $(System.CollectionId)"
+```
+
+Run this pipeline, and inspect the output of the step. You should see your
+organization ID printed in the logs, similar to the following:
+
+```code
+========================== Starting Command Output ===========================
+/usr/bin/bash --noprofile --norc /home/vsts/work/_temp/c4fdfbf7-6cd4-4737-a2a2-16702d201449.sh
+Organization ID: 0ca3ddd9-f0b0-4635-a98c-5866526961b6
+```
+
+Record this organization ID as you will need it later.
+
+## Step 2/5. Create a Bot
+
+(!docs/pages/includes/machine-id/create-a-bot.mdx!)
+
+## Step 3/5. Create a join token
+
+Create a file named `bot-token.yaml`. Ensure you substitute any values as
+suggested by the comments in this example:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: azure-devops-test
+spec:
+  roles: [Bot]
+  join_method: azure_devops
+  bot_name: github-machine-identity-demo
+  azure_devops:
+    organization_id: 0ca3ddd9-f0b0-4635-a98c-5866526961b6
+    allow:
+      - project_name: testing-azure-devops-join
+        pipeline_name: strideynet.azure-devops-testingv
+```
+
+You can find a full list of the token configuration options for Azure DevOps
+joining on the
+[join methods reference page.](../../../reference/join-methods.mdx#azure-devops-azure_devops)
+
+Apply this to your Teleport cluster using `tctl`:
+
+```code
+$ tctl create -f bot-token.yaml
+```
+
+## Step 4/5. Configure an Azure DevOps Pipeline
+
+
+## Step 5/5. Configure outputs
+
+(!docs/pages/includes/machine-id/configure-outputs.mdx!)
+
+## Further steps
+
+- For more information about the Azure DevOps join method, read the
+  [join method reference page.](../../../reference/join-methods.mdx#azure-devops-azure_devops)
+- Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
+your environment.
+- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
+all the available configuration options.
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-id/telemetry.mdx)
