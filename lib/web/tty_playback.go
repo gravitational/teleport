@@ -22,12 +22,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+
+	"github.com/hinshun/vt10x"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/metadata"
@@ -37,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/web/ttyplayback"
 )
 
 const (
@@ -109,6 +115,39 @@ func (h *Handler) sessionEvents(
 		return nil, trace.BadParameter("missing session ID in request URL")
 	}
 
+	var startFromTime int64
+
+	query := r.URL.Query()
+	// limit value is expected to be non empty and convertible to int.
+	startTimeValue := query.Get("start_time")
+	if startTimeValue == "" {
+		startFromTime = 0
+	} else {
+		var err error
+		startFromTime, err = strconv.ParseInt(startTimeValue, 10, 64)
+		if err != nil {
+			return nil, trace.BadParameter("invalid start index: %v", err)
+		}
+		if startFromTime < 0 {
+			return nil, trace.BadParameter("start index must be non-negative")
+		}
+	}
+
+	fmt.Println("startFromTime:", startFromTime)
+
+	var limit int64 = 500
+	limitValue := query.Get("limit")
+	if limitValue != "" {
+		var err error
+		limit, err = strconv.ParseInt(limitValue, 10, 64)
+		if err != nil {
+			return nil, trace.BadParameter("invalid limit: %v", err)
+		}
+		if limit <= 0 {
+			return nil, trace.BadParameter("limit must be a positive integer")
+		}
+	}
+
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
@@ -117,18 +156,25 @@ func (h *Handler) sessionEvents(
 		return nil, trace.Wrap(err)
 	}
 
-	type SessionEvent struct {
-		Type string `json:"type"`
-		Data []byte `json:"data"`
-		Time int64  `json:"time"`
-	}
-
 	type SessionEventsResponse struct {
-		Duration int64          `json:"duration"`
-		Events   []SessionEvent `json:"events"`
+		CurrentScreen ttyplayback.TerminalState `json:"currentScreen"`
+		Duration      int64                     `json:"duration"`
+		Events        []ttyplayback.Event       `json:"events"`
 	}
 
-	var sessionEvents []SessionEvent
+	var currentScreen ttyplayback.TerminalState
+
+	var sessionEvents []ttyplayback.Event
+
+	var cols, rows int
+	var lastEvent *apievents.SessionPrint
+
+	vt := vt10x.New()
+	theme, err := ttyplayback.ParseTheme(ttyplayback.DraculaTheme)
+	if err != nil {
+		h.logger.WarnContext(ctx, "failed to parse theme", "error", err)
+		return nil, trace.Wrap(err)
+	}
 
 	evts, errs := clt.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, teleport.PTY), session.ID(sID), 0)
 	for {
@@ -141,30 +187,109 @@ func (h *Handler) sessionEvents(
 			}
 			switch evt := evt.(type) {
 			case *apievents.SessionStart:
-				sessionEvents = append(sessionEvents, SessionEvent{
+				if startFromTime > 0 {
+					// If the event is before the start time, skip it.
+					continue
+				}
+				sessionEvents = append(sessionEvents, ttyplayback.Event{
 					Type: "start",
-					Data: []byte(evt.TerminalSize),
+					Data: evt.TerminalSize,
 				})
 			case *apievents.SessionPrint:
-				sessionEvents = append(sessionEvents, SessionEvent{
+				if evt.DelayMilliseconds < startFromTime {
+					if _, err := vt.Write(evt.Data); err != nil {
+						h.logger.WarnContext(ctx, "failed to write to terminal", "error", err, "data", evt.Data)
+
+						continue
+					}
+
+					lastEvent = evt
+
+					continue
+				}
+
+				if lastEvent != nil {
+					lines := make([][]vt10x.Glyph, rows)
+
+					for row := 0; row < rows; row++ {
+						lines[row] = make([]vt10x.Glyph, cols)
+						for col := 0; col < cols; col++ {
+							cell := vt.Cell(col, row)
+							lines[row][col] = cell
+						}
+					}
+
+					currentScreen = ttyplayback.SerializeTerminal(vt, theme)
+
+					sessionEvents = append(sessionEvents, ttyplayback.Event{
+						Type: "print",
+						Data: string(lastEvent.Data),
+						Time: lastEvent.DelayMilliseconds,
+					})
+
+					lastEvent = nil
+				}
+
+				sessionEvents = append(sessionEvents, ttyplayback.Event{
 					Type: "print",
-					Data: evt.Data,
+					Data: string(evt.Data),
 					Time: evt.DelayMilliseconds,
 				})
+
+				if int64(len(sessionEvents)) >= limit {
+					// If we have reached the limit, return the events collected so far.
+					return SessionEventsResponse{
+						CurrentScreen: currentScreen,
+						Duration:      int64(evt.DelayMilliseconds),
+						Events:        sessionEvents,
+					}, nil
+				}
 			case *apievents.SessionEnd:
-				sessionEvents = append(sessionEvents, SessionEvent{
+				sessionEvents = append(sessionEvents, ttyplayback.Event{
 					Type: "end",
-					Data: []byte(evt.EndTime.Format(time.RFC3339)),
+					Data: evt.EndTime.Format(time.RFC3339),
 					Time: int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond),
 				})
 				return SessionEventsResponse{
-					Duration: int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond),
-					Events:   sessionEvents,
+					CurrentScreen: currentScreen,
+					Duration:      int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond),
+					Events:        sessionEvents,
 				}, nil
 			case *apievents.Resize:
-				sessionEvents = append(sessionEvents, SessionEvent{
+				parts := strings.Split(evt.TerminalSize, ":")
+				if len(parts) != 2 {
+					h.logger.WarnContext(ctx, "invalid terminal size format", "size", evt.TerminalSize)
+					continue
+				}
+
+				width, err := strconv.Atoi(parts[0])
+				if err != nil {
+					h.logger.WarnContext(ctx, "invalid terminal width", "width", parts[0], "error", err)
+					continue
+				}
+
+				height, err := strconv.Atoi(parts[1])
+				if err != nil {
+					h.logger.WarnContext(ctx, "invalid terminal height", "height", parts[1], "error", err)
+					continue
+				}
+
+				cols = width
+				rows = height
+
+				fmt.Println("COLS AND ROWS:", cols, rows)
+				fmt.Println("TERMINAL SIZE:", evt.TerminalSize)
+
+				vt.Resize(width, height)
+
+				if startFromTime > 0 {
+					// If the resize event is before the start time, skip it.
+					continue
+				}
+
+				sessionEvents = append(sessionEvents, ttyplayback.Event{
 					Type: "resize",
-					Data: []byte(evt.TerminalSize),
+					Data: evt.TerminalSize,
 				})
 			}
 		}
