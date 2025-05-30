@@ -47,7 +47,7 @@ organization ID printed in the logs, similar to the following:
 ```code
 ========================== Starting Command Output ===========================
 /usr/bin/bash --noprofile --norc /home/vsts/work/_temp/c4fdfbf7-6cd4-4737-a2a2-16702d201449.sh
-Organization ID: 0ca3ddd9-f0b0-4635-a98c-5866526961b6
+Organization ID: 0ca3ddd9-0000-1111-2222-example58665
 ```
 
 Record this organization ID as you will need it later.
@@ -58,24 +58,39 @@ Record this organization ID as you will need it later.
 
 ## Step 3/5. Create a join token
 
-Create a file named `bot-token.yaml`. Ensure you substitute any values as
-suggested by the comments in this example:
+To allow the Azure DevOps pipeline to authenticate to your Teleport Cluster,
+you'll first need to create a join token. An Azure DevOps join token contains
+allow rules that describe which pipelines can use that token in order to join
+the Teleport cluster. A rule can contain multiple fields, and any pipeline that
+matches all the fields within a single rule is granted access.
+
+In this example, you will create a token with a rule that grants access to any
+Azure DevOps pipeline within a specific project.
+
+Create a file named `bot-token.yaml`:
 
 ```yaml
 kind: token
 version: v2
 metadata:
-  name: azure-devops-test
+  name: example-bot
 spec:
   roles: [Bot]
   join_method: azure_devops
-  bot_name: github-machine-identity-demo
+  bot_name: example
   azure_devops:
-    organization_id: 0ca3ddd9-f0b0-4635-a98c-5866526961b6
+    organization_id: 0ca3ddd9-0000-1111-2222-example58665
     allow:
-      - project_name: testing-azure-devops-join
-        pipeline_name: strideynet.azure-devops-testingv
+      - project_name: my-project
 ```
+Replace:
+
+- `example-bot` with a meaningful name that describes the token.
+- `example` with the name of the bot you created in Step 2.
+- `0ca3ddd9-0000-1111-2222-example58665` with the organization ID you
+  determined in Step 1.
+- `my-project` with the name of the Azure DevOps project that you want to allow
+  access to the bot.
 
 You can find a full list of the token configuration options for Azure DevOps
 joining on the
