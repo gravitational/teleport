@@ -266,7 +266,7 @@ func (c *AutoUpdateCommand) agentsReportCommand(ctx context.Context, client auto
 		}
 
 		fmt.Fprintln(c.stdout, "No autoupdate_agent_report found.")
-		if c.ccf != nil && len(c.ccf.AuthServerAddr) > 0 && !strings.Contains(c.ccf.AuthServerAddr[0], "teleport.sh") {
+		if c.ccf != nil && len(c.ccf.AuthServerAddr) > 0 && !strings.HasSuffix(c.ccf.AuthServerAddr[0], ".teleport.sh") {
 			fmt.Fprintln(c.stdout, "Managed Updates agent reports require enabling Managed Updates v2 by creating the autoupdate_version resource.")
 			fmt.Fprintln(c.stdout, "See: https://goteleport.com/docs/upgrading/agent-managed-updates/#configuring-managed-agent-updates")
 		}
@@ -286,12 +286,12 @@ func (c *AutoUpdateCommand) agentsReportCommand(ctx context.Context, client auto
 
 	fmt.Fprintf(c.stdout, "%d autoupdate agent reports aggregated\n\n", len(validReports))
 
-	groupSet := make(map[string]any)
-	versionsSet := make(map[string]any)
+	groupSet := make(map[string]struct{})
+	versionsSet := make(map[string]struct{})
 	for _, report := range validReports {
 		for groupName, group := range report.GetSpec().GetGroups() {
 			groupSet[groupName] = struct{}{}
-			for versionName, _ := range group.GetVersions() {
+			for versionName := range group.GetVersions() {
 				versionsSet[versionName] = struct{}{}
 			}
 		}
