@@ -65,6 +65,8 @@ export interface App {
    * endpoints where user should be launched to start SAML authentication.
    */
   samlAppLaunchUrls?: SamlAppLaunchUrl[];
+
+  mcp?: AppMCP;
 }
 
 export type UserGroupAndDescription = {
@@ -75,6 +77,7 @@ export type UserGroupAndDescription = {
 /** AppSubKind defines names of SubKind for App resource. */
 export enum AppSubKind {
   AwsIcAccount = 'aws_ic_account',
+  MCP = 'mcp',
 }
 
 /**
@@ -99,4 +102,10 @@ export type SamlAppLaunchUrl = {
   url: string;
   /* friendly name of the URL. */
   friendlyName?: string;
+};
+
+export type AppMCP = {
+  command: string;
+  args?: string[];
+  runAsHostUser: string;
 };
