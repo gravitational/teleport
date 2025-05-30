@@ -209,23 +209,7 @@ func (h *Handler) sessionEvents(
 				}
 
 				if lastEvent != nil {
-					lines := make([][]vt10x.Glyph, rows)
-
-					for row := 0; row < rows; row++ {
-						lines[row] = make([]vt10x.Glyph, cols)
-						for col := 0; col < cols; col++ {
-							cell := vt.Cell(col, row)
-							lines[row][col] = cell
-						}
-					}
-
 					currentScreen = ttyplayback.SerializeTerminal(vt, theme)
-
-					sessionEvents = append(sessionEvents, ttyplayback.Event{
-						Type: "print",
-						Data: string(lastEvent.Data),
-						Time: lastEvent.DelayMilliseconds,
-					})
 
 					lastEvent = nil
 				}
