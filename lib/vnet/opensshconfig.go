@@ -17,6 +17,7 @@
 package vnet
 
 import (
+	"bufio"
 	"bytes"
 	"cmp"
 	"context"
@@ -24,6 +25,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -249,4 +251,45 @@ type configFileTemplateInput struct {
 	Hosts          string
 	PrivateKeyPath string
 	KnownHostsPath string
+}
+
+type CheckOpenSSHConfigurationResponse struct {
+	VnetConfigured bool
+}
+
+func CheckOpenSSHConfiguration(ctx context.Context, profilePath string) (*CheckOpenSSHConfigurationResponse, error) {
+	vnetConfigPath := keypaths.VNetSSHConfigPath(profilePath)
+	userHomeDir, ok := profile.UserHomeDir()
+	if !ok {
+		return nil, trace.Errorf("unable to find user's home directory")
+	}
+	sshConfigPath := filepath.Join(userHomeDir, ".ssh", "config")
+	sshConfigFile, err := os.Open(sshConfigPath)
+	if err != nil {
+		return nil, trace.Wrap(trace.ConvertSystemError(err), "opening %s for reading", sshConfigPath)
+	}
+	defer sshConfigFile.Close()
+	vnetConfigured, err := openSSHConfigIncludesFile(sshConfigFile, keypaths.VNetSSHConfigPath(profilePath))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &CheckOpenSSHConfigurationResponse{
+		VnetConfigured: true,
+	}, nil
+}
+
+// openSSHConfigIncludesFile returns true if the given OpenSSH config file
+// contains a line like "Include <path>/vnet_ssh_config"
+func openSSHConfigIncludesFile(r io.Reader, includeFilePath string) (bool, error) {
+	const includePattern = `^(?i:include)\b[^#]+(/|\\\\)` + keypaths.VNetSSHConfig + `\b`
+	includeRe := regexp.MustCompile(includePattern)
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if includeRe.MatchString(line) {
+			return true, nil
+		}
+	}
+	return false, trace.Wrap(trace.ConvertSystemError(scanner.Err()),
+		"reading from %s", sshConfigPath)
 }
