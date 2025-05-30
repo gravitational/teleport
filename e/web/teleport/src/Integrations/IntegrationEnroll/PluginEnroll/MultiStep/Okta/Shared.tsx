@@ -172,6 +172,10 @@ export enum OktaIntegrationStepType {
   IdentitySecuritySync = 'identity-security-sync',
 }
 
+export enum StepRestriction {
+  DisabledInCloud,
+}
+
 export enum OktaLevelProductRequirement {
   IdentitySecurity = FeatureName.IdentitySecurity,
   IdentityGovernance = FeatureName.IdentityGovernance,
@@ -190,6 +194,7 @@ export interface OktaIntegrationLevelStep {
   };
   type: OktaIntegrationStepType;
   productRequirement?: OktaLevelProductRequirement;
+  restriction?: StepRestriction;
   name: string;
   shortName: string;
 }
@@ -216,8 +221,17 @@ function calculateIsEnabled(
   }
 }
 
+function shouldIncludeStep(step: OktaIntegrationLevelStep, isCloud: boolean) {
+  if (step.restriction === StepRestriction.DisabledInCloud && isCloud) {
+    return false;
+  }
+
+  return true;
+}
+
 export function getOktaIntegrationSteps(
-  accessGraphEnabled: boolean
+  accessGraphEnabled: boolean,
+  isCloud: boolean
 ): OktaIntegrationStepWithEnabled[] {
   const configs: OktaIntegrationLevelStep[] = [
     SSO_CONFIG,
@@ -227,10 +241,12 @@ export function getOktaIntegrationSteps(
     APP_GROUP_SYNC_CONFIG,
   ];
 
-  return configs.map(config => ({
-    ...config,
-    enabled: calculateIsEnabled(config, accessGraphEnabled),
-  }));
+  return configs
+    .filter(config => shouldIncludeStep(config, isCloud))
+    .map(config => ({
+      ...config,
+      enabled: calculateIsEnabled(config, accessGraphEnabled),
+    }));
 }
 
 export const SSO_CONFIG: OktaIntegrationLevelStep = {
@@ -311,6 +327,7 @@ export const IDENTITY_SECURITY_SYNC_CONFIG: OktaIntegrationLevelStep = {
     <Text key={1}>Sync the Okta Audit Log with Identity Security</Text>,
   ],
   productRequirement: OktaLevelProductRequirement.IdentitySecurity,
+  restriction: StepRestriction.DisabledInCloud,
 };
 
 export const USER_SYNC_CONFIG: OktaIntegrationLevelStep = {

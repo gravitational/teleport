@@ -84,7 +84,7 @@ export const OktaIntegrationSetUp = () => {
   const [showCleanUpModal, setShowCleanUpModal] = useState(false);
 
   const oktaIntegrationSteps = useMemo(
-    () => getOktaIntegrationSteps(accessGraphEnabled),
+    () => getOktaIntegrationSteps(accessGraphEnabled, cfg.oss.isCloud),
     [accessGraphEnabled]
   );
 

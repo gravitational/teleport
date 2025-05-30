@@ -207,7 +207,7 @@ export function OktaStatusDetails({
 
   return (
     <Switch>
-      {accessGraphEnabled && (
+      {accessGraphEnabled && !cfg.isCloud && (
         <Route
           exact
           path={cfg.getIntegrationStatusRoute(
@@ -483,16 +483,18 @@ const StatusDetails = ({
           }
         `}
       >
-        <IdentitySecuritySyncDetails
-          syncEnabled={plugin.spec?.enableSystemLogExport}
-          accessGraphEnabled={accessGraphEnabled}
-          onToggle={() =>
-            handleToggleFeature(
-              localSettings.enableSystemLogExport ? 'disable' : 'enable',
-              UpdateSetting.IdentitySecuritySync
-            )
-          }
-        />
+        {!cfg.isCloud && (
+          <IdentitySecuritySyncDetails
+            syncEnabled={plugin.spec?.enableSystemLogExport}
+            accessGraphEnabled={accessGraphEnabled}
+            onToggle={() =>
+              handleToggleFeature(
+                localSettings.enableSystemLogExport ? 'disable' : 'enable',
+                UpdateSetting.IdentitySecuritySync
+              )
+            }
+          />
+        )}
         <AppGroupSyncDetails
           appGroupSpec={plugin.status.details?.appGroupSyncDetails}
           accessListSpec={plugin.status.details?.accessListsSyncDetails}
