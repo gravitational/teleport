@@ -317,7 +317,8 @@ func (s *Service) exportAuditLogs(ctx context.Context, client accessgraphv1alpha
 		&accessgraphv1alpha.OktaAuditLogStreamRequest{
 			Operation: &accessgraphv1alpha.OktaAuditLogStreamRequest_Config{
 				Config: &accessgraphv1alpha.OktaConfigV1{
-					StartDate: timestamppb.New(s.startDate),
+					StartDate:    timestamppb.New(s.startDate),
+					Organization: s.orgURL,
 				},
 			},
 		},

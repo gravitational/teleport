@@ -27,11 +27,16 @@ func initiateAndProcessAuditLogStream(ctx context.Context, log *slog.Logger, ser
 		log.ErrorContext(ctx, "Failed to create AuditLog stream", "error", err)
 		return trace.Wrap(err)
 	}
+	clusterName, err := authServer.GetClusterName(ctx)
+	if err != nil {
+		return trace.Wrap(err, "Failed to get cluster name for audit log export")
+	}
 	exporter := auditLogExporter{
-		log:    log,
-		client: authServer,
-		stream: auditLogStream,
-		clock:  clockwork.NewRealClock(),
+		log:                 log,
+		client:              authServer,
+		stream:              auditLogStream,
+		clock:               clockwork.NewRealClock(),
+		teleportClusterName: clusterName.GetClusterName(),
 	}
 	if err := exporter.start(ctx, config); err != nil {
 		log.ErrorContext(ctx, "Error processing audit log stream", "error", err)
@@ -41,10 +46,11 @@ func initiateAndProcessAuditLogStream(ctx context.Context, log *slog.Logger, ser
 
 type auditLogExporter struct {
 	// set by caller
-	log    *slog.Logger
-	client events.AuditLogSessionStreamer
-	stream auditLogStream
-	clock  clockwork.Clock
+	log                 *slog.Logger
+	client              events.AuditLogSessionStreamer
+	stream              auditLogStream
+	clock               clockwork.Clock
+	teleportClusterName string
 
 	// used by bulk exporter
 	idleCh      chan struct{}
@@ -119,7 +125,9 @@ func receiveUntilErr(in auditLogStream) error {
 
 func (a *auditLogExporter) reconcileConfig(ctx context.Context, config AuditLogConfig) (*accessgraphv1.AuditLogConfig, error) {
 	startDate := config.StartDate
-	pbConfig := &accessgraphv1.AuditLogConfig{}
+	pbConfig := &accessgraphv1.AuditLogConfig{
+		TeleportCluster: a.teleportClusterName,
+	}
 	if !startDate.IsZero() {
 		pbConfig.StartDate = timestamppb.New(startDate)
 	}
