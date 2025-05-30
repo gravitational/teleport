@@ -3,13 +3,53 @@ package modules
 import (
 	"testing"
 
+	"github.com/gravitational/license"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/api/cloud"
+	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 )
+
+func TestSetModules_RecoveryCodes(t *testing.T) {
+	// Setting the env var cloud.EnvVarHostPort tells the cluster
+	// that it is running on a cloud environment.
+	t.Setenv(cloud.EnvVarHostPort, "cloud-hostport")
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			RecoveryCodes: false,
+			Cloud:         false,
+		},
+	})
+
+	licenseFile := &licensefile.LicenseFile{
+		KeyPair: &license.License{},
+		License: &types.LicenseV3{
+			Spec: types.LicenseSpecV3{
+				Cloud: false,
+			},
+		},
+	}
+
+	// assert recovery codes are always enabled on cloud envs
+	require.NoError(t, SetModules(licenseFile))
+	require.True(t, modules.GetModules().Features().RecoveryCodes)
+
+	// Cleaning the env var will make it not a cloud env
+	t.Setenv(cloud.EnvVarHostPort, "")
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			RecoveryCodes: false,
+		},
+	})
+
+	// assert recovery codes are always disabled on non-cloud envs
+	require.NoError(t, SetModules(licenseFile))
+	require.False(t, modules.GetModules().Features().RecoveryCodes)
+}
 
 func TestGetSelfHostedLicenseFeatures_LegacyLicenseFields(t *testing.T) {
 	t.Parallel()

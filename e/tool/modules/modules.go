@@ -80,18 +80,18 @@ func SetModules(licenseFile *licensefile.LicenseFile) error {
 			return trace.Wrap(err)
 		}
 		p.logger.DebugContext(ctx, "successfully fetched features from Cloud", "features", f.ToProto())
-		f.RecoveryCodes = true
 		features = *f
-	}
-
-	if cloud.IsCloudEnv() {
-		features.RecoveryCodes = true
 	}
 
 	p.features = features
 
 	// copy config-based features from the previous modules
 	copyConfigBasedFeatures(modules.GetModules().Features(), &p.features)
+
+	// always enable recovery codes on cloud env
+	if cloud.IsCloudEnv() {
+		p.features.RecoveryCodes = true
+	}
 
 	modules.SetModules(&p)
 	return nil
