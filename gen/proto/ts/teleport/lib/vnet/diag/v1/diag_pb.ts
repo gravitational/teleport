@@ -184,6 +184,14 @@ export interface CheckReport {
          */
         routeConflictReport: RouteConflictReport;
     } | {
+        oneofKind: "sshConfigurationReport";
+        /**
+         * ssh_configuration_report reports the status of the system's SSH configuration.
+         *
+         * @generated from protobuf field: teleport.lib.vnet.diag.v1.SSHConfigurationReport ssh_configuration_report = 3;
+         */
+        sshConfigurationReport: SSHConfigurationReport;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -262,6 +270,34 @@ export interface RouteConflict {
      * @generated from protobuf field: string interface_app = 4;
      */
     interfaceApp: string;
+}
+/**
+ * SSHConfigurationReport describes the state of the system's SSH configuration.
+ *
+ * @generated from protobuf message teleport.lib.vnet.diag.v1.SSHConfigurationReport
+ */
+export interface SSHConfigurationReport {
+    /**
+     * UserOpensshConfigPath is the full path to the user's default OpenSSH config
+     * file (~/.ssh/config).
+     *
+     * @generated from protobuf field: string user_openssh_config_path = 1;
+     */
+    userOpensshConfigPath: string;
+    /**
+     * VnetSshConfigPath is the path to VNet's generated OpenSSH-compatible config
+     * file.
+     *
+     * @generated from protobuf field: string vnet_ssh_config_path = 2;
+     */
+    vnetSshConfigPath: string;
+    /**
+     * UserOpensshConfigIncludesVnetSshConfig is true if the default OpenSSH user
+     * configuration file includes VNet's SSH config file.
+     *
+     * @generated from protobuf field: bool user_openssh_config_includes_vnet_ssh_config = 3;
+     */
+    userOpensshConfigIncludesVnetSshConfig: boolean;
 }
 /**
  * CheckAttemptStatus describes whether CheckAttempt finished successfully. This is different from
@@ -599,7 +635,8 @@ class CheckReport$Type extends MessageType<CheckReport> {
     constructor() {
         super("teleport.lib.vnet.diag.v1.CheckReport", [
             { no: 1, name: "status", kind: "enum", T: () => ["teleport.lib.vnet.diag.v1.CheckReportStatus", CheckReportStatus, "CHECK_REPORT_STATUS_"] },
-            { no: 2, name: "route_conflict_report", kind: "message", oneof: "report", T: () => RouteConflictReport }
+            { no: 2, name: "route_conflict_report", kind: "message", oneof: "report", T: () => RouteConflictReport },
+            { no: 3, name: "ssh_configuration_report", kind: "message", oneof: "report", T: () => SSHConfigurationReport }
         ]);
     }
     create(value?: PartialMessage<CheckReport>): CheckReport {
@@ -624,6 +661,12 @@ class CheckReport$Type extends MessageType<CheckReport> {
                         routeConflictReport: RouteConflictReport.internalBinaryRead(reader, reader.uint32(), options, (message.report as any).routeConflictReport)
                     };
                     break;
+                case /* teleport.lib.vnet.diag.v1.SSHConfigurationReport ssh_configuration_report */ 3:
+                    message.report = {
+                        oneofKind: "sshConfigurationReport",
+                        sshConfigurationReport: SSHConfigurationReport.internalBinaryRead(reader, reader.uint32(), options, (message.report as any).sshConfigurationReport)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -642,6 +685,9 @@ class CheckReport$Type extends MessageType<CheckReport> {
         /* teleport.lib.vnet.diag.v1.RouteConflictReport route_conflict_report = 2; */
         if (message.report.oneofKind === "routeConflictReport")
             RouteConflictReport.internalBinaryWrite(message.report.routeConflictReport, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.lib.vnet.diag.v1.SSHConfigurationReport ssh_configuration_report = 3; */
+        if (message.report.oneofKind === "sshConfigurationReport")
+            SSHConfigurationReport.internalBinaryWrite(message.report.sshConfigurationReport, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -841,3 +887,66 @@ class RouteConflict$Type extends MessageType<RouteConflict> {
  * @generated MessageType for protobuf message teleport.lib.vnet.diag.v1.RouteConflict
  */
 export const RouteConflict = new RouteConflict$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SSHConfigurationReport$Type extends MessageType<SSHConfigurationReport> {
+    constructor() {
+        super("teleport.lib.vnet.diag.v1.SSHConfigurationReport", [
+            { no: 1, name: "user_openssh_config_path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "vnet_ssh_config_path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "user_openssh_config_includes_vnet_ssh_config", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SSHConfigurationReport>): SSHConfigurationReport {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.userOpensshConfigPath = "";
+        message.vnetSshConfigPath = "";
+        message.userOpensshConfigIncludesVnetSshConfig = false;
+        if (value !== undefined)
+            reflectionMergePartial<SSHConfigurationReport>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SSHConfigurationReport): SSHConfigurationReport {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string user_openssh_config_path */ 1:
+                    message.userOpensshConfigPath = reader.string();
+                    break;
+                case /* string vnet_ssh_config_path */ 2:
+                    message.vnetSshConfigPath = reader.string();
+                    break;
+                case /* bool user_openssh_config_includes_vnet_ssh_config */ 3:
+                    message.userOpensshConfigIncludesVnetSshConfig = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SSHConfigurationReport, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string user_openssh_config_path = 1; */
+        if (message.userOpensshConfigPath !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.userOpensshConfigPath);
+        /* string vnet_ssh_config_path = 2; */
+        if (message.vnetSshConfigPath !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.vnetSshConfigPath);
+        /* bool user_openssh_config_includes_vnet_ssh_config = 3; */
+        if (message.userOpensshConfigIncludesVnetSshConfig !== false)
+            writer.tag(3, WireType.Varint).bool(message.userOpensshConfigIncludesVnetSshConfig);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.vnet.diag.v1.SSHConfigurationReport
+ */
+export const SSHConfigurationReport = new SSHConfigurationReport$Type();

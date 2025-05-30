@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -29,6 +30,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	apiteleterm "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
@@ -90,6 +93,7 @@ type Config struct {
 	// reporting.
 	InstallationID string
 	Clock          clockwork.Clock
+	profilePath    string
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -108,6 +112,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
+	}
+
+	if c.profilePath == "" {
+		c.profilePath = profile.FullProfilePath(os.Getenv(types.HomeEnvVar))
 	}
 
 	return nil
