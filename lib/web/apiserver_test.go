@@ -1339,7 +1339,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add nodes
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		name := fmt.Sprintf("server-%d", i)
 		node, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{
 			Hostname: name,

@@ -37,7 +37,7 @@ import {
 import {
   getResourceAvailabilityFilter,
   ResourceAvailabilityFilter,
-  ResourceStatus,
+  ResourceHealthStatus,
   SharedUnifiedResource,
   UnifiedResources as SharedUnifiedResources,
   UnifiedResourceDefinition,
@@ -539,8 +539,9 @@ const mapToSharedResource = (
           protocol: database.protocol as DbProtocol,
           requiresRequest: resource.requiresRequest,
           targetHealth: database.targetHealth && {
-            status: database.targetHealth.status as ResourceStatus,
+            status: database.targetHealth.status as ResourceHealthStatus,
             error: database.targetHealth.error,
+            message: database.targetHealth.message,
           },
         },
         ui: {
