@@ -57,6 +57,26 @@ type Config struct {
 	ProxyDialer apiclient.ContextDialer
 }
 
+// DialGRPC dials a gRPC connection to a Teleport server, using the same pathway
+// selection logic as Connect (i.e. try direct connection first, and then try SSH
+// tunnel).
+//
+// This is useful for callers who need to wrap the low-level connection.
+//
+// It's a temporary method for clients which have yet to switch to using the
+// api/client package directly.
+func DialGRPC(ctx context.Context, cfg *Config) (*grpc.ClientConn, error) {
+	client, err := Connect(ctx, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// We do not use the HTTP part, so throw it away.
+	client.HTTPClient.Close()
+
+	return client.GetConnection(), nil
+}
+
 // Connect creates a valid client connection to the auth service.  It may
 // connect directly to the auth server, or tunnel through the proxy.
 func Connect(ctx context.Context, cfg *Config) (*Client, error) {
