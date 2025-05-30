@@ -63,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
@@ -103,6 +104,10 @@ type InitConfig struct {
 
 	// Authority is key generator that we use
 	Authority sshca.Authority
+
+	// KeyStoreConfig is the config for the KeyStore which handles private CA
+	// keys that may be held in an HSM.
+	KeyStoreConfig servicecfg.KeystoreConfig
 
 	// KeyStore which handles private CA keys and encryption keys that may be
 	// held in an HSM.
