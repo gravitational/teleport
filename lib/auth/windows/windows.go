@@ -119,9 +119,9 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 				dc("gov"),
 				dc("nrel"),
 				dc("ext"),
-				ou("B2B Guests"),
-				ou("Accounts"),
 				ou("NREL"),
+				ou("Accounts"),
+				ou("B2B Guests"),
 				cn("charles.xavier_contractor.net"),
 			},
 		}
