@@ -55,17 +55,26 @@ func ModuleSource() string {
 }
 
 // FileContexts returns file contexts for the SELinux SSH module.
-func FileContexts(installDir, dataDir, configPath string) (string, error) {
+func FileContexts(dataDir, configPath string) (string, error) {
 	fcTempl, err := template.New("selinux file contexts").Parse(fileContexts)
 	if err != nil {
 		return "", trace.Wrap(err, "failed to parse file contexts template")
+	}
+
+	execPath, err := os.Executable()
+	if err != nil {
+		return "", trace.Wrap(err, "failed to get the path of the executable")
+	}
+	binaryPath, err := filepath.EvalSymlinks(execPath)
+	if err != nil {
+		return "", trace.Wrap(err, "failed to expand symlinks for the executable")
 	}
 
 	// Generate a file specifying the locations of important dirs so SELinux
 	// will allow Teleport SSH to be able to access them.
 	var buf bytes.Buffer
 	err = fcTempl.Execute(&buf, filePaths{
-		InstallDir:     installDir,
+		BinaryPath:     binaryPath,
 		DataDir:        dataDir,
 		ConfigPath:     configPath,
 		UpgradeUnitDir: versioncontrol.UnitConfigDir,
