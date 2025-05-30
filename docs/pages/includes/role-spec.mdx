@@ -1,6 +1,6 @@
 ```yaml
 kind: role
-version: v7
+version: v8
 metadata:
   name: example
   description: This is an example role.
@@ -199,12 +199,15 @@ spec:
     kubernetes_resources:
         # The resource kind. Teleport currently supports:
         # - * (all resources)
-        # - namespaces (including all resources kinds in the namespace)
         # - <arbitrary string> (Resource plural name, e.g. pods, deployments, cronjobs, mycustomresources)
       - kind: '*'
+        # The resource name of the Kubernetes cluster in which to allow access
+        # to the resources you specify with 'name' and 'kind'.
+        api_group: '*'
         # The name of the Kubernetes namespace in which to allow access the
         # resources you specify with 'name' and 'kind'.
-        # The wildcard character '*' matches any sequence of characters.
+        # The wildcard character '*' matches any sequence of characters for namespaced
+        # resource. If set, global resources will not match.
         # If the value begins with '^' and ends with '$', the Kubernetes
         # Service will treat it as a regular expression.
         namespace: '*'
@@ -227,9 +230,6 @@ spec:
         # - exec - allows users to execute commands in a pod
         # - portforward - allows users to forward ports from a pod
         verbs: ['*']
-        # The resource name of the Kubernetes cluster in which to allow access
-        # to the resources you specify with 'name' and 'kind'.
-        api_group: '*'
 
     # Functions transform variables.
     db_users: ['{{email.local(external.email)}}']
