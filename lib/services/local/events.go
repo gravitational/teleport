@@ -263,6 +263,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWorkloadIdentityX509RevocationParser()
 		case types.KindHealthCheckConfig:
 			parser = newHealthCheckConfigParser()
+		case types.KindRecordingEncryption:
+			parser = newRecordingEncryptionParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
