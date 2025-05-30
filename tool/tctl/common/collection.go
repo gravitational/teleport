@@ -2055,7 +2055,7 @@ func (c *autoUpdateAgentReportCollection) writeText(w io.Writer, verbose bool) e
 	for _, report := range c.reports {
 		for groupName, group := range report.GetSpec().GetGroups() {
 			groupSet[groupName] = struct{}{}
-			for versionName, _ := range group.GetVersions() {
+			for versionName := range group.GetVersions() {
 				versionsSet[versionName] = struct{}{}
 			}
 		}
