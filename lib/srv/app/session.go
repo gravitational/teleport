@@ -34,6 +34,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -325,6 +326,7 @@ func (c *ConnectionsHandler) newSessionRecorder(ctx context.Context, startTime t
 		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentApp),
 		Context:      ctx,
 		StartTime:    startTime,
+		Encrypter:    recordingencryption.NewEncryptionWrapper(recConfig),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
