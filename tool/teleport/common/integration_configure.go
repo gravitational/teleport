@@ -216,9 +216,12 @@ func onIntegrationConfAccessGraphAWSSync(ctx context.Context, params config.Inte
 	}
 
 	confReq := awsoidc.AccessGraphAWSIAMConfigureRequest{
-		IntegrationRole: params.Role,
-		AccountID:       params.AccountID,
-		AutoConfirm:     params.AutoConfirm,
+		IntegrationRole:  params.Role,
+		AccountID:        params.AccountID,
+		AutoConfirm:      params.AutoConfirm,
+		SQSQueueURL:      params.SQSQueueURL,
+		CloudTrailBucket: params.CloudTrailBucket,
+		KMSKeyARNs:       params.KMSKeyARNs,
 	}
 	return trace.Wrap(awsoidc.ConfigureAccessGraphSyncIAM(ctx, clt, confReq))
 }
