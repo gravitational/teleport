@@ -246,6 +246,9 @@ func (s *clientApplicationService) UserTLSCert(ctx context.Context, req *vnetv1.
 	if err != nil {
 		return nil, trace.Wrap(err, "getting user TLS cert")
 	}
+	if len(tlsCert.Certificate) == 0 {
+		return nil, trace.Errorf("user TLS cert has no certificate")
+	}
 	dialOpts, err := s.cfg.clientApplication.GetDialOptions(ctx, req.GetProfile())
 	if err != nil {
 		return nil, trace.Wrap(err, "getting TLS dial options")
