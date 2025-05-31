@@ -46,7 +46,7 @@ const (
 var reviewReplyTemplate = template.Must(template.New("review reply").Parse(
 	`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
 Resolution: {{.ProposedStateEmoji}} {{.ProposedState}}.
-{{if .Reason}}Reason: {{.Reason}}.{{end}}`,
+{{if .Reason}}Reason: {{.Reason}}{{end}}`,
 ))
 
 func MsgStatusText(tag pd.ResolutionTag, reason string) string {
