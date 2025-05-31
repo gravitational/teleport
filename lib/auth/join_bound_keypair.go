@@ -264,7 +264,7 @@ func (a *Server) requestBoundKeypairRotation(
 
 	a.logger.InfoContext(ctx, "requesting bound keypair rotation", "suite", cap.GetSignatureAlgorithmSuite())
 
-	// Request a new marshalled public key from the client.
+	// Request a new marshaled public key from the client.
 	response, err := challengeResponse(&proto.RegisterUsingBoundKeypairMethodResponse{
 		Response: &proto.RegisterUsingBoundKeypairMethodResponse_Rotation{
 			Rotation: &proto.RegisterUsingBoundKeypairRotationRequest{
@@ -374,6 +374,16 @@ func mutateStatusLastRotatedAt(newValue, expectPrevValue *time.Time) boundKeypai
 
 		return nil
 	}
+}
+
+// formatTimePointer stringifies a *time.Time for logging, but gracefully
+// handles nil values.
+func formatTimePointer(t *time.Time) string {
+	if t == nil {
+		return "nil"
+	}
+
+	return t.String()
 }
 
 // RegisterUsingBoundKeypairMethod handles joining requests for the bound
@@ -603,8 +613,8 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 	if shouldRequestBoundKeypairRotation(spec.RotateAfter, status.LastRotatedAt, now) {
 		log.DebugContext(
 			ctx, "requesting keypair rotation",
-			"rotate_after", spec.RotateAfter,
-			"last_rotated_at", status.LastRotatedAt,
+			"rotate_after", formatTimePointer(spec.RotateAfter),
+			"last_rotated_at", formatTimePointer(status.LastRotatedAt),
 		)
 		newPubKey, err := a.requestBoundKeypairRotation(ctx, challengeResponse)
 		if err != nil {
