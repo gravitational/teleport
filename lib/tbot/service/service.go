@@ -1,0 +1,189 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package service
+
+import (
+	"context"
+	"errors"
+	"slices"
+	"sync/atomic"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/tbot/service/status"
+)
+
+// Handler implements the logic of a long-running service.
+//
+// For services that perform a task on an interval, consider using PeriodicHandler.
+type Handler interface {
+	// Run performs the task (potentially on an interval) until the given
+	// context is canceled, or an irrecoverable error is encountered.
+	//
+	// It should call runtime.SetStatus to report its health to the supervisor
+	// and other services.
+	//
+	// If Run returns an error, the supervisor will stop all other services too,
+	// so services should handle their own retries (or use PeriodicHandler).
+	Run(ctx context.Context, runtime *Runtime) error
+}
+
+// OneShotHandler can be implemented by a service to support running in one-shot
+// mode rather than as a long-running daemon.
+type OneShotHandler interface {
+	// OneShot performs the task once and then exits. If it returns nil, the
+	// service's status will be set to Ready otherwise it will be set to Failed.
+	OneShot(ctx context.Context) error
+}
+
+// NewService creates a service with the given name and handler.
+func NewService[HandlerT Handler](name string, handler HandlerT) *Service[HandlerT] {
+	return &Service[HandlerT]{
+		name:    name,
+		handler: handler,
+		status:  NewWatchedValue(status.Initializing),
+		done:    make(chan struct{}),
+	}
+}
+
+// Service implements a user-configurable part of tbot, such as generating AWS
+// credentials, serving the SPIFFE Workload API, or proxying database traffic.
+//
+// Services have a status that describes whether they're currently healthy.
+// Dependent services can use the Wait and WaitForStatus methods to block until
+// the service is ready before using it.
+//
+// All services must support long-running mode, either by performing a task on a
+// given interval or performing an inherently long-running task such as exposing
+// an HTTP or gRPC API. Services can also optionally support one-shot mode where
+// they perform a task just once (when `tbot` is run with the `--oneshot` flag).
+//
+// The service lifecycle is managed by a Supervisor.
+type Service[HandlerT Handler] struct {
+	name    string
+	handler HandlerT
+	status  *WatchedValue[status.Status]
+
+	// done is closed by the supervisor when the service has finished running
+	// this allows us to unblock from Wait and WaitForStatus once the status
+	// is "finalized" and won't change again.
+	done chan struct{}
+
+	// registered prevents a service that has already been registered to a
+	// supervisor from being registered to a different one.
+	registered atomic.Bool
+}
+
+// Status returns the service's current status.
+func (s *Service[HandlerT]) Status() status.Status {
+	return s.status.Get()
+}
+
+// Get returns the service's handler. You should generally prefer to use Wait
+// because you usually only want to use the service if it's healthy.
+func (s *Service[HandlerT]) Get() HandlerT {
+	return s.handler
+}
+
+// ErrWrongStatus is returned from Service.Wait and Service.WaitForStatus when
+// the service is not in the required status.
+var ErrWrongStatus = errors.New("supervisor: service has wrong status")
+
+// Wait blocks until the service's status is Ready and then returns the handler.
+//
+// If the given context is canceled or reaches its deadline, Wait will unblock
+// immediately and return the context's error. This is useful for implementing
+// timeout/fallback behavior.
+//
+// If the service finishes running without becoming Ready (i.e. in one-shot
+// mode), ErrWrongStatus will be returned.
+func (s *Service[HandlerT]) Wait(ctx context.Context) (HandlerT, error) {
+	return s.WaitForStatus(ctx, status.Ready)
+}
+
+// WaitForStatus blocks until the service's status matches one of the given
+// statuses and then returns the handler.
+//
+// If the given context is canceled or reaches its deadline, WaitForStatus will
+// unblock immediately and return the context's error. This is useful for
+// implementing timeout/fallback behavior.
+//
+// If the service finishes running before reaching the desired status (i.e. in
+// one-shot mode), ErrWrongStatus will be returned.
+func (s *Service[HandlerT]) WaitForStatus(ctx context.Context, statuses ...status.Status) (HandlerT, error) {
+	notifCh, close := s.status.ChangeNotifications()
+	defer close()
+
+	if slices.Contains(statuses, s.status.Get()) {
+		return s.handler, nil
+	}
+
+	var zero HandlerT
+	for {
+		var finalValue, ctxDone bool
+		select {
+		case <-notifCh:
+			// New value ready.
+		case <-s.done:
+			finalValue = true
+		case <-ctx.Done():
+			ctxDone = true
+		}
+
+		switch {
+		case slices.Contains(statuses, s.status.Get()):
+			return s.handler, nil
+		case finalValue:
+			return zero, trace.Wrap(ErrWrongStatus)
+		case ctxDone:
+			return zero, trace.Wrap(ctx.Err())
+		default:
+			// Wait for the next update.
+		}
+	}
+}
+
+// These methods implement the InternalService API used by the supervisor.
+func (s *Service[HandlerT]) getName() string                     { return s.name }
+func (s *Service[HandlerT]) setStatus(status status.Status) bool { return s.status.Set(status) }
+func (s *Service[HandlerT]) runHandler(ctx context.Context, runtime *Runtime) error {
+	return s.handler.Run(ctx, runtime)
+}
+func (s *Service[HandlerT]) runOneShotHandler(ctx context.Context) error {
+	var handler any = s.handler
+	if os, ok := handler.(OneShotHandler); ok {
+		return os.OneShot(ctx)
+	}
+	return errNoOneShotHandler
+}
+func (s *Service[HandlerT]) finalize() { close(s.done) }
+func (s *Service[HandlerT]) markRegisteredToSupervisor() bool {
+	return s.registered.CompareAndSwap(false, true)
+}
+
+// errNoOneShotHandler is a sentinel error used to tell the supervisor that the
+// service doesn't support one-shot mode.
+var errNoOneShotHandler = errors.New("supervisor: handler does not implement OneShotHandler")
+
+// Runtime allows service handlers to communicate with the supervisor and other
+// services.
+type Runtime struct{ setStatusFn func(status status.Status) }
+
+// SetStatus communicates the service's status with the supervisor and other
+// services.
+func (rt *Runtime) SetStatus(status status.Status) { rt.setStatusFn(status) }
