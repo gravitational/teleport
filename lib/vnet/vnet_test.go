@@ -43,6 +43,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	grpccredentials "google.golang.org/grpc/credentials"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -57,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -84,8 +86,10 @@ type testPack struct {
 }
 
 type testPackConfig struct {
-	clock         clockwork.Clock
-	fakeClientApp *fakeClientApp
+	clock                   clockwork.Clock
+	fakeClientApp           *fakeClientApp
+	sshHostCASigner         ssh.Signer
+	sshTrustedUserPublicKey ssh.PublicKey
 }
 
 func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPack {
@@ -144,10 +148,14 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 	// interface with fakeClientApp via the gRPC client.
 	clt := runTestClientApplicationService(t, ctx, cfg.clock, cfg.fakeClientApp)
 	appProvider := newAppProvider(clt)
-	sshProvider := newSSHProvider(sshProviderConfig{
-		clt:                clt,
-		overrideNodeDialer: cfg.fakeClientApp.dialSSHNode,
+	sshProvider, err := newSSHProvider(sshProviderConfig{
+		clt:                  clt,
+		clock:                cfg.clock,
+		overrideNodeDialer:   cfg.fakeClientApp.dialSSHNode,
+		hostCASigner:         cfg.sshHostCASigner,
+		trustedUserPublicKey: cfg.sshTrustedUserPublicKey,
 	})
+	require.NoError(t, err)
 	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
 		clt:                      clt,
 		appProvider:              appProvider,
@@ -1087,22 +1095,52 @@ func TestSSH(t *testing.T) {
 		signatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
 	})
 
+	sshHostKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+	sshHostCASigner, err := ssh.NewSignerFromSigner(sshHostKey)
+	require.NoError(t, err)
+
+	sshUserKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+	sshUserSigner, err := ssh.NewSignerFromSigner(sshUserKey)
+	require.NoError(t, err)
+
+	badUserKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+	badUserSigner, err := ssh.NewSignerFromSigner(badUserKey)
+	require.NoError(t, err)
+
 	p := newTestPack(t, ctx, testPackConfig{
-		fakeClientApp: clientApp,
-		clock:         clock,
+		fakeClientApp:           clientApp,
+		clock:                   clock,
+		sshHostCASigner:         sshHostCASigner,
+		sshTrustedUserPublicKey: sshUserSigner.PublicKey(),
 	})
 
 	for _, tc := range []struct {
-		dialAddr           string
-		dialPort           int
-		expectCIDR         string
-		expectLookupToFail bool
-		expectDialToFail   bool
+		dialAddr                 string
+		dialPort                 int
+		expectCIDR               string
+		expectLookupToFail       bool
+		expectDialToFail         bool
+		sshUser                  string
+		sshUserSigner            ssh.Signer
+		expectSSHHandshakeToFail bool
 	}{
 		{
-			dialAddr:   "node.root1.example.com",
-			dialPort:   22,
-			expectCIDR: root1CIDR,
+			dialAddr:      "node.root1.example.com",
+			dialPort:      22,
+			expectCIDR:    root1CIDR,
+			sshUser:       "testuser",
+			sshUserSigner: sshUserSigner,
+		},
+		{
+			// Fully-qualified hostname should also work.
+			dialAddr:      "node.root1.example.com.",
+			dialPort:      22,
+			expectCIDR:    root1CIDR,
+			sshUser:       "testuser",
+			sshUserSigner: sshUserSigner,
 		},
 		{
 			// Dial should fail on non-standard SSH port.
@@ -1112,19 +1150,33 @@ func TestSSH(t *testing.T) {
 			expectDialToFail: true,
 		},
 		{
-			dialAddr:   "node.leaf1.example.com.root1.example.com",
-			dialPort:   22,
-			expectCIDR: leaf1CIDR,
+			dialAddr:                 "node.root1.example.com",
+			dialPort:                 22,
+			expectCIDR:               root1CIDR,
+			sshUser:                  "baduser",
+			sshUserSigner:            badUserSigner,
+			expectSSHHandshakeToFail: true,
 		},
 		{
-			dialAddr:   "node.root2.example.com",
-			dialPort:   22,
-			expectCIDR: root2CIDR,
+			dialAddr:      "node.leaf1.example.com.root1.example.com",
+			dialPort:      22,
+			expectCIDR:    leaf1CIDR,
+			sshUser:       "testuser",
+			sshUserSigner: sshUserSigner,
 		},
 		{
-			dialAddr:   "node.leaf2.example.com.root2.example.com",
-			dialPort:   22,
-			expectCIDR: leaf2CIDR,
+			dialAddr:      "node.root2.example.com",
+			dialPort:      22,
+			expectCIDR:    root2CIDR,
+			sshUser:       "testuser",
+			sshUserSigner: sshUserSigner,
+		},
+		{
+			dialAddr:      "node.leaf2.example.com.root2.example.com",
+			dialPort:      22,
+			expectCIDR:    leaf2CIDR,
+			sshUser:       "testuser",
+			sshUserSigner: sshUserSigner,
 		},
 		{
 			// DNS lookup should fail if the FQDN doesn't match any cluster.
@@ -1141,14 +1193,13 @@ func TestSSH(t *testing.T) {
 			expectDialToFail: true,
 		},
 	} {
-		t.Run(fmt.Sprintf("%s:%d", tc.dialAddr, tc.dialPort), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s@%s:%d", tc.sshUser, tc.dialAddr, tc.dialPort), func(t *testing.T) {
 			t.Parallel()
 
 			lookupCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 			defer cancel()
-			// SSH access isn't fully implemented yet, at this point the DNS
-			// lookup for *.<cluster-name> should resolve to an IP in the
-			// expected CIDR range for the cluster.
+			// The DNS lookup for *.<cluster-name> should resolve to an IP in
+			// the expected CIDR range for the cluster.
 			resolvedAddrs, err := p.lookupHost(lookupCtx, tc.dialAddr)
 			if tc.expectLookupToFail {
 				require.Error(t, err)
@@ -1169,6 +1220,8 @@ func TestSSH(t *testing.T) {
 					"expected CIDR range %s does not include resolved IP %s", expectNet, resolvedIPSuffix)
 			}
 
+			// TCP dial the target address, it should fail if the node doesn't
+			// exist.
 			dialCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 			defer cancel()
 			conn, err := p.dialHost(dialCtx, tc.dialAddr, tc.dialPort)
@@ -1177,9 +1230,58 @@ func TestSSH(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			conn.Close()
+			defer conn.Close()
+
+			// Initiate an SSH connection to the target. At this point the
+			// handshake should complete successfully as long as the right keys
+			// are used, but the SSH connection will be immediately closed by
+			// the server.
+			certChecker := ssh.CertChecker{
+				IsHostAuthority: func(auth ssh.PublicKey, address string) bool {
+					return sshutils.KeysEqual(auth, sshHostCASigner.PublicKey())
+				},
+				Clock: clock.Now,
+			}
+			clientConfig := &ssh.ClientConfig{
+				User:            tc.sshUser,
+				Auth:            []ssh.AuthMethod{ssh.PublicKeys(tc.sshUserSigner)},
+				HostKeyCallback: certChecker.CheckHostKey,
+			}
+			sshConn, _, _, err := ssh.NewClientConn(conn, fmt.Sprintf("%s:%d", tc.dialAddr, tc.dialPort), clientConfig)
+			if tc.expectSSHHandshakeToFail {
+				require.Error(t, err, "expected SSH handshake to fail")
+				return
+			}
+			require.NoError(t, err)
+			defer sshConn.Close()
 		})
 	}
+
+	// Test that a fresh SSH host cert is used on each connection.
+	t.Run("ephemeral certs", func(t *testing.T) {
+		// Set up the SSH client config to capture the host certs it sees.
+		var checkedHostCerts []*ssh.Certificate
+		clientConfig := &ssh.ClientConfig{
+			User: "testuser",
+			Auth: []ssh.AuthMethod{ssh.PublicKeys(sshUserSigner)},
+			HostKeyCallback: func(addr string, remote net.Addr, key ssh.PublicKey) error {
+				checkedHostCerts = append(checkedHostCerts, key.(*ssh.Certificate))
+				return nil
+			},
+		}
+		const connections = 3
+		for range connections {
+			conn, err := p.dialHost(ctx, "node.root1.example.com", 22)
+			require.NoError(t, err)
+			sshConn, _, _, err := ssh.NewClientConn(conn, "node.root1.example.com:22", clientConfig)
+			require.NoError(t, err)
+			sshConn.Close()
+		}
+		require.Len(t, checkedHostCerts, connections)
+		for i := range connections - 1 {
+			require.NotEqual(t, checkedHostCerts[i], checkedHostCerts[i+1])
+		}
+	})
 }
 
 func randomULAAddress() (tcpip.Address, error) {
