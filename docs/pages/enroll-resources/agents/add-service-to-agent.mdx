@@ -224,15 +224,21 @@ receives a certificate that authorizes the additional service you want to run.
 
 If your Teleport Agent runs on a Linux server:
 
-1. Delete the agent's state directory, which is `/var/lib/teleport` by default.
-   (Check the `teleport.data_dir` field of the Agent's configuration file.) With
-   no data directory, the agent will obtain its initial credentials from the
-   Auth Service instead of reading existing credentials.
+1. Stop the Teleport Agent:
+
+   ```code
+   $ sudo systemctl stop teleport
+   ```
+
+1. Backup the agent's state directory which is `/var/lib/teleport` by default.
+   (Check the `teleport.data_dir` field of the Agent's configuration file.) Remove
+   the data directory. With no data directory, the agent will obtain its initial
+   credentials from the Auth Service instead of reading existing credentials.
 
 1. Restart the agent:
 
    ```code
-   $ sudo systemctl reload teleport
+   $ sudo systemctl start teleport
    ```
 
 ### Helm chart
