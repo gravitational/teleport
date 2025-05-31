@@ -21,8 +21,6 @@ package helper
 import (
 	"context"
 	"errors"
-	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/types"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -30,6 +28,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
@@ -76,7 +76,11 @@ func NewDefaultUpdater() (*tools.Updater, error) {
 func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecArgs []string) error {
 	var err error
 	if currentProfileName == "" {
-		profilePath := profile.FullProfilePath(filepath.Clean(os.Getenv(types.HomeEnvVar)))
+		home := os.Getenv(types.HomeEnvVar)
+		if home != "" {
+			home = filepath.Clean(home)
+		}
+		profilePath := profile.FullProfilePath(home)
 		currentProfileName, err = profile.GetCurrentProfileName(profilePath)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -95,15 +99,6 @@ func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecA
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	//config, err := updater.LoadConfig(currentProfileName)
-	//if err != nil && !trace.IsNotFound(err) {
-	//	return trace.Wrap(err)
-	//}
-	//
-	//if !resp.IsLocal && config != nil && config.Disabled {
-	//	return nil
-	//}
 
 	if resp.ReExec {
 		err := UpdateAndReExec(ctx, updater, resp.Version, reExecArgs)
@@ -157,7 +152,7 @@ func UpdateAndReExec(ctx context.Context, updater *tools.Updater, toolsVersion s
 	}
 
 	// Re-execute client tools with the correct version of client tools.
-	code, err := updater.Exec(args)
+	code, err := updater.Exec(toolsVersion, args)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		slog.DebugContext(ctx, "Failed to re-exec client tool", "error", err)
 		os.Exit(code)

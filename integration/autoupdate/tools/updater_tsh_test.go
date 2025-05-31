@@ -143,13 +143,6 @@ func TestLoginWithUpdaterAndProfile(t *testing.T) {
 	// Unset the version after update process.
 	require.NoError(t, os.Unsetenv("TELEPORT_TOOLS_VERSION"))
 
-	// Check profile, updates must be marked
-	//profileStore := client.NewFSClientStore(homeDir)
-	//p, err := profileStore.GetProfile(proxyAddr.Host())
-	//require.NoError(t, err)
-	//require.NotNil(t, p.ManagedUpdates)
-	//require.False(t, p.ManagedUpdates.Disabled)
-
 	// Run version command to verify that login command executed auto update and
 	// tsh was upgraded to [v3.2.1].
 	cmd = exec.CommandContext(ctx, executable, "version")

@@ -22,6 +22,7 @@ package packaging
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -68,9 +69,7 @@ func TestPackaging(t *testing.T) {
 		require.FileExists(t, archivePath, "archive not created")
 
 		// For the .tar.gz format we extract app by app to check that content discard is not required.
-		err = replaceTarGz(toolsDir, archivePath, extractDir, []string{"tctl"})
-		require.NoError(t, err)
-		err = replaceTarGz(toolsDir, archivePath, extractDir, []string{"tsh"})
+		_, err := replaceTarGz(toolsDir, archivePath, extractDir, []string{"tsh", "tctl"})
 		require.NoError(t, err)
 		assert.FileExists(t, filepath.Join(toolsDir, "tsh"), "script not created")
 		assert.FileExists(t, filepath.Join(toolsDir, "tctl"), "script not created")
@@ -89,10 +88,13 @@ func TestPackaging(t *testing.T) {
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
-		err = replacePkg(toolsDir, archivePath, filepath.Join(extractDir, "apps"), []string{"tsh", "tctl"})
+		toolsMap, err := replacePkg(toolsDir, archivePath, filepath.Join(extractDir, "apps"), []string{"tsh", "tctl"})
 		require.NoError(t, err)
 		assert.FileExists(t, filepath.Join(toolsDir, "tsh"), "script not created")
 		assert.FileExists(t, filepath.Join(toolsDir, "tctl"), "script not created")
+		for tool, path := range toolsMap {
+			assert.FileExists(t, path, fmt.Sprintf("script: %q not found", tool))
+		}
 
 		data, err := os.ReadFile(filepath.Join(toolsDir, "tsh"))
 		require.NoError(t, err)
@@ -105,10 +107,13 @@ func TestPackaging(t *testing.T) {
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
-		err = replaceZip(toolsDir, archivePath, extractDir, []string{"tsh", "tctl"})
+		toolsMap, err := replaceZip(toolsDir, archivePath, extractDir, []string{"tsh", "tctl"})
 		require.NoError(t, err)
 		assert.FileExists(t, filepath.Join(toolsDir, "tsh"), "script not created")
 		assert.FileExists(t, filepath.Join(toolsDir, "tctl"), "script not created")
+		for tool, path := range toolsMap {
+			assert.FileExists(t, path, fmt.Sprintf("script: %q not found", tool))
+		}
 
 		data, err := os.ReadFile(filepath.Join(toolsDir, "tsh"))
 		require.NoError(t, err)

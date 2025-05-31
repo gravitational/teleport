@@ -34,26 +34,27 @@ const (
 )
 
 var (
-	// sync config file operation
+	// configSync mutex for managed updates config file.
 	configSync sync.Mutex
 )
 
 // ProfileConfigs is configuration structure for client tools managed updates.
 type ProfileConfigs struct {
-	// configs holds information about profile and cluster version and mode
+	// Configs holds information about profile and cluster version and mode
 	// `{"profile-proxy":{"version": "1.2.3", "disabled":false}}`.
 	Configs map[string]*Config `json:"configs"`
-	// versions holds information about directory per version
+	// Versions holds information about directory per version
 	// `{"version": "directory"}`.
-	Versions map[string]string `json:"versions"`
+	Versions map[string]map[string]string `json:"versions"`
 }
 
+// Config stores required version and mode for specific cluster.
 type Config struct {
 	Version  string `json:"version"`
 	Disabled bool   `json:"disabled"`
 }
 
-func (u *Updater) LoadConfig(currentProfile string) (*Config, error) {
+func (u *Updater) loadConfig(currentProfile string) (*Config, error) {
 	if currentProfile == "" {
 		return nil, nil
 	}
@@ -81,13 +82,33 @@ func (u *Updater) LoadConfig(currentProfile string) (*Config, error) {
 	return nil, trace.NotFound("config for profile %q not found", currentProfile)
 }
 
-func (u *Updater) SaveVersionPath(version, path string) error {
+func (u *Updater) loadToolsMap(version string) (map[string]string, error) {
+	configSync.Lock()
+	defer configSync.Unlock()
+
+	data, err := os.ReadFile(filepath.Join(u.toolsDir, configFileName))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, trace.NotFound("managed updates config file %q not found", configFileName)
+	}
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "failed to read managed updates config file %q", configFileName)
+	}
+
+	var profileConfigs ProfileConfigs
+	if err := json.Unmarshal(data, &profileConfigs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return profileConfigs.Versions[version], nil
+}
+
+func (u *Updater) SaveToolsMap(version string, toolsMap map[string]string) error {
 	configSync.Lock()
 	defer configSync.Unlock()
 
 	profileConfigs := &ProfileConfigs{
 		Configs:  make(map[string]*Config),
-		Versions: make(map[string]string),
+		Versions: make(map[string]map[string]string),
 	}
 	data, err := os.ReadFile(filepath.Join(u.toolsDir, configFileName))
 	if err == nil {
@@ -98,7 +119,7 @@ func (u *Updater) SaveVersionPath(version, path string) error {
 		return trace.Wrap(err)
 	}
 
-	profileConfigs.Versions[version] = path
+	profileConfigs.Versions[version] = toolsMap
 
 	jsonData, err := json.Marshal(profileConfigs)
 	if err != nil {
@@ -114,7 +135,7 @@ func (u *Updater) SaveConfig(currentProfile string, config *Config) error {
 
 	profileConfigs := &ProfileConfigs{
 		Configs:  make(map[string]*Config),
-		Versions: make(map[string]string),
+		Versions: make(map[string]map[string]string),
 	}
 	data, err := os.ReadFile(filepath.Join(u.toolsDir, configFileName))
 	if err == nil {
