@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
+	"github.com/gravitational/teleport/lib/autoupdate/tools/helper"
 )
 
 type autoUpdateCommand struct {
@@ -58,7 +59,7 @@ func (c *managedUpdatesUpdateCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := tc.CheckAndUpdateRemote(cf.Context, nil); err != nil {
+	if err := helper.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, nil); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
