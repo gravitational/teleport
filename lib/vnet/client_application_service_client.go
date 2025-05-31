@@ -18,6 +18,9 @@ package vnet
 
 import (
 	"context"
+	"crypto"
+	"crypto/rsa"
+	"io"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -164,4 +167,55 @@ func (c *clientApplicationServiceClient) GetTargetOSConfiguration(ctx context.Co
 		return nil, trace.Wrap(err, "calling GetTargetOSConfiguration rpc")
 	}
 	return resp.GetTargetOsConfiguration(), nil
+}
+
+// UserTLSCert returns the user TLS certificate for the given profile.
+func (c *clientApplicationServiceClient) UserTLSCert(ctx context.Context, profileName string) (*vnetv1.UserTLSCertResponse, error) {
+	resp, err := c.clt.UserTLSCert(ctx, &vnetv1.UserTLSCertRequest{
+		Profile: profileName,
+	})
+	return resp, trace.Wrap(err, "calling UserTLSCert rpc")
+}
+
+// SignForUserTLS returns a cryptographic signature with the key associated with
+// the user TLS key for the requested profile.
+func (c *clientApplicationServiceClient) SignForUserTLS(ctx context.Context, req *vnetv1.SignForUserTLSRequest) ([]byte, error) {
+	resp, err := c.clt.SignForUserTLS(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "calling SignForUserTLS rpc")
+	}
+	return resp.GetSignature(), nil
+}
+
+// rpcSigner implements [crypto.Signer] for signatures that are issued by the
+// client application over gRPC.
+type rpcSigner struct {
+	pub         crypto.PublicKey
+	sendRequest func(signReq *vnetv1.SignRequest) ([]byte, error)
+}
+
+// Public implements [crypto.Signer.Public] and returns the public key
+// associated with the signer.
+func (s *rpcSigner) Public() crypto.PublicKey {
+	return s.pub
+}
+
+// Sign implements [crypto.Signer.Sign] and issues a signature over digest.
+func (s *rpcSigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	req := &vnetv1.SignRequest{
+		Digest: digest,
+	}
+	switch opts.HashFunc() {
+	case 0:
+		req.Hash = vnetv1.Hash_HASH_NONE
+	case crypto.SHA256:
+		req.Hash = vnetv1.Hash_HASH_SHA256
+	default:
+		return nil, trace.BadParameter("unsupported signature hash func %v", opts.HashFunc())
+	}
+	if pssOpts, ok := opts.(*rsa.PSSOptions); ok {
+		saltLen := int32(pssOpts.SaltLength)
+		req.PssSaltLength = &saltLen
+	}
+	return s.sendRequest(req)
 }

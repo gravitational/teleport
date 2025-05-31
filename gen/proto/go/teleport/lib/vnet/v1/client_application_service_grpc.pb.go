@@ -44,6 +44,8 @@ const (
 	ClientApplicationService_OnNewConnection_FullMethodName          = "/teleport.lib.vnet.v1.ClientApplicationService/OnNewConnection"
 	ClientApplicationService_OnInvalidLocalPort_FullMethodName       = "/teleport.lib.vnet.v1.ClientApplicationService/OnInvalidLocalPort"
 	ClientApplicationService_GetTargetOSConfiguration_FullMethodName = "/teleport.lib.vnet.v1.ClientApplicationService/GetTargetOSConfiguration"
+	ClientApplicationService_UserTLSCert_FullMethodName              = "/teleport.lib.vnet.v1.ClientApplicationService/UserTLSCert"
+	ClientApplicationService_SignForUserTLS_FullMethodName           = "/teleport.lib.vnet.v1.ClientApplicationService/SignForUserTLS"
 )
 
 // ClientApplicationServiceClient is the client API for ClientApplicationService service.
@@ -81,6 +83,10 @@ type ClientApplicationServiceClient interface {
 	OnInvalidLocalPort(ctx context.Context, in *OnInvalidLocalPortRequest, opts ...grpc.CallOption) (*OnInvalidLocalPortResponse, error)
 	// GetTargetOSConfiguration gets the target OS configuration.
 	GetTargetOSConfiguration(ctx context.Context, in *GetTargetOSConfigurationRequest, opts ...grpc.CallOption) (*GetTargetOSConfigurationResponse, error)
+	// UserTLSCert returns the user TLS certificate for a specific profile.
+	UserTLSCert(ctx context.Context, in *UserTLSCertRequest, opts ...grpc.CallOption) (*UserTLSCertResponse, error)
+	// SignForUserTLS signs a digest with the user TLS private key.
+	SignForUserTLS(ctx context.Context, in *SignForUserTLSRequest, opts ...grpc.CallOption) (*SignForUserTLSResponse, error)
 }
 
 type clientApplicationServiceClient struct {
@@ -181,6 +187,26 @@ func (c *clientApplicationServiceClient) GetTargetOSConfiguration(ctx context.Co
 	return out, nil
 }
 
+func (c *clientApplicationServiceClient) UserTLSCert(ctx context.Context, in *UserTLSCertRequest, opts ...grpc.CallOption) (*UserTLSCertResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UserTLSCertResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_UserTLSCert_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clientApplicationServiceClient) SignForUserTLS(ctx context.Context, in *SignForUserTLSRequest, opts ...grpc.CallOption) (*SignForUserTLSResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SignForUserTLSResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_SignForUserTLS_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClientApplicationServiceServer is the server API for ClientApplicationService service.
 // All implementations must embed UnimplementedClientApplicationServiceServer
 // for forward compatibility.
@@ -216,6 +242,10 @@ type ClientApplicationServiceServer interface {
 	OnInvalidLocalPort(context.Context, *OnInvalidLocalPortRequest) (*OnInvalidLocalPortResponse, error)
 	// GetTargetOSConfiguration gets the target OS configuration.
 	GetTargetOSConfiguration(context.Context, *GetTargetOSConfigurationRequest) (*GetTargetOSConfigurationResponse, error)
+	// UserTLSCert returns the user TLS certificate for a specific profile.
+	UserTLSCert(context.Context, *UserTLSCertRequest) (*UserTLSCertResponse, error)
+	// SignForUserTLS signs a digest with the user TLS private key.
+	SignForUserTLS(context.Context, *SignForUserTLSRequest) (*SignForUserTLSResponse, error)
 	mustEmbedUnimplementedClientApplicationServiceServer()
 }
 
@@ -252,6 +282,12 @@ func (UnimplementedClientApplicationServiceServer) OnInvalidLocalPort(context.Co
 }
 func (UnimplementedClientApplicationServiceServer) GetTargetOSConfiguration(context.Context, *GetTargetOSConfigurationRequest) (*GetTargetOSConfigurationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTargetOSConfiguration not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) UserTLSCert(context.Context, *UserTLSCertRequest) (*UserTLSCertResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UserTLSCert not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) SignForUserTLS(context.Context, *SignForUserTLSRequest) (*SignForUserTLSResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignForUserTLS not implemented")
 }
 func (UnimplementedClientApplicationServiceServer) mustEmbedUnimplementedClientApplicationServiceServer() {
 }
@@ -437,6 +473,42 @@ func _ClientApplicationService_GetTargetOSConfiguration_Handler(srv interface{},
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClientApplicationService_UserTLSCert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UserTLSCertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).UserTLSCert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_UserTLSCert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).UserTLSCert(ctx, req.(*UserTLSCertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClientApplicationService_SignForUserTLS_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SignForUserTLSRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).SignForUserTLS(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_SignForUserTLS_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).SignForUserTLS(ctx, req.(*SignForUserTLSRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClientApplicationService_ServiceDesc is the grpc.ServiceDesc for ClientApplicationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -479,6 +551,14 @@ var ClientApplicationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTargetOSConfiguration",
 			Handler:    _ClientApplicationService_GetTargetOSConfiguration_Handler,
+		},
+		{
+			MethodName: "UserTLSCert",
+			Handler:    _ClientApplicationService_UserTLSCert_Handler,
+		},
+		{
+			MethodName: "SignForUserTLS",
+			Handler:    _ClientApplicationService_SignForUserTLS_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
