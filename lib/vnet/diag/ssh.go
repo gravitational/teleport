@@ -53,7 +53,7 @@ func (d *SSHDiag) Run(ctx context.Context) (*diagv1.CheckReport, error) {
 
 func (d *SSHDiag) Commands(ctx context.Context) []*exec.Cmd {
 	return []*exec.Cmd{
-		exec.Command("cat", d.userSSHConfigPath),
+		exec.CommandContext(ctx, "cat", d.userSSHConfigPath),
 	}
 }
 
@@ -115,9 +115,9 @@ func fileIncludesVNetSSHConfig(profilePath string, r io.Reader) (bool, error) {
 	// ^(?i:include)\s the line must start with include followed by whitespace
 	//   ?i makes the match for "include" case-insensitive
 	// [^#]+ swallows any characters in the path prefix that don't start a comment
-	// (/|\\\\) matches a path separator / or \\
+	// (/|\\\\) matches a path separator ("/" or "\\")
 	// leafDir matches the last component of profilePath
-	// (/|\\\\) matches a path separator / or \\
+	// (/|\\\\) matches a path separator ("/" or "\\")
 	// keypaths.VNetSSHConfig matches vnet_ssh_config
 	// \b means a word boundary must follow vnet_ssh_config
 	includePattern := `^(?i:include)\s[^#]+(/|\\\\)` + leafDir + `(/|\\\\)` + keypaths.VNetSSHConfig + `\b`
