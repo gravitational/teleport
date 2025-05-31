@@ -187,6 +187,31 @@ func (c *clientApplicationServiceClient) SignForUserTLS(ctx context.Context, req
 	return resp.GetSignature(), nil
 }
 
+// SessionSSHConfig returns user SSH configuration values for an SSH session.
+func (c *clientApplicationServiceClient) SessionSSHConfig(ctx context.Context, target dialTarget, user string) (*vnetv1.SessionSSHConfigResponse, error) {
+	resp, err := c.clt.SessionSSHConfig(ctx, &vnetv1.SessionSSHConfigRequest{
+		Profile:     target.profile,
+		RootCluster: target.rootCluster,
+		LeafCluster: target.leafCluster,
+		Address:     target.addr,
+		User:        user,
+	})
+	return resp, trace.Wrap(err, "calling SessionSSHConfig rpc")
+}
+
+// SignForSSHSession signs a digest with the SSH private key associated with the
+// session from a previous call to SessionSSHConfig.
+func (c *clientApplicationServiceClient) SignForSSHSession(ctx context.Context, sessionID string, sign *vnetv1.SignRequest) ([]byte, error) {
+	resp, err := c.clt.SignForSSHSession(ctx, &vnetv1.SignForSSHSessionRequest{
+		SessionId: sessionID,
+		Sign:      sign,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "calling SignForSSHSession rpc")
+	}
+	return resp.GetSignature(), nil
+}
+
 // rpcSigner implements [crypto.Signer] for signatures that are issued by the
 // client application over gRPC.
 type rpcSigner struct {
