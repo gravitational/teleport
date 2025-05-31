@@ -132,29 +132,14 @@ func (s *clientApplicationService) ReissueAppCert(ctx context.Context, req *vnet
 // It uses a cached signer for the requested app, which must have previously
 // been issued a certificate via [clientApplicationService.ReissueAppCert].
 func (s *clientApplicationService) SignForApp(ctx context.Context, req *vnetv1.SignForAppRequest) (*vnetv1.SignForAppResponse, error) {
+	signReq := req.GetSign()
 	log.DebugContext(ctx, "Got SignForApp request",
 		"app", req.GetAppKey(),
-		"hash", req.GetHash(),
-		"is_rsa_pss", req.PssSaltLength != nil,
-		"pss_salt_len", req.GetPssSaltLength(),
-		"digest_len", len(req.GetDigest()),
+		"hash", signReq.GetHash(),
+		"is_rsa_pss", signReq.PssSaltLength != nil,
+		"pss_salt_len", signReq.GetPssSaltLength(),
+		"digest_len", len(signReq.GetDigest()),
 	)
-	var hash crypto.Hash
-	switch req.GetHash() {
-	case vnetv1.Hash_HASH_NONE:
-		hash = crypto.Hash(0)
-	case vnetv1.Hash_HASH_SHA256:
-		hash = crypto.SHA256
-	default:
-		return nil, trace.BadParameter("unsupported hash %v", req.GetHash())
-	}
-	opts := crypto.SignerOpts(hash)
-	if req.PssSaltLength != nil {
-		opts = &rsa.PSSOptions{
-			Hash:       hash,
-			SaltLength: int(*req.PssSaltLength),
-		}
-	}
 
 	appKey := req.GetAppKey()
 	if err := checkAppKey(appKey); err != nil {
@@ -165,13 +150,34 @@ func (s *clientApplicationService) SignForApp(ctx context.Context, req *vnetv1.S
 		return nil, trace.BadParameter("no signer for app %v", appKey)
 	}
 
-	signature, err := signer.Sign(rand.Reader, req.GetDigest(), opts)
+	signature, err := sign(signer, signReq)
 	if err != nil {
 		return nil, trace.Wrap(err, "signing for app %v", appKey)
 	}
 	return &vnetv1.SignForAppResponse{
 		Signature: signature,
 	}, nil
+}
+
+func sign(signer crypto.Signer, signReq *vnetv1.SignRequest) ([]byte, error) {
+	var hash crypto.Hash
+	switch signReq.GetHash() {
+	case vnetv1.Hash_HASH_NONE:
+		hash = crypto.Hash(0)
+	case vnetv1.Hash_HASH_SHA256:
+		hash = crypto.SHA256
+	default:
+		return nil, trace.BadParameter("unsupported hash %v", signReq.GetHash())
+	}
+	opts := crypto.SignerOpts(hash)
+	if signReq.PssSaltLength != nil {
+		opts = &rsa.PSSOptions{
+			Hash:       hash,
+			SaltLength: int(*signReq.PssSaltLength),
+		}
+	}
+	signature, err := signer.Sign(rand.Reader, signReq.GetDigest(), opts)
+	return signature, trace.Wrap(err)
 }
 
 func (s *clientApplicationService) setSignerForApp(appKey *vnetv1.AppKey, targetPort uint16, signer crypto.Signer) {
@@ -231,6 +237,44 @@ func (s *clientApplicationService) GetTargetOSConfiguration(ctx context.Context,
 	}
 	return &vnetv1.GetTargetOSConfigurationResponse{
 		TargetOsConfiguration: targetConfig,
+	}, nil
+}
+
+// UserTLSCert returns the user TLS certificate for a specific profile.
+func (s *clientApplicationService) UserTLSCert(ctx context.Context, req *vnetv1.UserTLSCertRequest) (*vnetv1.UserTLSCertResponse, error) {
+	tlsCert, err := s.cfg.clientApplication.UserTLSCert(ctx, req.GetProfile())
+	if err != nil {
+		return nil, trace.Wrap(err, "getting user TLS cert")
+	}
+	if len(tlsCert.Certificate) == 0 {
+		return nil, trace.Errorf("user TLS cert has no certificate")
+	}
+	dialOpts, err := s.cfg.clientApplication.GetDialOptions(ctx, req.GetProfile())
+	if err != nil {
+		return nil, trace.Wrap(err, "getting TLS dial options")
+	}
+	return &vnetv1.UserTLSCertResponse{
+		Cert:        tlsCert.Certificate[0],
+		DialOptions: dialOpts,
+	}, nil
+}
+
+// SignForUserTLS signs a digest with the user TLS private key.
+func (s *clientApplicationService) SignForUserTLS(ctx context.Context, req *vnetv1.SignForUserTLSRequest) (*vnetv1.SignForUserTLSResponse, error) {
+	tlsCert, err := s.cfg.clientApplication.UserTLSCert(ctx, req.GetProfile())
+	if err != nil {
+		return nil, trace.Wrap(err, "getting user TLS config")
+	}
+	signer, ok := tlsCert.PrivateKey.(crypto.Signer)
+	if !ok {
+		return nil, trace.Errorf("user TLS private key does not implement crypto.Signer")
+	}
+	signature, err := sign(signer, req.GetSign())
+	if err != nil {
+		return nil, trace.Wrap(err, "signing for user TLS certificate")
+	}
+	return &vnetv1.SignForUserTLSResponse{
+		Signature: signature,
 	}, nil
 }
 
