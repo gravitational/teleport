@@ -52,6 +52,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -143,10 +144,16 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 	// interface with fakeClientApp via the gRPC client.
 	clt := runTestClientApplicationService(t, ctx, cfg.clock, cfg.fakeClientApp)
 	appProvider := newAppProvider(clt)
+	sshProvider := newSSHProvider(sshProviderConfig{
+		clt:                clt,
+		overrideNodeDialer: cfg.fakeClientApp.dialSSHNode,
+	})
 	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
-		clt:         clt,
-		appProvider: appProvider,
-		clock:       cfg.clock,
+		clt:                      clt,
+		appProvider:              appProvider,
+		sshProvider:              sshProvider,
+		clock:                    cfg.clock,
+		alwaysTrustRootClusterCA: true,
 	})
 
 	// Create the VNet and connect it to the other side of the TUN.
@@ -317,8 +324,11 @@ type appSpec struct {
 	tcpPorts   []*types.PortRange
 }
 
+type nodeSpec struct{}
+
 type testClusterSpec struct {
 	apps           []appSpec
+	nodes          map[string]nodeSpec
 	cidrRange      string
 	customDNSZones []string
 	leafClusters   map[string]testClusterSpec
@@ -327,8 +337,9 @@ type testClusterSpec struct {
 type fakeClientApp struct {
 	cfg *fakeClientAppConfig
 
-	tlsCA    tls.Certificate
-	dialOpts *vnetv1.DialOptions
+	tlsCA       tls.Certificate
+	userTLSCert tls.Certificate
+	dialOpts    *vnetv1.DialOptions
 
 	onNewConnectionCallCount    atomic.Uint32
 	onInvalidLocalPortCallCount atomic.Uint32
@@ -350,9 +361,17 @@ type fakeClientAppConfig struct {
 func newFakeClientApp(ctx context.Context, t *testing.T, cfg *fakeClientAppConfig) *fakeClientApp {
 	tlsCA := newSelfSignedCA(t)
 	dialOpts := mustStartFakeWebProxy(ctx, t, tlsCA, cfg.clock, cfg.signatureAlgorithmSuite)
+	userTLSCert, err := newClientCert(ctx,
+		tlsCA,
+		"testuser",
+		cfg.clock.Now().Add(defaults.CertDuration),
+		cfg.signatureAlgorithmSuite,
+		cryptosuites.UserTLS)
+	require.NoError(t, err)
 	return &fakeClientApp{
 		cfg:                  cfg,
 		tlsCA:                tlsCA,
+		userTLSCert:          userTLSCert,
 		dialOpts:             dialOpts,
 		requestedRouteToApps: make(map[string][]*proto.RouteToApp),
 	}
@@ -406,6 +425,10 @@ func (p *fakeClientApp) ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppI
 		p.cfg.clock.Now().Add(appCertLifetime),
 		p.cfg.signatureAlgorithmSuite,
 		cryptosuites.UserTLS)
+}
+
+func (p *fakeClientApp) UserTLSCert(ctx context.Context, profileName string) (tls.Certificate, error) {
+	return p.userTLSCert, nil
 }
 
 func (p *fakeClientApp) RequestedRouteToApps(publicAddr string) []*proto.RouteToApp {
@@ -481,6 +504,30 @@ func (p *fakeClientApp) OnNewConnection(_ context.Context, _ *vnetv1.AppKey) err
 
 func (p *fakeClientApp) OnInvalidLocalPort(_ context.Context, _ *vnetv1.AppInfo, _ uint16) {
 	p.onInvalidLocalPortCallCount.Add(1)
+}
+
+func (p *fakeClientApp) dialSSHNode(
+	ctx context.Context,
+	target dialTarget,
+	tlsConfig *tls.Config,
+	dialOpts *vnetv1.DialOptions,
+) (net.Conn, error) {
+	targetCluster, ok := p.cfg.clusters[target.profile]
+	if !ok {
+		return nil, trace.NotFound("no such profile")
+	}
+	if target.cluster != target.profile {
+		targetCluster, ok = targetCluster.leafClusters[target.cluster]
+		if !ok {
+			return nil, trace.NotFound("no such cluster")
+		}
+	}
+	if _, ok := targetCluster.nodes[strings.TrimSuffix(target.host, ":0")]; !ok {
+		return nil, trace.NotFound("no such host")
+	}
+	// For now just let it dial the fake web proxy, later we'll need to set up a
+	// fake SSH server for the test to dial to.
+	return tls.Dial("tcp", dialOpts.GetWebProxyAddr(), tlsConfig)
 }
 
 type fakeClusterClient struct {
@@ -1009,17 +1056,29 @@ func TestSSH(t *testing.T) {
 		clusters: map[string]testClusterSpec{
 			"root1.example.com": {
 				cidrRange: root1CIDR,
+				nodes: map[string]nodeSpec{
+					"node": {},
+				},
 				leafClusters: map[string]testClusterSpec{
 					"leaf1.example.com": {
 						cidrRange: leaf1CIDR,
+						nodes: map[string]nodeSpec{
+							"node": {},
+						},
 					},
 				},
 			},
 			"root2.example.com": {
 				cidrRange: root2CIDR,
+				nodes: map[string]nodeSpec{
+					"node": {},
+				},
 				leafClusters: map[string]testClusterSpec{
 					"leaf2.example.com": {
 						cidrRange: leaf2CIDR,
+						nodes: map[string]nodeSpec{
+							"node": {},
+						},
 					},
 				},
 			},
@@ -1034,32 +1093,67 @@ func TestSSH(t *testing.T) {
 	})
 
 	for _, tc := range []struct {
-		addr       string
-		expectCIDR string
+		dialAddr           string
+		dialPort           int
+		expectCIDR         string
+		expectLookupToFail bool
+		expectDialToFail   bool
 	}{
 		{
-			addr:       "node.root1.example.com",
+			dialAddr:   "node.root1.example.com",
+			dialPort:   22,
 			expectCIDR: root1CIDR,
 		},
 		{
-			addr:       "node.leaf1.example.com.root1.example.com",
+			// Dial should fail on non-standard SSH port.
+			dialAddr:         "node.root1.example.com",
+			dialPort:         23,
+			expectCIDR:       root1CIDR,
+			expectDialToFail: true,
+		},
+		{
+			dialAddr:   "node.leaf1.example.com.root1.example.com",
+			dialPort:   22,
 			expectCIDR: leaf1CIDR,
 		},
 		{
-			addr:       "node.root2.example.com",
+			dialAddr:   "node.root2.example.com",
+			dialPort:   22,
 			expectCIDR: root2CIDR,
 		},
 		{
-			addr:       "node.leaf2.example.com.root2.example.com",
+			dialAddr:   "node.leaf2.example.com.root2.example.com",
+			dialPort:   22,
 			expectCIDR: leaf2CIDR,
 		},
+		{
+			// DNS lookup should fail if the FQDN doesn't match any cluster.
+			dialAddr:           "node.bogus.example.com.",
+			dialPort:           22,
+			expectLookupToFail: true,
+		},
+		{
+			// If the FQDN matches a cluster but no node, the DNS lookup should
+			// succeed but the TCP dial should fail.
+			dialAddr:         "bogus.root1.example.com",
+			dialPort:         22,
+			expectCIDR:       root1CIDR,
+			expectDialToFail: true,
+		},
 	} {
-		t.Run(tc.addr, func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s:%d", tc.dialAddr, tc.dialPort), func(t *testing.T) {
 			t.Parallel()
+
+			lookupCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+			defer cancel()
 			// SSH access isn't fully implemented yet, at this point the DNS
 			// lookup for *.<cluster-name> should resolve to an IP in the
 			// expected CIDR range for the cluster.
-			resolvedAddrs, err := p.lookupHost(ctx, tc.addr)
+			resolvedAddrs, err := p.lookupHost(lookupCtx, tc.dialAddr)
+			if tc.expectLookupToFail {
+				require.Error(t, err)
+				return
+			}
 			require.NoError(t, err)
 
 			_, expectNet, err := net.ParseCIDR(tc.expectCIDR)
@@ -1075,10 +1169,15 @@ func TestSSH(t *testing.T) {
 					"expected CIDR range %s does not include resolved IP %s", expectNet, resolvedIPSuffix)
 			}
 
-			// Actually dialing the address should still fail until VNet SSH is
-			// implemented.
-			_, err = p.dialHost(ctx, tc.addr, 22)
-			require.Error(t, err)
+			dialCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+			defer cancel()
+			conn, err := p.dialHost(dialCtx, tc.dialAddr, tc.dialPort)
+			if tc.expectDialToFail {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			conn.Close()
 		})
 	}
 }

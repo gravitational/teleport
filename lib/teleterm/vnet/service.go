@@ -390,6 +390,43 @@ func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.
 	return cert, nil
 }
 
+// UserTLSCert returns the user TLS certificate for the given profile.
+func (p *clientApplication) UserTLSCert(ctx context.Context, profileName string) (tls.Certificate, error) {
+	// We don't have easy access to the user TLS cert from here, the only way
+	// I've found is to reach through the ProxyClient as this does below.
+	clusterClient, err := p.getCachedClient(ctx, profileName, "")
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	clientConfig, err := clusterClient.ProxyClient.ClientConfig(ctx, "")
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "getting user client config")
+	}
+	if len(clientConfig.Credentials) < 1 {
+		return tls.Certificate{}, trace.Errorf("user client config has no credentials")
+	}
+	cred := clientConfig.Credentials[0]
+	tlsConfig, err := cred.TLSConfig()
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "getting user TLS config")
+	}
+	switch {
+	case len(tlsConfig.Certificates) > 0:
+		return tlsConfig.Certificates[0], nil
+	case tlsConfig.GetClientCertificate != nil:
+		// This is the actual path we currently take at the time of writing,
+		// api/client.configureTLS always sets tlsConfig.GetClientCertificate
+		// and unsets tlsConfig.Certificates.
+		tlsCert, err := tlsConfig.GetClientCertificate(nil)
+		if err != nil {
+			return tls.Certificate{}, trace.Wrap(err, "getting client TLS certificate")
+		}
+		return *tlsCert, nil
+	default:
+		return tls.Certificate{}, trace.Errorf("user TLS config has no certificates")
+	}
+}
+
 // GetDialOptions returns ALPN dial options for the profile.
 func (p *clientApplication) GetDialOptions(ctx context.Context, profileName string) (*vnetv1.DialOptions, error) {
 	cluster, tc, err := p.daemonService.ResolveClusterURI(uri.NewClusterURI(profileName))
@@ -402,11 +439,9 @@ func (p *clientApplication) GetDialOptions(ctx context.Context, profileName stri
 		AlpnConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 		InsecureSkipVerify:      p.insecureSkipVerify,
 	}
-	if dialOpts.AlpnConnUpgradeRequired {
-		dialOpts.RootClusterCaCertPool, err = tc.RootClusterCACertPoolPEM(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err, "loading root cluster CA cert pool")
-		}
+	dialOpts.RootClusterCaCertPool, err = tc.RootClusterCACertPoolPEM(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "loading root cluster CA cert pool")
 	}
 	return dialOpts, nil
 }

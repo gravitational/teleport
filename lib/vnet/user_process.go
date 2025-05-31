@@ -45,6 +45,9 @@ type ClientApplication interface {
 	// ReissueAppCert issues a new cert for the target app.
 	ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) (tls.Certificate, error)
 
+	// UserTLSCert returns the user TLS certificate for the given profile.
+	UserTLSCert(ctx context.Context, profileName string) (tls.Certificate, error)
+
 	// GetDialOptions returns ALPN dial options for the profile.
 	GetDialOptions(ctx context.Context, profileName string) (*vnetv1.DialOptions, error)
 
