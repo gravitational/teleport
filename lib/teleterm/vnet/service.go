@@ -245,10 +245,6 @@ func (s *Service) ListDNSZones(ctx context.Context, req *api.ListDNSZonesRequest
 	}, nil
 }
 
-func (s *Service) CheckOpenSSHConfiguration(ctx context.Context) (*vnet.CheckOpenSSHConfigurationResponse, error) {
-	return vnet.CheckOpenSSHConfiguration(ctx, s.cfg.profilePath)
-}
-
 func (s *Service) stopLocked() error {
 	if s.status == statusClosed {
 		return trace.CompareFailed("VNet service has been closed")

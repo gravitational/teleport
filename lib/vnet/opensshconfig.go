@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -253,43 +254,128 @@ type configFileTemplateInput struct {
 	KnownHostsPath string
 }
 
-type CheckOpenSSHConfigurationResponse struct {
-	VnetConfigured bool
-}
-
-func CheckOpenSSHConfiguration(ctx context.Context, profilePath string) (*CheckOpenSSHConfigurationResponse, error) {
-	vnetConfigPath := keypaths.VNetSSHConfigPath(profilePath)
-	userHomeDir, ok := profile.UserHomeDir()
-	if !ok {
-		return nil, trace.Errorf("unable to find user's home directory")
-	}
-	sshConfigPath := filepath.Join(userHomeDir, ".ssh", "config")
-	sshConfigFile, err := os.Open(sshConfigPath)
+// OpenSSHConfigIncludesVNetSSHConfig returns true if the given OpenSSH config
+// file probably includes the vnet_ssh_config file under profilePath. That is,
+// it returns true if r contains a line like:
+//
+//	Include <profilePath>/vnet_ssh_config
+//
+// It always returns false if vnet_ssh_config is not included, but it may return
+// false positives.
+func OpenSSHConfigIncludesVNetSSHConfig(ctx context.Context, profilePath string) (bool, error) {
+	userSSHConfigPath, err := defaultUserSSHConfigPath()
 	if err != nil {
-		return nil, trace.Wrap(trace.ConvertSystemError(err), "opening %s for reading", sshConfigPath)
+		return false, trace.Wrap(err)
+	}
+	sshConfigFile, err := os.Open(userSSHConfigPath)
+	if err != nil {
+		return false, trace.Wrap(trace.ConvertSystemError(err), "opening %s for reading", userSSHConfigPath)
 	}
 	defer sshConfigFile.Close()
-	vnetConfigured, err := openSSHConfigIncludesFile(sshConfigFile, keypaths.VNetSSHConfigPath(profilePath))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &CheckOpenSSHConfigurationResponse{
-		VnetConfigured: true,
-	}, nil
+	return fileIncludesVNetSSHConfig(keypaths.VNetSSHConfigPath(profilePath), sshConfigFile)
 }
 
-// openSSHConfigIncludesFile returns true if the given OpenSSH config file
-// contains a line like "Include <path>/vnet_ssh_config"
-func openSSHConfigIncludesFile(r io.Reader, includeFilePath string) (bool, error) {
-	const includePattern = `^(?i:include)\b[^#]+(/|\\\\)` + keypaths.VNetSSHConfig + `\b`
-	includeRe := regexp.MustCompile(includePattern)
+func defaultUserSSHConfigPath() (string, error) {
+	userHomeDir, ok := profile.UserHomeDir()
+	if !ok {
+		return "", trace.Errorf("unable to find user's home directory")
+	}
+	return filepath.Join(userHomeDir, ".ssh", "config"), nil
+}
+
+// fileIncludesVNetSSHConfig returns true if the given OpenSSH config file
+// probably includes the vnet_ssh_config file under profilePath.
+//
+// It always returns false if vnet_ssh_config is not included, but it may return
+// false positives because the SSH config format is a tricky to parse, the full
+// path:
+// - may be quoted
+// - may include escape characters
+// - may use unix-style paths "/home/user/.tsh/vnet_ssh_config" on either OS
+// - may use windows-style paths "C:\\Users\\User\\.tsh\\vnet_ssh_config"
+// - may or may not include spaces or special characters
+// - may or may not use ~ to refer to the user's home directory
+// So it really just checks if there's an include line that matches the leaf
+// directory in profilePath:
+// - for Connect's "~/Application\ Support/Teleport\ Connect/tsh" this will be "tsh"
+// - for tsh's "~/.tsh" this will be ".tsh"
+// followed by a path separator, followed by "vnet_ssh_config".
+//
+// This way at least it will return false if tsh's vnet_ssh_config is included
+// but the current profilePath belongs to Connect, or vice-versa. It also always
+// returns false if the file is not included at all.
+func fileIncludesVNetSSHConfig(profilePath string, r io.Reader) (bool, error) {
+	leafDir := filepath.Base(profilePath)
+	// Quote any regex meta characters in leafDir to match it literally.
+	leafDir = regexp.QuoteMeta(leafDir)
+	// Whitespace is trimmed from each line, here's a breakdown of the regex:
+	// ^(?i:include)\s the line must start with include followed by whitespace
+	//   ?i makes the match for "include" case-insensitive
+	// [^#]+ swallows any characters in the path prefix that don't start a comment
+	// (/|\\\\) matches a path separator / or \\
+	// leafDir matches the last component of profilePath
+	// (/|\\\\) matches a path separator / or \\
+	// keypaths.VNetSSHConfig matches vnet_ssh_config
+	// \b means a word boundary must follow vnet_ssh_config
+	includePattern := `^(?i:include)\s[^#]+(/|\\\\)` + leafDir + `(/|\\\\)` + keypaths.VNetSSHConfig + `\b`
+	re, err := regexp.Compile(includePattern)
+	if err != nil {
+		return false, trace.Wrap(err, "compiling regex to match OpenSSH include lines")
+	}
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if includeRe.MatchString(line) {
+		if re.MatchString(line) {
 			return true, nil
 		}
 	}
-	return false, trace.Wrap(trace.ConvertSystemError(scanner.Err()),
-		"reading from %s", sshConfigPath)
+	return false, trace.Wrap(trace.ConvertSystemError(scanner.Err()), "reading OpenSSH config file")
+}
+
+// AutoConfigureOpenSSH adds an Include directive to the default user OpenSSH
+// config file (~/.ssh/config) to include the vnet_ssh_config file found under
+// profilePath.
+func AutoConfigureOpenSSH(ctx context.Context, profilePath string) error {
+	userSSHConfigPath, err := defaultUserSSHConfigPath()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(autoConfigureOpenSSHConfigFile(profilePath, userSSHConfigPath))
+}
+
+func autoConfigureOpenSSHConfigFile(profilePath, userSSHConfigPath string) error {
+	// Open for reading and writing, append writes, create the file if it
+	// doesn't exist.
+	sshConfigFile, err := os.OpenFile(userSSHConfigPath, os.O_RDWR|os.O_APPEND|os.O_CREATE, filePerms)
+	if err != nil {
+		return trace.Wrap(trace.ConvertSystemError(err))
+	}
+	defer sshConfigFile.Close()
+
+	check, err := fileIncludesVNetSSHConfig(profilePath, sshConfigFile)
+	if err != nil {
+		return trace.Wrap(err, "checking if user OpenSSH config file already includes %s", keypaths.VNetSSHConfig)
+	}
+	if check {
+		return trace.BadParameter("user OpenSSH config file already includes %s", keypaths.VNetSSHConfig)
+	}
+
+	if err := addIncludeDirectiveToFile(profilePath, sshConfigFile); err != nil {
+		return trace.Wrap(err, "appending to %s", userSSHConfigPath)
+	}
+	// Explicitly close the file to capture any error, the deferred close above
+	// will be a no-op.
+	return trace.Wrap(trace.ConvertSystemError(sshConfigFile.Close()),
+		"closing %s", userSSHConfigPath)
+}
+
+func addIncludeDirectiveToFile(profilePath string, f *os.File) error {
+	vnetSSHConfigPath := keypaths.VNetSSHConfigPath(profilePath)
+	// strconv.Quote happens to be compatible with what OpenSSH is looking for
+	// in my testing.
+	vnetSSHConfigPath = strconv.Quote(vnetSSHConfigPath)
+	include := fmt.Sprintf("\n# Include VNet SSH configuration options\nInclude %s\n",
+		vnetSSHConfigPath)
+	_, err := io.WriteString(f, include)
+	return trace.Wrap(trace.ConvertSystemError(err))
 }
