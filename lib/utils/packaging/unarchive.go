@@ -72,20 +72,21 @@ func RemoveWithSuffix(dir, suffix string, skipNames []string) error {
 // the compressed content, and ignores everything not matching the binaries specified
 // in the execNames argument. The data is extracted to extractDir, and symlinks are created
 // in toolsDir pointing to the extractDir path with binaries.
-func replaceZip(toolsDir string, archivePath string, extractDir string, execNames []string) error {
+func replaceZip(toolsDir string, archivePath string, extractDir string, execNames []string) (map[string]string, error) {
+	execPaths := make(map[string]string, len(execNames))
 	f, err := os.Open(archivePath)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer f.Close()
 
 	fi, err := f.Stat()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	zipReader, err := zip.NewReader(f, fi.Size())
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	var totalSize uint64 = 0
@@ -101,7 +102,7 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, execName
 	}
 	// Verify that we have enough space for uncompressed zipFile.
 	if err := checkFreeSpace(extractDir, totalSize); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	for _, zipFile := range zipReader.File {
@@ -138,11 +139,12 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, execName
 			}
 			return trace.Wrap(destFile.Close())
 		}(zipFile); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
+		execPaths[baseName] = filepath.Join(extractDir, baseName)
 	}
 
-	return nil
+	return execPaths, nil
 }
 
 // checkFreeSpace verifies that we have enough requested space (in bytes) at specific directory.

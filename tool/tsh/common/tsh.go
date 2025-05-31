@@ -75,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
+	"github.com/gravitational/teleport/lib/autoupdate/tools/helper"
 	"github.com/gravitational/teleport/lib/benchmark"
 	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
@@ -772,15 +773,33 @@ type CliOption func(*CLIConf) error
 //
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
-	if err := tools.CheckAndUpdateLocal(ctx, args); err != nil {
-		return trace.Wrap(err)
-	}
-
 	cf := CLIConf{
 		Context:            ctx,
 		TracingProvider:    tracing.NoopProvider(),
 		DTAuthnRunCeremony: dtauthn.NewCeremony().Run,
 		DTAutoEnroll:       dtenroll.AutoEnroll,
+	}
+	// configure CLI argument parser:
+	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(true)
+	app.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
+	login := app.Command("login", "Log in to a cluster and retrieve the session certificate.")
+	// We need to parse the arguments before executing managed updates to identify
+	// the profile name and the required version for the current cluster.
+	// All other commands and flags may change between versions, so full parsing
+	// should be performed only after managed updates are applied.
+	app.Parse(args)
+
+	// Check local update for specific proxy from configuration.
+	var err error
+	var name string
+	if cf.Proxy != "" {
+		name, err = utils.Host(cf.Proxy)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if err := helper.CheckAndUpdateLocal(ctx, name, args); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// run early to enable debug logging if env var is set.
@@ -792,11 +811,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	moduleCfg := modules.GetModules()
 	var cpuProfile, memProfile, traceProfile string
 
-	// configure CLI argument parser:
-	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(true)
-
 	app.Flag("login", "Remote host login").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
-	app.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
 	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", "Teleport user, defaults to current local user").Envar(userEnvVar).StringVar(&cf.Username)
 	app.Flag("mem-profile", "Write memory profile to file").Hidden().StringVar(&memProfile)
@@ -1141,7 +1156,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
-	login := app.Command("login", "Log in to a cluster and retrieve the session certificate.")
 	login.Flag("out", "Identity output").Short('o').AllowDuplicate().StringVar(&cf.IdentityFileOut)
 	login.Flag("format", fmt.Sprintf("Identity format: %s, %s (for OpenSSH compatibility) or %s (for kubeconfig)",
 		identityfile.DefaultFormat,
@@ -1319,6 +1333,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		puttyConfig.Hidden()
 	}
 
+	// Client-tools managed updates commands.
+	autoupdate := newAutoUpdateCommand(app)
+
 	// FIDO2, TouchID and WebAuthnWin commands.
 	f2 := fido2.NewCommand(app)
 	tid := touchid.NewCommand(app)
@@ -1344,7 +1361,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		bench.Hidden()
 	}
 
-	var err error
 	cf.executablePath, err = os.Executable()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1745,6 +1761,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.clone.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
+	case autoupdate.update.FullCommand():
+		err = autoupdate.update.run(&cf)
+	case autoupdate.clean.FullCommand():
+		err = autoupdate.clean.run()
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -2013,7 +2033,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 	// The user is not logged in and has typed in `tsh --proxy=... login`, if
 	// the running binary needs to be updated, update and re-exec.
 	if profile == nil {
-		if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+		if err := helper.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2031,12 +2051,11 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+			if err := helper.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 
-			_, err := tc.PingAndShowMOTD(cf.Context)
-			if err != nil {
+			if _, err := tc.PingAndShowMOTD(cf.Context); err != nil {
 				return trace.Wrap(err)
 			}
 			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
@@ -2051,15 +2070,13 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+			if err := helper.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 
-			_, err := tc.PingAndShowMOTD(cf.Context)
-			if err != nil {
+			if _, err := tc.PingAndShowMOTD(cf.Context); err != nil {
 				return trace.Wrap(err)
 			}
-
 			if err := tc.SaveProfile(true); err != nil {
 				return trace.Wrap(err)
 			}
@@ -2127,7 +2144,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		default:
 			// The user is logged in and has typed in `tsh --proxy=... login`, if
 			// the running binary needs to be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+			if err := helper.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -4651,6 +4668,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.DisplayParticipantRequirements = cf.displayParticipantRequirements
 	c.SSHLogDir = cf.SSHLogDir
 	c.DisableSSHResumption = cf.DisableSSHResumption
+
 	return c, nil
 }
 

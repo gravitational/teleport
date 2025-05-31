@@ -43,7 +43,7 @@ import (
 //
 // For Darwin, archivePath must be a .pkg file.
 // For other POSIX, archivePath must be a gzipped tarball.
-func ReplaceToolsBinaries(toolsDir string, archivePath string, extractDir string, execNames []string) error {
+func ReplaceToolsBinaries(toolsDir string, archivePath string, extractDir string, execNames []string) (map[string]string, error) {
 	switch runtime.GOOS {
 	case constants.DarwinOS:
 		return replacePkg(toolsDir, archivePath, extractDir, execNames)
@@ -56,19 +56,20 @@ func ReplaceToolsBinaries(toolsDir string, archivePath string, extractDir string
 // the compressed content, and ignores everything not matching the app binaries specified
 // in the apps argument. The data is extracted to extractDir, and symlinks are created
 // in toolsDir pointing to the extractDir path with binaries.
-func replaceTarGz(toolsDir string, archivePath string, extractDir string, execNames []string) error {
+func replaceTarGz(toolsDir string, archivePath string, extractDir string, execNames []string) (map[string]string, error) {
+	execPaths := make(map[string]string, len(execNames))
 	if err := validateFreeSpaceTarGz(archivePath, extractDir, execNames); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	f, err := os.Open(archivePath)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer f.Close()
 
 	gzipReader, err := gzip.NewReader(f)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	tarReader := tar.NewReader(gzipReader)
 	for {
@@ -77,7 +78,7 @@ func replaceTarGz(toolsDir string, archivePath string, extractDir string, execNa
 			break
 		}
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		baseName := filepath.Base(header.Name)
 		// Skip over any files in the archive that are not in execNames.
@@ -102,11 +103,12 @@ func replaceTarGz(toolsDir string, archivePath string, extractDir string, execNa
 			}
 			return trace.Wrap(tempFile.Cleanup())
 		}(header); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
+		execPaths[baseName] = filepath.Join(extractDir, baseName)
 	}
 
-	return trace.Wrap(gzipReader.Close())
+	return execPaths, trace.Wrap(gzipReader.Close())
 }
 
 // validateFreeSpaceTarGz validates that extraction size match available disk space in `extractDir`.
@@ -146,7 +148,8 @@ func validateFreeSpaceTarGz(archivePath string, extractDir string, execNames []s
 // The data is extracted to extractDir, and symlinks are created in toolsDir pointing to the binaries
 // in extractDir. Before creating the symlinks, each binary must be executed at least once to pass
 // OS signature verification.
-func replacePkg(toolsDir string, archivePath string, extractDir string, execNames []string) error {
+func replacePkg(toolsDir string, archivePath string, extractDir string, execNames []string) (map[string]string, error) {
+	execPaths := make(map[string]string, len(execNames))
 	// Use "pkgutil" from the filesystem to expand the archive. In theory .pkg
 	// files are xz archives, however it's still safer to use "pkgutil" in-case
 	// Apple makes non-standard changes to the format.
@@ -154,11 +157,11 @@ func replacePkg(toolsDir string, archivePath string, extractDir string, execName
 	// Full command: pkgutil --expand-full NAME.pkg DIRECTORY/
 	pkgutil, err := exec.LookPath("pkgutil")
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if err = exec.Command(pkgutil, "--expand-full", archivePath, extractDir).Run(); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	err = filepath.Walk(extractDir, func(path string, info os.FileInfo, err error) error {
@@ -188,6 +191,7 @@ func replacePkg(toolsDir string, archivePath string, extractDir string, execName
 		// if multiple processes are trying to operate on it.
 		command := exec.Command(path, "version")
 		command.Env = []string{"TELEPORT_TOOLS_VERSION=off"}
+		command.Stderr = os.Stderr
 		if err := command.Run(); err != nil {
 			return trace.WrapWithMessage(err, "failed to validate binary")
 		}
@@ -200,9 +204,10 @@ func replacePkg(toolsDir string, archivePath string, extractDir string, execName
 		if err := renameio.Symlink(path, newName); err != nil {
 			return trace.Wrap(err)
 		}
+		execPaths[info.Name()] = path
 
 		return nil
 	})
 
-	return trace.Wrap(err)
+	return execPaths, trace.Wrap(err)
 }
