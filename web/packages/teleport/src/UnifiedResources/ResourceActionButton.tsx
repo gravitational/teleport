@@ -29,6 +29,7 @@ import {
 import { MenuLoginWithActionMenu } from 'shared/components/MenuLoginWithActionMenu';
 import { AwsRole } from 'shared/services/apps';
 
+import { MCPAppConnectDialog } from 'teleport/Apps/MCPAppConnectDialog';
 import { TcpAppConnectDialog } from 'teleport/Apps/TcpAppConnectDialog';
 import cfg from 'teleport/config';
 import DbConnectDialog from 'teleport/Databases/ConnectDialog';
@@ -226,6 +227,9 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
       </ButtonBorder>
     );
   }
+  if (subKind === AppSubKind.MCP) {
+    return <MCPAppConnect app={app} />;
+  }
   if (isTcp) {
     return <TcpAppConnect app={app} />;
   }
@@ -406,6 +410,24 @@ function TcpAppConnect({ app }: { app: App }) {
         Connect
       </ButtonBorder>
       {open && <TcpAppConnectDialog app={app} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function MCPAppConnect({ app }: { app: App }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <ButtonBorder
+        textTransform="none"
+        width="123px"
+        size="small"
+        onClick={() => setOpen(true)}
+      >
+        Connect
+      </ButtonBorder>
+      {open && <MCPAppConnectDialog app={app} onClose={() => setOpen(false)} />}
     </>
   );
 }

@@ -64,6 +64,7 @@ export default function makeApp(json: any): App {
     samlAppPreset,
     subKind,
     samlAppLaunchUrls,
+    mcp,
   } = json;
 
   const launchUrl = getLaunchUrl({
@@ -80,6 +81,7 @@ export default function makeApp(json: any): App {
 
   const isTcp = !!uri && uri.startsWith('tcp://');
   const isCloud = !!uri && uri.startsWith('cloud://');
+  const isMCPStdio = !!uri && uri.startsWith('mcp+stdio://');
 
   let addrWithProtocol = uri;
   if (publicAddr) {
@@ -87,6 +89,8 @@ export default function makeApp(json: any): App {
       addrWithProtocol = `cloud://${publicAddr}`;
     } else if (isTcp) {
       addrWithProtocol = `tcp://${publicAddr}`;
+    } else if (isMCPStdio) {
+      addrWithProtocol = `mcp+stdio://${publicAddr}`;
     } else if (subKind === AppSubKind.AwsIcAccount) {
       /** publicAddr for Identity Center account app is a URL with scheme. */
       addrWithProtocol = publicAddr;
@@ -129,5 +133,6 @@ export default function makeApp(json: any): App {
     integration,
     permissionSets,
     samlAppLaunchUrls,
+    mcp,
   };
 }
