@@ -80,3 +80,21 @@ func DeduplicateKey[T any](s []T, key func(T) string) []T {
 	}
 	return out
 }
+
+// ToMap converts elements in a slice as the keys to a map, and use provided
+// function to calculate their values in the map.
+func ToMap[K comparable, V any, S ~[]K](s S, makeValue func(K) V) map[K]V {
+	m := make(map[K]V, len(s))
+	for _, key := range s {
+		m[key] = makeValue(key)
+	}
+	return m
+}
+
+// ToMapWithDefaultValue converts elements in a slice as the keys to a map, and
+// all values in the map are set to provided default value.
+func ToMapWithDefaultValue[K comparable, V any, S ~[]K](s S, defaultValue V) map[K]V {
+	return ToMap(s, func(K) V {
+		return defaultValue
+	})
+}

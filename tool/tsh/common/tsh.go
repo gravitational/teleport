@@ -1339,6 +1339,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	gitCmd := newGitCommands(app)
 	pivCmd := newPIVCommands(app)
+	mcpCmd := newMCPCommands(app, &cf)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
@@ -1745,6 +1746,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.clone.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
+	case mcpCmd.list.FullCommand():
+		err = mcpCmd.list.run()
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -3202,14 +3205,7 @@ func getDBUsers(db types.Database, accessChecker services.AccessChecker) *dbUser
 		)
 		return &dbUsers{}
 	}
-	var denied []string
-	allowed := users.Allowed()
-	if users.WildcardAllowed() {
-		// start the list with *.
-		allowed = append([]string{types.Wildcard}, allowed...)
-		// only include denied users if the wildcard is allowed.
-		denied = append(denied, users.Denied()...)
-	}
+	allowed, denied := users.ToEntities()
 	return &dbUsers{
 		Allowed: allowed,
 		Denied:  denied,
@@ -3274,9 +3270,6 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	}
 
 	dbUsers := getDBUsers(database, accessChecker)
-	if len(dbUsers.Allowed) == 0 {
-		return "(none)"
-	}
 
 	// Add a note for auto-provisioned user.
 	if database.IsAutoUsersEnabled() {
@@ -3293,10 +3286,7 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 		}
 	}
 
-	if len(dbUsers.Denied) == 0 {
-		return fmt.Sprintf("%v", dbUsers.Allowed)
-	}
-	return fmt.Sprintf("%v, except: %v", dbUsers.Allowed, dbUsers.Denied)
+	return common.FormatAllowedEntities(dbUsers.Allowed, dbUsers.Denied)
 }
 
 // TODO(greedy52) more refactoring on db printing and move them to db_print.go.

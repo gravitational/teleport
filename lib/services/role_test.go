@@ -10066,3 +10066,67 @@ func TestMCPToolMatcher(t *testing.T) {
 		})
 	}
 }
+
+func TestNewEnumerationResultFromEntities(t *testing.T) {
+	tests := []struct {
+		name         string
+		inputAllowed []string
+		inputDenied  []string
+		wantResult   EnumerationResult
+		wantAllowed  []string
+		wantDenied   []string
+	}{
+		{
+			name: "empty",
+			wantResult: EnumerationResult{
+				allowedDeniedMap: make(map[string]bool),
+			},
+		},
+		{
+			name:         "wildcard denied",
+			inputAllowed: []string{"allow_entry"},
+			inputDenied:  []string{"deny_entry", "*"},
+			wantResult: EnumerationResult{
+				allowedDeniedMap: make(map[string]bool),
+				wildcardDenied:   true,
+			},
+			wantDenied: []string{"*"},
+		},
+		{
+			name:         "wildcard allowed",
+			inputAllowed: []string{"allow_entry", "*"},
+			inputDenied:  []string{"deny_entry"},
+			wantResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{
+					"deny_entry": false,
+				},
+				wildcardAllowed: true,
+			},
+			wantAllowed: []string{"*"},
+			wantDenied:  []string{"deny_entry"},
+		},
+		{
+			name:         "no wildcard",
+			inputAllowed: []string{"allow_entry_1", "deny_overwrite", "allow_entry_2"},
+			inputDenied:  []string{"deny_overwrite", "deny_entry"},
+			wantResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{
+					"allow_entry_1": true,
+					"allow_entry_2": true,
+				},
+			},
+			wantAllowed: []string{"allow_entry_1", "allow_entry_2"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actualResult := NewEnumerationResultFromEntities(test.inputAllowed, test.inputDenied)
+			require.Equal(t, test.wantResult, actualResult)
+
+			actualAllowed, actualDenied := actualResult.ToEntities()
+			require.Equal(t, test.wantAllowed, actualAllowed)
+			require.Equal(t, test.wantDenied, actualDenied)
+		})
+	}
+}

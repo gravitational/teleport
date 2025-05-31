@@ -53,6 +53,7 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/parse"
+	slicesutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // DefaultImplicitRules provides access to the default set of implicit rules
@@ -1029,12 +1030,55 @@ func (result *EnumerationResult) WildcardDenied() bool {
 	return result.wildcardDenied
 }
 
+// ToEntities converts result back to allowed and denied entity slices. Wildcard
+// will be placed in the slice if any.
+func (result *EnumerationResult) ToEntities() (allowed, denied []string) {
+	if result.wildcardDenied {
+		return nil, []string{types.Wildcard}
+	}
+	// Only include denied entities if the wildcard is allowed.
+	if result.wildcardAllowed {
+		return []string{types.Wildcard}, result.Denied()
+	}
+	return result.Allowed(), nil
+}
+
 // NewEnumerationResult returns new EnumerationResult.
 func NewEnumerationResult() EnumerationResult {
 	return EnumerationResult{
 		allowedDeniedMap: map[string]bool{},
 		wildcardAllowed:  false,
 		wildcardDenied:   false,
+	}
+}
+
+// NewEnumerationResultFromEntities creates a new EnumerationResult and
+// populates the result with provided allowed and denied entries.
+func NewEnumerationResultFromEntities(allowed, denied []string) EnumerationResult {
+	switch {
+	// Wildcard deny, ignore all other entries.
+	case slices.Contains(denied, types.Wildcard):
+		return EnumerationResult{
+			allowedDeniedMap: make(map[string]bool),
+			wildcardDenied:   true,
+		}
+
+	// Wildcard allow, ignore all allowed entries.
+	case slices.Contains(allowed, types.Wildcard):
+		return EnumerationResult{
+			allowedDeniedMap: slicesutils.ToMapWithDefaultValue(denied, false),
+			wildcardAllowed:  true,
+		}
+
+	// No wildcard.
+	default:
+		allowedDeniedMap := slicesutils.ToMapWithDefaultValue(allowed, true)
+		for _, deny := range denied {
+			delete(allowedDeniedMap, deny)
+		}
+		return EnumerationResult{
+			allowedDeniedMap: allowedDeniedMap,
+		}
 	}
 }
 
