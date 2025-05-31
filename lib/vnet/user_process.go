@@ -112,13 +112,23 @@ func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	processManager, processCtx := newProcessManager()
+	sshConfigurator := newSSHConfigurator(sshConfiguratorConfig{
+		clientApplication: clientApplication,
+	})
+	processManager.AddCriticalBackgroundTask("SSH configuration loop", func() error {
+		return trace.Wrap(sshConfigurator.runConfigurationLoop(processCtx))
+	})
+
 	userProcess := &UserProcess{
 		clientApplication:        clientApplication,
 		osConfigProvider:         osConfigProvider,
 		clientApplicationService: clientApplicationService,
 		clock:                    clock,
+		processManager:           processManager,
 	}
-	if err := userProcess.runPlatformUserProcess(ctx); err != nil {
+	if err := userProcess.runPlatformUserProcess(processCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return userProcess, nil
