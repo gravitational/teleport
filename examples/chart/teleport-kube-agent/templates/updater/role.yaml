@@ -4,7 +4,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ .Release.Name }}-updater
+  name: {{ include "teleport-kube-agent.fullname" . }}-updater
   namespace: {{ .Release.Namespace }}
 {{- if $updater.extraLabels.role }}
   labels: {{- toYaml $updater.extraLabels.role | nindent 4 }}
@@ -45,7 +45,7 @@ rules:
   verbs:
     - get
   resourceNames:
-    - {{ .Release.Name }}-shared-state
+    - {{ include "teleport-kube-agent.fullname" . }}-shared-state
 - apiGroups:
     - ""
   resources:
@@ -75,7 +75,7 @@ rules:
   verbs:
     - update
   resourceNames:
-    - {{ .Release.Name }}
+    - {{ include "teleport-kube-agent.fullname" . }}
 - apiGroups:
     - coordination.k8s.io
   resources:
@@ -85,7 +85,7 @@ rules:
 - apiGroups:
     - coordination.k8s.io
   resourceNames:
-    - {{ .Release.Name }}
+    - {{ include "teleport-kube-agent.fullname" . }}
   resources:
     - leases
   verbs:
