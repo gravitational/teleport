@@ -24,6 +24,7 @@ import { AlertProps } from 'design/Alert/Alert';
 import Table, { TextCell } from 'design/DataTable';
 import { displayDateTime } from 'design/datetime';
 import {
+  Check,
   Copy,
   Download,
   Refresh,
@@ -38,7 +39,7 @@ import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { CanceledError, useAsync } from 'shared/hooks/useAsync';
 import { pluralize } from 'shared/utils/text';
 
-import { reportOneOfIsRouteConflictReport } from 'teleterm/helpers';
+import { reportOneOfIsRouteConflictReport, reportOneOfIsSSHConfigurationReport } from 'teleterm/helpers';
 import { getReportFilename, reportToText } from 'teleterm/services/vnet/diag';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
@@ -297,8 +298,33 @@ const reportOneofDisplayDetails: Record<
     errorTitle: 'inspect network routes',
     Component: CheckReportRouteConflict,
   },
+  sshConfigurationReport: {
+    errorTitle: 'inspect SSH configuration',
+    Component: CheckReportSSHConfiguration,
+  },
 };
 
+function CheckReportSSHConfiguration({
+  checkReport: { report, status },
+}: {
+  checkReport: diag.CheckReport;
+}) {
+  if (!reportOneOfIsSSHConfigurationReport(report)) {
+    return null;
+  }
+  if (report.sshConfigurationReport.vnetSshConfigured) {
+    return (
+      <P1>
+        <Success /> VNet SSH is configured correctly.
+      </P1>
+    );
+  }
+  return (
+    <P1>
+      <Warning /> VNet SSH is not configured.
+    </P1>
+  )
+}
 /**
  * CheckReportRouteConflict displays a table with network routes in the system that are in conflict
  * with routes set up by VNet.

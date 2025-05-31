@@ -122,6 +122,10 @@ const reportOneofToDisplayDetails: Record<
     errorTitle: 'inspect network routes',
     reportToText: routeConflictReportToText,
   },
+  sshConfigurationReport: {
+    errorTitle: 'inspect SSH configuration',
+    reportToText: sshConfigurationReportToText,
+  },
 };
 
 function routeConflictReportToText({
@@ -148,4 +152,14 @@ function routeConflictReportToText({
 | VNet destination | Conflicting destination | Interface | Set up by |
 | ---------------- | ----------------------- | --------- | --------- |
 ${tableRows}`;
+}
+
+function sshConfigurationReportToText({
+  report,
+  status,
+}: diag.CheckReport): string {
+  if (report.sshConfigurationReport.vnetSshIsConfigured) {
+    return '✅ VNet SSH is configured correctly.';
+  }
+  return `⚠️ VNet SSH is not configured correctly`;
 }
