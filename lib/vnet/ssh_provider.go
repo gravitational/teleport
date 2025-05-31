@@ -24,19 +24,26 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // sshProvider provides methods necessary for VNet SSH access.
 type sshProvider struct {
 	cfg sshProviderConfig
+	// hostCASigner is the host CA key used internally in VNet to terminate
+	// connections from clients, it is not a Teleport CA used by any cluster.
+	hostCASigner         ssh.Signer
+	trustedUserPublicKey ssh.PublicKey
 }
 
 type sshProviderConfig struct {
-	clt *clientApplicationServiceClient
+	clt   *clientApplicationServiceClient
+	clock clockwork.Clock
 	// overrideNodeDialer can be used in tests to dial SSH nodes with the real
 	// TLS configuration but without setting up the proxy transport service.
 	overrideNodeDialer func(
@@ -45,12 +52,45 @@ type sshProviderConfig struct {
 		tlsConfig *tls.Config,
 		dialOpts *vnetv1.DialOptions,
 	) (net.Conn, error)
+	// hostCASigner can be used in tests to set a specific key for the SSH host CA.
+	hostCASigner ssh.Signer
+	// trustedUserPublicKey can be used in tests to set a specific trusted user
+	// SSH key.
+	trustedUserPublicKey ssh.PublicKey
 }
 
-func newSSHProvider(cfg sshProviderConfig) *sshProvider {
-	return &sshProvider{
-		cfg: cfg,
+func newSSHProvider(cfg sshProviderConfig) (*sshProvider, error) {
+	hostCASigner := cfg.hostCASigner
+	if hostCASigner == nil {
+		// TODO(nklaassen): write host CA public key to $TELEPORT_HOME/vnet_known_hosts
+		hostKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		hostCASigner, err = ssh.NewSignerFromSigner(hostKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+	trustedUserPublicKey := cfg.trustedUserPublicKey
+	if trustedUserPublicKey == nil {
+		// TODO(nklaassen): check if $TELEPORT_HOME/id_vnet.pub exists.
+		// If it does, read that file and trust it.
+		// If not, generate the keypair and write it to $TELEPORT_HOME/id_vnet.
+		userKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		trustedUserPublicKey, err = ssh.NewPublicKey(userKey.Public())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return &sshProvider{
+		cfg:                  cfg,
+		hostCASigner:         hostCASigner,
+		trustedUserPublicKey: trustedUserPublicKey,
+	}, nil
 }
 
 // dial dials the target SSH host.
@@ -142,7 +182,10 @@ func (p *sshProvider) userTLSConfig(
 }
 
 type dialTarget struct {
-	profile, cluster, host string
+	fqdn    string
+	profile string
+	cluster string
+	host    string
 }
 
 func computeDialTarget(matchedCluster *vnetv1.MatchedCluster, fqdn string) dialTarget {
@@ -155,6 +198,7 @@ func computeDialTarget(matchedCluster *vnetv1.MatchedCluster, fqdn string) dialT
 	}
 	targetHost = targetHost + ":0"
 	return dialTarget{
+		fqdn:    fqdn,
 		profile: targetProfile,
 		cluster: targetCluster,
 		host:    targetHost,
