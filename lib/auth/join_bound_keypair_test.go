@@ -678,6 +678,34 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 				require.Nil(t, res)
 			},
 		},
+		{
+			name: "rotation-same-key-not-allowed",
+
+			token: makeToken(func(v2 *types.ProvisionTokenV2) {
+				v2.Spec.BoundKeypair.RotateAfter = &startTime
+
+				v2.Status.BoundKeypair.BoundPublicKey = correctPublicKey
+				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
+			}),
+			initReq: makeInitReq(),
+			solver:  makeSolver(correctPublicKey, withRotatedPubKey(correctPublicKey)),
+
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "public key may not be reused after rotation")
+			},
+			assertSolverState: func(t *testing.T, s *wrappedSolver) {
+				require.EqualValues(t, 2, s.challengeCount)
+				require.EqualValues(t, 1, s.rotationCount)
+
+				// note: the client does complete the challenge for the
+				// duplicate key, but the attempt will ultimately be rejected
+				require.Equal(t, []string{correctPublicKey, correctPublicKey}, s.solutions)
+			},
+			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
+				require.Equal(t, correctPublicKey, v2.Status.BoundKeypair.BoundPublicKey)
+				require.Nil(t, res)
+			},
+		},
 	}
 
 	for _, tt := range tests {
