@@ -62,6 +62,9 @@ service ClientApplicationService {
   // SignForSSHSession signs a digest with the SSH private key associated with the
   // session from a previous call to SessionSSHConfig.
   rpc SignForSSHSession(SignForSSHSessionRequest) returns (SignForSSHSessionResponse);
+  // ExchangeSSHKeys sends VNet's SSH host CA key to the client application and
+  // returns the user public key.
+  rpc ExchangeSSHKeys(ExchangeSSHKeysRequest) returns (ExchangeSSHKeysResponse);
 }
 
 // AuthenticateProcessRequest is a request for AuthenticateProcess.
@@ -376,4 +379,18 @@ message SignForSSHSessionRequest {
 message SignForSSHSessionResponse {
   // Signature is the signature.
   bytes signature = 1;
+}
+
+// ExchangeSSHKeysRequest is a request to exchange SSH keys for VNet SSH.
+message ExchangeSSHKeysRequest {
+  // HostPublicKey is the host key that should be trusted by clients connecting
+  // to VNet SSH addresses. It is encoded in OpenSSH wire format.
+  bytes host_public_key = 1;
+}
+
+// ExchangeSSHKeysResponse is a response for ExchangeSSHKeys.
+message ExchangeSSHKeysResponse {
+  // UserPublicKey is the user key that should be trusted by VNet for incoming
+  // connections from SSH clients. It is encoded in OpenSSH wire format.
+  bytes user_public_key = 1;
 }
