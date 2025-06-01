@@ -73,6 +73,15 @@ const (
 	profileFileExt = ".yaml"
 	// oracleWalletDirSuffix is the suffix of the oracle wallet database directory.
 	oracleWalletDirSuffix = "-wallet"
+	// VNetClientSSHKey is the file name of the SSH key used by third-party SSH
+	// clients to connect to VNet SSH.
+	VNetClientSSHKey = "id_vnet"
+	// VNetClientSSHKeyPub is the file name of the SSH public key matching
+	// VNetClientSSHKey.
+	VNetClientSSHKeyPub = VNetClientSSHKey + fileExtPub
+	// vnetKnownHosts is the file name of the known_hosts file trusted by
+	// third-party SSH clients connecting to VNet SSH.
+	vnetKnownHosts = "vnet_known_hosts"
 )
 
 // Here's the file layout of all these keypaths.
@@ -81,6 +90,9 @@ const (
 // ├── one.example.com.yaml            --> file containing profile details for proxy "one.example.com"
 // ├── two.example.com.yaml            --> file containing profile details for proxy "two.example.com"
 // ├── known_hosts                     --> trusted certificate authorities (their keys) in a format similar to known_hosts
+// ├── id_vnet                         --> SSH Private Key for third-party clients of VNet SSH
+// ├── id_vnet.pub                     --> SSH Public Key for third-party clients of VNet SSH
+// ├── vnet_known_hosts                --> trusted certificate authorities (their keys) for third-party clients of VNet SSH
 // └── keys							   --> session keys directory
 //    ├── one.example.com              --> Proxy hostname
 //    │   ├── certs.pem                --> TLS CA certs for the Teleport CA
@@ -427,6 +439,21 @@ func IsProfileKubeConfigPath(path string) (bool, error) {
 // <identity-file-dir>/<path>-cert.pub
 func IdentitySSHCertPath(path string) string {
 	return path + fileExtSSHCert
+}
+
+// VNetClientSSHKeyPath returns the path to the VNet client SSH private key.
+func VNetClientSSHKeyPath(baseDir string) string {
+	return filepath.Join(baseDir, VNetClientSSHKey)
+}
+
+// VNetClientSSHKeyPubPath returns the path to the VNet client SSH public key.
+func VNetClientSSHKeyPubPath(baseDir string) string {
+	return filepath.Join(baseDir, VNetClientSSHKeyPub)
+}
+
+// VNetKnownHostsPath returns the path to the VNet known_hosts file.
+func VNetKnownHostsPath(baseDir string) string {
+	return filepath.Join(baseDir, vnetKnownHosts)
 }
 
 // TrimKeyPathSuffix returns the given path with any key suffix/extension trimmed off.

@@ -100,7 +100,7 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 	}
 	log.InfoContext(ctx, "Created TUN interface", "tun", tunName)
 
-	networkStackConfig, err := newNetworkStackConfig(device, clt)
+	networkStackConfig, err := newNetworkStackConfig(ctx, device, clt)
 	if err != nil {
 		return trace.Wrap(err, "creating network stack config")
 	}

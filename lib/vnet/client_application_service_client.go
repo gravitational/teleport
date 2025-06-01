@@ -23,6 +23,7 @@ import (
 	"io"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	grpccredentials "google.golang.org/grpc/credentials"
 
@@ -210,6 +211,24 @@ func (c *clientApplicationServiceClient) SignForSSHSession(ctx context.Context, 
 		return nil, trace.Wrap(err, "calling SignForSSHSession rpc")
 	}
 	return resp.GetSignature(), nil
+}
+
+// ExchangeSSHKeys sends hostPublicKey to the client application so that it
+// can write an OpenSSH-compatible configuration file. It returns the user
+// public key that should be trusted for incoming connections from third-party
+// SSH clients.
+func (c *clientApplicationServiceClient) ExchangeSSHKeys(ctx context.Context, hostPublicKey ssh.PublicKey) (ssh.PublicKey, error) {
+	resp, err := c.clt.ExchangeSSHKeys(ctx, &vnetv1.ExchangeSSHKeysRequest{
+		HostPublicKey: hostPublicKey.Marshal(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "calling ExchangeSSHKeys rpc")
+	}
+	userPublicKey, err := ssh.ParsePublicKey(resp.GetUserPublicKey())
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing trusted user public key")
+	}
+	return userPublicKey, nil
 }
 
 // rpcSigner implements [crypto.Signer] for signatures that are issued by the
