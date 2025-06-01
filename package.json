@@ -95,7 +95,7 @@
     "react-dom": "^19.1.0",
     "react-is": "^19.1.0",
     "react-router": "5.3.4",
-    "react-router-dom": "5.3.4",
+    "react-router-dom": "7.6.1",
     "react-select": "^5.10.1",
     "react-transition-group": "^4.4.5",
     "styled-components": "^6.1.17",
