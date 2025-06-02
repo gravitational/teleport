@@ -22,6 +22,7 @@ import {
   AccessRequest,
   AccessRequestReview,
   AccessRequestReviewer,
+  LongTermResourceGrouping,
 } from './accessRequests';
 
 // TODO(gzdunek): This function should live in the Web UI.
@@ -72,6 +73,8 @@ export function makeAccessRequest(json?): AccessRequest {
     assumeStartTimeDuration: getAssumeStartDurationText(json.assumeStartTime),
     reasonMode: json.reasonMode || 'optional',
     reasonPrompts: json.reasonPrompts || [],
+    requestKind: json.requestKind,
+    longTermResourceGrouping: json.longTermResourceGrouping,
   };
 }
 
