@@ -87,12 +87,16 @@ jobs:
 
       - name: Determine Toolchain Versions and cache paths
         run: |
-          echo "NODE_VERSION=$(make -s -C build.assets print-node-version)" >> "${GITHUB_ENV}"
+          {
+            echo NODE_VERSION="$(make -s -C build.assets print-node-version)"
+            echo RUST_VERSION="$(make -s -C build.assets print-rust-version)"
+          } >> "$GITHUB_ENV"
 
       - name: Print versions
         run: |
           echo "make: $(make --version)"
           echo "node: ${NODE_VERSION}"
+          echo "rust: ${RUST_VERSION}"
 
       # This is needed to build Teleport Connect.
       # The @electron/rebuild tool that rebuilds native dependencies still
@@ -111,6 +115,12 @@ jobs:
       - name: Setup pnpm
         run: |
           corepack enable pnpm
+
+      # Rust toolchain is used to build Teleport Connect but not Teleport itself.
+      # This step is needed to ensure that the toolchain is configured to the correct version for consistency.
+      - name: Install Rust Toolchain
+        run: |
+          make ARCH="${ARCH}" RUST_VERSION="${RUST_VERSION}" rustup-set-version
 
       - name: Install wasm-pack
         run: make ensure-wasm-deps
