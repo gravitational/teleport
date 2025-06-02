@@ -18,6 +18,10 @@
 
 package slices
 
+import (
+	"slices"
+)
+
 // FilterMapUnique applies a function to all elements of a slice and collects them.
 // The function returns the value to collect and whether the current element should be included.
 // Returned values are deduplicated.
@@ -79,4 +83,10 @@ func DeduplicateKey[T any](s []T, key func(T) string) []T {
 		out = append(out, v)
 	}
 	return out
+}
+
+// StartsWith returns true if slice s1 starts with the same elements from slice
+// s2.
+func StartsWith[S ~[]E, E comparable](s1, s2 S) bool {
+	return len(s1) >= len(s2) && slices.Equal(s1[:len(s2)], s2)
 }

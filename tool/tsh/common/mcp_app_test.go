@@ -21,6 +21,8 @@ package common
 import (
 	"bytes"
 	"context"
+	"maps"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -28,9 +30,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mcp/claude"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -303,6 +307,199 @@ deny-write description stdio env=dev test    arg  [*], except: [write_*]
 	}
 }
 
+func Test_mcpLoginCommand(t *testing.T) {
+	devLabels := map[string]string{"env": "dev"}
+	prodLabels := map[string]string{"env": "prod"}
+	devMCPApp1 := mustMakeNewAppServer(t, mustMakeMCPAppWithNameAndLabels(t, "dev1", devLabels), "host")
+	devMCPApp2 := mustMakeNewAppServer(t, mustMakeMCPAppWithNameAndLabels(t, "dev2", devLabels), "host")
+	prodMCPApp := mustMakeNewAppServer(t, mustMakeMCPAppWithNameAndLabels(t, "prod", prodLabels), "host")
+	fakeClient := &fakeResourcesClient{
+		resources: []types.ResourceWithLabels{
+			devMCPApp1, devMCPApp2, prodMCPApp,
+		},
+	}
+
+	tests := []struct {
+		name               string
+		cf                 *CLIConf
+		checkError         require.ErrorAssertionFunc
+		disableConfigFile  bool
+		wantNamesInConfig  []string
+		wantOutputContains string
+	}{
+		{
+			name: "not found",
+			cf: &CLIConf{
+				AppName: "not found",
+			},
+			checkError: require.Error,
+			// "local-everything" was already in the config. Double-check we
+			// didn't screw it up.
+			wantNamesInConfig: []string{"local-everything"},
+		},
+		{
+			name: "single",
+			cf: &CLIConf{
+				AppName: "dev2",
+			},
+			checkError:         require.NoError,
+			wantNamesInConfig:  []string{"teleport-mcp-dev2", "local-everything"},
+			wantOutputContains: "Updated client configuration",
+		},
+		{
+			name: "all",
+			cf: &CLIConf{
+				ListAll: true,
+			},
+			checkError:         require.NoError,
+			wantNamesInConfig:  []string{"teleport-mcp-dev1", "teleport-mcp-dev2", "teleport-mcp-prod", "local-everything"},
+			wantOutputContains: "Updated client configuration",
+		},
+		{
+			name: "labels",
+			cf: &CLIConf{
+				Labels: "env=dev",
+			},
+			checkError:         require.NoError,
+			wantNamesInConfig:  []string{"teleport-mcp-dev1", "teleport-mcp-dev2", "local-everything"},
+			wantOutputContains: "Updated client configuration",
+		},
+		{
+			name:              "no selector",
+			cf:                &CLIConf{},
+			checkError:        require.Error,
+			wantNamesInConfig: []string{"local-everything"},
+		},
+		{
+			name: "too many selectors",
+			cf: &CLIConf{
+				ListAll: true,
+				AppName: "dev2",
+			},
+			checkError:        require.Error,
+			wantNamesInConfig: []string{"local-everything"},
+		},
+		{
+			name: "print json",
+			cf: &CLIConf{
+				AppName: "dev2",
+			},
+			disableConfigFile: true,
+			checkError:        require.NoError,
+			// Hints for config file flags.
+			wantOutputContains: "Use the --claude flag",
+			wantNamesInConfig:  []string{"local-everything"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configPath := setupMockMCPConfig(t)
+			var buf bytes.Buffer
+			tt.cf.Context = context.Background()
+			tt.cf.Proxy = "proxy:3080"
+			tt.cf.HomePath = t.TempDir()
+			tt.cf.OverrideStdout = &buf
+			mustCreateEmptyProfile(t, tt.cf)
+
+			cmd := mcpLoginCommand{
+				configFile: mcpConfigFileFlags{
+					jsonFile:   configPath,
+					jsonFormat: "pretty",
+				},
+				cf: tt.cf,
+				fetchFunc: func(ctx context.Context, tc *client.TeleportClient, _ apiclient.GetResourcesClient) ([]types.Application, error) {
+					return fetchMCPServers(ctx, tc, fakeClient)
+				},
+			}
+
+			if tt.disableConfigFile {
+				cmd.configFile = mcpConfigFileFlags{}
+			}
+
+			err := cmd.run()
+			tt.checkError(t, err)
+			mustHaveMCPServerNamesInConfig(t, configPath, tt.wantNamesInConfig)
+			require.Contains(t, buf.String(), tt.wantOutputContains)
+		})
+	}
+}
+
+func Test_mcpLogoutCommand(t *testing.T) {
+	tests := []struct {
+		name              string
+		appName           string
+		checkError        require.ErrorAssertionFunc
+		wantNamesInConfig []string
+	}{
+		{
+			name:       "not found",
+			appName:    "not-found",
+			checkError: require.Error,
+			wantNamesInConfig: []string{
+				"local-everything",
+				"teleport-mcp-leftover",
+				"teleport-mcp-by-app-name",
+				"teleport-mcp-by-full-name",
+			},
+		},
+		{
+			name:       "by app name",
+			appName:    "by-app-name",
+			checkError: require.NoError,
+			wantNamesInConfig: []string{
+				"local-everything",
+				"teleport-mcp-leftover",
+				"teleport-mcp-by-full-name",
+			},
+		},
+		{
+			name:       "by full name",
+			appName:    "teleport-mcp-by-full-name",
+			checkError: require.NoError,
+			wantNamesInConfig: []string{
+				"local-everything",
+				"teleport-mcp-leftover",
+				"teleport-mcp-by-app-name",
+			},
+		},
+		{
+			name:       "remove all",
+			appName:    "",
+			checkError: require.NoError,
+			wantNamesInConfig: []string{
+				"local-everything",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configPath := setupMockMCPConfig(t,
+				withMockTeleportMCPServerApp("leftover"),
+				withMockTeleportMCPServerApp("by-app-name"),
+				withMockTeleportMCPServerApp("by-full-name"),
+			)
+
+			var buf bytes.Buffer
+			cmd := &mcpLogoutCommand{
+				configFile: mcpConfigFileFlags{
+					jsonFile:   configPath,
+					jsonFormat: "pretty",
+				},
+				cf: &CLIConf{
+					Context:        context.Background(),
+					AppName:        tt.appName,
+					executablePath: "tsh-test",
+					OverrideStdout: &buf,
+				},
+			}
+			err := cmd.run()
+			tt.checkError(t, err)
+			mustHaveMCPServerNamesInConfig(t, configPath, tt.wantNamesInConfig)
+		})
+	}
+}
+
 type fakeResourcesClient struct {
 	resources []types.ResourceWithLabels
 }
@@ -361,4 +558,45 @@ func (f fakeMCPServerAccessChecker) EnumerateMCPTools(app types.Application) ser
 	default:
 		return services.NewEnumerationResult()
 	}
+}
+
+type mockMCPConfigOption func(claudeConfig) error
+
+func setupMockMCPConfig(t *testing.T, options ...mockMCPConfigOption) string {
+	t.Helper()
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.json")
+	config, err := claude.LoadConfigFromFile(configPath)
+	require.NoError(t, err)
+	require.NoError(t, config.PutMCPServer("local-everything", claude.MCPServer{
+		Command: "npx",
+		Args:    []string{"-y", "@modelcontextprotocol/server-everything"},
+	}))
+	for _, applyOpt := range options {
+		require.NoError(t, applyOpt(config))
+	}
+	require.NoError(t, config.Save(claude.FormatJSONPretty))
+	return config.Path()
+}
+
+func withMockMCPServer(name string, server claude.MCPServer) mockMCPConfigOption {
+	return func(config claudeConfig) error {
+		return trace.Wrap(config.PutMCPServer(name, server))
+	}
+}
+
+func withMockTeleportMCPServerApp(appName string) mockMCPConfigOption {
+	return withMockMCPServer(mcpServerAppConfigPrefix+appName, claude.MCPServer{
+		Command: "tsh-test",
+		Args:    []string{"mcp", "connect", appName},
+	})
+}
+
+func mustHaveMCPServerNamesInConfig(t *testing.T, configPath string, wantNames []string) {
+	jsonConfig, err := claude.LoadConfigFromFile(configPath)
+	require.NoError(t, err)
+	require.ElementsMatch(t,
+		wantNames,
+		slices.Collect(maps.Keys(jsonConfig.GetMCPServers())),
+	)
 }
