@@ -82,7 +82,7 @@ traits via the Teleport Web UI.
 4. Click **Save**
 5. Verify that the user has been updated with the desired trait.
 
-![Edit User Traits](../../../../img/access-controls/automatic-reviews/users-edit.png)
+![Edit User Traits](../../../img/access-controls/automatic-reviews/users-edit.png)
 
 When adding user traits, you can enter any keys and values. The user trait form
 does not support wildcard or regular expressions.
@@ -104,7 +104,7 @@ Next, define the automatic review rule via the Teleport Web UI.
    - **Review decision**: `APPROVED`
 4. Click **Create Rule**
 
-![Create Automatic Review Rule Editor](../../../../img/access-controls/automatic-reviews/create-automatic-review-rule.png)
+![Create Automatic Review Rule Editor](../../../img/access-controls/automatic-reviews/create-automatic-review-rule.png)
 
 This Access Monitoring Rule will ensure that Access Requests for the `access`
 role will be automatically reviewed for approval if the Teleport user traits
@@ -121,14 +121,14 @@ Web UI.
 4. Add the `access` role to the Access Request
 5. Click **Proceed to Request**, then **Submit Request**
 
-![Create Access Request](../../../../img/access-requests/new-role-request.png)
+![Create Access Request](../../../img/access-requests/new-role-request.png)
 
 At this point, the new Access Request should have been created, automatically
 reviewed, and transitioned into an `APPROVED` state. Navigate **Back to Listings**
 and verify the Access Request status. It might take a second for the review to
 process, so you may have to refresh the page.
 
-![View Access Requests](../../../../img/access-controls/automatic-reviews/view-access-requests.png)
+![View Access Requests](../../../img/access-controls/automatic-reviews/view-access-requests.png)
 
 ## Troubleshooting
 
@@ -147,8 +147,8 @@ other than a role.
 ## Next Steps
 
 - For more configuration options with Access Monitoring Rules, refer to the
-  [Access Monitoring Rules Reference](../../../reference/access-controls/access-monitoring-rules.mdx).
+  [Access Monitoring Rules Reference](../../reference/access-controls/access-monitoring-rules.mdx).
 - For configuration with Teleport Terraform Provider, refer to the
-  [Terraform Resources Index](../../../reference/terraform-provider/resources/access_monitoring_rule.mdx)
+  [Terraform Resources Index](../../reference/terraform-provider/resources/access_monitoring_rule.mdx)
 - For configuration options with SSO, refer to the
-  [Single Sign-On Guides](../sso/sso.mdx)
+  [Single Sign-On Guides](../../zero-trust-access/access-controls/sso/sso.mdx)
