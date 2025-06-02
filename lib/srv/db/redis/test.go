@@ -26,7 +26,6 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gravitational/trace"
 	"github.com/redis/go-redis/v9"
-	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
@@ -138,7 +137,9 @@ func NewTestServer(t testing.TB, config common.TestServerConfig, opts ...TestSer
 	}
 
 	err = s.StartTLS(tlsConfig)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	t.Cleanup(s.Close)
 
