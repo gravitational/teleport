@@ -165,8 +165,8 @@ func buildBinary(output string, version string, baseURL string, app string) erro
 		"go", "build", "-o", output,
 		"-ldflags", strings.Join([]string{
 			fmt.Sprintf("-X 'github.com/gravitational/teleport/integration/autoupdate/tools/updater.version=%s'", version),
-			fmt.Sprintf("-X 'github.com/gravitational/teleport/lib/autoupdate/tools/helper.version=%s'", version),
-			fmt.Sprintf("-X 'github.com/gravitational/teleport/lib/autoupdate/tools/helper.baseURL=%s'", baseURL),
+			fmt.Sprintf("-X 'github.com/gravitational/teleport/lib/autoupdate/tools.version=%s'", version),
+			fmt.Sprintf("-X 'github.com/gravitational/teleport/lib/autoupdate/tools.baseURL=%s'", baseURL),
 		}, " "),
 		fmt.Sprintf("./updater/%s", app),
 	)

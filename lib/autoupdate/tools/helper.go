@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package helper
+package tools
 
 import (
 	"context"
@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/autoupdate"
-	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 )
 
@@ -47,8 +46,8 @@ var (
 
 // NewDefaultUpdater inits the updater with default base ULR and tools directory
 // from Teleport home directory.
-func NewDefaultUpdater() (*tools.Updater, error) {
-	toolsDir, err := tools.Dir()
+func NewDefaultUpdater() (*Updater, error) {
+	toolsDir, err := Dir()
 	if err != nil {
 		return nil, ErrDisabled
 	}
@@ -63,7 +62,7 @@ func NewDefaultUpdater() (*tools.Updater, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return tools.NewUpdater(toolsDir, version, tools.WithBaseURL(baseURL)), nil
+	return NewUpdater(toolsDir, version, WithBaseURL(baseURL)), nil
 }
 
 // CheckAndUpdateLocal verifies if the TELEPORT_TOOLS_VERSION environment variable
@@ -101,7 +100,7 @@ func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecA
 	}
 
 	if resp.ReExec {
-		err := UpdateAndReExec(ctx, updater, resp.Version, reExecArgs)
+		err := updateAndReExec(ctx, updater, resp.Version, reExecArgs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -132,7 +131,7 @@ func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reEx
 	}
 
 	if !resp.Disabled && resp.ReExec {
-		err := UpdateAndReExec(ctx, updater, resp.Version, reExecArgs)
+		err := updateAndReExec(ctx, updater, resp.Version, reExecArgs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -140,14 +139,14 @@ func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reEx
 	return nil
 }
 
-func UpdateAndReExec(ctx context.Context, updater *tools.Updater, toolsVersion string, args []string) error {
+func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string, args []string) error {
 	ctxUpdate, cancel := stacksignal.GetSignalHandler().NotifyContext(ctx)
 	defer cancel()
 	// Download the version of client tools required by the cluster. This
 	// is required if the user passed in the TELEPORT_TOOLS_VERSION
 	// explicitly.
 	err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
-	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, tools.ErrNoBaseURL) {
+	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, ErrNoBaseURL) {
 		return trace.Wrap(err)
 	}
 

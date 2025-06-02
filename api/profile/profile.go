@@ -128,14 +128,6 @@ type Profile struct {
 	// with WebProxyAddr, to determine if a webpage is safe to open. Currently used by Teleport
 	// Connect in the proxy host allow list.
 	SSOHost string `yaml:"sso_host,omitempty"`
-
-	// ManagedUpdates stores information about managed updates for the cluster.
-	ManagedUpdates *ManagedUpdates `yaml:"managed_updates,omitempty"`
-}
-
-// ManagedUpdates is structure for saving managed update related configuration.
-type ManagedUpdates struct {
-	Disabled bool `yaml:"disabled,omitempty"`
 }
 
 // Copy returns a shallow copy of p, or nil if p is nil.

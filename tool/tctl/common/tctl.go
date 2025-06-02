@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/autoupdate/tools/helper"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -119,7 +119,7 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 			return trace.Wrap(err)
 		}
 	}
-	if err := helper.CheckAndUpdateLocal(ctx, name, args); err != nil {
+	if err := tools.CheckAndUpdateLocal(ctx, name, args); err != nil {
 		return trace.Wrap(err)
 	}
 
