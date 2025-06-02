@@ -1,4 +1,4 @@
-.version: &version "18.0.0-dev.gus-mac-rust-override.1"
+.version: &version "18.0.0-dev.gus-uni-rust-override.1"
 
 name: teleport-operator
 apiVersion: v2
