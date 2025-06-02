@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"fmt"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 
 	"github.com/gravitational/trace"
 
@@ -62,4 +63,32 @@ func (rc *ResourceCommand) deleteHealthCheckConfig(ctx context.Context, clt *aut
 	}
 	fmt.Printf("health_check_config %q has been deleted\n", rc.ref.Name)
 	return nil
+}
+
+func (rc *ResourceCommand) getHealthCheckConfig(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+	if rc.ref.Name != "" {
+		cfg, err := client.GetHealthCheckConfig(ctx, rc.ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &healthCheckConfigCollection{
+			items: []*healthcheckconfigv1.HealthCheckConfig{cfg},
+		}, nil
+	}
+	var items []*healthcheckconfigv1.HealthCheckConfig
+	var token string
+	for {
+		page, nextToken, err := client.ListHealthCheckConfigs(ctx, 0, token)
+		token = nextToken
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		items = append(items, page...)
+		if token == "" {
+			break
+		}
+	}
+	return &healthCheckConfigCollection{
+		items: items,
+	}, nil
 }
