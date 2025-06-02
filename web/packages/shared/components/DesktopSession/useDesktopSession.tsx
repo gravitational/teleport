@@ -40,17 +40,34 @@ export default function useDesktopSession(
   aclAttempt: Attempt<{
     clipboardSharingEnabled: boolean;
     directorySharingEnabled: boolean;
-  }>
+  }>,
+  browserSupportsSharing: boolean
 ) {
   const encoder = useRef(new TextEncoder());
   const latestClipboardDigest = useRef('');
-  //TODO(gzdunek): Refactor directory and clipboard sharing state.
-  // They contain things that shouldn't be in the state at all, like browserSupported flag.
-  const [directorySharingState, setDirectorySharingState] =
-    useState<DirectorySharingState>(defaultDirectorySharingState);
+  const [directorySharingState, setDirectorySharingState] = useState<{
+    directorySelected: boolean;
+  }>({ directorySelected: false });
 
-  const [clipboardSharingState, setClipboardSharingState] =
-    useState<ClipboardSharingState>(defaultClipboardSharingState);
+  const [clipboardSharingState, setClipboardSharingState] = useState<{
+    readState?: PermissionState;
+    writeState?: PermissionState;
+  }>({});
+
+  const clipboardSharing: ClipboardSharingState = {
+    ...clipboardSharingState,
+    browserSupported: browserSupportsSharing,
+    allowedByAcl:
+      aclAttempt.status === 'success' &&
+      aclAttempt.data.clipboardSharingEnabled,
+  };
+  const directorySharing: DirectorySharingState = {
+    ...directorySharingState,
+    browserSupported: browserSupportsSharing,
+    allowedByAcl:
+      aclAttempt.status === 'success' &&
+      aclAttempt.data.directorySharingEnabled,
+  };
 
   useEffect(() => {
     const clearReadListenerPromise = initClipboardPermissionTracking(
@@ -82,7 +99,7 @@ export default function useDesktopSession(
   }, []);
 
   async function sendLocalClipboardToRemote() {
-    if (!(await sysClipboardGuard(clipboardSharingState, 'read'))) {
+    if (!(await sysClipboardGuard(clipboardSharing, 'read'))) {
       return;
     }
     const text = await navigator.clipboard.readText();
@@ -98,7 +115,7 @@ export default function useDesktopSession(
   async function onClipboardData(clipboardData: ClipboardData) {
     if (
       clipboardData.data &&
-      (await sysClipboardGuard(clipboardSharingState, 'write'))
+      (await sysClipboardGuard(clipboardSharing, 'write'))
     ) {
       await navigator.clipboard.writeText(clipboardData.data);
       latestClipboardDigest.current = await sha256Digest(
@@ -111,15 +128,13 @@ export default function useDesktopSession(
   const onShareDirectory = async () => {
     try {
       await tdpClient.shareDirectory();
-      setDirectorySharingState(prevState => ({
-        ...prevState,
+      setDirectorySharingState({
         directorySelected: true,
-      }));
+      });
     } catch (e) {
-      setDirectorySharingState(prevState => ({
-        ...prevState,
+      setDirectorySharingState({
         directorySelected: false,
-      }));
+      });
       addAlert({
         severity: 'warn',
         content: {
@@ -132,25 +147,14 @@ export default function useDesktopSession(
 
   /** Clears sharing state. */
   const clearSharing = useCallback(() => {
-    setDirectorySharingState(sharingState => ({
-      ...sharingState,
+    setDirectorySharingState({
       directorySelected: false,
-    }));
+    });
   }, []);
 
   return {
-    clipboardSharingState: {
-      ...clipboardSharingState,
-      allowedByAcl:
-        aclAttempt.status === 'success' &&
-        aclAttempt.data.clipboardSharingEnabled,
-    },
-    directorySharingState: {
-      ...directorySharingState,
-      allowedByAcl:
-        aclAttempt.status === 'success' &&
-        aclAttempt.data.directorySharingEnabled,
-    },
+    clipboardSharingState: clipboardSharing,
+    directorySharingState: directorySharing,
     clearSharing,
     onShareDirectory,
     alerts,
@@ -314,15 +318,6 @@ export function isSharingDirectory(
     directorySharingState.directorySelected
   );
 }
-
-export const defaultDirectorySharingState: DirectorySharingState = {
-  browserSupported: navigator.userAgent.includes('Chrome'),
-  directorySelected: false,
-};
-
-export const defaultClipboardSharingState: ClipboardSharingState = {
-  browserSupported: navigator.userAgent.includes('Chrome'),
-};
 
 /**
  * To be called before any system clipboard read/write operation.
