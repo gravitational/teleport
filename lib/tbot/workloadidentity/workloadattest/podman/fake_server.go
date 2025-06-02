@@ -24,49 +24,54 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
-	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/trace"
 )
 
-// TestServer is a fake implementation of the Podman REST API that can be used
+// FakeServer is a fake implementation of the Podman REST API that can be used
 // in tests.
-type TestServer struct {
+type FakeServer struct {
+	srv        *http.Server
+	lis        net.Listener
 	addr       string
 	containers map[string]*Container
 	pods       map[string]*Pod
 }
 
-// NewTestServer creates a test server that will run until the test exits.
-func NewTestServer(t *testing.T, opts ...TestServerOption) *TestServer {
-	t.Helper()
+// NewFakeServer creates a test server that will run until the test exits.
+func NewFakeServer(socketAddr string, opts ...TestServerOption) (*FakeServer, error) {
+	lis, err := net.Listen("unix", filepath.Join(socketAddr, "podman.sock"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	s := &TestServer{
+	s := &FakeServer{
 		containers: make(map[string]*Container),
 		pods:       make(map[string]*Pod),
+		addr:       "unix://" + lis.Addr().String(),
+		lis:        lis,
 	}
 	for _, opt := range opts {
 		opt(s)
 	}
 
-	lis, err := net.Listen("unix", filepath.Join(t.TempDir(), "podman.sock"))
-	require.NoError(t, err)
-	s.addr = "unix://" + lis.Addr().String()
+	s.srv = &http.Server{
+		Handler: s,
+	}
 
-	httpServer := &http.Server{Handler: s}
-	go func() { _ = httpServer.Serve(lis) }()
+	return s, nil
+}
 
-	t.Cleanup(func() {
-		if err := httpServer.Close(); err != nil {
-			t.Logf("failed to close http server: %v", err)
-		}
-	})
+func (s *FakeServer) Start() {
+	go func() { _ = s.srv.Serve(s.lis) }()
+}
 
-	return s
+func (s *FakeServer) Close() error {
+	return trace.Wrap(s.srv.Close())
 }
 
 // ServeHTTP satisfies the http.Handler interface.
-func (s *TestServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *FakeServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path, hasPrefix := strings.CutPrefix(r.URL.Path, "/v4.0.0/libpod")
 	if !hasPrefix {
 		http.NotFound(w, r)
@@ -103,21 +108,21 @@ func (s *TestServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // Addr returns the address on which the test server can be reached.
-func (s *TestServer) Addr() string { return s.addr }
+func (s *FakeServer) Addr() string { return s.addr }
 
 // TestServerOption configures the test server.
-type TestServerOption func(*TestServer)
+type TestServerOption func(*FakeServer)
 
 // WithContainer adds a container to the test server's mock data.
 func WithContainer(c Container) TestServerOption {
-	return func(s *TestServer) {
+	return func(s *FakeServer) {
 		s.containers[c.ID] = &c
 	}
 }
 
 // WithPod adds a pod to the test server's mock data.
 func WithPod(p Pod) TestServerOption {
-	return func(s *TestServer) {
+	return func(s *FakeServer) {
 		s.pods[p.ID] = &p
 	}
 }
