@@ -376,8 +376,8 @@
       "permanent": true
     },
     {
-      "source": "/admin-guides/access-controls/access-lists/access-lists/",
-      "destination": "/identity-governance/access-lists/access-lists/",
+      "source": "/admin-guides/access-controls/access-lists/",
+      "destination": "/identity-governance/access-lists/",
       "permanent": true
     },
     {
@@ -1493,6 +1493,16 @@
     {
       "source": "/enroll-resources/application-access/guides/vnet/",
       "destination": "/zero-trust-access/vnet/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/automatic-reviews/",
+      "destination": "/identity-governance/access-requests/automatic-reviews/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/azure-devops/",
+      "destination": "/mwi/machine-id/deployment/azure-devops/",
       "permanent": true
     }
   ]
