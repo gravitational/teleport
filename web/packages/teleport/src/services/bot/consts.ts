@@ -22,6 +22,7 @@ import {
   BotUiFlow,
   FlatBot,
   GitHubRepoRule,
+  ListBotInstancesResponse,
   ProvisionTokenSpecV2GitHub,
 } from 'teleport/services/bot/types';
 
@@ -94,6 +95,24 @@ export function makeBot(bot: ApiBot): FlatBot {
     roles: bot?.spec?.roles || [],
     traits: bot?.spec?.traits || [],
   };
+}
+
+export function parseListBotInstancesResponse(
+  data: unknown
+): data is ListBotInstancesResponse {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+
+  if (!('bot_instances' in data)) {
+    return false;
+  }
+
+  if (!Array.isArray(data.bot_instances)) {
+    return false;
+  }
+
+  return data.bot_instances.every(x => typeof x === 'object' || x !== null);
 }
 
 export function getBotType(labels: Map<string, string>): BotType {
