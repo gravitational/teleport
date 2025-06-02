@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.0.0-dev.gus-uni-rust-override.2"
+const Version = "18.0.0-dev.gus-uni-rust-override.3"
 
 const VersionMajor = 18
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "dev.gus-uni-rust-override.2"
+const VersionPreRelease = "dev.gus-uni-rust-override.3"
 const VersionMetadata = ""
