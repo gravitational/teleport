@@ -23,3 +23,4 @@ export * from './connectToDatabase';
 export * from './connectToServer';
 export * from './connectToKube';
 export * from './connectToApp';
+export * from './connectToWindowsDesktop';

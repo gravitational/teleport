@@ -181,6 +181,9 @@ export function AccessRequestCheckout() {
                         case 'namespace':
                           resource.Icon = Icon.Kubernetes;
                           break;
+                        case 'windows_desktop':
+                          resource.Icon = Icon.Desktop;
+                          break;
                         case 'role':
                           break;
                         default:
