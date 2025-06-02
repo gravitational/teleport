@@ -165,6 +165,12 @@ linters:
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
             - pkg: github.com/zitadel/oidc$
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
+        test_helpers:
+          files:
+            - '!$test'
+          deny:
+            - pkg: github.com/gravitational/teleport/lib/utils/testutils
+              desc: testutils should not be imported outside of test code
         testify:
           files:
             - '!$test'
@@ -177,7 +183,6 @@ linters:
             - '!**/lib/automaticupgrades/basichttp/servermock.go'
             - '!**/lib/auth/helpers.go'
             - '!**/lib/auth/keystore/testhelpers.go'
-            - '!**/lib/auth/test/**'
             - '!**/lib/backend/test/**'
             - '!**/lib/events/athena/test.go'
             - '!**/lib/events/test/**'
@@ -236,7 +241,6 @@ linters:
             - '!**/integrations/operator/controllers/resources/testlib/**'
             - '!**/lib/auth/helpers.go'
             - '!**/lib/auth/keystore/testhelpers.go'
-            - '!**/lib/auth/test/**'
             - '!**/lib/automaticupgrades/basichttp/servermock.go'
             - '!**/lib/backend/test/**'
             - '!**/lib/cryptosuites/precompute.go'
