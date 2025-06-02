@@ -44,6 +44,8 @@ export default function useDesktopSession(
 ) {
   const encoder = useRef(new TextEncoder());
   const latestClipboardDigest = useRef('');
+  //TODO(gzdunek): Refactor directory and clipboard sharing state.
+  // They contain things that shouldn't be in the state at all, like browserSupported flag.
   const [directorySharingState, setDirectorySharingState] =
     useState<DirectorySharingState>(defaultDirectorySharingState);
 
@@ -67,21 +69,6 @@ export default function useDesktopSession(
       );
     };
   }, []);
-
-  //TODO(gzdunek): This is workaround for synchronizing *sharingState with aclAttempt.
-  //Refactor clipboard and directory sharing so that we won't need allowedByAcl fields in state.
-  useEffect(() => {
-    if (aclAttempt.status === 'success') {
-      setClipboardSharingState(prevState => ({
-        ...prevState,
-        allowedByAcl: aclAttempt.data.clipboardSharingEnabled,
-      }));
-      setDirectorySharingState(prevState => ({
-        ...prevState,
-        allowedByAcl: aclAttempt.data.directorySharingEnabled,
-      }));
-    }
-  }, [aclAttempt]);
 
   const [alerts, setAlerts] = useState<NotificationItem[]>([]);
   const onRemoveAlert = (id: string) => {
@@ -143,11 +130,28 @@ export default function useDesktopSession(
     }
   };
 
+  /** Clears sharing state. */
+  const clearSharing = useCallback(() => {
+    setDirectorySharingState(sharingState => ({
+      ...sharingState,
+      directorySelected: false,
+    }));
+  }, []);
+
   return {
-    clipboardSharingState,
-    setClipboardSharingState,
-    directorySharingState,
-    setDirectorySharingState,
+    clipboardSharingState: {
+      ...clipboardSharingState,
+      allowedByAcl:
+        aclAttempt.status === 'success' &&
+        aclAttempt.data.clipboardSharingEnabled,
+    },
+    directorySharingState: {
+      ...directorySharingState,
+      allowedByAcl:
+        aclAttempt.status === 'success' &&
+        aclAttempt.data.directorySharingEnabled,
+    },
+    clearSharing,
     onShareDirectory,
     alerts,
     onRemoveAlert,
