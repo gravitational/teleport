@@ -69,6 +69,8 @@ import (
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
@@ -105,6 +107,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
+	scopedaccess "github.com/gravitational/teleport/lib/auth/scopes/access"
+	scopedjoining "github.com/gravitational/teleport/lib/auth/scopes/joining"
 	"github.com/gravitational/teleport/lib/auth/secreports/secreportsv1"
 	"github.com/gravitational/teleport/lib/auth/stableunixusers"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
@@ -5439,6 +5443,22 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		server,
 		stableUNIXUsersServiceServer,
 	)
+
+	scopedAccessControl, err := scopedaccess.New(scopedaccess.Config{
+		Authorizer: cfg.Authorizer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating scoped access control service")
+	}
+	scopedaccessv1.RegisterScopedAccessServiceServer(server, scopedAccessControl)
+
+	scopedJoining, err := scopedjoining.New(scopedjoining.Config{
+		Authorizer: cfg.Authorizer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating scoped provisioning service")
+	}
+	scopedjoiningv1.RegisterScopedJoiningServiceServer(server, scopedJoining)
 
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
