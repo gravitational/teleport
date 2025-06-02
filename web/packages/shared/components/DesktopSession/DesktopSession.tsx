@@ -68,6 +68,8 @@ export interface DesktopSessionProps {
     clipboardSharingEnabled: boolean;
     directorySharingEnabled: boolean;
   }>;
+  /** Determines if the browser client support directory and clipboard sharing. */
+  browserSupportsSharing: boolean;
   /**
    * Injects a custom component that overrides other connection states.
    * Useful for per-session MFA, which differs between Web UI and Connect.
@@ -90,6 +92,7 @@ export function DesktopSession({
   hasAnotherSession,
   customConnectionState,
   keyboardLayout = 0,
+  browserSupportsSharing,
 }: DesktopSessionProps) {
   const {
     directorySharingState,
@@ -101,7 +104,7 @@ export function DesktopSession({
     alerts,
     onRemoveAlert,
     addAlert,
-  } = useDesktopSession(client, aclAttempt);
+  } = useDesktopSession(client, aclAttempt, browserSupportsSharing);
 
   const [tdpConnectionStatus, setTdpConnectionStatus] =
     useState<TdpConnectionStatus>({ status: '' });
