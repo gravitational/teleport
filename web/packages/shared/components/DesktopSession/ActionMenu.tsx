@@ -26,7 +26,6 @@ export default function ActionMenu(props: Props) {
   return (
     <MenuIcon
       buttonIconProps={{
-        ml: 4,
         size: 0,
         color: 'text.slightlyMuted',
         style: { fontSize: '20px' },
