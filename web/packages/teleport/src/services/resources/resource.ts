@@ -21,6 +21,7 @@ import api from 'teleport/services/api';
 
 import { ResourcesResponse, UnifiedResource } from '../agents';
 import auth, { MfaChallengeScope } from '../auth/auth';
+import { MfaChallengeResponse } from '../mfa';
 import {
   CreateOrOverwriteGitServer,
   DefaultAuthConnector,
@@ -132,9 +133,14 @@ class ResourceService {
       .then(res => makeResource<'trusted_cluster'>(res));
   }
 
-  createRole(content: string) {
+  createRole(content: string, mfaResponse?: MfaChallengeResponse) {
     return api
-      .post(cfg.getRoleUrl(), { content })
+      .post(
+        cfg.getRoleUrl(),
+        { content },
+        undefined /* abort signal */,
+        mfaResponse
+      )
       .then(res => makeResource<'role'>(res));
   }
 
