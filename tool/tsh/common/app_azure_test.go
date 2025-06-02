@@ -201,6 +201,7 @@ func TestAzure(t *testing.T) {
 					// Given the missing params, the request should return error.
 					resp, err := client.Do(req)
 					require.NoError(t, err)
+					defer resp.Body.Close()
 					require.NotNil(t, resp)
 					require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
@@ -460,7 +461,7 @@ func Test_getAzureTokenSecret(t *testing.T) {
 			result, err := getAzureTokenSecret()
 			if tt.identityHeader != "" {
 				require.NoError(t, err)
-				require.Equal(t, result, tt.want)
+				require.Equal(t, tt.want, result)
 				return
 			}
 			tt.wantErr(t, err)
