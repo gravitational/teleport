@@ -1763,6 +1763,9 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
   - [ ] Verify that the permission granted by Access Request to Okta Resources are revoked after expiration.
     - [ ] When Access List sync is enabled.
     - [ ] When Access List sync is disabled but App and Group sync is enabled (can be done with `tctl edit plugins/otka`).
+  - [ ] Disabling/restoring default roles.
+    - [ ] When plugin is created with `tctl plugins install okta --no-assign-default-roles` flag and the connector doesn't have `okta-requester` role mapping, Okta users don't have `okta-requester` role and can't JIT request Okta-originated app_server/user_group.
+    - [ ] After `tctl edit plugins/okta` and removing `disable_assign_default_roles: true`, Okta users are assigned `okta-requester` role and can make JIT requests to Okta-originated resources.
   - [ ] Verify Okta SCIM sync functionality
     - [ ] Verify Okta SCIM only functionality.
       - [ ] Verify Okta users are pushed to Teleport.
@@ -1777,9 +1780,6 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
         - [ ] Deactivating a user in Okta locks them in Teleport (not deleted).
         - [ ] Reactivating the user in Okta unlocks them in Teleport.
       - [ ] Verify Okta groups are pushed to Teleport.
-  - [ ] Disabling/restoring default roles.
-    - [ ] When plugin is created with `tctl plugins install okta --no-assign-default-roles` flag and the connector doesn't have `okta-requester` role mapping, Okta users don't have `okta-requester` role and can't JIT request Okta-originated app_server/user_group.
-    - [ ] After `tctl edit plugins/okta` and removing `disable_assign_default_roles: true`, Okta users are assigned `okta-requester` role and can make JIT requests to Okta-originated resources.
 
 - [ ] Verify Okta Enrollment Flow
   - [ ] Verify Web UI flow
