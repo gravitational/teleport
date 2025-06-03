@@ -1744,22 +1744,25 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
     - [ ] Verify that Access Lists added as members or owners of other Access Lists using `tctl` are validated (no circular references, no nesting > 10 levels).
 
 - [ ] Verify Okta Sync Service
-  - [ ] Verify Okta Plugin configuration.
-    - [ ] Verify that the Okta Plugin can be configured.
-    - [ ] Verify the Single Sign-On (SSO) connector created by the Okta Plugin.
   - [ ] Verify Okta users/apps/groups sync.
     - [ ] Verify that users/apps/groups are synced from Okta to Teleport.
     - [ ] Verify that when bidirectional sync is disabled:
       - [ ] `x.manage` scopes are not required for plugin to function.
-      - [ ] Updates to synced Access Lists' members/grants are not allowed.
+      - [ ] Updates to synced Access Lists' members/grants are not allowed in web UI.
+      - [ ] Updates to synced Access Lists' members/grants are not allowed with tctl.
+      - [ ] Access Requests to Okta app_server/user_group are not allowed in web UI.
+      - [ ] Access Requests to Okta app_server/user_group are not allowed with tctl.
     - [ ] Verify the custom `okta_import_rule` rule configuration.
     - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
-    - [ ] Verify that users/groups are flattened on import, and are not duplicated on sync when their membership is inherited via nested Access Lists.
+    - [ ] Verify that nested Access List users/groups members are reflected in Okta, and are not duplicated in the parent Access List on a subsequent sync.
   - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in Okta.
-  - [ ] Verify access to Okta apps granted by access_list/access_request.
-  - [ ] Verify that Permission granted by Access Request to Okta Resources are revoked after expiration.
-    - [ ] Verify access request expiration revocation flow when Access List Sync is Enabled.
-    - [ ] Verify access request expiration revocation flow when Access List Sync is Disabled.
+  - [ ] Verify access to Okta apps/groups is granted/revoked by access_list when Access List sync is enabled and Okta user member added/removed to the list.
+  - [ ] Verify access to Okta apps/groups is granted by access_request
+    - [ ] When Access List sync is enabled.
+    - [ ] When Access List sync is disabled but App and Group sync is enabled (can be done with `tctl edit plugins/otka`).
+  - [ ] Verify that the permission granted by Access Request to Okta Resources are revoked after expiration.
+    - [ ] When Access List sync is enabled.
+    - [ ] When Access List sync is disabled but App and Group sync is enabled (can be done with `tctl edit plugins/otka`).
   - [ ] Verify Okta SCIM sync functionality
     - [ ] Verify Okta SCIM only functionality.
       - [ ] Verify Okta users are pushed to Teleport.
@@ -1774,6 +1777,9 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
         - [ ] Deactivating a user in Okta locks them in Teleport (not deleted).
         - [ ] Reactivating the user in Okta unlocks them in Teleport.
       - [ ] Verify Okta groups are pushed to Teleport.
+  - [ ] Disabling/restoring default roles.
+    - [ ] When plugin is created with `tctl plugins install okta --no-assign-default-roles` flag and the connector doesn't have `okta-requester` role mapping, Okta users don't have `okta-requester` role and can't JIT request Okta-originated app_server/user_group.
+    - [ ] After `tctl edit plugins/okta` and removing `disable_assign_default_roles: true`, Okta users are assigned `okta-requester` role and can make JIT requests to Okta-originated resources.
 
 - [ ] Verify Okta Enrollment Flow
   - [ ] Verify Web UI flow
