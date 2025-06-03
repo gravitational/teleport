@@ -22,6 +22,8 @@ import (
 	"log"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+
+	"github.com/gravitational/teleport/integrations/terraform-mwi/provider"
 )
 
 func main() {
@@ -33,7 +35,7 @@ func main() {
 
 	err := providerserver.Serve(
 		ctx,
-		nil,
+		provider.New(),
 		providerserver.ServeOpts{
 			Address: "terraform.releases.teleport.dev/gravitational/teleport-mwi",
 			Debug:   debug,
