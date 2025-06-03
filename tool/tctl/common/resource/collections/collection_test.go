@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package collections
 
 import (
 	"bytes"
@@ -82,7 +82,7 @@ func (test *writeTextTest) run(t *testing.T) {
 	t.Run("verbose mode", func(t *testing.T) {
 		t.Helper()
 		w := &bytes.Buffer{}
-		err := test.collection.writeText(w, true)
+		err := test.collection.WriteText(w, true)
 		require.NoError(t, err)
 		diff := cmp.Diff(test.wantVerboseTable(), w.String())
 		require.Empty(t, diff)
@@ -90,7 +90,7 @@ func (test *writeTextTest) run(t *testing.T) {
 	t.Run("non-verbose mode", func(t *testing.T) {
 		t.Helper()
 		w := &bytes.Buffer{}
-		err := test.collection.writeText(w, false)
+		err := test.collection.WriteText(w, false)
 		require.NoError(t, err)
 		diff := cmp.Diff(test.wantNonVerboseTable(), w.String())
 		require.Empty(t, diff)
@@ -445,7 +445,7 @@ type autoUpdateConfigBrokenCollection struct {
 	autoUpdateConfigCollection
 }
 
-func (c *autoUpdateConfigBrokenCollection) resources() []types.Resource {
+func (c *autoUpdateConfigBrokenCollection) Resources() []types.Resource {
 	// We use Resource153ToLegacy instead of ProtoResource153ToLegacy.
 	return []types.Resource{types.Resource153ToLegacy(c.config)}
 }
@@ -476,7 +476,7 @@ func TestRoundTripProtoResource153(t *testing.T) {
 	// Test execution: dump the resource into a YAML manifest.
 	collection := &autoUpdateConfigCollection{config: initial}
 	buf := &bytes.Buffer{}
-	require.NoError(t, writeYAML(collection, buf))
+	require.NoError(t, WriteYAML(collection, buf))
 
 	// Test execution: load the YAML manifest back.
 	decoder := kyaml.NewYAMLOrJSONDecoder(buf, defaults.LookaheadBufSize)
@@ -492,7 +492,7 @@ func TestRoundTripProtoResource153(t *testing.T) {
 	// collection using types.Resource153ToLegacy instead of types.ProtoResource153ToLegacy
 	brokenCollection := &autoUpdateConfigBrokenCollection{autoUpdateConfigCollection{initial}}
 	buf = &bytes.Buffer{}
-	require.NoError(t, writeYAML(brokenCollection, buf))
+	require.NoError(t, WriteYAML(brokenCollection, buf))
 
 	// Test execution: load the YAML manifest back and see that we can't unmarshal it.
 	decoder = kyaml.NewYAMLOrJSONDecoder(buf, defaults.LookaheadBufSize)

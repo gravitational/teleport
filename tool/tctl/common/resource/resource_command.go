@@ -16,12 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package resource
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 	"io"
 	"log/slog"
 	"math"
@@ -83,13 +85,19 @@ import (
 )
 
 // ResourceGetHandler is the generic implementation of a resource get handler.
-type ResourceGetHandler func(ctx context.Context, client *authclient.Client) (ResourceCollection, error)
+type ResourceGetHandler func(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error)
 
 // ResourceCreateHandler is the generic implementation of a resource creation handler
 type ResourceCreateHandler func(context.Context, *authclient.Client, services.UnknownResource) error
 
 // ResourceKind is the string form of a resource, i.e. "oidc"
 type ResourceKind string
+
+func NewTestResourceCommand(writer io.Writer) ResourceCommand {
+	return ResourceCommand{
+		stdout: writer,
+	}
+}
 
 // ResourceCommand implements `tctl get/create/list` commands for manipulating
 // Teleport resources
@@ -411,11 +419,11 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 	// is experimental.
 	switch rc.format {
 	case teleport.Text:
-		return collection.writeText(rc.stdout, rc.verbose)
+		return collection.WriteText(rc.stdout, rc.verbose)
 	case teleport.YAML:
-		return writeYAML(collection, rc.stdout)
+		return collections.WriteYAML(collection, rc.stdout)
 	case teleport.JSON:
-		return writeJSON(collection, rc.stdout)
+		return collections.WriteJSON(collection, rc.stdout)
 	}
 	return trace.BadParameter("unsupported format")
 }
@@ -432,7 +440,7 @@ func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Clien
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resources = append(resources, collection.resources()...)
+		resources = append(resources, collection.Resources()...)
 	}
 	if err := utils.WriteYAML(rc.stdout, resources); err != nil {
 		return trace.Wrap(err)
@@ -515,19 +523,19 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 	}
 }
 
-func (rc *ResourceCommand) getTrustedCluster(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getTrustedCluster(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name == "" {
 		trustedClusters, err := client.GetTrustedClusters(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &trustedClusterCollection{trustedClusters: trustedClusters}, nil
+		return collections.NewTrustedClusterCollection(trustedClusters), nil
 	}
 	trustedCluster, err := client.GetTrustedCluster(ctx, rc.ref.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &trustedClusterCollection{trustedClusters: []types.TrustedCluster{trustedCluster}}, nil
+	return collections.NewTrustedClusterCollection([]types.TrustedCluster{trustedCluster}), nil
 }
 
 // createTrustedCluster implements `tctl create cluster.yaml` command
@@ -571,22 +579,22 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) getRemoteCluster(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getRemoteCluster(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name == "" {
 		remoteClusters, err := client.GetRemoteClusters(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &remoteClusterCollection{remoteClusters: remoteClusters}, nil
+		return collections.NewRemoteClusterCollection(remoteClusters), nil
 	}
 	remoteCluster, err := client.GetRemoteCluster(ctx, rc.ref.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &remoteClusterCollection{remoteClusters: []types.RemoteCluster{remoteCluster}}, nil
+	return collections.NewRemoteClusterCollection([]types.RemoteCluster{remoteCluster}), nil
 }
 
-func (rc *ResourceCommand) getSemaphore(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getSemaphore(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	sems, err := client.GetSemaphores(ctx, types.SemaphoreFilter{
 		SemaphoreKind: rc.ref.SubKind,
 		SemaphoreName: rc.ref.Name,
@@ -594,10 +602,10 @@ func (rc *ResourceCommand) getSemaphore(ctx context.Context, client *authclient.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &semaphoreCollection{sems: sems}, nil
+	return collections.NewSemaphoreCollection(sems), nil
 }
 
-func (rc *ResourceCommand) getCertAuthority(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getCertAuthority(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	getAll := rc.ref.SubKind == "" && rc.ref.Name == ""
 	if getAll {
 		var allAuthorities []types.CertAuthority
@@ -612,7 +620,7 @@ func (rc *ResourceCommand) getCertAuthority(ctx context.Context, client *authcli
 			}
 			allAuthorities = append(allAuthorities, authorities...)
 		}
-		return &authorityCollection{cas: allAuthorities}, nil
+		return collections.NewAuthorityCollection(allAuthorities), nil
 	}
 
 	id := types.CertAuthID{Type: types.CertAuthType(rc.ref.SubKind), DomainName: rc.ref.Name}
@@ -620,7 +628,7 @@ func (rc *ResourceCommand) getCertAuthority(ctx context.Context, client *authcli
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &authorityCollection{cas: []types.CertAuthority{authority}}, nil
+	return collections.NewAuthorityCollection([]types.CertAuthority{authority}), nil
 }
 
 // createCertAuthority creates certificate authority
@@ -680,20 +688,20 @@ func (rc *ResourceCommand) updateGithubConnector(ctx context.Context, client *au
 	return nil
 }
 
-func (rc *ResourceCommand) getRole(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getRole(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name == "" {
 		roles, err := client.GetRoles(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &roleCollection{roles: roles}, nil
+		return collections.NewRoleCollection(roles), nil
 	}
 	role, err := client.GetRole(ctx, rc.ref.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	warnAboutDynamicLabelsInDenyRule(ctx, rc.config.Logger, role)
-	return &roleCollection{roles: []types.Role{role}}, nil
+	return collections.NewRoleCollection([]types.Role{role}), nil
 }
 
 // createRole implements `tctl create role.yaml` command.
@@ -753,8 +761,8 @@ func (rc *ResourceCommand) updateRole(ctx context.Context, client *authclient.Cl
 	return nil
 }
 
-func (rc *ResourceCommand) getNamespace(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
-	return &namespaceCollection{namespaces: []types.Namespace{types.DefaultNamespace()}}, nil
+func (rc *ResourceCommand) getNamespace(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+	return collections.NewNamespaceCollection([]types.Namespace{types.DefaultNamespace()}), nil
 }
 
 // warnAboutKubernetesResources warns about kubernetes resources
@@ -795,20 +803,19 @@ func warnAboutDynamicLabelsInDenyRule(ctx context.Context, logger *slog.Logger, 
 	}
 }
 
-func (rc *ResourceCommand) getUser(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getUser(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name == "" {
 		users, err := client.GetUsers(ctx, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &userCollection{users: users}, nil
+		return collections.NewUserCollection(users), nil
 	}
 	user, err := client.GetUser(ctx, rc.ref.Name, rc.withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &userCollection{users: services.Users{user}}, nil
-
+	return collections.NewUserCollection(services.Users{user}), nil
 }
 
 // createUser implements `tctl create user.yaml` command.
@@ -849,7 +856,7 @@ func (rc *ResourceCommand) createUser(ctx context.Context, client *authclient.Cl
 	return nil
 }
 
-func (rc *ResourceCommand) getReverseTunnel(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getReverseTunnel(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		return nil, trace.BadParameter("reverse tunnel cannot be searched by name")
 	}
@@ -869,7 +876,7 @@ func (rc *ResourceCommand) getReverseTunnel(ctx context.Context, client *authcli
 			break
 		}
 	}
-	return &reverseTunnelCollection{tunnels: tunnels}, nil
+	return collections.NewReverseTunnelCollection(tunnels), nil
 }
 
 func (rc *ResourceCommand) createBot(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -898,7 +905,7 @@ func (rc *ResourceCommand) createBot(ctx context.Context, client *authclient.Cli
 	return nil
 }
 
-func (rc *ResourceCommand) getBot(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getBot(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	remote := client.BotServiceClient()
 	if rc.ref.Name != "" {
 		bot, err := remote.GetBot(ctx, &machineidv1pb.GetBotRequest{
@@ -908,7 +915,7 @@ func (rc *ResourceCommand) getBot(ctx context.Context, client *authclient.Client
 			return nil, trace.Wrap(err)
 		}
 
-		return &botCollection{bots: []*machineidv1pb.Bot{bot}}, nil
+		return collections.NewBotCollection([]*machineidv1pb.Bot{bot}), nil
 	}
 
 	req := &machineidv1pb.ListBotsRequest{}
@@ -926,7 +933,7 @@ func (rc *ResourceCommand) getBot(ctx context.Context, client *authclient.Client
 		}
 		req.PageToken = resp.NextPageToken
 	}
-	return &botCollection{bots: bots}, nil
+	return collections.NewBotCollection(bots), nil
 }
 
 func (rc *ResourceCommand) createDatabaseObjectImportRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -954,13 +961,13 @@ func (rc *ResourceCommand) createDatabaseObjectImportRule(ctx context.Context, c
 	return nil
 }
 
-func (rc *ResourceCommand) getOktaImportRule(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getOktaImportRule(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		importRule, err := client.OktaClient().GetOktaImportRule(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &oktaImportRuleCollection{importRules: []types.OktaImportRule{importRule}}, nil
+		return collections.NewOktaImportRuleCollection([]types.OktaImportRule{importRule}), nil
 	}
 	var resources []types.OktaImportRule
 	nextKey := ""
@@ -977,16 +984,16 @@ func (rc *ResourceCommand) getOktaImportRule(ctx context.Context, client *authcl
 			break
 		}
 	}
-	return &oktaImportRuleCollection{importRules: resources}, nil
+	return collections.NewOktaImportRuleCollection(resources), nil
 }
 
-func (rc *ResourceCommand) getOktaAssignment(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getOktaAssignment(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		assignment, err := client.OktaClient().GetOktaAssignment(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &oktaAssignmentCollection{assignments: []types.OktaAssignment{assignment}}, nil
+		return collections.NewOktaAssignmentCollection([]types.OktaAssignment{assignment}), nil
 	}
 	var resources []types.OktaAssignment
 	nextKey := ""
@@ -1003,16 +1010,16 @@ func (rc *ResourceCommand) getOktaAssignment(ctx context.Context, client *authcl
 			break
 		}
 	}
-	return &oktaAssignmentCollection{assignments: resources}, nil
+	return collections.NewOktaAssignmentCollection(resources), nil
 }
 
-func (rc *ResourceCommand) getUserGroup(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getUserGroup(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		userGroup, err := client.GetUserGroup(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &userGroupCollection{userGroups: []types.UserGroup{userGroup}}, nil
+		return collections.NewUserGroupCollection([]types.UserGroup{userGroup}), nil
 	}
 	var resources []types.UserGroup
 	nextKey := ""
@@ -1029,17 +1036,17 @@ func (rc *ResourceCommand) getUserGroup(ctx context.Context, client *authclient.
 			break
 		}
 	}
-	return &userGroupCollection{userGroups: resources}, nil
+	return collections.NewUserGroupCollection(resources), nil
 }
 
-func (rc *ResourceCommand) getDatabaseObjectImportRule(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getDatabaseObjectImportRule(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	remote := client.DatabaseObjectImportRuleClient()
 	if rc.ref.Name != "" {
 		rule, err := remote.GetDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.GetDatabaseObjectImportRuleRequest{Name: rc.ref.Name})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &databaseObjectImportRuleCollection{rules: []*dbobjectimportrulev1.DatabaseObjectImportRule{rule}}, nil
+		return collections.NewDatabaseObjectImportRuleCollection([]*dbobjectimportrulev1.DatabaseObjectImportRule{rule}), nil
 	}
 
 	req := &dbobjectimportrulev1.ListDatabaseObjectImportRulesRequest{}
@@ -1057,7 +1064,7 @@ func (rc *ResourceCommand) getDatabaseObjectImportRule(ctx context.Context, clie
 		}
 		req.PageToken = resp.NextPageToken
 	}
-	return &databaseObjectImportRuleCollection{rules: rules}, nil
+	return collections.NewDatabaseObjectImportRuleCollection(rules), nil
 }
 
 func (rc *ResourceCommand) createDatabaseObject(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -1081,14 +1088,14 @@ func (rc *ResourceCommand) createDatabaseObject(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) getDatabaseObject(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getDatabaseObject(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	remote := client.DatabaseObjectsClient()
 	if rc.ref.Name != "" {
 		object, err := remote.GetDatabaseObject(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &databaseObjectCollection{objects: []*dbobjectv1.DatabaseObject{object}}, nil
+		return collections.NewDatabaseObjectCollection([]*dbobjectv1.DatabaseObject{object}), nil
 	}
 
 	token := ""
@@ -1106,7 +1113,7 @@ func (rc *ResourceCommand) getDatabaseObject(ctx context.Context, client *authcl
 		}
 		token = nextToken
 	}
-	return &databaseObjectCollection{objects: objects}, nil
+	return collections.NewDatabaseObjectCollection(objects), nil
 }
 
 // updateUser implements `tctl create user.yaml` command.
@@ -1124,7 +1131,7 @@ func (rc *ResourceCommand) updateUser(ctx context.Context, client *authclient.Cl
 	return nil
 }
 
-func (rc *ResourceCommand) getAuthPreference(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getAuthPreference(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterAuthPreference)
 	}
@@ -1132,7 +1139,7 @@ func (rc *ResourceCommand) getAuthPreference(ctx context.Context, client *authcl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &authPrefCollection{authPref}, nil
+	return collections.NewAuthPreferenceCollection(authPref), nil
 }
 
 // createAuthPreference implements `tctl create cap.yaml` command.
@@ -1178,15 +1185,15 @@ func (rc *ResourceCommand) updateAuthPreference(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) getNetworkRestrictions(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getNetworkRestrictions(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	nr, err := client.GetNetworkRestrictions(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &netRestrictionsCollection{nr}, nil
+	return collections.NewNetworkRestrictionCollection(nr), nil
 }
 
-func (rc *ResourceCommand) getClusterNetworkingConfig(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getClusterNetworkingConfig(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterNetworkingConfig)
 	}
@@ -1194,7 +1201,7 @@ func (rc *ResourceCommand) getClusterNetworkingConfig(ctx context.Context, clien
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &netConfigCollection{netConfig}, nil
+	return collections.NewNetworkConfigCollection(netConfig), nil
 }
 
 // createClusterNetworkingConfig implements `tctl create netconfig.yaml` command.
@@ -1241,7 +1248,7 @@ func (rc *ResourceCommand) updateClusterNetworkingConfig(ctx context.Context, cl
 	return nil
 }
 
-func (rc *ResourceCommand) getClusterMaintenanceConfig(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getClusterMaintenanceConfig(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterMaintenanceConfig)
 	}
@@ -1251,7 +1258,7 @@ func (rc *ResourceCommand) getClusterMaintenanceConfig(ctx context.Context, clie
 		return nil, trace.Wrap(err)
 	}
 
-	return &maintenanceWindowCollection{cmc}, nil
+	return collections.NewMaintenanceWindowCollection(cmc), nil
 }
 
 func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -1277,7 +1284,7 @@ func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, c
 	return nil
 }
 
-func (rc *ResourceCommand) getSessionRecordingConfig(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getSessionRecordingConfig(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindSessionRecordingConfig)
 	}
@@ -1285,7 +1292,7 @@ func (rc *ResourceCommand) getSessionRecordingConfig(ctx context.Context, client
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &recConfigCollection{recConfig}, nil
+	return collections.NewRecConfigCollection(recConfig), nil
 }
 
 // createSessionRecordingConfig implements `tctl create recconfig.yaml` command.
@@ -1352,7 +1359,7 @@ func (rc *ResourceCommand) createExternalAuditStorage(ctx context.Context, clien
 	return nil
 }
 
-func (rc *ResourceCommand) getExternalAuditStorage(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getExternalAuditStorage(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	out := []*externalauditstorage.ExternalAuditStorage{}
 	name := rc.ref.Name
 	switch name {
@@ -1373,31 +1380,31 @@ func (rc *ResourceCommand) getExternalAuditStorage(ctx context.Context, client *
 		} else {
 			out = append(out, draft)
 		}
-		return &externalAuditStorageCollection{externalAuditStorages: out}, nil
+		return collections.NewExternalAuditStorageCollection(out), nil
 	case types.MetaNameExternalAuditStorageCluster:
 		cluster, err := client.ExternalAuditStorageClient().GetClusterExternalAuditStorage(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &externalAuditStorageCollection{externalAuditStorages: []*externalauditstorage.ExternalAuditStorage{cluster}}, nil
+		return collections.NewExternalAuditStorageCollection([]*externalauditstorage.ExternalAuditStorage{cluster}), nil
 	case types.MetaNameExternalAuditStorageDraft:
 		draft, err := client.ExternalAuditStorageClient().GetDraftExternalAuditStorage(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &externalAuditStorageCollection{externalAuditStorages: []*externalauditstorage.ExternalAuditStorage{draft}}, nil
+		return collections.NewExternalAuditStorageCollection([]*externalauditstorage.ExternalAuditStorage{draft}), nil
 	default:
 		return nil, trace.BadParameter("unsupported resource name for external_audit_storage, valid for get are: '', %q, %q", types.MetaNameExternalAuditStorageDraft, types.MetaNameExternalAuditStorageCluster)
 	}
 }
 
-func (rc *ResourceCommand) getLock(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getLock(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name == "" {
 		locks, err := client.GetLocks(ctx, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &lockCollection{locks: locks}, nil
+		return collections.NewLockCollection(locks), nil
 	}
 	name := rc.ref.Name
 	if rc.ref.SubKind != "" {
@@ -1407,7 +1414,7 @@ func (rc *ResourceCommand) getLock(ctx context.Context, client *authclient.Clien
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &lockCollection{locks: []types.Lock{lock}}, nil
+	return collections.NewLockCollection([]types.Lock{lock}), nil
 }
 
 // createLock implements `tctl create lock.yaml` command.
@@ -1450,13 +1457,13 @@ func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client
 	return nil
 }
 
-func (rc *ResourceCommand) getWindowsDesktopService(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getWindowsDesktopService(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	services, err := client.GetWindowsDesktopServices(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if rc.ref.Name == "" {
-		return &windowsDesktopServiceCollection{services: services}, nil
+		return collections.NewWindowsDesktopServiceCollection(services), nil
 	}
 
 	var out []types.WindowsDesktopService
@@ -1468,16 +1475,16 @@ func (rc *ResourceCommand) getWindowsDesktopService(ctx context.Context, client 
 	if len(out) == 0 {
 		return nil, trace.NotFound("Windows desktop service %q not found", rc.ref.Name)
 	}
-	return &windowsDesktopServiceCollection{services: out}, nil
+	return collections.NewWindowsDesktopServiceCollection(out), nil
 }
 
-func (rc *ResourceCommand) getWindowsDesktop(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getWindowsDesktop(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if rc.ref.Name == "" {
-		return &windowsDesktopCollection{desktops: desktops}, nil
+		return collections.NewWindowsDesktopCollection(desktops), nil
 	}
 
 	var out []types.WindowsDesktop
@@ -1489,7 +1496,7 @@ func (rc *ResourceCommand) getWindowsDesktop(ctx context.Context, client *authcl
 	if len(out) == 0 {
 		return nil, trace.NotFound("Windows desktop %q not found", rc.ref.Name)
 	}
-	return &windowsDesktopCollection{desktops: out}, nil
+	return collections.NewWindowsDesktopCollection(out), nil
 }
 
 func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -1506,16 +1513,14 @@ func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) getDynamicWindowsDesktop(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getDynamicWindowsDesktop(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	dynamicDesktopClient := client.DynamicDesktopClient()
 	if rc.ref.Name != "" {
 		desktop, err := dynamicDesktopClient.GetDynamicWindowsDesktop(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &dynamicWindowsDesktopCollection{
-			desktops: []types.DynamicWindowsDesktop{desktop},
-		}, nil
+		return collections.NewDynamicWindowsDesktopCollection([]types.DynamicWindowsDesktop{desktop}), nil
 	}
 
 	pageToken := ""
@@ -1540,7 +1545,7 @@ func (rc *ResourceCommand) getDynamicWindowsDesktop(ctx context.Context, client 
 		}
 	}
 
-	return &dynamicWindowsDesktopCollection{desktops}, nil
+	return collections.NewDynamicWindowsDesktopCollection(desktops), nil
 }
 
 func (rc *ResourceCommand) createDynamicWindowsDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -1582,13 +1587,13 @@ func (rc *ResourceCommand) updateDynamicWindowsDesktop(ctx context.Context, clie
 	return nil
 }
 
-func (rc *ResourceCommand) getAppServer(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getAppServer(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	servers, err := client.GetApplicationServers(ctx, rc.namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if rc.ref.Name == "" {
-		return &appServerCollection{servers: servers}, nil
+		return collections.NewAppServerCollection(servers), nil
 	}
 
 	var out []types.AppServer
@@ -1600,7 +1605,7 @@ func (rc *ResourceCommand) getAppServer(ctx context.Context, client *authclient.
 	if len(out) == 0 {
 		return nil, trace.NotFound("application server %q not found", rc.ref.Name)
 	}
-	return &appServerCollection{servers: out}, nil
+	return collections.NewAppServerCollection(out), err
 }
 
 func (rc *ResourceCommand) createAppServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -1618,19 +1623,19 @@ func (rc *ResourceCommand) createAppServer(ctx context.Context, client *authclie
 	return nil
 }
 
-func (rc *ResourceCommand) getApp(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getApp(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name == "" {
 		apps, err := client.GetApps(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &appCollection{apps: apps}, nil
+		return collections.NewAppCollection(apps), nil
 	}
 	app, err := client.GetApp(ctx, rc.ref.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &appCollection{apps: []types.Application{app}}, nil
+	return collections.NewAppCollection([]types.Application{app}), nil
 }
 
 func (rc *ResourceCommand) createApp(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -1655,13 +1660,13 @@ func (rc *ResourceCommand) createApp(ctx context.Context, client *authclient.Cli
 	return nil
 }
 
-func (rc *ResourceCommand) getKubeServer(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getKubeServer(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	servers, err := client.GetKubernetesServers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if rc.ref.Name == "" {
-		return &kubeServerCollection{servers: servers}, nil
+		return collections.NewKubeServerCollection(servers), nil
 	}
 	altNameFn := func(r types.KubeServer) string {
 		return r.GetHostname()
@@ -1670,22 +1675,22 @@ func (rc *ResourceCommand) getKubeServer(ctx context.Context, client *authclient
 	if len(servers) == 0 {
 		return nil, trace.NotFound("Kubernetes server %q not found", rc.ref.Name)
 	}
-	return &kubeServerCollection{servers: servers}, nil
+	return collections.NewKubeServerCollection(servers), nil
 }
 
-func (rc *ResourceCommand) getKubeCluster(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getKubeCluster(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	clusters, err := client.GetKubernetesClusters(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if rc.ref.Name == "" {
-		return &kubeClusterCollection{clusters: clusters}, nil
+		return collections.NewKubeClusterCollection(clusters), nil
 	}
 	clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
 	if len(clusters) == 0 {
 		return nil, trace.NotFound("Kubernetes cluster %q not found", rc.ref.Name)
 	}
-	return &kubeClusterCollection{clusters: clusters}, nil
+	return collections.NewKubeClusterCollection(clusters), nil
 }
 
 func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -1710,7 +1715,7 @@ func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authcl
 	return nil
 }
 
-func (rc *ResourceCommand) getCrownJewel(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getCrownJewel(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	cjClient := client.CrownJewelsClient()
 	var rules []*crownjewelv1.CrownJewel
 	nextToken := ""
@@ -1727,7 +1732,7 @@ func (rc *ResourceCommand) getCrownJewel(ctx context.Context, client *authclient
 		}
 		nextToken = token
 	}
-	return &crownJewelCollection{items: rules}, nil
+	return collections.NewCrownJewelCollection(rules), nil
 }
 
 func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -1774,14 +1779,14 @@ func (rc *ResourceCommand) createUserTask(ctx context.Context, client *authclien
 	return nil
 }
 
-func (rc *ResourceCommand) getUserTask(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getUserTask(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	userTasksClient := client.UserTasksClient()
 	if rc.ref.Name != "" {
 		uit, err := userTasksClient.GetUserTask(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &userTaskCollection{items: []*usertasksv1.UserTask{uit}}, nil
+		return collections.NewUserTaskCollection([]*usertasksv1.UserTask{uit}), nil
 	}
 
 	var tasks []*usertasksv1.UserTask
@@ -1798,7 +1803,7 @@ func (rc *ResourceCommand) getUserTask(ctx context.Context, client *authclient.C
 		}
 		nextToken = token
 	}
-	return &userTaskCollection{items: tasks}, nil
+	return collections.NewUserTaskCollection(tasks), nil
 }
 
 func (rc *ResourceCommand) createSPIFFEFederation(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -1818,7 +1823,7 @@ func (rc *ResourceCommand) createSPIFFEFederation(ctx context.Context, client *a
 	return nil
 }
 
-func (rc *ResourceCommand) getSPIFFEFederation(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getSPIFFEFederation(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		resource, err := client.SPIFFEFederationServiceClient().GetSPIFFEFederation(ctx, &machineidv1pb.GetSPIFFEFederationRequest{
 			Name: rc.ref.Name,
@@ -1826,7 +1831,7 @@ func (rc *ResourceCommand) getSPIFFEFederation(ctx context.Context, client *auth
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &spiffeFederationCollection{items: []*machineidv1pb.SPIFFEFederation{resource}}, nil
+		return collections.NewSpiffeFederationCollection([]*machineidv1pb.SPIFFEFederation{resource}), nil
 	}
 
 	var resources []*machineidv1pb.SPIFFEFederation
@@ -1847,7 +1852,7 @@ func (rc *ResourceCommand) getSPIFFEFederation(ctx context.Context, client *auth
 		pageToken = resp.NextPageToken
 	}
 
-	return &spiffeFederationCollection{items: resources}, nil
+	return collections.NewSpiffeFederationCollection(resources), nil
 }
 
 func (rc *ResourceCommand) createWorkloadIdentity(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -1876,7 +1881,7 @@ func (rc *ResourceCommand) createWorkloadIdentity(ctx context.Context, client *a
 	return nil
 }
 
-func (rc *ResourceCommand) getWorkloadIdentity(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getWorkloadIdentity(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		resource, err := client.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, &workloadidentityv1pb.GetWorkloadIdentityRequest{
 			Name: rc.ref.Name,
@@ -1884,7 +1889,7 @@ func (rc *ResourceCommand) getWorkloadIdentity(ctx context.Context, client *auth
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &workloadIdentityCollection{items: []*workloadidentityv1pb.WorkloadIdentity{resource}}, nil
+		return collections.NewWorkloadIdentityCollection([]*workloadidentityv1pb.WorkloadIdentity{resource}), nil
 	}
 
 	var resources []*workloadidentityv1pb.WorkloadIdentity
@@ -1905,10 +1910,10 @@ func (rc *ResourceCommand) getWorkloadIdentity(ctx context.Context, client *auth
 		pageToken = resp.NextPageToken
 	}
 
-	return &workloadIdentityCollection{items: resources}, nil
+	return collections.NewWorkloadIdentityCollection(resources), nil
 }
 
-func (rc *ResourceCommand) getWorkloadIdentityX509Revocation(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getWorkloadIdentityX509Revocation(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		resource, err := client.
 			WorkloadIdentityRevocationServiceClient().
@@ -1918,7 +1923,7 @@ func (rc *ResourceCommand) getWorkloadIdentityX509Revocation(ctx context.Context
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &workloadIdentityX509RevocationCollection{items: []*workloadidentityv1pb.WorkloadIdentityX509Revocation{resource}}, nil
+		return collections.NewWorkloadIdentityX509RevocationCollection([]*workloadidentityv1pb.WorkloadIdentityX509Revocation{resource}), nil
 	}
 
 	var resources []*workloadidentityv1pb.WorkloadIdentityX509Revocation
@@ -1941,10 +1946,10 @@ func (rc *ResourceCommand) getWorkloadIdentityX509Revocation(ctx context.Context
 		pageToken = resp.NextPageToken
 	}
 
-	return &workloadIdentityX509RevocationCollection{items: resources}, nil
+	return collections.NewWorkloadIdentityX509RevocationCollection(resources), nil
 }
 
-func (rc *ResourceCommand) getBotInstance(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getBotInstance(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" && rc.ref.SubKind != "" {
 		// Gets a specific bot instance, e.g. bot_instance/<bot name>/<instance id>
 		bi, err := client.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
@@ -1955,7 +1960,7 @@ func (rc *ResourceCommand) getBotInstance(ctx context.Context, client *authclien
 			return nil, trace.Wrap(err)
 		}
 
-		return &botInstanceCollection{items: []*machineidv1pb.BotInstance{bi}}, nil
+		return collections.NewBotInstanceCollection([]*machineidv1pb.BotInstance{bi}), nil
 	}
 
 	var instances []*machineidv1pb.BotInstance
@@ -1982,7 +1987,7 @@ func (rc *ResourceCommand) getBotInstance(ctx context.Context, client *authclien
 		startKey = resp.NextPageToken
 	}
 
-	return &botInstanceCollection{items: instances}, nil
+	return collections.NewBotInstanceCollection(instances), nil
 }
 
 func (rc *ResourceCommand) createWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -2020,7 +2025,7 @@ func (rc *ResourceCommand) createWorkloadIdentityX509IssuerOverride(ctx context.
 	return nil
 }
 
-func (rc *ResourceCommand) getWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	c := client.WorkloadIdentityX509OverridesClient()
 	if rc.ref.Name != "" {
 		r, err := c.GetX509IssuerOverride(
@@ -2032,9 +2037,9 @@ func (rc *ResourceCommand) getWorkloadIdentityX509IssuerOverride(ctx context.Con
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return namedResourceCollection{types.ProtoResource153ToLegacy(r)}, nil
+		return collections.NewNamedResourceCollection([]types.Resource{types.ProtoResource153ToLegacy(r)}), nil
 	}
-	var collection namedResourceCollection
+	var resources []types.Resource
 	var pageToken string
 	for {
 		resp, err := c.ListX509IssuerOverrides(
@@ -2046,16 +2051,16 @@ func (rc *ResourceCommand) getWorkloadIdentityX509IssuerOverride(ctx context.Con
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		collection = slices.Grow(collection, len(resp.GetX509IssuerOverrides()))
+		resources = slices.Grow(resources, len(resp.GetX509IssuerOverrides()))
 		for _, r := range resp.GetX509IssuerOverrides() {
-			collection = append(collection, types.ProtoResource153ToLegacy(r))
+			resources = append(resources, types.ProtoResource153ToLegacy(r))
 		}
 		pageToken = resp.GetNextPageToken()
 		if pageToken == "" {
 			break
 		}
 	}
-	return collection, nil
+	return collections.NewNamedResourceCollection(resources), nil
 }
 
 func (rc *ResourceCommand) updateWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -2117,7 +2122,7 @@ func (rc *ResourceCommand) createSigstorePolicy(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) getSigstorePolicy(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getSigstorePolicy(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	c := client.SigstorePolicyResourceServiceClient()
 	if rc.ref.Name != "" {
 		r, err := c.GetSigstorePolicy(
@@ -2129,9 +2134,9 @@ func (rc *ResourceCommand) getSigstorePolicy(ctx context.Context, client *authcl
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return namedResourceCollection{types.ProtoResource153ToLegacy(r)}, nil
+		return collections.NewNamedResourceCollection([]types.Resource{types.ProtoResource153ToLegacy(r)}), nil
 	}
-	var collection namedResourceCollection
+	var resources []types.Resource
 	var pageToken string
 	for {
 		resp, err := c.ListSigstorePolicies(
@@ -2143,16 +2148,16 @@ func (rc *ResourceCommand) getSigstorePolicy(ctx context.Context, client *authcl
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		collection = slices.Grow(collection, len(resp.GetSigstorePolicies()))
+		resources = slices.Grow(resources, len(resp.GetSigstorePolicies()))
 		for _, r := range resp.GetSigstorePolicies() {
-			collection = append(collection, types.ProtoResource153ToLegacy(r))
+			resources = append(resources, types.ProtoResource153ToLegacy(r))
 		}
 		pageToken = resp.GetNextPageToken()
 		if pageToken == "" {
 			break
 		}
 	}
-	return collection, nil
+	return collections.NewNamedResourceCollection(resources), nil
 }
 
 func (rc *ResourceCommand) updateSigstorePolicy(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -2203,35 +2208,35 @@ func (rc *ResourceCommand) updateUserTask(ctx context.Context, client *authclien
 	return nil
 }
 
-func (rc *ResourceCommand) getDatabaseServer(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getDatabaseServer(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	servers, err := client.GetDatabaseServers(ctx, rc.namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if rc.ref.Name == "" {
-		return &databaseServerCollection{servers: servers}, nil
+		return collections.NewDatabaseServerCollection(servers), nil
 	}
 
 	servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
 	if len(servers) == 0 {
 		return nil, trace.NotFound("database server %q not found", rc.ref.Name)
 	}
-	return &databaseServerCollection{servers: servers}, nil
+	return collections.NewDatabaseServerCollection(servers), nil
 }
 
-func (rc *ResourceCommand) getDatabase(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getDatabase(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	databases, err := client.GetDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if rc.ref.Name == "" {
-		return &databaseCollection{databases: databases}, nil
+		return collections.NewDatabaseCollection(databases), nil
 	}
 	databases = filterByNameOrDiscoveredName(databases, rc.ref.Name)
 	if len(databases) == 0 {
 		return nil, trace.NotFound("database %q not found", rc.ref.Name)
 	}
-	return &databaseCollection{databases: databases}, nil
+	return collections.NewDatabaseCollection(databases), nil
 }
 
 func (rc *ResourceCommand) createDatabase(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -2257,7 +2262,7 @@ func (rc *ResourceCommand) createDatabase(ctx context.Context, client *authclien
 	return nil
 }
 
-func (rc *ResourceCommand) getDatabaseService(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getDatabaseService(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	resourceName := rc.ref.Name
 	listReq := proto.ListResourcesRequest{
 		ResourceType: types.KindDatabaseService,
@@ -2280,22 +2285,22 @@ func (rc *ResourceCommand) getDatabaseService(ctx context.Context, client *authc
 		return nil, trace.NotFound("Database Service %q not found", resourceName)
 	}
 
-	return &databaseServiceCollection{databaseServices: databaseServices}, nil
+	return collections.NewDatabaseServiceCollection(databaseServices), nil
 }
 
-func (rc *ResourceCommand) getToken(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getToken(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name == "" {
 		tokens, err := client.GetTokens(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &tokenCollection{tokens: tokens}, nil
+		return collections.NewTokenCollection(tokens), nil
 	}
 	token, err := client.GetToken(ctx, rc.ref.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
+	return collections.NewTokenCollection([]types.ProvisionToken{token}), nil
 }
 
 func (rc *ResourceCommand) createToken(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -2312,19 +2317,19 @@ func (rc *ResourceCommand) createToken(ctx context.Context, client *authclient.C
 	return nil
 }
 
-func (rc *ResourceCommand) getInstaller(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getInstaller(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name == "" {
 		installers, err := client.GetInstallers(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &installerCollection{installers: installers}, nil
+		return collections.NewInstallerCollection(installers), nil
 	}
 	inst, err := client.GetInstaller(ctx, rc.ref.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &installerCollection{installers: []types.Installer{inst}}, nil
+	return collections.NewInstallerCollection([]types.Installer{inst}), nil
 }
 
 func (rc *ResourceCommand) createInstaller(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -2341,7 +2346,7 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client *authclie
 	return nil
 }
 
-func (rc *ResourceCommand) getUIConfig(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getUIConfig(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindUIConfig)
 	}
@@ -2349,7 +2354,7 @@ func (rc *ResourceCommand) getUIConfig(ctx context.Context, client *authclient.C
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &uiConfigCollection{uiconfig}, nil
+	return collections.NewUIConfigCollection(uiconfig), nil
 }
 
 func (rc *ResourceCommand) createUIConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -2365,7 +2370,7 @@ func (rc *ResourceCommand) createUIConfig(ctx context.Context, client *authclien
 	return nil
 }
 
-func (rc *ResourceCommand) getNode(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getNode(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	var search []string
 	if rc.ref.Name != "" {
 		search = []string{rc.ref.Name}
@@ -2377,7 +2382,7 @@ func (rc *ResourceCommand) getNode(ctx context.Context, client *authclient.Clien
 		SortBy:         types.SortBy{Field: types.ResourceKind},
 	}
 
-	var collection serverCollection
+	var servers []types.Server
 	for {
 		page, next, err := apiclient.GetUnifiedResourcePage(ctx, client, &req)
 		if err != nil {
@@ -2392,13 +2397,13 @@ func (rc *ResourceCommand) getNode(ctx context.Context, client *authclient.Clien
 			}
 
 			if rc.ref.Name == "" {
-				collection.servers = append(collection.servers, srv)
+				servers = append(servers, srv)
 				continue
 			}
 
 			if srv.GetName() == rc.ref.Name || srv.GetHostname() == rc.ref.Name {
-				collection.servers = []types.Server{srv}
-				return &collection, nil
+				servers = []types.Server{srv}
+				return collections.NewServerCollection(servers), nil
 			}
 		}
 
@@ -2408,11 +2413,11 @@ func (rc *ResourceCommand) getNode(ctx context.Context, client *authclient.Clien
 		}
 	}
 
-	if len(collection.servers) == 0 && rc.ref.Name != "" {
+	if len(servers) == 0 && rc.ref.Name != "" {
 		return nil, trace.NotFound("node with ID %q not found", rc.ref.Name)
 	}
 
-	return &collection, nil
+	return collections.NewServerCollection(servers), nil
 }
 
 func (rc *ResourceCommand) createNode(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -2443,58 +2448,60 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client *authclient.Cl
 	return nil
 }
 
-func (rc *ResourceCommand) getAuthServer(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getAuthServer(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	servers, err := client.GetAuthServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if rc.ref.Name == "" {
-		return &serverCollection{servers: servers}, nil
+		return collections.NewServerCollection(servers), nil
 	}
 	for _, server := range servers {
 		if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
-			return &serverCollection{servers: []types.Server{server}}, nil
+			return collections.NewServerCollection([]types.Server{server}), nil
 		}
 	}
 	return nil, trace.NotFound("auth server with ID %q not found", rc.ref.Name)
 }
 
-func (rc *ResourceCommand) getProxy(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getProxy(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	servers, err := client.GetProxies()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if rc.ref.Name == "" {
-		return &serverCollection{servers: servers}, nil
+		return collections.NewServerCollection(servers), nil
 	}
 	for _, server := range servers {
 		if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
-			return &serverCollection{servers: []types.Server{server}}, nil
+			return collections.NewServerCollection([]types.Server{server}), nil
 		}
 	}
 	return nil, trace.NotFound("proxy with ID %q not found", rc.ref.Name)
 }
 
-func (rc *ResourceCommand) getConnectors(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
-	var saml []types.SAMLConnector
-	var oidc []types.OIDCConnector
-	var github []types.GithubConnector
+func (rc *ResourceCommand) getConnectors(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+	var saml, oidc, github collections.ResourceCollection
 
 	sc, scErr := rc.getSAMLConnectors(ctx, client)
 	if scErr == nil {
-		saml = sc.(*samlCollection).connectors
+		saml = sc
 	}
 	oc, ocErr := rc.getOIDCConnectors(ctx, client)
 	if ocErr == nil {
-		oidc = oc.(*oidcCollection).connectors
+		oidc = oc
 	}
 	gc, gcErr := rc.getGithubConnectors(ctx, client)
 	if gcErr == nil {
-		github = gc.(*githubCollection).connectors
+		github = gc
 	}
 	errs := []error{scErr, ocErr, gcErr}
 
-	allEmpty := len(saml) == 0 && len(oidc) == 0 && len(github) == 0
+	connectors, err := collections.NewConnectorsCollection(oidc, saml, github)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	allEmpty := len(connectors.Resources()) == 0
 	reportErr := false
 	for _, err := range errs {
 		if err != nil && !trace.IsNotFound(err) {
@@ -2506,11 +2513,7 @@ func (rc *ResourceCommand) getConnectors(ctx context.Context, client *authclient
 	if allEmpty || reportErr {
 		finalErr = trace.NewAggregate(errs...)
 	}
-	return &connectorsCollection{
-		saml:   saml,
-		oidc:   oidc,
-		github: github,
-	}, finalErr
+	return connectors, finalErr
 }
 
 func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -2628,7 +2631,7 @@ func (rc *ResourceCommand) createLoginRule(ctx context.Context, client *authclie
 	return nil
 }
 
-func (rc *ResourceCommand) getLoginRule(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getLoginRule(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	loginRuleClient := client.LoginRuleClient()
 	if rc.ref.Name == "" {
 		fetch := func(token string) (*loginrulepb.ListLoginRulesResponse, error) {
@@ -2645,12 +2648,12 @@ func (rc *ResourceCommand) getLoginRule(ctx context.Context, client *authclient.
 				break
 			}
 		}
-		return &loginRuleCollection{rules}, trace.Wrap(err)
+		return collections.NewLoginRuleCollection(rules), nil
 	}
 	rule, err := loginRuleClient.GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{
 		Name: rc.ref.Name,
 	})
-	return &loginRuleCollection{[]*loginrulepb.LoginRule{rule}}, trail.FromGRPC(err)
+	return collections.NewLoginRuleCollection([]*loginrulepb.LoginRule{rule}), trail.FromGRPC(err)
 }
 
 func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -2693,13 +2696,13 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 	return nil
 }
 
-func (rc *ResourceCommand) getSAMLIdPServiceProvider(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getSAMLIdPServiceProvider(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		serviceProvider, err := client.GetSAMLIdPServiceProvider(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &samlIdPServiceProviderCollection{serviceProviders: []types.SAMLIdPServiceProvider{serviceProvider}}, nil
+		return collections.NewSAMLIdPServiceProviderCollection([]types.SAMLIdPServiceProvider{serviceProvider}), nil
 	}
 	var resources []types.SAMLIdPServiceProvider
 	nextKey := ""
@@ -2716,7 +2719,7 @@ func (rc *ResourceCommand) getSAMLIdPServiceProvider(ctx context.Context, client
 			break
 		}
 	}
-	return &samlIdPServiceProviderCollection{serviceProviders: resources}, nil
+	return collections.NewSAMLIdPServiceProviderCollection(resources), nil
 }
 
 func (rc *ResourceCommand) createDevice(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -2759,7 +2762,7 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client *authclient.
 	return nil
 }
 
-func (rc *ResourceCommand) getDevice(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getDevice(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	remote := client.DevicesClient()
 	if rc.ref.Name != "" {
 		resp, err := remote.FindDevices(ctx, &devicepb.FindDevicesRequest{
@@ -2769,7 +2772,7 @@ func (rc *ResourceCommand) getDevice(ctx context.Context, client *authclient.Cli
 			return nil, trace.Wrap(err)
 		}
 
-		return &deviceCollection{resp.Devices}, nil
+		return collections.NewDeviceCollection(resp.Devices), nil
 	}
 
 	req := &devicepb.ListDevicesRequest{
@@ -2801,7 +2804,7 @@ func (rc *ResourceCommand) getDevice(ctx context.Context, client *authclient.Cli
 		return d1.AssetTag < d2.AssetTag
 	})
 
-	return &deviceCollection{devices: devs}, nil
+	return collections.NewDeviceCollection(devs), nil
 }
 
 func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -2825,13 +2828,13 @@ func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) getIntegration(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getIntegration(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		ig, err := client.GetIntegration(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &integrationCollection{integrations: []types.Integration{ig}}, nil
+		return collections.NewIntegrationCollection([]types.Integration{ig}), nil
 	}
 
 	var resources []types.Integration
@@ -2848,7 +2851,7 @@ func (rc *ResourceCommand) getIntegration(ctx context.Context, client *authclien
 			break
 		}
 	}
-	return &integrationCollection{integrations: resources}, nil
+	return collections.NewIntegrationCollection(resources), nil
 }
 
 func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -2928,14 +2931,14 @@ func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client *au
 	return nil
 }
 
-func (rc *ResourceCommand) getDiscoveryConfig(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getDiscoveryConfig(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	remote := client.DiscoveryConfigClient()
 	if rc.ref.Name != "" {
 		dc, err := remote.GetDiscoveryConfig(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &discoveryConfigCollection{discoveryConfigs: []*discoveryconfig.DiscoveryConfig{dc}}, nil
+		return collections.NewDiscoveryConfigCollection([]*discoveryconfig.DiscoveryConfig{dc}), nil
 	}
 
 	var resources []*discoveryconfig.DiscoveryConfig
@@ -2953,10 +2956,10 @@ func (rc *ResourceCommand) getDiscoveryConfig(ctx context.Context, client *authc
 		}
 	}
 
-	return &discoveryConfigCollection{discoveryConfigs: resources}, nil
+	return collections.NewDiscoveryConfigCollection(resources), nil
 }
 
-func (rc *ResourceCommand) getAccessGraphSettings(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getAccessGraphSettings(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	settings, err := client.ClusterConfigClient().GetAccessGraphSettings(ctx, &clusterconfigpb.GetAccessGraphSettingsRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2965,7 +2968,7 @@ func (rc *ResourceCommand) getAccessGraphSettings(ctx context.Context, client *a
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &accessGraphSettings{accessGraphSettings: rec}, nil
+	return collections.NewAccessGraphSettingsCollection(rec), nil
 }
 
 func (rc *ResourceCommand) createAccessList(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -2992,17 +2995,17 @@ func (rc *ResourceCommand) createAccessList(ctx context.Context, client *authcli
 	return nil
 }
 
-func (rc *ResourceCommand) getAccessList(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getAccessList(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		resource, err := client.AccessListClient().GetAccessList(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &accessListCollection{accessLists: []*accesslist.AccessList{resource}}, nil
+		return collections.NewAccessListCollection([]*accesslist.AccessList{resource}), nil
 	}
 	accessLists, err := client.AccessListClient().GetAccessLists(ctx)
 
-	return &accessListCollection{accessLists: accessLists}, trace.Wrap(err)
+	return collections.NewAccessListCollection(accessLists), trace.Wrap(err)
 }
 
 func (rc *ResourceCommand) createServerInfo(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -3033,19 +3036,19 @@ func (rc *ResourceCommand) createServerInfo(ctx context.Context, client *authcli
 	return nil
 }
 
-func (rc *ResourceCommand) getServerInfo(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getServerInfo(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		si, err := client.GetServerInfo(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &serverInfoCollection{serverInfos: []types.ServerInfo{si}}, nil
+		return collections.NewServerInfoCollection([]types.ServerInfo{si}), nil
 	}
 	serverInfos, err := stream.Collect(client.GetServerInfos(ctx))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &serverInfoCollection{serverInfos: serverInfos}, nil
+	return collections.NewServerInfoCollection(serverInfos), nil
 }
 
 func (rc *ResourceCommand) createStaticHostUser(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
@@ -3069,7 +3072,7 @@ func (rc *ResourceCommand) createStaticHostUser(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) getStaticHostUser(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getStaticHostUser(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	hostUserClient := client.StaticHostUserClient()
 	if rc.ref.Name != "" {
 		hostUser, err := hostUserClient.GetStaticHostUser(ctx, rc.ref.Name)
@@ -3077,7 +3080,7 @@ func (rc *ResourceCommand) getStaticHostUser(ctx context.Context, client *authcl
 			return nil, trace.Wrap(err)
 		}
 
-		return &staticHostUserCollection{items: []*userprovisioningpb.StaticHostUser{hostUser}}, nil
+		return collections.NewStaticHostUserCollection([]*userprovisioningpb.StaticHostUser{hostUser}), nil
 	}
 
 	var hostUsers []*userprovisioningpb.StaticHostUser
@@ -3093,7 +3096,7 @@ func (rc *ResourceCommand) getStaticHostUser(ctx context.Context, client *authcl
 		}
 		nextToken = token
 	}
-	return &staticHostUserCollection{items: hostUsers}, nil
+	return collections.NewStaticHostUserCollection(hostUsers), nil
 }
 
 func (rc *ResourceCommand) updateStaticHostUser(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
@@ -3698,7 +3701,7 @@ func (rc *ResourceCommand) IsForced() bool {
 }
 
 // getCollection lists all resources of a given type
-func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Kind == "" {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	}
@@ -3709,49 +3712,49 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
 
-func (rc *ResourceCommand) getSAMLConnectors(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getSAMLConnectors(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name == "" {
 		connectors, err := client.GetSAMLConnectors(ctx, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &connectorsCollection{saml: connectors}, nil
+		return collections.NewSAMLCollection(connectors), nil
 	}
 	connector, err := client.GetSAMLConnector(ctx, rc.ref.Name, rc.withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &connectorsCollection{saml: []types.SAMLConnector{connector}}, nil
+	return collections.NewSAMLCollection([]types.SAMLConnector{connector}), nil
 }
 
-func (rc *ResourceCommand) getOIDCConnectors(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getOIDCConnectors(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name == "" {
 		connectors, err := client.GetOIDCConnectors(ctx, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &connectorsCollection{oidc: connectors}, nil
+		return collections.NewOIDCCollection(connectors), nil
 	}
 	connector, err := client.GetOIDCConnector(ctx, rc.ref.Name, rc.withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &connectorsCollection{oidc: []types.OIDCConnector{connector}}, nil
+	return collections.NewOIDCCollection([]types.OIDCConnector{connector}), nil
 }
 
-func (rc *ResourceCommand) getGithubConnectors(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getGithubConnectors(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name == "" {
 		connectors, err := client.GetGithubConnectors(ctx, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &connectorsCollection{github: connectors}, nil
+		return collections.NewGithubCollection(connectors), nil
 	}
 	connector, err := client.GetGithubConnector(ctx, rc.ref.Name, rc.withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &connectorsCollection{github: []types.GithubConnector{connector}}, nil
+	return collections.NewGithubCollection([]types.GithubConnector{connector}), nil
 }
 
 // UpsertVerb generates the correct string form of a verb based on the action taken
@@ -3919,13 +3922,13 @@ func (rc *ResourceCommand) createAuditQuery(ctx context.Context, client *authcli
 	return nil
 }
 
-func (rc *ResourceCommand) getAuditQuery(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getAuditQuery(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		auditQuery, err := client.SecReportsClient().GetSecurityAuditQuery(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &auditQueryCollection{auditQueries: []*secreports.AuditQuery{auditQuery}}, nil
+		return collections.NewAuditQueryCollection([]*secreports.AuditQuery{auditQuery}), nil
 	}
 
 	resources, err := client.SecReportsClient().GetSecurityAuditQueries(ctx)
@@ -3933,7 +3936,7 @@ func (rc *ResourceCommand) getAuditQuery(ctx context.Context, client *authclient
 		return nil, trace.Wrap(err)
 	}
 
-	return &auditQueryCollection{auditQueries: resources}, nil
+	return collections.NewAuditQueryCollection(resources), nil
 }
 
 func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -3952,20 +3955,20 @@ func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) getSecurityReport(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getSecurityReport(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 
 		resource, err := client.SecReportsClient().GetSecurityReport(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &securityReportCollection{items: []*secreports.Report{resource}}, nil
+		return collections.NewSecurityReportCollection([]*secreports.Report{resource}), nil
 	}
 	resources, err := client.SecReportsClient().GetSecurityReports(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &securityReportCollection{items: resources}, nil
+	return collections.NewSecurityReportCollection(resources), nil
 }
 
 func (rc *ResourceCommand) createAccessMonitoringRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -3990,13 +3993,13 @@ func (rc *ResourceCommand) createAccessMonitoringRule(ctx context.Context, clien
 	return nil
 }
 
-func (rc *ResourceCommand) getAccessMonitoringRule(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getAccessMonitoringRule(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		rule, err := client.AccessMonitoringRuleClient().GetAccessMonitoringRule(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &accessMonitoringRuleCollection{items: []*accessmonitoringrulesv1pb.AccessMonitoringRule{rule}}, nil
+		return collections.NewAccessMonitoringRuleCollection([]*accessmonitoringrulesv1pb.AccessMonitoringRule{rule}), nil
 	}
 
 	var rules []*accessmonitoringrulesv1pb.AccessMonitoringRule
@@ -4012,7 +4015,7 @@ func (rc *ResourceCommand) getAccessMonitoringRule(ctx context.Context, client *
 		}
 		nextToken = token
 	}
-	return &accessMonitoringRuleCollection{items: rules}, nil
+	return collections.NewAccessMonitoringRuleCollection(rules), nil
 }
 
 func (rc *ResourceCommand) updateAccessMonitoringRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -4058,19 +4061,147 @@ func (rc *ResourceCommand) updateVnetConfig(ctx context.Context, client *authcli
 	return nil
 }
 
-func (rc *ResourceCommand) getVnetConfig(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getVnetConfig(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	vnetConfig, err := client.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &vnetConfigCollection{vnetConfig: vnetConfig}, nil
+	return collections.NewVnetConfigCollection(vnetConfig), nil
 }
 
-func (rc *ResourceCommand) getAccessRequest(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
-	resource, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{ID: rc.ref.Name})
-	return &accessRequestCollection{accessRequests: resource}, trace.Wrap(err)
+func (rc *ResourceCommand) getAccessRequest(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+	resources, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{ID: rc.ref.Name})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return collections.NewAccessRequestCollection(resources), nil
 }
 
+// pluginResourceWrapper provides custom JSON unmarshaling for Plugin resource
+// types. The Plugin resource uses structures generated from a protobuf `oneof`
+// directive, which the stdlib JSON unmarshaller can't handle, so we use this
+// custom wrapper to help.
+type pluginResourceWrapper struct {
+	types.PluginV1
+}
+
+func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
+	// If your plugin contains a `oneof` message, implement custom UnmarshalJSON/MarshalJSON
+	// using gogo/jsonpb for the type.
+	const (
+		credOauth2AccessToken             = "oauth2_access_token"
+		credBearerToken                   = "bearer_token"
+		credIdSecret                      = "id_secret"
+		credStaticCredentialsRef          = "static_credentials_ref"
+		settingsSlackAccessPlugin         = "slack_access_plugin"
+		settingsOpsgenie                  = "opsgenie"
+		settingsOpenAI                    = "openai"
+		settingsOkta                      = "okta"
+		settingsJamf                      = "jamf"
+		settingsPagerDuty                 = "pager_duty"
+		settingsMattermost                = "mattermost"
+		settingsJira                      = "jira"
+		settingsDiscord                   = "discord"
+		settingsServiceNow                = "serviceNow"
+		settingsGitlab                    = "gitlab"
+		settingsEntraID                   = "entra_id"
+		settingsDatadogIncidentManagement = "datadog_incident_management"
+		settingsEmailAccessPlugin         = "email_access_plugin"
+		settingsAWSIdentityCenter         = "aws_ic"
+		settingsNetIQ                     = "net_iq"
+	)
+	type unknownPluginType struct {
+		Spec struct {
+			Settings map[string]json.RawMessage `json:"Settings"`
+		} `json:"spec"`
+		Status struct {
+			Details map[string]json.RawMessage `json:"Details"`
+		} `json:"status"`
+		Credentials struct {
+			Credentials map[string]json.RawMessage `json:"Credentials"`
+		} `json:"credentials"`
+	}
+
+	var unknownPlugin unknownPluginType
+	if err := json.Unmarshal(data, &unknownPlugin); err != nil {
+		return err
+	}
+
+	if unknownPlugin.Spec.Settings == nil {
+		return trace.BadParameter("plugin settings are missing")
+	}
+	if len(unknownPlugin.Spec.Settings) != 1 {
+		return trace.BadParameter("unknown plugin settings count")
+	}
+
+	if len(unknownPlugin.Credentials.Credentials) == 1 {
+		p.PluginV1.Credentials = &types.PluginCredentialsV1{}
+		for k := range unknownPlugin.Credentials.Credentials {
+			switch k {
+			case credOauth2AccessToken:
+				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_Oauth2AccessToken{}
+			case credBearerToken:
+				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_BearerToken{}
+			case credIdSecret:
+				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_IdSecret{}
+			case credStaticCredentialsRef:
+				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_StaticCredentialsRef{}
+			default:
+				return trace.BadParameter("unsupported plugin credential type: %v", k)
+			}
+		}
+	}
+
+	for k := range unknownPlugin.Spec.Settings {
+		switch k {
+		case settingsSlackAccessPlugin:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_SlackAccessPlugin{}
+		case settingsOpsgenie:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Opsgenie{}
+		case settingsOpenAI:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Openai{}
+		case settingsOkta:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Okta{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_Okta{}
+		case settingsJamf:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Jamf{}
+		case settingsPagerDuty:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_PagerDuty{}
+		case settingsMattermost:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Mattermost{}
+		case settingsJira:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Jira{}
+		case settingsDiscord:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Discord{}
+		case settingsServiceNow:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_ServiceNow{}
+		case settingsGitlab:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Gitlab{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_Gitlab{}
+		case settingsEntraID:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_EntraId{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_EntraId{}
+		case settingsDatadogIncidentManagement:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Datadog{}
+		case settingsEmailAccessPlugin:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Email{}
+		case settingsAWSIdentityCenter:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_AwsIc{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_AwsIc{}
+		case settingsNetIQ:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_NetIq{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_NetIq{}
+
+		default:
+			return trace.BadParameter("unsupported plugin type: %v", k)
+		}
+	}
+
+	if err := json.Unmarshal(data, &p.PluginV1); err != nil {
+		return err
+	}
+	return nil
+}
 func (rc *ResourceCommand) updatePlugin(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	item := pluginResourceWrapper{PluginV1: types.PluginV1{}}
 	if err := utils.FastUnmarshal(raw.Raw, &item); err != nil {
@@ -4100,13 +4231,13 @@ func (rc *ResourceCommand) createPlugin(ctx context.Context, client *authclient.
 	return nil
 }
 
-func (rc *ResourceCommand) getPlugin(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getPlugin(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		plugin, err := client.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: rc.ref.Name})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &pluginCollection{plugins: []types.Plugin{plugin}}, nil
+		return collections.NewPluginCollection([]types.Plugin{plugin}), nil
 	}
 	var plugins []types.Plugin
 	startKey := ""
@@ -4127,7 +4258,7 @@ func (rc *ResourceCommand) getPlugin(ctx context.Context, client *authclient.Cli
 		}
 		startKey = resp.NextKey
 	}
-	return &pluginCollection{plugins: plugins}, nil
+	return collections.NewPluginCollection(plugins), nil
 }
 
 func (rc *ResourceCommand) upsertAccessGraphSettings(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -4203,12 +4334,12 @@ func (rc *ResourceCommand) updateAutoUpdateConfig(ctx context.Context, client *a
 	return nil
 }
 
-func (rc *ResourceCommand) getAutoUpdateConfig(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getAutoUpdateConfig(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	config, err := client.GetAutoUpdateConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &autoUpdateConfigCollection{config}, nil
+	return collections.NewAutoUpdateConfigCollection(config), nil
 }
 
 func (rc *ResourceCommand) createAutoUpdateVersion(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -4257,12 +4388,12 @@ func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *
 	return nil
 }
 
-func (rc *ResourceCommand) getAutoUpdateVersion(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getAutoUpdateVersion(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	version, err := client.GetAutoUpdateVersion(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &autoUpdateVersionCollection{version}, nil
+	return collections.NewAutoUpdateVersionCollection(version), nil
 }
 
 func (rc *ResourceCommand) createAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -4291,12 +4422,12 @@ func (rc *ResourceCommand) createAutoUpdateAgentRollout(ctx context.Context, cli
 	return nil
 }
 
-func (rc *ResourceCommand) getAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	version, err := client.GetAutoUpdateAgentRollout(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &autoUpdateAgentRolloutCollection{version}, nil
+	return collections.NewAutoUpdateAgentRolloutCollection(version), nil
 }
 
 func (rc *ResourceCommand) upsertAutoUpdateAgentReport(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -4314,13 +4445,13 @@ func (rc *ResourceCommand) upsertAutoUpdateAgentReport(ctx context.Context, clie
 	return nil
 }
 
-func (rc *ResourceCommand) getAutoUpdateAgentReport(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getAutoUpdateAgentReport(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		report, err := client.GetAutoUpdateAgentReport(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &autoUpdateAgentReportCollection{reports: []*autoupdatev1pb.AutoUpdateAgentReport{report}}, nil
+		return collections.NewAutoUpdateAgentReportCollection([]*autoupdatev1pb.AutoUpdateAgentReport{report}), nil
 	}
 
 	var reports []*autoupdatev1pb.AutoUpdateAgentReport
@@ -4336,7 +4467,7 @@ func (rc *ResourceCommand) getAutoUpdateAgentReport(ctx context.Context, client 
 		}
 		nextToken = token
 	}
-	return &autoUpdateAgentReportCollection{reports: reports}, nil
+	return collections.NewAutoUpdateAgentReportCollection(reports), nil
 }
 
 func (rc *ResourceCommand) updateAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -4376,7 +4507,7 @@ func (rc *ResourceCommand) createGitServer(ctx context.Context, client *authclie
 	return nil
 }
 
-func (rc *ResourceCommand) getGitServer(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getGitServer(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	var page, servers []types.Server
 
 	// TODO(greedy52) use unified resource request once available.
@@ -4385,7 +4516,7 @@ func (rc *ResourceCommand) getGitServer(ctx context.Context, client *authclient.
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &serverCollection{servers: append(servers, server)}, nil
+		return collections.NewServerCollection([]types.Server{server}), nil
 	}
 	var err error
 	var token string
@@ -4400,7 +4531,7 @@ func (rc *ResourceCommand) getGitServer(ctx context.Context, client *authclient.
 		}
 	}
 	// TODO(greedy52) consider making dedicated git server collection.
-	return &serverCollection{servers: servers}, nil
+	return collections.NewServerCollection(servers), nil
 }
 
 func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {

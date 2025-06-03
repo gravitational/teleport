@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package resource
 
 import (
 	"context"
 	"fmt"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-
+	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -65,15 +65,13 @@ func (rc *ResourceCommand) deleteHealthCheckConfig(ctx context.Context, clt *aut
 	return nil
 }
 
-func (rc *ResourceCommand) getHealthCheckConfig(ctx context.Context, client *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getHealthCheckConfig(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		cfg, err := client.GetHealthCheckConfig(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &healthCheckConfigCollection{
-			items: []*healthcheckconfigv1.HealthCheckConfig{cfg},
-		}, nil
+		return collections.NewHealthCheckConfigCollection([]*healthcheckconfigv1.HealthCheckConfig{cfg}), nil
 	}
 	var items []*healthcheckconfigv1.HealthCheckConfig
 	var token string
@@ -88,7 +86,5 @@ func (rc *ResourceCommand) getHealthCheckConfig(ctx context.Context, client *aut
 			break
 		}
 	}
-	return &healthCheckConfigCollection{
-		items: items,
-	}, nil
+	return collections.NewHealthCheckConfigCollection(items), nil
 }

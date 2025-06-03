@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 	"io"
 	"log/slog"
 	"net/url"
@@ -477,17 +478,17 @@ func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI authComman
 		return trace.Wrap(err)
 	}
 
-	sc := &serverCollection{servers}
+	sc := collections.NewServerCollection(servers)
 
 	switch a.format {
 	case teleport.Text:
 		// auth servers don't have labels.
-		verbose := false
-		return sc.writeText(os.Stdout, verbose)
+		const verbose = false
+		return sc.WriteText(os.Stdout, verbose)
 	case teleport.YAML:
-		return writeYAML(sc, os.Stdout)
+		return collections.WriteYAML(sc, os.Stdout)
 	case teleport.JSON:
-		return writeJSON(sc, os.Stdout)
+		return collections.WriteJSON(sc, os.Stdout)
 	}
 
 	return nil

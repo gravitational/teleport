@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 	"log/slog"
 	"os"
 	"strings"
@@ -258,18 +259,18 @@ func (c *NodeCommand) ListActive(ctx context.Context, clt *authclient.Client) er
 		return trace.Wrap(err)
 	}
 
-	coll := &serverCollection{servers: nodes}
+	coll := collections.NewServerCollection(nodes)
 	switch c.lsFormat {
 	case teleport.Text:
-		if err := coll.writeText(os.Stdout, c.verbose); err != nil {
+		if err := coll.WriteText(os.Stdout, c.verbose); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.YAML:
-		if err := coll.writeYAML(os.Stdout); err != nil {
+		if err := collections.WriteYAML(coll, os.Stdout); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.JSON:
-		if err := coll.writeJSON(os.Stdout); err != nil {
+		if err := collections.WriteJSON(coll, os.Stdout); err != nil {
 			return trace.Wrap(err)
 		}
 	default:

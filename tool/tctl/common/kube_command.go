@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 	"os"
 	"text/template"
 
@@ -108,14 +109,14 @@ func (c *KubeCommand) ListKube(ctx context.Context, clt *authclient.Client) erro
 		return trace.Wrap(err)
 	}
 
-	coll := &kubeServerCollection{servers: kubes}
+	coll := collections.NewKubeServerCollection(kubes)
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))
+		return trace.Wrap(coll.WriteText(os.Stdout, c.verbose))
 	case teleport.JSON:
-		return trace.Wrap(coll.writeJSON(os.Stdout))
+		return trace.Wrap(collections.WriteJSON(coll, os.Stdout))
 	case teleport.YAML:
-		return trace.Wrap(coll.writeYAML(os.Stdout))
+		return trace.Wrap(collections.WriteYAML(coll, os.Stdout))
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}

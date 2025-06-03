@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -57,17 +58,17 @@ func (p *ProxyCommand) ListProxies(ctx context.Context, clusterAPI *authclient.C
 		return trace.Wrap(err)
 	}
 
-	sc := &serverCollection{proxies}
+	sc := collections.NewServerCollection(proxies)
 
 	switch p.format {
 	case teleport.Text:
 		// proxies don't have labels.
 		verbose := false
-		return sc.writeText(os.Stdout, verbose)
+		return sc.WriteText(os.Stdout, verbose)
 	case teleport.YAML:
-		return writeYAML(sc, os.Stdout)
+		return collections.WriteYAML(sc, os.Stdout)
 	case teleport.JSON:
-		return writeJSON(sc, os.Stdout)
+		return collections.WriteJSON(sc, os.Stdout)
 	}
 
 	return nil
