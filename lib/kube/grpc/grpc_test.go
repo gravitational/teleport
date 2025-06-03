@@ -1,4 +1,4 @@
-package grpc
+package kubev1
 
 import "testing"
 

@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/backend/kubernetes"
-	"github.com/gravitational/teleport/lib/backend/lite"
 )
 
 // NewProcessStorage returns a new instance of the process storage.
@@ -35,18 +34,9 @@ func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error
 		return nil, trace.BadParameter("missing parameter path")
 	}
 
-	litebk, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:      path,
-		EventsOff: true,
-		Sync:      lite.SyncFull,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// identityStorage holds the storage backend for identity and state.
-	// if the agent is running in Kubernetes it's replaced by kubernetes secret storage
-	var identityStorage stateBackend = litebk
+	// if the agent is running in Kubernetes it's replaced by kubernetes secret
+	var identityStorage stateBackend
 
 	// if running in a K8S cluster and required env vars are available
 	// the agent will automatically switch state storage from local
@@ -60,5 +50,5 @@ func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error
 		identityStorage = kubeStorage
 	}
 
-	return &ProcessStorage{BackendStorage: litebk, stateStorage: identityStorage}, nil
+	return &ProcessStorage{BackendStorage: nil, stateStorage: identityStorage}, nil
 }

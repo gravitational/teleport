@@ -103,7 +103,7 @@ import (
 	_ "github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/backend/kubernetes"
-	_ "github.com/gravitational/teleport/lib/backend/lite"
+
 	_ "github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
@@ -163,7 +163,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/system"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
@@ -994,7 +993,6 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	var err error
 
 	// Before we do anything reset the SIGINT handler back to the default.
-	system.ResetInterruptSignalHandler()
 
 	// Validate the config before accessing it.
 	if err := servicecfg.ValidateConfig(cfg); err != nil {

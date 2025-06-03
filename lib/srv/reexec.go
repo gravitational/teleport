@@ -45,11 +45,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auditd"
-	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/selinux"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/shell"
-	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -300,39 +296,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		// Connect std{in,out,err} to the TTY if it's a shell request, otherwise
 		// discard std{out,err}. If this was not done, things like MOTD would be
 		// printed for "exec" requests.
-		var stdin io.Reader
-		var stdout io.Writer
-		var stderr io.Writer
-		if c.RequestType == sshutils.ShellRequest {
-			stdin = tty
-			stdout = tty
-			stderr = tty
-		} else {
-			stdin = os.Stdin
-			stdout = io.Discard
-			stderr = io.Discard
-		}
-
-		// Open the PAM context.
-		pamContext, err := pam.Open(&servicecfg.PAMConfig{
-			ServiceName: c.PAMConfig.ServiceName,
-			UsePAMAuth:  c.PAMConfig.UsePAMAuth,
-			Login:       c.Login,
-			// Set Teleport specific environment variables that PAM modules
-			// like pam_script.so can pick up to potentially customize the
-			// account/session.
-			Env:    c.PAMConfig.Environment,
-			Stdin:  stdin,
-			Stdout: stdout,
-			Stderr: stderr,
-		})
-		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-		defer pamContext.Close()
-
-		// Save off any environment variables that come from PAM.
-		pamEnvironment = pamContext.Environment()
 	}
 
 	// Set SELinux context for the child process if SELinux support is
@@ -365,28 +328,11 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}
 	readyfd = nil
 
-	localUser, err := user.Lookup(c.Login)
-	if err != nil {
-		if uaccErr := uacc.LogFailedLogin(c.UaccMetadata.BtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr); uaccErr != nil {
-			slog.DebugContext(ctx, "uacc unsupported", "error", uaccErr)
-		}
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-	}
-
 	if c.Terminal {
-		err = uacc.Open(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr, tty)
-		// uacc support is best-effort, only enable it if Open is successful.
-		// Currently, there is no way to log this error out-of-band with the
-		// command output, so for now we essentially ignore it.
-		if err == nil {
-			uaccEnabled = true
-		} else {
-			slog.DebugContext(ctx, "uacc unsupported", "error", err)
-		}
 	}
 
 	// Build the actual command that will launch the shell.
-	cmd, err := buildCommand(&c, localUser, tty, pamEnvironment)
+	cmd, err := buildCommand(&c, nil, tty, pamEnvironment)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -410,7 +356,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		err := osPack.startNewParker(
 			parkerCtx,
 			cmd.SysProcAttr.Credential,
-			c.Login, &systemUser{u: localUser})
+			c.Login, &systemUser{u: nil})
 		if err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
@@ -430,10 +376,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	err = waitForShell(terminatefd, cmd)
 
 	if uaccEnabled {
-		uaccErr := uacc.Close(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, tty)
-		if uaccErr != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(uaccErr)
-		}
 	}
 
 	return errorWriter, exitCode(err), trace.Wrap(err)
@@ -602,24 +544,6 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	// networking requests.
 	var pamEnvironment []string
 	if c.PAMConfig != nil {
-		// Open the PAM context.
-		pamContext, err := pam.Open(&servicecfg.PAMConfig{
-			ServiceName: c.PAMConfig.ServiceName,
-			Login:       c.Login,
-			Stdin:       os.Stdin,
-			Stdout:      io.Discard,
-			Stderr:      io.Discard,
-			// Set Teleport specific environment variables that PAM modules
-			// like pam_script.so can pick up to potentially customize the
-			// account/session.
-			Env: c.PAMConfig.Environment,
-		})
-		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-		defer pamContext.Close()
-
-		pamEnvironment = pamContext.Environment()
 	}
 
 	// Once the PAM stack is called with parent process permissions, set the process uid
@@ -1038,10 +962,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	isReexec := false
 
 	// Get the login shell for the user (or fallback to the default).
-	shellPath, err := shell.GetLoginShell(c.Login)
-	if err != nil {
-		slog.DebugContext(context.Background(), "Failed to get login shell", "login", c.Login, "error", err)
-	}
+	shellPath := "/bin/sh"
 	if c.IsTestStub {
 		shellPath = "/bin/sh"
 	}

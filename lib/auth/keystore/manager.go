@@ -238,12 +238,6 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 
 	switch {
 	case cfg.PKCS11 != (servicecfg.PKCS11Config{}):
-		pkcs11Backend, err := newPKCS11KeyStore(&cfg.PKCS11, opts)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		backendForNewKeys = pkcs11Backend
-		usableBackends = []backend{pkcs11Backend, softwareBackend}
 	case cfg.GCPKMS != (servicecfg.GCPKMSConfig{}):
 		gcpBackend, err := newGCPKMSKeyStore(ctx, &cfg.GCPKMS, opts)
 		if err != nil {
@@ -812,9 +806,6 @@ func (m *Manager) UsingHSMOrKMS() bool {
 
 // keyType returns the type of the given private key.
 func keyType(key []byte) types.PrivateKeyType {
-	if bytes.HasPrefix(key, pkcs11Prefix) {
-		return types.PrivateKeyType_PKCS11
-	}
 	if bytes.HasPrefix(key, []byte(gcpkmsPrefix)) {
 		return types.PrivateKeyType_GCP_KMS
 	}
@@ -826,12 +817,6 @@ func keyType(key []byte) types.PrivateKeyType {
 
 func keyDescription(key []byte) (string, error) {
 	switch keyType(key) {
-	case types.PrivateKeyType_PKCS11:
-		keyID, err := parsePKCS11KeyID(key)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		return "PKCS#11 HSM keys created by " + keyID.HostID, nil
 	case types.PrivateKeyType_GCP_KMS:
 		keyID, err := parseGCPKMSKeyID(key)
 		if err != nil {

@@ -45,10 +45,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
-var (
-	// ErrUnsupportedPlatform is returned when the operating system is not supported.
-	ErrUnsupportedPlatform = errors.New("unsupported platform")
-)
+// ErrUnsupportedPlatform is returned when the operating system is not supported.
+var ErrUnsupportedPlatform = errors.New("unsupported platform")
 
 // Watcher watches for changes to authorized_keys files
 // and reports them to the cluster. If the cluster does not have
@@ -92,7 +90,6 @@ type WatcherConfig struct {
 // NewWatcher creates a new Watcher instance.
 // Returns [ErrUnsupportedPlatform] if the operating system is not supported.
 func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
-
 	switch platform := getOS(config); platform {
 	case constants.LinuxOS, constants.DarwinOS:
 	default:
@@ -112,7 +109,6 @@ func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 		config.Clock = clockwork.NewRealClock()
 	}
 	if config.getHostUsers == nil {
-		config.getHostUsers = getHostUsers
 	}
 
 	w := &Watcher{
@@ -305,7 +301,6 @@ func (w *Watcher) fetchAndReportAuthorizedKeys(
 	fileWatcher *fsnotify.Watcher,
 	requiresReportToExtendTTL bool,
 ) (reported bool, returnErr error) {
-
 	// fetchAuthorizedKeys fetches the authorized keys from the system.
 	keys, err := w.fetchAuthorizedKeys(ctx, fileWatcher)
 	if err != nil {

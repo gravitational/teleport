@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -589,7 +588,7 @@ func ApplyDefaults(cfg *Config) {
 	// Auth service defaults.
 	cfg.Auth.Enabled = true
 	cfg.Auth.ListenAddr = *defaults.AuthListenAddr()
-	cfg.Auth.StorageConfig.Type = lite.GetName()
+
 	cfg.Auth.StorageConfig.Params = make(backend.Params)
 	cfg.Auth.StaticTokens = types.DefaultStaticTokens()
 	cfg.Auth.AuditConfig = types.DefaultClusterAuditConfig()

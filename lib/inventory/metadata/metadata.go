@@ -144,9 +144,7 @@ func (c *fetchConfig) setDefaults() {
 func (c *fetchConfig) fetch(ctx context.Context) *Metadata {
 	metadata := &Metadata{
 		OS:                    c.fetchOS(),
-		OSVersion:             c.fetchOSVersion(),
 		HostArchitecture:      c.fetchHostArchitecture(),
-		GlibcVersion:          c.fetchGlibcVersion(),
 		InstallMethods:        c.fetchInstallMethods(),
 		ContainerRuntime:      c.fetchContainerRuntime(),
 		ContainerOrchestrator: c.fetchContainerOrchestrator(ctx),

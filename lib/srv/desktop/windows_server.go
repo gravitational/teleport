@@ -842,11 +842,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		return trace.Wrap(err)
 	}
 
-	addr, err := utils.ParseHostPortAddr(desktop.GetAddr(), defaults.RDPListenPort)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	sessionID := session.NewID()
 	log = log.With("session_id", sessionID)
 
@@ -873,14 +868,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	authorize := func(login string) error {
-		state := authCtx.GetAccessState(authPref)
-		return authCtx.Checker.CheckAccess(
-			desktop,
-			state,
-			services.NewWindowsLoginMatcher(login))
-	}
-
 	recorder, err := s.newSessionRecorder(recConfig, string(sessionID))
 	if err != nil {
 		return trace.Wrap(err)
@@ -903,13 +890,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	// specifying the username (we'll update it soon as we have it).
 	audit := s.newSessionAuditor(string(sessionID), &identity, "", desktop)
 
-	groups, err := authCtx.Checker.DesktopGroups(desktop)
-	if err != nil && !trace.IsAccessDenied(err) {
-		startEvent := audit.makeSessionStart(err)
-		s.record(ctx, recorder, startEvent)
-		s.emit(ctx, startEvent)
-		return trace.Wrap(err)
-	}
 	createUsers := err == nil
 
 	// it's important that we set the OnSend and OnRecv handlers prior to
@@ -949,35 +929,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	log = log.With("kdc_addr", kdcAddr, "nla", nla)
 	log.InfoContext(context.Background(), "initiating RDP client")
 
-	//nolint:staticcheck // SA4023. False positive, depends on build tags.
-	rdpc, err := rdpclient.New(rdpclient.Config{
-		LicenseStore: s.cfg.LicenseStore,
-		HostID:       s.cfg.Heartbeat.HostUUID,
-		Logger:       log,
-		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
-			return s.generateUserCert(ctx, username, ttl, desktop, createUsers, groups)
-		},
-		CertTTL:               windowsUserCertTTL,
-		Addr:                  addr.String(),
-		ComputerName:          computerName,
-		KDCAddr:               kdcAddr,
-		Conn:                  tdpConn,
-		AuthorizeFn:           authorize,
-		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
-		AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing(),
-		ShowDesktopWallpaper:  s.cfg.ShowDesktopWallpaper,
-		Width:                 width,
-		Height:                height,
-		AD:                    !desktop.NonAD(),
-		NLA:                   nla,
-	})
 	// before we check the error above, we grab the Windows user so that
 	// future audit events include the proper username
 	var windowsUser string
-	if rdpc != nil {
-		windowsUser = rdpc.GetClientUsername()
-		audit.windowsUser = windowsUser
-	}
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	if err != nil {
 		startEvent := audit.makeSessionStart(err)
@@ -1002,7 +956,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		LockWatcher:           s.cfg.LockWatcher,
 		LockingMode:           authCtx.Checker.LockingMode(authPref.GetLockingMode()),
 		LockTargets:           append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{WindowsDesktop: desktop.GetName()}),
-		Tracker:               rdpc,
 		TeleportUser:          identity.Username,
 		ServerID:              s.cfg.Heartbeat.HostUUID,
 		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
@@ -1013,7 +966,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	// be doubly sure that the client isn't disconnected
 	// due to an idle timeout before its had the chance to
 	// call StartAndWait()
-	rdpc.UpdateClientActivity()
 	if err := srv.StartMonitor(monitorCfg); err != nil {
 		// if we can't establish a connection monitor then we can't enforce RBAC.
 		// consider this a connection failure and return an error
@@ -1029,8 +981,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 
 	s.record(ctx, recorder, startEvent)
 	s.emit(ctx, startEvent)
-
-	err = rdpc.Run(ctx)
 
 	// ctx may have been canceled, so emit with a separate context
 	endEvent := audit.makeSessionEnd(recordSession)

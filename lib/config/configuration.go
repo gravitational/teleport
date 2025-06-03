@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -63,7 +62,6 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -552,14 +550,14 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// If a backend is specified, override the defaults.
 	if fc.Storage.Type != "" {
 		// If the alternative name "dir" is given, update it to "lite".
-		if fc.Storage.Type == lite.AlternativeName {
-			fc.Storage.Type = lite.GetName()
+		if fc.Storage.Type == "" {
+			fc.Storage.Type = ""
 		}
 
 		cfg.Auth.StorageConfig = fc.Storage
 		// backend is specified, but no path is set, set a reasonable default
 		_, pathSet := cfg.Auth.StorageConfig.Params[defaults.BackendPath]
-		if cfg.Auth.StorageConfig.Type == lite.GetName() && !pathSet {
+		if cfg.Auth.StorageConfig.Type == "" && !pathSet {
 			if cfg.Auth.StorageConfig.Params == nil {
 				cfg.Auth.StorageConfig.Params = make(backend.Params)
 			}
@@ -1433,14 +1431,14 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 		// If PAM is enabled, make sure that Teleport was built with PAM support
 		// and the PAM library was found at runtime.
 		if cfg.SSH.PAM.Enabled {
-			if !pam.BuildHasPAM() {
+			if false {
 				const errorMessage = "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
 					"Teleport binary was built without PAM support. To continue either download a \n" +
 					"Teleport binary build with PAM support from https://goteleport.com/teleport \n" +
 					"or disable PAM in file configuration."
 				return trace.BadParameter("%s", errorMessage)
 			}
-			if !pam.SystemHasPAM() {
+			if true {
 				const errorMessage = "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
 					"system does not have the needed PAM library installed. To continue either \n" +
 					"install libpam or disable PAM in file configuration."

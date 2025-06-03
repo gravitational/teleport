@@ -21,6 +21,7 @@ package srv
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -39,7 +40,6 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -68,7 +68,9 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	ctx, cancel := context.WithCancel(context.Background())
 	recConfig := types.DefaultSessionRecordingConfig()
 	recConfig.SetMode(types.RecordOff)
-	clusterName := "localhost"
+	clusterName := "localhost1"
+	fmt.Printf("<<<<123234<")
+	fmt.Println(recConfig)
 	_, connCtx := sshutils.NewConnectionContext(ctx, nil, &ssh.ServerConn{Conn: sshConn})
 	scx := &ServerContext{
 		Logger:                 utils.NewSlogLoggerForTests(),
@@ -118,14 +120,7 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 }
 
 func newMockServer(t *testing.T) *mockServer {
-	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
-
-	bk, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
-		Clock: clock,
-	})
-	require.NoError(t, err)
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "localhost",
@@ -137,11 +132,9 @@ func newMockServer(t *testing.T) *mockServer {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, bk.Close())
 	})
-
+	fmt.Printf("OK2")
 	authCfg := &auth.InitConfig{
-		Backend:        bk,
 		VersionStorage: auth.NewFakeTeleportVersion(),
 		Authority:      testauthority.New(),
 		ClusterName:    clusterName,
