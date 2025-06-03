@@ -129,10 +129,10 @@ func (a *Server) UpsertBoundKeypairToken(ctx context.Context, token types.Provis
 // response.
 func (a *Server) issueBoundKeypairChallenge(
 	ctx context.Context,
-	marshalledKey string,
+	marshaledKey string,
 	challengeResponse client.RegisterUsingBoundKeypairChallengeResponseFunc,
 ) error {
-	key, err := libsshutils.CryptoPublicKey([]byte(marshalledKey))
+	key, err := libsshutils.CryptoPublicKey([]byte(marshaledKey))
 	if err != nil {
 		return trace.Wrap(err, "parsing bound public key")
 	}
@@ -171,7 +171,7 @@ func (a *Server) issueBoundKeypairChallenge(
 	response, err := challengeResponse(&proto.RegisterUsingBoundKeypairMethodResponse{
 		Response: &proto.RegisterUsingBoundKeypairMethodResponse_Challenge{
 			Challenge: &proto.RegisterUsingBoundKeypairChallenge{
-				PublicKey: marshalledKey,
+				PublicKey: marshaledKey,
 				Challenge: string(marshalledChallenge),
 			},
 		},
@@ -567,7 +567,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 
 		if err := a.issueBoundKeypairChallenge(
 			ctx,
-			spec.Onboarding.InitialPublicKey,
+			status.BoundPublicKey,
 			challengeResponse,
 		); err != nil {
 			return nil, trace.Wrap(err)
