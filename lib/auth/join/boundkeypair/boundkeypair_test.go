@@ -83,7 +83,6 @@ func TestClientState(t *testing.T) {
 		require.NoError(t, err)
 
 		// Similarly, the previous key should still be accessible.
-		t.Logf("prevKey: %s", string(prevKey))
 		_, err = state.SignerForPublicKey(prevKey)
 		require.NoError(t, err)
 
