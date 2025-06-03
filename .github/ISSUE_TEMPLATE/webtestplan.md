@@ -1144,7 +1144,10 @@ Add the following to enable read access to trusted clusters
     (set `require_session_mfa: hardware_key_touch_and_pin` to get both touch and PIN prompts).
   - [ ] Log in. Verify that you were asked for both PIN and touch.
   - [ ] Connect to a database. Verify you were prompted for touch (a PIN prompt can appear too).
-  - [ ] Change the PIN (leave the PIV PIN field empty during login to access this flow).
+  - [ ] Change the default PIN and PUK (leave the PIV PIN field empty during login to access this flow)
+    - To change the default PIN and PUK, you need to reset them to the default values. Open YubiKey
+      Manager, then Applications -> PIV, then "Reset PIV". Make sure you're picking _"Reset PIV"_
+      and not "Reset FIDO", as "Reset FIDO" will wipe all passkeys from your YubiKey!
   - [ ] Close the app, disconnect the YubiKey, then reopen the app. Verify the app shows an error about the missing key.
   - Verify that all items from this section work on:
     - [ ] macOS
