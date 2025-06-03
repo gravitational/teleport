@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//go:build linux || darwin
+
 package dns
 
 import (
@@ -22,13 +24,10 @@ import (
 	"log/slog"
 	"net/netip"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/gravitational/trace"
-)
-
-const (
-	confFilePath = "/etc/resolv.conf"
 )
 
 // platformLoadUpstreamNameservers reads the OS DNS nameservers found in
@@ -38,6 +37,15 @@ const (
 // easiest place to read them. Eventually we should probably use a better
 // method, but for now this works.
 func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
+	var confFilePath string
+	switch runtime.GOOS {
+	case "darwin":
+		confFilePath = "/etc/resolv.conf"
+	case "linux":
+		confFilePath = "/run/systemd/resolve/resolv.conf"
+	default:
+		return nil, trace.NotImplemented("unsupported os %s", runtime.GOOS)
+	}
 	f, err := os.Open(confFilePath)
 	if err != nil {
 		return nil, trace.Wrap(err, "opening %s", confFilePath)
