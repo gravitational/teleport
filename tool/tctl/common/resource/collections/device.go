@@ -1,13 +1,15 @@
 package collections
 
 import (
+	"io"
+	"time"
+
+	"github.com/gravitational/trace"
+
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/devicetrust"
-	"github.com/gravitational/trace"
-	"io"
-	"time"
 )
 
 type deviceCollection struct {

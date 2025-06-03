@@ -1,12 +1,14 @@
 package collections
 
 import (
+	"io"
+
+	"github.com/gravitational/trace"
+
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/tool/common"
-	"github.com/gravitational/trace"
-	"io"
 )
 
 type userTaskCollection struct {

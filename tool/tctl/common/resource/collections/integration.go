@@ -2,12 +2,14 @@ package collections
 
 import (
 	"fmt"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/trace"
 	"io"
 	"sort"
 	"strings"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/asciitable"
 )
 
 type integrationCollection struct {

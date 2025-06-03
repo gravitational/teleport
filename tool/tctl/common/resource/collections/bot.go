@@ -1,12 +1,14 @@
 package collections
 
 import (
+	"io"
+	"strings"
+
+	"github.com/gravitational/trace"
+
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/trace"
-	"io"
-	"strings"
 )
 
 func NewBotCollection(bots []*machineidv1pb.Bot) ResourceCollection {

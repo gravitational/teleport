@@ -1,9 +1,11 @@
 package collections
 
 import (
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
 	"io"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 type tokenCollection struct {

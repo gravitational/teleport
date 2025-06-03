@@ -1,11 +1,13 @@
 package collections
 
 import (
+	"io"
+
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/trace"
-	"io"
 )
 
 type externalAuditStorageCollection struct {

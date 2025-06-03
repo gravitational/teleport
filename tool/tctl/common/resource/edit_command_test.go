@@ -20,7 +20,6 @@ package resource
 
 import (
 	"context"
-	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 	"os"
 	"testing"
 
@@ -43,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 

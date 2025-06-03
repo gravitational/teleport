@@ -2,13 +2,15 @@ package collections
 
 import (
 	"fmt"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/trace"
 	"io"
 	"strconv"
 	"time"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/asciitable"
 )
 
 type trustedClusterCollection struct {

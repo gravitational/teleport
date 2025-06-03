@@ -24,7 +24,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"github.com/gravitational/teleport/tool/tctl/common/resource"
 	"io"
 	"os"
 	"path/filepath"
@@ -49,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/resource"
 )
 
 type options struct {

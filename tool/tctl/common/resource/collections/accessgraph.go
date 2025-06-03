@@ -1,13 +1,15 @@
 package collections
 
 import (
+	"io"
+
+	"github.com/gravitational/trace"
+
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/tool/common"
 	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
-	"github.com/gravitational/trace"
-	"io"
 )
 
 func NewAccessGraphSettingsCollection(settings *clusterconfigrec.AccessGraphSettings) ResourceCollection {

@@ -1,12 +1,14 @@
 package collections
 
 import (
+	"io"
+
+	"github.com/gravitational/trace"
+
 	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/tool/common"
-	"github.com/gravitational/trace"
-	"io"
 )
 
 func NewAccessMonitoringRuleCollection(items []*accessmonitoringrulesv1pb.AccessMonitoringRule) ResourceCollection {

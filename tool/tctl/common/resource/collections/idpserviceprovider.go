@@ -1,10 +1,12 @@
 package collections
 
 import (
+	"io"
+
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/trace"
-	"io"
 )
 
 //nolint:revive // Because we want this to be IdP.

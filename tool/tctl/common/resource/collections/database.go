@@ -2,6 +2,11 @@ package collections
 
 import (
 	"fmt"
+	"io"
+	"strings"
+
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/defaults"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
@@ -13,9 +18,6 @@ import (
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
-	"github.com/gravitational/trace"
-	"io"
-	"strings"
 )
 
 func NewDatabaseServerCollection(servers []types.DatabaseServer) ResourceCollection {

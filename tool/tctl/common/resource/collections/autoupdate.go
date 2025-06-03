@@ -2,14 +2,16 @@ package collections
 
 import (
 	"fmt"
-	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/trace"
 	"io"
 	"maps"
 	"slices"
 	"strconv"
+
+	"github.com/gravitational/trace"
+
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/asciitable"
 )
 
 func NewAutoUpdateConfigCollection(config *autoupdatev1pb.AutoUpdateConfig) ResourceCollection {

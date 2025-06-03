@@ -22,7 +22,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 	"io"
 	"log/slog"
 	"os"
@@ -47,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
 var mdmTokenAddTemplate = template.Must(

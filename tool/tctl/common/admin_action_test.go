@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/x509/pkix"
 	"fmt"
-	"github.com/gravitational/teleport/tool/tctl/common/resource"
 	"os"
 	"path/filepath"
 	"strings"
@@ -60,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/hostid"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/resource"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 	tsh "github.com/gravitational/teleport/tool/tsh/common"
 )

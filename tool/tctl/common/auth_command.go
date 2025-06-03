@@ -21,7 +21,6 @@ package common
 import (
 	"context"
 	"fmt"
-	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 	"io"
 	"log/slog"
 	"net/url"
@@ -54,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/winpki"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
 // authCommandClient is aggregated client interface for auth command.

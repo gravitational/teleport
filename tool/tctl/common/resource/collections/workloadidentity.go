@@ -1,13 +1,15 @@
 package collections
 
 import (
+	"io"
+	"time"
+
+	"github.com/gravitational/trace"
+
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/trace"
-	"io"
-	"time"
 )
 
 type spiffeFederationCollection struct {
