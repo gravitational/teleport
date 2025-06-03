@@ -239,6 +239,11 @@ func (c *ClientState) GenerateKeypair(ctx context.Context, getSuite cryptosuites
 		PrivateKey: string(privateKeyBytes),
 	}}, c.KeyHistory...)
 
+	// Trim if necessary.
+	if len(c.KeyHistory) > KeyHistoryLength {
+		c.KeyHistory = c.KeyHistory[:min(len(c.KeyHistory), KeyHistoryLength)]
+	}
+
 	sshPubKey, err := ssh.NewPublicKey(key.Public())
 	if err != nil {
 		return nil, trace.Wrap(err, "creating ssh public key")
