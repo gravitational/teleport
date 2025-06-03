@@ -102,6 +102,7 @@ export function AccessRequestCheckout() {
     onStartTimeChange,
     fetchKubeNamespaces,
     updateNamespacesForKubeCluster,
+    reasonPrompts,
   } = useAccessRequestCheckout();
 
   const isRoleRequest = pendingAccessRequests[0]?.kind === 'role';
@@ -179,6 +180,9 @@ export function AccessRequestCheckout() {
                         case 'kube_cluster':
                         case 'namespace':
                           resource.Icon = Icon.Kubernetes;
+                          break;
+                        case 'windows_desktop':
+                          resource.Icon = Icon.Desktop;
                           break;
                         case 'role':
                           break;
@@ -280,6 +284,7 @@ export function AccessRequestCheckout() {
             onStartTimeChange={onStartTimeChange}
             fetchKubeNamespaces={fetchKubeNamespaces}
             updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
+            reasonPrompts={reasonPrompts}
           />
         )}
       </Transition>
