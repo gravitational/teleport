@@ -21,6 +21,7 @@ package auth
 import (
 	"context"
 	"crypto"
+	"crypto/subtle"
 	"encoding/json"
 	"time"
 
@@ -31,8 +32,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/boundkeypair/boundkeypairexperiment"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type boundKeypairValidator interface {
@@ -61,9 +64,58 @@ func validateBoundKeypairTokenSpec(spec *types.ProvisionTokenSpecV2BoundKeypair)
 	}
 
 	if spec.Recovery == nil {
-		return trace.BadParameter("spec.recovery: field is required")
+		return trace.BadParameter("spec.bound_keypair.recovery: field is required")
 	}
 
+	return nil
+}
+
+// populateRegistrationSecret populates the
+// `status.BoundKeypair.RegistrationSecret` field of a bound keypair token. It
+// should be called as part of any token creation or update to ensure the
+// registration secret is made available if needed.
+func populateRegistrationSecret(v2 *types.ProvisionTokenV2) error {
+	if v2.GetJoinMethod() != types.JoinMethodBoundKeypair {
+		return trace.BadParameter("must be called with a bound keypair token")
+	}
+
+	if v2.Spec.BoundKeypair == nil {
+		v2.Spec.BoundKeypair = &types.ProvisionTokenSpecV2BoundKeypair{}
+	}
+
+	if v2.Status == nil {
+		v2.Status = &types.ProvisionTokenStatusV2{}
+	}
+	if v2.Status.BoundKeypair == nil {
+		v2.Status.BoundKeypair = &types.ProvisionTokenStatusV2BoundKeypair{}
+	}
+
+	spec := v2.Spec.BoundKeypair
+	status := v2.Status.BoundKeypair
+
+	if status.BoundPublicKey != "" || spec.Onboarding.InitialPublicKey != "" {
+		// A key has already been bound or preregistered, nothing to do.
+		return nil
+	}
+
+	if status.RegistrationSecret != "" {
+		// A secret has already been generated, nothing to do.
+		return nil
+	}
+
+	if spec.Onboarding.RegistrationSecret != "" {
+		// An explicit registration secret was provided, so copy it to status.
+		status.RegistrationSecret = spec.Onboarding.RegistrationSecret
+		return nil
+	}
+
+	// Otherwise, we have no key and no secret, so generate one now.
+	s, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	status.RegistrationSecret = s
 	return nil
 }
 
@@ -91,7 +143,9 @@ func (a *Server) CreateBoundKeypairToken(ctx context.Context, token types.Provis
 	// stop that that wouldn't also break backup and restore. For now, it's
 	// simpler and easier to just tell users not to edit those fields.
 
-	// TODO (follow up PR): Populate initial_join_secret if needed.
+	if err := populateRegistrationSecret(tokenV2); err != nil {
+		return trace.Wrap(err)
+	}
 
 	return trace.Wrap(a.CreateToken(ctx, tokenV2))
 }
@@ -115,8 +169,9 @@ func (a *Server) UpsertBoundKeypairToken(ctx context.Context, token types.Provis
 		return trace.Wrap(err)
 	}
 
-	// TODO: Follow up with proper checking for a preexisting resource so
-	// generated fields are handled properly, i.e. initial secret generation.
+	if err := populateRegistrationSecret(tokenV2); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Implementation note: checkAndSetDefaults() impl for this token type is
 	// called at insertion time as part of `tokenToItem()`
@@ -297,11 +352,11 @@ func (a *Server) requestBoundKeypairRotation(
 // state is still sane before the update is committed.
 type boundKeypairStatusMutator func(*types.ProvisionTokenSpecV2BoundKeypair, *types.ProvisionTokenStatusV2BoundKeypair) error
 
-// mutateStatusConsumeJoin consumes a "hard" join on the backend, incrementing
+// mutateStatusConsumeRecovery consumes a "hard" join on the backend, incrementing
 // the recovery counter. This verifies that the backend recovery count has not
 // changed, and that total join count is at least the value when the mutator was
 // created.
-func mutateStatusConsumeJoin(mode boundkeypair.RecoveryMode, expectRecoveryCount uint32, expectMinRecoveryLimit uint32) boundKeypairStatusMutator {
+func mutateStatusConsumeRecovery(mode boundkeypair.RecoveryMode, expectRecoveryCount uint32, expectMinRecoveryLimit uint32) boundKeypairStatusMutator {
 	now := time.Now()
 
 	return func(spec *types.ProvisionTokenSpecV2BoundKeypair, status *types.ProvisionTokenStatusV2BoundKeypair) error {
@@ -372,6 +427,19 @@ func mutateStatusLastRotatedAt(newValue, expectPrevValue *time.Time) boundKeypai
 
 		status.LastRotatedAt = newValue
 
+		return nil
+	}
+}
+
+// mutateStatusClearRegistrationSecret clears the registration secret field to
+// prevent further join attempts using this secret.
+func mutateStatusClearRegistrationSecret(oldValue string) boundKeypairStatusMutator {
+	return func(_ *types.ProvisionTokenSpecV2BoundKeypair, status *types.ProvisionTokenStatusV2BoundKeypair) error {
+		if status.RegistrationSecret != oldValue {
+			return trace.AccessDenied("unexpected backend state")
+		}
+
+		status.RegistrationSecret = ""
 		return nil
 	}
 }
@@ -533,23 +601,63 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			return nil, trace.AccessDenied("no recovery attempts remaining")
 		}
 
-		if err := a.issueBoundKeypairChallenge(
-			ctx,
-			spec.Onboarding.InitialPublicKey,
-			challengeResponse,
-		); err != nil {
-			return nil, trace.Wrap(err)
+		if spec.Onboarding.InitialPublicKey != "" {
+			// An initial public key was configured, so we can immediately ask
+			// the client to complete a challenge.
+			if err := a.issueBoundKeypairChallenge(
+				ctx,
+				spec.Onboarding.InitialPublicKey,
+				challengeResponse,
+			); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// Now that we've confirmed the key, we can consider it bound.
+			mutators = append(
+				mutators,
+				mutateStatusBoundPublicKey(spec.Onboarding.InitialPublicKey, ""),
+			)
+
+			boundPublicKey = spec.Onboarding.InitialPublicKey
+		} else if status.RegistrationSecret != "" {
+			// A registration secret is expected.
+			if req.InitialJoinSecret == "" {
+				return nil, trace.AccessDenied("a registration secret is required for initial join")
+			}
+
+			// Verify the secret.
+			if subtle.ConstantTimeCompare([]byte(status.RegistrationSecret), []byte(req.InitialJoinSecret)) != 1 {
+				return nil, trace.AccessDenied("invalid registration secret")
+			}
+
+			// Ask the client for a new public key.
+			newPubKey, err := a.requestBoundKeypairRotation(ctx, challengeResponse)
+			if err != nil {
+				return nil, trace.Wrap(err, "requesting public key")
+			}
+
+			// The rotation process verifies private key ownership, so we can
+			// consider it it bound. Note that for our purposes here, this
+			// initial join will not count as a rotation.
+			mutators = append(
+				mutators,
+				mutateStatusBoundPublicKey(newPubKey, ""),
+				mutateStatusClearRegistrationSecret(status.RegistrationSecret),
+			)
+
+			boundPublicKey = newPubKey
+		} else {
+			return nil, trace.BadParameter("either an initial public key or registration secret is required")
 		}
 
-		// Now that we've confirmed the key, we can consider it bound.
+		// If we reach this point, it counts as a recovery, so add a join
+		// mutator.
 		mutators = append(
 			mutators,
-			mutateStatusBoundPublicKey(spec.Onboarding.InitialPublicKey, ""),
-			mutateStatusConsumeJoin(recoveryMode, status.RecoveryCount, spec.Recovery.Limit),
+			mutateStatusConsumeRecovery(recoveryMode, status.RecoveryCount, spec.Recovery.Limit),
 		)
 
 		expectNewBotInstance = true
-		boundPublicKey = spec.Onboarding.InitialPublicKey
 	case !hasBoundPublicKey && hasIncomingBotInstance:
 		// Not allowed, at least at the moment. This would imply e.g. trying to
 		// change auth methods.
@@ -592,7 +700,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 
 		mutators = append(
 			mutators,
-			mutateStatusConsumeJoin(recoveryMode, status.RecoveryCount, spec.Recovery.Limit),
+			mutateStatusConsumeRecovery(recoveryMode, status.RecoveryCount, spec.Recovery.Limit),
 		)
 
 		expectNewBotInstance = true
