@@ -1723,9 +1723,12 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
     - [ ] Web UI fails to create Access Request displaying a message that reason is required.
     - [ ] Other roles allowing requesting the same resources/roles without reason.mode set or with reason.mode: "optional" don't affect the behaviour.
     - [ ] Non-affected resources/roles don't require reason.
-    - [ ] When there is a role with spec.options.request_access: always it effectively becomes role.spec.options.request_access: reason (i.e.) requires reason:
-      - [ ] For CLI.
-      - [ ] For Web UI.
+  - [ ] When `spec.options.request_access: reason` is set on *any* of the user's roles (even if it doesn't allow requesting any resources):
+    - [ ] Verify request reason is required for all Access Requests made by this user with the Web UI.
+    - [ ] Verify request reason is required for all Access Requests made by this user with tctl.
+  - [ ] When `spec.options.request_prompt` is set on *any* of the user's roles (even if it doesn't allow requesting any resources):
+    - [ ] Verify this prompt is displayed in the Web UI when user makes an Access Request.
+    - [ ] Verify for more than one role with `spec.options.request_prompt` assigned to a user, prompts are deduplicated and sorted.
 
 - [ ] Access Lists
   - [ ] Verify Access List membership/ownership/expiration date.
