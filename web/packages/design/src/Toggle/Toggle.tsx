@@ -162,4 +162,14 @@ const StyledInput = styled.input.attrs({ type: 'checkbox' })<SizeProps>`
   &:disabled:checked + ${StyledSlider} {
     background: ${props => props.theme.colors.interactive.tonal.success[2]};
   }
+
+  &:focus-visible + ${StyledSlider} {
+    // box-shadow instead of border because border affects the overall size of the element.
+    box-shadow: 0 0 0 1px
+      ${props => props.theme.colors.interactive.solid.primary.default};
+    &:before {
+      box-shadow: 0 0 0 1px
+        ${props => props.theme.colors.interactive.solid.primary.default};
+    }
+  }
 `;
