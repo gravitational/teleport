@@ -83,7 +83,7 @@ func openSecure(path string, flags OpenFlags) (*os.File, error) {
 
 	for {
 		fd, err := unix.Openat2(unix.AT_FDCWD, path, &how)
-		if err == syscall.EINTR {
+		if errors.Is(err, syscall.EINTR) {
 			// Per the stdlib's implementation, EINTR errors should be ignored
 			// and retried.
 			continue
