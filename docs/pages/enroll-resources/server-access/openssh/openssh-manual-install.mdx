@@ -58,23 +58,6 @@ In this setup, the Teleport SSH Service performs RBAC checks as well as audits a
   Teleport Proxy Service host.
 - (!docs/pages/includes/tctl.mdx!)
 
-### Upgrading to v14 from legacy OpenSSH nodes
-
-  If you have previously configured OpenSSH nodes to trust a Teleport CA without
-  registering them and you upgrade your Teleport cluster to Teleport 14, you won't
-  be able to connect to them anymore by default. This is because open dialing to
-  OpenSSH servers not registered with the cluster is no longer allowed in Teleport 14.
-  To ensure that you will retain access to your OpenSSH nodes you will need to follow
-  this guide to register every OpenSSH node with Teleport that you previously
-  configured. This must be done *before* your Teleport cluster is upgraded to Teleport 14.
-
-  If you are having issues registering OpenSSH nodes or need to upgrade your
-  Teleport cluster to Teleport 14 before registering all of your OpenSSH nodes, you can
-  pass the `TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING` environment variable to your
-  Proxy Service and set it to `yes`. This will allow connections to unregistered
-  OpenSSH nodes but will be removed in Teleport v15.
-
-
 ## Step 1/5. Add a node resource to your Teleport cluster
 
 When you request an SSH connection to a OpenSSH node, Teleport needs to be able
