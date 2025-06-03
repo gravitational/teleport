@@ -239,7 +239,7 @@ func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 	}
 
 	if s.JoinMethod != string(types.JoinMethodBoundKeypair) && s.RegistrationSecret != "" {
-		return trace.BadParameter("--initial-join-secret and --keypair are only valid with --join-method=%s", types.JoinMethodBoundKeypair)
+		return trace.BadParameter("--registration-secret is only valid with --join-method=%s", types.JoinMethodBoundKeypair)
 	}
 
 	if s.RegistrationSecret != "" {
