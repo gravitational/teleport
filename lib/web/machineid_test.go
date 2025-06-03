@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -372,14 +373,14 @@ func TestListBotInstances(t *testing.T) {
 		"bot-instance",
 	)
 
-	instanceId := uuid.New().String()
+	instanceID := uuid.New().String()
 
 	_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
 		Spec: &machineidv1.BotInstanceSpec{
 			BotName:    "test-bot",
-			InstanceId: instanceId,
+			InstanceId: instanceID,
 		},
 		Status: &machineidv1.BotInstanceStatus{
 			LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
@@ -420,7 +421,7 @@ func TestListBotInstances(t *testing.T) {
 	require.Empty(t, cmp.Diff(instances, ListBotInstancesResponse{
 		BotInstances: []BotInstance{
 			{
-				InstanceId:       instanceId,
+				InstanceId:       instanceID,
 				BotName:          "test-bot",
 				JoinMethodLatest: "test-join-method",
 				HostNameLatest:   "test-hostname",
@@ -447,14 +448,14 @@ func TestListBotInstancesWithInitialHeartbeat(t *testing.T) {
 		"bot-instance",
 	)
 
-	instanceId := uuid.New().String()
+	instanceID := uuid.New().String()
 
 	_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
 		Spec: &machineidv1.BotInstanceSpec{
 			BotName:    "test-bot",
-			InstanceId: instanceId,
+			InstanceId: instanceID,
 		},
 		Status: &machineidv1.BotInstanceStatus{
 			InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
@@ -482,7 +483,7 @@ func TestListBotInstancesWithInitialHeartbeat(t *testing.T) {
 	require.Empty(t, cmp.Diff(instances, ListBotInstancesResponse{
 		BotInstances: []BotInstance{
 			{
-				InstanceId:       instanceId,
+				InstanceId:       instanceID,
 				BotName:          "test-bot",
 				JoinMethodLatest: "test-join-method",
 				HostNameLatest:   "test-hostname",
@@ -721,4 +722,68 @@ func TestListBotInstancesWithSearchTermFilter(t *testing.T) {
 			assert.Equal(t, "00000000-0000-0000-0000-000000000000", instances.BotInstances[0].InstanceId)
 		})
 	}
+}
+
+func TestGetBotInstance(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+
+	botName := "test-bot"
+	instanceID := uuid.New().String()
+
+	_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+		Kind:    types.KindBotInstance,
+		Version: types.V1,
+		Spec: &machineidv1.BotInstanceSpec{
+			BotName:    botName,
+			InstanceId: instanceID,
+		},
+		Status: &machineidv1.BotInstanceStatus{
+			InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+				RecordedAt: &timestamppb.Timestamp{
+					Seconds: 1,
+					Nanos:   0,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	endpoint := pack.clt.Endpoint(
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot",
+		botName,
+		"bot-instance",
+		instanceID,
+	)
+	response, err := pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
+
+	var resp GetBotInstanceResponse
+	require.NoError(t, json.Unmarshal(response.Bytes(), &resp), "invalid response received")
+
+	require.Empty(t, cmp.Diff(resp.BotInstance, machineidv1.BotInstance{
+		Kind:    types.KindBotInstance,
+		Version: types.V1,
+		Spec: &machineidv1.BotInstanceSpec{
+			BotName:    botName,
+			InstanceId: instanceID,
+		},
+		Status: &machineidv1.BotInstanceStatus{
+			InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+				RecordedAt: &timestamppb.Timestamp{
+					Seconds: 1,
+					Nanos:   0,
+				},
+			},
+		},
+	}, protocmp.Transform(), protocmp.IgnoreFields(&machineidv1.BotInstance{}, "metadata")))
+	assert.YAMLEq(t, fmt.Sprintf("kind: bot_instance\nmetadata:\n  name: %[1]s\n  revision: %[2]s\nspec:\n  bot_name: test-bot\n  instance_id: %[1]s\nstatus:\n  initial_heartbeat:\n    recorded_at: \"1970-01-01T00:00:01Z\"\nversion: v1\n", instanceID, resp.BotInstance.Metadata.Revision), resp.YAML)
 }

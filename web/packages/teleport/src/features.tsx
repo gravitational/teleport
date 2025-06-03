@@ -52,6 +52,7 @@ import { AccountPage } from './Account';
 import { AuditContainer as Audit } from './Audit';
 import { AuthConnectorsContainer as AuthConnectors } from './AuthConnectors';
 import { BotInstances } from './BotInstances/BotInstances';
+import { BotInstanceDetails } from './BotInstances/Details/BotInstanceDetails';
 import { Bots } from './Bots';
 import { AddBots } from './Bots/Add';
 import { Clusters } from './Clusters';
@@ -305,6 +306,20 @@ export class FeatureBotInstances implements TeleportFeature {
   }
 }
 
+export class FeatureBotInstanceDetails implements TeleportFeature {
+  parent = FeatureBotInstances;
+
+  route = {
+    title: 'Bot instance details',
+    path: cfg.routes.botInstance,
+    component: BotInstanceDetails,
+  };
+
+  hasAccess() {
+    return true;
+  }
+}
+
 export class FeatureAddBotsShortcut implements TeleportFeature {
   category = NavigationCategory.MachineWorkloadId;
   isHyperLink = true;
@@ -542,7 +557,7 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
     title: NavTitle.EnrollNewIntegration,
     icon: IntegrationsIcon,
     getLink() {
-      return cfg.getIntegrationEnrollRoute(null);
+      return cfg.getIntegrationEnrollRoute();
     },
     searchableTags: ['new', 'add', 'enroll', 'integration'],
   };
@@ -798,6 +813,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureUsers(),
     new FeatureBots(),
     new FeatureBotInstances(),
+    new FeatureBotInstanceDetails(),
     new FeatureAddBotsShortcut(),
     new FeatureJoinTokens(),
     new FeatureRoles(),

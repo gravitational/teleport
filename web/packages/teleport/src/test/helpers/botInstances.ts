@@ -18,10 +18,16 @@
 
 import { http, HttpResponse } from 'msw';
 
-import { ListBotInstancesResponse } from 'teleport/services/bot/types';
+import {
+  GetBotInstanceResponse,
+  ListBotInstancesResponse,
+} from 'teleport/services/bot/types';
 
 const listBotInstancesPath =
   '/v1/webapi/sites/:cluster_id/machine-id/bot-instance';
+
+const getBotInstancePath =
+  '/v1/webapi/sites/:cluster_id/machine-id/bot/:bot_name/bot-instance/:id';
 
 export const listBotInstancesSuccess = (mock: ListBotInstancesResponse) =>
   http.get(listBotInstancesPath, () => {
@@ -30,5 +36,15 @@ export const listBotInstancesSuccess = (mock: ListBotInstancesResponse) =>
 
 export const listBotInstancesError = (status: number) =>
   http.get(listBotInstancesPath, () => {
+    return new HttpResponse(null, { status });
+  });
+
+export const getBotInstanceSuccess = (mock: GetBotInstanceResponse) =>
+  http.get(getBotInstancePath, () => {
+    return HttpResponse.json(mock);
+  });
+
+export const getBotInstanceError = (status: number) =>
+  http.get(getBotInstancePath, () => {
     return new HttpResponse(null, { status });
   });

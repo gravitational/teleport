@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"time"
 
+	yaml "github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
@@ -260,6 +261,45 @@ func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter
 
 type updateBotRequest struct {
 	Roles []string `json:"roles"`
+}
+
+// getBotInstance retrieves a bot instance by id
+func (h *Handler) getBotInstance(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	botName := p.ByName("name")
+	instanceId := p.ByName("id")
+	if botName == "" {
+		return nil, trace.BadParameter("empty bot name")
+	}
+	if instanceId == "" {
+		return nil, trace.BadParameter("empty id")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	instance, err := clt.BotInstanceServiceClient().GetBotInstance(r.Context(), &machineidv1.GetBotInstanceRequest{
+		InstanceId: instanceId,
+		BotName:    botName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "error querying bot instance")
+	}
+
+	yaml, err := yaml.Marshal(types.ProtoResource153ToLegacy(instance))
+	if err != nil {
+		return nil, trace.Wrap(err, "error stringifying to yaml")
+	}
+
+	return GetBotInstanceResponse{
+		BotInstance: instance,
+		YAML:        string(yaml),
+	}, nil
+}
+
+type GetBotInstanceResponse struct {
+	BotInstance *machineidv1.BotInstance `json:"bot_instance"`
+	YAML        string                   `json:"yaml"`
 }
 
 // listBotInstances returns a list of bot instances for a given cluster site.
