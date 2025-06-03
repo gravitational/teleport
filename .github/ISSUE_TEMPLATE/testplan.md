@@ -1755,7 +1755,11 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
     - [ ] Verify the custom `okta_import_rule` rule configuration.
     - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
     - [ ] Verify that nested Access List users/groups members are reflected in Okta, and are not duplicated in the parent Access List on a subsequent sync.
-  - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in Okta.
+  - [ ] User Suspended/Deactivated in Okta or locked in Teleport
+    - [ ] Verify that there is no lock a user Suspended in Okta.
+    - [ ] Verify that a user Deactivated in Okta is locked+removed from Teleport on the next sync.
+    - [ ] Verify that access_request for a user locked in Teleport are expired right away and those change are reflected in Okta.
+    - [ ] Verify that RBAC changes (e.g. updated role) for locked users are not reflected in Okta.
   - [ ] Verify access to Okta apps/groups is granted/revoked by access_list when Access List sync is enabled and Okta user member added/removed to the list.
   - [ ] Verify access to Okta apps/groups is granted by access_request
     - [ ] When Access List sync is enabled.
