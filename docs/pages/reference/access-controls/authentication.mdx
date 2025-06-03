@@ -47,7 +47,7 @@ Add the following to your Teleport configuration file, which is stored in
   auth_service:
     authentication:
       type: local
-      second_factors: ["webauthn"]
+      second_factor: "webauthn"
       webauthn:
         rp_id: example.teleport.sh
   ```
@@ -68,7 +68,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factors: ["webauthn"]
+  second_factor: "webauthn"
   webauthn:
     rp_id: example.teleport.sh
 version: v2
@@ -102,7 +102,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factors: ["webauthn"]
+  second_factor: "webauthn"
   webauthn:
     rp_id: example.teleport.sh
 version: v2
@@ -125,7 +125,8 @@ Overriding a block is available to users with rights to maintain `user` resource
 available in the built-in `editor` role. To turn off a block, update the user entry,
 following these steps.
 
-Open the user resource in your editor:
+Open the user resource in your editor, assigning <Var name="username" /> to the
+name of your Teleport user:
 
 ```code
 $ tctl edit users/<Var name="username" />

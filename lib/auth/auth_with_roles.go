@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"slices"
@@ -48,8 +49,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
@@ -1238,25 +1239,28 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 	return node, nil
 }
 
-// resourceAccess is used for different rbac results when filtering items
-type resourceAccess struct {
+// unifiedResourceLister is used to check if an unified resource should be listed. It also
+// memorizes all the resources which are requestable-only in the requestableMap.
+type unifiedResourceLister struct {
 	// accessChecker is used to check a user's access to resources. This can
 	// be extended to include SearchAsRoles
-	accessChecker resourceAccessChecker
-	// baseAuthChecker is set when a user's auth context is extended during a
-	// searchAsRoles request
-	baseAuthChecker resourceAccessChecker
-	// kindAccessMap is used to check errors for list/read verbs per kind
-	kindAccessMap map[string]error
+	accessChecker resourceCheckerI
+	// requestableAccessChecker is optional. If set it will be considered a fallback checker if
+	// accessChecker denies access. If a resource is allowed by the requestableAccessChecker,
+	// the resource's name will be added to the requestableMap.
+	requestableAccessChecker resourceCheckerI
+	// kindAccessErrMap is used to check errors for list/read verbs per kind.
+	kindAccessErrMap map[string]error
 	// requestableMap is used to track if a resource matches a filter but is only
-	// available after an access request. This map is of Resource.GetName()
+	// available after an access request. This map is of Resource.GetName().
+	// If the requestableMap is nil then no requestable resources will be traced.
 	requestableMap map[string]struct{}
 }
 
-func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter services.MatchResourceFilter) (bool, error) {
+func (c *unifiedResourceLister) canList(resource types.ResourceWithLabels, filter services.MatchResourceFilter) (bool, error) {
 	resourceKind := resource.GetKind()
 
-	if canAccessErr := c.kindAccessMap[resourceKind]; canAccessErr != nil {
+	if canAccessErr := c.kindAccessErrMap[resourceKind]; canAccessErr != nil {
 		// skip access denied error. It is expected that resources won't be available
 		// to some users and we want to keep iterating until we've reached the request limit
 		// of resources they have access to
@@ -1288,55 +1292,93 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 		return true, nil
 	}
 
-	// check access normally if base checker doesn't exist
-	if c.baseAuthChecker == nil {
-		if err := c.accessChecker.CanAccess(resource); err != nil {
-			if trace.IsAccessDenied(err) {
-				return false, nil
-			}
-			return false, trace.Wrap(err)
+	// If the resource is accessible with the primary access checker, allow listing.
+	if err := c.accessChecker.CanAccess(resource); err == nil {
+		return true, nil
+	} else if !trace.IsAccessDenied(err) {
+		return false, trace.Wrap(err)
+	}
+
+	// If there isn't a requestable access checker and the resource wasn't allowed by the
+	// primary checker, don't list it.
+	if c.requestableAccessChecker == nil {
+		return false, nil
+	}
+
+	// If the resource is requestable, allow listing it as requestable (and put it in the the
+	// requestableMap if not nil).
+	if err := c.requestableAccessChecker.CanAccess(resource); err == nil {
+		if c.requestableMap != nil {
+			c.requestableMap[resource.GetName()] = struct{}{}
 		}
 		return true, nil
+	} else if !trace.IsAccessDenied(err) {
+		return false, trace.Wrap(err)
 	}
 
-	// baseAuthChecker exists if the current auth context has been extended for a includeRequestable request.
-	// if true, we should check with the base auth checker first and if that returns false, check the extended context
-	// so we know if a resource is being matched because they have access to it currently, or only to be added
-	// to an access request
-	if err := c.baseAuthChecker.CanAccess(resource); err != nil {
-		if !trace.IsAccessDenied(err) {
-			return false, trace.Wrap(err)
-		}
-
-		// user does not have access with their base context
-		// check if they would have access with the extended context
-		if err := c.accessChecker.CanAccess(resource); err != nil {
-			if trace.IsAccessDenied(err) {
-				return false, nil
-			}
-			return false, trace.Wrap(err)
-		}
-		c.requestableMap[resource.GetName()] = struct{}{}
-	}
-
-	return true, nil
+	return false, nil
 }
 
-type actionChecker func(namespace, resourceKind string, verbs ...string) error
+func (l *unifiedResourceLister) getAllowedLogins(resource services.AccessCheckable) ([]string, error) {
+	if l.requestableAccessChecker != nil {
+		logins, err := l.requestableAccessChecker.GetAllowedLoginsForResource(resource)
+		return logins, trace.Wrap(err)
+	} else {
+		logins, err := l.accessChecker.GetAllowedLoginsForResource(resource)
+		return logins, trace.Wrap(err)
+	}
+}
 
-func (a *ServerWithRoles) selectActionChecker(resourceKind string) actionChecker {
+func (a *ServerWithRoles) checkAction(namespace, resourceKind string, verbs ...string) error {
 	switch resourceKind {
 	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
 		// Identity Center resources can be specified multiple ways in a Role
 		// Condition statement, so we need a special checker to handle it.
-		return a.identityCenterAction
+		return trace.Wrap(a.identityCenterAction(namespace, resourceKind, verbs...))
+	default:
+		return trace.Wrap(a.action(namespace, resourceKind, verbs...))
 	}
-	return a.action
+}
+
+var (
+	// supportedUnifiedResourceKinds is the set of kinds that
+	// may be requested via ListUnifiedResources.
+	supportedUnifiedResourceKinds = map[string]struct{}{
+		types.KindApp:                    {},
+		types.KindDatabase:               {},
+		types.KindGitServer:              {},
+		types.KindKubernetesCluster:      {},
+		types.KindNode:                   {},
+		types.KindSAMLIdPServiceProvider: {},
+		types.KindWindowsDesktop:         {},
+	}
+
+	defaultUnifiedResourceKinds = slices.Collect(maps.Keys(supportedUnifiedResourceKinds))
+)
+
+func (a *ServerWithRoles) checkKindAccess(kind string) error {
+	if _, ok := supportedUnifiedResourceKinds[kind]; !ok {
+		// Treat unknown kinds as an access denied error instead of a bad parameter
+		// to prevent rejecting the request if users have access to other kinds requested.
+		return trace.AccessDenied("unsupported kind %q requested", kind)
+	}
+	switch kind {
+	case types.KindNode:
+		// We are checking list only for Nodes to keep backwards compatibility.
+		// The read verb got added to GetNodes initially in:
+		//   https://github.com/gravitational/teleport/pull/1209
+		// but got removed shortly afterwards in:
+		//   https://github.com/gravitational/teleport/pull/1224
+		return trace.Wrap(a.checkAction(apidefaults.Namespace, kind, types.VerbList))
+	default:
+		return trace.Wrap(a.checkAction(apidefaults.Namespace, kind, types.VerbList, types.VerbRead))
+	}
+
 }
 
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
-	filter := services.MatchResourceFilter{
+	userFilter := services.MatchResourceFilter{
 		Labels:         req.Labels,
 		SearchKeywords: req.SearchKeywords,
 		Kinds:          req.Kinds,
@@ -1347,56 +1389,46 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		filter.PredicateExpression = expression
+		userFilter.PredicateExpression = expression
 	}
 
-	resourceAccess := &resourceAccess{
-		// Populate kindAccessMap with any access errors the user has for each possible
-		// resource kind. This allows the access check to occur a single time per resource
-		// kind instead of once per matching resource.
-		kindAccessMap: make(map[string]error, len(services.UnifiedResourceKinds)),
-		// requestableMap is populated with resources that are being returned but can only
-		// be accessed to the user via an access request
-		requestableMap: make(map[string]struct{}),
+	// Validate the requested kinds and precheck that the user has read/list
+	// permissions for all requested resources before doing any listing of
+	// resources to conserve resources.
+	requested := utils.Deduplicate(req.Kinds)
+	if len(req.Kinds) == 0 {
+		requested = defaultUnifiedResourceKinds
 	}
 
-	for _, kind := range services.UnifiedResourceKinds {
-		actionVerbs := []string{types.VerbList, types.VerbRead}
-		if kind == types.KindNode {
-			// We are checking list only for Nodes to keep backwards compatibility.
-			// The read verb got added to GetNodes initially in:
-			//   https://github.com/gravitational/teleport/pull/1209
-			// but got removed shortly afterwards in:
-			//   https://github.com/gravitational/teleport/pull/1224
-			actionVerbs = []string{types.VerbList}
+	kindAccessErrMap := make(map[string]error)
+	for _, kind := range requested {
+		if err := a.checkKindAccess(kind); err != nil {
+			kindAccessErrMap[kind] = trace.Wrap(err)
 		}
-
-		checkAction := a.selectActionChecker(kind)
-		resourceAccess.kindAccessMap[kind] = checkAction(apidefaults.Namespace, kind, actionVerbs...)
 	}
 
 	// Before doing any listing, verify that the user is allowed to list
 	// at least one of the requested kinds. If no access is permitted, then
 	// return an access denied error.
-	requested := req.Kinds
-	if len(req.Kinds) == 0 {
-		requested = services.UnifiedResourceKinds
-	}
-	var rbacErrors int
-	for _, kind := range requested {
-		if err, ok := resourceAccess.kindAccessMap[kind]; ok && err != nil {
-			rbacErrors++
-		}
+	if len(kindAccessErrMap) == len(requested) {
+		return nil, trace.AccessDenied("User does not have access to any of the requested kinds: %v", requested)
 	}
 
-	if rbacErrors == len(requested) {
-		return nil, trace.AccessDenied("User does not have access to any of the requested kinds: %v", requested)
+	var err error
+
+	resourceLister := &unifiedResourceLister{
+		kindAccessErrMap: kindAccessErrMap,
+	}
+
+	resourceLister.accessChecker, err = newResourceAccessChecker(a.context, types.KindUnifiedResource)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Apply any requested additional search_as_roles and/or preview_as_roles
 	// for the duration of the search.
 	if req.UseSearchAsRoles || req.UsePreviewAsRoles || req.IncludeRequestable {
-		extendedContext, err := a.authContextForSearch(ctx, &proto.ListResourcesRequest{
+		extendedAuthCtx, err := a.authContextForSearch(ctx, &proto.ListResourcesRequest{
 			UseSearchAsRoles:    req.UseSearchAsRoles || req.IncludeRequestable,
 			UsePreviewAsRoles:   req.UsePreviewAsRoles,
 			ResourceType:        types.KindUnifiedResource,
@@ -1408,29 +1440,25 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		baseContext := a.context
-		// If IncludeRequestable is true, we will create a baseChecker to
-		// use during RBAC to determine if a resource would be available only after extending
-		if req.IncludeRequestable {
-			baseChecker, err := a.newResourceAccessChecker(types.KindUnifiedResource)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			resourceAccess.baseAuthChecker = baseChecker
+
+		var requestableAccessChecker resourceCheckerI
+		requestableAccessChecker, err = newResourceAccessChecker(*extendedAuthCtx, types.KindUnifiedResource)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		requestableAccessChecker, err = createOktaRequestableResourceChecker(ctx, a.authServer.Plugins, requestableAccessChecker)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		a.context = *extendedContext
-		defer func() {
-			a.context = baseContext
-		}()
-	}
+		resourceLister.requestableAccessChecker = requestableAccessChecker
 
-	checker, err := a.newResourceAccessChecker(types.KindUnifiedResource)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		if req.IncludeRequestable {
+			// if IncludeRequestable is set, then we want to know which of the listed
+			// resources are requestable in the listing.
+			resourceLister.requestableMap = make(map[string]struct{})
+		}
 	}
-
-	resourceAccess.accessChecker = checker
 
 	var (
 		unifiedResources types.ResourcesWithLabels
@@ -1445,7 +1473,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			return &proto.ListUnifiedResourcesResponse{}, nil
 		}
 		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) (bool, error) {
-			match, err := resourceAccess.checkAccess(resource, filter)
+			match, err := resourceLister.canList(resource, userFilter)
 			return match, trace.Wrap(err)
 		})
 		if err != nil {
@@ -1460,7 +1488,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}
 	} else {
 		unifiedResources, nextKey, err = a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
-			match, err := resourceAccess.checkAccess(resource, filter)
+			match, err := resourceLister.canList(resource, userFilter)
 			return match, trace.Wrap(err)
 		}, req)
 		if err != nil {
@@ -1468,7 +1496,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}
 	}
 
-	paginatedResources, err := services.MakePaginatedResources(ctx, types.KindUnifiedResource, unifiedResources, resourceAccess.requestableMap)
+	paginatedResources, err := services.MakePaginatedResources(ctx, types.KindUnifiedResource, unifiedResources, resourceLister.requestableMap)
 	if err != nil {
 		return nil, trace.Wrap(err, "making paginated unified resources")
 	}
@@ -1476,14 +1504,14 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	if req.IncludeLogins {
 		for _, r := range paginatedResources {
 			if n := r.GetNode(); n != nil {
-				logins, err := checker.GetAllowedLoginsForResource(n)
+				logins, err := resourceLister.getAllowedLogins(n)
 				if err != nil {
 					log.WithError(err).WithField("resource", n.GetName()).Warn("Unable to determine logins for node")
 					continue
 				}
 				r.Logins = logins
 			} else if d := r.GetWindowsDesktop(); d != nil {
-				logins, err := checker.GetAllowedLoginsForResource(d)
+				logins, err := resourceLister.getAllowedLogins(d)
 				if err != nil {
 					log.WithError(err).WithField("resource", d.GetName()).Warn("Unable to determine logins for desktop")
 					continue
@@ -1495,12 +1523,12 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				// view of the account we check access for each Permission Set, filter out those that have
 				// no access and treat the whole app as requiring an access request if _any_ of the contained
 				// permission sets require one.
-				if err := a.filterICPermissionSets(r, d.GetApp(), resourceAccess); err != nil {
+				if err := a.filterICPermissionSets(r, d.GetApp(), resourceLister); err != nil {
 					log.WithError(err).WithField("resource", d.GetApp().GetName()).Warn("Unable to filter ")
 					continue
 				}
 
-				logins, err := checker.GetAllowedLoginsForResource(d.GetApp())
+				logins, err := resourceLister.getAllowedLogins(d.GetApp())
 				if err != nil {
 					log.WithError(err).WithField("resource", d.GetApp().GetName()).Warn("Unable to determine logins for app")
 					continue
@@ -1516,7 +1544,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	}, nil
 }
 
-func (a *ServerWithRoles) filterICPermissionSets(r *proto.PaginatedResource, app types.Application, checker *resourceAccess) error {
+func (a *ServerWithRoles) filterICPermissionSets(r *proto.PaginatedResource, app types.Application, checker *unifiedResourceLister) error {
 	appV3, ok := app.(*types.AppV3)
 	if !ok {
 		return trace.BadParameter("resource must be an app")
@@ -1546,7 +1574,7 @@ func (a *ServerWithRoles) filterICPermissionSets(r *proto.PaginatedResource, app
 		assignment.Metadata.Name = ps.AssignmentID
 		permissionSetQuery.Arn = ps.ARN
 
-		hasAccess, err := checker.checkAccess(checkable, services.MatchResourceFilter{
+		hasAccess, err := checker.canList(checkable, services.MatchResourceFilter{
 			ResourceKind: types.KindIdentityCenterAccountAssignment,
 		})
 		if err != nil {
@@ -1652,7 +1680,7 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
 
-	matcher, err := apiutils.NewSSHRouteMatcherFromConfig(apiutils.SSHRouteMatcherConfig{
+	matcher, err := utils.NewSSHRouteMatcherFromConfig(utils.SSHRouteMatcherConfig{
 		Host:                      req.Host,
 		Port:                      req.Port,
 		CaseInsensitive:           caseInsensitiveRouting,
@@ -1864,8 +1892,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 	}
 
-	checkAction := a.selectActionChecker(req.ResourceType)
-	if err := checkAction(req.Namespace, req.ResourceType, actionVerbs...); err != nil {
+	if err := a.checkAction(req.Namespace, req.ResourceType, actionVerbs...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1895,7 +1922,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	// the next key.
 	req.Limit++
 
-	resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
+	resourceChecker, err := newResourceAccessChecker(a.context, req.ResourceType)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1947,21 +1974,21 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	return &resp, nil
 }
 
-// resourceAccessChecker allows access to be checked differently per resource type.
-type resourceAccessChecker interface {
-	CanAccess(resource types.Resource) error
+// resourceCheckerI is an interface for [resourceChecker] allowing extending the resourceChecker.
+type resourceCheckerI interface {
+	CanAccess(resource types.ResourceWithLabels) error
 	GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error)
 }
 
-// resourceChecker is a pass through checker that utilizes the provided
-// services.AccessChecker to check access
+// resourceChecker is a pass through checker that utilizes the provided [services.AccessChecker] to
+// check access to an untyped resource.
 type resourceChecker struct {
 	services.AccessChecker
 }
 
 // CanAccess handles providing the proper services.AccessCheckable resource
 // to the services.AccessChecker
-func (r resourceChecker) CanAccess(resource types.Resource) error {
+func (r *resourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 	// MFA is not required for operations on app resources but
 	// will be enforced at the connection time.
 	state := services.AccessState{MFAVerified: true}
@@ -2012,8 +2039,8 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 	return trace.BadParameter("could not check access to resource type %T", resource)
 }
 
-// newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
-func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
+// newResourceAccessChecker creates a resourceChecker for the provided resource type
+func newResourceAccessChecker(authCtx authz.Context, resource string) (*resourceChecker, error) {
 	switch resource {
 	case types.KindAppServer,
 		types.KindDatabaseServer,
@@ -2027,10 +2054,43 @@ func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAcc
 		types.KindSAMLIdPServiceProvider,
 		types.KindIdentityCenterAccount,
 		types.KindIdentityCenterAccountAssignment:
-		return &resourceChecker{AccessChecker: a.context.Checker}, nil
+		return &resourceChecker{AccessChecker: authCtx.Checker}, nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
 	}
+}
+
+// createOktaRequestableResourceChecker creates [oktaRequestableResoruceChecker].
+func createOktaRequestableResourceChecker(ctx context.Context, plugins services.Plugins, underlying resourceCheckerI) (*oktaRequestableResoruceChecker, error) {
+	bidirectionalSync, err := okta.BidirectionalSyncEnabled(ctx, plugins)
+	if err != nil {
+		return nil, trace.Wrap(err, "checking if Okta bidirectional sync is enabled")
+	}
+	return &oktaRequestableResoruceChecker{
+		underlying: underlying,
+		readOnly:   !bidirectionalSync,
+	}, nil
+}
+
+// oktaRequestableResoruceChecker is a wrapper for [resourceCheckerI] checking if Okta-originated
+// resource should not be allowed due to bidirectional sync being disabled.  It exists to support
+// the Okta Access Request flow, where creating an Access Request can trigger changes in the
+// upstream Okta provider. In read-only mode, we want to prevent such changes.
+type oktaRequestableResoruceChecker struct {
+	underlying resourceCheckerI
+	readOnly   bool
+}
+
+func (c *oktaRequestableResoruceChecker) CanAccess(resource types.ResourceWithLabels) error {
+	if c.readOnly && resource.Origin() == types.OriginOkta {
+		return trace.AccessDenied("resource not requestable due to disabled Okta bidirectional sync")
+	}
+	return trace.Wrap(c.underlying.CanAccess(resource))
+}
+
+func (c *oktaRequestableResoruceChecker) GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error) {
+	logins, err := c.underlying.GetAllowedLoginsForResource(resource)
+	return logins, trace.Wrap(err)
 }
 
 // listResourcesWithSort retrieves all resources of a certain resource type with rbac applied
@@ -2197,7 +2257,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 				return r, nil
 			}
 
-			resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
+			resourceChecker, err := newResourceAccessChecker(a.context, req.ResourceType)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3088,7 +3148,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 			}
 		}
 	}
-	finalRequestIDs = apiutils.Deduplicate(finalRequestIDs)
+	finalRequestIDs = utils.Deduplicate(finalRequestIDs)
 
 	// Replace req.AccessRequests with final filtered values, these will be
 	// encoded into the cert.
@@ -3123,7 +3183,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 			accessInfo.AllowedResourceIDs = requestedResourceIDs
 		}
 	}
-	accessInfo.Roles = apiutils.Deduplicate(accessInfo.Roles)
+	accessInfo.Roles = utils.Deduplicate(accessInfo.Roles)
 
 	return accessInfo, nil
 }
@@ -3404,6 +3464,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AppName:           req.RouteToApp.Name,
 			AppURI:            req.RouteToApp.URI,
 			AppTargetPort:     int(req.RouteToApp.TargetPort),
+
+			BotName: getBotName(user),
+			// Always pass through a bot instance ID if available. Legacy bots
+			// joining without an instance ID may have one generated when
+			// `updateBotInstance()` is called below, and this (empty) value will be
+			// overridden.
+			BotInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3420,9 +3487,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		return nil, trace.Wrap(err)
 	}
 	sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
-		keys.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		keys.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
-		keys.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
+		hardwarekey.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		hardwarekey.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
+		hardwarekey.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
 	)
 
 	// Generate certificate, note that the roles TTL will be ignored because
@@ -3936,7 +4003,7 @@ func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector typ
 	return updated, trace.Wrap(err)
 }
 
-func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
+func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error) {
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3946,11 +4013,10 @@ func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withS
 			return nil, trace.Wrap(err)
 		}
 	}
-
-	return a.authServer.GetSAMLConnector(ctx, id, withSecrets)
+	return a.authServer.GetSAMLConnectorWithValidationOptions(ctx, id, withSecrets, opts...)
 }
 
-func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
+func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error) {
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3962,7 +4028,7 @@ func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets boo
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetSAMLConnectors(ctx, withSecrets)
+	return a.authServer.GetSAMLConnectorsWithValidationOptions(ctx, withSecrets, opts...)
 }
 
 func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
@@ -7510,9 +7576,11 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 			return err
 		}
 
-		// Only WebAuthn is supported in headless login flow for superior phishing prevention.
-		if _, ok := mfaResp.Response.(*proto.MFAAuthenticateResponse_Webauthn); !ok {
-			err = trace.BadParameter("expected WebAuthn challenge response, but got %T", mfaResp.Response)
+		// Only WebAuthn and SSO are supported in headless login flow for superior phishing prevention.
+		switch mfaResp.Response.(type) {
+		case *proto.MFAAuthenticateResponse_Webauthn, *proto.MFAAuthenticateResponse_SSO:
+		default:
+			err = trace.BadParameter("MFA response of type %T is not supported for headless authentication", mfaResp.Response)
 			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
 			return err
 		}

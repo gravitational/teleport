@@ -25,48 +25,60 @@ More details are [provided below](#reference-deployment-defaults).
 
 ## Prerequisites
 
-Our code requires Terraform 0.13+. You can [download Terraform here](https://www.terraform.io/downloads.html). We will assume that you have
-`terraform` installed and available on your path.
+- Terraform installed on your system. Visit [Install
+  Terraform](https://developer.hashicorp.com/terraform/install) for
+  instructions. We will assume that you have `terraform` available on your path.
 
-```code
-$ which terraform
-/usr/local/bin/terraform
-$ terraform version
-Terraform v1.5.6
-```
+  ```code
+  $ which terraform
+  /usr/local/bin/terraform
+  $ terraform version
+  Terraform v1.5.6
+  ```
 
-You will also require the `aws` command line tool. This is available in Ubuntu/Debian/Fedora/CentOS and macOS Homebrew
-as the `awscli` package.
+- The `aws` command line tool. This is available in Ubuntu/Debian/Fedora/CentOS
+  and macOS Homebrew as the `awscli` package.
 
-Fedora/CentOS: `yum -y install awscli`
+  Fedora/CentOS: `yum -y install awscli`
 
-Ubuntu/Debian: `apt-get -y install awscli`
+  Ubuntu/Debian: `apt-get -y install awscli`
 
-macOS (with [Homebrew](https://brew.sh/)): `brew install awscli`
+  macOS (with [Homebrew](https://brew.sh/)): `brew install awscli`
 
-When possible, installing via a package is always preferable. If you can't find a package available for
-your distribution, you can also download the tool from [https://aws.amazon.com/cli/](https://aws.amazon.com/cli/)
+  When possible, installing via a package is always preferable. If you can't
+  find a package available for your distribution, you can also download the tool
+  from [https://aws.amazon.com/cli/](https://aws.amazon.com/cli/)
 
-We will assume that you have configured your AWS CLI access with credentials available at `~/.aws/credentials`:
+- We will assume that you have configured your AWS CLI access with credentials available at `~/.aws/credentials`:
 
-```code
-$ cat ~/.aws/credentials
-# [default]
-# aws_access_key_id = (=aws.aws_access_key=)
-# aws_secret_access_key = (=aws.aws_secret_access_key=)
-```
+  ```code
+  $ cat ~/.aws/credentials
+  # [default]
+  # aws_access_key_id = (=aws.aws_access_key=)
+  # aws_secret_access_key = (=aws.aws_secret_access_key=)
+  ```
 
-You should also have a default region set under `~/.aws/config`:
+- You should also have a default region set under `~/.aws/config`:
 
-```code
-$ cat ~/.aws/config
-# [default]
-# region = us-west-2
-```
+  ```code
+  $ cat ~/.aws/config
+  # [default]
+  # region = us-west-2
+  ```
 
-As a result, you should be able to run a command like `aws ec2 describe-instances` to list running EC2 instances.
-If you get an "access denied", "403 Forbidden" or similar message, you will need to grant additional permissions to the
-AWS IAM user that your `aws_access_key_id` and `aws_secret_access_key` refers to.
+  As a result, you should be able to run a command like `aws ec2
+  describe-instances` to list running EC2 instances.  If you get an "access
+  denied", "403 Forbidden" or similar message, you will need to grant additional
+  permissions to the AWS IAM user that your `aws_access_key_id` and
+  `aws_secret_access_key` refers to.
+
+- A Route 53 zone. The Terraform module will create DNS records for your
+  Teleport cluster in this zone.
+
+- A [key
+  pair](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html)
+  created on AWS. You will use this to access the Amazon EC2 instances you
+  create using the Terraform module demonstrated in this guide.
 
 As a general rule, we assume that any user running Terraform has administrator-level permissions for the following
 AWS services:
@@ -728,7 +740,7 @@ To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 - [Run Teleport - we recommend using systemd](../../management/admin/daemon.mdx)
 - [Set the correct settings in /etc/teleport.yaml](../../../reference/config.mdx)
 - [Add Nodes to the Teleport
-  cluster](../../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx)
+  cluster](../../../enroll-resources/agents/agents.mdx)
 
 ## Troubleshooting
 

@@ -95,7 +95,7 @@ const cfg = {
   // isPolicyEnabled refers to the Teleport Policy product
   isPolicyEnabled: false,
 
-  configDir: '$HOME/.config',
+  configDir: '$HOME/.config/teleport',
 
   baseUrl: window.location.origin,
 
@@ -164,6 +164,7 @@ const cfg = {
     joinTokens: '/web/tokens',
     deviceTrust: `/web/devices`,
     deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
+    workloadIdentity: `/web/workloadidentity`,
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
@@ -180,13 +181,15 @@ const cfg = {
     desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
     users: '/web/users',
     bots: '/web/bots',
+    botInstances: '/web/bots/instances',
+    botInstance: '/web/bot/:botName/instance/:instanceId',
     botsNew: '/web/bots/new/:type?',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
     kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
-    kubeExecSession: '/web/cluster/:clusterId/console/kube/exec/:sid',
+    kubeExecSession: '/web/cluster/:clusterId/console/kube/session/:sid',
     dbConnect: '/web/cluster/:clusterId/console/db/connect/:serviceName',
     dbSession: '/web/cluster/:clusterId/console/db/session/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
@@ -454,6 +457,9 @@ const cfg = {
 
     botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot/:name?',
     botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
+    botInstancePath:
+      '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
+    botInstancesPath: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
 
     gcpWorkforceConfigurePath:
       '/v1/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
@@ -722,6 +728,14 @@ const cfg = {
     return generatePath(cfg.routes.bots);
   },
 
+  getBotInstancesRoute() {
+    return generatePath(cfg.routes.botInstances);
+  },
+
+  getBotInstanceDetailsRoute(params: { botName: string; instanceId: string }) {
+    return generatePath(cfg.routes.botInstance, params);
+  },
+
   getBotsNewRoute(type?: string) {
     return generatePath(cfg.routes.botsNew, { type });
   },
@@ -829,8 +843,7 @@ const cfg = {
     return generatePath(cfg.api.connectionDiagnostic, { clusterId });
   },
 
-  getMfaRequiredUrl() {
-    const clusterId = cfg.proxyCluster;
+  getMfaRequiredUrl(clusterId: string) {
     return generatePath(cfg.api.mfaRequired, { clusterId });
   },
 
@@ -1440,6 +1453,20 @@ const cfg = {
     return generatePath(cfg.api.botsPath, { clusterId, name });
   },
 
+  listBotInstancesUrl() {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.botInstancesPath, { clusterId });
+  },
+
+  getBotInstanceUrl(botName: string, instanceId: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.botInstancePath, {
+      clusterId,
+      botName,
+      instanceId,
+    });
+  },
+
   getGcpWorkforceConfigScriptUrl(p: UrlGcpWorkforceConfigParam) {
     return (
       cfg.baseUrl + generatePath(cfg.api.gcpWorkforceConfigurePath, { ...p })
@@ -1512,6 +1539,8 @@ export interface UrlSshParams {
 export interface UrlKubeExecParams {
   clusterId: string;
   kubeId: string;
+  sid?: string;
+  mode?: ParticipantMode;
 }
 
 export interface UrlDbConnectParams {

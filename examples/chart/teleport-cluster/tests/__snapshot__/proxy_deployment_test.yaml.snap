@@ -11,8 +11,8 @@ sets clusterDomain on Deployment Pods:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-cluster
-        app.kubernetes.io/version: 17.3.3
-        helm.sh/chart: teleport-cluster-17.3.3
+        app.kubernetes.io/version: 17.4.8
+        helm.sh/chart: teleport-cluster-17.4.8
         teleport.dev/majorVersion: "17"
       name: RELEASE-NAME-proxy
       namespace: NAMESPACE
@@ -26,7 +26,7 @@ sets clusterDomain on Deployment Pods:
       template:
         metadata:
           annotations:
-            checksum/config: 11dd34c156b9e1ddb818032740d7730d80f16478063cc50baf6daf7db4399012
+            checksum/config: 21ffed6e057797c197381b69db7331d34f1ca9667778de64e90c338c7c53cd48
             kubernetes.io/pod: test-annotation
             kubernetes.io/pod-different: 4
           labels:
@@ -34,8 +34,8 @@ sets clusterDomain on Deployment Pods:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-cluster
-            app.kubernetes.io/version: 17.3.3
-            helm.sh/chart: teleport-cluster-17.3.3
+            app.kubernetes.io/version: 17.4.8
+            helm.sh/chart: teleport-cluster-17.4.8
             teleport.dev/majorVersion: "17"
         spec:
           affinity:
@@ -44,7 +44,7 @@ sets clusterDomain on Deployment Pods:
           containers:
           - args:
             - --diag-addr=0.0.0.0:3000
-            image: public.ecr.aws/gravitational/teleport-distroless:17.3.3
+            image: public.ecr.aws/gravitational/teleport-distroless:17.4.8
             imagePullPolicy: IfNotPresent
             lifecycle:
               preStop:
@@ -106,10 +106,27 @@ sets clusterDomain on Deployment Pods:
             - wait
             - no-resolve
             - RELEASE-NAME-auth-v16.NAMESPACE.svc.test.com
-            image: public.ecr.aws/gravitational/teleport-distroless:17.3.3
+            image: public.ecr.aws/gravitational/teleport-distroless:17.4.8
             name: wait-auth-update
           serviceAccountName: RELEASE-NAME-proxy
           terminationGracePeriodSeconds: 60
+          topologySpreadConstraints:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: proxy
+                app.kubernetes.io/instance: RELEASE-NAME
+                app.kubernetes.io/name: teleport-cluster
+            maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: proxy
+                app.kubernetes.io/instance: RELEASE-NAME
+                app.kubernetes.io/name: teleport-cluster
+            maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: ScheduleAnyway
           volumes:
           - name: proxy-serviceaccount-token
             projected:
@@ -138,7 +155,7 @@ should provision initContainer correctly when set in values:
       - wait
       - no-resolve
       - RELEASE-NAME-auth-v16.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:17.3.3
+      image: public.ecr.aws/gravitational/teleport-distroless:17.4.8
       name: wait-auth-update
       resources:
         limits:
@@ -202,7 +219,7 @@ should set nodeSelector when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:17.3.3
+      image: public.ecr.aws/gravitational/teleport-distroless:17.4.8
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -264,13 +281,30 @@ should set nodeSelector when set in values:
       - wait
       - no-resolve
       - RELEASE-NAME-auth-v16.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:17.3.3
+      image: public.ecr.aws/gravitational/teleport-distroless:17.4.8
       name: wait-auth-update
     nodeSelector:
       environment: security
       role: bastion
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - name: proxy-serviceaccount-token
       projected:
@@ -315,7 +349,7 @@ should set resources for wait-auth-update initContainer when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:17.3.3
+      image: public.ecr.aws/gravitational/teleport-distroless:17.4.8
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -384,7 +418,7 @@ should set resources for wait-auth-update initContainer when set in values:
       - wait
       - no-resolve
       - RELEASE-NAME-auth-v16.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:17.3.3
+      image: public.ecr.aws/gravitational/teleport-distroless:17.4.8
       name: wait-auth-update
       resources:
         limits:
@@ -395,6 +429,23 @@ should set resources for wait-auth-update initContainer when set in values:
           memory: 256Mi
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - name: proxy-serviceaccount-token
       projected:
@@ -424,7 +475,7 @@ should set resources when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:17.3.3
+      image: public.ecr.aws/gravitational/teleport-distroless:17.4.8
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -493,7 +544,7 @@ should set resources when set in values:
       - wait
       - no-resolve
       - RELEASE-NAME-auth-v16.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:17.3.3
+      image: public.ecr.aws/gravitational/teleport-distroless:17.4.8
       name: wait-auth-update
       resources:
         limits:
@@ -504,6 +555,23 @@ should set resources when set in values:
           memory: 256Mi
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - name: proxy-serviceaccount-token
       projected:
@@ -533,7 +601,7 @@ should set securityContext for initContainers when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:17.3.3
+      image: public.ecr.aws/gravitational/teleport-distroless:17.4.8
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -602,7 +670,7 @@ should set securityContext for initContainers when set in values:
       - wait
       - no-resolve
       - RELEASE-NAME-auth-v16.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:17.3.3
+      image: public.ecr.aws/gravitational/teleport-distroless:17.4.8
       name: wait-auth-update
       securityContext:
         allowPrivilegeEscalation: false
@@ -613,6 +681,23 @@ should set securityContext for initContainers when set in values:
         runAsUser: 99
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - name: proxy-serviceaccount-token
       projected:
@@ -642,7 +727,7 @@ should set securityContext when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport-distroless:17.3.3
+      image: public.ecr.aws/gravitational/teleport-distroless:17.4.8
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -711,7 +796,7 @@ should set securityContext when set in values:
       - wait
       - no-resolve
       - RELEASE-NAME-auth-v16.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:17.3.3
+      image: public.ecr.aws/gravitational/teleport-distroless:17.4.8
       name: wait-auth-update
       securityContext:
         allowPrivilegeEscalation: false
@@ -722,6 +807,23 @@ should set securityContext when set in values:
         runAsUser: 99
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - name: proxy-serviceaccount-token
       projected:

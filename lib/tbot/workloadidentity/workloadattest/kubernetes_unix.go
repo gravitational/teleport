@@ -32,18 +32,25 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/utils/mount"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/container"
 )
+
+// imageDigestRegex finds the `sha256:<hash>` image digest in an OCI image URI.
+//
+// We use a regex rather than parsing the URI because the format may differ
+// between the schemes, and it's difficult to find comprehensive documentation.
+var imageDigestRegex = regexp.MustCompile(`sha256:([[:xdigit:]]{64})`)
 
 // KubernetesAttestor attests a workload to a Kubernetes pod.
 //
@@ -64,6 +71,7 @@ type KubernetesAttestor struct {
 	log           *slog.Logger
 	// rootPath specifies the location of `/`. This allows overriding for tests.
 	rootPath string
+	clock    clockwork.Clock
 }
 
 // NewKubernetesAttestor creates a new KubernetesAttestor.
@@ -72,6 +80,7 @@ func NewKubernetesAttestor(cfg KubernetesAttestorConfig, log *slog.Logger) *Kube
 	return &KubernetesAttestor{
 		kubeletClient: kubeletClient,
 		log:           log,
+		clock:         clockwork.NewRealClock(),
 	}
 }
 
@@ -80,17 +89,31 @@ func NewKubernetesAttestor(cfg KubernetesAttestorConfig, log *slog.Logger) *Kube
 func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1pb.WorkloadAttrsKubernetes, error) {
 	a.log.DebugContext(ctx, "Starting Kubernetes workload attestation", "pid", pid)
 
-	podID, containerID, err := a.getContainerAndPodID(pid)
+	container, err := container.LookupPID(a.rootPath, pid, container.KubernetesParser)
 	if err != nil {
 		return nil, trace.Wrap(err, "determining pod and container ID")
 	}
-	a.log.DebugContext(ctx, "Found pod and container ID", "pod_id", podID, "container_id", containerID)
 
-	pod, err := a.getPodForID(ctx, podID)
+	a.log.DebugContext(ctx,
+		"Found pod and container ID",
+		"pod_id", container.PodID,
+		"container_id", container.ID,
+	)
+
+	pod, containerStatus, err := a.getPodAndContainerStatus(ctx, container.PodID, container.ID)
 	if err != nil {
 		return nil, trace.Wrap(err, "finding pod by ID")
 	}
 	a.log.DebugContext(ctx, "Found pod", "pod_name", pod.Name)
+
+	var ctr *workloadidentityv1pb.WorkloadAttrsKubernetesContainer
+	if containerStatus != nil {
+		ctr = &workloadidentityv1pb.WorkloadAttrsKubernetesContainer{
+			Name:        containerStatus.Name,
+			Image:       containerStatus.Image,
+			ImageDigest: imageDigestRegex.FindString(containerStatus.ImageID),
+		}
+	}
 
 	att := &workloadidentityv1pb.WorkloadAttrsKubernetes{
 		Attested:       true,
@@ -99,116 +122,87 @@ func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (*workloadiden
 		PodName:        pod.Name,
 		PodUid:         string(pod.UID),
 		Labels:         pod.Labels,
+		Container:      ctr,
 	}
 	a.log.DebugContext(ctx, "Finished Kubernetes workload attestation", "attestation", att)
 	return att, nil
 }
 
-// getContainerAndPodID retrieves the container ID and pod ID for the provided
-// PID.
-func (a *KubernetesAttestor) getContainerAndPodID(pid int) (podID string, containerID string, err error) {
-	info, err := mount.ParseMountInfo(
-		path.Join(a.rootPath, "/proc", strconv.Itoa(pid), "mountinfo"),
-	)
+func (a *KubernetesAttestor) getPodAndContainerStatus(ctx context.Context, podID, containerID string) (*v1.Pod, *v1.ContainerStatus, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	log := a.log.With("pod_id", podID, "container_id", containerID)
+
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(100 * time.Millisecond),
+		Max:    2 * time.Second,
+		Clock:  a.clock,
+	})
 	if err != nil {
-		return "", "", trace.Wrap(
-			err, "parsing mountinfo",
-		)
+		return nil, nil, trace.Wrap(err, "creating retrier")
 	}
 
-	// Find the cgroup or cgroupv2 mount
-	// For cgroup v2, we expect a single mount. But for cgroup v1, there will
-	// be one mount per subsystem, but regardless, they will all contain the
-	// same container ID/pod ID.
-	var cgroupMount mount.MountInfo
-	for _, m := range info {
-		if m.FsType == "cgroup" || m.FsType == "cgroup2" {
-			cgroupMount = m
+	var (
+		pod             *v1.Pod
+		containerStatus *v1.ContainerStatus
+	)
+LOOP:
+	for {
+		pod, containerStatus, err = a.tryGetPodAndContainerStatus(ctx, podID, containerID)
+		switch {
+		case err != nil:
+			return nil, nil, err
+		case containerStatus == nil:
+			// It's possible for a workload container to start and request a SVID
+			// before the kubelet has updated its state, in which case we might
+			// get back no container status at all, or in the case of a restart,
+			// the previous run's status.
+			log.DebugContext(ctx, "Kubelet did not return expected container status; its state might be stale")
+		default:
+			break LOOP
+		}
+
+		retry.Inc()
+		select {
+		case <-ctx.Done():
+			break LOOP
+		case <-retry.After():
+		}
+	}
+
+	if pod != nil {
+		return pod, containerStatus, nil
+	}
+	return nil, nil, err
+}
+
+func (a *KubernetesAttestor) tryGetPodAndContainerStatus(ctx context.Context, podID, containerID string) (*v1.Pod, *v1.ContainerStatus, error) {
+	pods, err := a.kubeletClient.ListAllPods(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "listing all pods")
+	}
+
+	var pod *v1.Pod
+	for _, p := range pods.Items {
+		if string(p.UID) == podID {
+			pod = &p
 			break
 		}
 	}
-
-	podID, containerID, err = mountpointSourceToContainerAndPodID(
-		cgroupMount.Root,
-	)
-	if err != nil {
-		return "", "", trace.Wrap(
-			err, "parsing cgroup mount (root: %q)", cgroupMount.Root,
-		)
-	}
-	return podID, containerID, nil
-}
-
-var (
-	// A container ID is usually a 64 character hex string, so this regex just
-	// selects for that.
-	containerIDRegex = regexp.MustCompile(`(?P<containerID>[[:xdigit:]]{64})`)
-	// A pod ID is usually a UUID prefaced with "pod".
-	// There are two main cgroup drivers:
-	// - systemd , the dashes are replaced with underscores
-	// - cgroupfs, the dashes are kept.
-	podIDRegex = regexp.MustCompile(`pod(?P<podID>[[:xdigit:]]{8}[_-][[:xdigit:]]{4}[_-][[:xdigit:]]{4}[_-][[:xdigit:]]{4}[_-][[:xdigit:]]{12})`)
-)
-
-// mountpointSourceToContainerAndPodID takes the source of the cgroup mountpoint
-// and extracts the container ID and pod ID from it.
-//
-// Note: this is a fairly naive implementation, we may need to make further
-// improvements to account for other distributions of Kubernetes.
-func mountpointSourceToContainerAndPodID(source string) (podID string, containerID string, err error) {
-	// From the mount, we need to extract the container ID and pod ID.
-	// Unfortunately this process can be a little fragile, as the format of
-	// the mountpoint varies across Kubernetes implementations.
-	// There's a collection of real world mountfiles in testdata/mountfile.
-
-	matches := containerIDRegex.FindStringSubmatch(source)
-	if len(matches) != 2 {
-		return "", "", trace.BadParameter(
-			"expected 2 matches searching for container ID but found %d",
-			len(matches),
-		)
-	}
-	containerID = matches[1]
-	if containerID == "" {
-		return "", "", trace.BadParameter(
-			"source does not contain container ID",
-		)
+	if pod == nil {
+		return nil, nil, trace.NotFound("pod %q not found", podID)
 	}
 
-	matches = podIDRegex.FindStringSubmatch(source)
-	if len(matches) != 2 {
-		return "", "", trace.BadParameter(
-			"expected 2 matches searching for pod ID but found %d",
-			len(matches),
-		)
-	}
-	podID = matches[1]
-	if podID == "" {
-		return "", "", trace.BadParameter(
-			"source does not contain pod ID",
-		)
-	}
-
-	// When using the `systemd` cgroup driver, the dashes are replaced with
-	// underscores. So let's correct that.
-	podID = strings.ReplaceAll(podID, "_", "-")
-
-	return podID, containerID, nil
-}
-
-// getPodForID retrieves the pod information for the provided pod ID.
-// https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/server/server.go#L371
-func (a *KubernetesAttestor) getPodForID(ctx context.Context, podID string) (*v1.Pod, error) {
-	pods, err := a.kubeletClient.ListAllPods(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err, "listing all pods")
-	}
-	for _, pod := range pods.Items {
-		if string(pod.UID) == podID {
-			return &pod, nil
+	var containerStatus *v1.ContainerStatus
+	for _, status := range pod.Status.ContainerStatuses {
+		// Kubelet returns the container ID prefixed by `<type>://`.
+		if _, id, _ := strings.Cut(status.ContainerID, "://"); id == containerID {
+			containerStatus = &status
+			break
 		}
 	}
-	return nil, trace.NotFound("pod %q not found", podID)
+	return pod, containerStatus, nil
 }
 
 // kubeletClient is a HTTP client for the Kubelet API

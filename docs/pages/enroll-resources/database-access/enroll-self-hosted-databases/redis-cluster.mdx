@@ -156,7 +156,8 @@ databases:
 Redis in cluster mode does not support the following commands. If one of the listed commands above is called Teleport
 returns the <nobr>`ERR Teleport: command not supported`</nobr> error.
 
-<Details title="Unsupported commands">
+<details>
+<summary>Unsupported commands</summary>
 - `ACL`
 - `ASKING`
 - `CLIENT`
@@ -195,7 +196,7 @@ returns the <nobr>`ERR Teleport: command not supported`</nobr> error.
 - `TIME`
 - `WAIT`
 - `WATCH`
-</Details>
+</details>
 
 Teleport conducts additional processing on the following commands before 
 communicating with Redis Cluster:

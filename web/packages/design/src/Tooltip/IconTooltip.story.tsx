@@ -143,7 +143,7 @@ export const WithKindError = () => (
 export const HoverToolTip = () => (
   <Flex alignItems="baseline" gap={2}>
     <span>Hover the</span>
-    <HoverTooltip position="bottom" tipContent="some popover content">
+    <HoverTooltip placement="bottom" tipContent="some popover content">
       <ButtonPrimary>button</ButtonPrimary>
     </HoverTooltip>
   </Flex>

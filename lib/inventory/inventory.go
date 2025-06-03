@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/inventory/internal/delay"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/utils"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
@@ -577,6 +578,18 @@ type upstreamHandle struct {
 
 	// kubernetesServers track kubernetesServers server details.
 	kubernetesServers map[resourceKey]*heartBeatInfo[*types.KubernetesServerV3]
+
+	// appKeepAliveDelay is a multi-delay that controls the cadence of app server keepalive
+	// operations. Note that this is not created automatically by newUpstreamHandle.
+	appKeepAliveDelay *delay.Multi[resourceKey]
+
+	// dbKeepAliveDelay is a multi-delay that controls the cadence of database server keepalive
+	// operations. Note that this is not created automatically by newUpstreamHandle.
+	dbKeepAliveDelay *delay.Multi[resourceKey]
+
+	// kubeKeepAliveDelay is a multi-delay that controls the cadence of kubernetes server keepalive
+	// operations. Note that this is not created automatically by newUpstreamHandle.
+	kubeKeepAliveDelay *delay.Multi[resourceKey]
 }
 
 type resourceKey struct {

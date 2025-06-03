@@ -34,12 +34,26 @@ import (
 type mockGitLabTokenValidator struct {
 	tokens           map[string]gitlab.IDTokenClaims
 	lastCalledDomain string
+	lastCalledJWKS   []byte
 }
 
 func (m *mockGitLabTokenValidator) Validate(
 	_ context.Context, domain string, token string,
 ) (*gitlab.IDTokenClaims, error) {
 	m.lastCalledDomain = domain
+
+	claims, ok := m.tokens[token]
+	if !ok {
+		return nil, errMockInvalidToken
+	}
+
+	return &claims, nil
+}
+
+func (m *mockGitLabTokenValidator) ValidateTokenWithJWKS(
+	_ context.Context, jwks []byte, token string,
+) (*gitlab.IDTokenClaims, error) {
+	m.lastCalledJWKS = jwks
 
 	claims, ok := m.tokens[token]
 	if !ok {
@@ -490,6 +504,36 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			request:     newRequest(validIDToken),
 			assertError: allowRulesNotMatched,
 		},
+		{
+			name: "success with JWKS",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitLab,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitLab: &types.ProvisionTokenSpecV2GitLab{
+					Allow: []*types.ProvisionTokenSpecV2GitLab_Rule{
+						allowRule(nil),
+					},
+					StaticJWKS: "xyzzy",
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "failure with JWKS",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitLab,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitLab: &types.ProvisionTokenSpecV2GitLab{
+					Allow: []*types.ProvisionTokenSpecV2GitLab_Rule{
+						allowRule(nil),
+					},
+					StaticJWKS: "xyzzy",
+				},
+			},
+			request:     newRequest("invalidjwt"),
+			assertError: require.Error,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -509,6 +553,15 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 					tt.tokenSpec.GitLab.Domain,
 					idTokenValidator.lastCalledDomain,
 				)
+			}
+			if tt.tokenSpec.GitLab.StaticJWKS != "" {
+				require.Equal(
+					t,
+					[]byte(tt.tokenSpec.GitLab.StaticJWKS),
+					idTokenValidator.lastCalledJWKS,
+				)
+			} else {
+				require.Nil(t, idTokenValidator.lastCalledJWKS)
 			}
 		})
 	}

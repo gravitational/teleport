@@ -22,6 +22,30 @@ import cfg from 'teleport/config';
 
 import { App, AppSubKind, PermissionSet } from './types';
 
+function getLaunchUrl({
+  fqdn,
+  clusterId,
+  publicAddr,
+  useAnyProxyPublicAddr,
+}: {
+  fqdn: string;
+  clusterId: string;
+  useAnyProxyPublicAddr: boolean;
+  publicAddr: string;
+}) {
+  if (useAnyProxyPublicAddr) {
+    return cfg.getAppLauncherRoute({
+      fqdn,
+    });
+  }
+
+  if (publicAddr && clusterId && fqdn) {
+    return cfg.getAppLauncherRoute({ fqdn, publicAddr, clusterId });
+  }
+
+  return '';
+}
+
 export default function makeApp(json: any): App {
   json = json || {};
   const {
@@ -31,6 +55,7 @@ export default function makeApp(json: any): App {
     publicAddr = '',
     clusterId = '',
     fqdn = '',
+    useAnyProxyPublicAddr = false,
     awsConsole = false,
     samlApp = false,
     friendlyName = '',
@@ -38,20 +63,23 @@ export default function makeApp(json: any): App {
     integration = '',
     samlAppPreset,
     subKind,
+    samlAppLaunchUrls,
   } = json;
 
-  const canCreateUrl = fqdn && clusterId && publicAddr;
-  const launchUrl = canCreateUrl
-    ? cfg.getAppLauncherRoute({ fqdn, clusterId, publicAddr })
-    : '';
+  const launchUrl = getLaunchUrl({
+    fqdn,
+    clusterId,
+    publicAddr,
+    useAnyProxyPublicAddr,
+  });
   const id = `${clusterId}-${name}-${publicAddr || uri}`;
   const labels = json.labels || [];
   const awsRoles: AwsRole[] = json.awsRoles || [];
   const userGroups = json.userGroups || [];
   const permissionSets: PermissionSet[] = json.permissionSets || [];
 
-  const isTcp = uri && uri.startsWith('tcp://');
-  const isCloud = uri && uri.startsWith('cloud://');
+  const isTcp = !!uri && uri.startsWith('tcp://');
+  const isCloud = !!uri && uri.startsWith('cloud://');
 
   let addrWithProtocol = uri;
   if (publicAddr) {
@@ -65,6 +93,9 @@ export default function makeApp(json: any): App {
     } else {
       addrWithProtocol = `https://${publicAddr}`;
     }
+  }
+  if (useAnyProxyPublicAddr) {
+    addrWithProtocol = `https://${fqdn}`;
   }
   let samlAppSsoUrl = '';
   if (samlApp) {
@@ -85,8 +116,10 @@ export default function makeApp(json: any): App {
     launchUrl,
     awsRoles,
     awsConsole,
-    isCloudOrTcpEndpoint: isTcp || isCloud,
+    isTcp,
+    isCloud,
     addrWithProtocol,
+    useAnyProxyPublicAddr,
     friendlyName,
     userGroups,
     samlApp,
@@ -95,5 +128,6 @@ export default function makeApp(json: any): App {
     requiresRequest,
     integration,
     permissionSets,
+    samlAppLaunchUrls,
   };
 }

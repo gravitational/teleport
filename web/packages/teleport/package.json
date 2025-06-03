@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "pnpm build-wasm && vite",
-    "build-wasm": "RUST_MIN_STACK=16777216 wasm-pack build ./src/ironrdp --target web",
-    "build": "pnpm build-wasm && vite build"
+    "build": "pnpm build-wasm && vite build",
+    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm"
   },
   "author": "Gravitational, Inc.",
   "license": "Apache-2.0",
@@ -47,7 +47,6 @@
     "@gravitational/teleport": "workspace:*",
     "babel-plugin-transform-import-meta": "^2.2.0",
     "babel-plugin-transform-vite-meta-env": "^1.0.3",
-    "jest-canvas-mock": "^2.5.2",
     "jest-websocket-mock": "^2.5.0"
   }
 }

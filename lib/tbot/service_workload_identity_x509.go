@@ -17,6 +17,7 @@
 package tbot
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"crypto"
@@ -191,17 +192,21 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 		return nil, nil, trace.Wrap(err, "fetching roles")
 	}
 
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	id, err := generateIdentity(
 		ctx,
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		effectiveLifetime.TTL,
 		nil,
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "generating identity")
 	}
+
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
+
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
 	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
@@ -289,11 +294,18 @@ func (s *WorkloadIdentityX509Service) render(
 		return trace.Wrap(err, "writing svid key")
 	}
 
-	certPEM := pem.EncodeToMemory(&pem.Block{
+	var certPEM bytes.Buffer
+	pem.Encode(&certPEM, &pem.Block{
 		Type:  pemCertificate,
 		Bytes: x509Cred.GetX509Svid().GetCert(),
 	})
-	if err := s.cfg.Destination.Write(ctx, config.SVIDPEMPath, certPEM); err != nil {
+	for _, c := range x509Cred.GetX509Svid().GetChain() {
+		pem.Encode(&certPEM, &pem.Block{
+			Type:  pemCertificate,
+			Bytes: c,
+		})
+	}
+	if err := s.cfg.Destination.Write(ctx, config.SVIDPEMPath, certPEM.Bytes()); err != nil {
 		return trace.Wrap(err, "writing svid certificate")
 	}
 

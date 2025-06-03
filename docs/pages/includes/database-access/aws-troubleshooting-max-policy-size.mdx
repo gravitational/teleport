@@ -15,7 +15,8 @@ or 100 RDS databases.
 To get around this limit, try using one or a combination of the following
 methods:
 
-<Details title="Method 1: Organize IAM roles with &quot;assume_role_arn&quot;">
+<details>
+<summary>Method 1: Organize IAM roles with &quot;assume_role_arn&quot;</summary>
 You can reduce the policy size by separating them into multiple IAM roles. Use
 `assume_role_arn` to specify different IAM roles for accessing the databases:
 
@@ -29,7 +30,7 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
   ```yaml
   discovery_service:
     discovery_group: "prod"
-    enabled: "yes"
+    enabled: true
     aws:
       - types: ["rds"]
         regions: ["us-west-1", "us-west-2"]
@@ -51,7 +52,7 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
   Service if you wish to use different roles:
   ```yaml
   db_service:
-    enabled: "yes"
+    enabled: true
     resources:
       # Matches us-west-1 env=prod RDS databases from Discovery Service, and
       # overwrites assume_role_arn.
@@ -101,7 +102,7 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
   configuration:
   ```yaml
   db_service:
-    enabled: "yes"
+    enabled: true
     aws:
       - types: ["rds"]
         regions: ["us-west-1", "us-west-2"]
@@ -133,7 +134,7 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
   Service's configuration:
   ```yaml
   db_service:
-    enabled: "yes"
+    enabled: true
     databases:
     - name: "rds-postgres"
       protocol: "postgres"
@@ -172,7 +173,7 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
   Service:
   ```yaml
   db_service:
-    enabled: "yes"
+    enabled: true
     resources:
       # Matches env=dev databases and overwrites assume_role_arn.
       - labels:
@@ -208,9 +209,10 @@ The `assume_role_arn` is not limited to the same AWS account so you can also
 use this feature for [AWS Cross-Account
 Access](../../enroll-resources/database-access/enroll-aws-databases/aws-cross-account.mdx).
 
-</Details>
+</details>
 
-<Details title="Method 2: Manually manage your IAM policies">
+<details>
+<summary>Method 2: Manually manage your IAM policies</summary>
 You can manually manage IAM policies for database connections instead of
 relying on the Database Service to update them.
 
@@ -252,20 +254,22 @@ You can safely remove the inline policy created by the Database Service and the
 IAM permissions for the Database Service to `Get/Put/Delete` the user or role
 policy.
 
-</Details>
+</details>
 
-<Details title="Method 3: Separate Database Services">
+<details>
+<summary>Method 3: Separate Database Services</summary>
 
 You can deploy [the Database Service in a highly available (HA)
 configuration](../../enroll-resources/database-access/guides/ha.mdx) where databases can be
 sharded to separate Database Services with different IAM roles.
 
-</Details>
+</details>
 
-<Details title="Method 4: Use IAM roles instead of IAM users">
+<details>
+<summary>Method 4: Use IAM roles instead of IAM users</summary>
 
 IAM users have a lower character limit compared to IAM roles. If the limit is
 exceeded for a user policy, it is recommended to use IAM roles for the Database
 Service instead.
 
-</Details>
+</details>

@@ -513,6 +513,12 @@ const (
 	// KindServerInfo contains info that should be applied to joining Nodes.
 	KindServerInfo = "server_info"
 
+	// KindBackendInfo contains backend info.
+	KindBackendInfo = "backend_info"
+
+	// MetaNameBackendInfo name backend info entity.
+	MetaNameBackendInfo = "backend-info"
+
 	// SubKindCloudInfo is a ServerInfo that was created by the Discovery
 	// service to match with a single discovered instance.
 	SubKindCloudInfo = "cloud_info"
@@ -610,6 +616,17 @@ const (
 	// KindWorkloadIdentityX509Revocation is the WorkloadIdentityX509Revocation
 	// resource.
 	KindWorkloadIdentityX509Revocation = "workload_identity_x509_revocation"
+
+	// KindWorkloadIdentityX509IssuerOverride is the kind of
+	// teleport.workloadidentity.v1.X509IssuerOverride.
+	KindWorkloadIdentityX509IssuerOverride = "workload_identity_x509_issuer_override"
+
+	// KindWorkloadIdentityX509IssuerOverrideCSR is the pseudo-kind representing
+	// the act of signing CSRs on behalf of the SPIFFE CA (with [VerbCreate]).
+	KindWorkloadIdentityX509IssuerOverrideCSR = "workload_identity_x509_issuer_override_csr"
+
+	// KindSigstorePolicy is the kind of teleport.workloadidentity.v1.SigstorePolicy.
+	KindSigstorePolicy = "sigstore_policy"
 
 	// KindGitServer represents a Git server that can proxy git commands.
 	KindGitServer = "git_server"
@@ -847,6 +864,8 @@ const (
 	DiscoveryAppRewriteLabel = TeleportNamespace + "/app-rewrite"
 	// DiscoveryAppNameLabel specifies explicitly name of an app created from Kubernetes service.
 	DiscoveryAppNameLabel = TeleportNamespace + "/name"
+	// DiscoveryPathLabel optionally specifies a context path for apps created from Kubernetes services.
+	DiscoveryPathLabel = TeleportNamespace + "/path"
 	// DiscoveryAppInsecureSkipVerify specifies the TLS verification enforcement for a discovered app created from Kubernetes service.
 	DiscoveryAppInsecureSkipVerify = TeleportNamespace + "/insecure-skip-verify"
 	// DiscoveryAppIgnore specifies if a Kubernetes service should be ignored by discovery service.

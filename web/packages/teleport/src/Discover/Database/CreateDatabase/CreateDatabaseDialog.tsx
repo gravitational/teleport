@@ -143,7 +143,7 @@ const SuccessContent = ({ dbName, onClick }) => (
   <>
     <Text mb={5}>
       <Icons.Check size="small" ml={1} mr={2} color="success.main" />
-      Database "{dbName}" successfully registered
+      Database &quot;{dbName}&quot; successfully registered
     </Text>
     <ButtonPrimary width="100%" onClick={onClick}>
       Next

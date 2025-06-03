@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -75,7 +74,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
@@ -946,6 +944,7 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 		filesessions.SetOpenFileFunc(os.OpenFile)
 	}
 
+	teleport.WaitForNodeCount(ctx, helpers.Site, 1)
 	for name, test := range map[string]struct {
 		recordingMode        constants.SessionRecordingMode
 		expectSessionFailure bool
@@ -2434,28 +2433,9 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	err = tc.UpdateTrustedCA(ctx, a.GetSiteAPI(a.Secrets.SiteName))
 	require.NoError(t, err)
 
-	// The known_hosts file should have two certificates, the way bytes.Split
-	// works that means the output will be 3 (2 certs + 1 empty).
-	buffer, err := os.ReadFile(keypaths.KnownHostsPath(tc.KeysDir))
+	trustedCerts, err := tc.ClientStore.GetTrustedCerts(tc.WebProxyHost())
 	require.NoError(t, err)
-	parts := bytes.Split(buffer, []byte("\n"))
-	require.Len(t, parts, 3)
-
-	roots := x509.NewCertPool()
-	werr := filepath.Walk(keypaths.CAsDir(tc.KeysDir, Host), func(path string, info fs.FileInfo, err error) error {
-		require.NoError(t, err)
-		if info.IsDir() {
-			return nil
-		}
-		buffer, err = os.ReadFile(path)
-		require.NoError(t, err)
-		ok := roots.AppendCertsFromPEM(buffer)
-		require.True(t, ok)
-		return nil
-	})
-	require.NoError(t, werr)
-	ok := roots.AppendCertsFromPEM(buffer)
-	require.True(t, ok)
+	require.Len(t, trustedCerts, 2)
 
 	// wait for active tunnel connections to be established
 	helpers.WaitForActiveTunnelConnections(t, b.Tunnel, a.Secrets.SiteName, 1)
@@ -4842,7 +4822,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 						display := make(chan string, 1)
 						require.EventuallyWithT(t, func(t *assert.CollectT) {
 							// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
-							_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())))
+							_, err = fmt.Fprintf(keyboard, "printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())
 							assert.NoError(t, err)
 
 							assert.Eventually(t, func() bool {
@@ -6203,9 +6183,14 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 		{
 			desc: "Both",
 			// Print slowly so we can confirm that the output isn't interleaved.
-			command:     slowPrintCommand("abcd1234"),
-			labels:      map[string]string{"spam": "eggs"},
-			expectLines: []string{"[server-01] abcd1234", "[server-02] abcd1234"},
+			command: slowPrintCommand("abcd1234"),
+			labels:  map[string]string{"spam": "eggs"},
+			expectLines: []string{
+				"Running command on server-01:",
+				"Running command on server-02:",
+				"[server-01] abcd1234",
+				"[server-02] abcd1234",
+			},
 		},
 		{
 			desc:        "Worker only",
@@ -6229,10 +6214,10 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 				Labels:  tt.labels,
 			}
 
-			output, err := runCommand(t, teleport, tt.command, cfg, 1)
+			output, err := runCommand(t, teleport, tt.command, cfg, 3)
 			require.NoError(t, err)
 			outputLines := strings.Split(strings.TrimSpace(output), "\n")
-			require.Len(t, outputLines, len(tt.expectLines))
+			require.Len(t, outputLines, len(tt.expectLines), "raw output:\n%v", output)
 			for _, line := range tt.expectLines {
 				require.Contains(t, outputLines, line)
 			}
@@ -6273,7 +6258,7 @@ func testDataTransfer(t *testing.T, suite *integrationTestSuite) {
 	require.Len(t, output, MB)
 
 	// Make sure the session.data event was emitted to the audit log.
-	eventFields, err := findEventInLog(main, events.SessionDataEvent)
+	eventFields, err := findEventInLog(main, events.SessionDataEvent, time.Time{})
 	require.NoError(t, err)
 
 	// Make sure the audit event shows that 1 MB was written to the output.
@@ -6752,7 +6737,7 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 	for i := 0; i < 10; i++ {
 		sessionIDs := map[string]bool{}
 
-		eventFields, err := eventsInLog(main.Config.DataDir+"/log/events.log", events.SessionCommandEvent)
+		eventFields, err := eventsInLog(main.Config.DataDir+"/log/events.log", time.Time{})
 		if err != nil {
 			time.Sleep(1 * time.Second)
 			continue
@@ -7005,7 +6990,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	require.NoError(t, err)
 
 	// Get session start event
-	sessionStart, err := findEventInLog(main, events.SessionStartEvent)
+	sessionStart, err := findEventInLog(main, events.SessionStartEvent, time.Time{})
 	require.NoError(t, err)
 	require.Equal(t, events.SessionStartCode, sessionStart.GetCode())
 	require.True(t, sessionStart.HasField(accessRequestsKey))
@@ -7037,9 +7022,9 @@ func WaitForResource(t *testing.T, watcher types.Watcher, kind, name string) {
 }
 
 // findEventInLog polls the event log looking for an event of a particular type.
-func findEventInLog(t *helpers.TeleInstance, eventName string) (events.EventFields, error) {
+func findEventInLog(t *helpers.TeleInstance, eventName string, after time.Time) (events.EventFields, error) {
 	for i := 0; i < 10; i++ {
-		eventFields, err := eventsInLog(t.Config.DataDir+"/log/events.log", eventName)
+		eventFields, err := eventsInLog(t.Config.DataDir+"/log/events.log", after)
 		if err != nil {
 			time.Sleep(1 * time.Second)
 			continue
@@ -7071,7 +7056,7 @@ func findCommandEventInLog(t *helpers.TeleInstance, eventName string, programNam
 
 func findMatchingEventInLog(t *helpers.TeleInstance, eventName string, match func(events.EventFields) bool) (events.EventFields, error) {
 	for i := 0; i < 10; i++ {
-		eventFields, err := eventsInLog(t.Config.DataDir+"/log/events.log", eventName)
+		eventFields, err := eventsInLog(t.Config.DataDir+"/log/events.log", time.Time{})
 		if err != nil {
 			time.Sleep(1 * time.Second)
 			continue
@@ -7089,7 +7074,7 @@ func findMatchingEventInLog(t *helpers.TeleInstance, eventName string, match fun
 }
 
 // eventsInLog returns all events in a log file.
-func eventsInLog(path string, eventName string) ([]events.EventFields, error) {
+func eventsInLog(path string, after time.Time) ([]events.EventFields, error) {
 	var ret []events.EventFields
 
 	file, err := os.Open(path)
@@ -7105,7 +7090,9 @@ func eventsInLog(path string, eventName string) ([]events.EventFields, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		ret = append(ret, fields)
+		if fields.GetTimestamp().After(after) {
+			ret = append(ret, fields)
+		}
 	}
 
 	if len(ret) == 0 {
@@ -8117,6 +8104,9 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	err := teleport.WaitForNodeCount(context.Background(), helpers.Site, 1)
 	require.NoError(t, err)
 
+	agentlessHost := "agentless-node"
+	agentlessNode := testenv.CreateAgentlessNode(t, teleport.Process.GetAuthServer(), helpers.Site, agentlessHost)
+
 	teleportClient, err := teleport.NewClient(helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: helpers.Site,
@@ -8124,169 +8114,239 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// Create SFTP session.
-	ctx := context.Background()
-	clusterClient, err := teleportClient.ConnectToCluster(ctx)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = clusterClient.Close()
-	})
-
-	nodeClient, err := teleportClient.ConnectToNode(
-		ctx,
-		clusterClient,
-		client.NodeDetails{
-			Addr:      teleport.Config.SSH.Addr.Addr,
-			Namespace: teleportClient.Namespace,
-			Cluster:   helpers.Site,
+	tests := []struct {
+		name     string
+		nodeAddr string
+	}{
+		{
+			name:     "regular",
+			nodeAddr: teleport.Config.SSH.Addr.Addr,
 		},
-		suite.Me.Username,
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, nodeClient.Close())
-	})
+		{
+			name:     "agentless",
+			nodeAddr: agentlessNode.Spec.Addr,
+		},
+	}
 
-	sftpClient, err := sftp.NewClient(nodeClient.Client.Client)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, sftpClient.Close())
-	})
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create SFTP session.
+			ctx := context.Background()
+			clusterClient, err := teleportClient.ConnectToCluster(ctx)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = clusterClient.Close()
+			})
 
-	// Create file that will be uploaded and downloaded.
-	tempDir := t.TempDir()
-	testFilePath := filepath.Join(tempDir, "testfile")
-	testFile, err := os.Create(testFilePath)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, testFile.Close())
-	})
+			nodeClient, err := teleportClient.ConnectToNode(
+				ctx,
+				clusterClient,
+				client.NodeDetails{
+					Addr:    tc.nodeAddr,
+					Cluster: helpers.Site,
+				},
+				suite.Me.Username,
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				// Ignore io.EOF.
+				_ = nodeClient.Close()
+			})
 
-	contents := []byte("This is test data.")
-	_, err = testFile.Write(contents)
-	require.NoError(t, err)
-	require.NoError(t, testFile.Sync())
-	_, err = testFile.Seek(0, io.SeekStart)
-	require.NoError(t, err)
+			sftpClient, err := sftp.NewClient(nodeClient.Client.Client)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				// Ignore io.EOF.
+				_ = sftpClient.Close()
+			})
 
-	// Test stat'ing a file.
-	t.Run("stat", func(t *testing.T) {
-		fi, err := sftpClient.Stat(testFilePath)
-		require.NoError(t, err)
-		require.NotNil(t, fi)
-	})
+			// Create file that will be uploaded and downloaded.
+			tempDir := t.TempDir()
+			testFilePath := filepath.Join(tempDir, "testfile")
+			testFile, err := os.Create(testFilePath)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, testFile.Close())
+			})
 
-	// Test downloading a file.
-	t.Run("download", func(t *testing.T) {
-		testFileDownload := testFilePath + "-download"
-		downloadFile, err := os.Create(testFileDownload)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			require.NoError(t, downloadFile.Close())
+			contents := []byte("This is test data.")
+			_, err = testFile.Write(contents)
+			require.NoError(t, err)
+			require.NoError(t, testFile.Sync())
+			_, err = testFile.Seek(0, io.SeekStart)
+			require.NoError(t, err)
+
+			// Test stat'ing a file.
+			t.Run("stat", func(t *testing.T) {
+				fi, err := sftpClient.Stat(testFilePath)
+				require.NoError(t, err)
+				require.NotNil(t, fi)
+			})
+
+			// Test downloading a file.
+			t.Run("download", func(t *testing.T) {
+				start := time.Now()
+				testFileDownload := testFilePath + "-download"
+				downloadFile, err := os.Create(testFileDownload)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					require.NoError(t, downloadFile.Close())
+				})
+
+				remoteDownloadFile, err := sftpClient.Open(testFilePath)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					require.NoError(t, remoteDownloadFile.Close())
+				})
+
+				_, err = io.Copy(downloadFile, remoteDownloadFile)
+				require.NoError(t, err)
+
+				_, err = downloadFile.Seek(0, io.SeekStart)
+				require.NoError(t, err)
+				data, err := io.ReadAll(downloadFile)
+				require.NoError(t, err)
+				require.Equal(t, contents, data)
+
+				// Ensure SFTP audit events are present.
+				sftpEvent, err := findEventInLog(teleport, events.SFTPEvent, start)
+				if assert.NoError(t, err) {
+					assert.Equal(t, events.SFTPOpenCode, sftpEvent.GetCode())
+					assert.Equal(t, testFilePath, sftpEvent.GetString(events.SFTPPath))
+				}
+			})
+
+			// Test uploading a file.
+			t.Run("upload", func(t *testing.T) {
+				start := time.Now()
+				testFileUpload := testFilePath + "-upload"
+				remoteUploadFile, err := sftpClient.Create(testFileUpload)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					require.NoError(t, remoteUploadFile.Close())
+				})
+
+				_, err = io.Copy(remoteUploadFile, testFile)
+				require.NoError(t, err)
+
+				_, err = remoteUploadFile.Seek(0, io.SeekStart)
+				require.NoError(t, err)
+				data, err := io.ReadAll(remoteUploadFile)
+				require.NoError(t, err)
+				require.Equal(t, contents, data)
+
+				// Ensure SFTP audit events are present.
+				sftpEvent, err := findEventInLog(teleport, events.SFTPEvent, start)
+				if assert.NoError(t, err) {
+					assert.Equal(t, events.SFTPOpenCode, sftpEvent.GetCode())
+					assert.Equal(t, testFileUpload, sftpEvent.GetString(events.SFTPPath))
+				}
+			})
+
+			// Test changing file permissions.
+			t.Run("chmod", func(t *testing.T) {
+				start := time.Now()
+				err := sftpClient.Chmod(testFilePath, 0o777)
+				require.NoError(t, err)
+
+				fi, err := os.Stat(testFilePath)
+				require.NoError(t, err)
+				require.Equal(t, fs.FileMode(0o777), fi.Mode().Perm())
+
+				// Ensure SFTP audit events are present.
+				sftpEvent, err := findEventInLog(teleport, events.SFTPEvent, start)
+				if assert.NoError(t, err) {
+					assert.Equal(t, events.SFTPSetstatCode, sftpEvent.GetCode())
+					assert.Equal(t, testFilePath, sftpEvent.GetString(events.SFTPPath))
+				}
+			})
+
+			// Test operations on a directory.
+			t.Run("mkdir", func(t *testing.T) {
+				start := time.Now()
+				dirPath := filepath.Join(tempDir, "dir")
+				require.NoError(t, sftpClient.Mkdir(dirPath))
+
+				err := sftpClient.Chmod(dirPath, 0o777)
+				require.NoError(t, err)
+
+				fi, err := os.Stat(dirPath)
+				require.NoError(t, err)
+				require.Equal(t, fs.FileMode(0o777), fi.Mode().Perm())
+
+				f, err := sftpClient.Create(filepath.Join(dirPath, "file"))
+				require.NoError(t, err)
+				require.NoError(t, f.Close())
+
+				fileInfos, err := sftpClient.ReadDir(dirPath)
+				require.NoError(t, err)
+				require.Len(t, fileInfos, 1)
+				require.Equal(t, "file", fileInfos[0].Name())
+
+				// Ensure SFTP audit events are present.
+				sftpEvent, err := findEventInLog(teleport, events.SFTPEvent, start)
+				if assert.NoError(t, err) {
+					assert.Equal(t, events.SFTPMkdirCode, sftpEvent.GetCode())
+					assert.Equal(t, dirPath, sftpEvent.GetString(events.SFTPPath))
+				}
+			})
+
+			// Test renaming a file.
+			t.Run("rename", func(t *testing.T) {
+				path := filepath.Join(tempDir, "to-be-renamed")
+				f, err := sftpClient.Create(path)
+				require.NoError(t, err)
+				require.NoError(t, f.Close())
+
+				newPath := path + "-done"
+				start := time.Now()
+				err = sftpClient.Rename(path, newPath)
+				require.NoError(t, err)
+
+				_, err = sftpClient.Stat(path)
+				require.ErrorIs(t, err, os.ErrNotExist)
+				_, err = sftpClient.Stat(newPath)
+				require.NoError(t, err)
+
+				// Ensure SFTP audit events are present.
+				sftpEvent, err := findEventInLog(teleport, events.SFTPEvent, start)
+				if assert.NoError(t, err) {
+					assert.Equal(t, events.SFTPRenameCode, sftpEvent.GetCode())
+					assert.Equal(t, path, sftpEvent.GetString(events.SFTPPath))
+					assert.Equal(t, newPath, sftpEvent.GetString("target_path"))
+				}
+			})
+
+			// Test removing a file.
+			t.Run("remove", func(t *testing.T) {
+				path := filepath.Join(tempDir, "to-be-removed")
+				f, err := sftpClient.Create(path)
+				require.NoError(t, err)
+				require.NoError(t, f.Close())
+
+				start := time.Now()
+				err = sftpClient.Remove(path)
+				require.NoError(t, err)
+
+				_, err = sftpClient.Stat(path)
+				require.ErrorIs(t, err, os.ErrNotExist)
+
+				// Ensure SFTP audit events are present.
+				sftpEvent, err := findEventInLog(teleport, events.SFTPEvent, start)
+				if assert.NoError(t, err) {
+					assert.Equal(t, events.SFTPRemoveCode, sftpEvent.GetCode())
+					assert.Equal(t, path, sftpEvent.GetString(events.SFTPPath))
+				}
+			})
+
+			// Check for summary audit event.
+			start := time.Now()
+			require.NoError(t, sftpClient.Close())
+			require.NoError(t, nodeClient.Close())
+			_, err = findEventInLog(teleport, events.SFTPSummaryEvent, start)
+			require.NoError(t, err)
 		})
-
-		remoteDownloadFile, err := sftpClient.Open(testFilePath)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			require.NoError(t, remoteDownloadFile.Close())
-		})
-
-		_, err = io.Copy(downloadFile, remoteDownloadFile)
-		require.NoError(t, err)
-
-		_, err = downloadFile.Seek(0, io.SeekStart)
-		require.NoError(t, err)
-		data, err := io.ReadAll(downloadFile)
-		require.NoError(t, err)
-		require.Equal(t, contents, data)
-	})
-
-	// Test uploading a file.
-	t.Run("upload", func(t *testing.T) {
-		testFileUpload := testFilePath + "-upload"
-		remoteUploadFile, err := sftpClient.Create(testFileUpload)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			require.NoError(t, remoteUploadFile.Close())
-		})
-
-		_, err = io.Copy(remoteUploadFile, testFile)
-		require.NoError(t, err)
-
-		_, err = remoteUploadFile.Seek(0, io.SeekStart)
-		require.NoError(t, err)
-		data, err := io.ReadAll(remoteUploadFile)
-		require.NoError(t, err)
-		require.Equal(t, contents, data)
-	})
-
-	// Test changing file permissions.
-	t.Run("chmod", func(t *testing.T) {
-		err := sftpClient.Chmod(testFilePath, 0o777)
-		require.NoError(t, err)
-
-		fi, err := os.Stat(testFilePath)
-		require.NoError(t, err)
-		require.Equal(t, fs.FileMode(0o777), fi.Mode().Perm())
-	})
-
-	// Test operations on a directory.
-	t.Run("mkdir", func(t *testing.T) {
-		dirPath := filepath.Join(tempDir, "dir")
-		require.NoError(t, sftpClient.Mkdir(dirPath))
-
-		err := sftpClient.Chmod(dirPath, 0o777)
-		require.NoError(t, err)
-
-		fi, err := os.Stat(dirPath)
-		require.NoError(t, err)
-		require.Equal(t, fs.FileMode(0o777), fi.Mode().Perm())
-
-		f, err := sftpClient.Create(filepath.Join(dirPath, "file"))
-		require.NoError(t, err)
-		require.NoError(t, f.Close())
-
-		fileInfos, err := sftpClient.ReadDir(dirPath)
-		require.NoError(t, err)
-		require.Len(t, fileInfos, 1)
-		require.Equal(t, "file", fileInfos[0].Name())
-	})
-
-	// Test renaming a file.
-	t.Run("rename", func(t *testing.T) {
-		path := filepath.Join(tempDir, "to-be-renamed")
-		f, err := sftpClient.Create(path)
-		require.NoError(t, err)
-		require.NoError(t, f.Close())
-
-		newPath := path + "-done"
-		err = sftpClient.Rename(path, newPath)
-		require.NoError(t, err)
-
-		_, err = sftpClient.Stat(path)
-		require.ErrorIs(t, err, os.ErrNotExist)
-		_, err = sftpClient.Stat(newPath)
-		require.NoError(t, err)
-	})
-
-	// Test removing a file.
-	t.Run("remove", func(t *testing.T) {
-		path := filepath.Join(tempDir, "to-be-removed")
-		f, err := sftpClient.Create(path)
-		require.NoError(t, err)
-		require.NoError(t, f.Close())
-
-		err = sftpClient.Remove(path)
-		require.NoError(t, err)
-
-		_, err = sftpClient.Stat(path)
-		require.ErrorIs(t, err, os.ErrNotExist)
-	})
-
-	// Ensure SFTP audit events are present.
-	sftpEvent, err := findEventInLog(teleport, events.SFTPEvent)
-	require.NoError(t, err)
-	require.Equal(t, testFilePath, sftpEvent.GetString(events.SFTPPath))
+	}
 }
 
 func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {

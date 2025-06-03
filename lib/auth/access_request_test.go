@@ -1042,6 +1042,8 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 	defer adminClient.Close()
 	bot, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "request-approver",
 			},

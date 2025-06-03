@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -34,11 +35,11 @@ func TestGenerateClientCertFile(t *testing.T) {
 	kp := "client.key"
 
 	// Generate certs in memory
-	certs, err := GenerateMTLSCerts([]string{"localhost"}, nil, time.Second, 1024)
+	certs, err := GenerateMTLSCerts([]string{"localhost"}, []string{"127.0.0.1"}, time.Second, 1024)
 	require.NoError(t, err)
-	require.NotNil(t, certs.caCert.Issuer)
-	require.NotNil(t, certs.clientCert.Issuer)
-	require.NotNil(t, certs.serverCert.Issuer)
+	require.NotZero(t, certs.caCert.Issuer)
+	require.NotZero(t, certs.clientCert.Issuer)
+	require.NotZero(t, certs.serverCert.Issuer)
 	// don't be self-signed
 	require.NotEqual(t, certs.serverCert.Issuer, certs.serverCert.Subject)
 	require.NotEqual(t, certs.clientCert.Issuer, certs.clientCert.Subject)
@@ -58,6 +59,7 @@ func TestGenerateClientCertFile(t *testing.T) {
 	require.NotEmpty(t, certs.clientCert.DNSNames)
 	// server leaf cert should have SAN DNS:localhost
 	require.Equal(t, "localhost", certs.serverCert.DNSNames[0])
+	require.Equal(t, net.ParseIP("127.0.0.1"), certs.serverCert.IPAddresses[0])
 
 	// Write the cert to the tempdir
 	err = certs.ClientCert.WriteFile(filepath.Join(td, cp), filepath.Join(td, kp), ".")

@@ -80,7 +80,8 @@ You can search for resources of kind `node`, `kube_cluster`, `db`, `app`, and
 `windows_desktop`. Teleport also supports searching and requesting access to
 resources within Kubernetes clusters.
 
-<Details title="List of supported Kubernetes resources">
+<details>
+<summary>List of supported Kubernetes resources</summary>
 
 Teleport supports searching and requesting access to the following Kubernetes resources:
 
@@ -118,7 +119,7 @@ However, it prevents you from access any resources belonging to another namespac
 - `ingress`
 
 
-</Details>
+</details>
 
 Advanced filters and queries are supported. See our
 [filtering reference](../../../reference/cli/cli.mdx) for more information.
@@ -257,6 +258,11 @@ Use the `tsh request drop` command to "drop" the request and resume regular acce
 $ tsh request drop
 ```
 
+When you drop an Access Request, Teleport issues a new user certificate. The new
+certificate retains the expiration of the previous certificate. Once your
+session expires and you reauthenticate to Teleport, you receive a user
+certificate with your user's originally configured time to live.
+
 ## Next Steps
 
 ### Automatically request access for SSH
@@ -307,8 +313,7 @@ below, edit one of the user's roles so the `search_as_roles` field includes the
 role you have created.
 
 For full details on how to use Teleport roles to configure RBAC, see the
-[Teleport Access Controls
-Reference](../../../reference/access-controls/roles.mdx).
+[Access Controls Reference](../../../reference/access-controls/roles.mdx).
 
 #### `node`
 

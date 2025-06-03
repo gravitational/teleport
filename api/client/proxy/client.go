@@ -17,6 +17,7 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/asn1"
 	"net"
 	"slices"
@@ -444,6 +445,17 @@ func (c *Client) ClusterDetails(ctx context.Context) (ClusterDetails, error) {
 	}
 
 	return ClusterDetails{FIPS: details.FipsEnabled}, nil
+}
+
+// ProxyWindowsDesktopSession establishes a connection to the target desktop over a bidirectional stream.
+// The caller is required to pass a valid desktop certificate.
+func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, cluster string, desktopName string, windowsDesktopCert tls.Certificate, rootCAs *x509.CertPool) (*tls.Conn, error) {
+	session, err := c.transport.ProxyWindowsDesktopSession(ctx, cluster, desktopName, windowsDesktopCert, rootCAs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return session, nil
 }
 
 // Ping measures the round trip latency of sending a message to the Proxy.

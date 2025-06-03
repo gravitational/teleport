@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 )
 
 func TestDeployServiceRequest(t *testing.T) {
@@ -238,7 +238,7 @@ func TestUpsertTask(t *testing.T) {
 		},
 	}
 
-	semVer := *teleport.SemVersion
+	semVer := teleport.SemVer()
 	semVer.PreRelease = ""
 	taskDefinition, err := upsertTask(ctx, mockClient, upsertTaskRequest{TeleportVersionTag: semVer.String()})
 	require.NoError(t, err)

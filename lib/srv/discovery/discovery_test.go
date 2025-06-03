@@ -24,9 +24,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"regexp"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -957,13 +959,15 @@ func TestDiscoveryServer(t *testing.T) {
 					instances := installer.GetInstalledInstances()
 					slices.Sort(instances)
 					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceCreateEventCount()
-				}, 5000*time.Millisecond, 50*time.Millisecond)
+				}, 10*time.Second, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
 					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceCreateEventCount() > 0
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
-			require.GreaterOrEqual(t, reporter.DiscoveryFetchEventCount(), 1)
+			require.Eventually(t, func() bool {
+				return reporter.DiscoveryFetchEventCount() > 0
+			}, 10*time.Second, 50*time.Millisecond)
 
 			// Discovery Config Status is updated accordingly
 			if tc.wantDiscoveryConfigStatus != nil {
@@ -1023,7 +1027,7 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 			gotResources += len(task.GetSpec().GetDiscoverRds().GetDatabases())
 		}
 		assert.GreaterOrEqual(t, gotResources, minUserTaskResources)
-	}, 5*time.Second, 50*time.Millisecond)
+	}, 10*time.Second, 50*time.Millisecond)
 
 	return existingTasks
 }
@@ -1179,12 +1183,17 @@ func TestDiscoveryKubeServices(t *testing.T) {
 
 	appProtocolHTTP := "http"
 	mockKubeServices := []*corev1.Service{
-		newMockKubeService("service1", "ns1", "", map[string]string{"test-label": "testval"}, map[string]string{types.DiscoveryPublicAddr: "custom.example.com"},
+		newMockKubeService("service1", "ns1", "",
+			map[string]string{"test-label": "testval"},
+			map[string]string{types.DiscoveryPublicAddr: "custom.example.com", types.DiscoveryPathLabel: "foo/bar baz"},
 			[]corev1.ServicePort{{Port: 42, Name: "http", Protocol: corev1.ProtocolTCP}}),
-		newMockKubeService("service2", "ns2", "", map[string]string{
-			"test-label":  "testval",
-			"test-label2": "testval2",
-		}, nil, []corev1.ServicePort{{Port: 42, Name: "custom", AppProtocol: &appProtocolHTTP, Protocol: corev1.ProtocolTCP}}),
+		newMockKubeService("service2", "ns2", "",
+			map[string]string{
+				"test-label":  "testval",
+				"test-label2": "testval2",
+			},
+			nil,
+			[]corev1.ServicePort{{Port: 42, Name: "custom", AppProtocol: &appProtocolHTTP, Protocol: corev1.ProtocolTCP}}),
 	}
 
 	app1 := mustConvertKubeServiceToApp(t, mainDiscoveryGroup, "http", mockKubeServices[0], mockKubeServices[0].Spec.Ports[0])
@@ -2002,6 +2011,13 @@ func mustConvertKubeServiceToApp(t *testing.T, discoveryGroup, protocol string, 
 	app, err := services.NewApplicationFromKubeService(*kubeService, discoveryGroup, protocol, port)
 	require.NoError(t, err)
 	require.Equal(t, kubeService.Annotations[types.DiscoveryPublicAddr], app.GetPublicAddr())
+	if p, ok := kubeService.Annotations[types.DiscoveryPathLabel]; ok {
+		components := strings.Split(p, "/")
+		for i := range components {
+			components[i] = url.PathEscape(components[i])
+		}
+		require.True(t, strings.HasSuffix(app.GetURI(), "/"+strings.Join(components, "/")), "uri: %v", app.GetURI())
+	}
 
 	app.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	app.GetStaticLabels()[types.OriginLabel] = types.OriginDiscoveryKubernetes

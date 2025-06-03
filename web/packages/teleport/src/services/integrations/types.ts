@@ -148,6 +148,7 @@ export enum IntegrationStatusCode {
   OtherError = 2,
   Unauthorized = 3,
   SlackNotInChannel = 10,
+  OktaConfigError = 20,
   Draft = 100,
 }
 
@@ -159,6 +160,8 @@ export function getStatusCodeTitle(code: IntegrationStatusCode): string {
       return 'Running';
     case IntegrationStatusCode.Unauthorized:
       return 'Unauthorized';
+    case IntegrationStatusCode.OktaConfigError:
+      return 'Configuration Error';
     case IntegrationStatusCode.SlackNotInChannel:
       return 'Bot not invited to channel';
     case IntegrationStatusCode.Draft:
@@ -169,12 +172,14 @@ export function getStatusCodeTitle(code: IntegrationStatusCode): string {
 }
 
 export function getStatusCodeDescription(
-  code: IntegrationStatusCode
+  code: IntegrationStatusCode,
+  msg?: string
 ): string | null {
   switch (code) {
     case IntegrationStatusCode.Unauthorized:
       return 'The integration was denied access. This could be a result of revoked authorization on the 3rd party provider. Try removing and re-connecting the integration.';
-
+    case IntegrationStatusCode.OktaConfigError:
+      return `There was an error with the integration's configuration.${msg ? ` ${msg}` : ''}`;
     case IntegrationStatusCode.SlackNotInChannel:
       return 'The Slack integration must be invited to the default channel in order to receive access request notifications.';
     default:
@@ -268,7 +273,8 @@ export type PluginKind =
   | 'jamf'
   | 'entra-id'
   | 'datadog'
-  | 'aws-identity-center';
+  | 'aws-identity-center'
+  | 'scim';
 
 export type PluginOktaSpec = {
   // The plaintext of the bearer token that Okta will use
@@ -292,8 +298,12 @@ export type PluginOktaSpec = {
   defaultOwners: string[];
   // The Okta organization's base URL
   orgUrl: string;
+  // Whether changes made in Teleport should be synced back to Okta.
+  enableBidirectionalSync?: boolean;
   // Whether User Sync is enabled
   enableUserSync?: boolean;
+  // Whether the builtin okta-requester role should be assigned to synced users.
+  assignDefaultRoles?: boolean;
   // Whether Access List Sync is enabled. Should match App/Group sync.
   enableAccessListSync?: boolean;
   // Whether App/Group Sync is enabled. Should match Access List sync.
@@ -417,6 +427,8 @@ export type UserTask = {
   state: string;
   // issueType identifies this task's issue type.
   issueType: string;
+  // title is the issue title.
+  title: string;
   // integration is the Integration Name this User Task refers to.
   integration: string;
   // lastStateChange indicates when the current's user task state was last changed.
@@ -440,15 +452,15 @@ export type DiscoverEc2 = {
   // instances maps an instance id to the result of enrolling that instance into teleport.
   instances: Record<string, DiscoverEc2Instance>;
   // accountID is the AWS Account ID for the instances.
-  accountId: string;
+  account_id: string;
   // region is the AWS Region where Teleport failed to enroll EC2 instances.
   region: string;
   // ssmDocument is the Amazon Systems Manager SSM Document name that was used to install teleport on the instance.
   // In Amazon console, the document is at:
   // https://REGION.console.aws.amazon.com/systems-manager/documents/SSM_DOCUMENT/description
-  ssmDocument: string;
+  ssm_document: string;
   // installerScript is the Teleport installer script that was used to install teleport on the instance.
-  installerScript: string;
+  installer_script: string;
 };
 
 // DiscoverEc2Instance contains the result of enrolling an AWS EC2 Instance.
@@ -460,13 +472,13 @@ export type DiscoverEc2Instance = {
   name: string;
   // invocationUrl is the url that points to the invocation.
   // Empty if there was an error before installing the
-  invocationUrl: string;
+  invocation_url: string;
   // discoveryConfig is the discovery config name that originated this instance enrollment.
-  discoveryConfig: string;
+  discovery_config: string;
   // discoveryGroup is the DiscoveryGroup name that originated this task.
-  discoveryGroup: string;
+  discovery_group: string;
   // syncTime is the timestamp when the error was produced.
-  syncTime: number;
+  sync_time: number;
   // resourceUrl is the Amazon Web Console URL to access this EC2 Instance.
   // Always present.
   // Format: https://console.aws.amazon.com/ec2/home?region=<region>#InstanceDetails:instanceId=<instance-id>
@@ -478,11 +490,11 @@ export type DiscoverEks = {
   // clusters maps a cluster name to the result of enrolling that cluster into teleport.
   clusters: Record<string, DiscoverEksCluster>;
   // accountId is the AWS Account ID for the cluster.
-  accountId: string;
+  account_id: string;
   // region is the AWS Region where Teleport failed to enroll EKS Clusters.
   region: string;
   // appAutoDiscover indicates whether the Kubernetes agent should auto enroll HTTP services as Teleport Apps.
-  appAutoDiscover: boolean;
+  app_auto_discover: boolean;
 };
 
 // DiscoverEksCluster contains the result of enrolling an AWS EKS Cluster.
@@ -490,11 +502,11 @@ export type DiscoverEksCluster = {
   // name is the cluster Name.
   name: string;
   // discoveryConfig is the discovery config name that originated this cluster enrollment.
-  discoveryConfig: string;
+  discovery_config: string;
   // discoveryGroup is the DiscoveryGroup name that originated this task.
-  discoveryGroup: string;
+  discovery_group: string;
   // syncTime is the timestamp when the error was produced.
-  syncTime: number;
+  sync_time: number;
   // resourceURL is the Amazon Web Console URL to access this EKS Cluster.
   // Always present.
   // Format: https://console.aws.amazon.com/eks/home?region=<region>#/clusters/<cluster-name>
@@ -508,7 +520,7 @@ export type DiscoverRds = {
   // For other RDS databases, this is the DBInstanceIdentifier.
   databases: Record<string, DiscoverRdsDatabase>;
   // accountId is the AWS Account ID for the database.
-  accountId: string;
+  account_id: string;
   // region is the AWS Region where Teleport failed to enroll RDS databases.
   region: string;
 };
@@ -520,16 +532,16 @@ export type DiscoverRdsDatabase = {
   // For other RDS databases, this is the DBInstanceIdentifier.
   name: string;
   // isCluster indicates whether this database is a cluster or a single instance.
-  isCluster: boolean;
+  is_cluster: boolean;
   // engine indicates the engine name for this RDS.
   // Eg, aurora-postgresql, postgresql
   engine: string;
   // discoveryConfig is the discovery config name that originated this database enrollment.
-  discoveryConfig: string;
+  discovery_config: string;
   // discoveryGroup is the DiscoveryGroup name that originated this task.
-  discoveryGroup: string;
+  discovery_group: string;
   // syncTime is the timestamp when the error was produced.
-  syncTime: number;
+  sync_time: number;
   // resourceURL is the Amazon Web Console URL to access this RDS Database.
   // Always present.
   // Format for instances: https://console.aws.amazon.com/rds/home?region=<region>#database:id=<name>;is-cluster=false
@@ -571,6 +583,8 @@ export type ResourceTypeSummary = {
   resourcesEnrollmentSuccess: number;
   // discoverLastSync contains the time when this integration tried to auto-enroll resources.
   discoverLastSync: number;
+  // unresolvedUserTasks contains the count of unresolved user tasks related to this integration and resource type.
+  unresolvedUserTasks?: number;
   // ecsDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
   // Only applicable for AWS RDS resource summary.
   ecsDatabaseServiceCount: number;

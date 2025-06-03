@@ -166,11 +166,12 @@ $ eval "$( tsh env )"
 $ tsh ls --format=json | jq --arg cluster $TELEPORT_CLUSTER -r '.[].spec.hostname + "." + $cluster' > hosts
 ```
 
-<Details title="Not seeing Nodes?">
+<details>
+<summary>Not seeing Nodes?</summary>
 
 (!docs/pages/includes/node-logins.mdx!)
 
-</Details>
+</details>
 
 ## Step 4/4. Run a playbook
 
@@ -204,7 +205,7 @@ $ ansible-playbook playbook.yaml
 
 You are all set. You have provided your machine with short-lived certificates
 tied to a machine identity that can be rotated, audited, and controlled with
-all the familiar Teleport access controls.
+all the familiar access controls.
 
 ## Troubleshooting
 

@@ -293,7 +293,8 @@ func onAppLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	activeRoutes, err := profile.AppsForCluster(tc.SiteName)
+
+	activeRoutes, err := profile.AppsForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -362,7 +363,7 @@ func onAppConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.AppsForCluster(tc.SiteName)
+	routes, err := profile.AppsForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}

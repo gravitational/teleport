@@ -214,6 +214,14 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			},
 		},
 		{name: "TrustedClusterV2", opts: []resourceSchemaOption{withVersionInKindOverride()}},
+		{name: "Bot", opts: []resourceSchemaOption{withVersionOverride(types.V1), withVersionInKindOverride()}},
+		{
+			name: "WorkloadIdentity",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withVersionInKindOverride(),
+			},
+		},
 	}
 
 	for _, resource := range resources {
@@ -223,7 +231,7 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 		}
 		err := generator.addResource(file, resource.name, resource.opts...)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "generating %q", resource.name)
 		}
 	}
 

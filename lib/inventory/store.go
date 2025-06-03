@@ -73,12 +73,21 @@ func (s *Store) Remove(handle UpstreamHandle) {
 	s.getShard(handle.Hello().ServerID).remove(handle)
 }
 
-// Iter iterates across all handles registered with this store.
-// note: if multiple handles are registered for a given server, only
+// UniqueHandles iterates across unique handles registered with this store.
+// If multiple handles are registered for a given server, only
 // one handle is selected pseudorandomly to be observed.
-func (s *Store) Iter(fn func(UpstreamHandle)) {
+func (s *Store) UniqueHandles(fn func(UpstreamHandle)) {
 	for _, shard := range s.shards {
 		shard.iter(fn)
+	}
+}
+
+// AllHandles iterates across all handles registered with this
+// store. If multiple handles are registered for a given server,
+// all of them will be observed.
+func (s *Store) AllHandles(fn func(UpstreamHandle)) {
+	for _, shard := range s.shards {
+		shard.iterWithDuplicates(fn)
 	}
 }
 
@@ -142,6 +151,16 @@ func (s *shard) iter(fn func(UpstreamHandle)) {
 		idx := entry.ct.Add(1) % uint64(len(entry.handles))
 		handle := entry.handles[int(idx)]
 		fn(handle)
+	}
+}
+
+func (s *shard) iterWithDuplicates(fn func(UpstreamHandle)) {
+	s.rw.RLock()
+	defer s.rw.RUnlock()
+	for _, entry := range s.m {
+		for _, handle := range entry.handles {
+			fn(handle)
+		}
 	}
 }
 

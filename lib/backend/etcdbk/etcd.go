@@ -340,10 +340,10 @@ func (b *EtcdBackend) checkVersion(ctx context.Context) error {
 				return trace.BadParameter("failed to parse etcd version %q: %v", status.Version, err)
 			}
 
-			min := semver.New(teleport.MinimumEtcdVersion)
-			if ver.LessThan(*min) {
+			minEtcdVersion := semver.Version{Major: 3, Minor: 3, Patch: 0}
+			if ver.LessThan(minEtcdVersion) {
 				return trace.BadParameter("unsupported version of etcd %v for node %v, must be %v or greater",
-					status.Version, n, teleport.MinimumEtcdVersion)
+					status.Version, n, minEtcdVersion)
 			}
 
 			return nil
@@ -965,8 +965,6 @@ type leaseKey struct {
 	bucket time.Time
 }
 
-var _ map[leaseKey]struct{} // compile-time hashability check
-
 func (b *EtcdBackend) setupLease(ctx context.Context, item backend.Item, lease *backend.Lease, opts *[]clientv3.OpOption) error {
 	// in order to reduce excess redundant lease generation, we bucket expiry times
 	// to the nearest multiple of 10s and then grant one lease per bucket. Too many
@@ -1006,8 +1004,6 @@ func (b *EtcdBackend) ttl(expires time.Time) time.Duration {
 type ttlKey struct {
 	leaseID int64
 }
-
-var _ map[ttlKey]struct{} // compile-time hashability check
 
 func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend.Event, error) {
 	event := &backend.Event{

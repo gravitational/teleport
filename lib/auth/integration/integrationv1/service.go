@@ -238,7 +238,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		// This creates a new AppServer whose endpoint is <integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
 		// Instead of failing when the integration is already created, it fails at creation time.
 		if errs := validation.IsDNS1035Label(req.GetIntegration().GetName()); len(errs) > 0 {
-			return nil, trace.BadParameter("integration name %q must be a valid DNS subdomain so that it can be used to allow Web/CLI access", req.GetIntegration().GetName())
+			return nil, trace.BadParameter("integration name %q must be a lower case valid DNS subdomain so that it can be used to allow Web/CLI access", req.GetIntegration().GetName())
 		}
 	}
 

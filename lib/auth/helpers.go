@@ -1055,6 +1055,10 @@ func TestRemoteBuiltin(role types.SystemRole, remoteCluster string) TestIdentity
 	}
 }
 
+func (i TestIdentity) GetUsername() string {
+	return i.I.GetIdentity().Username
+}
+
 // NewClientFromWebSession returns new authenticated client from web session
 func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*authclient.Client, error) {
 	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
@@ -1231,12 +1235,17 @@ func NewFakeTeleportVersion() *FakeTeleportVersion {
 }
 
 // GetTeleportVersion returns current Teleport version.
-func (s FakeTeleportVersion) GetTeleportVersion(_ context.Context) (*semver.Version, error) {
-	return teleport.SemVersion, nil
+func (s FakeTeleportVersion) GetTeleportVersion(_ context.Context) (semver.Version, error) {
+	return *teleport.SemVer(), nil
 }
 
 // WriteTeleportVersion stub function for writing.
-func (s FakeTeleportVersion) WriteTeleportVersion(_ context.Context, _ *semver.Version) error {
+func (s FakeTeleportVersion) WriteTeleportVersion(_ context.Context, _ semver.Version) error {
+	return nil
+}
+
+// DeleteTeleportVersion error stub function for deleting.
+func (s FakeTeleportVersion) DeleteTeleportVersion(_ context.Context) error {
 	return nil
 }
 

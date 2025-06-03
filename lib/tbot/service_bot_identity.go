@@ -475,14 +475,17 @@ func botIdentityFromToken(
 		return nil, trace.BadParameter("unsupported address kind: %v", addrKind)
 	}
 
-	if params.JoinMethod == types.JoinMethodAzure {
+	switch params.JoinMethod {
+	case types.JoinMethodAzure:
 		params.AzureParams = join.AzureParams{
 			ClientID: cfg.Onboarding.Azure.ClientID,
 		}
-	}
-
-	if params.JoinMethod == types.JoinMethodTerraformCloud {
+	case types.JoinMethodTerraformCloud:
 		params.TerraformCloudAudienceTag = cfg.Onboarding.Terraform.AudienceTag
+	case types.JoinMethodGitLab:
+		params.GitlabParams = join.GitlabParams{
+			EnvVarName: cfg.Onboarding.Gitlab.TokenEnvVarName,
+		}
 	}
 
 	result, err := join.Register(ctx, params)

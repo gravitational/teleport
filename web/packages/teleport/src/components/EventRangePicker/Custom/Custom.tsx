@@ -22,7 +22,7 @@ import { addToRange, DateRange, DayPicker } from 'react-day-picker';
 
 import 'react-day-picker/dist/style.css';
 
-import { StyledDateRange } from 'teleport/components/DayPicker/Shared';
+import { StyledDateRange } from 'design/DatePicker';
 
 /**
  * Allows user to select any range "from" (no limit)

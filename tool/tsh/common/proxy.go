@@ -115,7 +115,7 @@ func formatCommand(cmd *exec.Cmd) string {
 	var args []string
 	for _, arg := range cmd.Args {
 		// escape the potential quotes within
-		arg = strings.Replace(arg, `"`, `\"`, -1)
+		arg = strings.ReplaceAll(arg, `"`, `\"`)
 
 		// if there is whitespace within, surround with quotes
 		if strings.IndexFunc(arg, unicode.IsSpace) != -1 {
@@ -143,7 +143,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}

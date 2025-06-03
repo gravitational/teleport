@@ -52,20 +52,35 @@ export function Details() {
   }
 
   const { data: integration } = integrationAttempt;
-  const { unresolvedUserTasks } = statsAttempt.data;
+  const { awsec2, awsrds, awseks, unresolvedUserTasks } = statsAttempt.data;
+
+  let pendingTasks = unresolvedUserTasks;
+  switch (resourceKind) {
+    case AwsResource.rds:
+      pendingTasks = awsrds.unresolvedUserTasks || 0;
+      break;
+    case AwsResource.ec2:
+      pendingTasks = awsec2.unresolvedUserTasks || 0;
+      break;
+    case AwsResource.eks:
+      pendingTasks = awseks.unresolvedUserTasks || 0;
+      break;
+  }
+
   return (
     <>
       {integration && (
         <AwsOidcHeader integration={integration} resource={resourceKind} />
       )}
-      <FeatureBox maxWidth={1440} margin="auto" gap={3} paddingLeft={5}>
+      <FeatureBox maxWidth={1440} margin="auto" gap={3}>
         <>
           {integration && (
             <>
               <AwsOidcTitle integration={integration} resource={resourceKind} />
               <TaskAlert
                 name={integration.name}
-                pendingTasksCount={unresolvedUserTasks}
+                pendingTasksCount={pendingTasks}
+                taskType={resourceKind}
               />
             </>
           )}

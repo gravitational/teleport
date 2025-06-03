@@ -3,6 +3,8 @@ title: Run the Discord Access Request Plugin
 description: How to set up Teleport's Discord plugin for privilege elevation approvals.
 ---
 
+import BotLogo from "/static/avatar_logo.png";
+
 This guide will explain how to set up Discord to receive Access Request messages
 from Teleport. Teleport's Discord integration notifies individuals and channels of
 Access Requests. Users can then approve and deny Access Requests from within
@@ -11,11 +13,12 @@ compromising productivity.
 
 ![The Discord Access Request plugin](../../../../img/enterprise/plugins/discord.png)
 
-<Details title="This integration is hosted on Teleport Cloud" open={false}>
+<details>
+<summary>This integration is hosted on Teleport Cloud</summary>
 
 (!docs/pages/includes/plugins/enroll.mdx name="the Discord integration"!)
 
-</Details>
+</details>
 
 ## Prerequisites
 
@@ -41,7 +44,7 @@ in your Teleport cluster.
 
 ## Step 3/8. Create a user and role for the plugin
 
-(!docs/pages/includes/plugins/rbac.mdx!)
+(!docs/pages/includes/plugins/rbac-with-friendly-name.mdx!)
 
 (!/docs/pages/includes/plugins/rbac-impersonate.mdx!)
 
@@ -77,10 +80,10 @@ Set the application icon ([download application icon here](../../../../img/sso/o
 
 ### Create the application bot
 
-Go to the "Bot" tab and choose "Add Bot". Set the bot icon ([download bot icon
-here](../../../../img/enterprise/plugins/teleport_bot@2x.png)). Un-check the
-"Public Bot" toggle as this bot should only be used within your Discord
-servers. Finally, press "Reset Token", copy and save the new token into a safe place.
+Go to the "Bot" tab and choose "Add Bot". You can <a href={BotLogo}
+download>download</a> our avatar to set as your Bot icon. Un-check the "Public
+Bot" toggle as this bot should only be used within your Discord servers.
+Finally, press "Reset Token", copy and save the new token into a safe place.
 This token will be used by the Teleport plugin to authenticate against the
 Discord API.
 

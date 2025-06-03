@@ -1,5 +1,164 @@
 # Changelog
 
+## 17.4.8 (05/06/25)
+
+* Fixed a possible moderator/observer terminal freeze when joining a Kubernetes moderated session. [#54523](https://github.com/gravitational/teleport/pull/54523)
+* Removed background color for resources that required access request in the web UI Resources view. [#54465](https://github.com/gravitational/teleport/pull/54465)
+* Show human readable title for access list audit logs. [#54459](https://github.com/gravitational/teleport/pull/54459)
+* Fixed race conditions in `tsh ssh` multi-node output. [#54456](https://github.com/gravitational/teleport/pull/54456)
+* Fixed an issue causing Join Token expiries to be overwritten when editing a token. [#54450](https://github.com/gravitational/teleport/pull/54450)
+* Workload Identity: Fixed bugs for the Kubernetes workload attestor's container resolution. [#54442](https://github.com/gravitational/teleport/pull/54442)
+* Fixed a bug in the EC2 installer script causing `Illegal option -o pipefail` errors on several distros when Managed Updates v2 are enabled. [#54429](https://github.com/gravitational/teleport/pull/54429)
+* Include access request's max duration in MsTeams plugin messages. [#54388](https://github.com/gravitational/teleport/pull/54388)
+
+## 17.4.7 (04/29/25)
+
+* AWS Roles Anywhere output now includes the expiration time as milliseconds since unix epoch. [#54386](https://github.com/gravitational/teleport/pull/54386)
+* Increased the email access plugin timeout for sending e-mails from 5 to 15 seconds. [#54381](https://github.com/gravitational/teleport/pull/54381)
+* Fixed a potential panic during Auth Server startup when the backend returns an error. [#54327](https://github.com/gravitational/teleport/pull/54327)
+* Added a Hardware Key Agent to Teleport Connect along with other significant UX improvements for Hardware Key support. With the agent enabled, Teleport Connect will handle prompts on behalf of other Teleport Clients (`tsh`, `tctl`), with an additional option to cache the PIN between client calls (New cluster option:`cap.hardware_key.pin_cache_ttl`). [#54297](https://github.com/gravitational/teleport/pull/54297)
+* More customizability options for the AWS Roles Anywhere MWI service. [#54260](https://github.com/gravitational/teleport/pull/54260)
+
+Enterprise:
+* Okta integration: Fixed fetching Okta apps and groups preview when enrolling Access List sync. [#6411](https://github.com/gravitational/teleport.e/pull/6411)
+* Fixed the Oracle audit puller breaking connection in some configurations due to expected service name mismatch. [#6399](https://github.com/gravitational/teleport.e/pull/6399)
+* Web UI now correctly displays inherited Access List ownership and membership. [#6395](https://github.com/gravitational/teleport.e/pull/6395)
+
+## 17.4.6 (04/22/25)
+
+* User Kind is now correctly reported for Bots in the `app.session.start` audit log event. [#54241](https://github.com/gravitational/teleport/pull/54241)
+* Fix a goroutine leak on TLS routing handler errors when Proxy is behind TLS-terminated load balancers. [#54224](https://github.com/gravitational/teleport/pull/54224)
+* Fix issue that prevent Kubernetes agents from connecting to GKE control plane using the new DNS-based access mechanism. [#54216](https://github.com/gravitational/teleport/pull/54216)
+* Tbot can now be configured to use a non-standard environment variable when sourcing the ID Token for GitLab joining. [#54187](https://github.com/gravitational/teleport/pull/54187)
+* Teleport-update: stabilize binary paths in generated tbot config. [#54178](https://github.com/gravitational/teleport/pull/54178)
+* Fix a bug where the `terraform-provider` preset role to lacked permissions to list Windows Desktops on clusters that got updated from v16 to v17. [#54170](https://github.com/gravitational/teleport/pull/54170)
+* Fixed OIDC SSO MFA with multiple redirect URLs. [#54167](https://github.com/gravitational/teleport/pull/54167)
+* Fix a bug causing the Terraform provider to fail to update `dynamic_windows_desktop` resources. [#54162](https://github.com/gravitational/teleport/pull/54162)
+* Reduce log spam in discovery service error messaging. [#54149](https://github.com/gravitational/teleport/pull/54149)
+* The web UI now shows role descriptions in the roles table. [#54137](https://github.com/gravitational/teleport/pull/54137)
+* Leaf cluster joining attempts that conflict with an existing cluster registered with the root now generate an error instead of failing silently. [#54134](https://github.com/gravitational/teleport/pull/54134)
+* Reduce backend load in clusters with large numbers of Windows desktops. [#53719](https://github.com/gravitational/teleport/pull/53719)
+
+Enterprise:
+* Fix SCIM user update bug cause by missing revision.
+
+## 17.4.5 (04/17/25)
+
+* The Teleport Terraform Provider now supports setting the Managed Updates v2 resources `autoupdate_config` and `autoupdate_version`. [#54109](https://github.com/gravitational/teleport/pull/54109)
+* Fix a bug in managed updates v1 causing updaters v2 and AWS integrations to never update if weekdays were set in the `cluster_maintenance_config` resource. [#54088](https://github.com/gravitational/teleport/pull/54088)
+* Teleport-update: ensure teleport-upgrade is always disabled when teleport-update is used. [#54087](https://github.com/gravitational/teleport/pull/54087)
+* Added an option for users to select database roles when connecting to PostgreSQL databases using WebUI. [#54068](https://github.com/gravitational/teleport/pull/54068)
+* Allow the use of expressions in the Where condition on Role RBAC rules for the Bot resource. [#54065](https://github.com/gravitational/teleport/pull/54065)
+* Machine and Workload Identity: Increase the maximum allowed bot certificate TTL to 7 days, up from 24 hours. Larger values than the default 12 hours must be explicitly requested using the new `--max-session-ttl` flag in `tctl bots add`. [#54063](https://github.com/gravitational/teleport/pull/54063)
+* Teleport-update: Improve defaulting for update groups. [#54050](https://github.com/gravitational/teleport/pull/54050)
+* Fixed VNet on MacOS with hardware keys. [#54037](https://github.com/gravitational/teleport/pull/54037)
+* Added SAML IdP service provider preset for Microsoft Entra External ID. [#54021](https://github.com/gravitational/teleport/pull/54021)
+* Fixed TLS errors when switching between VNet apps on Windows. [#54010](https://github.com/gravitational/teleport/pull/54010)
+
+Enterprise:
+* Added support to Machine & Workload Identity SPIFFE CA for issuing X509-SVIDs using an external PKI hierarchy.
+
+## 17.4.4 (04/14/25)
+
+* Fixed formatting of Ed25519 SSH keys for PuTTY users. [#53972](https://github.com/gravitational/teleport/pull/53972)
+* Support Oracle join method in Workload Identity templating and rule evaluation. [#53945](https://github.com/gravitational/teleport/pull/53945)
+* Workload ID: the Kubernetes, Podman, and Docker attestors now capture the container image digest. [#53939](https://github.com/gravitational/teleport/pull/53939)
+* Fixed web UI and tsh issues when a SAML metadata URL takes an unusually long time to respond. [#53933](https://github.com/gravitational/teleport/pull/53933)
+* Updated Go to 1.23.8. [#53918](https://github.com/gravitational/teleport/pull/53918)
+* Added support for specifying a WorkloadIdentity-specific maximum TTL. [#53902](https://github.com/gravitational/teleport/pull/53902)
+* Fixed Azure VM auto discovery when not filtering by resource group. [#53899](https://github.com/gravitational/teleport/pull/53899)
+* Added new `proxy_protocol_allow_downgrade` field to the `proxy_service` configuration in support of environments where single stack IPv6 sources are connecting to single stack IPv4 destinations. This feature is not compatible with IP pinning. [#53885](https://github.com/gravitational/teleport/pull/53885)
+* Support for managing the WorkloadIdentity resource in the Teleport Kubernetes Operator. [#53862](https://github.com/gravitational/teleport/pull/53862)
+* Added detailed audit events for SFTP sessions on agentless nodes. [#53836](https://github.com/gravitational/teleport/pull/53836)
+* Teleport-update: Add `last_update` metadata and update tracking UUID. [#53828](https://github.com/gravitational/teleport/pull/53828)
+* Restrict agent update days to Mon-Thu on Cloud. [#53765](https://github.com/gravitational/teleport/pull/53765)
+
+Enterprise:
+* Fixed an issue in the Identity Center group provisioning where group and group membership provisioning was skipped if the provisioning service failed to get user account of Access List member.
+
+## 17.4.3 (04/07/25)
+
+* Fixed throttling in the DynamoDB backend event stream for tables with a high amount of stream shards. [#53804](https://github.com/gravitational/teleport/pull/53804)
+* Support for managing the Bot resource in the Teleport Kubernetes Operator. [#53708](https://github.com/gravitational/teleport/pull/53708)
+* Kubernetes app discovery now supports an additional annotation for apps that are served on a sub-path of an HTTP service. [#53094](https://github.com/gravitational/teleport/pull/53094)
+
+Enterprise:
+* Fix Okta Integration Update Flow when the Okta integration credentials are updated from SSWS API tokens to OAuth-based credentials.
+* "Bidirectional Sync" option added to the Okta Integration, allowing for a "read-only" integration where changes are only synced from Okta to Teleport.
+* Fix SCIM sync for Okta plugins with OAuth credentials.
+
+## 17.4.2 (04/01/25)
+
+* Reduced resource consumption and improve latency of `tsh ssh`. [#53645](https://github.com/gravitational/teleport/pull/53645)
+* Fixed an issue where expired app session won't redirect to login page when Teleport is using DynamoDB backend. [#53591](https://github.com/gravitational/teleport/pull/53591)
+* Workload ID: Support for adding custom claims to JWT-SVIDs. [#53585](https://github.com/gravitational/teleport/pull/53585)
+
+## 17.4.1 (03/28/25)
+
+* Fix a bug causing the discovery service to fail to configure teleport on discovered nodes when managed updates v2 are enabled. [#53543](https://github.com/gravitational/teleport/pull/53543)
+* Machine ID: `tbot` is supported for Windows and included in Windows client downloads. [#53550](https://github.com/gravitational/teleport/pull/53550)
+
+## 17.4.0 (03/27/25)
+
+### Database access for Oracle RDS
+Teleport database access now supports connecting to Oracle RDS with Kerberos
+authentication.
+
+### AWS integration status dashboard
+Teleport web UI now provides a detailed status dashboard for AWS integration as
+well as the new "user tasks" view that highlights integration issues
+requiring user attention along with suggested remediation steps.
+
+### Windows desktop improvements
+Teleport now supports registering the same host twice - once as a domain-joined
+machine, and one as a standalone machine. This allows Teleport users to
+connect as Active Directory users and local users to the same host.
+
+### Other fixes and improvements
+
+* Enable support for joining Kubernetes sessions in the web UI. [#53450](https://github.com/gravitational/teleport/pull/53450)
+* Fixed an issue `tsh proxy db` does not honour `--db-roles` when renewing certificates. [#53445](https://github.com/gravitational/teleport/pull/53445)
+* Fixed an issue that could cause backend instability when running very large numbers of app/db/kube resources through a single agent. [#53419](https://github.com/gravitational/teleport/pull/53419)
+* Added `static_jwks` field to the GitLab join method configuration to support cases where Teleport Auth Service cannot reach the GitLab instance. [#53413](https://github.com/gravitational/teleport/pull/53413)
+* Introduced `workload-identity-aws-ra` service for generating AWS credentials using Roles Anywhere directly from tbot. [#53408](https://github.com/gravitational/teleport/pull/53408)
+* Helm chart now supports specifying a second factor list, this simplifies setting up SSO MFA with the `teleport-cluster` chart. [#53319](https://github.com/gravitational/teleport/pull/53319)
+* Improved resource consumption when retrieving resources via the Web UI or tsh ls. [#53302](https://github.com/gravitational/teleport/pull/53302)
+* Added support for topologySpreadConstraints to the `teleport-cluster` Helm chart. [#53287](https://github.com/gravitational/teleport/pull/53287)
+* Fixed rare high CPU usage bug in reverse tunnel agents. [#53281](https://github.com/gravitational/teleport/pull/53281)
+* Fixed an issue PostgreSQL via WebUI fails when IP pinning is enabled. PostgreSQL via WebUI no longer requires Proxy to dial its own public address. [#53250](https://github.com/gravitational/teleport/pull/53250)
+* Added overview information to "Enroll New Resource" guides in the web UI. [#53218](https://github.com/gravitational/teleport/pull/53218)
+* Added support for `SendEnv` OpenSSH option in `tsh`. [#53216](https://github.com/gravitational/teleport/pull/53216)
+* Added support for using DynamoDB Streams FIPS endpoints. [#53201](https://github.com/gravitational/teleport/pull/53201)
+* Allow AD and non-AD logins to single Windows desktop. [#53199](https://github.com/gravitational/teleport/pull/53199)
+* Workload ID: support for attesting Systemd services. [#53108](https://github.com/gravitational/teleport/pull/53108)
+
+Enterprise:
+* Fixed Slack plugin failing to enroll with "need auth" error in the web UI.
+
+## 17.3.4 (03/19/25)
+
+* Improved clarity of error logs and address UX edge cases in teleport-update, part 2. [#53197](https://github.com/gravitational/teleport/pull/53197)
+* Fixed the `teleport-update` systemd service in CentOS 7 and distros with older systemd versions. [#53196](https://github.com/gravitational/teleport/pull/53196)
+* Fixed panic when trimming audit log entries. [#53195](https://github.com/gravitational/teleport/pull/53195)
+* Fixed an issue causing the teleport process to crash on group database errors when host user creation was enabled. [#53082](https://github.com/gravitational/teleport/pull/53082)
+* Workload ID: support for attesting Docker workloads. [#53069](https://github.com/gravitational/teleport/pull/53069)
+* Added a `--join-method` flag to the `teleport configure` command. [#53061](https://github.com/gravitational/teleport/pull/53061)
+* Improved clarity of error logs and address UX edge cases in `teleport-update`. [#53048](https://github.com/gravitational/teleport/pull/53048)
+* The event handler can now generate certificates for DNS names that are not resolvable. [#53026](https://github.com/gravitational/teleport/pull/53026)
+* Machine ID: Added warning when generated certificates will not last as long as expected. [#53019](https://github.com/gravitational/teleport/pull/53019)
+* Improve support for `teleport-update` on CentOS 7 and distros with older systemd versions. [#53017](https://github.com/gravitational/teleport/pull/53017)
+* You can now use `==` and `!=` operators with integer operands in Teleport predicate language. [#52991](https://github.com/gravitational/teleport/pull/52991)
+* Workload ID: support for attesting Podman workloads. [#52978](https://github.com/gravitational/teleport/pull/52978)
+* Web UI now properly shows per-session MFA errors in desktop sessions. [#52916](https://github.com/gravitational/teleport/pull/52916)
+* Allow specifying the maximum number of PKCS#11 HSM connections. [#52870](https://github.com/gravitational/teleport/pull/52870)
+* Resolved an issue where desktop session recordings could have incorrect proportions. [#52866](https://github.com/gravitational/teleport/pull/52866)
+* The audit log web UI now renders Teleport Autoupdate Config and Version events properly. [#52838](https://github.com/gravitational/teleport/pull/52838)
+* Fixed terraform provider data sources. [#52816](https://github.com/gravitational/teleport/pull/52816)
+
+Enterprise:
+* Fixed Slack plugin failing to enroll with "need auth" error in the web UI.
+* Added checks to opsgenie and servicenow plugin to cause enrollment to fail if the provided config is invalid.
+
 ## 17.3.3 (03/06/25)
 
 * Updated golang.org/x/net (addresses CVE-2025-22870). [#52846](https://github.com/gravitational/teleport/pull/52846)

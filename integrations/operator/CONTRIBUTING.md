@@ -60,12 +60,9 @@ your resource version is added to the root `scheme` with a call like
 
 #### Add RBAC permissions for the new resource type
 
-Add Kubernetes RBAC permissions to allow the operator to work with the resources
-on the Kubernetes side.
-The cluster role spec is found in  `../../examples/chart/teleport-cluster/templates/auth/config.yaml`.
-
-Update the RBAC permissions in `hack/fixture-operator-role.yaml` to update
-operator the role used for debugging.
+- Grant the operator access to the Kubernetes resource in: `../../examples/chart/teleport-cluster/charts/templates/role.yaml`.
+- Grant the operator access to the Teleport resource in: `../../examples/chart/teleport-cluster/templates/auth/config.yaml`.
+- Update the RBAC permissions in `hack/fixture-operator-role.yaml` to update operator the role used for debugging.
 
 ### Debugging tips
 

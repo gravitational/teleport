@@ -31,7 +31,7 @@ Users are able to write their own custom access monitoring queries by querying t
 <Tabs>
 <TabItem scope={["cloud","team"]} label="Teleport Enterprise (cloud-hosted)">
 
-Teleport Access Monitoring is enabled by default for all Teleport Enterprise (cloud-hosted) accounts.
+Access Monitoring is enabled by default for all Teleport Enterprise (cloud-hosted) accounts.
 
 </TabItem>
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
@@ -68,7 +68,8 @@ Below, you can find the IAM permissions that allow the Auth Service to execute A
 | `audit_table`     | Glue table used for audit logs                           |
 | `audit_workgroup` | Athena workgroup used for Access Monitoring queries      |
 
-<Details title="IAM Policy" closed>
+<details>
+<summary>IAM Policy</summary>
 ```json
 {
   "Statement": [
@@ -138,7 +139,7 @@ Below, you can find the IAM permissions that allow the Auth Service to execute A
   "Version": "2012-10-17"
 }
 ```
-</Details>
+</details>
 
 You can use our [Terraform Example](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/examples/athena)
 to set up Athena and Access Monitoring AWS resources and generate Athena Backend and Access Monitoring Teleport configuration:
@@ -181,13 +182,14 @@ spec:
 
 ## Query Editor
 
-The Query Editor in Teleport Access Monitoring provides users with an interface to interactively query audit logs and generate reports.
+The Query Editor in Access Monitoring provides users with an interface to interactively query audit logs and generate reports.
 Users can write custom SQL queries for these views to build custom reports akin to querying a relational database.
 
 Within the Query Editor, users have access to a number of SQL views representing audit events captured by Teleport.
 Below is a list of the available SQL views:
 
-<Details title="Available SQL views" closed>
+<details>
+<summary>Available SQL views</summary>
 ```
 access_list_create
 access_list_delete
@@ -225,7 +227,7 @@ user_password_change
 windows_desktop_session_end
 windows_desktop_session_start
 ```
-</Details>
+</details>
 
 To access the Query Editor, navigate to the `Access Monitoring` section in the Teleport UI and click on the `Query Editor` tab.
 

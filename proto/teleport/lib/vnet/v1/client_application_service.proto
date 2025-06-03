@@ -26,15 +26,19 @@ option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib
 // the VNet admin process to facilate app queries, certificate issuance,
 // metrics, error reporting, and signatures.
 service ClientApplicationService {
-  // AuthenticateProcess mutually authenticates client applicates to the admin
-  // service.
+  // AuthenticateProcess is used to authenticate the client application (running
+  // this gRPC service) to the Windows service.
   rpc AuthenticateProcess(AuthenticateProcessRequest) returns (AuthenticateProcessResponse);
+  // ReportNetworkStackInfo should be called exactly once when the admin process
+  // connects to the ClientApplicationService, it's used to report information
+  // about the VNet networking stack to the client application.
+  rpc ReportNetworkStackInfo(ReportNetworkStackInfoRequest) returns (ReportNetworkStackInfoResponse);
   // Ping is used by the admin process to regularly poll that the client
   // application is still running.
   rpc Ping(PingRequest) returns (PingResponse);
-  // ResolveAppInfo returns info for the given app fqdn, or an error if the app
-  // is not present in any logged-in cluster.
-  rpc ResolveAppInfo(ResolveAppInfoRequest) returns (ResolveAppInfoResponse);
+  // ResolveFQDN is called during DNS resolution to resolve a fully-qualified
+  // domain name to a target.
+  rpc ResolveFQDN(ResolveFQDNRequest) returns (ResolveFQDNResponse);
   // ReissueAppCert issues a new app cert.
   rpc ReissueAppCert(ReissueAppCertRequest) returns (ReissueAppCertResponse);
   // SignForApp issues a signature with the private key associated with an x509
@@ -55,7 +59,8 @@ service ClientApplicationService {
 message AuthenticateProcessRequest {
   // Version is the admin process version.
   string version = 1;
-  // PipePath is the path to a named pipe used for process authentication.
+  // PipePath is the path to a named pipe used for process authentication on
+  // Windows. The client application must dial the pipe
   string pipe_path = 2;
 }
 
@@ -65,22 +70,67 @@ message AuthenticateProcessResponse {
   string version = 1;
 }
 
+// ReportNetworkStackInfoRequest is a request to report network stack
+// information to the client application.
+message ReportNetworkStackInfoRequest {
+  // NetworkStackInfo holds network stack information.
+  NetworkStackInfo network_stack_info = 1;
+}
+
+// NetworkStackInfo holds static information about the VNet networking stack.
+message NetworkStackInfo {
+  // InterfaceName is the name of the TUN interface used by VNet.
+  string interface_name = 1;
+  // Ipv6Prefix the the IPv5 prefix under which VNet assigns IPv6 addresses.
+  string ipv6_prefix = 2;
+}
+
+// ReportNetworkStackInfoResponse is currently empty.
+message ReportNetworkStackInfoResponse {}
+
 // PingRequest is a request for the Ping rpc.
 message PingRequest {}
 
 // PingResponse is a response for the Ping rpc.
 message PingResponse {}
 
-// ResolveAppInfoRequest is a request for ResolveAppInfo.
-message ResolveAppInfoRequest {
-  // Fqdn is the fully-qualified domain name of the app.
+// ResolveFQDNRequest is a request for ResolveFQDN.
+message ResolveFQDNRequest {
+  // Fqdn is the fully-qualified domain name queried.
   string fqdn = 1;
 }
 
-// ResolveAppInfoResponse is a response for ResolveAppInfo.
-message ResolveAppInfoResponse {
+// ResolveFQDNReponse is a response for ResolveFQDN.
+message ResolveFQDNResponse {
+  oneof match {
+    // MatchedTcpApp will be set when the query matched a TCP app.
+    MatchedTCPApp matched_tcp_app = 1;
+    // MatchedWebApp will be set when the query matched a web app.
+    MatchedWebApp matched_web_app = 2;
+    // MatchedCluster will be set when the query did not match any app, but did
+    // match a subdomain of a proxy address. VNet will resolve the DNS query to
+    // a handler that may later resolve the FQDN to an app or SSH server.
+    MatchedCluster matched_cluster = 3;
+  }
+}
+
+// MatchedTCPApp holds info about a TCP app that matched a query.
+message MatchedTCPApp {
   // AppInfo holds all necessary info for making connections to the resolved app.
   AppInfo app_info = 1;
+}
+
+// MatchedTCPApp is a placeholder to signify that the query matched a web app.
+message MatchedWebApp {}
+
+// MatchedCluster holds info about a cluster that a query matched.
+message MatchedCluster {
+  // Ipv4CidrRange is the CIDR range from which an IPv4 address should be assigned
+  // based on this cluster's vnet_config.
+  string ipv4_cidr_range = 1;
+  // WebProxyAddr is the web proxy address of the root cluster that matched the
+  // query.
+  string web_proxy_addr = 2;
 }
 
 // AppInfo holds all necessary info for making connections to VNet TCP apps.
@@ -93,7 +143,7 @@ message AppInfo {
   string cluster = 2;
   // App is the app spec.
   types.AppV3 app = 3;
-  // Ipv4Cidr_range is the CIDR range from which an IPv4 address should be
+  // Ipv4CidrRange is the CIDR range from which an IPv4 address should be
   // assigned to the app.
   string ipv4_cidr_range = 4;
   // DialOptions holds options that should be used when dialing the root cluster
@@ -130,7 +180,7 @@ message DialOptions {
 // ReissueAppCertRequest is a request for ReissueAppCert.
 message ReissueAppCertRequest {
   // AppInfo contains info about the app, every ReissueAppCertRequest must
-  // include an app_info as returned from ResolveAppInfo.
+  // include an app_info as returned from ResolveFQDN.
   AppInfo app_info = 1;
   // TargetPort is the TCP port to issue the cert for.
   uint32 target_port = 2;

@@ -245,7 +245,7 @@ func TestWorkloadIdentityRevocation(t *testing.T) {
 		resources := mustDecodeJSON[[]json.RawMessage](t, buf)
 		require.Len(t, resources, 1)
 		resource := &workloadidentityv1pb.WorkloadIdentityX509Revocation{}
-		err = protojson.Unmarshal(resources[0], resource)
+		err = protojson.UnmarshalOptions{}.Unmarshal(resources[0], resource)
 		require.NoError(t, err)
 
 		require.Empty(t, cmp.Diff(

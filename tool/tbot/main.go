@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tbot"
@@ -152,6 +153,9 @@ func Run(args []string, stdout io.Writer) error {
 
 		cli.NewWorkloadIdentityJWTCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewWorkloadIdentityJWTCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewWorkloadIdentityAWSRACommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewWorkloadIdentityAWSRACommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 	)
 
 	// Initialize legacy-style commands. These are simple enough to not really
@@ -260,7 +264,7 @@ func Run(args []string, stdout io.Writer) error {
 		tpm.PrintQuery(query, globalCfg.Debug, os.Stdout)
 		return nil
 	case installSystemdCmdStr:
-		return installSystemdCmdFn(ctx, log, globalCfg.ConfigPath, os.Executable, os.Stdout)
+		return installSystemdCmdFn(ctx, log, globalCfg.ConfigPath, autoupdate.StableExecutable, os.Stdout)
 	}
 
 	// Attempt to run each new-style command.

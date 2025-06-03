@@ -43,19 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
-// UnifiedResourceKinds is a list of all kinds that are stored in the unified resource cache.
-var UnifiedResourceKinds = []string{
-	types.KindNode,
-	types.KindKubeServer,
-	types.KindDatabaseServer,
-	types.KindAppServer,
-	types.KindWindowsDesktop,
-	types.KindSAMLIdPServiceProvider,
-	types.KindIdentityCenterAccount,
-	types.KindIdentityCenterAccountAssignment,
-	types.KindGitServer,
-}
-
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
 type UnifiedResourceCacheConfig struct {
 	// BTreeDegree is a degree of B-Tree, 2 for example, will create a
@@ -206,24 +193,6 @@ func (c *UnifiedResourceCache) getSortTree(sortField string) (*btree.BTreeG[*ite
 	}
 }
 
-func getStartKey(startKey string, sortBy types.SortBy) backend.Key {
-	if startKey == prefix {
-		return backend.NewKey(prefix)
-	}
-
-	// if startKey exists, return it
-	if startKey != "" {
-		return backend.KeyFromString(startKey)
-	}
-	// If startKey doesn't exist, we check the sort direction.
-	// If sort is descending, startKey is end of the list
-	if sortBy.IsDesc {
-		return backend.RangeEnd(backend.NewKey(prefix))
-	}
-	// return start of the list
-	return backend.NewKey(prefix)
-}
-
 type iteratedItem struct {
 	resource resource
 	key      backend.Key
@@ -234,43 +203,85 @@ type iteratedItem struct {
 // method.
 func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, sortBy types.SortBy, kinds ...string) iter.Seq2[iteratedItem, error] {
 	return func(yield func(iteratedItem, error) bool) {
-		startKey := getStartKey(start, sortBy)
-
 		kindsMap := make(map[string]struct{})
 		for _, k := range kinds {
 			kindsMap[k] = struct{}{}
 		}
 
-		err := c.read(ctx, func(cache *UnifiedResourceCache) error {
-			tree, err := cache.getSortTree(sortBy.Field)
-			if err != nil {
-				return trace.Wrap(err, "getting sort tree")
-			}
+		var startKey backend.Key
+		if start != "" {
+			startKey = backend.KeyFromString(start)
+		}
 
-			iterateRange := tree.DescendRange
-			endKey := backend.NewKey(prefix)
-			if !sortBy.IsDesc {
-				iterateRange = tree.AscendRange
-				endKey = backend.RangeEnd(endKey)
-			}
+		itemIter := (*btree.BTreeG[*item]).AscendGreaterOrEqual
+		if sortBy.IsDesc {
+			itemIter = (*btree.BTreeG[*item]).DescendLessOrEqual
+		}
 
-			iterateRange(&item{Key: startKey}, &item{Key: endKey}, func(item *item) bool {
-				r, ok := cache.resources[item.Value]
-				if !ok {
+		var excludedStart bool
+		const defaultPageSize = 100
+		items := make([]iteratedItem, 0, defaultPageSize)
+		for {
+			items = items[:0]
+
+			err := c.read(ctx, func(cache *UnifiedResourceCache) error {
+				tree, err := cache.getSortTree(sortBy.Field)
+				if err != nil {
+					return trace.Wrap(err, "getting sort tree")
+				}
+
+				if startKey.IsZero() {
+					max, ok := tree.Max()
+					if sortBy.IsDesc && ok {
+						startKey = max.Key
+					} else {
+						startKey = backend.NewKey("")
+					}
+				}
+
+				itemIter(tree, &item{Key: startKey}, func(item *item) bool {
+					if excludedStart {
+						excludedStart = false
+						if item.Key.Compare(startKey) <= 0 {
+							return true
+						}
+					}
+
+					r, ok := cache.resources[item.Value]
+					if !ok {
+						return true
+					}
+
+					if len(kinds) == 0 || c.itemKindMatches(r, kindsMap) {
+						items = append(items, iteratedItem{key: item.Key, resource: r})
+					}
+
+					if len(items) >= defaultPageSize {
+						startKey = item.Key
+						excludedStart = true
+						return false
+					}
+
 					return true
-				}
+				})
 
-				if len(kinds) == 0 || c.itemKindMatches(r, kindsMap) {
-					return yield(iteratedItem{key: item.Key, resource: r}, nil)
-				}
-
-				return true
+				return nil
 			})
+			if err != nil {
+				yield(iteratedItem{}, err)
+				return
+			}
 
-			return nil
-		})
-		if err != nil {
-			yield(iteratedItem{}, err)
+			for _, i := range items {
+				if !yield(i, nil) {
+					return
+				}
+
+			}
+
+			if len(items) < defaultPageSize {
+				return
+			}
 		}
 	}
 }
@@ -508,7 +519,7 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 // GetUnifiedResources returns a list of all resources stored in the current unifiedResourceCollector tree in ascending order
 func (c *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types.ResourceWithLabels, error) {
 	var resources []types.ResourceWithLabels
-	for resource, err := range c.Resources(ctx, prefix, types.SortBy{IsDesc: false, Field: sortByName}) {
+	for resource, err := range c.Resources(ctx, "", types.SortBy{IsDesc: false, Field: sortByName}) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -994,12 +1005,17 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 
 // resourceKinds returns a list of resources to be watched.
 func (c *UnifiedResourceCache) resourceKinds() []types.WatchKind {
-	watchKinds := make([]types.WatchKind, 0, len(UnifiedResourceKinds))
-	for _, kind := range UnifiedResourceKinds {
-		watchKinds = append(watchKinds, types.WatchKind{Kind: kind})
+	return []types.WatchKind{
+		{Kind: types.KindNode},
+		{Kind: types.KindKubeServer},
+		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindAppServer},
+		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindSAMLIdPServiceProvider},
+		{Kind: types.KindIdentityCenterAccount},
+		{Kind: types.KindIdentityCenterAccountAssignment},
+		{Kind: types.KindGitServer},
 	}
-
-	return watchKinds
 }
 
 func (c *UnifiedResourceCache) defineCollectorAsInitialized() {

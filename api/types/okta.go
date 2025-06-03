@@ -508,6 +508,41 @@ func (o *PluginOktaSettings) GetSyncSettings() *PluginOktaSyncSettings {
 	return o.SyncSettings
 }
 
+func (o *PluginOktaSyncSettings) GetEnableUserSync() bool {
+	if o == nil {
+		return false
+	}
+	return o.SyncUsers
+}
+
+func (o *PluginOktaSyncSettings) GetEnableAppGroupSync() bool {
+	if !o.GetEnableUserSync() {
+		return false
+	}
+	return !o.DisableSyncAppGroups
+}
+
+func (o *PluginOktaSyncSettings) GetEnableAccessListSync() bool {
+	if !o.GetEnableAppGroupSync() {
+		return false
+	}
+	return o.SyncAccessLists
+}
+
+func (o *PluginOktaSyncSettings) GetEnableBidirectionalSync() bool {
+	if !o.GetEnableAppGroupSync() {
+		return false
+	}
+	return !o.DisableBidirectionalSync
+}
+
+func (o *PluginOktaSyncSettings) GetAssignDefaultRoles() bool {
+	if o == nil {
+		return false
+	}
+	return !o.DisableAssignDefaultRoles
+}
+
 type OktaUserSyncSource string
 
 // IsUnknown returns true if user sync source is empty or explicitly set to "unknown".

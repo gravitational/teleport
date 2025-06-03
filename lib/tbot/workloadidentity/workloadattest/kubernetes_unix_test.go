@@ -32,6 +32,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -43,55 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func TestKubernetesAttestor_getContainerAndPodID(t *testing.T) {
-	log := utils.NewSlogLoggerForTests()
-	tests := []struct {
-		name            string
-		wantPodID       string
-		wantContainerID string
-	}{
-		{
-			name:            "k8s-real-docker-desktop",
-			wantPodID:       "941f292f-a62d-48ab-b9a8-eec84d87b928",
-			wantContainerID: "3f79e718744418736d0f6b9958e08d44e969c6577068c33de1cc400d35aacec8",
-		},
-		{
-			name:            "k8s-real-orbstack",
-			wantPodID:       "36827f77-691f-45aa-a470-0989cf3749c4",
-			wantContainerID: "64dd9bf5199ff782835247cb072e4842dc3d0135ef02f6498cb6bb6f37a320d2",
-		},
-		{
-			name:            "k8s-real-k3s-ubuntu-v1.28.6+k3s2",
-			wantPodID:       "fecd2321-17b5-49b9-9f75-8c5be777fbfb",
-			wantContainerID: "397529d07efebd566f15dbc7e8af9f3ef586033f5e753adfa96b2bf730102c64",
-		},
-		{
-			name:            "k8s-real-gcp-v1.29.5-gke.1091002",
-			wantPodID:       "61c266b0-6f75-4490-8d92-3c9ae4d02787",
-			wantContainerID: "9da25af0b548c8c60aa60f77f299ba727bf72d58248bd7528eb5390ffcce555a",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tempDir := t.TempDir()
-			require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "proc", "1234"), 0755))
-			require.NoError(t, utils.CopyFile(
-				filepath.Join("testdata", "mountfile", tt.name),
-				filepath.Join(tempDir, "proc", "1234", "mountinfo"),
-				0755),
-			)
-			attestor := &KubernetesAttestor{
-				rootPath: tempDir,
-				log:      log,
-			}
-			gotPodID, gotContainerID, err := attestor.getContainerAndPodID(1234)
-			assert.NoError(t, err)
-			assert.Equal(t, tt.wantPodID, gotPodID)
-			assert.Equal(t, tt.wantContainerID, gotContainerID)
-		})
-	}
-}
-
 func TestKubernetesAttestor_Attest(t *testing.T) {
 	t.Parallel()
 	log := utils.NewSlogLoggerForTests()
@@ -99,15 +51,36 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 
 	mockToken := "FOOBARBUZZ"
 	mockPID := 1234
-	// Value from k8s-real-gcp-v1.29.5-gke.1091002
+	// Values from k8s-real-gcp-v1.29.5-gke.1091002
 	mockPodID := "61c266b0-6f75-4490-8d92-3c9ae4d02787"
+	mockContainerID := "9da25af0b548c8c60aa60f77f299ba727bf72d58248bd7528eb5390ffcce555a"
 
 	// Setup mock Kubelet Secure API
+	var requests int
 	mockKubeletAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Path != "/pods" {
 			http.NotFound(w, req)
 			return
 		}
+
+		// Don't return the container status in the first response, to simulate
+		// the kubelet API's eventual consistency.
+		var containerStatuses []v1.ContainerStatus
+		switch {
+		case requests == 1:
+			containerStatuses = append(containerStatuses, v1.ContainerStatus{
+				ContainerID: "docker://totally-wrong-container-id",
+			})
+		case requests > 1:
+			containerStatuses = append(containerStatuses, v1.ContainerStatus{
+				ContainerID: "docker://" + mockContainerID,
+				Name:        "container-1",
+				Image:       "my.registry.io/my-app:v1",
+				ImageID:     "docker-pullable://my.registry.io/my-app@sha256:84c998f7610b356a5eed24f801c01b273cf3e83f081f25c9b16aa8136c2cafb1",
+			})
+		}
+		requests++
+
 		out := v1.PodList{
 			Items: []v1.Pod{
 				{
@@ -121,6 +94,9 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 					},
 					Spec: v1.PodSpec{
 						ServiceAccountName: "my-service-account",
+					},
+					Status: v1.PodStatus{
+						ContainerStatuses: containerStatuses,
 					},
 				},
 			},
@@ -144,7 +120,7 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 	pidMountInfoPath := filepath.Join(procPIDPath, "mountinfo")
 	require.NoError(t, os.MkdirAll(procPIDPath, 0755))
 	require.NoError(t, utils.CopyFile(
-		filepath.Join("testdata", "mountfile", "k8s-real-gcp-v1.29.5-gke.1091002"),
+		filepath.Join("container", "testdata", "mountfile", "k8s-real-gcp-v1.29.5-gke.1091002"),
 		pidMountInfoPath,
 		0755),
 	)
@@ -159,6 +135,7 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 		},
 	}, log)
 	attestor.rootPath = tmpDir
+	attestor.clock = clockwork.NewRealClock()
 	attestor.kubeletClient.getEnv = func(s string) string {
 		env := map[string]string{
 			"TELEPORT_NODE_NAME": host,
@@ -176,6 +153,11 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 		PodUid:         mockPodID,
 		Labels: map[string]string{
 			"my-label": "my-label-value",
+		},
+		Container: &workloadidentityv1pb.WorkloadAttrsKubernetesContainer{
+			Name:        "container-1",
+			Image:       "my.registry.io/my-app:v1",
+			ImageDigest: "sha256:84c998f7610b356a5eed24f801c01b273cf3e83f081f25c9b16aa8136c2cafb1",
 		},
 	}, att, protocmp.Transform()))
 }

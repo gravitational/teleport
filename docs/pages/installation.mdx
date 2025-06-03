@@ -34,9 +34,9 @@ running Teleport on UNIX variants other than Linux \[1].
 
 | Operating System | `teleport` Daemon | `tctl` Admin Tool | `tsh` and Teleport Connect User Clients [2] | Web UI (via the browser) | `tbot` Daemon |
 | - | - | - | - | - | - |
-| Linux v2.6.23+ (RHEL/CentOS 7+, Amazon Linux 2+, Amazon Linux 2023+, Ubuntu 16.04+, Debian 9+, SLES 12 SP 5+, and SLES 15 SP 5+) \[3] | yes | yes | yes | yes | yes |
+| Linux v2.6.23+ (RHEL/CentOS 7+, Rocky Linux 8+, Amazon Linux 2+, Amazon Linux 2023+, Ubuntu 16.04+, Debian 9+, SLES 12 SP 5+, and SLES 15 SP 5+) \[3] | yes | yes | yes | yes | yes |
 | macOS 11+  (Big Sur)| yes | yes | yes | yes | yes |
-| Windows 10+ (rev. 1607) \[4] | no | yes | yes | yes | no |
+| Windows 10+ (rev. 1607) \[4] | no | yes | yes | yes | yes |
 
 \[1] *Teleport is written in Go and many of these system requirements are due to the requirements
 of the [Go toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.
@@ -46,7 +46,7 @@ of the [Go toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.
 
 \[3] *Enhanced Session Recording requires Linux kernel v5.8+*.
 
-\[4] *Teleport server does not run on Windows yet, but `tsh`, `tctl`, and Teleport Connect (the Teleport desktop clients)
+\[4] *Teleport server does not run on Windows yet, but `tsh`, `tbot`, `tctl`, and Teleport Connect (the Teleport desktop clients)
 support most features on Windows 10 and later.*
 
 ## Linux
@@ -83,6 +83,26 @@ Self-hosted Teleport Enterprise clusters require a license file. Read [Teleport
 Enterprise License File](admin-guides/deploy-a-cluster/license.mdx)
 for how to manage this.
 
+### Teleport configuration file
+
+Note that the methods for installing Teleport on a Linux server do not generate
+a Teleport configuration file for you. You must create the file before starting
+Teleport on your server. If you install Teleport with the one-line installation
+script or a package manager, you must create your configuration file at
+`/etc/teleport.yaml`.
+
+See the following guides for help setting up a configuration file:
+
+- [Enroll Resources](./enroll-resources/enroll-resources.mdx): Guides to setting
+  up Teleport Agents in order to enroll infrastructure resources in your cluster. These
+  guides include examples of setting up Teleport configuration files.
+- [Self-Hosted Demo
+  Cluster](./admin-guides/deploy-a-cluster/deploy-a-cluster.mdx): If you are
+  deploying the Teleport Auth Service and Proxy Service, read this guide for an
+  example of a configuration file.
+- [Teleport Configuration Reference](./reference/config.mdx): A guide to all
+  configuration fields.
+
 ### One-line installation script
 
 You can run a one-line command to install Teleport binaries on a Linux server.
@@ -94,7 +114,7 @@ The easiest installation method, for Teleport versions 17.3 and above, is the
 cluster install script. It will use the best version, edition, and installation
 mode for your cluster.
 
-1. Assign <Var name="teleport.example.com:443"/> to your Teleport cluster hostname.
+1. Assign <Var name="example.teleport.sh:443"/> to your Teleport cluster hostname and Web UI port.
    This should contain you cluster hostname and port, but not the scheme (https://).
 1. Run your cluster's install script:
    ```code
@@ -230,6 +250,7 @@ repositories.
    | CentOS       | >= 7                 | `centos`                        |
    | Debian       | >= 9                 | `debian`                        |
    | RHEL         | >= 7                 | `rhel`                          |
+   | Rocky Linux  | >= 8                 | `rocky`                         |
    | SLES         | >= 12 SP5, >= 15 SP5 | `sles`                          |
    | Ubuntu       | >= 16.04             | `ubuntu`                        |
 
@@ -242,6 +263,7 @@ repositories.
    |--------------|--------------------------|
    | Amazon Linux | 2 (post 11/2021), 2023   |
    | CentOS/RHEL  | 9+                       |
+   | Rocky Linux  | 8+                       |
    | Debian       | 11, or 10 with backports |
    | Ubuntu       | 20.042+                  |
 
@@ -369,7 +391,7 @@ script](#one-line-installation-script).
 
    The following architecture values are available:
 
-   - `amd64` (`x86_84` if downloading an RPM package)
+   - `amd64` (`x86_64` if downloading an RPM package)
    - `arm64`
    - `arm`
    - `386` (`i386` if downloading a DEB or RPM package)
@@ -707,7 +729,7 @@ Service on a local Docker container using Teleport Community Edition.
 Since this container uses a self-signed certificate, we do not recommend using
 this configuration to protect any infrastructure outside your workstation. You
 can, however, join other local Docker containers to it using the [token
-method](./enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
+method](enroll-resources/agents/join-token.mdx).
 
 First, create directories in your home directory to mount to the container. The
 Teleport container will write its configuration and data to these directories:
@@ -888,7 +910,7 @@ security.
 </TabItem>
 </Tabs>
 
-## Windows (`tsh` and `tctl` clients only)
+## Windows (`tsh`, `tbot`, and `tctl` clients only)
 
 (!docs/pages/includes/install-windows.mdx!)
 

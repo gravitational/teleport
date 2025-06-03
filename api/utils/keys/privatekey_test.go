@@ -14,10 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package keys
+package keys_test
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -32,7 +33,11 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
 func TestMarshalAndParseKey(t *testing.T) {
@@ -44,29 +49,42 @@ func TestMarshalAndParseKey(t *testing.T) {
 	_, edKey, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
+	contextualKeyInfo := hardwarekey.ContextualKeyInfo{
+		ProxyHost:   "billy.io",
+		Username:    "Billy@billy.io",
+		ClusterName: "billy.io",
+	}
+	s := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
+	hwPriv, err := s.NewPrivateKey(context.TODO(), hardwarekey.PrivateKeyConfig{
+		ContextualKeyInfo: contextualKeyInfo,
+	})
+	require.NoError(t, err)
+
 	for keyType, key := range map[string]crypto.Signer{
-		"rsa":     rsaKey,
-		"ecdsa":   ecKey,
-		"ed25519": edKey,
+		"rsa":      rsaKey,
+		"ecdsa":    ecKey,
+		"ed25519":  edKey,
+		"hardware": hwPriv,
 	} {
 		t.Run(keyType, func(t *testing.T) {
-			keyPEM, err := MarshalPrivateKey(key)
+			keyPEM, err := keys.MarshalPrivateKey(key)
 			require.NoError(t, err)
-			gotKey, err := ParsePrivateKey(keyPEM)
+			gotKey, err := keys.ParsePrivateKey(keyPEM, keys.WithHardwareKeyService(s), keys.WithContextualKeyInfo(contextualKeyInfo))
 			require.NoError(t, err)
-			require.Equal(t, key, gotKey.Signer)
+			assert.Empty(t, cmp.Diff(key, gotKey.Signer, cmpopts.IgnoreUnexported(hardwarekey.Signer{})), "parsed private key is not equal to the original")
 
-			pubKeyPEM, err := MarshalPublicKey(key.Public())
+			pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
 			require.NoError(t, err)
-			gotPubKey, err := ParsePublicKey(pubKeyPEM)
+			gotPubKey, err := keys.ParsePublicKey(pubKeyPEM)
 			require.NoError(t, err)
 			require.Equal(t, key.Public(), gotPubKey)
+			assert.Empty(t, cmp.Diff(key.Public(), gotPubKey), "parsed public key is not equal to the original")
 		})
 	}
 }
 
 func TestParseMismatchedPEMHeader(t *testing.T) {
-	rsaKey, err := ParsePrivateKey(rsaKeyPEM)
+	rsaKey, err := keys.ParsePrivateKey(rsaKeyPEM)
 	require.NoError(t, err)
 	rsaPKCS1DER := x509.MarshalPKCS1PrivateKey(rsaKey.Signer.(*rsa.PrivateKey))
 	rsaPKCS8DER, err := x509.MarshalPKCS8PrivateKey(rsaKey.Signer)
@@ -116,7 +134,7 @@ func TestParseMismatchedPEMHeader(t *testing.T) {
 		},
 	} {
 		t.Run(desc, func(t *testing.T) {
-			key, err := ParsePrivateKey(tc.pem)
+			key, err := keys.ParsePrivateKey(tc.pem)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectKey, key.Signer)
 		})
@@ -142,7 +160,7 @@ func TestParseMismatchedPEMHeader(t *testing.T) {
 		},
 	} {
 		t.Run(desc, func(t *testing.T) {
-			pubKey, err := ParsePublicKey(tc.pem)
+			pubKey, err := keys.ParsePublicKey(tc.pem)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectKey, pubKey)
 		})
@@ -161,7 +179,7 @@ func TestParseCorruptedKey(t *testing.T) {
 	} {
 		t.Run(tc, func(t *testing.T) {
 			b := pem.EncodeToMemory(&pem.Block{Type: tc, Bytes: []byte("foo")})
-			_, err := ParsePrivateKey(b)
+			_, err := keys.ParsePrivateKey(b)
 			require.Error(t, err)
 		})
 	}
@@ -172,7 +190,7 @@ func TestParseCorruptedKey(t *testing.T) {
 	} {
 		t.Run(tc, func(t *testing.T) {
 			b := pem.EncodeToMemory(&pem.Block{Type: tc, Bytes: []byte("foo")})
-			_, err := ParsePublicKey(b)
+			_, err := keys.ParsePublicKey(b)
 			require.Error(t, err)
 		})
 	}
@@ -206,7 +224,7 @@ func TestX509KeyPair(t *testing.T) {
 			expectCert, err := tls.X509KeyPair(tc.certPEM, tc.keyPEM)
 			require.NoError(t, err)
 
-			tlsCert, err := X509KeyPair(tc.certPEM, tc.keyPEM)
+			tlsCert, err := keys.X509KeyPair(tc.certPEM, tc.keyPEM)
 			require.NoError(t, err)
 
 			require.Empty(t, cmp.Diff(expectCert, tlsCert, cmpopts.IgnoreFields(tls.Certificate{}, "Leaf")))
@@ -266,7 +284,7 @@ func TestX509Certificate(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cert, rawCerts, err := X509Certificate(tc.certPEM)
+			cert, rawCerts, err := keys.X509Certificate(tc.certPEM)
 			require.Len(t, rawCerts, tc.expectedLength)
 
 			tc.expectedError(t, err)
@@ -274,7 +292,37 @@ func TestX509Certificate(t *testing.T) {
 			tc.validateResult(t, cert)
 		})
 	}
+}
 
+// TestHardwareKeyMethods tests hardware key related methods with non-hardware keys.
+//
+// Testing these methods with actual hardware keys requires the piv go tag and should
+// be tested individually in tests like `TestGetYubiKeyPrivateKey_Interactive`.
+func TestHardwareKeyMethods(t *testing.T) {
+	ctx := context.Background()
+
+	// Test hardware key methods with a software key.
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	key, err := keys.NewPrivateKey(priv)
+	require.NoError(t, err)
+
+	require.Nil(t, key.GetAttestationStatement())
+	require.Equal(t, keys.PrivateKeyPolicyNone, key.GetPrivateKeyPolicy())
+	require.False(t, key.IsHardware())
+	require.NoError(t, key.WarmupHardwareKey(ctx))
+
+	// Test hardware key methods with a mocked hardware key.
+	s := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
+	hwKey, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
+		Policy: hardwarekey.PromptPolicyTouch,
+	})
+	require.NoError(t, err)
+
+	require.NotNil(t, hwKey.GetAttestationStatement())
+	require.Equal(t, keys.PrivateKeyPolicyHardwareKeyTouch, hwKey.GetPrivateKeyPolicy())
+	require.True(t, hwKey.IsHardware())
+	require.NoError(t, hwKey.WarmupHardwareKey(ctx))
 }
 
 var (

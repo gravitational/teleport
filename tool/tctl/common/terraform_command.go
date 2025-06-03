@@ -250,6 +250,8 @@ func (c *TerraformCommand) createTransientBotAndToken(ctx context.Context, clien
 
 	// Create bot
 	bot := &machineidv1pb.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name:    botName,
 			Expires: timestamppb.New(time.Now().Add(c.botTTL)),

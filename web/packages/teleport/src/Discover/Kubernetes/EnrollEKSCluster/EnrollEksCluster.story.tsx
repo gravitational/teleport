@@ -17,20 +17,18 @@
  */
 import { delay, http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
-import { MemoryRouter } from 'react-router';
 
 import { Info } from 'design/Alert';
 
-import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import {
-  DiscoverContextState,
-  DiscoverProvider,
-} from 'teleport/Discover/useDiscover';
-import { createTeleportContext, getUserContext } from 'teleport/mocks/contexts';
+  RequiredDiscoverProviders,
+  resourceSpecAwsEks,
+} from 'teleport/Discover/Fixtures/fixtures';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import { AgentMeta } from 'teleport/Discover/useDiscover';
+import { getUserContext } from 'teleport/mocks/contexts';
 import {
   AwsEksCluster,
   IntegrationKind,
@@ -38,7 +36,6 @@ import {
 } from 'teleport/services/integrations';
 import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
 import { Kube } from 'teleport/services/kube';
-import { DiscoverEventResource } from 'teleport/services/userEvent/types';
 
 import { EnrollEksCluster } from './EnrollEksCluster';
 
@@ -242,73 +239,36 @@ WithOtherError.parameters = {
   },
 };
 
-const Component = ({ devInfoText = '' }) => {
-  const ctx = createTeleportContext();
-  const discoverCtx: DiscoverContextState = {
-    agentMeta: {
-      resourceName: 'db-name',
-      agentMatcherLabels: [],
-      kube: {
-        kind: 'kube_cluster',
-        name: '',
-        labels: [],
-      },
-      awsIntegration: {
-        kind: IntegrationKind.AwsOidc,
-        name: integrationName,
-        resourceType: 'integration',
-        spec: {
-          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
-          issuerS3Bucket: '',
-          issuerS3Prefix: '',
-        },
-        statusCode: IntegrationStatusCode.Running,
-      },
+const agentMeta: AgentMeta = {
+  resourceName: 'kube-name',
+  agentMatcherLabels: [],
+  kube: {
+    kind: 'kube_cluster',
+    name: '',
+    labels: [],
+  },
+  awsIntegration: {
+    kind: IntegrationKind.AwsOidc,
+    name: integrationName,
+    resourceType: 'integration',
+    spec: {
+      roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+      issuerS3Bucket: '',
+      issuerS3Prefix: '',
     },
-    currentStep: 0,
-    nextStep: () => null,
-    prevStep: () => null,
-    onSelectResource: () => null,
-    resourceSpec: {
-      name: 'Eks',
-      kind: ResourceKind.Kubernetes,
-      icon: 'eks',
-      keywords: [],
-      event: DiscoverEventResource.KubernetesEks,
-    },
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
+    statusCode: IntegrationStatusCode.Running,
+  },
+};
 
+const Component = ({ devInfoText = '' }) => {
   return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'eks' } },
-      ]}
+    <RequiredDiscoverProviders
+      agentMeta={agentMeta}
+      resourceSpec={resourceSpecAwsEks}
     >
-      <ContextProvider ctx={ctx}>
-        <PingTeleportProvider
-          interval={1000}
-          resourceKind={ResourceKind.Kubernetes}
-        >
-          <DiscoverProvider mockCtx={discoverCtx}>
-            <Info>
-              {devInfoText || 'Devs: Select any region to see story state'}
-            </Info>
-            <EnrollEksCluster
-              nextStep={discoverCtx.nextStep}
-              updateAgentMeta={discoverCtx.updateAgentMeta}
-            />
-          </DiscoverProvider>
-        </PingTeleportProvider>
-      </ContextProvider>
-    </MemoryRouter>
+      <Info>{devInfoText || 'Devs: Select any region to see story state'}</Info>
+      <EnrollEksCluster nextStep={() => null} updateAgentMeta={() => null} />
+    </RequiredDiscoverProviders>
   );
 };
 

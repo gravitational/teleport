@@ -22,7 +22,6 @@ import styled from 'styled-components';
 import { Box, Flex } from 'design';
 import { Danger } from 'design/Alert';
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 import {
   BulkAction,
   FilterKind,
@@ -35,6 +34,7 @@ import {
 
 import { useTeleport } from 'teleport';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
+import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDropdown';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import { useUrlFiltering } from 'teleport/components/hooks';
 import {

@@ -60,9 +60,6 @@ export function NewCredentials(props: NewCredentialsProps) {
     success,
     finishedRegister,
     isDashboard,
-    displayOnboardingQuestionnaire = false,
-    setDisplayOnboardingQuestionnaire = false,
-    Questionnaire = undefined,
     displayInviteCollaborators = false,
     setDisplayInviteCollaborators = null,
     InviteCollaborators = undefined,
@@ -98,24 +95,6 @@ export function NewCredentials(props: NewCredentialsProps) {
       <OnboardCard>
         <InviteCollaborators
           onSubmit={() => setDisplayInviteCollaborators(false)}
-        />
-      </OnboardCard>
-    );
-  }
-
-  if (
-    success &&
-    !resetMode &&
-    displayOnboardingQuestionnaire &&
-    setDisplayOnboardingQuestionnaire &&
-    Questionnaire
-  ) {
-    return (
-      <OnboardCard>
-        <Questionnaire
-          username={resetToken.user}
-          onSubmit={() => setDisplayOnboardingQuestionnaire(false)}
-          onboard={true}
         />
       </OnboardCard>
     );

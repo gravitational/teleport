@@ -34,9 +34,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestHelperFunctions(t *testing.T) {
@@ -371,4 +373,22 @@ func TestLineLabeledWriter(t *testing.T) {
 			assert.Equal(t, tc.expected, buf.String())
 		})
 	}
+}
+
+func TestRouteToDatabaseToProto(t *testing.T) {
+	input := tlsca.RouteToDatabase{
+		ServiceName: "db-service",
+		Database:    "db-name",
+		Username:    "db-user",
+		Protocol:    "db-protocol",
+		Roles:       []string{"db-role1", "db-role2"},
+	}
+	expected := proto.RouteToDatabase{
+		ServiceName: "db-service",
+		Database:    "db-name",
+		Username:    "db-user",
+		Protocol:    "db-protocol",
+		Roles:       []string{"db-role1", "db-role2"},
+	}
+	require.Equal(t, expected, RouteToDatabaseToProto(input))
 }

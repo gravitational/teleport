@@ -169,7 +169,7 @@ func (k *Key) getSigner(opts *jose.SignerOptions) (jose.Signer, error) {
 	default:
 		signer = cryptosigner.Opaque(k.config.PrivateKey)
 	}
-	algorithm, err := joseAlgorithm(k.config.PrivateKey.Public())
+	algorithm, err := AlgorithmForPublicKey(k.config.PrivateKey.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -189,7 +189,8 @@ func (k *Key) getSigner(opts *jose.SignerOptions) (jose.Signer, error) {
 	return sig, nil
 }
 
-func joseAlgorithm(pub crypto.PublicKey) (jose.SignatureAlgorithm, error) {
+// AlgorithmForPublicKey returns a jose algorithm for the given public key.
+func AlgorithmForPublicKey(pub crypto.PublicKey) (jose.SignatureAlgorithm, error) {
 	switch pub.(type) {
 	case *rsa.PublicKey:
 		return jose.RS256, nil
@@ -285,6 +286,9 @@ type SignParamsJWTSVID struct {
 	SetExpiry time.Time
 	// SetIssuedAt overrides the issued at time of the token.
 	SetIssuedAt time.Time
+
+	// PrivateClaims are any additional claims that should be added to the JWT.
+	PrivateClaims map[string]any
 }
 
 // SignJWTSVID signs a JWT SVID token.
@@ -343,7 +347,34 @@ func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
 	// We will omit the inclusion of the type header until we can validate the
 	// ramifications of including it.
 
-	return k.sign(claims, opts)
+	// > 3. JWT Claims:
+	//
+	// > Registered claims not described in this document, in addition to
+	// > private claims, MAY be used as implementers see fit.
+	var rawClaims any = claims
+	if len(p.PrivateClaims) != 0 {
+		// This is slightly awkward. We take a round-trip through json.Marshal
+		// and json.Unmarshal to get a version of the claims we can add to.
+		marshaled, err := json.Marshal(rawClaims)
+		if err != nil {
+			return "", trace.Wrap(err, "marshaling claims")
+		}
+		var unmarshaled map[string]any
+		if err := json.Unmarshal(marshaled, &unmarshaled); err != nil {
+			return "", trace.Wrap(err, "unmarshaling claims")
+		}
+
+		// Only inject claims that don't conflict with an existing primary claim
+		// such as sub or aud.
+		for k, v := range p.PrivateClaims {
+			if _, ok := unmarshaled[k]; !ok {
+				unmarshaled[k] = v
+			}
+		}
+		rawClaims = unmarshaled
+	}
+
+	return k.sign(rawClaims, opts)
 }
 
 // SignEntraOIDC signs a JWT for the Entra ID Integration.

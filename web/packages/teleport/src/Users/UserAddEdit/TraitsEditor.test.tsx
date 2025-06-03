@@ -21,8 +21,12 @@ import Validation from 'shared/components/Validation';
 
 import { AllUserTraits } from 'teleport/services/user';
 
-import { emptyTrait, TraitsEditor, type TraitsOption } from './TraitsEditor';
-import { traitsToTraitsOption } from './useDialog';
+import {
+  emptyTrait,
+  TraitsEditor,
+  traitsToTraitsOption,
+  type TraitsOption,
+} from './TraitsEditor';
 
 test('Available traits are rendered', async () => {
   const setConfiguredTraits = jest.fn();
@@ -35,7 +39,7 @@ test('Available traits are rendered', async () => {
   render(
     <Validation>
       <TraitsEditor
-        attempt={{ status: '' }}
+        isLoading={false}
         configuredTraits={traitsToTraitsOption(userTraits)}
         setConfiguredTraits={setConfiguredTraits}
       />
@@ -54,7 +58,7 @@ test('Add and remove Trait', async () => {
   const { rerender } = render(
     <Validation>
       <TraitsEditor
-        attempt={{ status: '' }}
+        isLoading={false}
         configuredTraits={configuredTraits}
         setConfiguredTraits={setConfiguredTraits}
       />
@@ -72,7 +76,7 @@ test('Add and remove Trait', async () => {
   rerender(
     <Validation>
       <TraitsEditor
-        attempt={{ status: '' }}
+        isLoading={false}
         configuredTraits={traitsToTraitsOption(singleTrait)}
         setConfiguredTraits={setConfiguredTraits}
       />

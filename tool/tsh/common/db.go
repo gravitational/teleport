@@ -93,7 +93,7 @@ func onListDatabases(cf *CLIConf) error {
 		log.Debugf("Failed to fetch user roles: %v.", err)
 	}
 
-	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
+	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -249,7 +249,7 @@ func onDatabaseLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -311,15 +311,9 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 	} else {
 		if err = client.RetryWithRelogin(cf.Context, tc, func() error {
 			keyRing, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
-				RouteToCluster: tc.SiteName,
-				RouteToDatabase: proto.RouteToDatabase{
-					ServiceName: dbInfo.ServiceName,
-					Protocol:    dbInfo.Protocol,
-					Username:    dbInfo.Username,
-					Database:    dbInfo.Database,
-					Roles:       dbInfo.Roles,
-				},
-				AccessRequests: profile.ActiveRequests,
+				RouteToCluster:  tc.SiteName,
+				RouteToDatabase: client.RouteToDatabaseToProto(dbInfo.RouteToDatabase),
+				AccessRequests:  profile.ActiveRequests,
 			})
 			return trace.Wrap(err)
 		}); err != nil {
@@ -368,7 +362,7 @@ func onDatabaseLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	activeRoutes, err := profile.DatabasesForCluster(tc.SiteName)
+	activeRoutes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -448,7 +442,7 @@ func onDatabaseEnv(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -510,7 +504,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -752,7 +746,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1357,7 +1351,7 @@ func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route tlsca.Rou
 		}
 	}
 	found := false
-	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
+	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -1804,7 +1798,7 @@ func getDbCmdAlternatives(clusterFlag string, route tlsca.RouteToDatabase) []str
 func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs types.Databases) string {
 	var activeDBs []tlsca.RouteToDatabase
 	if profile, err := cf.ProfileStatus(); err == nil {
-		if dbs, err := profile.DatabasesForCluster(cf.SiteName); err == nil {
+		if dbs, err := profile.DatabasesForCluster(cf.SiteName, cf.getClientStore()); err == nil {
 			activeDBs = dbs
 		}
 	}

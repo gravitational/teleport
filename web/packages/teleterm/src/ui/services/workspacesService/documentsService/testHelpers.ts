@@ -22,25 +22,15 @@ import {
   makeKubeGateway,
   makeServer,
   rootClusterUri,
+  windowsDesktopUri,
 } from 'teleterm/services/tshd/testHelpers';
 import { makeReport } from 'teleterm/services/vnet/testHelpers';
 
-import {
-  DocumentAccessRequests,
-  DocumentAuthorizeWebSession,
-  DocumentCluster,
-  DocumentConnectMyComputer,
-  DocumentGateway,
-  DocumentGatewayCliClient,
-  DocumentGatewayKube,
-  DocumentPtySession,
-  DocumentTshNodeWithServerId,
-  DocumentVnetDiagReport,
-} from './types';
+import * as types from './types';
 
 export function makeDocumentCluster(
-  props?: Partial<DocumentCluster>
-): DocumentCluster {
+  props?: Partial<types.DocumentCluster>
+): types.DocumentCluster {
   return {
     kind: 'doc.cluster',
     uri: '/docs/cluster',
@@ -60,8 +50,8 @@ export function makeDocumentCluster(
 }
 
 export function makeDocumentGatewayDatabase(
-  props?: Partial<DocumentGateway>
-): DocumentGateway {
+  props?: Partial<types.DocumentGateway>
+): types.DocumentGateway {
   const gw = makeDatabaseGateway();
   return {
     kind: 'doc.gateway',
@@ -80,8 +70,8 @@ export function makeDocumentGatewayDatabase(
 }
 
 export function makeDocumentGatewayApp(
-  props?: Partial<DocumentGateway>
-): DocumentGateway {
+  props?: Partial<types.DocumentGateway>
+): types.DocumentGateway {
   const gw = makeAppGateway();
   return {
     kind: 'doc.gateway',
@@ -100,8 +90,8 @@ export function makeDocumentGatewayApp(
 }
 
 export function makeDocumentPtySession(
-  props?: Partial<DocumentPtySession>
-): DocumentPtySession {
+  props?: Partial<types.DocumentPtySession>
+): types.DocumentPtySession {
   return {
     kind: 'doc.terminal_shell',
     uri: '/docs/terminal_shell',
@@ -112,8 +102,8 @@ export function makeDocumentPtySession(
 }
 
 export function makeDocumentTshNode(
-  props?: Partial<DocumentTshNodeWithServerId>
-): DocumentTshNodeWithServerId {
+  props?: Partial<types.DocumentTshNodeWithServerId>
+): types.DocumentTshNodeWithServerId {
   return {
     kind: 'doc.terminal_tsh_node',
     uri: '/docs/terminal_tsh_node',
@@ -129,8 +119,8 @@ export function makeDocumentTshNode(
 }
 
 export function makeDocumentGatewayCliClient(
-  props?: Partial<DocumentGatewayCliClient>
-): DocumentGatewayCliClient {
+  props?: Partial<types.DocumentGatewayCliClient>
+): types.DocumentGatewayCliClient {
   const gw = makeDatabaseGateway();
   return {
     kind: 'doc.gateway_cli_client',
@@ -148,8 +138,8 @@ export function makeDocumentGatewayCliClient(
 }
 
 export function makeDocumentGatewayKube(
-  props?: Partial<DocumentGatewayKube>
-): DocumentGatewayKube {
+  props?: Partial<types.DocumentGatewayKube>
+): types.DocumentGatewayKube {
   const gw = makeKubeGateway();
   return {
     kind: 'doc.gateway_kube',
@@ -165,8 +155,8 @@ export function makeDocumentGatewayKube(
 }
 
 export function makeDocumentAccessRequests(
-  props?: Partial<DocumentAccessRequests>
-): DocumentAccessRequests {
+  props?: Partial<types.DocumentAccessRequests>
+): types.DocumentAccessRequests {
   return {
     kind: 'doc.access_requests',
     uri: '/docs/access_requests',
@@ -179,8 +169,8 @@ export function makeDocumentAccessRequests(
 }
 
 export function makeDocumentConnectMyComputer(
-  props?: Partial<DocumentConnectMyComputer>
-): DocumentConnectMyComputer {
+  props?: Partial<types.DocumentConnectMyComputer>
+): types.DocumentConnectMyComputer {
   return {
     kind: 'doc.connect_my_computer',
     uri: '/docs/connect-my-computer',
@@ -192,8 +182,8 @@ export function makeDocumentConnectMyComputer(
 }
 
 export function makeDocumentAuthorizeWebSession(
-  props?: Partial<DocumentAuthorizeWebSession>
-): DocumentAuthorizeWebSession {
+  props?: Partial<types.DocumentAuthorizeWebSession>
+): types.DocumentAuthorizeWebSession {
   return {
     kind: 'doc.authorize_web_session',
     uri: '/docs/authorize-web-session',
@@ -210,14 +200,42 @@ export function makeDocumentAuthorizeWebSession(
 }
 
 export function makeDocumentVnetDiagReport(
-  props?: Partial<DocumentVnetDiagReport>
-): DocumentVnetDiagReport {
+  props?: Partial<types.DocumentVnetDiagReport>
+): types.DocumentVnetDiagReport {
   return {
     kind: 'doc.vnet_diag_report',
     uri: '/docs/vnet-diag-report',
     title: 'VNet Diagnostics Report',
     rootClusterUri,
     report: makeReport(),
+    ...props,
+  };
+}
+
+export function makeDocumentVnetInfo(
+  props?: Partial<types.DocumentVnetInfo>
+): types.DocumentVnetInfo {
+  return {
+    kind: 'doc.vnet_info',
+    uri: '/docs/vnet-info',
+    title: 'VNet',
+    rootClusterUri,
+    app: undefined,
+    ...props,
+  };
+}
+
+export function makeDocumentDesktopSession(
+  props?: Partial<types.DocumentDesktopSession>
+): types.DocumentDesktopSession {
+  return {
+    kind: 'doc.desktop_session',
+    uri: '/docs/desktop-session',
+    title: 'admin on windows-machine',
+    desktopUri: windowsDesktopUri,
+    login: 'admin',
+    origin: 'resource_table',
+    status: '',
     ...props,
   };
 }

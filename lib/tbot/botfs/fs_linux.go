@@ -42,10 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// Openat2MinKernel is the kernel release that adds support for the openat2()
-// syscall.
-const Openat2MinKernel = "5.6.0"
-
 // mostACLRead is a permission mode granting readonly access to a file.
 const modeACLRead fs.FileMode = 04
 
@@ -454,7 +450,7 @@ func ConfigureLegacyACL(path string, owner *user.User, opts *ACLOptions) error {
 // resolveACLReaderSelector attempts to convert an ACL selector into a
 // platform-specific acl.Entry that can be applied to a file.
 func resolveACLReaderSelector(s *ACLSelector, dir bool) (acl.Entry, error) {
-	var perm fs.FileMode = modeACLRead
+	perm := modeACLRead
 	if dir {
 		perm = modeACLReadExecute
 	}
@@ -673,7 +669,6 @@ func HasACLSupport() bool {
 // We've encountered this being incorrect in environments where access to the
 // kernel is hampered e.g. seccomp/apparmor/container runtimes.
 func HasSecureWriteSupport() bool {
-	minKernel := semver.New(Openat2MinKernel)
 	version, err := utils.KernelVersion()
 	if err != nil {
 		log.InfoContext(
@@ -683,7 +678,8 @@ func HasSecureWriteSupport() bool {
 		)
 		return false
 	}
-	if version.LessThan(*minKernel) {
+	// kernel release that added support for the openat2() syscall
+	if version.LessThan(semver.Version{Major: 5, Minor: 6, Patch: 0}) {
 		return false
 	}
 

@@ -51,8 +51,6 @@ type Cluster struct {
 	ProfileName string
 	// Log is a component logger
 	Log *logrus.Entry
-	// dir is the directory where cluster certificates are stored
-	dir string
 	// Status is the cluster status
 	status client.ProfileStatus
 	// If not empty, it means that there was a problem with reading the cluster status.
@@ -200,20 +198,22 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 	roleSet := services.NewRoleSet(roles...)
 	userACL := services.NewUserACL(user, roleSet, *authPingResponse.ServerFeatures, false, false)
 	acl := &api.ACL{
-		RecordedSessions: convertToAPIResourceAccess(userACL.RecordedSessions),
-		ActiveSessions:   convertToAPIResourceAccess(userACL.ActiveSessions),
-		AuthConnectors:   convertToAPIResourceAccess(userACL.AuthConnectors),
-		Roles:            convertToAPIResourceAccess(userACL.Roles),
-		Users:            convertToAPIResourceAccess(userACL.Users),
-		TrustedClusters:  convertToAPIResourceAccess(userACL.TrustedClusters),
-		Events:           convertToAPIResourceAccess(userACL.Events),
-		Tokens:           convertToAPIResourceAccess(userACL.Tokens),
-		Servers:          convertToAPIResourceAccess(userACL.Nodes),
-		Apps:             convertToAPIResourceAccess(userACL.AppServers),
-		Dbs:              convertToAPIResourceAccess(userACL.DBServers),
-		Kubeservers:      convertToAPIResourceAccess(userACL.KubeServers),
-		AccessRequests:   convertToAPIResourceAccess(userACL.AccessRequests),
-		ReviewRequests:   userACL.ReviewRequests,
+		RecordedSessions:        convertToAPIResourceAccess(userACL.RecordedSessions),
+		ActiveSessions:          convertToAPIResourceAccess(userACL.ActiveSessions),
+		AuthConnectors:          convertToAPIResourceAccess(userACL.AuthConnectors),
+		Roles:                   convertToAPIResourceAccess(userACL.Roles),
+		Users:                   convertToAPIResourceAccess(userACL.Users),
+		TrustedClusters:         convertToAPIResourceAccess(userACL.TrustedClusters),
+		Events:                  convertToAPIResourceAccess(userACL.Events),
+		Tokens:                  convertToAPIResourceAccess(userACL.Tokens),
+		Servers:                 convertToAPIResourceAccess(userACL.Nodes),
+		Apps:                    convertToAPIResourceAccess(userACL.AppServers),
+		Dbs:                     convertToAPIResourceAccess(userACL.DBServers),
+		Kubeservers:             convertToAPIResourceAccess(userACL.KubeServers),
+		AccessRequests:          convertToAPIResourceAccess(userACL.AccessRequests),
+		ReviewRequests:          userACL.ReviewRequests,
+		DirectorySharingEnabled: userACL.DirectorySharing,
+		ClipboardSharingEnabled: userACL.Clipboard,
 	}
 
 	withDetails := &ClusterWithDetails{

@@ -377,6 +377,80 @@ matches snapshot for auth-passwordless.yaml:
           output: stderr
           severity: INFO
       version: v3
+matches snapshot for auth-secondfactors-sso.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "on"
+          type: local
+          webauthn:
+            rp_id: helm-lint
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+matches snapshot for auth-secondfactors-webauthn.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "on"
+          type: local
+          webauthn:
+            attestation_allowed_cas:
+            - /etc/ssl/certs/ca-certificates.crt
+            attestation_denied_cas:
+            - /etc/ssl/certs/ca-certificates.crt
+            rp_id: helm-lint
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
 matches snapshot for auth-type-legacy.yaml:
   1: |
     |-
@@ -1791,6 +1865,39 @@ matches snapshot for volumes.yaml:
           output: stderr
           severity: INFO
       version: v3
+matches snapshot when both secondFactor and secondFactors are set.:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "off"
+          type: local
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
 sets clusterDomain on Configmap:
   1: |
     apiVersion: v1
@@ -1848,8 +1955,8 @@ sets clusterDomain on Configmap:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-cluster
-        app.kubernetes.io/version: 17.3.3
-        helm.sh/chart: teleport-cluster-17.3.3
+        app.kubernetes.io/version: 17.4.8
+        helm.sh/chart: teleport-cluster-17.4.8
         teleport.dev/majorVersion: "17"
       name: RELEASE-NAME-auth
       namespace: NAMESPACE

@@ -19,6 +19,8 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
+
 import { Route } from 'teleport/components/Router';
 import { ContextProvider } from 'teleport/index';
 import { ContentMinWidth } from 'teleport/Main/Main';
@@ -38,11 +40,13 @@ function render(fetchClusterDetails: (clusterId: string) => Promise<any>) {
   return (
     <MemoryRouter initialEntries={['/clusters/test-cluster']}>
       <Route path="/clusters/:clusterId">
-        <ContentMinWidth>
-          <ContextProvider ctx={ctx}>
-            <ManageCluster />
-          </ContextProvider>
-        </ContentMinWidth>
+        <InfoGuidePanelProvider>
+          <ContentMinWidth>
+            <ContextProvider ctx={ctx}>
+              <ManageCluster />
+            </ContextProvider>
+          </ContentMinWidth>
+        </InfoGuidePanelProvider>
       </Route>
     </MemoryRouter>
   );

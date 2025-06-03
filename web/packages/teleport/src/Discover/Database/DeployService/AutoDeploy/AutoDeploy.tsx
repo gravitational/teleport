@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import styled, { useTheme } from 'styled-components';
+import { useTheme } from 'styled-components';
 
 import {
   Alert,
@@ -56,6 +56,7 @@ import {
   AlternateInstructionButton,
   Header,
   HeaderSubtitle,
+  StyledBox,
   TextIcon,
   useShowHint,
 } from '../../../Shared';
@@ -144,7 +145,14 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
           setAttempt({ status: 'success' });
           setSvcDeployedAwsUrl(url);
           setDeployFinished(true);
-          updateAgentMeta({ ...agentMeta, serviceDeployedMethod: 'auto' });
+          updateAgentMeta({
+            ...agentMeta,
+            serviceDeploy: {
+              method: 'auto',
+              selectedSecurityGroups,
+              selectedSubnetIds,
+            },
+          });
         })
         .catch((err: Error) => {
           setAttempt({ status: 'failed', statusText: err.message });
@@ -187,7 +195,15 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
 
   function handleDeployFinished(db: Database) {
     setDeployFinished(true);
-    updateAgentMeta({ ...agentMeta, db, serviceDeployedMethod: 'auto' });
+    updateAgentMeta({
+      ...agentMeta,
+      db,
+      serviceDeploy: {
+        method: 'auto',
+        selectedSecurityGroups,
+        selectedSubnetIds,
+      },
+    });
   }
 
   function abortDeploying() {
@@ -607,13 +623,6 @@ export function AutoDiscoverDeploySuccess({
     </Alert>
   );
 }
-
-const StyledBox = styled(Box)`
-  max-width: 1000px;
-  background-color: ${props => props.theme.colors.spotBackground[0]};
-  padding: ${props => `${props.theme.space[3]}px`};
-  border-radius: ${props => `${props.theme.space[2]}px`};
-`;
 
 const AlertIcon = () => (
   <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />

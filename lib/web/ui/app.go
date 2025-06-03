@@ -47,6 +47,9 @@ type App struct {
 	PublicAddr string `json:"publicAddr"`
 	// FQDN is a fully qualified domain name of the application (app.example.com)
 	FQDN string `json:"fqdn"`
+	// UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the
+	// request originated from.
+	UseAnyProxyPublicAddr bool `json:"useAnyProxyPublicAddr,omitempty"`
 	// ClusterID is this app cluster ID
 	ClusterID string `json:"clusterId"`
 	// Labels is a map of static labels associated with an application.
@@ -72,6 +75,9 @@ type App struct {
 	// PermissionSets holds the permission sets that this app grants access to.
 	// Only valid for Identity Center Account apps
 	PermissionSets []IdentityCenterPermissionSet `json:"permissionSets,omitempty"`
+	// SAMLAppLaunchURLs contains service provider specific authentication
+	// endpoints where user should be launched to start SAML authentication.
+	SAMLAppLaunchURLs []SAMLAppLaunchURL `json:"samlAppLaunchUrls,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -151,22 +157,23 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	permissionSets := makePermissionSets(app.GetIdentityCenter().GetPermissionSets())
 
 	resultApp := App{
-		Kind:            types.KindApp,
-		SubKind:         app.GetSubKind(),
-		Name:            app.GetName(),
-		Description:     description,
-		URI:             app.GetURI(),
-		PublicAddr:      app.GetPublicAddr(),
-		Labels:          labels,
-		ClusterID:       c.AppClusterName,
-		FQDN:            fqdn,
-		AWSConsole:      app.IsAWSConsole(),
-		FriendlyName:    types.FriendlyName(app),
-		UserGroups:      userGroupAndDescriptions,
-		SAMLApp:         false,
-		RequiresRequest: c.RequiresRequest,
-		Integration:     app.GetIntegration(),
-		PermissionSets:  permissionSets,
+		Kind:                  types.KindApp,
+		SubKind:               app.GetSubKind(),
+		Name:                  app.GetName(),
+		Description:           description,
+		URI:                   app.GetURI(),
+		PublicAddr:            app.GetPublicAddr(),
+		Labels:                labels,
+		ClusterID:             c.AppClusterName,
+		FQDN:                  fqdn,
+		AWSConsole:            app.IsAWSConsole(),
+		FriendlyName:          types.FriendlyName(app),
+		UserGroups:            userGroupAndDescriptions,
+		SAMLApp:               false,
+		RequiresRequest:       c.RequiresRequest,
+		Integration:           app.GetIntegration(),
+		PermissionSets:        permissionSets,
+		UseAnyProxyPublicAddr: app.GetUseAnyProxyPublicAddr(),
 	}
 
 	if app.IsAWSConsole() {
@@ -199,17 +206,27 @@ func makePermissionSets(src []*types.IdentityCenterPermissionSet) []IdentityCent
 // Web UI. Thus, this field is currently not available in the Connect App type.
 func MakeAppTypeFromSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
 	labels := ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels())
+	uiLaunchURLs := func(in []string) []SAMLAppLaunchURL {
+		out := make([]SAMLAppLaunchURL, 0, len(in))
+		for _, u := range in {
+			out = append(out, SAMLAppLaunchURL{
+				URL: u,
+			})
+		}
+		return out
+	}
 	resultApp := App{
-		Kind:            types.KindApp,
-		Name:            app.GetName(),
-		Description:     "SAML Application",
-		PublicAddr:      "",
-		Labels:          labels,
-		ClusterID:       c.AppClusterName,
-		FriendlyName:    types.FriendlyName(app),
-		SAMLApp:         true,
-		SAMLAppPreset:   cmp.Or(app.GetPreset(), "unspecified"),
-		RequiresRequest: c.RequiresRequest,
+		Kind:              types.KindApp,
+		Name:              app.GetName(),
+		Description:       "SAML Application",
+		PublicAddr:        "",
+		Labels:            labels,
+		ClusterID:         c.AppClusterName,
+		FriendlyName:      types.FriendlyName(app),
+		SAMLApp:           true,
+		SAMLAppPreset:     cmp.Or(app.GetPreset(), "unspecified"),
+		RequiresRequest:   c.RequiresRequest,
+		SAMLAppLaunchURLs: uiLaunchURLs(app.GetLaunchURLs()),
 	}
 
 	return resultApp
@@ -274,4 +291,13 @@ func MakeApps(c MakeAppsConfig) []App {
 	}
 
 	return result
+}
+
+// SAMLAppLaunchURLs contains service provider specific authentication
+// endpoints where user should be launched to start SAML authentication.
+type SAMLAppLaunchURL struct {
+	// Friendly name of the URL.
+	FriendlyName string `json:"friendlyName"`
+	// URL where the user should be landed onto.
+	URL string `json:"url,omitempty"`
 }

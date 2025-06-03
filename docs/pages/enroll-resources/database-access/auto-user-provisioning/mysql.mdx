@@ -96,7 +96,8 @@ Users created within the database will:
 
 (!docs/pages/includes/database-access/auto-user-provisioning/username-hash.mdx database="MySQL" limit="32" !)
 
-<Details title="Tracking the name mapping">
+<details>
+<summary>Tracking the name mapping</summary>
 The original Teleport username will be saved as user attributes within the
 databases.
 
@@ -113,7 +114,7 @@ SELECT * FROM INFORMATION_SCHEMA.USER_ATTRIBUTES WHERE ATTRIBUTE->"$.user" = "te
 In addition, the "hashed" in-database name will be recorded as `db_user` for
 database queries in the Teleport Audit Logs, when the Teleport username is over
 32 characters.
-</Details>
+</details>
 
 (!docs/pages/includes/database-access/auto-user-provisioning/username-conflict.mdx!)
 

@@ -31,10 +31,11 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -59,15 +60,18 @@ type APIConfig struct {
 	MetadataGetter events.UploadMetadataGetter
 	// AccessGraph contains the configuration about the access graph service
 	AccessGraph AccessGraphConfig
+	// MutateRevocationsServiceConfig is a function that allows to mutate
+	// the revocation service configuration for testing.
+	MutateRevocationsServiceConfig func(config *workloadidentityv1.RevocationServiceConfig)
 }
 
 // CheckAndSetDefaults checks and sets default values
 func (a *APIConfig) CheckAndSetDefaults() error {
 	if a.KeepAlivePeriod == 0 {
-		a.KeepAlivePeriod = apidefaults.ServerKeepAliveTTL()
+		a.KeepAlivePeriod = defaults.ServerKeepAliveTTL()
 	}
 	if a.KeepAliveCount == 0 {
-		a.KeepAliveCount = apidefaults.KeepAliveCountMax
+		a.KeepAliveCount = defaults.KeepAliveCountMax
 	}
 	if a.Authorizer == nil {
 		return trace.BadParameter("authorizer is missing")

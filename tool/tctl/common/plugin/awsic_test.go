@@ -269,3 +269,49 @@ func TestSCIMBaseURLValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestUseSystemCredentialsInput(t *testing.T) {
+	testCases := []struct {
+		name                string
+		useSystemCredential bool
+		assumeRoleARN       string
+		expectError         require.ErrorAssertionFunc
+	}{
+		{
+			name:                "valid system credential config",
+			useSystemCredential: true,
+			assumeRoleARN:       "arn:aws:iam::026000000023:role/assume1",
+			expectError:         require.NoError,
+		},
+		{
+			name:                "no useSystemCredential",
+			useSystemCredential: false,
+			assumeRoleARN:       "",
+			expectError:         require.Error,
+		},
+		{
+			name:                "useSystemCredential without assumeRoleARN",
+			useSystemCredential: true,
+			assumeRoleARN:       "",
+			expectError:         require.Error,
+		},
+		{
+			name:                "useSystemCredential with invalid assumeRoleARN",
+			useSystemCredential: true,
+			assumeRoleARN:       "example-credential",
+			expectError:         require.Error,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cliArgs := awsICArgs{
+				useSystemCredentials: tc.useSystemCredential,
+				assumeRoleARN:        tc.assumeRoleARN,
+			}
+
+			err := cliArgs.validateSystemCredentialInput()
+			tc.expectError(t, err)
+		})
+	}
+}

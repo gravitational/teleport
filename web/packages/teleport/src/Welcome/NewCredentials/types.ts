@@ -44,13 +44,6 @@ export type UseTokenState = {
   finishedRegister: () => void;
 };
 
-// Note: QuestionnaireProps is duplicated in Enterprise (e-teleport/Welcome/Questionnaire/Questionnaire)
-export type QuestionnaireProps = {
-  onboard: boolean;
-  username?: string;
-  onSubmit?: () => void;
-};
-
 // Note: InviteCollaboratorsCardProps is duplicated in Enterprise
 // (e-teleport/Welcome/InviteCollaborators/InviteCollaborators)
 export type InviteCollaboratorsCardProps = {
@@ -60,15 +53,6 @@ export type InviteCollaboratorsCardProps = {
 export type NewCredentialsProps = UseTokenState & {
   resetMode?: boolean;
   isDashboard: boolean;
-
-  // support E questionnaire
-  displayOnboardingQuestionnaire?: boolean;
-  setDisplayOnboardingQuestionnaire?: (bool: boolean) => void;
-  Questionnaire?: ({
-    onboard,
-    username,
-    onSubmit,
-  }: QuestionnaireProps) => ReactElement;
 
   // support for E's invite collaborators at onboarding
   displayInviteCollaborators?: boolean;

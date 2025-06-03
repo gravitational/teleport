@@ -25,6 +25,7 @@ import {
   render as testingRender,
   waitFor,
   waitForElementToBeRemoved,
+  within,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ReactNode } from 'react';
@@ -36,11 +37,23 @@ import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import '@testing-library/jest-dom';
 import 'jest-styled-components';
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+export const testQueryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+});
+
 function Providers({ children }: { children: ReactNode }) {
   return (
-    <ConfiguredThemeProvider theme={darkTheme}>
-      {children}
-    </ConfiguredThemeProvider>
+    <QueryClientProvider client={testQueryClient}>
+      <ConfiguredThemeProvider theme={darkTheme}>
+        {children}
+      </ConfiguredThemeProvider>
+    </QueryClientProvider>
   );
 }
 
@@ -66,8 +79,8 @@ screen.debug = () => {
 };
 
 type RenderOptions = {
-  wrapper: React.FC;
-  container: HTMLElement;
+  wrapper?: React.FC;
+  container?: HTMLElement;
 };
 
 export {
@@ -83,4 +96,5 @@ export {
   Router,
   userEvent,
   waitForElementToBeRemoved,
+  within,
 };

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -131,6 +132,8 @@ type controllerOptions struct {
 	authID             string
 	onConnectFunc      func(string)
 	onDisconnectFunc   func(string, int)
+	cleanupLimiter     *rate.Limiter
+	cleanupTimeout     time.Duration
 }
 
 func (options *controllerOptions) SetDefaults() {
@@ -157,6 +160,16 @@ func (options *controllerOptions) SetDefaults() {
 
 	if options.onDisconnectFunc == nil {
 		options.onDisconnectFunc = func(string, int) {}
+	}
+
+	if options.cleanupLimiter == nil {
+		// limit resource cleanup writes to 128 per second to reduce the chances that
+		// agents with very large resource counts cause throttling on graceful disconnect.
+		options.cleanupLimiter = rate.NewLimiter(rate.Every(time.Second), 128)
+	}
+
+	if options.cleanupTimeout == 0 {
+		options.cleanupTimeout = time.Second * 30
 	}
 }
 
@@ -229,6 +242,8 @@ type Controller struct {
 	testEvents                 chan testEvent
 	onConnectFunc              func(string)
 	onDisconnectFunc           func(string, int)
+	cleanupLimiter             *rate.Limiter
+	cleanupTimeout             time.Duration
 	closeContext               context.Context
 	cancel                     context.CancelFunc
 }
@@ -300,6 +315,8 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 		usageReporter:              usageReporter,
 		onConnectFunc:              options.onConnectFunc,
 		onDisconnectFunc:           options.onDisconnectFunc,
+		cleanupLimiter:             options.cleanupLimiter,
+		cleanupTimeout:             options.cleanupTimeout,
 		closeContext:               ctx,
 		cancel:                     cancel,
 	}
@@ -325,11 +342,18 @@ func (c *Controller) GetControlStream(serverID string) (handle UpstreamHandle, o
 	return
 }
 
-// Iter iterates across all handles registered with this controller.
-// note: if multiple handles are registered for a given server, only
+// UniqueHandles iterates across unique handles registered with this controller.
+// If multiple handles are registered for a given server, only
 // one handle is selected pseudorandomly to be observed.
-func (c *Controller) Iter(fn func(UpstreamHandle)) {
-	c.store.Iter(fn)
+func (c *Controller) UniqueHandles(fn func(UpstreamHandle)) {
+	c.store.UniqueHandles(fn)
+}
+
+// AllHandles iterates across all handles registered with this
+// controller. If multiple handles are registered for a given server,
+// all of them will be observed.
+func (c *Controller) AllHandles(fn func(UpstreamHandle)) {
+	c.store.AllHandles(fn)
 }
 
 // ConnectedInstances gets the total number of connected instances. Note that this is the total number of
@@ -375,16 +399,14 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	// these delays are lazily initialized upon receipt of the first heartbeat
 	// since not all servers send all heartbeats
 	var sshKeepAliveDelay *delay.Delay
-	var appKeepAliveDelay *delay.Delay
-	var dbKeepAliveDelay *delay.Delay
-	var kubeKeepAliveDelay *delay.Delay
+
 	defer func() {
 		// this is a function expression because the variables are initialized
 		// later and we want to call Stop on the initialized value (if any)
 		sshKeepAliveDelay.Stop()
-		appKeepAliveDelay.Stop()
-		dbKeepAliveDelay.Stop()
-		kubeKeepAliveDelay.Stop()
+		handle.appKeepAliveDelay.Stop()
+		handle.dbKeepAliveDelay.Stop()
+		handle.kubeKeepAliveDelay.Stop()
 	}()
 
 	for _, service := range handle.hello.Services {
@@ -393,38 +415,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 
 	defer func() {
 		if handle.goodbye.GetDeleteResources() {
-			slog.DebugContext(c.closeContext, "Cleaning up resources in response to instance termination",
-				"apps", len(handle.appServers),
-				"dbs", len(handle.databaseServers),
-				"kube", len(handle.kubernetesServers),
-				"server_id", handle.Hello().ServerID,
-			)
-			for _, app := range handle.appServers {
-				if err := c.auth.DeleteApplicationServer(c.closeContext, apidefaults.Namespace, app.resource.GetHostID(), app.resource.GetName()); err != nil && !trace.IsNotFound(err) {
-					slog.WarnContext(c.closeContext, "Failed to remove app server on termination",
-						"app_server", handle.Hello().ServerID,
-						"error", err,
-					)
-				}
-			}
-
-			for _, db := range handle.databaseServers {
-				if err := c.auth.DeleteDatabaseServer(c.closeContext, apidefaults.Namespace, db.resource.GetHostID(), db.resource.GetName()); err != nil && !trace.IsNotFound(err) {
-					slog.WarnContext(c.closeContext, "Failed to remove db server on termination",
-						"db_server", handle.Hello().ServerID,
-						"error", err,
-					)
-				}
-			}
-
-			for _, kube := range handle.kubernetesServers {
-				if err := c.auth.DeleteKubernetesServer(c.closeContext, kube.resource.GetHostID(), kube.resource.GetName()); err != nil && !trace.IsNotFound(err) {
-					slog.WarnContext(c.closeContext, "Failed to remove kube server on termination",
-						"kube_server", handle.Hello().ServerID,
-						"error", err,
-					)
-				}
-			}
+			c.doResourceCleanup(handle)
 		}
 
 		c.instanceHBVariableDuration.Dec()
@@ -502,35 +493,35 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				}
 
 				if m.AppServer != nil {
+					if handle.appKeepAliveDelay == nil {
+						handle.appKeepAliveDelay = c.createKeepAliveMultiDelay(c.appHBVariableDuration)
+					}
+
 					if err := c.handleAppServerHB(handle, m.AppServer); err != nil {
 						handle.CloseWithError(err)
 						return
 					}
-
-					if appKeepAliveDelay == nil {
-						appKeepAliveDelay = c.createKeepAliveDelay(c.appHBVariableDuration)
-					}
 				}
 
 				if m.DatabaseServer != nil {
+					if handle.dbKeepAliveDelay == nil {
+						handle.dbKeepAliveDelay = c.createKeepAliveMultiDelay(c.dbHBVariableDuration)
+					}
+
 					if err := c.handleDatabaseServerHB(handle, m.DatabaseServer); err != nil {
 						handle.CloseWithError(err)
 						return
 					}
-
-					if dbKeepAliveDelay == nil {
-						dbKeepAliveDelay = c.createKeepAliveDelay(c.dbHBVariableDuration)
-					}
 				}
 
 				if m.KubernetesServer != nil {
+					if handle.kubeKeepAliveDelay == nil {
+						handle.kubeKeepAliveDelay = c.createKeepAliveMultiDelay(c.kubeHBVariableDuration)
+					}
+
 					if err := c.handleKubernetesServerHB(handle, m.KubernetesServer); err != nil {
 						handle.CloseWithError(err)
 						return
-					}
-
-					if kubeKeepAliveDelay == nil {
-						kubeKeepAliveDelay = c.createKeepAliveDelay(c.kubeHBVariableDuration)
 					}
 				}
 
@@ -563,28 +554,29 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			}
 			c.testEvent(keepAliveSSHTick)
 
-		case now := <-appKeepAliveDelay.Elapsed():
-			appKeepAliveDelay.Advance(now)
+		case now := <-handle.appKeepAliveDelay.Elapsed():
+			key := handle.appKeepAliveDelay.Tick(now)
 
-			if err := c.keepAliveAppServer(handle, now); err != nil {
+			if err := c.keepAliveAppServer(handle, now, key); err != nil {
 				handle.CloseWithError(err)
 				return
 			}
 			c.testEvent(keepAliveAppTick)
 
-		case now := <-dbKeepAliveDelay.Elapsed():
-			dbKeepAliveDelay.Advance(now)
+		case now := <-handle.dbKeepAliveDelay.Elapsed():
+			key := handle.dbKeepAliveDelay.Tick(now)
 
-			if err := c.keepAliveDatabaseServer(handle, now); err != nil {
+			if err := c.keepAliveDatabaseServer(handle, now, key); err != nil {
 				handle.CloseWithError(err)
 				return
 			}
+
 			c.testEvent(keepAliveDatabaseTick)
 
-		case now := <-kubeKeepAliveDelay.Elapsed():
-			kubeKeepAliveDelay.Advance(now)
+		case now := <-handle.kubeKeepAliveDelay.Elapsed():
+			key := handle.kubeKeepAliveDelay.Tick(now)
 
-			if err := c.keepAliveKubernetesServer(handle, now); err != nil {
+			if err := c.keepAliveKubernetesServer(handle, now, key); err != nil {
 				handle.CloseWithError(err)
 				return
 			}
@@ -615,6 +607,73 @@ func instanceHeartbeatsDisabledEnv() bool {
 // been explicitly disabled via environment variable.
 func variableRateHeartbeatsDisabledEnv() bool {
 	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_VARIABLE_RATE_HEARTBEATS") == "yes"
+}
+
+// doResourceCleanup handles deletion of resources in response to a goodbye message. cleanup may only
+// be partially applied if too much concurrent cleanup is ongoing and/or if cleanup is taking too long.
+func (c *Controller) doResourceCleanup(handle *upstreamHandle) {
+	cleanupCtx, cancel := context.WithTimeout(c.closeContext, c.cleanupTimeout)
+	defer cancel()
+	slog.DebugContext(c.closeContext, "Cleaning up resources in response to instance termination",
+		"apps", len(handle.appServers),
+		"dbs", len(handle.databaseServers),
+		"kube", len(handle.kubernetesServers),
+		"server_id", handle.Hello().ServerID,
+	)
+	for _, app := range handle.appServers {
+		if err := c.cleanupLimiter.Wait(cleanupCtx); err != nil {
+			slog.WarnContext(c.closeContext, "halting remaining resource cleanup", "instance_id", handle.Hello().ServerID, "error", err)
+			return
+		}
+
+		if err := c.auth.DeleteApplicationServer(cleanupCtx, apidefaults.Namespace, app.resource.GetHostID(), app.resource.GetName()); err != nil && !trace.IsNotFound(err) {
+			if cleanupCtx.Err() != nil {
+				slog.WarnContext(c.closeContext, "halting remaining resource cleanup", "instance_id", handle.Hello().ServerID, "error", err)
+				return
+			}
+			slog.WarnContext(c.closeContext, "Failed to remove app server on termination",
+				"app_server", handle.Hello().ServerID,
+				"error", err,
+			)
+		}
+	}
+
+	for _, db := range handle.databaseServers {
+		if err := c.cleanupLimiter.Wait(cleanupCtx); err != nil {
+			slog.WarnContext(c.closeContext, "halting remaining resource cleanup", "instance_id", handle.Hello().ServerID, "error", err)
+			return
+		}
+
+		if err := c.auth.DeleteDatabaseServer(cleanupCtx, apidefaults.Namespace, db.resource.GetHostID(), db.resource.GetName()); err != nil && !trace.IsNotFound(err) {
+			if cleanupCtx.Err() != nil {
+				slog.WarnContext(c.closeContext, "halting remaining resource cleanup", "instance_id", handle.Hello().ServerID, "error", err)
+				return
+			}
+			slog.WarnContext(c.closeContext, "Failed to remove db server on termination",
+				"db_server", handle.Hello().ServerID,
+				"error", err,
+			)
+		}
+	}
+
+	for _, kube := range handle.kubernetesServers {
+		if err := c.cleanupLimiter.Wait(cleanupCtx); err != nil {
+			slog.WarnContext(c.closeContext, "halting remaining resource cleanup", "instance_id", handle.Hello().ServerID, "error", err)
+			return
+		}
+
+		if err := c.auth.DeleteKubernetesServer(c.closeContext, kube.resource.GetHostID(), kube.resource.GetName()); err != nil && !trace.IsNotFound(err) {
+			if cleanupCtx.Err() != nil {
+				slog.WarnContext(c.closeContext, "halting remaining resource cleanup", "instance_id", handle.Hello().ServerID, "error", err)
+				return
+			}
+
+			slog.WarnContext(c.closeContext, "Failed to remove kube server on termination",
+				"kube_server", handle.Hello().ServerID,
+				"error", err,
+			)
+		}
+	}
 }
 
 func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Time) error {
@@ -797,6 +856,7 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 			c.appHBVariableDuration.Inc()
 		}
 		handle.appServers[appKey] = &heartBeatInfo[*types.AppServerV3]{}
+		handle.appKeepAliveDelay.Add(appKey)
 	}
 
 	now := time.Now()
@@ -851,6 +911,7 @@ func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServ
 			c.dbHBVariableDuration.Inc()
 		}
 		handle.databaseServers[dbKey] = &heartBeatInfo[*types.DatabaseServerV3]{}
+		handle.dbKeepAliveDelay.Add(dbKey)
 	}
 
 	now := time.Now()
@@ -886,7 +947,7 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 	// the auth layer verifies that a stream's hello message matches the identity and capabilities of the
 	// client cert. after that point it is our responsibility to ensure that heartbeated information is
 	// consistent with the identity and capabilities claimed in the initial hello.
-	if !(handle.HasService(types.RoleKube) || handle.HasService(types.RoleProxy)) {
+	if !handle.HasService(types.RoleKube) && !handle.HasService(types.RoleProxy) {
 		return trace.AccessDenied("control stream not configured to support kubernetes server heartbeats")
 	}
 	if kubernetesServer.GetHostID() != handle.Hello().ServerID {
@@ -905,6 +966,7 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 			c.kubeHBVariableDuration.Inc()
 		}
 		handle.kubernetesServers[kubeKey] = &heartBeatInfo[*types.KubernetesServerV3]{}
+		handle.kubeKeepAliveDelay.Add(kubeKey)
 	}
 
 	now := time.Now()
@@ -960,163 +1022,177 @@ func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.Upstrea
 	})
 }
 
-func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time) error {
-	for name, srv := range handle.appServers {
-		if srv.lease != nil {
-			lease := *srv.lease
-			lease.Expires = now.Add(c.serverTTL).UTC()
-			if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
-				c.testEvent(appKeepAliveErr)
+func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time, name resourceKey) error {
+	srv, ok := handle.appServers[name]
+	if !ok {
+		handle.appKeepAliveDelay.Remove(name)
+		return trace.Errorf("desync between app server hb registry and keepalive delay (this is a bug)")
+	}
 
-				srv.keepAliveErrs++
-				handle.appServers[name] = srv
-				shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
-				slog.WarnContext(c.closeContext, "Failed to keep alive app server",
-					"server_id", handle.Hello().ServerID,
-					"error", err,
-					"error_count", srv.keepAliveErrs,
-					"should_remove", shouldRemove,
-				)
+	if srv.lease != nil {
+		lease := *srv.lease
+		lease.Expires = now.Add(c.serverTTL).UTC()
+		if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
+			c.testEvent(appKeepAliveErr)
 
-				if shouldRemove {
-					c.testEvent(appKeepAliveDel)
-					c.onDisconnectFunc(constants.KeepAliveApp, 1)
-					if c.appHBVariableDuration != nil {
-						c.appHBVariableDuration.Dec()
-					}
-					delete(handle.appServers, name)
+			srv.keepAliveErrs++
+			handle.appServers[name] = srv
+			shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
+			slog.WarnContext(c.closeContext, "Failed to keep alive app server",
+				"server_id", handle.Hello().ServerID,
+				"error", err,
+				"error_count", srv.keepAliveErrs,
+				"should_remove", shouldRemove,
+			)
+
+			if shouldRemove {
+				c.testEvent(appKeepAliveDel)
+				c.onDisconnectFunc(constants.KeepAliveApp, 1)
+				if c.appHBVariableDuration != nil {
+					c.appHBVariableDuration.Dec()
 				}
-			} else {
-				srv.keepAliveErrs = 0
-				c.testEvent(appKeepAliveOk)
+				delete(handle.appServers, name)
+				handle.appKeepAliveDelay.Remove(name)
 			}
-		} else if srv.retryUpsert {
-			srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
-			lease, err := c.auth.UpsertApplicationServer(c.closeContext, srv.resource)
-			if err != nil {
-				c.testEvent(appUpsertRetryErr)
-				slog.WarnContext(c.closeContext, "Failed to upsert app server on retry",
-					"server_id", handle.Hello().ServerID,
-					"error", err,
-				)
-				// since this is retry-specific logic, an error here means that upsert failed twice in
-				// a row. Missing upserts is more problematic than missing keepalives so we don't bother
-				// attempting a third time.
-				return trace.Errorf("failed to upsert app server on retry: %v", err)
-			}
-			c.testEvent(appUpsertRetryOk)
-
-			srv.lease = lease
-			srv.retryUpsert = false
+		} else {
+			srv.keepAliveErrs = 0
+			c.testEvent(appKeepAliveOk)
 		}
+	} else if srv.retryUpsert {
+		srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+		lease, err := c.auth.UpsertApplicationServer(c.closeContext, srv.resource)
+		if err != nil {
+			c.testEvent(appUpsertRetryErr)
+			slog.WarnContext(c.closeContext, "Failed to upsert app server on retry",
+				"server_id", handle.Hello().ServerID,
+				"error", err,
+			)
+			// since this is retry-specific logic, an error here means that upsert failed twice in
+			// a row. Missing upserts is more problematic than missing keepalives so we don't bother
+			// attempting a third time.
+			return trace.Errorf("failed to upsert app server on retry: %v", err)
+		}
+		c.testEvent(appUpsertRetryOk)
+
+		srv.lease = lease
+		srv.retryUpsert = false
 	}
 
 	return nil
 }
 
-func (c *Controller) keepAliveDatabaseServer(handle *upstreamHandle, now time.Time) error {
-	for name, srv := range handle.databaseServers {
-		if srv.lease != nil {
-			lease := *srv.lease
-			lease.Expires = now.Add(c.serverTTL).UTC()
-			if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
-				c.testEvent(dbKeepAliveErr)
+func (c *Controller) keepAliveDatabaseServer(handle *upstreamHandle, now time.Time, name resourceKey) error {
+	srv, ok := handle.databaseServers[name]
+	if !ok {
+		handle.dbKeepAliveDelay.Remove(name)
+		return trace.Errorf("desync between db server hb registry and keepalive delay (this is a bug)")
+	}
+	if srv.lease != nil {
+		lease := *srv.lease
+		lease.Expires = now.Add(c.serverTTL).UTC()
+		if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
+			c.testEvent(dbKeepAliveErr)
 
-				srv.keepAliveErrs++
-				handle.databaseServers[name] = srv
-				shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
-				slog.WarnContext(c.closeContext, "Failed to keep alive database server",
-					"server_id", handle.Hello().ServerID,
-					"error", err,
-					"error_count", srv.keepAliveErrs,
-					"should_remove", shouldRemove,
-				)
+			srv.keepAliveErrs++
+			handle.databaseServers[name] = srv
+			shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
+			slog.WarnContext(c.closeContext, "Failed to keep alive database server",
+				"server_id", handle.Hello().ServerID,
+				"error", err,
+				"error_count", srv.keepAliveErrs,
+				"should_remove", shouldRemove,
+			)
 
-				if shouldRemove {
-					c.testEvent(dbKeepAliveDel)
-					c.onDisconnectFunc(constants.KeepAliveDatabase, 1)
-					if c.dbHBVariableDuration != nil {
-						c.dbHBVariableDuration.Dec()
-					}
-					delete(handle.databaseServers, name)
+			if shouldRemove {
+				c.testEvent(dbKeepAliveDel)
+				c.onDisconnectFunc(constants.KeepAliveDatabase, 1)
+				if c.dbHBVariableDuration != nil {
+					c.dbHBVariableDuration.Dec()
 				}
-			} else {
-				srv.keepAliveErrs = 0
-				c.testEvent(dbKeepAliveOk)
+				delete(handle.databaseServers, name)
+				handle.dbKeepAliveDelay.Remove(name)
 			}
-		} else if srv.retryUpsert {
-			srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
-			lease, err := c.auth.UpsertDatabaseServer(c.closeContext, srv.resource)
-			if err != nil {
-				c.testEvent(dbUpsertRetryErr)
-				slog.WarnContext(c.closeContext, "Failed to upsert database server on retry",
-					"server_id", handle.Hello().ServerID,
-					"error", err,
-				)
-				// since this is retry-specific logic, an error here means that upsert failed twice in
-				// a row. Missing upserts is more problematic than missing keepalives so we don't bother
-				// attempting a third time.
-				return trace.Errorf("failed to upsert database server on retry: %v", err)
-			}
-			c.testEvent(dbUpsertRetryOk)
-
-			srv.lease = lease
-			srv.retryUpsert = false
+		} else {
+			srv.keepAliveErrs = 0
+			c.testEvent(dbKeepAliveOk)
 		}
+	} else if srv.retryUpsert {
+		srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+		lease, err := c.auth.UpsertDatabaseServer(c.closeContext, srv.resource)
+		if err != nil {
+			c.testEvent(dbUpsertRetryErr)
+			slog.WarnContext(c.closeContext, "Failed to upsert database server on retry",
+				"server_id", handle.Hello().ServerID,
+				"error", err,
+			)
+			// since this is retry-specific logic, an error here means that upsert failed twice in
+			// a row. Missing upserts is more problematic than missing keepalives so we don't bother
+			// attempting a third time.
+			return trace.Errorf("failed to upsert database server on retry: %v", err)
+		}
+		c.testEvent(dbUpsertRetryOk)
+
+		srv.lease = lease
+		srv.retryUpsert = false
 	}
 
 	return nil
 }
 
-func (c *Controller) keepAliveKubernetesServer(handle *upstreamHandle, now time.Time) error {
-	for name, srv := range handle.kubernetesServers {
-		if srv.lease != nil {
-			lease := *srv.lease
-			lease.Expires = now.Add(c.serverTTL).UTC()
-			if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
-				c.testEvent(kubeKeepAliveErr)
+func (c *Controller) keepAliveKubernetesServer(handle *upstreamHandle, now time.Time, name resourceKey) error {
+	srv, ok := handle.kubernetesServers[name]
+	if !ok {
+		handle.kubeKeepAliveDelay.Remove(name)
+		return trace.Errorf("desync between kube server hb registry and keepalive delay (this is a bug)")
+	}
 
-				srv.keepAliveErrs++
-				handle.kubernetesServers[name] = srv
-				shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
-				slog.WarnContext(c.closeContext, "Failed to keep alive kubernetes server",
-					"server_id", handle.Hello().ServerID,
-					"error", err,
-					"error_count", srv.keepAliveErrs,
-					"should_remove", shouldRemove,
-				)
+	if srv.lease != nil {
+		lease := *srv.lease
+		lease.Expires = now.Add(c.serverTTL).UTC()
+		if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
+			c.testEvent(kubeKeepAliveErr)
 
-				if shouldRemove {
-					c.testEvent(kubeKeepAliveDel)
-					c.onDisconnectFunc(constants.KeepAliveKube, 1)
-					if c.kubeHBVariableDuration != nil {
-						c.kubeHBVariableDuration.Dec()
-					}
-					delete(handle.kubernetesServers, name)
+			srv.keepAliveErrs++
+			handle.kubernetesServers[name] = srv
+			shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
+			slog.WarnContext(c.closeContext, "Failed to keep alive kubernetes server",
+				"server_id", handle.Hello().ServerID,
+				"error", err,
+				"error_count", srv.keepAliveErrs,
+				"should_remove", shouldRemove,
+			)
+
+			if shouldRemove {
+				c.testEvent(kubeKeepAliveDel)
+				c.onDisconnectFunc(constants.KeepAliveKube, 1)
+				if c.kubeHBVariableDuration != nil {
+					c.kubeHBVariableDuration.Dec()
 				}
-			} else {
-				srv.keepAliveErrs = 0
-				c.testEvent(kubeKeepAliveOk)
+				delete(handle.kubernetesServers, name)
+				handle.kubeKeepAliveDelay.Remove(name)
 			}
-		} else if srv.retryUpsert {
-			srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
-			lease, err := c.auth.UpsertKubernetesServer(c.closeContext, srv.resource)
-			if err != nil {
-				c.testEvent(kubeUpsertRetryErr)
-				slog.WarnContext(c.closeContext, "Failed to upsert kubernetes server on retry.",
-					"server_id", handle.Hello().ServerID,
-					"error", err,
-				)
-				// since this is retry-specific logic, an error here means that upsert failed twice in
-				// a row. Missing upserts is more problematic than missing keepalives so we don'resource bother
-				// attempting a third time.
-				return trace.Errorf("failed to upsert kubernetes server on retry: %v", err)
-			}
-			c.testEvent(kubeUpsertRetryOk)
-
-			srv.lease = lease
-			srv.retryUpsert = false
+		} else {
+			srv.keepAliveErrs = 0
+			c.testEvent(kubeKeepAliveOk)
 		}
+	} else if srv.retryUpsert {
+		srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+		lease, err := c.auth.UpsertKubernetesServer(c.closeContext, srv.resource)
+		if err != nil {
+			c.testEvent(kubeUpsertRetryErr)
+			slog.WarnContext(c.closeContext, "Failed to upsert kubernetes server on retry.",
+				"server_id", handle.Hello().ServerID,
+				"error", err,
+			)
+			// since this is retry-specific logic, an error here means that upsert failed twice in
+			// a row. Missing upserts is more problematic than missing keepalives so we don'resource bother
+			// attempting a third time.
+			return trace.Errorf("failed to upsert kubernetes server on retry: %v", err)
+		}
+		c.testEvent(kubeUpsertRetryOk)
+
+		srv.lease = lease
+		srv.retryUpsert = false
 	}
 
 	return nil
@@ -1172,6 +1248,15 @@ func (c *Controller) createKeepAliveDelay(variableDuration *interval.VariableDur
 		FirstInterval:    retryutils.HalfJitter(c.serverKeepAlive),
 		FixedInterval:    c.serverKeepAlive,
 		VariableInterval: variableDuration,
+		Jitter:           retryutils.SeventhJitter,
+	})
+}
+
+func (c *Controller) createKeepAliveMultiDelay(variableDuration *interval.VariableDuration) *delay.Multi[resourceKey] {
+	return delay.NewMulti[resourceKey](delay.MultiParams{
+		FixedInterval:    c.serverKeepAlive,
+		VariableInterval: variableDuration,
+		FirstJitter:      retryutils.HalfJitter,
 		Jitter:           retryutils.SeventhJitter,
 	})
 }

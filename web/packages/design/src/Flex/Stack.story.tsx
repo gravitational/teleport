@@ -16,34 +16,61 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Meta } from '@storybook/react';
 import styled from 'styled-components';
 
 import Box from 'design/Box';
 import { ButtonPrimary } from 'design/Button';
-import { P } from 'design/Text/Text';
+import { P, P2 } from 'design/Text/Text';
 
 import { Stack } from './Flex';
 
-export default {
-  title: 'Design/Flex/Stack',
+type StoryProps = {
+  fullWidth: boolean;
 };
 
-export const Basic = () => (
-  <Stack gap={6}>
+const meta: Meta<StoryProps> = {
+  title: 'Design/Flex/Stack',
+  args: {
+    fullWidth: false,
+  },
+};
+export default meta;
+
+export const Basic = ({ fullWidth }: StoryProps) => (
+  <Stack gap={6} fullWidth={fullWidth}>
     <Square bg="pink" />
 
-    <Stack gap={3}>
+    <Stack gap={3} fullWidth={fullWidth}>
       {/* If no gap prop is given, a default gap of 1 is used. */}
       <Stack>
         <Square bg="green" />
         <ButtonPrimary>Foo</ButtonPrimary>
       </Stack>
-      <Stack>
-        <Square bg="green" />
+      <Stack fullWidth={fullWidth}>
+        <Square bg="green">
+          {fullWidth && (
+            <Para>
+              Only the middle one among these three sibling Stacks is given{' '}
+              <code>fullWidth</code>. This demonstrates that{' '}
+              <code>fullWidth</code> can be used for specific child Stacks
+              within multiple levels of nested Stacks.
+            </Para>
+          )}
+        </Square>
         <ButtonPrimary>Bar</ButtonPrimary>
       </Stack>
-      <Stack>
-        <Square bg="green" />
+      <Stack width="100%">
+        <Square bg="green" width="100%">
+          {fullWidth && (
+            <Para>
+              With <code>fullWidth</code>, all immediate children of a Stack
+              have the width set to 100%. If only specific children are supposed
+              to have 100% width, the width can be set manually, like in this
+              last stack. Notice how the button doesn't span full width.
+            </Para>
+          )}
+        </Square>
         <ButtonPrimary>Baz</ButtonPrimary>
       </Stack>
     </Stack>
@@ -52,8 +79,8 @@ export const Basic = () => (
   </Stack>
 );
 
-export const MarginAuto = () => (
-  <Stack gap={6} height="90vh">
+export const MarginAuto = ({ fullWidth }: StoryProps) => (
+  <Stack gap={6} height="90vh" fullWidth={fullWidth}>
     <P>
       <code>margin-top: auto</code> can be used to automatically align elements
       after a certain child to the end of the stack.
@@ -66,5 +93,9 @@ export const MarginAuto = () => (
   </Stack>
 );
 
-const Square = styled(Box).attrs({ width: '150px', height: '150px' })``;
+const Square = styled(Box)``;
+Square.defaultProps = { width: '150px', height: '150px', p: 2 };
 const SmallSquare = styled(Box).attrs({ width: '50px', height: '50px' })``;
+const Para = styled(P2)`
+  max-width: 60ch;
+`;

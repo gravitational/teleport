@@ -132,8 +132,7 @@ export const BlockedByStartTimeButton = ({
   return (
     <HoverTooltip
       tipContent={getAssumeStartTimeTooltipText(assumeStartTime)}
-      anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-      transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      placement="top-end"
     >
       <ButtonPrimary disabled={true} size="small">
         Assume Roles

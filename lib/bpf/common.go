@@ -26,7 +26,6 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -110,13 +109,13 @@ func (s *NOP) Enabled() bool {
 
 // IsHostCompatible checks that BPF programs can run on this host.
 func IsHostCompatible() error {
-	minKernel := semver.New(constants.EnhancedRecordingMinKernel)
 	version, err := utils.KernelVersion()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if version.LessThan(*minKernel) {
-		return trace.BadParameter("incompatible kernel found, minimum supported kernel is %v", minKernel)
+	minKernelVersion := semver.Version{Major: 5, Minor: 8, Patch: 0}
+	if version.LessThan(minKernelVersion) {
+		return trace.BadParameter("incompatible kernel found, minimum supported kernel is %v", minKernelVersion)
 	}
 
 	if err = utils.HasBTF(); err != nil {

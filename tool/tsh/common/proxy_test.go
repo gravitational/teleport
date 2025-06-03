@@ -936,7 +936,7 @@ func TestList(t *testing.T) {
 				var results []result
 				require.NoError(t, json.Unmarshal(out, &results))
 
-				require.Equal(t, len(expected), len(results))
+				require.Len(t, expected, len(results))
 				for _, res := range results {
 					node, ok := expected[res.Cluster]
 					require.True(t, ok, "expected node to be present for cluster %s", res.Cluster)
@@ -1532,7 +1532,7 @@ func TestProxyAppWithIdentity(t *testing.T) {
 
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-	privateKey, err := keys.NewSoftwarePrivateKey(key)
+	privateKey, err := keys.NewPrivateKey(key)
 	require.NoError(t, err)
 	// Identity files only support a single key for SSH/TLS
 	keyRing := client.NewKeyRing(privateKey, privateKey)

@@ -265,18 +265,14 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 
 	go func() {
 		req := C.StartVnetRequest{
-			bundle_path: C.CString(bundlePath),
-			socket_path: C.CString(config.SocketPath),
-			ipv6_prefix: C.CString(config.IPv6Prefix),
-			dns_addr:    C.CString(config.DNSAddr),
-			home_path:   C.CString(config.HomePath),
+			bundle_path:                     C.CString(bundlePath),
+			service_credential_path:         C.CString(config.ServiceCredentialPath),
+			client_application_service_addr: C.CString(config.ClientApplicationServiceAddr),
 		}
 		defer func() {
 			C.free(unsafe.Pointer(req.bundle_path))
-			C.free(unsafe.Pointer(req.socket_path))
-			C.free(unsafe.Pointer(req.ipv6_prefix))
-			C.free(unsafe.Pointer(req.dns_addr))
-			C.free(unsafe.Pointer(req.home_path))
+			C.free(unsafe.Pointer(req.service_credential_path))
+			C.free(unsafe.Pointer(req.client_application_service_addr))
 		}()
 
 		var res C.StartVnetResult

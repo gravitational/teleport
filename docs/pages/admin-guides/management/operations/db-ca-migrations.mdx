@@ -49,7 +49,8 @@ Alternatively, you can issue certificates to your self-hosted databases using
 an external CA - you just need to configure the Teleport Database Service to
 trust that CA when connecting to your database(s).
 
-<Details title="How to make Teleport trust an external database CA?">
+<details>
+<summary>How to make Teleport trust an external database CA?</summary>
 For a static database defined in your Teleport Database Service `teleport.yaml`
 configuration file, set `tls.ca_cert_file` to a file containing your CA's root
 certificate.
@@ -60,7 +61,7 @@ For examples and more information, consult the
 [configuration
 reference](../../../reference/agent-services/database-access-reference/configuration.mdx)
 for protecting databases with Teleport.
-</Details>
+</details>
 
 Prior to Teleport (= db_ca.released_version =), the Teleport `host` CA was used
 to issue certificates to self-hosted databases (via `tctl auth sign`).

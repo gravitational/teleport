@@ -1,6 +1,6 @@
 db_service:
   # Enables the Database Service.
-  enabled: "yes"
+  enabled: true
 
   # Matchers for database resources created with "tctl create" command or by the
   # discovery service.

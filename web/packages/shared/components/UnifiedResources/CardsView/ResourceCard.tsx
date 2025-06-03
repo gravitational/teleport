@@ -32,6 +32,7 @@ import {
   getBackgroundColor,
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
+import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
 import { ResourceItemProps } from '../types';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
@@ -175,17 +176,11 @@ export function ResourceCard({
           requiresRequest={requiresRequest}
           selected={selected}
         >
-          <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
-            <CheckboxInput
-              css={`
-                position: absolute;
-                top: 16px;
-                left: 16px;
-              `}
-              checked={selected}
-              onChange={selectResource}
-            />
-          </HoverTooltip>
+          <CheckboxInput
+            checked={selected}
+            onChange={selectResource}
+            style={{ position: 'absolute', top: '16px', left: '16px' }}
+          />
           <Box
             css={`
               position: absolute;
@@ -220,7 +215,9 @@ export function ResourceCard({
                 </HoverTooltip>
               </SingleLineBox>
               {hovered && <CopyButton name={name} mr={2} />}
-              {ActionButton}
+              <ResourceActionButtonWrapper requiresRequest={requiresRequest}>
+                {ActionButton}
+              </ResourceActionButtonWrapper>
             </Flex>
             <Flex flexDirection="row" alignItems="center">
               <ResTypeIconBox>

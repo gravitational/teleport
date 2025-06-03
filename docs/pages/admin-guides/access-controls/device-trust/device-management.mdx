@@ -41,7 +41,8 @@ $ tsh device asset-tag
 (=devicetrust.asset_tag=)
 ```
 
-<Details title="Manually retrieving device serial" closed>
+<details>
+<summary>Manually retrieving device serial</summary>
   <Tabs>
   <TabItem label="macOS">
     The serial number is visible under Apple menu -> "About This Mac" -> "Serial number".
@@ -64,13 +65,12 @@ $ tsh device asset-tag
     ```
   </TabItem>
 </Tabs>
-</Details>
+</details>
 
 
-Replace 
-<Var name="(=devicetrust.asset_tag=)" description="The serial number to be registered"/> 
-with the serial number of the device you wish to enroll and
-<Var name="macos" /> with your operating system. Run the `tctl devices add` command:
+Replace <Var name="(=devicetrust.asset_tag=)" description="The serial number to be registered"/>
+with the serial number of the device you wish to enroll and <Var name="macos" /> with your operating
+system. Run the `tctl devices add` command:
 
 ```code
 $ tctl devices add --os='<Var name="macos"/>' --asset-tag='<Var name="(=devicetrust.asset_tag=)"/>'

@@ -55,7 +55,8 @@ To configure Simple Test Service Provider, the values you need to provide are th
 
 Click **Finish** button, the `iamshowcase` app is now added to Teleport.
 
-<Details title="Reference `tctl` based configuration" closed>
+<details>
+<summary>Reference `tctl` based configuration</summary>
 
 The following `saml_idp_service_provider` spec is a reference for adding Simple Test
 Service Provider to Teleport:
@@ -81,7 +82,7 @@ Add the spec to Teleport using `tctl`:
 $ tctl create iamshowcase.yaml
 # SAML IdP service provider 'iamshowcase' has been created.
 ```
-</Details>
+</details>
 
 <Admonition type="note">
 With this configuration method, Teleport first tries to fetch an entity descriptor by
@@ -107,7 +108,8 @@ and paste it to entity descriptor editor in Teleport Web UI.
 
 Click **Finish** button, the `iamshowcase` app is now added to Teleport.
 
-<Details title="Reference `tctl` based configuration" closed>
+<details>
+<summary>Reference `tctl` based configuration</summary>
 
 First download the service provider metadata from Simple Test Service Provider as `iamshowcase.xml`:
 
@@ -138,7 +140,7 @@ Add this to Teleport using `tctl`:
 $ tctl create iamshowcase.yaml
 # SAML IdP service provider 'samltest-id' has been created.
 ```
-</Details>
+</details>
 
 <Admonition type="important">
 If an `entity_descriptor` is provided, its content takes preference over values provided in `entity_id` and `acs_url`.

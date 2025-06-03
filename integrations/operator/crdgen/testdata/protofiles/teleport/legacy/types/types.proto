@@ -843,6 +843,9 @@ message ServerSpecV2 {
   // CloudMetadata contains info about the cloud instance the server is running
   // on, if any.
   CloudMetadata CloudMetadata = 14 [(gogoproto.jsontag) = "cloud_metadata,omitempty"];
+  // GitHub contains info about GitHub proxies where each server represents a
+  // GitHub organization.
+  GitHubServerMetadata git_hub = 15 [(gogoproto.jsontag) = "github,omitempty"];
 
   reserved 8;
   reserved 10;
@@ -874,6 +877,15 @@ message AWSInfo {
 message CloudMetadata {
   // AWSInfo contains attributes to match to an EC2 instance.
   AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+}
+
+// GitHubServerMetadata contains info about GitHub proxies where each server
+// represents a GitHub organization.
+message GitHubServerMetadata {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
+  // Integration is the integration that is associated with this Server.
+  string integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -973,7 +985,7 @@ message IdentityCenterPermissionSet {
   // Name is the human-readable name of the Permission Set.
   string Name = 2 [(gogoproto.jsontag) = "name,omitempty"];
 
-  // AssignmentID is the ID of the Teelport Account Assignment resource that
+  // AssignmentID is the ID of the Teleport Account Assignment resource that
   // represents this permission being assigned on the enclosing Account.
   string AssignmentID = 3 [(gogoproto.jsontag) = "assignment_name,omitempty"];
 }
@@ -1370,6 +1382,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2TerraformCloud TerraformCloud = 16 [(gogoproto.jsontag) = "terraform_cloud,omitempty"];
   // Bitbucket allows the configuration of options specific to the "bitbucket" join method.
   ProvisionTokenSpecV2Bitbucket Bitbucket = 17 [(gogoproto.jsontag) = "bitbucket,omitempty"];
+  // Oracle allows the configuration of options specific to the "oracle" join method.
+  ProvisionTokenSpecV2Oracle Oracle = 18 [(gogoproto.jsontag) = "oracle,omitempty"];
 }
 
 // ProvisionTokenSpecV2TPM contains the TPM-specific part of the
@@ -1550,6 +1564,11 @@ message ProvisionTokenSpecV2GitLab {
   // `gitlab.com` - but can be set to the domain of your self-hosted GitLab
   // e.g `gitlab.example.com`.
   string Domain = 2 [(gogoproto.jsontag) = "domain,omitempty"];
+  // StaticJWKS disables fetching of the GitLab signing keys via the JWKS/OIDC
+  // endpoints, and allows them to be directly specified. This allows joining
+  // from GitLab CI instances that are not reachable by the Teleport Auth
+  // Service.
+  string StaticJWKS = 3 [(gogoproto.jsontag) = "static_jwks,omitempty"];
 }
 
 // ProvisionTokenSpecV2CircleCI contains the CircleCI-specific part of the
@@ -1756,6 +1775,28 @@ message ProvisionTokenSpecV2Bitbucket {
   // value as written in the Pipelines -> OpenID Connect section of the
   // repository settings.
   string IdentityProviderURL = 3 [(gogoproto.jsontag) = "identity_provider_url,omitempty"];
+}
+
+// ProvisionTokenSpecV2Oracle contains Oracle-specific parts of the
+// ProvisionTokenSpecV2.
+message ProvisionTokenSpecV2Oracle {
+  // Rule is a set of properties the Oracle instance might have to be allowed
+  // to use this ProvisionToken.
+  message Rule {
+    // Tenancy is the OCID of the instance's tenancy. Required.
+    string Tenancy = 1 [(gogoproto.jsontag) = "tenancy"];
+    // ParentCompartments is a list of the OCIDs of compartments an instance is
+    // allowed to join from. Only direct parents are allowed, i.e. no nested
+    // compartments. If empty, any compartment is allowed.
+    repeated string ParentCompartments = 2 [(gogoproto.jsontag) = "parent_compartments,omitempty"];
+    // Regions is a list of regions an instance is allowed to join from. Both
+    // full region names ("us-phoenix-1") and abbreviations ("phx") are allowed.
+    // If empty, any region is allowed.
+    repeated string Regions = 3 [(gogoproto.jsontag) = "regions,omitempty"];
+  }
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -2202,6 +2243,25 @@ message AuthPreferenceSpecV2 {
   // 1 is "otp", 2 is "webauthn", 3 is "sso",
   // If unspecified, the current default value is [1], or ["otp"].
   repeated SecondFactorType SecondFactors = 21 [(gogoproto.jsontag) = "second_factors,omitempty"];
+
+  // StableUnixUserConfig contains the cluster-wide configuration for stable
+  // UNIX users.
+  StableUNIXUserConfig stable_unix_user_config = 22;
+}
+
+// StableUNIXUserConfig contains the cluster-wide configuration for stable UNIX
+// users.
+message StableUNIXUserConfig {
+  // Enabled signifies that (UNIX) Teleport SSH hosts should obtain a UID from
+  // the control plane if they're about to provision a host user with no other
+  // configured UID.
+  bool enabled = 1;
+  // FirstUid is the start of the range of UIDs for autoprovisioned host users.
+  // The range is inclusive on both ends, so the specified UID can be assigned.
+  int32 first_uid = 2;
+  // LastUid is the end of the range of UIDs for autoprovisioned host users. The
+  // range is inclusive on both ends, so the specified UID can be assigned.
+  int32 last_uid = 3;
 }
 
 // SecondFactorType is a type of second factor.
@@ -2696,6 +2756,13 @@ message AccessRequestSpecV3 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "assume_start_time,omitempty"
   ];
+
+  // ResourceExpiry is the time at which the access request resource will expire.
+  google.protobuf.Timestamp ResourceExpiry = 22 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "expiry,omitempty"
+  ];
 }
 
 enum AccessRequestScope {
@@ -2787,6 +2854,7 @@ message RequestKubernetesResource {
 }
 
 // ResourceID is a unique identifier for a teleport resource.
+// Must be kept in sync with teleport.decision.v1alpha1.ResourceId.
 message ResourceID {
   // ClusterName is the name of the cluster the resource is in.
   string ClusterName = 1 [(gogoproto.jsontag) = "cluster"];
@@ -3042,7 +3110,7 @@ message RoleOptions {
   // concurrent sessions per connection.
   int64 MaxSessions = 10 [(gogoproto.jsontag) = "max_sessions,omitempty"];
 
-  // RequestAccess defines the request strategy (optional|note|always)
+  // RequestAccess defines the request strategy (optional|reason|always)
   // where optional is the default.
   string RequestAccess = 11 [
     (gogoproto.jsontag) = "request_access,omitempty",
@@ -3401,6 +3469,12 @@ message RoleConditions {
     (gogoproto.jsontag) = "account_assignments,omitempty"
   ];
 
+  // GitHubPermissions defines GitHub integration related permissions.
+  repeated GitHubPermission git_hub_permissions = 43 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "github_permissions,omitempty"
+  ];
+
   // WorkloadIdentityLabels controls whether or not specific WorkloadIdentity
   // resources can be invoked. Further authorization controls exist on the
   // WorkloadIdentity resource itself.
@@ -3419,6 +3493,11 @@ message RoleConditions {
 message IdentityCenterAccountAssignment {
   string PermissionSet = 1 [(gogoproto.jsontag) = "permission_set,omitempty"];
   string Account = 2 [(gogoproto.jsontag) = "account,omitempty"];
+}
+
+// GitHubPermission defines GitHub integration related permissions.
+message GitHubPermission {
+  repeated string organizations = 1 [(gogoproto.jsontag) = "orgs,omitempty"];
 }
 
 // SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or
@@ -3843,6 +3922,10 @@ message ExternalIdentity {
 
   // SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.
   string SAMLSingleLogoutURL = 3 [(gogoproto.jsontag) = "samlSingleLogoutUrl,omitempty"];
+
+  // UserID is the ID of the identity. Some connectors like GitHub have an
+  // unique ID apart from the username.
+  string UserID = 4 [(gogoproto.jsontag) = "user_id,omitempty"];
 }
 
 // LoginStatus is a login status of the user
@@ -4648,12 +4731,22 @@ message ResourceWithSecretsRequest {
   string Name = 1 [(gogoproto.jsontag) = "name"];
   // WithSecrets specifies whether to load associated secrets.
   bool WithSecrets = 2 [(gogoproto.jsontag) = "with_secrets,omitempty"];
+  // SAMLValidationNoFollowURLs specifies whether to skip following URLs when
+  // validating SAML connector resources.
+  // ResourceWithSecretsRequest is not a great place for this field but it's
+  // necessary for backward compatibility.
+  bool SAMLValidationNoFollowURLs = 3 [(gogoproto.jsontag) = "saml_validation_no_follow_urls"];
 }
 
 // ResourcesWithSecretsRequest is a request relating to resources with secrets.
 message ResourcesWithSecretsRequest {
   // WithSecrets specifies whether to load associated secrets.
   bool WithSecrets = 1 [(gogoproto.jsontag) = "with_secrets,omitempty"];
+  // SAMLValidationNoFollowURLs specifies whether to skip following URLs when
+  // validating SAML connector resources.
+  // ResourceWithSecretsRequest is not a great place for this field but it's
+  // necessary for backward compatibility.
+  bool SAMLValidationNoFollowURLs = 2 [(gogoproto.jsontag) = "saml_validation_no_follow_urls"];
 }
 
 // ResourcesInNamespaceRequest is a request relating to a named resource in the given namespace.
@@ -5220,7 +5313,7 @@ message GithubAuthRequest {
   string KubernetesCluster = 13 [(gogoproto.jsontag) = "kubernetes_cluster,omitempty"];
   // SSOTestFlow indicates if the request is part of the test flow.
   bool SSOTestFlow = 14 [(gogoproto.jsontag) = "sso_test_flow"];
-  // ConnectorSpec is embedded connector spec for use in test flow.
+  // ConnectorSpec is embedded connector spec for use in test flow or authenticated user flow.
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
   // AttestationStatement is an attestation statement for the given public key.
   //
@@ -5244,6 +5337,10 @@ message GithubAuthRequest {
   teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
   // TlsAttestationStatement is an attestation statement for the given TLS public key.
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
+  // AuthenticatedUser is the username of an authenticated Teleport user. This
+  // OAuth flow is used to retrieve GitHub identity info which will be added to
+  // the existing user.
+  string authenticated_user = 23 [(gogoproto.jsontag) = "authenticated_user,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -5414,6 +5511,12 @@ message GithubClaims {
 
   // Teams is the users team membership
   repeated string Teams = 3 [(gogoproto.jsontag) = "teams"];
+
+  // UserID is a global unique integer that is assigned to each GitHub user. The
+  // user ID is immutable (unlike the GitHub username) and can be found in APIs
+  // like get user.
+  // https://docs.github.com/en/rest/users/users
+  string UserID = 4 [(gogoproto.jsontag) = "user_id,omitempty"];
 }
 
 // TeamMapping represents a single team membership mapping.
@@ -6411,6 +6514,8 @@ message PluginSpecV1 {
     PluginEmailSettings email = 17;
     // Settings for the Microsoft Teams plugin
     PluginMSTeamsSettings msteams = 18;
+    // Settings for the OpenTex NetIQ plugin.
+    PluginNetIQSettings net_iq = 19;
   }
 
   // generation contains a unique ID that should:
@@ -6557,7 +6662,8 @@ message PluginOktaCredentialsInfo {
 message PluginOktaSyncSettings {
   option (gogoproto.equal) = true;
 
-  // SyncUsers controls the user sync in the Okta integration service.
+  // SyncUsers controls the user sync in the Okta integration service. The source of truth for the
+  // users is defined by UserSyncSource.
   bool sync_users = 1;
 
   // SSOConnectorID is the name of the Teleport SSO connector created and used by the Okta plugin
@@ -6572,8 +6678,7 @@ message PluginOktaSyncSettings {
   // AppID is the Okta-assigned ID of the Okta App that Teleport uses as a
   // gateway to interact with Okta for SAML login, SCIM provisioning and user
   // sync. When set, user sync will pull users from the assignment list for this
-  // app. When empty the plugin will fall back to the legacy behaviour of syncing
-  // users from the entre organization.
+  // app.
   string app_id = 5;
 
   // GroupFilters are filters for which Okta groups to synchronize as access lists.
@@ -6603,6 +6708,19 @@ message PluginOktaSyncSettings {
   // This is useful when the app groups are not needed in Teleport.
   // and integration with Okta is only used for user sync.
   bool disable_sync_app_groups = 9;
+
+  // DisableBidirectionalSync prevents syncing anything from Teleport to Okta. I.e. prevents
+  // creating Okta assignments.
+  bool disable_bidirectional_sync = 10;
+
+  // UserSyncSource defines the source of truth for Okta users. It can be one of "" (empty string),
+  // "saml_app" or "org". "saml_app" is set for all newly created plugins and indicates that source
+  // of truth for the sync are users assigned to the connector Okta SAML application. "org" is the
+  // legacy setting indicating that the source of truth for users are all the users from the Okta
+  // organization. If it's an empty string and UserSync is true, that means it's a legacy plugin
+  // that has not been yet updated and during the next update the value will be set to "org" if
+  // AppID is empty or "saml_app" if not.
+  string user_sync_source = 11;
 }
 
 // Defines a set of discord channel IDs
@@ -6716,13 +6834,32 @@ message PluginDatadogAccessSettings {
   string fallback_recipient = 2;
 }
 
+// AWSICCredentialsSource indicates where the AWS Identity Center plugin will
+// draw its AWS credentials from.
+//
+// DEPRECATED: Superceded by individual message types.
+// TODO(tcsc): Remove in Teleport 19+
+enum AWSICCredentialsSource {
+  // AWSIC_CREDENTIALS_SOURCE_UNKNOWN is used when the credentials source is not
+  // specified. For backwards compatability, UNKNOWN is handled as OIDC.
+  AWSIC_CREDENTIALS_SOURCE_UNKNOWN = 0;
+  // AWSIC_CREDENTIALS_SOURCE_OIDC indicates that the Identity Center plugin will
+  // draw its credentials from a configured Teleport OIDC integration and
+  // authenticate  woth OIDC
+  AWSIC_CREDENTIALS_SOURCE_OIDC = 1;
+  // AWSIC_CREDENTIALS_SOURCE_SYSTEM indicates that the Identity Center plugin
+  // will rely on system-provided credentials
+  AWSIC_CREDENTIALS_SOURCE_SYSTEM = 2;
+}
+
 // PluginAWSICSettings holds the settings for an AWS Identity Center integration.
 message PluginAWSICSettings {
   option (gogoproto.equal) = true;
 
   // IntegrationName is the Teleport OIDC integration used to gain access to the
-  // AWS account
-  string integration_name = 1;
+  // AWS account. May be empty if [CredentialsSource] is `SYSTEM`.
+  // DEPRECATED: Use [Credentials] instead. DELETE in Teleport 19+
+  string integration_name = 1 [deprecated = true];
 
   // Region is the AWS region the target Identity Center instance is configured in
   string region = 2;
@@ -6730,7 +6867,7 @@ message PluginAWSICSettings {
   // InstanceARN is the arn of the Identity Center instance to manage
   string arn = 3;
 
-  // Provisioning holds settings for provisioing users and groups into AWS
+  // Provisioning holds settings for provisioning users and groups into AWS
   AWSICProvisioningSpec provisioning_spec = 4;
 
   // AccessListDefaultOwners is a list of default owners for Access List created for
@@ -6740,6 +6877,94 @@ message PluginAWSICSettings {
   // SAMLIdPServiceProviderName is the name of a SAML service provider created
   // for the Identity Center.
   string saml_idp_service_provider_name = 6;
+
+  // CredentialsSource indicates how the Identity Center plugin should source
+  // its AWS login credentials.
+  // DEPRECATED: Use [Credentials] instead. DELETE in Teleport 19+
+  AWSICCredentialsSource credentials_source = 7 [deprecated = true];
+
+  // UserSyncLabelsFilter specifies a map of key-value pairs used to filter users
+  // based on their metadata labels. These filtered users will be provisioned
+  // from Teleport to AWS IC via SCIM provisioning.
+  // If multiple user_sync_filters are provided the match is combined with OR operator.
+  //
+  // Example:
+  // If Okta is used as the Identity Source and only users originating from Okta
+  // should be synced, set the filter to:
+  // [{
+  //   "okta/org": "https://trial-123456.okta.com",
+  //   "teleport.dev/origin": "okta"
+  // }]
+  //
+  // If AWS IC uses Teleport as the Identity Provider, the filter should remain empty.
+  //
+  // NOTE: System users are always filtered out by default and will not be provisioned to AWS IC.
+  repeated AWSICUserSyncFilter user_sync_filters = 8 [(gogoproto.jsontag) = "user_sync_filters,omitempty"];
+
+  // AwsAccountFilters is an optional allow-list of AWS accounts to import and
+  // manage. An empty list implies that all accounts managed by the Identity Center
+  // instance will be imported and managed.
+  repeated AWSICResourceFilter aws_accounts_filters = 9;
+
+  // GroupSyncLabelsFilter is used to specify filters that determine which AWS groups
+  // should be included during synchronization.
+  repeated AWSICResourceFilter group_sync_filters = 10 [(gogoproto.jsontag) = "group_sync_filters,omitempty"];
+
+  // Credentials represents the AWS credentials used by the Identity Center
+  // integration
+  AWSICCredentials credentials = 11 [(gogoproto.jsontag) = "credentials,omitempty"];
+}
+
+// AWSICCredentials holds the credentials for authenticating with AWS
+message AWSICCredentials {
+  option (gogoproto.equal) = true;
+  oneof source {
+    AWSICCredentialSourceSystem system = 1;
+    AWSICCredentialSourceOIDC oidc = 2;
+  }
+}
+
+// AWSICCredentialSourceSystem holds AWSIC credentials drawn from the ambient
+// system configuration
+message AWSICCredentialSourceSystem {
+  option (gogoproto.equal) = true;
+
+  // AwsRoleArn is an optional AWS role for the IC client to assume, overriding
+  // any roles
+  string assume_role_arn = 1 [(gogoproto.jsontag) = "assume_role_arn,omitempty"];
+}
+
+// AWSICCredentialSourceSystem holds AWSIC credentials drawn from a Teleport
+// OIDC integration
+message AWSICCredentialSourceOIDC {
+  option (gogoproto.equal) = true;
+
+  // IntegrationName is the name of the Teleport OIDC integration used by the
+  // Identity Center integration to authenticate with AWS.
+  string integration_name = 1 [(gogoproto.jsontag) = "integration_name,omitempty"];
+}
+
+// AWSICResourceFilter is an entry in the AWS IC plugin settings' allow-list of
+// resources to import. The filter can specify inclusion either by account ID or
+// regex on the resource name.
+message AWSICResourceFilter {
+  option (gogoproto.equal) = true;
+
+  // Include describes the AWS Resource filter to apply
+  oneof include {
+    // Id indicates that the resource should be filtered by ID
+    string id = 1 [(gogoproto.jsontag) = "id,omitempty"];
+
+    // NameRegex indicates that the resource should be included its name matches
+    // the supplied regex.
+    string name_regex = 2 [(gogoproto.jsontag) = "name_regex,omitempty"];
+  }
+}
+
+// UserSyncFilter is a map of key-value pairs used to filter users based on their metadata labels.
+message AWSICUserSyncFilter {
+  option (gogoproto.equal) = true;
+  map<string, string> labels = 8 [(gogoproto.jsontag) = "labels,omitempty"];
 }
 
 // AWSICProvisioningSpec holds provisioning-specific Identity Center settings
@@ -6781,6 +7006,9 @@ enum AWSICGroupImportStatusCode {
   DONE = 1;
   // FAILED denotes that the group and group members import met with an error.
   FAILED = 2;
+  // REIMPORT_REQUESTED denotes that the user has requested that the import
+  // process be re-run.
+  REIMPORT_REQUESTED = 3;
 }
 
 // PluginEmailSettings holds the settings for an Email Access Request plugin.
@@ -6837,6 +7065,18 @@ message PluginMSTeamsSettings {
   string default_recipient = 5;
 }
 
+// PluginNetIQSettings defines the settings for a NetIQ integration plugin
+message PluginNetIQSettings {
+  option (gogoproto.equal) = true;
+  // oauth_issuer_endpoint is the NetIQ Oauth Issuer endpoint.
+  // Usually, it's equal to https://osp.domain.ext/a/idm/auth/oauth2
+  string oauth_issuer_endpoint = 1;
+  // api_endpoint is the IDM PROV Rest API location.
+  string api_endpoint = 2;
+  // insecure_skip_verify controls whether the NetIQ certificate validation should be skipped.
+  bool insecure_skip_verify = 3;
+}
+
 message PluginBootstrapCredentialsV1 {
   oneof credentials {
     PluginOAuth2AuthorizationCodeCredentials oauth2_authorization_code = 1;
@@ -6875,6 +7115,8 @@ message PluginStatusV1 {
     PluginOktaStatusV1 okta = 7;
     // AWSIC holds status details for the AWS Identity Center plugin.
     PluginAWSICStatusV1 aws_ic = 8;
+    // NetIQ holds status details for the NetIQ plugin.
+    PluginNetIQStatusV1 net_iq = 9;
   }
 
   // last_raw_error variable stores the most recent raw error message received from an API or service.
@@ -6882,6 +7124,18 @@ message PluginStatusV1 {
   // This can be useful for debugging purposes, providing detailed information about what went wrong
   // in the interaction with the external service.
   string last_raw_error = 6;
+}
+
+// PluginNetIQStatusV1 is the status details for the NetIQ plugin.
+message PluginNetIQStatusV1 {
+  // imported_users is the number of users imported from NetIQ eDirectory.
+  uint32 imported_users = 1;
+  // imported_groups is the number of groups imported from NetIQ eDirectory.
+  uint32 imported_groups = 2;
+  // imported_roles is the number of roles imported from NetIQ eDirectory.
+  uint32 imported_roles = 3;
+  // imported_resources is the number of resources imported from NetIQ eDirectory.
+  uint32 imported_resources = 4;
 }
 
 // PluginGitlabStatusV1 is the status details for the Gitlab plugin.
@@ -7146,6 +7400,7 @@ message PluginStaticCredentialsSpecV1 {
     string APIToken = 1;
     PluginStaticCredentialsBasicAuth BasicAuth = 2;
     PluginStaticCredentialsOAuthClientSecret OAuthClientSecret = 3;
+    PluginStaticCredentialsSSHCertAuthorities SSHCertAuthorities = 4;
   }
 }
 
@@ -7165,6 +7420,14 @@ message PluginStaticCredentialsOAuthClientSecret {
 
   // ClientSecret is the client secret to use.
   string ClientSecret = 2 [(gogoproto.jsontag) = "client_secret"];
+}
+
+// PluginStaticCredentialsSSHCertAuthorities contains the active SSH CAs used
+// for the integration or plugin.
+message PluginStaticCredentialsSSHCertAuthorities {
+  // CertAuthorities contains the active SSH CAs used for the integration or
+  // plugin.
+  repeated SSHKeyPair cert_authorities = 1;
 }
 
 // SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
@@ -7514,7 +7777,12 @@ message IntegrationSpecV1 {
     AWSOIDCIntegrationSpecV1 AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
     // AzureOIDC contains the specific fields to handle the Azure OIDC Integration subkind
     AzureOIDCIntegrationSpecV1 AzureOIDC = 2 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
+    // GitHub contains the specific fields to handle the GitHub integration subkind.
+    GitHubIntegrationSpecV1 GitHub = 3 [(gogoproto.jsontag) = "github,omitempty"];
   }
+
+  // Credentials contains credentials for the integration.
+  PluginCredentialsV1 credentials = 4;
 }
 
 // AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
@@ -7557,6 +7825,12 @@ message AzureOIDCIntegrationSpecV1 {
   // ClientID specifies the ID of Azure enterprise application (client)
   // that corresponds to this plugin.
   string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
+}
+
+// GitHubIntegrationSpecV1 contains the specific fields to handle the GitHub integration subkind.
+message GitHubIntegrationSpecV1 {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.
@@ -7947,12 +8221,14 @@ message OktaOptions {
 message AccessGraphSync {
   // AWS is a configuration for AWS Access Graph service poll service.
   repeated AccessGraphAWSSync AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
-  // PollInterval is the frequency at which to poll for AWS resources
+  // PollInterval is the frequency at which to poll for resources
   google.protobuf.Duration PollInterval = 2 [
     (gogoproto.jsontag) = "poll_interval,omitempty",
     (gogoproto.nullable) = false,
     (gogoproto.stdduration) = true
   ];
+  // Azure is a configuration for Azure Access Graph service poll service.
+  repeated AccessGraphAzureSync Azure = 3 [(gogoproto.jsontag) = "azure,omitempty"];
 }
 
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
@@ -7963,4 +8239,12 @@ message AccessGraphAWSSync {
   AssumeRole AssumeRole = 3 [(gogoproto.jsontag) = "assume_role,omitempty"];
   // Integration is the integration name used to generate credentials to interact with AWS APIs.
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
+}
+
+// AccessGraphAzureSync is a configuration for Azure Access Graph service poll service.
+message AccessGraphAzureSync {
+  // SubscriptionID Is the ID of the Azure subscription to sync resources from
+  string SubscriptionID = 1 [(gogoproto.jsontag) = "subscription_id,omitempty"];
+  // Integration is the integration name used to generate credentials to interact with AWS APIs.
+  string Integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
 }

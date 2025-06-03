@@ -13,11 +13,12 @@ approve or deny the requests via Teleport. You can also configure the plugin to
 approve Role Access Requests automatically if the user making the request is on
 the on-call team for a service affected by an incident.
 
-<Details title="This integration is hosted on Teleport Cloud" open={false}>
+<details>
+<summary>This integration is hosted on Teleport Cloud</summary>
 
 (!docs/pages/includes/plugins/enroll.mdx name="the PagerDuty integration"!)
 
-</Details>
+</details>
 
 This guide will explain how to set up Teleport's Access Request plugin for
 PagerDuty.
@@ -232,7 +233,8 @@ indicates that the plugin *cannot* review requests for `demo-role` unless the
 request contains an annotation with the key `pagerduty_services` and the value
 `My Critical Service`.
 
-<Details title='How "where" conditions work'>
+<details>
+<summary>How "where" conditions work</summary>
 
 The `where` field includes a predicate expression that determines whether a
 reviewer is allowed to review a specific request. You can include two functions
@@ -267,7 +269,7 @@ configure an `allow` condition to match any Access Request that does not include
 the reason, "resolve an incident", you could use the function,
 `!equals(request.reason, "resolve an incident")`.
 
-</Details>
+</details>
 
 Create the user and role:
 
@@ -432,13 +434,14 @@ pagerduty:
   </TabItem>
 </Tabs>
 
-<Details title="Saving the configuration to another location">
+<details>
+<summary>Saving the configuration to another location</summary>
 
 The PagerDuty plugin expects the configuration to be in
 `/etc/teleport-pagerduty.toml`, but you can override this with the `--config`
 flag when you run the plugin binary later in this guide.
 
-</Details>
+</details>
 
 Edit the configuration file in `/etc/teleport-pagerduty.toml` as explained
 below:
@@ -459,7 +462,8 @@ Assign `user_email` to the email address of a PagerDuty user on the account
 associated with your API key. When the PagerDuty plugin creates a new incident,
 PagerDuty will display this incident as created by that user.
 
-<Details title="Overriding annotation names">
+<details>
+<summary>Overriding annotation names</summary>
 
 This guide has assumed that the Teleport PagerDuty plugin uses
 `pagerduty_notify_service` annotation to determine which services to notify of
@@ -470,7 +474,7 @@ If you would like to use a different name for these annotations in your Teleport
 roles, you can assign the `pagerduty.notify_service` and `pagerduty.services`
 fields.
 
-</Details>
+</details>
 
 The final configuration should resemble the following:
 

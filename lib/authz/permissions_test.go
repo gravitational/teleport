@@ -934,7 +934,7 @@ func TestCheckIPPinning(t *testing.T) {
 			clientAddr: "127.0.0.1:0",
 			pinnedIP:   "127.0.0.1",
 			pinIP:      true,
-			wantErr:    ErrIPPinningMismatch.Error(),
+			wantErr:    ErrIPPinningNotAllowed.Error(),
 		},
 		{
 			desc:       "correct IP pinning",

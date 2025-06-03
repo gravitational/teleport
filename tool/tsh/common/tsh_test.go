@@ -69,6 +69,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/kube"
@@ -113,6 +114,8 @@ const (
 
 var ports utils.PortList
 
+const initTestSentinel = "init_test"
+
 func TestMain(m *testing.M) {
 	handleReexec()
 
@@ -130,7 +133,22 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func BenchmarkInit(b *testing.B) {
+	executable, err := os.Executable()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		cmd := exec.Command(executable, initTestSentinel)
+		err := cmd.Run()
+		assert.NoError(b, err)
+	}
+}
+
 func handleReexec() {
+	if slices.Contains(os.Args, initTestSentinel) {
+		os.Exit(0)
+	}
+
 	var runOpts []CliOption
 
 	// Allows mock headless auth to be implemented when the test binary
@@ -266,7 +284,7 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 
@@ -909,13 +927,12 @@ func TestMakeClient(t *testing.T) {
 	conf.HomePath = t.TempDir()
 
 	// Create a empty profile so we don't ping proxy.
-	clientStore, err := initClientStore(&conf, conf.Proxy)
-	require.NoError(t, err)
 	profile := &profile.Profile{
 		SSHProxyAddr: "proxy:3023",
 		WebProxyAddr: "proxy:3080",
 	}
-	err = clientStore.SaveProfile(profile, true)
+
+	err = conf.getClientStore().SaveProfile(profile, true)
 	require.NoError(t, err)
 
 	tc, err = makeClient(&conf)
@@ -2628,27 +2645,18 @@ func TestKubeCredentialsLock(t *testing.T) {
 		require.NoError(t, err)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			found, _, err := authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(rwl types.ResourceWithLabels) (bool, error) {
-				if rwl.GetKind() != types.KindKubeServer {
-					return false, nil
+			gotNames := map[string]struct{}{}
+			for ks, err := range authServer.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+				if !assert.NoError(t, err) {
+					return
 				}
 
-				ks, ok := rwl.(types.KubeServer)
-				if !ok {
-					return false, nil
-				}
+				gotNames[ks.GetCluster().GetName()] = struct{}{}
 
-				return ks.GetCluster().GetName() == kubeCluster.GetName(), nil
-			}, &proto.ListUnifiedResourcesRequest{
-				Kinds:  []string{types.KindKubeServer},
-				SortBy: types.SortBy{Field: services.SortByName},
-				Limit:  1,
-			})
+			}
 
-			assert.NoError(t, err)
-			assert.Len(t, found, 1)
-
-		}, 10*time.Second, 100*time.Millisecond)
+			assert.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
+		}, 15*time.Second, 100*time.Millisecond)
 
 		var ssoCalls atomic.Int32
 		mockSSOLogin := mockSSOLogin(authServer, alice)
@@ -2826,8 +2834,8 @@ func TestSSHHeadlessCLIFlags(t *testing.T) {
 			assertErr: require.NoError,
 			assertConfig: func(t require.TestingT, c *client.Config) {
 				require.Equal(t, "other-proxy:3080", c.WebProxyAddr)
-				require.Equal(t, "", c.Username)
-				require.Equal(t, "", c.SiteName)
+				require.Empty(t, c.Username)
+				require.Empty(t, c.SiteName)
 			},
 		}, {
 			name: "NOK --headless with mismatched auth connector",
@@ -5107,10 +5115,10 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			roles:    services.RoleSet{roleDevStage, roleDevProd},
 			database: dbStage,
 			wantUsers: &dbUsers{
-				Allowed: []string{"*", "dev"},
+				Allowed: []string{"*"},
 				Denied:  []string{"superuser"},
 			},
-			wantText: "[* dev], except: [superuser]",
+			wantText: "[*], except: [superuser]",
 		},
 		{
 			name:     "developer allowed only specific username/database in prod database",
@@ -5825,9 +5833,9 @@ func TestLogout(t *testing.T) {
 		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
 	})
 	require.NoError(t, err)
-	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
+	sshPriv, err := keys.NewPrivateKey(sshKey)
 	require.NoError(t, err)
-	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
+	tlsPriv, err := keys.NewPrivateKey(tlsKey)
 	require.NoError(t, err)
 	clientKeyRing := &client.KeyRing{
 		KeyRingIndex: client.KeyRingIndex{
@@ -6040,7 +6048,13 @@ func TestFlatten(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test execution: validate that flattening succeeds if a profile already exists.
-	conf.IdentityFileIn = identityPath
+	conf = CLIConf{
+		Proxy:              proxyAddr.String(),
+		InsecureSkipVerify: true,
+		IdentityFileIn:     identityPath,
+		HomePath:           freshHome,
+		Context:            context.Background(),
+	}
 	require.NoError(t, flattenIdentity(&conf), "unexpected error when overwriting a tsh profile")
 }
 
@@ -6452,13 +6466,11 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 		}
 
 		// Create a empty profile so we don't ping proxy.
-		clientStore, err := initClientStore(conf, conf.Proxy)
-		require.NoError(t, err)
 		profile := &profile.Profile{
 			SSHProxyAddr: "proxy:3023",
 			WebProxyAddr: "proxy:3080",
 		}
-		err = clientStore.SaveProfile(profile, true)
+		err := conf.getClientStore().SaveProfile(profile, true)
 		require.NoError(t, err)
 
 		modify(conf)
@@ -6871,8 +6883,14 @@ func TestInteractiveCompatibilityFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := exec.Command(tshBin, "ssh", tt.flag, hostname, tty).Run()
-			tt.assertError(t, err)
+
+			// Add some resiliency for cases where connections are attempted
+			// prior to the inventory being updated to contain the target node
+			// above.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				out, err := exec.Command(tshBin, "ssh", tt.flag, hostname, tty).CombinedOutput()
+				tt.assertError(t, err, string(out))
+			}, 20*time.Second, 100*time.Millisecond)
 		})
 	}
 }
@@ -7174,6 +7192,49 @@ func TestSCP(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, expected, got)
 			}
+		})
+	}
+}
+
+func TestSetEnvVariables(t *testing.T) {
+	testCases := []struct {
+		name              string
+		envVars           map[string]string
+		sendEnvVariables  []string
+		expectedExtraEnvs map[string]string
+	}{
+		{
+			name: "Skip unset var",
+			envVars: map[string]string{
+				"TEST_VAR1": "value1",
+				"TEST_VAR2": "value2",
+			},
+			sendEnvVariables: []string{"TEST_VAR1", "TEST_VAR2", "UNSET_VAR"},
+			expectedExtraEnvs: map[string]string{
+				"TEST_VAR1": "value1",
+				"TEST_VAR2": "value2",
+			},
+		},
+		{
+			name:              "Sending empty var",
+			envVars:           map[string]string{"EMPTY_VAR": ""},
+			sendEnvVariables:  []string{"EMPTY_VAR"},
+			expectedExtraEnvs: map[string]string{"EMPTY_VAR": ""},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.envVars {
+				t.Setenv(k, v)
+			}
+
+			c := &client.Config{}
+			options := Options{SendEnvVariables: tc.sendEnvVariables}
+
+			setEnvVariables(c, options)
+
+			require.Equal(t, tc.expectedExtraEnvs, c.ExtraEnvs)
 		})
 	}
 }

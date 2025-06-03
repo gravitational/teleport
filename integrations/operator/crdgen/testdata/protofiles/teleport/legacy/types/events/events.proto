@@ -79,6 +79,24 @@ enum UserKind {
   USER_KIND_BOT = 2;
 }
 
+// UserOrigin is the origin of a user account.
+// Keep the values in sync with UserOrigin enum defined in
+// prehogv1 and prehogv1alpha.
+enum UserOrigin {
+  // Indicates a legacy cluster emitting events without a defined user origin.
+  USER_ORIGIN_UNSPECIFIED = 0;
+  // Indicates a local user.
+  USER_ORIGIN_LOCAL = 1;
+  // Indicates an SSO user originated from the SAML or OIDC connector.
+  USER_ORIGIN_SSO = 2;
+  // Indicates a user originated from the Okta integration.
+  USER_ORIGIN_OKTA = 3;
+  // Indicates a user originated from the SCIM integration.
+  USER_ORIGIN_SCIM = 4;
+  // Indicates a user originated from the EntraID integration.
+  USER_ORIGIN_ENTRAID = 5;
+}
+
 // UserMetadata is a common user event metadata
 message UserMetadata {
   // User is teleport user name
@@ -119,6 +137,9 @@ message UserMetadata {
   // BotInstanceID is the ID of the Bot Instance if this action is associated
   // with one.
   string BotInstanceID = 12 [(gogoproto.jsontag) = "bot_instance_id,omitempty"];
+
+  // UserOrigin specifies the origin of this user account.
+  UserOrigin UserOrigin = 13 [(gogoproto.jsontag) = "user_origin,omitempty"];
 }
 
 // Server is a server metadata
@@ -391,6 +412,12 @@ message SessionStart {
   reserved "AccessRequests";
   reserved 11;
   // reserved jsontag "access_requests"
+
+  // Invited is a list of invited users to this session.
+  repeated string Invited = 12 [(gogoproto.jsontag) = "invited,omitempty"];
+
+  // Reason is the reason for starting this session.
+  string Reason = 13 [(gogoproto.jsontag) = "reason,omitempty"];
 }
 
 // SessionJoin emitted when another user joins a session
@@ -1544,6 +1571,33 @@ message AccessRequestCreate {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "assume_start_time,omitempty"
+  ];
+}
+
+// AccessRequestExpire is emitted when access request has expired.
+message AccessRequestExpire {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // RequestID is access request ID
+  string RequestID = 3 [(gogoproto.jsontag) = "id"];
+
+  // ResourceExpiry is the time at which the access request resource will expire.
+  google.protobuf.Timestamp ResourceExpiry = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "expiry,omitempty"
   ];
 }
 
@@ -4354,6 +4408,8 @@ message IntegrationMetadata {
   AWSOIDCIntegrationMetadata AWSOIDC = 2 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
   // AzureOIDC contains metadata for Azure OIDC integrations.
   AzureOIDCIntegrationMetadata AzureOIDC = 3 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
+  // GitHub contains metadata for GitHub integrations.
+  GitHubIntegrationMetadata GitHub = 4 [(gogoproto.jsontag) = "github,omitempty"];
 }
 
 // AWSOIDCIntegrationMetadata contains metadata for AWS OIDC integrations.
@@ -4373,6 +4429,12 @@ message AzureOIDCIntegrationMetadata {
 
   // ClientID specifies the ID of Azure enterprise application (client).
   string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
+}
+
+// GitHubIntegrationMetadata contains metadata for GitHub integrations.
+message GitHubIntegrationMetadata {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
 }
 
 // PluginCreate is emitted when a plugin resource is created.
@@ -4705,7 +4767,13 @@ message OneOf {
     events.WorkloadIdentityCreate WorkloadIdentityCreate = 194;
     events.WorkloadIdentityUpdate WorkloadIdentityUpdate = 195;
     events.WorkloadIdentityDelete WorkloadIdentityDelete = 196;
+    events.GitCommand GitCommand = 197;
     events.UserLoginAccessListInvalid UserLoginAccessListInvalid = 198;
+    events.AccessRequestExpire AccessRequestExpire = 199;
+    events.StableUNIXUserCreate StableUNIXUserCreate = 200;
+    events.WorkloadIdentityX509RevocationCreate WorkloadIdentityX509RevocationCreate = 201;
+    events.WorkloadIdentityX509RevocationDelete WorkloadIdentityX509RevocationDelete = 202;
+    events.WorkloadIdentityX509RevocationUpdate WorkloadIdentityX509RevocationUpdate = 203;
   }
 }
 
@@ -7840,4 +7908,197 @@ enum ContactType {
   CONTACT_TYPE_UNSPECIFIED = 0;
   CONTACT_TYPE_BUSINESS = 1;
   CONTACT_TYPE_SECURITY = 2;
+}
+
+// WorkloadIdentityX509RevocationCreate is emitted when a
+// WorkloadIdentityX509Revocation is created.
+message WorkloadIdentityX509RevocationCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Reason is the specified reason for the revocation.
+  string Reason = 5 [(gogoproto.jsontag) = "reason"];
+}
+
+// WorkloadIdentityX509RevocationUpdate is emitted when a
+// WorkloadIdentityX509Revocation is updated.
+message WorkloadIdentityX509RevocationUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Reason is the specified reason for the revocation.
+  string Reason = 5 [(gogoproto.jsontag) = "reason"];
+}
+
+// WorkloadIdentityX509RevocationDelete is emitted when a
+// WorkloadIdentityX509Revocation is deleted.
+message WorkloadIdentityX509RevocationDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// GitCommand is emitted when a user performs a Git fetch or push command.
+message GitCommand {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionMetadata is a common event session metadata
+  SessionMetadata Session = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ServerMetadata is a common server metadata
+  ServerMetadata Server = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // CommandMetadata is a common command metadata
+  CommandMetadata Command = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Service is the type of the git request like git-upload-pack or
+  // git-receive-pack.
+  string service = 8 [(gogoproto.jsontag) = "service"];
+  // Path is the Git repo path, usually <org>/<repo>.
+  string path = 9 [(gogoproto.jsontag) = "path"];
+
+  // Actions defines details for a Git push.
+  repeated GitCommandAction actions = 10 [(gogoproto.jsontag) = "actions,omitempty"];
+}
+
+// GitCommandAction defines details for a Git push.
+message GitCommandAction {
+  // Action type like create or update.
+  string Action = 1 [(gogoproto.jsontag) = "action,omitempty"];
+  // Reference name like ref/main/my_branch.
+  string Reference = 2 [(gogoproto.jsontag) = "reference,omitempty"];
+  // Old is the old hash.
+  string Old = 3 [(gogoproto.jsontag) = "old,omitempty"];
+  // New is the new hash.
+  string New = 4 [(gogoproto.jsontag) = "new,omitempty"];
+}
+
+// StableUNIXUserCreate is emitted whenever a new stable UNIX user is written in
+// the cluster state storage.
+message StableUNIXUserCreate {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  StableUNIXUser stable_unix_user = 3;
+}
+
+message StableUNIXUser {
+  string username = 1;
+  int32 uid = 2;
 }

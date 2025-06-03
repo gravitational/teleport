@@ -122,11 +122,19 @@ endif
 		--terraform_out=config=protoc-gen-terraform-workloadidentity.yaml:./tfschema \
 		teleport/workloadidentity/v1/resource.proto
 
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-autoupdate.yaml:./tfschema \
+		teleport/autoupdate/v1/autoupdate.proto
+
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1/loginrule_terraform.go ./tfschema/loginrule/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1/accesslist_terraform.go ./tfschema/accesslist/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1/access_monitoring_rules_terraform.go ./tfschema/accessmonitoringrules/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2/statichostuser_terraform.go ./tfschema/userprovisioning/v2/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1/resource_terraform.go ./tfschema/workloadidentity/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1/autoupdate_terraform.go ./tfschema/autoupdate/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/types/device_terraform.go ./tfschema/devicetrust/v1/
 	rm -r ./tfschema/github.com/
 	@go run ./gen/main.go
@@ -193,8 +201,12 @@ destroy:
 lint:
 	golangci-lint run -c ../../.golangci.yml
 
+.PHONY: fmt
+fmt:
+	terraform fmt -no-color -recursive
+
 .PHONY: docs
-docs: gen-tfschema install bin/tfplugindocs
+docs: gen-tfschema install fmt bin/tfplugindocs
 	./gen/docs.sh $(VERSION)
 
 ## Location to install dependencies to

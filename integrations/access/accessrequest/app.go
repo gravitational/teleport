@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
@@ -163,6 +164,8 @@ func (a *App) run(ctx context.Context) error {
 		if err := a.accessMonitoringRules.InitAccessMonitoringRulesCache(ctx); err != nil {
 			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
 		}
+	} else {
+		logger.Get(ctx).Warn("Failed to watch access_monitoring_rule events. Allow access_monitoring_rule read permissions in the plugin role.")
 	}
 
 	a.job.SetReady(ok)
@@ -509,15 +512,35 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 
 func (a *App) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map[string][]string, error) {
 	loginsByRole := make(map[string][]string, len(req.GetRoles()))
+	log := logger.Get(ctx)
 
+	user, err := a.apiClient.GetUser(ctx, req.GetUser(), false)
+	if err != nil {
+		log.Warnf("Missing permissions to apply user traits to login roles, please add user.read to the associated role: %v", err)
+		for _, role := range req.GetRoles() {
+			currentRole, err := a.apiClient.GetRole(ctx, role)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			loginsByRole[role] = currentRole.GetLogins(types.Allow)
+		}
+		return loginsByRole, nil
+	}
 	for _, role := range req.GetRoles() {
 		currentRole, err := a.apiClient.GetRole(ctx, role)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		loginsByRole[role] = currentRole.GetLogins(types.Allow)
+		currentRole, err = services.ApplyTraits(currentRole, user.GetTraits())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		logins := currentRole.GetLogins(types.Allow)
+		if logins == nil {
+			logins = []string{}
+		}
+		loginsByRole[role] = logins
 	}
-
 	return loginsByRole, nil
 }
 

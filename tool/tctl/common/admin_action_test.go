@@ -142,6 +142,8 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 	botName := "bot"
 	botReq := &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: botName,
 			},

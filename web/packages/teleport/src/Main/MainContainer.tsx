@@ -30,7 +30,7 @@ export const MainContainer = styled.div`
   --sidenav-panel-width: 264px;
   overflow: hidden;
   margin-top: ${p => p.theme.topBarHeight[0]}px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
     margin-top: ${p => p.theme.topBarHeight[1]}px;
   }
 `;

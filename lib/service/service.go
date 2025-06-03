@@ -517,8 +517,8 @@ func (c *Connector) serverGetCertificate() (*tls.Certificate, error) {
 	return tlsCert, nil
 }
 
-func (c *Connector) getPROXYSigner(clock clockwork.Clock) (multiplexer.PROXYHeaderSigner, error) {
-	proxySigner, err := multiplexer.NewPROXYSigner(c.clusterName, c.serverGetCertificate, clock)
+func (c *Connector) getPROXYSigner(clock clockwork.Clock, allowDowngrade bool) (multiplexer.PROXYHeaderSigner, error) {
+	proxySigner, err := multiplexer.NewPROXYSigner(c.clusterName, c.serverGetCertificate, clock, allowDowngrade)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not create PROXY signer")
 	}
@@ -1282,23 +1282,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 		switch upgraderKind {
 		case types.UpgraderKindTeleportUpdate:
-			isDefault, err := autoupdate.IsManagedAndDefault()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if !isDefault {
-				// Only write the nop schedule for the default updater.
-				// Suffixed installations of Teleport can coexist with the old upgrader system.
-				break
-			}
-			driver, err := uw.NewSystemdUnitDriver(uw.SystemdUnitDriverConfig{})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if err := driver.ForceNop(process.ExitContext()); err != nil {
-				process.logger.WarnContext(process.ExitContext(), "Unable to disable the teleport-upgrade command provided by the deprecated teleport-ent-updater package.", "error", err)
-				process.logger.WarnContext(process.ExitContext(), "If the deprecated teleport-ent-updater package is installed, please ensure /etc/teleport-upgrade.d/schedule contains 'nop'.")
-			}
+			// Exports are not required for teleport-update
 		case types.UpgraderKindSystemdUnit:
 			process.RegisterFunc("autoupdates.endpoint.export", func() error {
 				conn, err := waitForInstanceConnector(process, process.logger)
@@ -2153,6 +2137,9 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id))
+	// Environment variable for disabling the check major version upgrade check and overrides
+	// latest known version in backend.
+	skipVersionCheckFromEnv := os.Getenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK") != ""
 
 	// first, create the AuthServer
 	authServer, err := auth.Init(
@@ -2160,6 +2147,7 @@ func (process *TeleportProcess) initAuthService() error {
 		auth.InitConfig{
 			Backend:                 b,
 			VersionStorage:          process.storage,
+			SkipVersionCheck:        cfg.SkipVersionCheck || skipVersionCheckFromEnv,
 			Authority:               cfg.Keygen,
 			ClusterConfiguration:    cfg.ClusterConfiguration,
 			AutoUpdateService:       cfg.AutoUpdateService,
@@ -2251,7 +2239,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	authServer.SetUnifiedResourcesCache(unifiedResourcesCache)
 
 	accessRequestCache, err := services.NewAccessRequestCache(services.AccessRequestCacheConfig{
@@ -2261,7 +2248,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	authServer.SetAccessRequestCache(accessRequestCache)
 
 	userNotificationCache, err := services.NewUserNotificationCache(services.NotificationCacheConfig{
@@ -2271,7 +2257,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	authServer.SetUserNotificationCache(userNotificationCache)
 
 	globalNotificationCache, err := services.NewGlobalNotificationCache(services.NotificationCacheConfig{
@@ -2281,7 +2266,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	authServer.SetGlobalNotificationCache(globalNotificationCache)
 
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(process.ExitContext(), local.HeadlessAuthenticationWatcherConfig{
@@ -2298,7 +2282,11 @@ func (process *TeleportProcess) initAuthService() error {
 	// a node can abandon an upload before it is competed.
 	// (In async recording modes, auth only ever sees completed uploads, as the node's upload completer
 	// packages up the parts into a single upload before sending to auth)
-	if uploadHandler != nil {
+	disableCompleter, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_DISABLE_AUTH_UPLOAD_COMPLETER"))
+	switch {
+	case disableCompleter:
+		logger.WarnContext(process.ExitContext(), "auth service's upload completer is disabled, abandoned uploads may accumulate in external storage")
+	case uploadHandler != nil:
 		err = events.StartNewUploadCompleter(process.ExitContext(), events.UploadCompleterConfig{
 			Uploader:       uploadHandler,
 			Component:      teleport.ComponentAuth,
@@ -2309,7 +2297,7 @@ func (process *TeleportProcess) initAuthService() error {
 			ServerID:       cfg.HostUUID,
 		})
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "starting upload completer")
 		}
 	}
 
@@ -3301,7 +3289,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(role types.SystemRole, ev
 	serviceName := strings.ToLower(role.String())
 
 	process.RegisterCriticalFunc(fmt.Sprintf("register.%v", serviceName), func() error {
-		if role.IsLocalService() && !(process.instanceRoleExpected(role) || process.hostedPluginRoleExpected(role)) {
+		if role.IsLocalService() && !process.instanceRoleExpected(role) && !process.hostedPluginRoleExpected(role) {
 			// if you hit this error, your probably forgot to call SetExpectedInstanceRole inside of
 			// the registerExpectedServices function, or forgot to call SetExpectedHostedPluginRole during
 			// the hosted plugin init process.
@@ -4488,7 +4476,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	proxySigner, err := conn.getPROXYSigner(process.Clock)
+	proxySigner, err := conn.getPROXYSigner(process.Clock, cfg.Proxy.PROXYAllowDowngrade)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -5459,7 +5447,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(alpnTLSConfigForWeb))
+		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(alpnTLSConfigForWeb, alpncommon.ConnHandlerSourceWeb))
 
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
 			logger.InfoContext(process.ExitContext(), "Starting TLS ALPN SNI proxy server on.", "listen_address", logutils.StringerAttr(listeners.alpn.Addr()))
@@ -6121,16 +6109,17 @@ func (process *TeleportProcess) initApps() {
 				Description: app.Description,
 				Labels:      app.StaticLabels,
 			}, types.AppSpecV3{
-				URI:                app.URI,
-				PublicAddr:         publicAddr,
-				DynamicLabels:      types.LabelsToV2(app.DynamicLabels),
-				InsecureSkipVerify: app.InsecureSkipVerify,
-				Rewrite:            rewrite,
-				AWS:                aws,
-				Cloud:              app.Cloud,
-				RequiredAppNames:   app.RequiredAppNames,
-				CORS:               makeApplicationCORS(app.CORS),
-				TCPPorts:           makeApplicationTCPPorts(app.TCPPorts),
+				URI:                   app.URI,
+				PublicAddr:            publicAddr,
+				DynamicLabels:         types.LabelsToV2(app.DynamicLabels),
+				InsecureSkipVerify:    app.InsecureSkipVerify,
+				Rewrite:               rewrite,
+				AWS:                   aws,
+				Cloud:                 app.Cloud,
+				RequiredAppNames:      app.RequiredAppNames,
+				UseAnyProxyPublicAddr: app.UseAnyProxyPublicAddr,
+				CORS:                  makeApplicationCORS(app.CORS),
+				TCPPorts:              makeApplicationTCPPorts(app.TCPPorts),
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -6643,6 +6632,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 			switch cfg.JoinMethod {
 			case types.JoinMethodToken,
 				types.JoinMethodUnspecified,
+				types.JoinMethodAzureDevops,
 				types.JoinMethodIAM,
 				types.JoinMethodCircleCI,
 				types.JoinMethodKubernetes,

@@ -53,3 +53,15 @@ export function proxyHostToBrowserProxyHost(proxyHost: string) {
 
   return whatwgURL.host;
 }
+
+export function proxyHostname(proxyHost: string) {
+  let whatwgURL: whatwg.URL;
+
+  try {
+    whatwgURL = new whatwg.URL(`https://${proxyHost}`);
+  } catch {
+    return proxyHost;
+  }
+
+  return whatwgURL.hostname;
+}

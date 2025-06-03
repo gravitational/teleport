@@ -23,6 +23,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -112,17 +114,21 @@ func (s *KubernetesV2OutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "fetching default roles")
 	}
 
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	id, err := generateIdentity(
 		ctx,
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		effectiveLifetime.TTL,
 		nil,
 	)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
 	}
+
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
+
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
 	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
@@ -300,7 +306,9 @@ func (s *KubernetesV2OutputService) render(
 		}
 	} else {
 		executablePath, err := s.executablePath()
-		if err != nil {
+		if errors.Is(err, autoupdate.ErrUnstableExecutable) {
+			s.log.WarnContext(ctx, "Kubernetes template will be rendered with an unstable path to the tbot executable. Please reinstall tbot with Managed Updates to prevent instability.")
+		} else if err != nil {
 			return trace.Wrap(err)
 		}
 

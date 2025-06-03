@@ -42,6 +42,7 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
@@ -86,7 +87,25 @@ var (
 		[]string{teleport.TagCacheComponent},
 	)
 
-	cacheCollectors = []prometheus.Collector{cacheEventsReceived, cacheStaleEventsReceived}
+	cacheHealth = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "cache",
+			Name:      "health",
+			Help:      "Whether the cache for a particular Teleport service is healthy.",
+		},
+		[]string{teleport.TagCacheComponent},
+	)
+
+	cacheLastReset = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "cache",
+			Name:      "last_reset_seconds",
+			Help:      "The unix time in seconds that the last cache reset was performed.",
+		},
+		[]string{teleport.TagCacheComponent},
+	)
 )
 
 // highVolumeResources is the set of cached resources that tend to produce high
@@ -279,6 +298,8 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindRole},
 		{Kind: types.KindNamespace},
 		{Kind: types.KindNode},
+		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
 		{Kind: types.KindReverseTunnel},
@@ -569,6 +590,12 @@ func (c *Cache) setInitError(err error) {
 		c.initErr = err
 		close(c.initC)
 	})
+
+	if err == nil {
+		cacheHealth.WithLabelValues(c.target).Set(1.0)
+	} else {
+		cacheHealth.WithLabelValues(c.target).Set(0.0)
+	}
 }
 
 // setReadStatus updates Cache.ok, which determines whether the
@@ -882,7 +909,12 @@ const (
 
 // New creates a new instance of Cache
 func New(config Config) (*Cache, error) {
-	if err := metrics.RegisterPrometheusCollectors(cacheCollectors...); err != nil {
+	if err := metrics.RegisterPrometheusCollectors(
+		cacheEventsReceived,
+		cacheStaleEventsReceived,
+		cacheHealth,
+		cacheLastReset,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := config.CheckAndSetDefaults(); err != nil {
@@ -1343,6 +1375,7 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //	we assume that this cache will eventually end up in a correct state
 //	potentially lagging behind the state of the database.
 func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) error {
+	cacheLastReset.WithLabelValues(c.target).SetToCurrentTime()
 	requestKinds := c.watchKinds()
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		Name:                c.Component,
@@ -1801,8 +1834,6 @@ type getCertAuthorityCacheKey struct {
 	id types.CertAuthID
 }
 
-var _ map[getCertAuthorityCacheKey]struct{} // compile-time hashability check
-
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
 func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
@@ -1842,8 +1873,6 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 type getCertAuthoritiesCacheKey struct {
 	caType types.CertAuthType
 }
-
-var _ map[getCertAuthoritiesCacheKey]struct{} // compile-time hashability check
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
@@ -1927,8 +1956,6 @@ type clusterConfigCacheKey struct {
 	kind string
 }
 
-var _ map[clusterConfigCacheKey]struct{} // compile-time hashability check
-
 // GetClusterAuditConfig gets ClusterAuditConfig from the backend.
 func (c *Cache) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterAuditConfig")
@@ -2001,8 +2028,6 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 type autoUpdateCacheKey struct {
 	kind string
 }
-
-var _ map[autoUpdateCacheKey]struct{} // compile-time hashability check
 
 // GetAutoUpdateConfig gets the AutoUpdateConfig from the backend.
 func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
@@ -2209,8 +2234,6 @@ type getNodesCacheKey struct {
 	namespace string
 }
 
-var _ map[getNodesCacheKey]struct{} // compile-time hashability check
-
 // GetNodes is a part of auth.Cache implementation
 func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetNodes")
@@ -2279,8 +2302,6 @@ func (c *Cache) GetProxies() ([]types.Server, error) {
 type remoteClustersCacheKey struct {
 	name string
 }
-
-var _ map[remoteClustersCacheKey]struct{} // compile-time hashability check
 
 // GetRemoteClusters returns a list of remote clusters
 func (c *Cache) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
@@ -3609,4 +3630,69 @@ func (c *Cache) ListAccountAssignments(ctx context.Context, pageSize int, pageTo
 	defer rg.Release()
 
 	return rg.reader.ListAccountAssignments(ctx, pageSize, pageToken)
+}
+
+func (c *Cache) GetIdentityCenterAccount(ctx context.Context, name services.IdentityCenterAccountID) (services.IdentityCenterAccount, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetIdentityCenterAccount")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterAccounts)
+	if err != nil {
+		return services.IdentityCenterAccount{}, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.GetIdentityCenterAccount(ctx, name)
+}
+
+func (c *Cache) ListIdentityCenterAccounts(ctx context.Context, pageSize int, token *pagination.PageRequestToken) ([]services.IdentityCenterAccount, pagination.NextPageToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListIdentityCenterAccounts")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterAccounts)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.ListIdentityCenterAccounts(ctx, pageSize, token)
+}
+
+func (c *Cache) GetPrincipalAssignment(ctx context.Context, id services.PrincipalAssignmentID) (*identitycenterv1.PrincipalAssignment, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetPrincipalAssignment")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterPrincipalAssignments)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.GetPrincipalAssignment(ctx, id)
+}
+
+func (c *Cache) ListPrincipalAssignments(ctx context.Context, pageSize int, req *pagination.PageRequestToken) ([]*identitycenterv1.PrincipalAssignment, pagination.NextPageToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListPrincipalAssignments")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterPrincipalAssignments)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.ListPrincipalAssignments(ctx, pageSize, req)
+}
+
+func (c *Cache) ListProvisioningStatesForAllDownstreams(ctx context.Context, pageSize int, req *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListPrincipalAssignments")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.provisioningStates)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.ListProvisioningStatesForAllDownstreams(ctx, pageSize, req)
 }

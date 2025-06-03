@@ -3,46 +3,30 @@ title: Teleport Upcoming Releases
 description: A timeline of upcoming Teleport releases.
 ---
 
-The Teleport team delivers a new major release roughly every 4 months.
+Teleport releases a new major version approximately every 4 months, and provides
+security-critical support for the current and two previous major versions. With
+our typical release cadence, we usually support each major version for 12
+months.
 
 ## Teleport
 
-| Version | Date                        |
-|---------|-----------------------------|
-| 17.4.0  | Week of March 24th, 2025    |
-| 17.5.0  | Week of May 19th, 2025      |
-| 18.0.0  | Week of May 26th, 2025      |
+We plan to release the following versions in the coming months:
 
-### 17.4.0
+| Version | Date                  |
+|---------|-----------------------|
+| 17.5.0  | Week of June 2, 2025  |
+| 18.0.0  | Week of June 23, 2025 |
+| 18.1.0  | Week of July 14, 2025 |
 
-#### Database access for Oracle RDS
+We continue to support the following major versions of Teleport:
 
-Teleport database access will support connecting to Oracle RDS with Kerberos
-authentication.
-
-#### Okta integration read-only mode
-
-Teleport Okta integration will support read-only mode that does not back-propagate
-changes from Teleport to Okta.
-
-#### AWS integration status dashboard
-
-Teleport web UI will provide detailed status dashboard for AWS integration as
-well as the new "user tasks" view that will highlight integration issues requiring
-user attention along with suggested remediation steps.
-
-#### Windows desktop improvements
-
-Teleport will support registering the same host twice - once as a domain-joined
-machine, and one as a standalone machine. This will allow Teleport users to connect
-as Active Directory users and local users to the same host.
+| Release | Release Date      | EOL            | Minimum `tsh` version |
+|---------|-------------------|----------------|-----------------------|
+| v17.x   | November 16, 2024 | February 2026  | v16.0.0               |
+| v16.x   | June 14, 2024     | October 2025   | v15.0.0               |
+| v15.x   | January 29, 2024  | June 2025      | v14.0.0               |
 
 ### 17.5.0
-
-#### Encrypted session recordings
-
-Teleport will provide the ability to integrate with Hardware Security Modules
-(HSMs) in order to encrypt session recordings prior to uploading them to storage.
 
 #### Azure Console via SAML IdP
 
@@ -53,11 +37,21 @@ Teleport SAML IdP will support Azure web console as a service provider.
 Teleport Connect will allow users to connect to Windows desktops directly from
 the Teleport Connect application without needing to use a browser.
 
-#### VNet for SSH
+#### Desktop Access latency detector
 
-Teleport VNet will add native support for SSH, enabling any SSH client to connect
-to Teleport SSH servers with zero configuration. Advanced Teleport features like
-per-session MFA will have first-class support for a seamless user experience.
+Teleport's web UI will show latency measurements during remote desktop sessions
+which indicate both the latency between the user and the Teleport proxy as well
+as the latency between the Teleport proxy and the target host.
+
+#### Machine & Workload Identity - Sigstore attestation
+
+Machine & Workload Identity will support attesting Sigstore signatures of workloads
+running on Docker, Podman and Kubernetes. This will allow the issuance of credentials
+to be restricted to workloads with container images produced by legitimate CI/CD systems.
+
+#### Azure DevOps joining
+
+Teleport will support secretless authentication for Bots running within Azure DevOps pipelines.
 
 ### 18.0.0
 
@@ -68,16 +62,45 @@ Center to allow users to correlate user activity by multiple factors to facilita
 incident response. The first iteration will support integrations with GitHub, Okta
 and AWS.
 
+#### Automatic access request reviews
+
+Teleport will provide the ability to perform automatic access request reviews based
+on requested roles out of the box.
+
+#### Multi-session MFA for Database Access
+
+Teleport will provide a more user-friendly way to execute queries on multiple
+databases when per-session MFA is enabled, without requiring MFA tap for each
+connection.
+
+#### RBAC for SAML applications
+
+Users will be able to control access to SAML applications using role labels
+similar to other Teleport-protected resources.
+
+### 18.1.0
+
+#### Encrypted session recordings
+
+Teleport will provide the ability to integrate with Hardware Security Modules
+(HSMs) in order to encrypt session recordings prior to uploading them to storage.
+
+#### VNet for SSH
+
+Teleport VNet will add native support for SSH, enabling any SSH client to connect
+to Teleport SSH servers with zero configuration. Advanced Teleport features like
+per-session MFA will have first-class support for a seamless user experience.
+
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of               | Description                                                    |
-|-----------------------|----------------------------------------------------------------|
-| March 10, 2025       | Teleport 17.3 will begin rollout on Cloud.                      |
-| March 10, 2025       | Teleport 17.3 agents will begin rollout to eligible tenants.    |
-| March 31, 2025       | Teleport 17.4 will begin rollout on Cloud.                      |
-| March 31, 2025       | Teleport 17.4 agents will begin rollout to eligible tenants.    |
+| Week of       | Description                                                  |
+|---------------|--------------------------------------------------------------|
+| June 9, 2025  | Teleport 17.5 will begin rollout on Cloud.                   |
+| June 9, 2025  | Teleport 17.5 agents will begin rollout to eligible tenants. |
+| July 21, 2025 | Teleport 18.1 will begin rollout on Cloud.                   |
+| July 21, 2025 | Teleport 18.1 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 
@@ -117,3 +140,8 @@ minor release, such as (=teleport.major_version=).1.0.
 
 Patch releases contain small bug fixes and can typically be deployed directly
 to production.
+
+## Version compatibility
+
+(!docs/pages/includes/compatibility.mdx!)
+

@@ -175,6 +175,19 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 				}
 				return string(ca.GetType()), nil
 			},
+			"has_prefix": func(a, b interface{}) predicate.BoolPredicate {
+				return func() bool {
+					aval, ok := a.(string)
+					if !ok {
+						return false
+					}
+					bval, ok := b.(string)
+					if !ok {
+						return false
+					}
+					return strings.HasPrefix(aval, bval)
+				}
+			},
 		},
 		GetIdentifier: ctx.GetIdentifier,
 		GetProperty:   GetStringMapValue,
@@ -258,7 +271,7 @@ func (l *LogAction) Log(level, format string, args ...interface{}) predicate.Boo
 		} else {
 			writer = log.StandardLogger().WriterLevel(ilevel)
 		}
-		writer.Write([]byte(fmt.Sprintf(format, args...)))
+		fmt.Fprintf(writer, format, args...)
 		return true
 	}
 }
@@ -270,6 +283,9 @@ type Context struct {
 	// Resource is an optional resource, in case if the rule
 	// checks access to the resource
 	Resource types.Resource
+	// Resource153 is an optional resource, in case if the rule
+	// checks access to the resource
+	Resource153 types.Resource153
 	// Session is an optional session.end or windows.desktop.session.end event.
 	// These events hold information about session recordings.
 	Session events.AuditEvent
@@ -283,7 +299,7 @@ type Context struct {
 
 // String returns user friendly representation of this context
 func (ctx *Context) String() string {
-	return fmt.Sprintf("user %v, resource: %v", ctx.User, ctx.Resource)
+	return fmt.Sprintf("user %v, resource: %v, resource153: %v", ctx.User, ctx.Resource, ctx.Resource153)
 }
 
 const (
@@ -318,10 +334,16 @@ const (
 // GetResource returns resource specified in the context,
 // returns error if not specified.
 func (ctx *Context) GetResource() (types.Resource, error) {
-	if ctx.Resource == nil {
+	switch {
+	case ctx.Resource == nil && ctx.Resource153 == nil:
 		return nil, trace.NotFound("resource is not set in the context")
+	case ctx.Resource == nil && ctx.Resource153 != nil:
+		return types.Resource153ToLegacy(ctx.Resource153), nil
+	case ctx.Resource != nil && ctx.Resource153 == nil:
+		return ctx.Resource, nil
+	default:
+		return nil, trace.BadParameter("only one resource should be provided")
 	}
-	return ctx.Resource, nil
 }
 
 // GetIdentifier returns identifier defined in a context
@@ -336,13 +358,19 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 		}
 		return predicate.GetFieldByTag(user, teleport.JSON, fields[1:])
 	case ResourceIdentifier:
-		var resource types.Resource
-		if ctx.Resource == nil {
-			resource = emptyResource
-		} else {
-			resource = ctx.Resource
+		var r any
+		switch {
+		case ctx.Resource == nil && ctx.Resource153 == nil:
+			r = emptyResource
+		case ctx.Resource == nil && ctx.Resource153 != nil:
+			r = ctx.Resource153
+		case ctx.Resource != nil && ctx.Resource153 == nil:
+			r = ctx.Resource
+		default:
+			return nil, trace.BadParameter("only one resource should be provided")
 		}
-		return predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
+
+		return predicate.GetFieldByTag(r, teleport.JSON, fields[1:])
 	case SessionIdentifier:
 		var session events.AuditEvent = &events.SessionEnd{}
 		switch ctx.Session.(type) {
@@ -364,6 +392,26 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 		return predicate.GetFieldByTag(hostCert, teleport.JSON, fields[1:])
 	case SessionTrackerIdentifier:
 		return predicate.GetFieldByTag(toCtxTracker(ctx.SessionTracker), teleport.JSON, fields[1:])
+	case ResourceNameIdentifier:
+		if len(fields) > 1 {
+			return nil, trace.BadParameter(
+				"only one field is supported with identifier %q, got %d: %v",
+				ResourceNameIdentifier,
+				len(fields),
+				fields,
+			)
+		}
+
+		switch {
+		case ctx.Resource == nil && ctx.Resource153 == nil:
+			return "", nil
+		case ctx.Resource == nil && ctx.Resource153 != nil:
+			return ctx.Resource153.GetMetadata().GetName(), nil
+		case ctx.Resource != nil && ctx.Resource153 == nil:
+			return ctx.Resource.GetName(), nil
+		default:
+			return nil, trace.BadParameter("only one resource should be provided")
+		}
 	default:
 		return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
 	}

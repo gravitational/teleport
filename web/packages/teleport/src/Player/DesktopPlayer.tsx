@@ -20,13 +20,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 
 import { Alert, Box, Flex, Indicator } from 'design';
+import {
+  CanvasRenderer,
+  CanvasRendererRef,
+} from 'shared/components/CanvasRenderer';
+import { useListener } from 'shared/libs/tdp';
 
-import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
-import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
 import cfg from 'teleport/config';
 import { formatDisplayTime, StatusEnum } from 'teleport/lib/player';
 import { PlayerClient } from 'teleport/lib/tdp';
-import { useListener } from 'teleport/lib/tdp/client';
 import { getHostName } from 'teleport/services/api';
 
 import ProgressBar from './ProgressBar';
@@ -48,31 +50,31 @@ export const DesktopPlayer = ({
     statusText,
     time,
 
-    clientOnWsClose,
-    clientOnTdpError,
+    clientOnTransportOpen,
+    clientOnTransportClose,
+    clientOnError,
     clientOnTdpInfo,
   } = useDesktopPlayer({
     sid,
     clusterId,
   });
-  const tdpClientCanvasRef = useRef<TdpClientCanvasRef>(null);
+  const canvasRendererRef = useRef<CanvasRendererRef>(null);
 
-  useListener(playerClient?.onError, clientOnTdpError);
-  useListener(playerClient?.onClientError, clientOnTdpError);
-  useListener(playerClient?.onClientError, clientOnTdpError);
+  useListener(playerClient?.onError, clientOnError);
   useListener(playerClient?.onInfo, clientOnTdpInfo);
-  useListener(playerClient?.onWsClose, clientOnWsClose);
+  useListener(playerClient?.onTransportOpen, clientOnTransportOpen);
+  useListener(playerClient?.onTransportClose, clientOnTransportClose);
   useListener(
     playerClient?.onPngFrame,
-    tdpClientCanvasRef.current?.renderPngFrame
+    canvasRendererRef.current?.renderPngFrame
   );
   useListener(
     playerClient?.onBmpFrame,
-    tdpClientCanvasRef.current?.renderBitmapFrame
+    canvasRendererRef.current?.renderBitmapFrame
   );
   useListener(
     playerClient?.onScreenSpec,
-    tdpClientCanvasRef.current?.setResolution
+    canvasRendererRef.current?.setResolution
   );
 
   const isError = playerStatus === StatusEnum.ERROR || statusText !== '';
@@ -86,7 +88,7 @@ export const DesktopPlayer = ({
 
   return (
     <StyledPlayer>
-      {isError && <DesktopPlayerAlert my={4} children={statusText} />}
+      {isError && <DesktopPlayerAlert my={4}>{statusText}</DesktopPlayerAlert>}
       {isLoading && (
         <Box textAlign="center" m={10}>
           <Indicator />
@@ -94,7 +96,7 @@ export const DesktopPlayer = ({
       )}
 
       <StyledContainer>
-        <TdpClientCanvas ref={tdpClientCanvasRef} />
+        <CanvasRenderer ref={canvasRendererRef} />
 
         <ProgressBar
           min={0}
@@ -130,15 +132,19 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     return new PlayerClient({ url, setTime, setPlayerStatus, setStatusText });
   }, [clusterId, sid]);
 
-  const clientOnWsClose = useCallback(() => {
+  const clientOnTransportOpen = useCallback(() => {
+    setPlayerStatus(StatusEnum.PLAYING);
+  }, []);
+
+  const clientOnTransportClose = useCallback(() => {
     if (playerClient) {
       playerClient.cancelTimeUpdate();
     }
   }, [playerClient]);
 
-  const clientOnTdpError = useCallback((error: Error) => {
+  const clientOnError = useCallback((error: Error) => {
     setPlayerStatus(StatusEnum.ERROR);
-    setStatusText(error.message || error.toString());
+    setStatusText(error.message);
   }, []);
 
   const clientOnTdpInfo = useCallback((info: string) => {
@@ -162,8 +168,9 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     playerStatus,
     statusText,
 
-    clientOnWsClose,
-    clientOnTdpError,
+    clientOnTransportOpen,
+    clientOnTransportClose,
+    clientOnError,
     clientOnTdpInfo,
   };
 };

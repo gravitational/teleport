@@ -780,7 +780,7 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, "tcp://peerhost:1234", cfg.Proxy.PeerAddress.FullAddress())
 	require.Equal(t, "tcp://peer.example:1234", cfg.Proxy.PeerPublicAddr.FullAddress())
 	require.True(t, cfg.Proxy.IdP.SAMLIdP.Enabled)
-	require.Equal(t, "", cfg.Proxy.IdP.SAMLIdP.BaseURL)
+	require.Empty(t, cfg.Proxy.IdP.SAMLIdP.BaseURL)
 
 	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
 
@@ -796,7 +796,7 @@ func TestApplyConfig(t *testing.T) {
 		},
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOptional,
+			SecondFactor: constants.SecondFactorWebauthn,
 			Webauthn: &types.Webauthn{
 				RPID: "goteleport.com",
 				AttestationAllowedCAs: []string{
@@ -2492,6 +2492,19 @@ app_service:
 app_service:
   enabled: true
   apps:
+    -
+      name: foo
+      use_any_proxy_public_addr: true
+      uri: "http://127.0.0.1:8080"
+`,
+			name:   "app with use_any_proxy_public_addr",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
     - name: foo
       uri: "tcp://127.0.0.1"
       tcp_ports:
@@ -2648,7 +2661,7 @@ func TestAppsCLF(t *testing.T) {
 			outApps:   nil,
 			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name")
+				require.ErrorContains(t, err, "application name \"-foo\" must be a lower case valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name")
 			},
 		},
 		{

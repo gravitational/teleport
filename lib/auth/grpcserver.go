@@ -437,18 +437,6 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			var errors []error
 			errors = append(errors, eventStream.RecordEvent(stream.Context(), preparedEvent))
 
-			// v13 clients expect this request to also emit the event, so emit here
-			// just for them.
-			switch event.GetType() {
-			// Don't emit really verbose events.
-			case events.ResizeEvent, events.SessionDiskEvent, events.SessionPrintEvent, events.AppSessionRequestEvent, "":
-			default:
-				clientVersion, versionExists := metadata.ClientVersionFromContext(stream.Context())
-				if versionExists && semver.New(clientVersion).Major <= 13 {
-					errors = append(errors, auth.EmitAuditEvent(stream.Context(), event))
-				}
-			}
-
 			err = trace.NewAggregate(errors...)
 			if err != nil {
 				switch {
@@ -1835,6 +1823,32 @@ func (g *GRPCServer) GetWebSessions(ctx context.Context, _ *emptypb.Empty) (*aut
 	}, nil
 }
 
+// StreamWebSessions implements [authpb.AuthServiceServer].
+func (g *GRPCServer) StreamWebSessions(req *emptypb.Empty, srv authpb.AuthService_StreamWebSessionsServer) error {
+	ctx := srv.Context()
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sessions, err := auth.WebSessions().List(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, session := range sessions {
+		sess, ok := session.(*types.WebSessionV2)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", session)
+		}
+		if err := srv.Send(sess); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
 // DeleteWebSession removes the web session given with req.
 func (g *GRPCServer) DeleteWebSession(ctx context.Context, req *types.DeleteWebSessionRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -2246,9 +2260,8 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *authpb.DeleteRoleReque
 // related gRPC API endpoints.
 func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authpb.AuthService_MaintainSessionPresenceServer, challengeReq *authpb.PresenceMFAChallengeRequest) error {
 	user := actx.User.GetName()
-
 	chalExt := &mfav1pb.ChallengeExtensions{Scope: mfav1pb.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
-	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, challengeReq.SSOClientRedirectURL, chalExt)
+	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, challengeReq.SSOClientRedirectURL, challengeReq.ProxyAddress, chalExt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2596,7 +2609,7 @@ func (g *GRPCServer) GetSAMLConnector(ctx context.Context, req *types.ResourceWi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sc, err := auth.ServerWithRoles.GetSAMLConnector(ctx, req.Name, req.WithSecrets)
+	sc, err := auth.ServerWithRoles.GetSAMLConnector(ctx, req.Name, req.WithSecrets, types.SAMLConnectorValidationFollowURLs(!req.SAMLValidationNoFollowURLs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2613,7 +2626,7 @@ func (g *GRPCServer) GetSAMLConnectors(ctx context.Context, req *types.Resources
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	scs, err := auth.ServerWithRoles.GetSAMLConnectors(ctx, req.WithSecrets)
+	scs, err := auth.ServerWithRoles.GetSAMLConnectors(ctx, req.WithSecrets, types.SAMLConnectorValidationFollowURLs(!req.SAMLValidationNoFollowURLs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3447,8 +3460,7 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *authpb.GetEventsRequest
 		return nil, trace.Wrap(err)
 	}
 
-	var res *authpb.Events = &authpb.Events{}
-
+	res := &authpb.Events{}
 	encodedEvents := make([]*apievents.OneOf, 0, len(rawEvents))
 
 	for _, rawEvent := range rawEvents {
@@ -3482,8 +3494,7 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *authpb.GetSessio
 		return nil, trace.Wrap(err)
 	}
 
-	var res *authpb.Events = &authpb.Events{}
-
+	res := &authpb.Events{}
 	encodedEvents := make([]*apievents.OneOf, 0, len(rawEvents))
 
 	for _, rawEvent := range rawEvents {
@@ -5225,19 +5236,21 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err, "getting cluster name")
 	}
 	workloadIdentityIssuanceService, err := workloadidentityv1.NewIssuanceService(&workloadidentityv1.IssuanceServiceConfig{
-		Authorizer:  cfg.Authorizer,
-		Cache:       cfg.AuthServer.Cache,
-		Emitter:     cfg.Emitter,
-		Clock:       cfg.AuthServer.GetClock(),
-		KeyStore:    cfg.AuthServer.keyStore,
-		ClusterName: clusterName.GetClusterName(),
+		Authorizer:                 cfg.Authorizer,
+		Cache:                      cfg.AuthServer.Cache,
+		Emitter:                    cfg.Emitter,
+		Clock:                      cfg.AuthServer.GetClock(),
+		KeyStore:                   cfg.AuthServer.keyStore,
+		OverrideGetter:             cfg.AuthServer,
+		ClusterName:                clusterName.GetClusterName(),
+		GetSigstorePolicyEvaluator: cfg.AuthServer.GetSigstorePolicyEvaluator,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating workload identity issuance service")
 	}
 	workloadidentityv1pb.RegisterWorkloadIdentityIssuanceServiceServer(server, workloadIdentityIssuanceService)
 
-	workloadIdentityRevocationService, err := workloadidentityv1.NewRevocationService(&workloadidentityv1.RevocationServiceConfig{
+	revSvcConfig := &workloadidentityv1.RevocationServiceConfig{
 		Authorizer:          cfg.Authorizer,
 		Emitter:             cfg.Emitter,
 		Clock:               cfg.AuthServer.GetClock(),
@@ -5246,12 +5259,31 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		CertAuthorityGetter: cfg.AuthServer.Cache,
 		EventsWatcher:       cfg.AuthServer.Services,
 		ClusterName:         clusterName.GetClusterName(),
-	})
+	}
+	if cfg.MutateRevocationsServiceConfig != nil {
+		cfg.MutateRevocationsServiceConfig(revSvcConfig)
+	}
+	workloadIdentityRevocationService, err := workloadidentityv1.NewRevocationService(revSvcConfig)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating workload identity revocation service")
 	}
 	workloadidentityv1pb.RegisterWorkloadIdentityRevocationServiceServer(server, workloadIdentityRevocationService)
 	go workloadIdentityRevocationService.RunCRLSigner(cfg.AuthServer.CloseContext())
+
+	if cfg.PluginRegistry == nil || !cfg.PluginRegistry.IsRegistered("auth.enterprise") {
+		srv, err := workloadidentityv1.NewX509OverridesService(workloadidentityv1.X509OverridesServiceConfig{
+			Authorizer: cfg.Authorizer,
+			Storage:    cfg.AuthServer.Services,
+			Emitter:    cfg.Emitter,
+
+			ClusterName: clusterName.GetClusterName(),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "creating workload identity X509 overrides service")
+		}
+		workloadidentityv1pb.RegisterX509OverridesServiceServer(server, srv)
+		workloadidentityv1pb.RegisterSigstorePolicyResourceServiceServer(server, workloadidentityv1.NewSigstorePolicyResourceService())
+	}
 
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
 		Authorizer: cfg.Authorizer,
