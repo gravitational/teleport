@@ -184,8 +184,8 @@ func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol
 
 	description := fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName)
 	if desc, ok := service.GetAnnotations()[types.DiscoveryAppDescriptionLabelKey]; ok {
-		if strings.TrimSpace(desc) != "" {
-			description = desc
+		if d := strings.TrimSpace(desc); d != "" {
+			description = d
 		}
 	}
 
