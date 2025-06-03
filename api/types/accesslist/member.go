@@ -65,6 +65,9 @@ type AccessListMemberSpec struct {
 	// MembershipKind describes the kind of membership,
 	// either "MEMBERSHIP_KIND_USER" or "MEMBERSHIP_KIND_LIST".
 	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
+
+	//
+	AssignmentStatus string `json:"assignment_status" yaml:"assignment_status"`
 }
 
 // NewAccessListMember will create a new access listm member.
