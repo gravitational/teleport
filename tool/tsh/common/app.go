@@ -157,7 +157,7 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 			return trace.Wrap(err)
 		}
 
-		resourceArgumentName := "-u"
+		resourceArgumentName := "--username"
 		// After the CLI started relying in MSAL by default, the param for the
 		// managed identity changed.
 		//
