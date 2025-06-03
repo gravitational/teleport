@@ -14,8 +14,8 @@ data "aws_iam_policy_document" "identity_activity_center_policy" {
     ]
 
     resources = [
-      aws_s3_bucket.transient_storage.arn,
-      aws_s3_bucket.long_term_storage.arn,
+      aws_s3_bucket.identity_activity_center_transient_storage.arn,
+      aws_s3_bucket.identity_activity_center_long_term_storage.arn,
     ]
   }
 
@@ -32,9 +32,9 @@ data "aws_iam_policy_document" "identity_activity_center_policy" {
     ]
 
     resources = [
-      format("%s/data/*", aws_s3_bucket.long_term_storage.arn),
-      format("%s/results/*", aws_s3_bucket.transient_storage.arn),
-      format("%s/large_files/*", aws_s3_bucket.transient_storage.arn),
+      format("%s/data/*", aws_s3_bucket.identity_activity_center_long_term_storage.arn),
+      format("%s/results/*", aws_s3_bucket.identity_activity_center_transient_storage.arn),
+      format("%s/large_files/*", aws_s3_bucket.identity_activity_center_transient_storage.arn),
     ]
 
   }
@@ -66,7 +66,7 @@ data "aws_iam_policy_document" "identity_activity_center_policy" {
       aws_glue_catalog_table.identity_activity_center_table.arn,
       aws_glue_catalog_database.identity_activity_center_db.arn,
       aws_glue_catalog_table.identity_activity_center_table.arn,
-      aws_athena_workgroup.workgroup.arn,
+      aws_athena_workgroup.identity_activity_center_workgroup.arn,
       "arn:${data.aws_partition.current.partition}:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:catalog",
     ]
 
@@ -80,7 +80,7 @@ data "aws_iam_policy_document" "identity_activity_center_policy" {
     ]
 
     resources = [
-      aws_kms_key.encryption_key.arn,
+      aws_kms_key.identity_activity_center_encryption_key.arn,
     ]
 
   }

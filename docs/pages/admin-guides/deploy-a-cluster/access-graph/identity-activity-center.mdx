@@ -77,14 +77,14 @@ Teleport IaC script.
 ```bash
 cat > variables.auto.tfvars << EOF
 aws_region            = <Var name="eu-central-1"/>
-sqs_queue_name        = <Var name="example_sqs_queue"/>
-sqs_dlq_name          = <Var name="example_sqs_dlq"/>
-kms_key_alias         = <Var name="example_kms_key"/>
-long_term_bucket_name = <Var name="example-long-term-bucket"/>
-transient_bucket_name = <Var name="example-transient-bucket"/>
-database_name         = <Var name="example-db"/>
-table_name            = <Var name="example-table"/>
-workgroup             = <Var name="example-workgroup"/>
+iac_sqs_queue_name        = <Var name="example_sqs_queue"/>
+iac_sqs_dlq_name          = <Var name="example_sqs_dlq"/>
+iac_kms_key_alias         = <Var name="example_kms_key"/>
+iac_long_term_bucket_name = <Var name="example-long-term-bucket"/>
+iac_transient_bucket_name = <Var name="example-transient-bucket"/>
+iac_database_name         = <Var name="example-db"/>
+iac_table_name            = <Var name="example-table"/>
+iac_workgroup             = <Var name="example-workgroup"/>
 EOF
 ```
 

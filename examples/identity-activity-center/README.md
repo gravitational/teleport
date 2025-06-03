@@ -7,14 +7,14 @@ This directory contains the IaC setup for the Identity Activity Center infrastru
 ```bash
 cat > variables.auto.tfvars << EOF
 aws_region            = "eu-central-1"
-sqs_queue_name        = "example-sns_queue"
-sqs_dlq_name          = "example-sns_dlq"
-kms_key_alias         = "example-kms_key"
-long_term_bucket_name = "example-long-term-bucket"
-transient_bucket_name = "example-transient-bucket"
-database_name         = "example_db"
-table_name            = "example_table"
-workgroup             = "example_workgroup"
+iac_sqs_queue_name        = "example-sns_queue"
+iac_sqs_dlq_name          = "example-sns_dlq"
+iac_kms_key_alias         = "example-kms_key"
+iac_long_term_bucket_name = "example-long-term-bucket"
+iac_transient_bucket_name = "example-transient-bucket"
+iac_database_name         = "example_db"
+iac_table_name            = "example_table"
+iac_workgroup             = "example_iac_workgroup"
 EOF
 ```
 
