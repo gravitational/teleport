@@ -24,7 +24,7 @@ like:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Configure GitLab
+## Step 1/4. Configure GitLab
 
 You should have at least one group configured in GitLab to map to Teleport roles.
 In this example we use the names `gitlab-dev` and `gitlab-admin`.  Assign users
@@ -53,7 +53,7 @@ to each of these groups.
    `https://gitlab.com/.well-known/openid-configuration`. If you are self
    hosting the issuer address is the path to your GitLab instance.
 
-## Configure Teleport
+## Step 2/4. Configure Teleport
 
 ### Create a OIDC Connector
 
@@ -134,7 +134,7 @@ Create the connector using `tctl` tool:
 $ tctl create -f oidc.yaml
 ```
 
-## Create Teleport Roles
+## Step 3/4. Create Teleport Roles
 
 We are going to create 2 roles, privileged role admin who is able to login as
 root and is capable of administrating the cluster and non-privileged dev.
@@ -192,7 +192,7 @@ $ tctl create -f dev.yaml
 
 (!docs/pages/includes/create-role-using-web.mdx!)
 
-## Enable default OIDC authentication
+## Step 4/4. Enable default OIDC authentication
 
 (!docs/pages/includes/enterprise/oidcauthentication.mdx!)
 
