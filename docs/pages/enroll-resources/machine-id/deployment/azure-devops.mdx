@@ -61,7 +61,7 @@ organization ID printed in the logs, similar to the following:
 Organization ID: 0ca3ddd9-0000-1111-2222-example58665
 ```
 
-Record this organization ID as you will need it later.
+Record this organization ID as you will need it later: <Var name="organization-id" />
 
 ## Step 2/5. Create a Bot
 
@@ -90,16 +90,14 @@ spec:
   join_method: azure_devops
   bot_name: example
   azure_devops:
-    organization_id: 0ca3ddd9-0000-1111-2222-example58665
+    organization_id: <Var name="organization-id" />
     allow:
-      - project_name: my-project
+      - project_name: <Var name="my-project" />
 ```
 Replace:
 
 - `example-bot` with a meaningful name that describes the token.
 - `example` with the name of the bot you created in Step 2.
-- `0ca3ddd9-0000-1111-2222-example58665` with the organization ID you
-  determined in Step 1.
 - `my-project` with the name of the Azure DevOps project that you want to allow
   access to the bot.
 
