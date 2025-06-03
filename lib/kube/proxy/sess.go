@@ -47,7 +47,6 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
@@ -1058,11 +1057,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 		}()
 	}
 
-	canStart, _, err := s.canStart()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+	canStart := false
 	if !s.started {
 		if canStart {
 			// create an ephemeral container if this session will be
@@ -1262,20 +1257,7 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 		return true, trace.NewAggregate(errs...)
 	}
 
-	canStart, options, err := s.canStart()
-	if err != nil {
-		return true, trace.Wrap(err)
-	}
-
-	if !canStart {
-		if options.OnLeaveAction == types.OnSessionLeaveTerminate {
-			go func() {
-				if err := s.Close(); err != nil {
-					s.log.ErrorContext(s.forwarder.ctx, "Failed to close session", "error", err)
-				}
-			}()
-			return true, nil
-		}
+	if true {
 
 		// pause session and wait for another party to resume
 		s.io.Off()
@@ -1303,30 +1285,6 @@ func (s *session) allParticipants() []string {
 	}
 
 	return participants
-}
-
-// canStart checks if a session can start with the current set of participants.
-func (s *session) canStart() (bool, auth.PolicyOptions, error) {
-	var participants []auth.SessionAccessContext
-	for _, party := range s.parties {
-		if party.Ctx.User.GetName() == s.ctx.User.GetName() {
-			continue
-		}
-
-		roleNames := party.Ctx.Identity.GetIdentity().Groups
-		roles, err := getRolesByName(s.forwarder, roleNames)
-		if err != nil {
-			return false, auth.PolicyOptions{}, trace.Wrap(err)
-		}
-
-		participants = append(participants, auth.SessionAccessContext{
-			Username: party.Ctx.User.GetName(),
-			Roles:    roles,
-			Mode:     party.Mode,
-		})
-	}
-
-	return false, auth.PolicyOptions{}, nil
 }
 
 // Close terminates a session and disconnects all participants.
