@@ -84,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auditd"
@@ -91,7 +92,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/authz"
@@ -2041,6 +2044,7 @@ func (process *TeleportProcess) initAuthExternalAuditLog(auditConfig types.Clust
 func (process *TeleportProcess) initAuthService() error {
 	var err error
 	cfg := process.Config
+	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id))
 
 	// Initialize the storage back-ends for keys, events and records
 	b, err := process.initAuthStorage()
@@ -2049,10 +2053,76 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	process.backend = b
 
+	clusterName := cfg.Auth.ClusterName.GetClusterName()
+	ident, err := process.storage.ReadIdentity(state.IdentityCurrent, types.RoleAdmin)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if ident != nil {
+		clusterName = ident.ClusterName
+	}
+
+	cn, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: clusterName,
+	})
+
+	if cfg.ClusterConfiguration == nil {
+		clusterConfig, err := local.NewClusterConfigurationService(b)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.ClusterConfiguration = clusterConfig
+	}
+
+	// create keystore
+	keystoreOpts := &keystore.Options{
+		HostUUID:             cfg.HostUUID,
+		ClusterName:          cn,
+		AuthPreferenceGetter: cfg.ClusterConfiguration,
+		FIPS:                 cfg.FIPS,
+	}
+
+	switch {
+	case cfg.Auth.KeyStore.PKCS11 != servicecfg.PKCS11Config{}:
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+			return trace.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
+		}
+	case cfg.Auth.KeyStore.GCPKMS != servicecfg.GCPKMSConfig{}:
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+			return trace.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
+		}
+	case cfg.Auth.KeyStore.AWSKMS != nil:
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+			return trace.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
+		}
+	}
+
+	keyStore, err := keystore.NewManager(context.Background(), &cfg.Auth.KeyStore, keystoreOpts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	localRecordingEncryption, err := local.NewRecordingEncryptionService(b)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	recordingEncryptionManager, err := recordingencryption.NewManager(recordingencryption.ManagerConfig{
+		Backend:  localRecordingEncryption,
+		Cache:    localRecordingEncryption,
+		KeyStore: keyStore,
+		Logger:   logger,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cfg.ClusterConfiguration = recordingencryption.NewClusterConfigService(cfg.ClusterConfiguration, recordingEncryptionManager)
 	var emitter apievents.Emitter
 	var streamer events.Streamer
 	var uploadHandler events.MultipartHandler
 	var externalAuditStorage *externalauditstorage.Configurator
+	encryptedIO := recordingencryption.NewEncryptedIO(cfg.ClusterConfiguration, recordingEncryptionManager)
 
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
@@ -2091,7 +2161,8 @@ func (process *TeleportProcess) initAuthService() error {
 			}
 		}
 		streamer, err = events.NewProtoStreamer(events.ProtoStreamerConfig{
-			Uploader: uploadHandler,
+			Uploader:  uploadHandler,
+			Encrypter: encryptedIO,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2112,6 +2183,7 @@ func (process *TeleportProcess) initAuthService() error {
 			ServerID:      cfg.HostUUID,
 			UploadHandler: uploadHandler,
 			ExternalLog:   externalLog,
+			Decrypter:     encryptedIO,
 		}
 		auditServiceConfig.UID, auditServiceConfig.GID, err = adminCreds()
 		if err != nil {
@@ -2131,15 +2203,6 @@ func (process *TeleportProcess) initAuthService() error {
 		} else {
 			emitter = localLog
 		}
-	}
-
-	clusterName := cfg.Auth.ClusterName.GetClusterName()
-	ident, err := process.storage.ReadIdentity(state.IdentityCurrent, types.RoleAdmin)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	if ident != nil {
-		clusterName = ident.ClusterName
 	}
 
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
@@ -2166,15 +2229,10 @@ func (process *TeleportProcess) initAuthService() error {
 
 		traceClt = clt
 	}
-
-	cn, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: clusterName,
-	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id))
 	// Environment variable for disabling the check major version upgrade check and overrides
 	// latest known version in backend.
 	skipVersionCheckFromEnv := os.Getenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK") != ""
@@ -2214,7 +2272,7 @@ func (process *TeleportProcess) initAuthService() error {
 			OIDCConnectors:          cfg.OIDCConnectors,
 			AuditLog:                process.auditLog,
 			CipherSuites:            cfg.CipherSuites,
-			KeyStoreConfig:          cfg.Auth.KeyStore,
+			KeyStore:                keyStore,
 			Emitter:                 checkingEmitter,
 			Streamer:                events.NewReportingStreamer(streamer, process.Config.Testing.UploadEventsC),
 			TraceClient:             traceClt,
@@ -2223,6 +2281,7 @@ func (process *TeleportProcess) initAuthService() error {
 			AccessMonitoringEnabled: cfg.Auth.IsAccessMonitoringEnabled(),
 			Clock:                   cfg.Clock,
 			HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
+			RecordingEncryption:     recordingEncryptionManager,
 			Tracer:                  process.TracingProvider.Tracer(teleport.ComponentAuth),
 			Logger:                  logger,
 		}, func(as *auth.Server) error {
@@ -2599,6 +2658,28 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	})
 
+	recordingEncryptionWatchCfg := recordingencryption.WatchConfig{
+		Events:        authServer,
+		Resolver:      authServer,
+		ClusterConfig: authServer,
+		LockConfig: &backend.RunWhileLockedConfig{
+			LockConfiguration: backend.LockConfiguration{
+				Backend:            b,
+				LockNameComponents: []string{"resolve_recording_encryption"},
+				TTL:                30 * time.Second,
+			},
+			RefreshLockInterval: 20 * time.Second,
+		},
+	}
+
+	recordingEncryptionWatcher, err := recordingencryption.NewWatcher(recordingEncryptionWatchCfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	process.RegisterFunc("auth.recording_encryption_resolver", func() error {
+		return trace.Wrap(recordingEncryptionWatcher.Run(process.GracefulExitContext()))
+	})
+
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown
@@ -2704,6 +2785,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.PluginStaticCredentials = services.PluginStaticCredentials
 	cfg.GitServers = services.GitServers
 	cfg.HealthCheckConfig = services.HealthCheckConfig
+	cfg.RecordingEncryption = services.RecordingEncryptionManager
 
 	return accesspoint.NewCache(cfg)
 }

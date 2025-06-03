@@ -108,7 +108,8 @@ func TestProtoStreamer(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, part := range parts {
-				reader := events.NewProtoReader(bytes.NewReader(part))
+				reader, err := events.NewProtoReader(bytes.NewReader(part), nil)
+				require.NoError(t, err)
 				out, err := reader.ReadAll(ctx)
 				require.NoError(t, err, "part crash %#v", part)
 				outEvents = append(outEvents, out...)
@@ -256,7 +257,8 @@ func TestExport(t *testing.T) {
 		_, err := f.Write(part)
 		require.NoError(t, err)
 	}
-	reader := events.NewProtoReader(io.MultiReader(readers...))
+	reader, err := events.NewProtoReader(io.MultiReader(readers...), nil)
+	require.NoError(t, err)
 	outEvents, err := reader.ReadAll(ctx)
 	require.NoError(t, err)
 
