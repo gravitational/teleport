@@ -1,11 +1,13 @@
 package collections
 
 import (
+	"io"
+
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
-	"github.com/gravitational/trace"
-	"io"
 )
 
 type oktaImportRuleCollection struct {

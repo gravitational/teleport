@@ -1,11 +1,13 @@
 package collections
 
 import (
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/trace"
 	"io"
 	"time"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/asciitable"
 )
 
 type semaphoreCollection struct {

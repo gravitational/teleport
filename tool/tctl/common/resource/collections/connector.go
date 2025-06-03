@@ -1,11 +1,13 @@
 package collections
 
 import (
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/trace"
 	"io"
 	"strings"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/asciitable"
 )
 
 func NewOIDCCollection(connectors []types.OIDCConnector) ResourceCollection {
@@ -83,19 +85,7 @@ func (c *githubCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-func NewConnectorsCollection(oidcColl, samlColl, githubColl ResourceCollection) (ResourceCollection, error) {
-	oidc, ok := oidcColl.(*oidcCollection)
-	if !ok {
-		return nil, trace.BadParameter("expected oidc collection, got %T", oidcColl)
-	}
-	saml, ok := samlColl.(*samlCollection)
-	if !ok {
-		return nil, trace.BadParameter("expected saml collection, got %T", samlColl)
-	}
-	github, ok := githubColl.(*githubCollection)
-	if !ok {
-		return nil, trace.BadParameter("expected github collection, got %T", githubColl)
-	}
+func NewConnectorsCollection(oidc, saml, github ResourceCollection) (ResourceCollection, error) {
 	return &connectorsCollection{
 		oidc:   oidc,
 		saml:   saml,
@@ -104,9 +94,9 @@ func NewConnectorsCollection(oidcColl, samlColl, githubColl ResourceCollection) 
 }
 
 type connectorsCollection struct {
-	oidc   *oidcCollection
-	saml   *samlCollection
-	github *githubCollection
+	oidc   ResourceCollection
+	saml   ResourceCollection
+	github ResourceCollection
 }
 
 func (c *connectorsCollection) Resources() (r []types.Resource) {

@@ -20,10 +20,11 @@ package collections
 
 import (
 	"fmt"
-	"github.com/gravitational/trace"
 	"io"
 	"slices"
 	"strings"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"

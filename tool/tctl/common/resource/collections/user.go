@@ -2,9 +2,10 @@ package collections
 
 import (
 	"fmt"
+	"io"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"io"
 )
 
 type userCollection struct {

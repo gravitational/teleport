@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 	"os"
 	"path/filepath"
 	"testing"
@@ -39,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types/healthcheckconfig"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
 func testCreateHealthCheckConfig(t *testing.T, clt *authclient.Client) {

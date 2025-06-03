@@ -2,14 +2,16 @@ package collections
 
 import (
 	"fmt"
+	"io"
+	"strconv"
+
+	"github.com/gravitational/trace"
+
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/tool/common"
-	"github.com/gravitational/trace"
-	"io"
-	"strconv"
 )
 
 type staticHostUserCollection struct {

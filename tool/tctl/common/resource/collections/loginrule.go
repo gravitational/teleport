@@ -1,13 +1,15 @@
 package collections
 
 import (
+	"io"
+	"strconv"
+
+	"github.com/gravitational/trace"
+
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
-	"github.com/gravitational/trace"
-	"io"
-	"strconv"
 )
 
 type loginRuleCollection struct {

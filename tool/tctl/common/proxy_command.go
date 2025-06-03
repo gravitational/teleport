@@ -20,7 +20,6 @@ package common
 
 import (
 	"context"
-	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -31,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
 // ProxyCommand returns information about connected proxies

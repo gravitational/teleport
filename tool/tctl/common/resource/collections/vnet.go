@@ -1,12 +1,14 @@
 package collections
 
 import (
+	"io"
+	"strings"
+
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/trace"
-	"io"
-	"strings"
 )
 
 type vnetConfigCollection struct {

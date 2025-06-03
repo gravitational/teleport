@@ -1,12 +1,14 @@
 package collections
 
 import (
+	"io"
+	"strings"
+
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/trace"
-	"io"
-	"strings"
 )
 
 type roleCollection struct {

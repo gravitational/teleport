@@ -2,11 +2,13 @@ package collections
 
 import (
 	"fmt"
+	"io"
+
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/trace"
-	"io"
 )
 
 func NewAuthorityCollection(cas []types.CertAuthority) ResourceCollection {
