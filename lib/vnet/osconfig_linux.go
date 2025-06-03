@@ -14,34 +14,17 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin && !windows && !linux
-
 package vnet
 
 import (
 	"context"
-	"runtime"
-
-	"github.com/gravitational/trace"
 )
-
-// ErrVnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
-var ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
-
-func (*UserProcess) runPlatformUserProcess(_ context.Context) error {
-	return trace.Wrap(ErrVnetNotImplemented)
-}
 
 type platformOSConfigState struct{}
 
-func platformConfigureOS(_ context.Context, _ *osConfig, _ *platformOSConfigState) error {
-	return trace.Wrap(ErrVnetNotImplemented)
+// platformConfigureOS configures the host OS according to cfg. It is safe to
+// call repeatedly, and it is meant to be called with an empty osConfig to
+// deconfigure anything necessary before exiting.
+func platformConfigureOS(ctx context.Context, cfg *osConfig, _ *platformOSConfigState) error {
+	return nil
 }
-
-// Satisfy unused linter.
-var (
-	_ = newOSConfigurator
-	_ = (*osConfigurator).runOSConfigurationLoop
-	_ = runCommand
-	_ = newNetworkStackConfig
-)
