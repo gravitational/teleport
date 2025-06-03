@@ -20,6 +20,7 @@ package webauthntypes
 
 import (
 	"encoding/base64"
+	"fmt"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
@@ -49,6 +50,7 @@ func CredentialAssertionToProto(assertion *CredentialAssertion) *wanpb.Credentia
 // its proto counterpart.
 func CredentialAssertionResponseToProto(car *CredentialAssertionResponse) *wanpb.CredentialAssertionResponse {
 	if car == nil {
+		fmt.Printf("Woot\n")
 		return nil
 	}
 	return &wanpb.CredentialAssertionResponse{

@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"path"
 	"reflect"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -387,8 +386,6 @@ type session struct {
 
 	tracker *srv.SessionTracker
 
-	accessEvaluator auth.SessionAccessEvaluator
-
 	recorder events.SessionPreparerRecorder
 
 	emitter apievents.Emitter
@@ -452,7 +449,6 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	}
 
 	q := req.URL.Query()
-	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
 
 	io := srv.NewTermManager()
 	streamContext, streamContextCancel := context.WithCancel(forwarder.ctx)
@@ -460,19 +456,19 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	podName := params.ByName("podName")
 	container := q.Get("container")
 	s := &session{
-		podName:                        podName,
-		podNamespace:                   namespace,
-		container:                      container,
-		ctx:                            ctx,
-		forwarder:                      forwarder,
-		req:                            req,
-		params:                         params,
-		id:                             id,
-		parties:                        make(map[uuid.UUID]*party),
-		partiesHistorical:              make(map[uuid.UUID]*party),
-		log:                            log,
-		io:                             io,
-		accessEvaluator:                accessEvaluator,
+		podName:           podName,
+		podNamespace:      namespace,
+		container:         container,
+		ctx:               ctx,
+		forwarder:         forwarder,
+		req:               req,
+		params:            params,
+		id:                id,
+		parties:           make(map[uuid.UUID]*party),
+		partiesHistorical: make(map[uuid.UUID]*party),
+		log:               log,
+		io:                io,
+
 		terminalSizeQueue:              newMultiResizeQueue(streamContext),
 		started:                        false,
 		sess:                           sess,
@@ -972,19 +968,6 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 
 // join attempts to connect a party to the session.
 func (s *session) join(p *party, emitJoinEvent bool) error {
-	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
-		roles := p.Ctx.Checker.Roles()
-
-		accessContext := auth.SessionAccessContext{
-			Username: p.Ctx.User.GetName(),
-			Roles:    roles,
-		}
-
-		modes := s.accessEvaluator.CanJoin(accessContext)
-		if !slices.Contains(modes, p.Mode) {
-			return trace.AccessDenied("insufficient permissions to join session")
-		}
-	}
 
 	if s.tracker.GetState() == types.SessionState_SessionStateTerminated {
 		return trace.AccessDenied("The requested session is not active")
@@ -1109,11 +1092,8 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 		} else if len(s.parties) == 1 {
 			const base = "Waiting for required participants..."
 
-			if s.displayParticipantRequirements {
-				s.BroadcastMessage(base+"\r\n%v", s.accessEvaluator.PrettyRequirementsList())
-			} else {
-				s.BroadcastMessage(base)
-			}
+			s.BroadcastMessage(base)
+
 		}
 	} else if canStart && s.tracker.GetState() == types.SessionState_SessionStatePending {
 		// If the session is already running, but the party is a moderator that left
@@ -1174,9 +1154,6 @@ func (s *session) createEphemeralContainer() (*corev1.ContainerStatus, error) {
 }
 
 func (s *session) BroadcastMessage(format string, args ...any) {
-	if s.accessEvaluator.IsModerated() {
-		s.io.BroadcastMessage(fmt.Sprintf(format, args...))
-	}
 }
 
 // emitSessionJoinEvent emits a session.join audit event when a user joins
@@ -1349,8 +1326,7 @@ func (s *session) canStart() (bool, auth.PolicyOptions, error) {
 		})
 	}
 
-	yes, options, err := s.accessEvaluator.FulfilledFor(participants)
-	return yes, options, trace.Wrap(err)
+	return false, auth.PolicyOptions{}, nil
 }
 
 // Close terminates a session and disconnects all participants.
@@ -1438,11 +1414,11 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, sessionTrackerService)
 	switch {
 	// there was an error creating the tracker for a moderated session - terminate the session
-	case err != nil && s.accessEvaluator.IsModerated():
+	case err != nil && false:
 		s.log.WarnContext(ctx, "Failed to create session tracker, unable to proceed for moderated session", "error", err)
 		return trace.Wrap(err)
 	// there was an error creating the tracker for a non-moderated session - permit the session with a local tracker
-	case err != nil && !s.accessEvaluator.IsModerated():
+	case err != nil && true:
 		s.log.WarnContext(ctx, "Failed to create session tracker, proceeding with local session tracker for non-moderated session")
 
 		localTracker, err := srv.NewSessionTracker(ctx, trackerSpec, nil)

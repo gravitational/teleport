@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"log/slog"
 	"maps"
 	"net"
@@ -68,7 +69,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -188,7 +188,6 @@ func (f ClusterFeaturesGetter) GetEntitlement(e entitlements.EntitlementKind) mo
 	if !ok {
 		return modules.EntitlementInfo{}
 	}
-
 	return modules.EntitlementInfo{
 		Enabled: al.Enabled,
 		Limit:   al.Limit,
@@ -298,6 +297,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	log.Printf("Wolrd!")
 
 	closeCtx, close := context.WithCancel(cfg.Context)
 	fwd := &Forwarder{
@@ -1313,7 +1313,7 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 		return nil, trace.Wrap(err)
 	}
 	netDialer := sess.DialWithContext(withTargetHostID(hostID))
-	tlsConfig, impersonationHeaders, err := f.getTLSConfig(sess)
+	tlsConfig, _, err := f.getTLSConfig(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1323,11 +1323,6 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 	}
 
 	headers := http.Header{}
-	if impersonationHeaders {
-		if headers, err = auth.IdentityForwardingHeaders(req.Context(), headers); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 
 	url := "wss://" + req.URL.Host
 	if req.URL.Port() != "" {
@@ -1596,14 +1591,15 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 // canStartSessionAlone returns true if the user associated with authCtx
 // is allowed to start a session without moderation.
 func (f *Forwarder) canStartSessionAlone(authCtx *authContext) (bool, error) {
-	policySets := authCtx.Checker.SessionPolicySets()
-	authorizer := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, authCtx.User.GetName())
-	canStart, _, err := authorizer.FulfilledFor(nil)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
+	//policySets := authCtx.Checker.SessionPolicySets()
+	//authorizer := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, authCtx.User.GetName())
+	// canStart, _, err := authorizer.FulfilledFor(nil)
+	// if err != nil {
+	// 	return false, trace.Wrap(err)
+	// }
 
-	return canStart, nil
+	// return canStart, nil
+	return false, nil
 }
 
 func exitCode(err error) (errMsg, code string) {

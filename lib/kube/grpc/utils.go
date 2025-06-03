@@ -19,21 +19,15 @@
 package kubev1
 
 import (
-	"crypto/tls"
 	"net"
-	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/gravitational/trace"
-	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // getWebAddrAndKubeSNI returns the address of the web server that is running on this
@@ -70,31 +64,8 @@ func getWebAddrAndKubeSNI(proxyAddr string) (string, string, error) {
 func (s *Server) buildKubeClient() (kubernetes.Interface, error) {
 	const idleConnsPerHost = 25
 
-	tlsConfig := utils.TLSConfig(s.cfg.ConnTLSCipherSuites)
-	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-		tlsCert, err := s.cfg.GetConnTLSCertificate()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return tlsCert, nil
-	}
-	tlsConfig.InsecureSkipVerify = true
-	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(s.cfg.GetConnTLSRoots)
-	tlsConfig.ServerName = s.kubeProxySNI
-
-	transport := utilnet.SetTransportDefaults(&http.Transport{
-		TLSHandshakeTimeout: 10 * time.Second,
-		TLSClientConfig:     tlsConfig,
-		MaxIdleConnsPerHost: idleConnsPerHost,
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-	})
-
 	cfg := &rest.Config{
-		Host:      s.proxyAddress,
-		Transport: auth.NewImpersonatorRoundTripper(transport),
+		Host: s.proxyAddress,
 	}
 	kubeClient, err := kubernetes.NewForConfig(cfg)
 	return kubeClient, trace.Wrap(err)

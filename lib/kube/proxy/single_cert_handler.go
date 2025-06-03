@@ -140,7 +140,6 @@ func (f *Forwarder) singleCertHandler() httprouter.Handle {
 		//   request is rewritten.
 		// - If the route resolves to a remote node, the identity is encoded (in
 		//   JSON form) into forwarding headers using
-		//   `auth.IdentityForwardingHeaders`. The destination node's auth
 		//   middleware is configured to extract this identity (due to
 		//   EnableCredentialsForwarding) and implicitly trusts this routing
 		//   data, assuming the request originated from a proxy.

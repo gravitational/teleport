@@ -42,7 +42,6 @@ import (
 	"k8s.io/apimachinery/third_party/forked/golang/netutil"
 
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib/auth"
 )
 
 // SpdyRoundTripper knows how to upgrade an HTTP request to one that supports
@@ -218,14 +217,6 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		rawResponse []byte
 		err         error
 	)
-
-	// If we're using identity forwarding, we need to add the impersonation
-	// headers to the request before we send the request.
-	if s.useIdentityForwarding {
-		if header, err = auth.IdentityForwardingHeaders(s.ctx, header); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 
 	clone := utilnet.CloneRequest(req)
 	clone.Header = header
