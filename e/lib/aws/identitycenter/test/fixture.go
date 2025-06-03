@@ -516,9 +516,8 @@ func CreateAWSOIDCIntegration(t *testing.T, ctx context.Context, authClient auth
 	awsOIDCIg, err := types.NewIntegrationAWSOIDC(
 		types.Metadata{Name: name},
 		&types.AWSOIDCIntegrationSpecV1{
-			RoleARN:     "arn:aws:iam::123456789012:role/DevTeams",
-			IssuerS3URI: "s3://my-bucket/my-prefix",
-			Audience:    commontypes.OriginAWSIdentityCenter,
+			RoleARN:  "arn:aws:iam::123456789012:role/DevTeams",
+			Audience: commontypes.OriginAWSIdentityCenter,
 		},
 	)
 	require.NoError(t, err)
