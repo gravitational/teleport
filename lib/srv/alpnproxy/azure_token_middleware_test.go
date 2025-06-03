@@ -48,8 +48,8 @@ func TestAzureTokenMiddlewareHandleRequest(t *testing.T) {
 			resourceFieldName string
 			secret            func(string) azureRequestModifier
 		}{
-			{name: "msi", endpoint: types.TeleportAzureMSIEndpoint, resourceFieldName: "msi_res_id", secret: msiSecretModifier},
-			{name: "identity", endpoint: types.TeleportAzureIdentityEndpoint, resourceFieldName: "mi_res_id", secret: identitySecretModifier},
+			{name: "msi", endpoint: types.TeleportAzureMSIEndpoint, resourceFieldName: MSIResourceFieldName, secret: msiSecretModifier},
+			{name: "identity", endpoint: types.TeleportAzureIdentityEndpoint, resourceFieldName: IdentityResourceFieldName, secret: identitySecretModifier},
 		} {
 			t.Run(alg.String()+"_"+endpoint.name, func(t *testing.T) {
 				testAzureTokenMiddlewareHandleRequest(t, alg, endpoint.endpoint, endpoint.secret, endpoint.resourceFieldName)
@@ -323,7 +323,7 @@ func msiSecretModifier(secret string) azureRequestModifier {
 
 func identitySecretModifier(secret string) azureRequestModifier {
 	return func(req *http.Request) {
-		req.Header.Add("X-IDENTITY-HEADER", secret)
+		req.Header.Add(IdentitySecretHeader, secret)
 	}
 }
 

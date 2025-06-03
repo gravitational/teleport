@@ -88,16 +88,22 @@ func (m *AzureTokenMiddleware) CheckAndSetDefaults() error {
 }
 
 func (m *AzureTokenMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request) bool {
-	isIdentityEndpointRequest := req.Host == types.TeleportAzureIdentityEndpoint
-	if req.Host == types.TeleportAzureMSIEndpoint || isIdentityEndpointRequest {
-		if err := m.handleEndpoint(rw, req, isIdentityEndpointRequest); err != nil {
-			m.Log.WarnContext(req.Context(), "Bad token request", "error", err)
-			trace.WriteError(rw, trace.Wrap(err))
-		}
-		return true
+	var err error
+	switch req.Host {
+	case types.TeleportAzureMSIEndpoint:
+		err = m.handleEndpoint(rw, req, MSIResourceFieldName, strings.TrimPrefix(req.URL.Path, "/"))
+	case types.TeleportAzureIdentityEndpoint:
+		err = m.handleEndpoint(rw, req, IdentityResourceFieldName, req.Header.Get(IdentitySecretHeader))
+	default:
+		m.Log.DebugContext(req.Context(), "Unsupported token host", "host", req.Host)
+		return false
+	}
+	if err != nil {
+		m.Log.WarnContext(req.Context(), "Bad token request", "error", err)
+		trace.WriteError(rw, trace.Wrap(err))
 	}
 
-	return false
+	return true
 }
 
 // SetPrivateKey updates the private key.
@@ -116,15 +122,8 @@ func (m *AzureTokenMiddleware) getPrivateKey() (crypto.Signer, error) {
 	return m.privateKey, nil
 }
 
-func (m *AzureTokenMiddleware) handleEndpoint(rw http.ResponseWriter, req *http.Request, identityRequest bool) error {
-	secret := strings.TrimPrefix(req.URL.Path, "/")
-	resourceFieldName := "msi_res_id"
-	if identityRequest {
-		// https://learn.microsoft.com/en-us/azure/app-service/overview-managed-identity?tabs=portal%2Chttp#rest-endpoint-reference
-		resourceFieldName = "mi_res_id"
-		secret = req.Header.Get("X-IDENTITY-HEADER")
-	}
-
+// handleEndpoint handles the Azure identity token generation.
+func (m *AzureTokenMiddleware) handleEndpoint(rw http.ResponseWriter, req *http.Request, resourceFieldName string, secret string) error {
 	// request validation
 	if secret != m.Secret {
 		return trace.BadParameter("invalid secret")
@@ -223,3 +222,19 @@ func (m *AzureTokenMiddleware) toJWT(claims jwt.AzureTokenClaims) (string, error
 
 	return token, nil
 }
+
+const (
+	// IdentitySecretHeader is the HTTP header that contains the identity
+	// secret on App Service identity requests.
+	//
+	// https://learn.microsoft.com/en-us/azure/app-service/overview-managed-identity?tabs=portal%2Chttp#rest-endpoint-reference
+	IdentitySecretHeader = "X-IDENTITY-HEADER"
+	// IdentityResourceFieldName is the request field name that contains the
+	// Azure identity on App Service identity requests.
+	//
+	// https://learn.microsoft.com/en-us/azure/app-service/overview-managed-identity?tabs=portal%2Chttp#rest-endpoint-reference
+	IdentityResourceFieldName = "mi_res_id"
+	// MSIResourceFieldName is the request field name that contains the Azure
+	// Identity on MSI identity requests.
+	MSIResourceFieldName = "msi_res_id"
+)

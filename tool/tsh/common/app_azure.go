@@ -48,6 +48,16 @@ import (
 
 const (
 	azureCLIBinaryName = "az"
+
+	// msiEndpointEnvVarName defines the name of environment variable that
+	// contains the MSI endpoint value.
+	msiEndpointEnvVarName = "MSI_ENDPOINT"
+	// identityEndpointEnvVarName defines the name of environment variable that
+	// contains the App Service Identity endpoint value.
+	identityEndpointEnvVarName = "IDENTITY_ENDPOINT"
+	// identityHeaderEnvVarName defines the name of environment variable that
+	// contains the App Service Identity secret value.
+	identityHeaderEnvVarName = "IDENTITY_HEADER"
 )
 
 var (
@@ -132,11 +142,15 @@ func newAzureApp(tc *client.TeleportClient, cf *CLIConf, appInfo *appInfo) (*azu
 // getAzureTokenSecret will try to find the secret from the environment.
 // If not found it will return random hex string.
 func getAzureTokenSecret() (string, error) {
-	if identityHeader := os.Getenv("IDENTITY_HEADER"); identityHeader != "" {
-		return identityHeader, nil
+	if secret, err := getAzureIdentitySecretToken(); !trace.IsNotFound(err) {
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		return secret, nil
 	}
 
-	endpoint := os.Getenv("MSI_ENDPOINT")
+	endpoint := os.Getenv(msiEndpointEnvVarName)
 	if endpoint == "" {
 		randomHex, err := utils.CryptoRandomHex(10)
 		if err != nil {
@@ -147,13 +161,33 @@ func getAzureTokenSecret() (string, error) {
 
 	expectedPrefix := "https://" + types.TeleportAzureMSIEndpoint + "/"
 	if !strings.HasPrefix(endpoint, expectedPrefix) {
-		return "", trace.BadParameter("MSI_ENDPOINT not empty, but doesn't start with %q as expected", expectedPrefix)
+		return "", trace.BadParameter("%q environment variable not empty, but doesn't start with %q as expected", msiEndpointEnvVarName, expectedPrefix)
 	}
 
 	secret := strings.TrimPrefix(endpoint, expectedPrefix)
 	if secret == "" {
 		return "", trace.BadParameter("MSI secret cannot be empty")
 	}
+	return secret, nil
+}
+
+// getAzureIdentitySecretToken returns the secret token for App Service Identity.
+func getAzureIdentitySecretToken() (string, error) {
+	endpoint := os.Getenv(identityEndpointEnvVarName)
+	secret := os.Getenv(identityHeaderEnvVarName)
+	if endpoint == "" && secret == "" {
+		return "", trace.NotFound("App Service Identity environment variables not provided")
+	}
+
+	if endpoint == "" || secret == "" {
+		return "", trace.BadParameter("%q and %q environment variables should be provided when using App Service Identity", identityEndpointEnvVarName, identityHeaderEnvVarName)
+	}
+
+	expectedPrefix := "https://" + types.TeleportAzureIdentityEndpoint
+	if !strings.HasPrefix(endpoint, expectedPrefix) {
+		return "", trace.BadParameter("%s not empty, but doesn't start with %q as expected", identityEndpointEnvVarName, expectedPrefix)
+	}
+
 	return secret, nil
 }
 
@@ -215,18 +249,19 @@ func (a *azureApp) GetEnvVars() (map[string]string, error) {
 	}
 
 	if a.usingMSAL() {
-		// Setting INDENTITY_ENDPOINT and IDENTITY_HEADER instructs Azure CLI to
-		// make managed identity calls on this address. The requests will be
-		// handled by tsh proxy.
-		// This is only required when Azure CLI defaults to using MSAL.
+		// Setting App service Identity environment variables instructs Azure
+		// CLI to make managed identity calls on this address. The requests will
+		// be handled by tsh proxy. This is only required when Azure CLI
+		// defaults to using MSAL.
 		//
 		// https://learn.microsoft.com/en-us/azure/app-service/overview-managed-identity?tabs=portal%2Chttp#rest-endpoint-reference
-		envVars["IDENTITY_ENDPOINT"] = "https://" + types.TeleportAzureIdentityEndpoint
-		envVars["IDENTITY_HEADER"] = a.tokenSecret
+		envVars[identityEndpointEnvVarName] = "https://" + types.TeleportAzureIdentityEndpoint
+		envVars[identityHeaderEnvVarName] = a.tokenSecret
 	} else {
-		// Setting MSI_ENDPOINT instructs Azure CLI to make managed identity calls on this address.
-		// the requests will be handled by tsh proxy.
-		envVars["MSI_ENDPOINT"] = "https://" + types.TeleportAzureMSIEndpoint + "/" + a.tokenSecret
+		// Setting MSI environment variable instructs Azure CLI to make managed
+		// identity calls on this address. The requests will be handled by tsh
+		// proxy.
+		envVars[msiEndpointEnvVarName] = "https://" + types.TeleportAzureMSIEndpoint + "/" + a.tokenSecret
 	}
 
 	// Set proxy settings.
@@ -264,8 +299,8 @@ func (a *azureApp) RunCommand(cmd *exec.Cmd) error {
 func (a *azureApp) usingMSAL() bool {
 	ver, err := a.fetchCLIVersion()
 	if err != nil {
-		logger.WarnContext(a.cf.Context, "Unable to determine Azure CLI version", "error", err)
-		return false
+		logger.WarnContext(a.cf.Context, "Unable to determine Azure CLI version. Assuming MSAL will be used.", "error", err)
+		return true
 	}
 
 	logger.DebugContext(a.cf.Context, "Azure CLI version", "version", ver)

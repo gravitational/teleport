@@ -130,7 +130,7 @@ func TestAzure(t *testing.T) {
 		t.Run("With"+name, func(t *testing.T) {
 			handleAzVersion := func(cmd *exec.Cmd) bool {
 				if len(cmd.Args) > 0 && cmd.Args[1] == "version" {
-					fmt.Fprintf(cmd.Stdout, `{"azure-cli-core": "%s"}`, tc.cliVersion.String())
+					fmt.Fprintf(cmd.Stdout, `{ "azure-cli": "%s", "azure-cli-core": "%s", "azure-cli-telemetry": "1.1.0", "extensions": {} }`, tc.cliVersion.String(), tc.cliVersion.String())
 					return true
 				}
 				return false
@@ -403,16 +403,17 @@ func Test_getAzureIdentityFromFlags(t *testing.T) {
 
 func Test_getAzureTokenSecret(t *testing.T) {
 	tests := []struct {
-		name           string
-		env            string
-		identityHeader string
-		want           string
-		wantFunc       func(t require.TestingT, result string)
-		wantErr        require.ErrorAssertionFunc
+		name             string
+		msiEndpoint      string
+		identityHeader   string
+		identityEndpoint string
+		want             string
+		wantFunc         func(t require.TestingT, result string)
+		wantErr          require.ErrorAssertionFunc
 	}{
 		{
-			name: "no env",
-			env:  "",
+			name:        "no env",
+			msiEndpoint: "",
 			wantFunc: func(t require.TestingT, result string) {
 				bytes, err := hex.DecodeString(result)
 				require.NoError(t, err)
@@ -422,48 +423,55 @@ func Test_getAzureTokenSecret(t *testing.T) {
 			wantErr: require.NoError,
 		},
 		{
-			name:    "MSI_ENDPOINT with secret",
-			env:     "https://azure-msi.teleport.dev/mysecret",
-			want:    "mysecret",
-			wantErr: require.NoError,
+			name:        "MSI_ENDPOINT with secret",
+			msiEndpoint: "https://" + types.TeleportAzureMSIEndpoint + "/mysecret",
+			want:        "mysecret",
+			wantErr:     require.NoError,
 		},
 		{
-			name: "MSI_ENDPOINT with invalid prefix",
-			env:  "dummy",
+			name:        "MSI_ENDPOINT with invalid prefix",
+			msiEndpoint: "dummy",
 			wantErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, `MSI_ENDPOINT not empty, but doesn't start with "https://azure-msi.teleport.dev/" as expected`)
+				require.ErrorContains(t, err, `"MSI_ENDPOINT" environment variable not empty, but doesn't start with "https://azure-msi.teleport.dev/" as expected`)
 			},
 		},
 		{
-			name: "MSI_ENDPOINT without secret",
-			env:  "https://azure-msi.teleport.dev/",
+			name:        "MSI_ENDPOINT without secret",
+			msiEndpoint: "https://" + types.TeleportAzureMSIEndpoint + "/",
 			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "MSI secret cannot be empty")
 			},
 		},
 		{
-			name:           "IDENTITY_HEADER present",
-			identityHeader: "secret",
-			want:           "secret",
+			name:             "IDENTITY_HEADER and IDENTITY_ENDPOINT present",
+			identityHeader:   "secret",
+			identityEndpoint: "https://" + types.TeleportAzureIdentityEndpoint,
+			want:             "secret",
+			wantErr:          require.NoError,
 		},
 		{
-			name:           "IDENTITY_HEADER and MSI_ENDPOINT present, identity takes precedence",
+			name:           "IDENTITY_HEADER present without endpoint",
 			identityHeader: "secret",
-			env:            "https://azure-msi.teleport.dev/different-secret",
-			want:           "secret",
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, `IDENTITY_HEADER`)
+			},
+		},
+		{
+			name:             "Identity and MSI present, identity takes precedence",
+			identityHeader:   "secret",
+			identityEndpoint: "https://" + types.TeleportAzureIdentityEndpoint,
+			msiEndpoint:      "https://azure-msi.teleport.dev/different-secret",
+			want:             "secret",
+			wantErr:          require.NoError,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("MSI_ENDPOINT", tt.env)
-			t.Setenv("IDENTITY_HEADER", tt.identityHeader)
+			t.Setenv(msiEndpointEnvVarName, tt.msiEndpoint)
+			t.Setenv(identityHeaderEnvVarName, tt.identityHeader)
+			t.Setenv(identityEndpointEnvVarName, tt.identityEndpoint)
 			result, err := getAzureTokenSecret()
-			if tt.identityHeader != "" {
-				require.NoError(t, err)
-				require.Equal(t, tt.want, result)
-				return
-			}
 			tt.wantErr(t, err)
 			if tt.wantFunc != nil {
 				tt.wantFunc(t, result)
