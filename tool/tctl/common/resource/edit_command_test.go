@@ -16,10 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package resource
 
 import (
 	"context"
+	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 	"os"
 	"testing"
 
@@ -137,8 +138,8 @@ func testEditGithubConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetClientID("abcdef")
 
-		collection := &connectorsCollection{github: []types.GithubConnector{expected}}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		collection := collections.NewGithubCollection([]types.GithubConnector{expected})
+		return trace.NewAggregate(collections.WriteYAML(collection, f), f.Close())
 
 	}
 
@@ -175,8 +176,8 @@ func testEditRole(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetLogins(types.Allow, []string{"abcdef"})
 
-		collection := &roleCollection{roles: []types.Role{expected}}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		collection := collections.NewRoleCollection([]types.Role{expected})
+		return trace.NewAggregate(collections.WriteYAML(collection, f), f.Close())
 
 	}
 
@@ -215,8 +216,8 @@ func testEditUser(t *testing.T, clt *authclient.Client) {
 		expected.SetCreatedBy(created.GetCreatedBy())
 		expected.SetWeakestDevice(created.GetWeakestDevice())
 
-		collection := &userCollection{users: []types.User{expected}}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		collection := collections.NewUserCollection([]types.User{expected})
+		return trace.NewAggregate(collections.WriteYAML(collection, f), f.Close())
 
 	}
 
@@ -253,8 +254,8 @@ func testEditClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
 		expected.SetKeepAliveCountMax(1)
 		expected.SetCaseInsensitiveRouting(true)
 
-		collection := &netConfigCollection{netConfig: expected}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		collection := collections.NewNetworkConfigCollection(expected)
+		return trace.NewAggregate(collections.WriteYAML(collection, f), f.Close())
 
 	}
 
@@ -292,8 +293,8 @@ func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(initial.GetRevision())
 		expected.SetSecondFactors(types.SecondFactorType_SECOND_FACTOR_TYPE_OTP, types.SecondFactorType_SECOND_FACTOR_TYPE_SSO)
 
-		collection := &authPrefCollection{authPref: expected}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		collection := collections.NewAuthPreferenceCollection(expected)
+		return trace.NewAggregate(collections.WriteYAML(collection, f), f.Close())
 
 	}
 
@@ -330,8 +331,8 @@ func testEditSessionRecordingConfig(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(initial.GetRevision())
 		expected.SetMode(types.RecordAtProxy)
 
-		collection := &recConfigCollection{recConfig: expected}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		collection := collections.NewRecConfigCollection(expected)
+		return trace.NewAggregate(collections.WriteYAML(collection, f), f.Close())
 
 	}
 
@@ -421,8 +422,8 @@ func testEditOIDCConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetClientID("abcdef")
 
-		collection := &connectorsCollection{oidc: []types.OIDCConnector{expected}}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		collection := collections.NewOIDCCollection([]types.OIDCConnector{expected})
+		return trace.NewAggregate(collections.WriteYAML(collection, f), f.Close())
 
 	}
 
@@ -490,8 +491,8 @@ func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetSigningKeyPair(created.GetSigningKeyPair())
 		expected.SetAssertionConsumerService("updated-acs")
 
-		collection := &connectorsCollection{saml: []types.SAMLConnector{expected}}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		collection := collections.NewSAMLCollection([]types.SAMLConnector{expected})
+		return trace.NewAggregate(collections.WriteYAML(collection, f), f.Close())
 
 	}
 
@@ -542,8 +543,8 @@ func testEditStaticHostUser(t *testing.T, clt *authclient.Client) {
 		expected.GetMetadata().Revision = created.GetMetadata().Revision
 		expected.Spec.Matchers[0].Groups = []string{"baz", "quux"}
 
-		collection := &staticHostUserCollection{items: []*userprovisioningpb.StaticHostUser{expected}}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		collection := collections.NewStaticHostUserCollection([]*userprovisioningpb.StaticHostUser{expected})
+		return trace.NewAggregate(collections.WriteYAML(collection, f), f.Close())
 	}
 
 	_, err = runEditCommand(t, clt, []string{"edit", "host_user/alice"}, withEditor(editor))
@@ -588,8 +589,8 @@ func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
 			return trace.Wrap(err, "opening file to edit")
 		}
 		expected.GetMetadata().Revision = initial.GetMetadata().GetRevision()
-		collection := &autoUpdateConfigCollection{config: expected}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		collection := collections.NewAutoUpdateConfigCollection(expected)
+		return trace.NewAggregate(collections.WriteYAML(collection, f), f.Close())
 	}
 
 	// Edit the AutoUpdateConfig resource.
@@ -630,8 +631,8 @@ func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
 			return trace.Wrap(err, "opening file to edit")
 		}
 		expected.GetMetadata().Revision = initial.GetMetadata().GetRevision()
-		collection := &autoUpdateVersionCollection{version: expected}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		collection := collections.NewAutoUpdateVersionCollection(expected)
+		return trace.NewAggregate(collections.WriteYAML(collection, f), f.Close())
 	}
 
 	// Edit the AutoUpdateVersion resource.
@@ -664,8 +665,8 @@ func testEditDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.Spec.Addr = "test2"
 
-		collection := &dynamicWindowsDesktopCollection{desktops: []types.DynamicWindowsDesktop{expected}}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		collection := collections.NewDynamicWindowsDesktopCollection([]types.DynamicWindowsDesktop{expected})
+		return trace.NewAggregate(collections.WriteYAML(collection, f), f.Close())
 	}
 
 	_, err = runEditCommand(t, clt, []string{"edit", "dynamic_windows_desktop/test"}, withEditor(editor))

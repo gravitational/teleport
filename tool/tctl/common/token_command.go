@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 	"io"
 	"log/slog"
 	"os"
@@ -447,7 +448,7 @@ func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) err
 					expdur := t.Expiry().Sub(now).Round(time.Second)
 					expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
 				}
-				table.AddRow([]string{nameFunc(t), t.GetRoles().String(), printMetadataLabels(t.GetMetadata().Labels), expiry})
+				table.AddRow([]string{nameFunc(t), t.GetRoles().String(), collections.PrintMetadataLabels(t.GetMetadata().Labels), expiry})
 			}
 			return table.AsBuffer().String()
 		}

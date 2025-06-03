@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/x509/pkix"
 	"fmt"
+	"github.com/gravitational/teleport/tool/tctl/common/resource"
 	"os"
 	"path/filepath"
 	"strings"
@@ -462,7 +463,7 @@ func (s *adminActionTestSuite) testUserGroups(t *testing.T) {
 	t.Run("tctl rm", func(t *testing.T) {
 		s.testCommand(t, ctx, adminActionTestCase{
 			command:    fmt.Sprintf("rm %v", getResourceRef(userGroup)),
-			cliCommand: &tctl.ResourceCommand{},
+			cliCommand: &resource.ResourceCommand{},
 			setup: func() error {
 				return s.authServer.CreateUserGroup(ctx, userGroup)
 			},
@@ -936,7 +937,7 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 	t.Run("tctl create", func(t *testing.T) {
 		s.testCommand(t, ctx, adminActionTestCase{
 			command:    fmt.Sprintf("create %v", f.Name()),
-			cliCommand: &tctl.ResourceCommand{},
+			cliCommand: &resource.ResourceCommand{},
 			cleanup:    tc.resourceCleanup,
 		})
 	})
@@ -944,7 +945,7 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 	t.Run("tctl create -f", func(t *testing.T) {
 		s.testCommand(t, ctx, adminActionTestCase{
 			command:    fmt.Sprintf("create -f %v", f.Name()),
-			cliCommand: &tctl.ResourceCommand{},
+			cliCommand: &resource.ResourceCommand{},
 			setup:      tc.resourceCreate,
 			cleanup:    tc.resourceCleanup,
 		})
@@ -955,7 +956,7 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 		t.Run("tctl create -f bulk", func(t *testing.T) {
 			s.testCommand(t, ctx, adminActionTestCase{
 				command:    fmt.Sprintf("create -f %v", f.Name()),
-				cliCommand: &tctl.ResourceCommand{},
+				cliCommand: &resource.ResourceCommand{},
 				setup:      tc.resourceCreate,
 				cleanup:    tc.resourceCleanup,
 			})
@@ -965,7 +966,7 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 	t.Run("tctl rm", func(t *testing.T) {
 		s.testCommand(t, ctx, adminActionTestCase{
 			command:    fmt.Sprintf("rm %v", getResourceRef(tc.resource)),
-			cliCommand: &tctl.ResourceCommand{},
+			cliCommand: &resource.ResourceCommand{},
 			setup:      tc.resourceCreate,
 			cleanup:    tc.resourceCleanup,
 		})
@@ -975,7 +976,7 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 		t.Run("tctl get", func(t *testing.T) {
 			s.testCommand(t, ctx, adminActionTestCase{
 				command:    fmt.Sprintf("get --with-secrets %v", getResourceRef(tc.resource)),
-				cliCommand: &tctl.ResourceCommand{},
+				cliCommand: &resource.ResourceCommand{},
 				setup:      tc.resourceCreate,
 				cleanup:    tc.resourceCleanup,
 			})
@@ -984,7 +985,7 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 		t.Run("tctl get many", func(t *testing.T) {
 			s.testCommand(t, ctx, adminActionTestCase{
 				command:    fmt.Sprintf("get --with-secrets %v,%v", getResourceRef(tc.resource), getResourceRef(tc.resource2)),
-				cliCommand: &tctl.ResourceCommand{},
+				cliCommand: &resource.ResourceCommand{},
 				setup:      tc.resourcesCreate,
 				cleanup:    tc.resourcesCleanup,
 			})
@@ -993,7 +994,7 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 		t.Run("tctl get all", func(t *testing.T) {
 			s.testCommand(t, ctx, adminActionTestCase{
 				command:    fmt.Sprintf("get --with-secrets %v", tc.resource.GetKind()),
-				cliCommand: &tctl.ResourceCommand{},
+				cliCommand: &resource.ResourceCommand{},
 				setup:      tc.resourcesCreate,
 				cleanup:    tc.resourcesCleanup,
 			})
@@ -1013,7 +1014,7 @@ func (s *adminActionTestSuite) testEditCommand(t *testing.T, ctx context.Context
 		s.testCommand(t, ctx, adminActionTestCase{
 			command: fmt.Sprintf("edit %v", tc.resourceRef),
 			setup:   tc.resourceCreate,
-			cliCommand: &tctl.EditCommand{
+			cliCommand: &resource.EditCommand{
 				Editor: func(filename string) error {
 					// Get the latest version of the resource with the correct revision ID.
 					resource, err := tc.resourceGet()

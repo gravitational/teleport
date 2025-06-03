@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 	"os"
 	"text/template"
 
@@ -91,16 +92,14 @@ func (c *DesktopCommand) ListDesktop(ctx context.Context, client *authclient.Cli
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	coll := windowsDesktopCollection{
-		desktops: desktops,
-	}
+	coll := collections.NewWindowsDesktopCollection(desktops)
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))
+		return trace.Wrap(coll.WriteText(os.Stdout, c.verbose))
 	case teleport.JSON:
-		return trace.Wrap(coll.writeJSON(os.Stdout))
+		return trace.Wrap(collections.WriteJSON(coll, os.Stdout))
 	case teleport.YAML:
-		return trace.Wrap(coll.writeYAML(os.Stdout))
+		return trace.Wrap(collections.WriteYAML(coll, os.Stdout))
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}

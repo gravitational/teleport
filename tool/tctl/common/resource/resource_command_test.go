@@ -16,13 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package resource
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	apicommon "github.com/gravitational/teleport/api/types/common"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,7 +48,6 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
-	apicommon "github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/entitlements"
@@ -1283,6 +1284,54 @@ func TestGetOneResourceNameToDelete(t *testing.T) {
 			require.Equal(t, test.wantName, name)
 		})
 	}
+}
+
+func mustCreateNewKubeServer(t *testing.T, name, hostname, discoveredName string, extraStaticLabels map[string]string) *types.KubernetesServerV3 {
+	t.Helper()
+	cluster := mustCreateNewKubeCluster(t, name, discoveredName, extraStaticLabels)
+	kubeServer, err := types.NewKubernetesServerV3FromCluster(cluster, hostname, uuid.New().String())
+	require.NoError(t, err)
+	return kubeServer
+}
+
+func mustCreateNewKubeCluster(t *testing.T, name, discoveredName string, extraStaticLabels map[string]string) *types.KubernetesClusterV3 {
+	t.Helper()
+	if extraStaticLabels == nil {
+		extraStaticLabels = make(map[string]string)
+	}
+	if discoveredName != "" {
+		extraStaticLabels[types.DiscoveredNameLabel] = discoveredName
+	}
+	cluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name:   name,
+			Labels: makeTestLabels(extraStaticLabels),
+		},
+		types.KubernetesClusterSpecV3{
+			DynamicLabels: map[string]types.CommandLabelV2{
+				"date": {
+					Period:  types.NewDuration(1 * time.Second),
+					Command: []string{"date"},
+					Result:  "Tue 11 Oct 2022 10:21:58 WEST",
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	return cluster
+}
+
+var staticLabelsFixture = map[string]string{
+	"label1": "val1",
+	"label2": "val2",
+	"label3": "val3",
+}
+
+func makeTestLabels(extraStaticLabels map[string]string) map[string]string {
+	labels := make(map[string]string)
+	maps.Copy(labels, staticLabelsFixture)
+	maps.Copy(labels, extraStaticLabels)
+	return labels
 }
 
 func TestFilterByNameOrDiscoveredName(t *testing.T) {
