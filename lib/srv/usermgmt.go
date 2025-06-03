@@ -131,8 +131,8 @@ type HostUsersBackend interface {
 	LookupGroup(group string) (*user.Group, error)
 	// LookupGroupByID retrieves a group by its ID.
 	LookupGroupByID(gid string) (*user.Group, error)
-	// SetUserGroups sets a user's groups, replacing their existing groups.
-	SetUserGroups(name string, groups []string) error
+	// UpdateUser sets a user's groups and default shell, replacing their existing groups.
+	UpdateUser(name string, groups []string, defaultShell string) error
 	// CreateGroup creates a group on a host.
 	CreateGroup(group string, gid string) error
 	// CreateUser creates a user on a host.
@@ -143,6 +143,9 @@ type HostUsersBackend interface {
 	CreateHomeDirectory(userHome string, uid, gid string) error
 	// GetDefaultHomeDirectory returns the default home directory path for the given user
 	GetDefaultHomeDirectory(name string) (string, error)
+	// GetDefaultShell returns the default shell for the
+	// given username
+	GetDefaultShell(username string) (string, error)
 	// RemoveExpirations removes any sort of password or account expiration from the user
 	// that may have been placed by password policies.
 	RemoveExpirations(name string) error
@@ -315,7 +318,7 @@ func (u *HostUserManagement) updateUser(hostUser HostUser, ui *decisionpb.HostUs
 	}
 
 	return trace.Wrap(u.doWithUserLock(func(_ types.SemaphoreLease) error {
-		return trace.Wrap(u.backend.SetUserGroups(hostUser.Name, ui.Groups))
+		return trace.Wrap(u.backend.UpdateUser(hostUser.Name, ui.Groups, ui.Shell))
 	}))
 }
 
@@ -495,7 +498,12 @@ func (u *HostUserManagement) UpsertUser(name string, ui *decisionpb.HostUsersInf
 		return closer, nil
 	}
 
-	if groups != nil {
+	defaultShell, err := u.backend.GetDefaultShell(name)
+	if err != nil {
+		log.WarnContext(u.ctx, "Failed to retreive default shell for user", "error", err)
+	}
+
+	if groups != nil || ui.Shell != defaultShell || err != nil {
 		if err := u.updateUser(*hostUser, ui); err != nil {
 			return nil, trace.Wrap(err)
 		}

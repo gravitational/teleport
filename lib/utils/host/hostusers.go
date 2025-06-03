@@ -144,15 +144,23 @@ func UserAdd(username string, groups []string, opts UserOpts) (exitCode int, err
 	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
 }
 
-// SetUserGroups adds a user to a list of specified groups on a host using `usermod`,
+// UserUpdate sets the groups and default shell for a host user using `usermod`,
 // overriding any existing supplementary groups.
-func SetUserGroups(username string, groups []string) (exitCode int, err error) {
+func UserUpdate(username string, groups []string, defaultShell string) (exitCode int, err error) {
 	usermodBin, err := exec.LookPath("usermod")
 	if err != nil {
 		return -1, trace.Wrap(err, "cant find usermod binary")
 	}
-	// usermod -G (replace groups) (username)
-	cmd := exec.Command(usermodBin, "-G", strings.Join(groups, ","), username)
+	args := []string{"-G", strings.Join(groups, ",")}
+	if defaultShell != "" {
+		if shell, err := exec.LookPath(defaultShell); err != nil {
+			slog.WarnContext(context.Background(), "configured shell not found, falling back to host default", "shell", defaultShell)
+		} else {
+			args = append(args, "--shell", shell)
+		}
+	}
+	// usermod -G (replace groups) -s (default shell) (username)
+	cmd := exec.Command(usermodBin, append(args, username)...)
 	output, err := cmd.CombinedOutput()
 	slog.DebugContext(context.Background(), "usermod completed",
 		"command_path", cmd.Path,
@@ -302,4 +310,25 @@ func CheckSudoers(contents []byte) error {
 		return trace.WrapWithMessage(ErrInvalidSudoers, string(output))
 	}
 	return trace.Wrap(err)
+}
+
+// UserShell invokes the 'getent' binary in order to fetch the default shell for the
+// given user.
+func UserShell(username string) (string, error) {
+	getentBin, err := exec.LookPath("getent")
+	if err != nil {
+		return "", trace.NotFound("cant find getent binary: %s", err)
+	}
+	cmd := exec.Command(getentBin, "passwd")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	parts := strings.Split(string(output), ":")
+	if len(parts) == 0 {
+		return "", trace.Errorf("invalid passwd entry for %q", username)
+	}
+
+	return parts[len(parts)-1], nil
 }
