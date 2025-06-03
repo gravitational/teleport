@@ -63,170 +63,130 @@ type CellInfo struct {
 	Reverse    bool   `json:"reverse,omitempty"`
 }
 
-func SerializeTerminal(vt vt10x.Terminal, theme *Theme) TerminalState {
-	cols, rows := vt.Size()
-	cursor := vt.Cursor()
-
-	state := TerminalState{
-		Cols: cols,
-		Rows: rows,
-		Cursor: CursorInfo{
-			X: cursor.X,
-			Y: cursor.Y,
-			Glyph: Glyph{
-				Char:       cursor.Attr.Char,
-				Mode:       cursor.Attr.Mode,
-				Foreground: colorToHex(cursor.Attr.FG, theme),
-				Background: colorToHex(cursor.Attr.BG, theme),
-			},
-			State: cursor.State,
-		},
-		Lines: make([]LineInfo, rows),
-	}
-
-	for y := 0; y < rows; y++ {
-		line := LineInfo{
-			Cells: make([]CellInfo, cols),
-		}
-
-		for x := 0; x < cols; x++ {
-			cell := vt.Cell(x, y)
-			cellInfo := CellInfo{
-				Char:       cell.Char,
-				Mode:       cell.Mode,
-				Foreground: colorToHex(cell.FG, theme),
-				Background: colorToHex(cell.BG, theme),
-			}
-
-			attrs := getTextAttrs(&cell, vt.Cursor(), x, y, theme)
-
-			if cell.FG != vt10x.DefaultFG {
-				cellInfo.Foreground = colorToHex(cell.FG, theme)
-			}
-			if cell.BG != vt10x.DefaultBG {
-				cellInfo.Background = colorToHex(cell.BG, theme)
-			}
-
-			cellInfo.Bold = attrs.bold
-			cellInfo.Dim = attrs.faint
-			cellInfo.Italic = attrs.italic
-			cellInfo.Underline = attrs.underline
-			cellInfo.Blink = attrs.blink
-			cellInfo.Reverse = attrs.reverse
-
-			line.Cells[x] = cellInfo
-		}
-
-		state.Lines[y] = line
-	}
-
-	state.Dump = dumpTerminalWithANSI(vt)
-
-	return state
+type SerializedTerminal struct {
+	Cols    int    `json:"cols"`
+	Rows    int    `json:"rows"`
+	CursorX int    `json:"cursorX"`
+	CursorY int    `json:"cursorY"`
+	Data    string `json:"data"`
 }
 
-func dumpTerminalWithANSI(vt vt10x.Terminal) string {
+const (
+	attrReverse = 1 << iota
+	attrUnderline
+	attrBold
+	attrGfx
+	attrItalic
+	attrBlink
+	attrWrap
+)
+
+func SerializeTerminal(vt vt10x.Terminal) SerializedTerminal {
 	cols, rows := vt.Size()
-	var output strings.Builder
-	var lastFG, lastBG vt10x.Color
-	var lastMode int16
-	needReset := true
+	data := dumpTerminalWithANSI(vt)
 
-	cursor := vt.Cursor()
-	output.WriteString("\x1b[s")
-
-	if vt.CursorVisible() {
-		output.WriteString("\x1b[?25h")
-	} else {
-		output.WriteString("\x1b[?25l")
+	return SerializedTerminal{
+		Cols: cols,
+		Rows: rows,
+		Data: data,
 	}
+}
+func dumpToAnsi(cols, rows, cursorX, cursorY int, cursorVisible bool, lines [][]vt10x.Glyph) string {
+	var output strings.Builder
+	lastFG := vt10x.Color(^uint32(0))
+	lastBG := vt10x.Color(^uint32(0))
+	var lastMode int16 = -1
+
+	output.WriteString("\x1b[H\x1b[2J")
+	output.WriteString("\x1b[0m")
+
+	//if cursorVisible {
+	output.WriteString("\x1b[?25h")
+	//} else {
+	//	output.WriteString("\x1b[?25l")
+	//}
 
 	for y := 0; y < rows; y++ {
+		if y > 0 {
+			output.WriteString("\r\n")
+		}
+
 		for x := 0; x < cols; x++ {
-			glyph := vt.Cell(x, y)
+			glyph := lines[y][x]
+			var codes []string
 
-			if glyph.Mode != lastMode || glyph.FG != lastFG || glyph.BG != lastBG || needReset {
-				var codes []string
+			fg := glyph.FG
+			bg := glyph.BG
+			if glyph.Mode&attrReverse != 0 {
+				fg, bg = bg, fg
+			}
 
-				// Reset all attributes if mode changes or at start
-				if (glyph.Mode != lastMode && lastMode != 0) || needReset {
+			if glyph.Mode != lastMode {
+				if lastMode != -1 {
 					codes = append(codes, "0")
-					lastMode = 0
-					lastFG = vt10x.DefaultFG
-					lastBG = vt10x.DefaultBG
+					lastFG = vt10x.Color(^uint32(0))
+					lastBG = vt10x.Color(^uint32(0))
 				}
 
-				// Apply mode attributes
-				if glyph.Mode != lastMode {
-					if glyph.Mode&(1<<0) != 0 {
-						codes = append(codes, "1")
-					} // Bold
-					if glyph.Mode&(1<<1) != 0 {
-						codes = append(codes, "2")
-					} // Dim
-					if glyph.Mode&(1<<2) != 0 {
-						codes = append(codes, "4")
-					} // Underline
-					if glyph.Mode&(1<<3) != 0 {
-						codes = append(codes, "5")
-					} // Blink
-					if glyph.Mode&(1<<4) != 0 {
-						codes = append(codes, "7")
-					} // Reverse
-					if glyph.Mode&(1<<5) != 0 {
-						codes = append(codes, "8")
-					} // Hidden
-					lastMode = glyph.Mode
+				if glyph.Mode&attrBold != 0 {
+					codes = append(codes, "1")
 				}
+				if glyph.Mode&attrUnderline != 0 {
+					codes = append(codes, "4")
+				}
+				if glyph.Mode&attrItalic != 0 {
+					codes = append(codes, "3")
+				}
+				if glyph.Mode&attrBlink != 0 {
+					codes = append(codes, "5")
+				}
+				lastMode = glyph.Mode
+			}
 
-				// Handle foreground color
-				if glyph.FG != lastFG {
-					if glyph.FG == vt10x.DefaultFG {
-						codes = append(codes, "39") // Default foreground
-					} else if glyph.FG < 16 {
-						if glyph.FG < 8 {
-							codes = append(codes, fmt.Sprintf("%d", 30+glyph.FG))
-						} else {
-							codes = append(codes, fmt.Sprintf("%d", 90+glyph.FG-8))
-						}
-					} else if glyph.FG < 256 {
-						codes = append(codes, "38", "5", fmt.Sprintf("%d", glyph.FG))
+			if fg != lastFG {
+				if fg == vt10x.DefaultFG {
+					codes = append(codes, "39")
+				} else if fg < 16 {
+					if fg < 8 {
+						codes = append(codes, fmt.Sprintf("%d", 30+fg))
 					} else {
-						r := (glyph.FG >> 16) & 0xFF
-						g := (glyph.FG >> 8) & 0xFF
-						b := glyph.FG & 0xFF
-						codes = append(codes, "38", "2", fmt.Sprintf("%d", r), fmt.Sprintf("%d", g), fmt.Sprintf("%d", b))
+						codes = append(codes, fmt.Sprintf("%d", 90+fg-8))
 					}
-					lastFG = glyph.FG
+				} else if fg < 256 {
+					codes = append(codes, "38", "5", fmt.Sprintf("%d", fg))
+				} else {
+					r := (fg >> 16) & 0xFF
+					g := (fg >> 8) & 0xFF
+					b := fg & 0xFF
+					codes = append(codes, "38", "2", fmt.Sprintf("%d", r), fmt.Sprintf("%d", g), fmt.Sprintf("%d", b))
 				}
+				lastFG = fg
+			}
 
-				// Handle background color
-				if glyph.BG != lastBG {
-					if glyph.BG == vt10x.DefaultBG {
-						codes = append(codes, "49") // Default background
-					} else if glyph.BG < 16 {
-						if glyph.BG < 8 {
-							codes = append(codes, fmt.Sprintf("%d", 40+glyph.BG))
-						} else {
-							codes = append(codes, fmt.Sprintf("%d", 100+glyph.BG-8))
-						}
-					} else if glyph.BG < 256 {
-						codes = append(codes, "48", "5", fmt.Sprintf("%d", glyph.BG))
+			if bg != lastBG {
+				if bg == vt10x.DefaultBG {
+					codes = append(codes, "49")
+				} else if bg < 16 {
+					if bg < 8 {
+						codes = append(codes, fmt.Sprintf("%d", 40+bg))
 					} else {
-						r := (glyph.BG >> 16) & 0xFF
-						g := (glyph.BG >> 8) & 0xFF
-						b := glyph.BG & 0xFF
-						codes = append(codes, "48", "2", fmt.Sprintf("%d", r), fmt.Sprintf("%d", g), fmt.Sprintf("%d", b))
+						codes = append(codes, fmt.Sprintf("%d", 100+bg-8))
 					}
-					lastBG = glyph.BG
+				} else if bg < 256 {
+					codes = append(codes, "48", "5", fmt.Sprintf("%d", bg))
+				} else {
+					r := (bg >> 16) & 0xFF
+					g := (bg >> 8) & 0xFF
+					b := bg & 0xFF
+					codes = append(codes, "48", "2", fmt.Sprintf("%d", r), fmt.Sprintf("%d", g), fmt.Sprintf("%d", b))
 				}
+				lastBG = bg
+			}
 
-				if len(codes) > 0 {
-					output.WriteString("\x1b[")
-					output.WriteString(strings.Join(codes, ";"))
-					output.WriteString("m")
-				}
-				needReset = false
+			if len(codes) > 0 {
+				output.WriteString("\x1b[")
+				output.WriteString(strings.Join(codes, ";"))
+				output.WriteString("m")
 			}
 
 			if glyph.Char == 0 {
@@ -235,16 +195,34 @@ func dumpTerminalWithANSI(vt vt10x.Terminal) string {
 				output.WriteRune(glyph.Char)
 			}
 		}
-
-		// Reset at end of each line to ensure clean line breaks
-		if y < rows-1 {
-			output.WriteString("\x1b[0m\r\n")
-			needReset = true
-		}
 	}
 
 	output.WriteString("\x1b[0m")
-	output.WriteString(fmt.Sprintf("\x1b[%d;%dH", cursor.Y+1, cursor.X+1))
+	output.WriteString(fmt.Sprintf("\x1b[%d;%dH", cursorY+1, cursorX+1))
 
 	return output.String()
+}
+
+func dumpTerminalWithANSI(vt vt10x.Terminal) string {
+	cursor := vt.Cursor()
+	cols, rows := vt.Size()
+
+	lines := make([][]vt10x.Glyph, rows)
+
+	for row := 0; row < rows; row++ {
+		lines[row] = make([]vt10x.Glyph, cols)
+		for col := 0; col < cols; col++ {
+			cell := vt.Cell(col, row)
+			lines[row][col] = cell
+		}
+	}
+
+	return dumpToAnsi(
+		cols,
+		rows,
+		cursor.X,
+		cursor.Y,
+		vt.CursorVisible(),
+		lines,
+	)
 }

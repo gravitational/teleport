@@ -18,13 +18,19 @@
 package ttyplayback
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/hinshun/vt10x"
 )
 
 type Frame struct {
+	Ansi   string
 	Time   int64
 	Lines  [][]vt10x.Glyph
 	Cursor *Cursor
+	Cols   int
+	Rows   int
 }
 
 type Cursor struct {
@@ -33,10 +39,8 @@ type Cursor struct {
 }
 
 type FrameIterator struct {
-	iter       EventIterator
-	vt         vt10x.Terminal
-	prevCursor *Cursor
-	prevLines  [][]vt10x.Glyph
+	iter EventIterator
+	vt   vt10x.Terminal
 }
 
 func (f *FrameIterator) Next() (*Frame, bool) {
@@ -44,6 +48,25 @@ func (f *FrameIterator) Next() (*Frame, bool) {
 		event, ok := f.iter.Next()
 		if !ok {
 			return nil, false
+		}
+
+		if event.Type == "resize" {
+			parts := strings.Split(event.Data, ":")
+			if len(parts) != 2 {
+				continue
+			}
+
+			width, err := strconv.Atoi(parts[0])
+			if err != nil {
+				continue
+			}
+
+			height, err := strconv.Atoi(parts[1])
+			if err != nil {
+				continue
+			}
+
+			f.vt.Resize(width, height)
 		}
 
 		if event.Type != "print" {
@@ -55,36 +78,25 @@ func (f *FrameIterator) Next() (*Frame, bool) {
 		x, y := f.vt.Cursor().X, f.vt.Cursor().Y
 		cursor := &Cursor{X: x, Y: y}
 
-		//cursorChanged := f.prevCursor == nil ||
-		//	f.prevCursor.X != cursor.X ||
-		//	f.prevCursor.Y != cursor.Y
-
 		width, height := f.vt.Size()
 		lines := make([][]vt10x.Glyph, height)
 
-		//linesChanged := false
 		for row := 0; row < height; row++ {
 			lines[row] = make([]vt10x.Glyph, width)
 			for col := 0; col < width; col++ {
 				cell := f.vt.Cell(col, row)
 				lines[row][col] = cell
-
-				if f.prevLines == nil ||
-					row >= len(f.prevLines) ||
-					col >= len(f.prevLines[row]) ||
-					f.prevLines[row][col].Char != lines[row][col].Char {
-					//linesChanged = true
-				}
 			}
 		}
 
-		//if linesChanged || cursorChanged {
-		f.prevCursor = cursor
-		f.prevLines = lines
+		ansi := dumpToAnsi(width, height, x, y, f.vt.CursorVisible(), lines)
 
 		return &Frame{
 			Time:   event.Time,
+			Ansi:   ansi,
 			Lines:  lines,
+			Cols:   width,
+			Rows:   height,
 			Cursor: cursor,
 		}, true
 		//} else {
@@ -106,13 +118,11 @@ func (f *FrameIterator) CollectAll() []Frame {
 	return frames
 }
 
-func Frames(stdout EventIterator, width, height int) *FrameIterator {
-	vt := vt10x.New(vt10x.WithSize(width, height))
+func Frames(stdout EventIterator) *FrameIterator {
+	vt := vt10x.New()
 
 	return &FrameIterator{
-		iter:       stdout,
-		vt:         vt,
-		prevCursor: nil,
-		prevLines:  nil,
+		iter: stdout,
+		vt:   vt,
 	}
 }
