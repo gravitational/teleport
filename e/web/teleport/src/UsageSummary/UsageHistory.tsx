@@ -10,6 +10,7 @@ import { UsageHistoryItem } from 'e-teleport/services/cloud/v1/tenants_pb';
 import { isCalibrationPeriod } from './SummaryPage';
 
 export type UsageHistoryProps = {
+  cloud: boolean;
   history: UsageHistoryItem[];
   hasCloudAnonymizationKey: boolean;
   salesforceIdUpdatedAt: number;
@@ -18,6 +19,7 @@ export type UsageHistoryProps = {
 };
 
 export const UsageHistory = ({
+  cloud,
   history,
   hasCloudAnonymizationKey,
   salesforceIdUpdatedAt,
@@ -27,6 +29,7 @@ export const UsageHistory = ({
   const tableHasCalibrationPeriod =
     history.length > 0 &&
     isCalibrationPeriod(
+      cloud,
       history[history.length - 1].cycleStart,
       history[0].cycleEnd,
       hasCloudAnonymizationKey,
@@ -58,6 +61,7 @@ export const UsageHistory = ({
             headerText: 'ZTA MAU',
             render: ({ mau, cycleStart, cycleEnd }) => {
               const isCalibration = isCalibrationPeriod(
+                cloud,
                 cycleStart,
                 cycleEnd,
                 hasCloudAnonymizationKey,
@@ -78,6 +82,7 @@ export const UsageHistory = ({
             headerText: 'ZTA TPR',
             render: ({ tpr, cycleStart, cycleEnd }) => {
               const isCalibration = isCalibrationPeriod(
+                cloud,
                 cycleStart,
                 cycleEnd,
                 hasCloudAnonymizationKey,
@@ -98,6 +103,7 @@ export const UsageHistory = ({
             headerText: 'MWI',
             render: ({ mwi, cycleStart, cycleEnd }) => {
               const isCalibration = isCalibrationPeriod(
+                cloud,
                 cycleStart,
                 cycleEnd,
                 hasCloudAnonymizationKey,
@@ -118,6 +124,7 @@ export const UsageHistory = ({
             headerText: 'IG MAU',
             render: ({ igmau, cycleStart, cycleEnd }) => {
               const isCalibration = isCalibrationPeriod(
+                cloud,
                 cycleStart,
                 cycleEnd,
                 hasCloudAnonymizationKey,
@@ -139,6 +146,7 @@ export const UsageHistory = ({
             headerText: 'IS TPR',
             render: ({ tpr, cycleStart, cycleEnd }) => {
               const isCalibration = isCalibrationPeriod(
+                cloud,
                 cycleStart,
                 cycleEnd,
                 hasCloudAnonymizationKey,

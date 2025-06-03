@@ -218,7 +218,7 @@ describe('cycle', () => {
   });
 });
 
-describe('calibration period', () => {
+describe('calibration period presence', () => {
   test.each`
     desc                        | start                               | end                                 | updated
     ${'updated on cycle start'} | ${new Date('2024-01-01').getTime()} | ${new Date('2024-01-31').getTime()} | ${new Date('2024-01-01').getTime()}
@@ -227,6 +227,7 @@ describe('calibration period', () => {
   `('renders for $desc', ({ start, end, updated }) => {
     const props = {
       summary: makeUsageSummary({
+        cloud: true,
         cycleEnd: end,
         cycleStart: start,
         salesforceIdUpdatedAt: updated,
@@ -244,5 +245,37 @@ describe('calibration period', () => {
 
     expect(screen.getAllByText('Calibrating')).toHaveLength(5);
     expect(screen.getByText('Calibration In Progress')).toBeInTheDocument();
+  });
+});
+
+describe('calibration period absence', () => {
+  test.each`
+    desc                        | start                               | end                                 | updated
+    ${'updated on cycle start'} | ${new Date('2024-01-01').getTime()} | ${new Date('2024-01-31').getTime()} | ${new Date('2024-01-01').getTime()}
+    ${'updated on cycle end'}   | ${new Date('2024-01-01').getTime()} | ${new Date('2024-01-31').getTime()} | ${new Date('2024-01-31').getTime()}
+    ${'updated mid cycle'}      | ${new Date('2024-01-01').getTime()} | ${new Date('2024-01-31').getTime()} | ${new Date('2024-01-15').getTime()}
+  `('renders for $desc', ({ start, end, updated }) => {
+    const props = {
+      summary: makeUsageSummary({
+        cloud: false,
+        cycleEnd: end,
+        cycleStart: start,
+        salesforceIdUpdatedAt: updated,
+        hasCloudAnonymizationKey: true,
+      }),
+    };
+
+    renderWithContext(
+      <Cycle
+        {...props}
+        hasIdentityGovernance={true}
+        hasIdentitySecurity={true}
+      />
+    );
+
+    expect(screen.queryByText('Calibrating')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Calibration In Progress')
+    ).not.toBeInTheDocument();
   });
 });

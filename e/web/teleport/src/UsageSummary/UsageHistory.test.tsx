@@ -13,6 +13,7 @@ const calibrationInfo =
 test('shows empty state when there is no usage history', async () => {
   render(
     <UsageHistory
+      cloud
       history={[]}
       hasCloudAnonymizationKey={false}
       salesforceIdUpdatedAt={0}
@@ -29,6 +30,7 @@ test('shows empty state when there is no usage history', async () => {
 test('renders all elements', async () => {
   render(
     <UsageHistory
+      cloud
       history={usageHistory}
       hasCloudAnonymizationKey={false}
       salesforceIdUpdatedAt={0}
@@ -75,6 +77,7 @@ test('highlights the current cycle', async () => {
   };
   render(
     <UsageHistory
+      cloud
       history={[currentCycle, ...usageHistory]}
       hasCloudAnonymizationKey={false}
       salesforceIdUpdatedAt={0}
@@ -105,6 +108,7 @@ test('highlights the current cycle', async () => {
 test('hides unavailable features', async () => {
   render(
     <UsageHistory
+      cloud
       history={usageHistory}
       hasCloudAnonymizationKey={true}
       salesforceIdUpdatedAt={0}
@@ -121,6 +125,7 @@ test('hides unavailable features', async () => {
 test('shows calibration periods', async () => {
   render(
     <UsageHistory
+      cloud
       history={usageHistory}
       hasCloudAnonymizationKey={true}
       salesforceIdUpdatedAt={usageHistory[1].cycleStart + 1}
@@ -138,6 +143,7 @@ test('shows calibration periods', async () => {
 test('hides calibration periods when a feature is disabled', async () => {
   render(
     <UsageHistory
+      cloud
       history={usageHistory}
       hasCloudAnonymizationKey={true}
       salesforceIdUpdatedAt={usageHistory[1].cycleStart + 1}
@@ -153,9 +159,26 @@ test('hides calibration periods when a feature is disabled', async () => {
   expect(screen.getByText(calibrationInfo)).toBeInTheDocument();
 });
 
+test('hides calibration periods when not cloud', async () => {
+  render(
+    <UsageHistory
+      cloud={false}
+      history={usageHistory}
+      hasCloudAnonymizationKey={true}
+      salesforceIdUpdatedAt={usageHistory[1].cycleStart + 1}
+      hasIdentityGovernance={true}
+      hasIdentitySecurity={true}
+    />
+  );
+
+  expect(screen.queryByText('Calibration Period*')).not.toBeInTheDocument();
+  expect(screen.queryByText(calibrationInfo)).not.toBeInTheDocument();
+});
+
 test('omits calibration explanation if there is no calibration period on table', async () => {
   render(
     <UsageHistory
+      cloud
       history={usageHistory}
       hasCloudAnonymizationKey={true}
       salesforceIdUpdatedAt={0}

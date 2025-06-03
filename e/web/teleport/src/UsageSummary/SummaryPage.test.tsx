@@ -82,6 +82,7 @@ describe('isCalibrationPeriod', () => {
     const salesforceIdUpdatedAt = getUnixTime(new Date('2022/01/31'));
 
     const result = isCalibrationPeriod(
+      true,
       cycleStart,
       cycleEnd,
       hasCloudAnonymizationKey,
@@ -98,6 +99,7 @@ describe('isCalibrationPeriod', () => {
     const salesforceIdUpdatedAt = getUnixTime(new Date('2022/01/31'));
 
     const result = isCalibrationPeriod(
+      true,
       cycleStart,
       cycleEnd,
       hasCloudAnonymizationKey,
@@ -114,6 +116,24 @@ describe('isCalibrationPeriod', () => {
     const salesforceIdUpdatedAt = getUnixTime(new Date('2022/01/01'));
 
     const result = isCalibrationPeriod(
+      true,
+      cycleStart,
+      cycleEnd,
+      hasCloudAnonymizationKey,
+      salesforceIdUpdatedAt
+    );
+
+    expect(result).toBe(false);
+  });
+
+  test('returns false if not cloud', () => {
+    const cycleStart = getUnixTime(new Date('2022/01/15'));
+    const cycleEnd = getUnixTime(new Date('2022/02/15'));
+    const hasCloudAnonymizationKey = true;
+    const salesforceIdUpdatedAt = getUnixTime(new Date('2022/01/31'));
+
+    const result = isCalibrationPeriod(
+      false,
       cycleStart,
       cycleEnd,
       hasCloudAnonymizationKey,

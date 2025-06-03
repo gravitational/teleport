@@ -25,6 +25,7 @@ export interface CycleProps {
 
 export const Cycle = ({
   summary: {
+    cloud,
     cycleEnd,
     cycleEndFormatted,
     cycleStart,
@@ -43,6 +44,7 @@ export const Cycle = ({
 }: CycleProps) => {
   const theme = useTheme();
   const calibrationPeriod = isCalibrationPeriod(
+    cloud,
     cycleStart,
     cycleEnd,
     hasCloudAnonymizationKey,

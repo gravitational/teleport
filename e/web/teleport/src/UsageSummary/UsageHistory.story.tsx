@@ -11,6 +11,7 @@ export default {
 };
 
 function ExampleHistory({
+  cloud,
   history,
   hasCloudAnonymizationKey,
   salesforceIdUpdatedAt,
@@ -23,6 +24,7 @@ function ExampleHistory({
     <MemoryRouter initialEntries={['/clusters/test-cluster']}>
       <ContextProvider ctx={ctx}>
         <UsageHistory
+          cloud={cloud}
           history={history}
           hasCloudAnonymizationKey={hasCloudAnonymizationKey}
           salesforceIdUpdatedAt={salesforceIdUpdatedAt}
@@ -37,6 +39,7 @@ function ExampleHistory({
 export function EmptyHistory() {
   return (
     <ExampleHistory
+      cloud
       history={[]}
       hasCloudAnonymizationKey={false}
       salesforceIdUpdatedAt={0}
@@ -49,6 +52,7 @@ export function EmptyHistory() {
 export function NonEmptyHistory() {
   return (
     <ExampleHistory
+      cloud
       history={usageHistory}
       hasCloudAnonymizationKey={true}
       salesforceIdUpdatedAt={usageHistory[1].cycleStart + 1}
@@ -61,6 +65,7 @@ export function NonEmptyHistory() {
 export function WithoutSecurityAndIdentity() {
   return (
     <ExampleHistory
+      cloud
       history={usageHistory}
       hasCloudAnonymizationKey={true}
       salesforceIdUpdatedAt={usageHistory[1].cycleStart + 1}
