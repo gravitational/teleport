@@ -101,29 +101,29 @@ func TestAzure(t *testing.T) {
 		"MSI": {
 			setEnvironment: func(t *testing.T) {
 				// This is required to avoid having a random generated secret.
-				t.Setenv("MSI_ENDPOINT", "https://azure-msi.teleport.dev/very-secret")
+				t.Setenv(msiEndpointEnvVarName, "https://azure-msi.teleport.dev/very-secret")
 			},
 			cliVersion:           versionWithoutMSAL,
 			tokenEndpointURL:     "https://azure-msi.teleport.dev/very-secret",
-			expectedLoginCommand: []string{"az", "login", "--identity", "-u", "dummy_azure_identity"},
+			expectedLoginCommand: []string{"az", "login", "--identity", "--username", "dummy_azure_identity"},
 			assertCommandEnv: func(t require.TestingT, val any, msgAndArgs ...any) {
 				env := val.([]string)
-				require.Equal(t, "https://azure-msi.teleport.dev/very-secret", getEnvValue(env, "MSI_ENDPOINT"))
+				require.Equal(t, "https://azure-msi.teleport.dev/very-secret", getEnvValue(env, msiEndpointEnvVarName))
 			},
 		},
 		"Identity": {
 			setEnvironment: func(t *testing.T) {
 				// This is required to avoid having a random generated secret.
-				t.Setenv("IDENTITY_ENDPOINT", "https://azure-identity.teleport.dev")
-				t.Setenv("IDENTITY_SECRET", "very-secret")
+				t.Setenv(identityEndpointEnvVarName, "https://azure-identity.teleport.dev")
+				t.Setenv(identityHeaderEnvVarName, "very-secret")
 			},
 			cliVersion:           azureCLIVersionMSALRequirement,
 			tokenEndpointURL:     "https://azure-identity.teleport.dev",
 			expectedLoginCommand: []string{"az", "login", "--identity", "--resource-id", "dummy_azure_identity"},
 			assertCommandEnv: func(t require.TestingT, val any, msgAndArgs ...any) {
 				env := val.([]string)
-				require.Equal(t, "https://azure-identity.teleport.dev", getEnvValue(env, "IDENTITY_ENDPOINT"))
-				require.Equal(t, "very-secret", getEnvValue(env, "IDENTITY_SECRET"))
+				require.Equal(t, "https://azure-identity.teleport.dev", getEnvValue(env, identityEndpointEnvVarName))
+				require.Equal(t, "very-secret", getEnvValue(env, identityHeaderEnvVarName))
 			},
 		},
 	} {
