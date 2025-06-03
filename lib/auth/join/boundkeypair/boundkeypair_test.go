@@ -22,10 +22,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // memoryFS is a trivial in memory fs backend for testing use.
@@ -61,7 +62,7 @@ func TestClientState(t *testing.T) {
 	require.NoError(t, err)
 
 	// Nothing should be written until `Store` is called explicitly
-	require.Len(t, fs.files, 0)
+	require.Empty(t, fs.files)
 
 	require.NoError(t, state.Store(ctx))
 	require.Len(t, fs.files, 3)
