@@ -19,6 +19,9 @@ package vnet
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -36,6 +39,9 @@ type LinuxAdminProcessConfig struct {
 // RunLinuxAdminProcess must run as root.
 func RunLinuxAdminProcess(ctx context.Context, config LinuxAdminProcessConfig) error {
 	log.InfoContext(ctx, "Running VNet admin process")
+	if err := setupServiceLogger(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	serviceCreds, err := readCredentials(config.ServiceCredentialPath)
 	if err != nil {
@@ -124,4 +130,15 @@ func createTUNDevice(ctx context.Context) (tun.Device, string, error) {
 		return nil, "", trace.Wrap(err, "getting TUN device name")
 	}
 	return dev, name, nil
+}
+
+func setupServiceLogger() error {
+	logFile, err := os.Create(filepath.Join("/", "var", "log", "vnet.log"))
+	if err != nil {
+		return trace.Wrap(err, "creating log file")
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})))
+	return nil
 }
