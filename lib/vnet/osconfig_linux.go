@@ -24,6 +24,7 @@ import (
 
 type platformOSConfigState struct {
 	setupIPv6          bool
+	configuredDNS      bool
 	broughtUpInterface bool
 }
 
@@ -39,8 +40,26 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		); err != nil {
 			return trace.Wrap(err)
 		}
+		state.setupIPv6 = true
 	}
-	if state.setupIPv6 && !state.broughtUpInterface {
+	if cfg.dnsAddr != "" && !state.configuredDNS {
+		log.InfoContext(ctx, "Configuring DNS")
+		if err := runCommand(ctx,
+			"resolvectl", "dns", cfg.tunName, cfg.dnsAddr,
+		); err != nil {
+			return trace.Wrap(err)
+		}
+		domains := make([]string, 0, len(cfg.dnsZones))
+		for _, dnsZone := range cfg.dnsZones {
+			domains = append(domains, "~"+dnsZone)
+		}
+		args := append([]string{"domain", cfg.tunName}, domains...)
+		if err := runCommand(ctx, "resolvectl", args...); err != nil {
+			return trace.Wrap(err)
+		}
+		state.configuredDNS = true
+	}
+	if state.setupIPv6 && state.configuredDNS && !state.broughtUpInterface {
 		log.InfoContext(ctx, "Bringing up the VNet interface", "device", cfg.tunName)
 		if err := runCommand(ctx,
 			"ip", "link", "set", cfg.tunName, "up",
