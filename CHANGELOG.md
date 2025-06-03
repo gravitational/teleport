@@ -1,5 +1,69 @@
 # Changelog
 
+## 17.5.0 (06/03/25)
+
+### Azure Console via SAML IdP
+Teleport SAML IdP will support Azure web console as a service provider.
+
+### Desktop Access in Teleport Connect
+Teleport Connect will allow users to connect to Windows desktops directly from the Teleport Connect application without needing to use a browser.
+
+### Desktop Access latency detector
+Teleport's web UI will show latency measurements during remote desktop sessions which indicate both the latency between the user and the Teleport proxy as well as the latency between the Teleport proxy and the target host.
+
+### Machine & Workload Identity - Sigstore attestation
+Machine & Workload Identity will support attesting Sigstore signatures of workloads running on Docker, Podman and Kubernetes. This will allow the issuance of credentials to be restricted to workloads with container images produced by legitimate CI/CD systems.
+
+### Azure DevOps joining
+Teleport will support secretless authentication for Bots running within Azure DevOps pipelines.
+
+### Other fixes and improvements
+
+* Fixed an issue that allowed unauthenticated access to delete resources created by Identity Center integration. [#55400](https://github.com/gravitational/teleport/pull/55400)
+* Fix improper redirect URL validation for SSO login which could be taken advantage of in a phishing attack. [#55399](https://github.com/gravitational/teleport/pull/55399)
+* View details for a bot instance. [#55347](https://github.com/gravitational/teleport/pull/55347)
+* Prevent unknown resource kinds from rendering errors in the web UI. [#55208](https://github.com/gravitational/teleport/pull/55208)
+* View and explore "active" bot instances. [#55201](https://github.com/gravitational/teleport/pull/55201)
+* UI: Access Request reason prompts configured in Role.spec.options.request_prompt are now displayed in the reason text box, if such a role is assigned to the user. [#55173](https://github.com/gravitational/teleport/pull/55173)
+* Okta: Fixed RBAC sync and Access Requests when only App and Group sync is enabled (no Access Lists sync). [#55169](https://github.com/gravitational/teleport/pull/55169)
+* Fixed `tctl` rendering of timestamps in BotInstance resource YAML. [#55163](https://github.com/gravitational/teleport/pull/55163)
+* Fix the impact of malicious `--db-user` values on PKINIT flow. [#55142](https://github.com/gravitational/teleport/pull/55142)
+* Fix an issue with Hardware Key Support on Windows where a command would fail if the PIN prompt was not answered within 5 seconds. [#55110](https://github.com/gravitational/teleport/pull/55110)
+* Fix an issue "Allowed Users" from "tsh db ls" may include irrelevant entities. [#55068](https://github.com/gravitational/teleport/pull/55068)
+* Updated Web UI, tsh and Connect SSO login to support SAML `http-post` binding authentication method. The feature can be enabled from the SSO connector configuration by adding a new field as `preferred_request_binding: http-post`. [#55065](https://github.com/gravitational/teleport/pull/55065)
+* Fix an issue database discovery fails when there are more than 5 OpenSearch domains. [#55058](https://github.com/gravitational/teleport/pull/55058)
+* Fixed an issue with Device Trust web authentication redirection that lost the original encoding of SAML authentication data during service provider initiated SAML login. [#55048](https://github.com/gravitational/teleport/pull/55048)
+* Fix configured X509 CA override chain not being used by AWS Roles Anywhere exchange. [#54947](https://github.com/gravitational/teleport/pull/54947)
+* Disabled the "another session is active" prompt when per-session MFA is enabled, since MFA already enforces user confirmation when starting a desktop session. [#54928](https://github.com/gravitational/teleport/pull/54928)
+* Added support for desktop access in Teleport Connect. [#54926](https://github.com/gravitational/teleport/pull/54926)
+* Added workload_identity_x509_issuer_override kind to editor preset role. [#54913](https://github.com/gravitational/teleport/pull/54913)
+* Hardware Key Agent validates known keys by checking active or expired login session. [#54907](https://github.com/gravitational/teleport/pull/54907)
+* Expose the Teleport service cache health via prometheus metrics. [#54902](https://github.com/gravitational/teleport/pull/54902)
+* Updated Go to 1.23.9. [#54896](https://github.com/gravitational/teleport/pull/54896)
+* Okta: Fix creating Access Requests for Okta-originated resources in the legacy okta_service setup. [#54876](https://github.com/gravitational/teleport/pull/54876)
+* Introduced the azure_devops join method to support Bot joining from the Azure Devops CI/CD platform. [#54875](https://github.com/gravitational/teleport/pull/54875)
+* Add support for exclude filter for AWS IC account and groups filters. [#54835](https://github.com/gravitational/teleport/pull/54835)
+* Terraform: Fixed Access List resource import. [#54802](https://github.com/gravitational/teleport/pull/54802)
+* Fixed Proxy cache initialization errors in clusters with large amounts of open web sessions. [#54781](https://github.com/gravitational/teleport/pull/54781)
+* Prevent restrictive validation of cluster auth preferences from causing non-auth instances to become healthy. [#54761](https://github.com/gravitational/teleport/pull/54761)
+* Improved performance of joining & improved audit log entries for failed joins. [#54747](https://github.com/gravitational/teleport/pull/54747)
+* Resolved an issue that could cause Teleport Connect to crash after downgrading from a newer version. [#54740](https://github.com/gravitational/teleport/pull/54740)
+* Reverted the default behavior of the `teleport-cluster` Helm chart to use `authentication.secondFactor` rather than `authentication.secondFactors` to avoid incompatibility during upgrades. [#54735](https://github.com/gravitational/teleport/pull/54735)
+* Workload ID: Added binary_path and binary_hash to the Unix workload attestor's attributes. [#54716](https://github.com/gravitational/teleport/pull/54716)
+* Includes the attributes used in templating and rule evaluation within the audit log event for a workload identity credential issuance. [#54714](https://github.com/gravitational/teleport/pull/54714)
+* Fix an issue with PIV PIN caching where a PIN that is incorrect would be cached. [#54697](https://github.com/gravitational/teleport/pull/54697)
+* Fix a bug causing a malformed user to break Teleport web UI's "Users" page. [#54681](https://github.com/gravitational/teleport/pull/54681)
+* Machine ID: Allow `--no-oneshot` and similar flags to override config file values. [#54651](https://github.com/gravitational/teleport/pull/54651)
+* Fixed major version check for stateless environment. [#54639](https://github.com/gravitational/teleport/pull/54639)
+* Teleport-update: full support for FIPS agent installations. [#54609](https://github.com/gravitational/teleport/pull/54609)
+* Added support for SSO MFA as a headless MFA method. [#54599](https://github.com/gravitational/teleport/pull/54599)
+* Fixed an issue preventing connections due to missing client IPs when using class E address space with GKE or CloudFlare pseudo IPv4 forward headers. [#54597](https://github.com/gravitational/teleport/pull/54597)
+* Create and edit GitHub join tokens from the Join Tokens page. [#54477](https://github.com/gravitational/teleport/pull/54477)
+
+Enterprise:
+* Verify required Okta OAuth scopes during plugin creation/update.
+* Added ability to re-run group import in Identity Center integration.
+
 ## 17.4.8 (05/06/25)
 
 * Fixed a possible moderator/observer terminal freeze when joining a Kubernetes moderated session. [#54523](https://github.com/gravitational/teleport/pull/54523)
