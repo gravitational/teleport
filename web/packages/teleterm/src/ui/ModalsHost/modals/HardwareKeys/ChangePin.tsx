@@ -169,7 +169,7 @@ export function ChangePin(props: {
                       onChange={e => setConfirmNewPuk(e.target.value)}
                       mb={0}
                       rule={requiredAll(
-                        requiredConfirmed(pin, {
+                        requiredConfirmed(newPuk, {
                           confirm: 'Confirm New PUK is required',
                           doesNotMatch: 'PUK does not match',
                         }),
