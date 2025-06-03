@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	scopedrole "github.com/gravitational/teleport/lib/scopes/roles"
 )
 
 // collectionHandler is used by the [Cache] to seed the initial
@@ -143,7 +144,7 @@ type collections struct {
 // resources events can be processed by downstream watchers.
 func isKnownUncollectedKind(kind string) bool {
 	switch kind {
-	case types.KindAccessRequest, types.KindHeadlessAuthentication:
+	case types.KindAccessRequest, types.KindHeadlessAuthentication, scopedrole.KindScopedRole, scopedrole.KindScopedRoleAssignment:
 		return true
 	default:
 		return false
