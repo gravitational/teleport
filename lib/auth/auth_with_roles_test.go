@@ -6171,8 +6171,17 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 		require.NoError(t, err)
 		defer clt.Close()
 
-		resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		unifiedResp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
 			Kinds: []string{types.KindApp},
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+			},
+		})
+		require.NoError(t, err)
+		require.Empty(t, unifiedResp.Resources)
+
+		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindIdentityCenterAccount,
 			Labels: map[string]string{
 				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
@@ -6192,8 +6201,17 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 		require.NoError(t, err)
 		defer clt.Close()
 
-		resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		unifiedResp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
 			Kinds: []string{types.KindApp},
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+			},
+		})
+		require.NoError(t, err)
+		require.Empty(t, unifiedResp.Resources)
+
+		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindIdentityCenterAccount,
 			Labels: map[string]string{
 				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
@@ -6214,8 +6232,17 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 		require.NoError(t, err)
 		defer clt.Close()
 
-		resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		unifiedResp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
 			Kinds: []string{types.KindApp},
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+			},
+		})
+		require.NoError(t, err)
+		require.Empty(t, unifiedResp.Resources)
+
+		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindIdentityCenterAccount,
 			Labels: map[string]string{
 				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
@@ -6235,8 +6262,17 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 		require.NoError(t, err)
 		defer clt.Close()
 
-		resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		unifiedResp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
 			Kinds: []string{types.KindApp},
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, unifiedResp.Resources, 1)
+
+		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindIdentityCenterAccount,
 			Labels: map[string]string{
 				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
@@ -6256,8 +6292,17 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 		require.NoError(t, err)
 		defer clt.Close()
 
-		resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		unifiedResp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
 			Kinds: []string{types.KindApp},
+		})
+		require.NoError(t, err)
+		require.Len(t, unifiedResp.Resources, 1)
+
+		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindIdentityCenterAccount,
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+			},
 		})
 		require.NoError(t, err)
 		require.Len(t, resp.Resources, 1)
@@ -6282,6 +6327,16 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 		_, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
 			Kinds: []string{types.KindIdentityCenterAccount},
 		})
+		require.True(t, trace.IsAccessDenied(err),
+			"Expected Access Denied, got %v", err)
+
+		_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindIdentityCenterAccount,
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+			},
+		})
+
 		require.True(t, trace.IsAccessDenied(err),
 			"Expected Access Denied, got %v", err)
 	})
