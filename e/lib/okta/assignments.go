@@ -63,7 +63,7 @@ type assignmentReconciler struct {
 }
 
 // newAssignmentReconciler creates a new AssignmentReconciler.
-func newAssignmentReconciler(ctx context.Context, clusterName string, svc *Service) *assignmentReconciler {
+func newAssignmentReconciler(clusterName string, svc *Service) *assignmentReconciler {
 	a := &assignmentReconciler{
 		logger:         slog.With(teleport.ComponentKey, eteleport.ComponentOktaAssignmentReconciler),
 		clock:          svc.clock,

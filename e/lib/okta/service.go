@@ -263,6 +263,7 @@ type Service struct {
 	// accessPoint is a caching AccessPoint with Okta Extensions, used by this
 	// service to interact with the Teleport cluster.
 	accessPoint authclient.OktaAccessPoint
+	accessLists services.AccessLists
 	onHeartbeat func(error)
 	client      oktaapi.Interface
 	emitter     apievents.Emitter
@@ -426,10 +427,6 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		bidirectionalSyncEnabled = false
 	}
 
-	if !accessListSyncEnabled {
-		bidirectionalSyncEnabled = false
-	}
-
 	// NOTE: Since we handle plugin status here, it's important no errors are returned before
 	// the defer call below.
 
@@ -479,6 +476,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		rotationGetter:          config.RotationGetter,
 		proxyGetter:             config.ProxyGetter,
 		accessPoint:             config.AccessPoint,
+		accessLists:             config.AccessLists,
 		onHeartbeat:             config.OnHeartbeat,
 		client:                  oktaClient,
 		orgURL:                  strings.TrimSuffix(oktaClient.GetOrgUrl(), "/"),
@@ -520,7 +518,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 	}
 
 	if appGroupSyncEnabled {
-		config.Logger.InfoContext(ctx, "App and Group sync is enabled")
+		config.Logger.InfoContext(ctx, "App and Group sync is enabled", "bidirectional", bidirectionalSyncEnabled)
 
 		s.appsReconciler, err = services.NewReconciler(services.ReconcilerConfig[types.Application]{
 			Matcher:             s.appsMatcher,
@@ -547,8 +545,16 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		if bidirectionalSyncEnabled {
+			clusterName, err := s.accessPoint.GetClusterName(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			s.assignmentReconciler = newAssignmentReconciler(clusterName.GetClusterName(), s)
+		}
 	} else {
-		config.Logger.InfoContext(ctx, "App and Group sync is enabled", "bidirectional", bidirectionalSyncEnabled)
+		config.Logger.InfoContext(ctx, "App and Group sync is disabled")
 	}
 
 	if accessListSyncEnabled {
@@ -575,14 +581,6 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
-		}
-
-		if bidirectionalSyncEnabled {
-			clusterName, err := s.accessPoint.GetClusterName(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			s.assignmentReconciler = newAssignmentReconciler(ctx, clusterName.GetClusterName(), s)
 		}
 	} else {
 		config.Logger.InfoContext(ctx, "Access List sync is disabled")

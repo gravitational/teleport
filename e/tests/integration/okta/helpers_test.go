@@ -254,6 +254,7 @@ func (c *tshCommand) run(t require.TestingT, args []string, opts ...cmdOption) e
 }
 
 func waitForOktaFirstOktaAssignment(t *testing.T, sut *common.SUT) {
+	t.Helper()
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assignments, _, err := sut.Teleport.Process.GetAuthServer().ListOktaAssignments(context.Background(), 0, "")
 		assert.NoError(collect, err)

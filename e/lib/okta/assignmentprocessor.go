@@ -103,7 +103,7 @@ func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssi
 		assignmentClient:  newAssignmentClient(svc.logger, svc.client),
 		stopCh:            make(chan struct{}, 1),
 		userTargetCounter: map[string]map[string]struct{}{},
-		accessListSvc:     svc.accessListSync.accessLists,
+		accessListSvc:     svc.accessLists,
 	}
 }
 

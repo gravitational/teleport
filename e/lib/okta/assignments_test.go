@@ -34,7 +34,7 @@ func TestAssignmentReconciler(t *testing.T) {
 		return mustAppName(t, name, link)
 	}
 
-	reconciler := newAssignmentReconciler(ctx, testClusterName, svc)
+	reconciler := newAssignmentReconciler(testClusterName, svc)
 	reconciler.onReconcileCh = onReconcileCh
 	reconciler.noAssignmentProcessorLoop = true
 	require.NoError(t, reconciler.start(ctx))

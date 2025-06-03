@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/okta/okta-sdk-golang/v2/okta"
@@ -22,7 +21,6 @@ import (
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // TestBasicAssignmentFlow tests the basic assignment flow.
@@ -421,33 +419,28 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 		assertUserIsNotAccessListMember(t, sut, app.GetName(), requester.login())
 
 		t.Run("delete app access request", func(t *testing.T) {
-			accessRequestApp := createAccessRequest(app.GetName(), types.KindApp, mustGetClusterName(t, sut), requester.login())
-			createdRequestApp, err := auth.CreateAccessRequestV2(t.Context(), accessRequestApp, tlsca.Identity{})
-			require.NoError(t, err)
-
-			approveRequest(t, sut, createdRequestApp.GetName(), reviewer.login())
+			accessRequestApp := createAccessRequest(t, sut, app.GetName(), types.KindApp, requester.login())
+			approveAccessRequest(t, sut, accessRequestApp.GetName(), reviewer.login())
 
 			oktaInfra.assertUserWasAssignedToOktaApp(t, requester.Id, appID)
 			assertUserIsNotAccessListMember(t, sut, app.GetName(), requester.login())
 
-			err = auth.DeleteAccessRequest(t.Context(), createdRequestApp.GetName())
+			err = auth.DeleteAccessRequest(t.Context(), accessRequestApp.GetName())
 			require.NoError(t, err)
 			oktaInfra.assertUsersIsNotAssignedToOktaApp(t, requester.Id, appID)
 			assertUserIsNotAccessListMember(t, sut, app.GetName(), requester.login())
 		})
 
 		t.Run("member was added to acl before access request was deleted", func(t *testing.T) {
-			accessRequestApp := createAccessRequest(app.GetName(), types.KindApp, mustGetClusterName(t, sut), requester.login())
-			createdRequestApp, err := auth.CreateAccessRequestV2(t.Context(), accessRequestApp, tlsca.Identity{})
-			require.NoError(t, err)
-			approveRequest(t, sut, createdRequestApp.GetName(), reviewer.login())
+			accessRequestApp := createAccessRequest(t, sut, app.GetName(), types.KindApp, requester.login())
+			approveAccessRequest(t, sut, accessRequestApp.GetName(), reviewer.login())
 
 			oktaInfra.assertUserWasAssignedToOktaApp(t, requester.Id, appID)
 			assertUserIsNotAccessListMember(t, sut, app.GetName(), requester.login())
 
 			mustAddAccessListMember(t, sut, app.GetName(), requester.login())
 
-			err = sut.Teleport.Process.GetAuthServer().DeleteAccessRequest(t.Context(), createdRequestApp.GetName())
+			err = sut.Teleport.Process.GetAuthServer().DeleteAccessRequest(t.Context(), accessRequestApp.GetName())
 			require.NoError(t, err)
 
 			oktaInfra.assertUserWasAssignedToOktaApp(t, requester.Id, appID)
@@ -464,15 +457,13 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 		groupID := group.GetName()
 
 		t.Run("delete group access request", func(t *testing.T) {
-			accessRequest := createAccessRequest(groupID, types.KindUserGroup, mustGetClusterName(t, sut), requester.login())
-			createdRequest, err := auth.CreateAccessRequestV2(t.Context(), accessRequest, tlsca.Identity{})
-			require.NoError(t, err)
+			accessRequest := createAccessRequest(t, sut, groupID, types.KindUserGroup, requester.login())
 
 			assertUserIsNotAccessListMember(t, sut, groupID, requester.login())
-			approveRequest(t, sut, createdRequest.GetName(), reviewer.login())
+			approveAccessRequest(t, sut, accessRequest.GetName(), reviewer.login())
 			oktaInfra.assertUserWasAssignedToOktaGroup(t, requester.Id, oktaInfra.Groups[0].Id)
 
-			err = auth.DeleteAccessRequest(t.Context(), createdRequest.GetName())
+			err = auth.DeleteAccessRequest(t.Context(), accessRequest.GetName())
 			require.NoError(t, err)
 
 			oktaInfra.assertUserWasUnassignedFromOktaGroup(t, requester.Id, oktaInfra.Groups[0].Id)
@@ -500,12 +491,6 @@ func mustAddAccessListMember(t *testing.T, sut *common.SUT, aclName, memberName 
 	require.NoError(t, err)
 }
 
-func mustGetClusterName(t *testing.T, sut *common.SUT) string {
-	clusterName, err := sut.Teleport.Process.GetAuthServer().GetClusterName(t.Context())
-	require.NoError(t, err)
-	return clusterName.GetClusterName()
-}
-
 func assertUserIsNotAccessListMember(t *testing.T, sut *common.SUT, acl, user string) {
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		_, err := sut.Teleport.Process.GetAuthServer().AccessLists.GetAccessListMember(t.Context(), acl, user)
@@ -524,42 +509,6 @@ func assertUserIsAccessListMember(t *testing.T, sut *common.SUT, acl, user strin
 	return member
 }
 
-func createAccessRequest(resourceName, resourceType, clusterName string, requesterUser string) *types.AccessRequestV3 {
-	return &types.AccessRequestV3{
-		Metadata: types.Metadata{
-			Name: uuid.New().String(),
-		},
-		Spec: types.AccessRequestSpecV3{
-			User:          requesterUser,
-			RequestReason: "Need access",
-			RequestedResourceIDs: []types.ResourceID{
-				{
-					Kind:        resourceType,
-					Name:        resourceName,
-					ClusterName: clusterName,
-				},
-			},
-		},
-	}
-}
-
-func approveRequest(t *testing.T, sut *common.SUT, requestID string, user string) {
-	auth := sut.Teleport.Process.GetAuthServer()
-	r, err := auth.SubmitAccessReview(t.Context(), types.AccessReviewSubmission{
-		RequestID: requestID,
-		Review: types.AccessReview{
-			Author:        user,
-			ProposedState: types.RequestState_APPROVED,
-		},
-	})
-	require.NoError(t, err)
-
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		_, err := auth.GetOktaAssignment(t.Context(), r.GetName())
-		assert.NoError(c, err)
-	}, time.Second, time.Millisecond*100)
-}
-
 // TestOktaAccessRequestWithSCIMOktaSync tests access requests when SCIM Okta sync is enabled.
 // When an access request is approved, the user should be added to the corresponding Okta group.
 // However, the user should not be synced back as an access list member via SCIM Group update,
@@ -567,7 +516,7 @@ func approveRequest(t *testing.T, sut *common.SUT, requestID string, user string
 // Even after the access request expires, the user would
 // still remain a member of the access list.
 func TestOktaAccessRequestWithSCIMOktaSync(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
 	oktaInfra := createOktaSetup(t, ctx, oktaApiClient, withAppsGroupsUsersCount(1, 1, 7))
 	oktaInfra.createApplicationGroupAssignment(t, oktaInfra.Apps[0].Id, oktaInfra.Groups[0].Id)
@@ -605,12 +554,10 @@ func TestOktaAccessRequestWithSCIMOktaSync(t *testing.T) {
 	require.NotNil(t, group)
 	groupID := group.GetName()
 
-	accessRequest := createAccessRequest(groupID, types.KindUserGroup, mustGetClusterName(t, sut), requester.login())
-	createdRequest, err := auth.CreateAccessRequestV2(t.Context(), accessRequest, tlsca.Identity{})
-	require.NoError(t, err)
+	accessRequest := createAccessRequest(t, sut, groupID, types.KindUserGroup, requester.login())
 
 	assertUserIsNotAccessListMember(t, sut, groupID, requester.login())
-	approveRequest(t, sut, createdRequest.GetName(), reviewer.login())
+	approveAccessRequest(t, sut, accessRequest.GetName(), reviewer.login())
 
 	g, err := scimClient.GetGroup(ctx, oktaInfra.Groups[0].Id)
 	require.NoError(t, err)
@@ -623,7 +570,7 @@ func TestOktaAccessRequestWithSCIMOktaSync(t *testing.T) {
 	oktaInfra.assertUserWasAssignedToOktaGroup(t, requester.Id, oktaInfra.Groups[0].Id)
 	assertUserIsNotAccessListMember(t, sut, groupID, requester.login())
 
-	err = auth.DeleteAccessRequest(t.Context(), createdRequest.GetName())
+	err = auth.DeleteAccessRequest(t.Context(), accessRequest.GetName())
 	require.NoError(t, err)
 
 	oktaInfra.assertUserWasUnassignedFromOktaGroup(t, requester.Id, oktaInfra.Groups[0].Id)

@@ -28,12 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-var apiCredentials = &oktav1.OktaAPICredentials{
-	Auth: &oktav1.OktaAPICredentials_OauthId{
-		OauthId: "12345",
-	},
-}
-
 // TestPluginEnrolmentFullIntegration tests the full integration of the Okta plugin.
 // Where all the features are enabled and the plugin is fully integrated with Teleport.
 // Additionally, it tests the filtering of apps and groups.
@@ -607,25 +601,6 @@ type RoundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
-}
-
-func mustCreateOktaEveryoneGroupAndAssignOktaUsers(t *testing.T, oktaClient *mockOktaAPIClient, users ...*oktaUserType) {
-	g := okta.Group{
-		Type: "BUILT_IN",
-		Profile: &okta.GroupProfile{
-			Name: "Everyone",
-		},
-		Links: map[string]string{
-			"href": "https://12345.okta.com/api/v1/apps/0oailpy80iMX0bjlT697/sso/saml/metadata",
-			"type": "application/xml",
-		},
-	}
-	everyoneGroup, _, err := oktaClient.CreateGroup(context.Background(), g)
-	require.NoError(t, err)
-	for _, user := range users {
-		_, err := oktaClient.AddUserToGroup(context.Background(), everyoneGroup.Id, user.Id)
-		require.NoError(t, err)
-	}
 }
 
 func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
