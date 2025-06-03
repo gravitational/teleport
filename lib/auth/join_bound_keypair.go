@@ -55,14 +55,6 @@ func validateBoundKeypairTokenSpec(spec *types.ProvisionTokenSpecV2BoundKeypair)
 		return trace.BadParameter("bound keypair joining experiment is not enabled")
 	}
 
-	if spec.Onboarding.RegistrationSecret != "" {
-		return trace.NotImplemented("spec.bound_keypair.onboarding.registration_secret is not yet implemented")
-	}
-
-	if spec.Onboarding.InitialPublicKey == "" {
-		return trace.NotImplemented("spec.bound_keypair.onboarding.initial_public_key is currently required")
-	}
-
 	if spec.Recovery == nil {
 		return trace.BadParameter("spec.bound_keypair.recovery: field is required")
 	}
