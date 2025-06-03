@@ -447,7 +447,6 @@ func (w *Watcher) Run(ctx context.Context) (err error) {
 				w.logger.ErrorContext(ctx, "failed to handle session recording config change", "error", err)
 				jitter()
 				continue
-
 			}
 
 			select {
