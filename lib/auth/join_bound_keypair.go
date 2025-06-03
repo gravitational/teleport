@@ -581,14 +581,6 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 	case !hasBoundPublicKey && !hasIncomingBotInstance:
 		// Normal initial join attempt. No bound key, and no incoming bot
 		// instance. Consumes a recovery attempt.
-		if spec.Onboarding.RegistrationSecret != "" {
-			return nil, trace.NotImplemented("initial joining secrets are not yet supported")
-		}
-
-		if spec.Onboarding.InitialPublicKey == "" {
-			return nil, trace.BadParameter("an initial public key is required")
-		}
-
 		if recoveryMode == boundkeypair.RecoveryModeStandard && !hasJoinsRemaining {
 			return nil, trace.AccessDenied("no recovery attempts remaining")
 		}
@@ -615,6 +607,13 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			// A registration secret is expected.
 			if req.InitialJoinSecret == "" {
 				return nil, trace.AccessDenied("a registration secret is required for initial join")
+			}
+
+			if spec.Onboarding.MustRegisterBefore != nil {
+				if a.clock.Now().After(*spec.Onboarding.MustRegisterBefore) {
+					// TODO: don't leak denial reason?
+					return nil, trace.AccessDenied("registration secret has expired")
+				}
 			}
 
 			// Verify the secret.

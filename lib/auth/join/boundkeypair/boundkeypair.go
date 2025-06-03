@@ -183,24 +183,26 @@ func (c *ClientState) SignerForPublicKey(authorizedKeysBytes []byte) (crypto.Sig
 		return nil, trace.Wrap(err)
 	}
 
-	// Check the active key first.
-	activePubKeyBytes, err := c.ToPublicKeyBytes()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	equal, err := pubKeyEqual(desiredPubKey, activePubKeyBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	} else if equal {
-		// Parse a fresh copy of the key since this will escape the mutex and we
-		// can't be sure our local copy is thread safe.
-		key, err := keys.ParsePrivateKey(c.PrivateKeyBytes)
+	// Check the active key first, if available.
+	if c.PrivateKey != nil {
+		activePubKeyBytes, err := c.ToPublicKeyBytes()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		return key.Signer, nil
+		equal, err := pubKeyEqual(desiredPubKey, activePubKeyBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		} else if equal {
+			// Parse a fresh copy of the key since this will escape the mutex and we
+			// can't be sure our local copy is thread safe.
+			key, err := keys.ParsePrivateKey(c.PrivateKeyBytes)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return key.Signer, nil
+		}
 	}
 
 	// Otherwise, search through the key history. If a keypair rotation was
@@ -268,14 +270,16 @@ func (c *ClientState) SetActiveKey(signer crypto.Signer) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	equal, err := pubKeyEqual(signer.Public(), c.PrivateKey.Public())
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	if c.PrivateKey != nil {
+		equal, err := pubKeyEqual(signer.Public(), c.PrivateKey.Public())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	if equal {
-		// nothing to do; specified key is already the active key
-		return nil
+		if equal {
+			// nothing to do; specified key is already the active key
+			return nil
+		}
 	}
 
 	key, err := keys.NewPrivateKey(signer)
@@ -354,6 +358,15 @@ func LoadClientState(ctx context.Context, fs FS) (*ClientState, error) {
 	privateKeyBytes, err := fs.Read(ctx, PrivateKeyPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "reading private key")
+	}
+
+	// The private key may be empty if this is an initial join attempt usign a
+	// configured registration secret, which is allowed.
+	if len(privateKeyBytes) == 0 {
+		// TODO: this or return not found?
+		return &ClientState{
+			fs: fs,
+		}, nil
 	}
 
 	joinStateBytes, err := fs.Read(ctx, JoinStatePath)
