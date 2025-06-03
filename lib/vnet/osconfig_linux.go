@@ -18,13 +18,36 @@ package vnet
 
 import (
 	"context"
+
+	"github.com/gravitational/trace"
 )
 
-type platformOSConfigState struct{}
+type platformOSConfigState struct {
+	setupIPv6          bool
+	broughtUpInterface bool
+}
 
 // platformConfigureOS configures the host OS according to cfg. It is safe to
 // call repeatedly, and it is meant to be called with an empty osConfig to
 // deconfigure anything necessary before exiting.
-func platformConfigureOS(ctx context.Context, cfg *osConfig, _ *platformOSConfigState) error {
+func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSConfigState) error {
+	if cfg.tunIPv6 != "" && !state.setupIPv6 {
+		log.InfoContext(ctx, "Setting IPv6 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv6)
+		addrWithPrefix := cfg.tunIPv6 + "/64"
+		if err := runCommand(ctx,
+			"ip", "addr", "add", addrWithPrefix, "dev", cfg.tunName,
+		); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if state.setupIPv6 && !state.broughtUpInterface {
+		log.InfoContext(ctx, "Bringing up the VNet interface", "device", cfg.tunName)
+		if err := runCommand(ctx,
+			"ip", "link", "set", cfg.tunName, "up",
+		); err != nil {
+			return trace.Wrap(err)
+		}
+		state.broughtUpInterface = true
+	}
 	return nil
 }
