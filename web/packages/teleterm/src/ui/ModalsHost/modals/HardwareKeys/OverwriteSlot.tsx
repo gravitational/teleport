@@ -53,7 +53,7 @@ export function OverwriteSlot(props: {
         />
 
         <DialogContent mb={4}>
-          <P2 color="text.slightlyMuted">{props.req.message}</P2>
+          <P2>{props.req.message}</P2>
         </DialogContent>
 
         <DialogFooter>

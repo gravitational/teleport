@@ -82,7 +82,7 @@ export function ClusterLogout({
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>
-          <P color="text.slightlyMuted">Are you sure you want to log out?</P>
+          <P>Are you sure you want to log out?</P>
           {status === 'error' && (
             <Alerts.Danger mb={5} details={statusText}>
               Could not log out
