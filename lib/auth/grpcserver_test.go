@@ -4853,7 +4853,7 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 }
 
 func TestRoleVersions(t *testing.T) {
-	t.Parallel()
+	t.Setenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS", "yes")
 	srv := newTestTLSServer(t)
 
 	newRole := func(name string, version string, spec types.RoleSpecV6) types.Role {
@@ -5345,7 +5345,7 @@ func TestCreateAuditStreamLimit(t *testing.T) {
 }
 
 func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
-	t.Parallel()
+	t.Setenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS", "yes")
 
 	srv := newTestTLSServer(t)
 
