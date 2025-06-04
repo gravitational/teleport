@@ -53,7 +53,12 @@ type auditLogExporter struct {
 	teleportClusterName string
 
 	// used by bulk exporter
-	idleCh      chan struct{}
+	idleCh chan struct{}
+
+	// batchRecvCh is used to receive event batches from the bulk exporter.
+	// It ensures stream.Send() is not called concurrently, as the stream is not thread-safe
+	// and may deadlock if multiple goroutines attempt to call Send() simultaneously.
+	batchRecvCh chan eventsBatch
 	activeDates []time.Time
 
 	// used by search exporter
@@ -179,11 +184,13 @@ func (a *auditLogExporter) getResumeState(ctx context.Context, isBulkExporter bo
 func (a *auditLogExporter) exportBulk(ctx context.Context, startDate time.Time, resumeState *accessgraphv1.AuditLogStreamResponse) error {
 	a.log.DebugContext(ctx, "Starting audit log bulk exporting", "start_date", startDate, "resume_state", resumeState)
 	a.idleCh = make(chan struct{}, 1)
+	a.batchRecvCh = make(chan eventsBatch, 10)
+
 	exporter, err := export.NewExporter(export.ExporterConfig{
 		Client:        a.client,
 		StartDate:     startDate,
 		PreviousState: a.previousState(resumeState),
-		BatchExport:   &export.BatchExportConfig{Callback: a.bulkExport},
+		BatchExport:   &export.BatchExportConfig{Callback: a.publishThroughChan},
 		OnIdle:        a.sendIdleCh,
 		Concurrency:   3, // TODO(juliaogris): Make configurable. Minimum should be 3. See: https://github.com/gravitational/teleport/blob/v17.3.3/integrations/event-handler/events_job.go#L156
 	})
@@ -199,6 +206,10 @@ func (a *auditLogExporter) exportBulk(ctx context.Context, startDate time.Time, 
 
 	for {
 		select {
+		case batch := <-a.batchRecvCh:
+			if err := a.sendBatch(ctx, batch.events, batch.resumeState); err != nil {
+				return trace.Wrap(err, "Failed to send batch of events on audit log stream")
+			}
 		case <-pruneTicker.Chan():
 			err := a.syncActiveDates(ctx, exporter.GetState())
 			if err != nil {
@@ -255,7 +266,23 @@ func (a *auditLogExporter) previousState(resumeStatePB *accessgraphv1.AuditLogSt
 	return state
 }
 
-func (a *auditLogExporter) bulkExport(ctx context.Context, events []*auditlogv1.EventUnstructured, resumeState export.BulkExportResumeState) error {
+type eventsBatch struct {
+	events      []*auditlogv1.EventUnstructured
+	resumeState export.BulkExportResumeState
+}
+
+// publishThroughChan publishes a batch of events to the batchRecvCh channel.
+func (b *auditLogExporter) publishThroughChan(ctx context.Context, events []*auditlogv1.EventUnstructured, resumeState export.BulkExportResumeState) error {
+	select {
+	case b.batchRecvCh <- eventsBatch{events: events, resumeState: resumeState}:
+		return nil
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err(), "Context done for audit log bulk exporting")
+	}
+}
+
+// sendBatch sends a batch of events to the audit log stream.
+func (a *auditLogExporter) sendBatch(ctx context.Context, events []*auditlogv1.EventUnstructured, resumeState export.BulkExportResumeState) error {
 	a.log.DebugContext(ctx, "Sending bulk exported events", "event_count", len(events))
 	err := a.stream.Send(&accessgraphv1.AuditLogStreamRequest{
 		Action: &accessgraphv1.AuditLogStreamRequest_Events{
