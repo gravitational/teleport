@@ -40,9 +40,12 @@ import (
 )
 
 type certRequest struct {
-	csrPEM      []byte
-	crlEndpoint string
-	keyDER      []byte
+	csrPEM []byte
+	keyDER []byte
+
+	// Optionally specifies the AD domain where CRLs are published.
+	// If omitted then the cert will not specify a CRL distribution point.
+	cdpDomain string
 }
 
 func createUsersExtension(groups []string) (pkix.Extension, error) {
@@ -134,17 +137,7 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	}
 
 	if !req.OmitCDP {
-		// Note: this CRL DN may or may not be the same DN published in updateCRL.
-		//
-		// There can be multiple AD domains connected to Teleport. Each
-		// windows_desktop_service is connected to a single AD domain and publishes
-		// CRLs in it. Each service can also handle RDP connections for a different
-		// domain, with the assumption that some other windows_desktop_service
-		// published a CRL there.
-		crlDN := crlDN(req.ClusterName, cmp.Or(req.PKIDomain, req.Domain), req.CAType)
-
-		// TODO(zmb3) consider making Teleport itself the CDP (via HTTP) instead of LDAP
-		cr.crlEndpoint = fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN)
+		cr.cdpDomain = cmp.Or(req.PKIDomain, req.Domain)
 	}
 
 	return cr, nil
@@ -206,17 +199,9 @@ func GenerateWindowsDesktopCredentials(ctx context.Context, auth AuthInterface, 
 		return nil, nil, trace.Wrap(err)
 	}
 	genResp, err := auth.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{
-		CSR: certReq.csrPEM,
-		// LDAP URI pointing at the CRL created with updateCRL.
-		//
-		// The full format is:
-		// ldap://domain_controller_addr/distinguished_name_and_parameters.
-		//
-		// Using ldap:///distinguished_name_and_parameters (with empty
-		// domain_controller_addr) will cause Windows to fetch the CRL from any
-		// of its current domain controllers.
-		CRLEndpoint: certReq.crlEndpoint,
-		TTL:         proto.Duration(req.TTL),
+		CSR:       certReq.csrPEM,
+		CRLDomain: certReq.cdpDomain,
+		TTL:       proto.Duration(req.TTL),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -250,7 +235,7 @@ func generateDatabaseCredentials(ctx context.Context, auth AuthInterface, req *G
 		// Using ldap:///distinguished_name_and_parameters (with empty
 		// domain_controller_addr) will cause Windows to fetch the CRL from any
 		// of its current domain controllers.
-		CRLEndpoint:           certReq.crlEndpoint,
+		CRLDomain:             certReq.cdpDomain,
 		TTL:                   proto.Duration(req.TTL),
 		CertificateExtensions: proto.DatabaseCertRequest_WINDOWS_SMARTCARD,
 	})

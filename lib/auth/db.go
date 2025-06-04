@@ -28,6 +28,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"github.com/gravitational/teleport/lib/winpki"
 	"log/slog"
 	"strings"
 	"time"
@@ -161,8 +162,26 @@ func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		// out of the box in crypto/x509) extensions only.
 		certReq.ExtraExtensions = filterExtensions(a.CloseContext(), a.logger, csr.Extensions, oidExtKeyUsage, oidSubjectAltName, oidADUserMapping)
 		certReq.KeyUsage = x509.KeyUsageDigitalSignature
-		// CRL is required for Windows smartcard certs.
-		certReq.CRLDistributionPoints = []string{req.CRLEndpoint}
+		// CRL Distribution Points (CDP) are required for Windows smartcard certs
+		// for users wanting to RDP. They are not required for the service account
+		// cert that Teleport itself uses to authenticate for LDAP.
+		//
+		// The CDP is computed here by the auth server issuing the cert and not provided
+		// by the client because the CDP is based on the identity of the issuer, which is
+		// necessary in order to support clusters with multiple issuing certs (HSMs).
+		if req.CRLDomain != "" {
+			cdp := winpki.CRLDistributionPoint(
+				req.CRLDomain,
+				types.UserCA,
+				tlsCA,
+			)
+			certReq.CRLDistributionPoints = []string{cdp}
+		} else if req.CRLEndpoint != "" {
+			// legacy clients will specify CRL endpoint instead of CRL domain
+			// DELETE IN v20 (zmb3)
+			certReq.CRLDistributionPoints = []string{req.CRLEndpoint}
+			a.logger.DebugContext(ctx, "Generating Database cert with legacy CDP")
+		}
 	} else {
 		// Include provided server names as SANs in the certificate, CommonName
 		// has been deprecated since Go 1.15:
