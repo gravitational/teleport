@@ -18,9 +18,56 @@ origin:
 - [Tunnel public address](#)
 - [Multiple public addresses](#)
 
+## Separating load balancers
+
+To handle Teleport Proxy Service traffic differently depending on the origin,
+you can deploy separate Proxy Service load balancers:
+
+- A load balancer for traffic from the public internet
+- A load balancer for traffic from infrastructure in private networks
+
+Each load balancer has a separate IP address. Clients then connect to the Proxy
+Service load balancer at the appropriate address. Internal infrastructure
+resources establish SSH reverse tunnels to the Proxy Service by dialling the
+internal load balancer, while external clients connect toe the Proxy Service
+using the external load balancer. 
+
+When an end user connects to an infrastructure resource, e.g., using `tsh proxy
+db` or sending an HTTP request to a Teleport-protected application, the Proxy
+Service routes external traffic to the appropriate infrastructure resource by
+selecting a reverse tunnel.
+
+{/*TODO: Would the separate load balancers route traffic to the same pool of
+Proxy Service instances, or would they be configured differently somehow? */}
+
+{/*TODO: any other considerations here?*/}
+
 ## Split DNS
 
-{/*TODO*/}
+You can set up your infrastructure to use split DNS so that the same public
+address for your Teleport cluster resolves to the external endpoint for end
+users and the internal endpoint for infrastructure resources in your internal
+network.
+
+1. Determine a single public address to use for the Teleport Proxy Service,
+   e.g., `proxy.example.com`.
+
+1. Configure your DNS infrastructure to return the IP address of the internal
+   load balancer for your internal network and the external load balancer for
+   the public internet.
+
+   For example, in Amazon Route 53, you can create public and private hosted
+   zones for the same domain and add a separate record to each hosted zone ([AWS
+   documentation](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zone-private-considerations.html#hosted-zone-private-considerations-split-view-dns)).
+
+1. Edit your Proxy Service configuration to include a single value for its
+   public address:
+
+   ```yaml
+   proxy_service:
+     enabled: true
+     public_addr: proxy.example.com:3080
+   ```
 
 ## Tunnel public address
 
