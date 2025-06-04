@@ -155,6 +155,10 @@ This could also be used as a way to maintain the path selection logic. We could
 probe the address as an auth server and proxy on the first run and "cache" which
 it was on-disk so that on subsequent runs we just connect using the known method.
 
+Alternatively, we could treat the presence of an existing identity as proof that
+the configuration was valid at one point (although this doesn't handle the case
+of changing configuration).
+
 ### Implementation Option 1: Make the client optional
 
 In terms of implementation, the simplest option conceptually might be to make
