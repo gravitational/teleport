@@ -3956,6 +3956,17 @@ message CertificateCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // CertificateAuthority holds information about creator of certificate
+  CertificateAuthority CertificateAuthority = 5 [(gogoproto.jsontag) = "certificate_authority"];
+}
+
+// CertificateAuthority holds information about creator of certificate
+message CertificateAuthority {
+  // ID is identifier of the cert authority (type and domain)
+  string ID = 1 [(gogoproto.jsontag) = "id,omitempty"];
+  // SubjectKeyID is BASE32-encoded subject key ID from authority certificate
+  string SubjectKeyID = 2 [(gogoproto.jsontag) = "subject_key_id,omitempty"];
 }
 
 // RenewableCertificateGenerationMismatch is emitted when a renewable
