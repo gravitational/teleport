@@ -19,9 +19,6 @@ package vnet
 import (
 	"context"
 	"errors"
-	"log/slog"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
