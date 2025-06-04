@@ -79,6 +79,7 @@ import (
 	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
+	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/client/reexec"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -629,6 +630,10 @@ type CLIConf struct {
 	// forkKillFd is the file descriptor for the child process to check the
 	// parent's state when re-execing.
 	forkKillFd uint64
+
+	// databaseMCPRegistryOverride overrides database access MCP servers
+	// registry. used in tests.
+	databaseMCPRegistryOverride dbmcp.Registry
 }
 
 func (c *CLIConf) isForkAuthChild() bool {
@@ -800,7 +805,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// run early to enable debug logging if env var is set.
 	// this makes it possible to debug early startup functionality, particularly command aliases.
-	if err := initLogger(&cf, parseLoggingOptsFromEnv()); err != nil {
+	if _, err := initLogger(&cf, utils.LoggingForCLI, parseLoggingOptsFromEnv()); err != nil {
 		printInitLoggerError(err)
 	}
 
@@ -1360,6 +1365,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	gitCmd := newGitCommands(app)
 	pivCmd := newPIVCommands(app)
 
+	mcpCmd := newMCPCommands(app)
+
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
@@ -1477,7 +1484,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Enable debug logging if requested by --debug.
 	// If TELEPORT_DEBUG was set and --debug/--no-debug was not passed, debug logs were already
 	// enabled by a prior call to initLogger.
-	if err := initLogger(&cf, parseLoggingOptsFromEnvAndArgv(&cf)); err != nil {
+	if _, err := initLogger(&cf, utils.LoggingForCLI, parseLoggingOptsFromEnvAndArgv(&cf)); err != nil {
 		printInitLoggerError(err)
 	}
 
@@ -1792,6 +1799,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.clone.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
+	case mcpCmd.dbStart.FullCommand():
+		err = mcpCmd.dbStart.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
