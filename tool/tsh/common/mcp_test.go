@@ -46,6 +46,7 @@ func TestMCPDBCommand(t *testing.T) {
 
 	authProcess := testserver.MakeTestServer(
 		t,
+		testserver.WithClusterName(t, "root"),
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -93,8 +94,8 @@ func TestMCPDBCommand(t *testing.T) {
 			"mcp",
 			"db",
 			"start",
-			"teleport://databases/postgres1?dbUser=postgres&dbName=postgres",
-			"teleport://databases/postgres2?dbUser=postgres&dbName=postgres",
+			"teleport://clusters/root/databases/postgres1?dbUser=postgres&dbName=postgres",
+			"teleport://clusters/root/databases/postgres2?dbUser=postgres&dbName=postgres",
 		}, setHomePath(tmpHomePath), func(c *CLIConf) error {
 			c.overrideStdin = stdin
 			c.OverrideStdout = stdout
@@ -134,6 +135,86 @@ func TestMCPDBCommand(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		require.Fail(t, "expected the execution to be completed")
 	}
+}
+
+func TestMCPDBCommandFailures(t *testing.T) {
+	tmpHomePath := t.TempDir()
+	connector := mockConnector(t)
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetDatabaseUsers([]string{"postgres"})
+	alice.SetDatabaseNames([]string{"postgres"})
+	alice.SetRoles([]string{"access"})
+	clusterName := "root"
+
+	authProcess := testserver.MakeTestServer(
+		t,
+		testserver.WithClusterName(t, clusterName),
+		testserver.WithBootstrap(connector, alice),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = []servicecfg.Database{
+				{
+					Name:     "postgres1",
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "external-pg:5432",
+				},
+				{
+					Name:     "postgres2",
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "external-pg:5432",
+				},
+				{
+					Name:     "mysql-local",
+					Protocol: defaults.ProtocolMySQL,
+					URI:      "external-mysql:3306",
+				},
+			}
+		}),
+	)
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := authProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	withMockedMCPServers := func(c *CLIConf) error {
+		c.databaseMCPRegistryOverride = map[string]dbmcp.NewServerFunc{
+			defaults.ProtocolPostgres: func(ctx context.Context, nsc *dbmcp.NewServerConfig) (dbmcp.Server, error) {
+				return &testDatabaseMCP{}, nil
+			},
+		}
+		return nil
+	}
+
+	err = Run(t.Context(), []string{
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
+	require.NoError(t, err)
+
+	t.Run("different clusters", func(t *testing.T) {
+		err := Run(t.Context(), []string{
+			"mcp",
+			"db",
+			"start",
+			"teleport://clusters/root/databases/postgres1?dbUser=postgres&dbName=postgres",
+			"teleport://clusters/other/databases/postgres2?dbUser=postgres&dbName=postgres",
+		}, setHomePath(tmpHomePath), withMockedMCPServers)
+		require.Error(t, err)
+	})
+
+	t.Run("duplicated databases", func(t *testing.T) {
+		err := Run(t.Context(), []string{
+			"mcp",
+			"db",
+			"start",
+			"teleport://clusters/root/databases/postgres1?dbUser=postgres&dbName=postgres",
+			"teleport://clusters/root/databases/postgres1?dbUser=readonly&dbName=postgres",
+		}, setHomePath(tmpHomePath), withMockedMCPServers)
+		require.Error(t, err)
+	})
 }
 
 // testDatabaseMCP is a noop database MCP server.

@@ -82,6 +82,7 @@ func (c *mcpDBStartCommand) run(cf *CLIConf) error {
 	// otherwise the MCP clients will be stuck waiting for a response.
 	tc.NonInteractive = false
 
+	configuredDatabases := map[string]struct{}{}
 	uris := make([]*mcp.ResourceURI, len(c.databaseURIs))
 	for i, rawURI := range c.databaseURIs {
 		uri, err := mcp.ParseResourceURI(rawURI)
@@ -98,6 +99,11 @@ func (c *mcpDBStartCommand) run(cf *CLIConf) error {
 			return trace.BadParameter("Databases must be from the same cluster (%q). %q is from a different cluster.", tc.SiteName, rawURI)
 		}
 
+		if _, ok := configuredDatabases[uri.String()]; ok {
+			return trace.BadParameter("Database %q was configured twice. MCP servers only support serving a database service only once.", uri.String())
+		}
+
+		configuredDatabases[uri.String()] = struct{}{}
 		uris[i] = uri
 	}
 
