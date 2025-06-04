@@ -1089,7 +1089,14 @@ message DatabaseCertRequest {
   Extensions CertificateExtensions = 6 [(gogoproto.jsontag) = "certificate_extensions"];
 
   // CRLEndpoint is a certificate revocation list distribution point. Required for Windows smartcard certs.
-  string CRLEndpoint = 7 [(gogoproto.jsontag) = "crl_endpoint"];
+  // DEPRECATED: use CRLDomain instead.
+  string CRLEndpoint = 7 [
+    (gogoproto.jsontag) = "crl_endpoint",
+    deprecated = true
+  ];
+
+  // CRLDomain is the Active Directory domain where CRLs are published.
+  string CRLDomain = 8 [(gogoproto.jsontag) = "crl_domain"];
 }
 
 // DatabaseCertResponse contains the signed certificate.
