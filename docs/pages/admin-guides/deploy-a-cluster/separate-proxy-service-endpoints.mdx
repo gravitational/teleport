@@ -1,0 +1,32 @@
+---
+title: Separate Internal and External Proxy Service Traffic
+description: Explains how to set up the Teleport Proxy Service to isolate traffic from the public internet from internal client traffic.
+---
+
+In a typical Teleport cluster, including clusters deployed on Teleport Cloud,
+the Teleport Proxy Service exposes a single HTTPS port to users on the public
+internet as well as infrastructure resources running in private networks. For
+self-hosted Teleport clusters with security needs that require it, you can
+configure your cluster to handle Proxy Service traffic differently depending on
+whether it originates from the public internet or from your internal networks.
+
+This guide explains three methods for separating Proxy Service HTTPS traffic by
+origin:
+
+{/*TODO: fill in anchors*/} 
+- [Split DNS](#)
+- [Tunnel public address](#)
+- [Multiple public addresses](#)
+
+## Split DNS
+
+{/*TODO*/}
+
+## Tunnel public address
+
+{/*TODO*/}
+
+## Multiple public addresses
+
+{/*TODO*/}
+
