@@ -20,6 +20,7 @@ package winpki
 
 import (
 	"crypto/x509"
+	"encoding/base32"
 	"errors"
 	"fmt"
 	"strings"
@@ -29,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // LDAPConfig contains parameters for connecting to an LDAP server.
@@ -268,8 +270,15 @@ func crlContainerDN(domain string, caType types.CertAuthType) string {
 	return fmt.Sprintf("CN=%s,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,%s", crlKeyName(caType), DomainDN(domain))
 }
 
-func crlDN(clusterName string, activeDirectoryDomain string, caType types.CertAuthType) string {
-	return "CN=" + clusterName + "," + crlContainerDN(activeDirectoryDomain, caType)
+func crlDN(issuerID string, activeDirectoryDomain string, caType types.CertAuthType) string {
+	return "CN=" + issuerID + "," + crlContainerDN(activeDirectoryDomain, caType)
+}
+
+// CRLDistributionPoint computes the CRL distribution point for certs issued.
+func CRLDistributionPoint(activeDirectoryDomain string, caType types.CertAuthType, issuer *tlsca.CertAuthority) string {
+	id := base32.HexEncoding.EncodeToString(issuer.Cert.SubjectKeyId)
+	crlDN := crlDN(id, activeDirectoryDomain, caType)
+	return fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN)
 }
 
 // crlKeyName returns the appropriate LDAP key given the CA type.

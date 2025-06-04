@@ -27,6 +27,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"encoding/base32"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -1345,6 +1346,7 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		"dns_names", req.DNSNames,
 		"key_usage", req.KeyUsage,
 		"common_name", req.Subject.CommonName,
+		"issuer_skid", base32.HexEncoding.EncodeToString(ca.Cert.SubjectKeyId),
 	)
 
 	template := &x509.Certificate{
