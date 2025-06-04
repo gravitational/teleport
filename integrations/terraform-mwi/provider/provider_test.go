@@ -24,6 +24,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/echoprovider"
 )
 
+var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
+	"teleportmwi": providerserver.NewProtocol6WithError(New()()),
+}
+
 var testAccProtoV6ProviderFactoriesWithEcho = map[string]func() (tfprotov6.ProviderServer, error){
 	"teleportmwi": providerserver.NewProtocol6WithError(New()()),
 	"echo":        echoprovider.NewProviderServer(),
