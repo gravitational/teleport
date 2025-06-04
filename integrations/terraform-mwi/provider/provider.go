@@ -42,8 +42,6 @@ type Provider struct {
 
 type ProviderModel struct{}
 
-type providerData struct{}
-
 func (p *Provider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
 	resp.TypeName = "teleportmwi"
 }
@@ -64,7 +62,7 @@ func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest,
 
 func (p *Provider) EphemeralResources(ctx context.Context) []func() ephemeral.EphemeralResource {
 	return []func() ephemeral.EphemeralResource{
-		// TODO: Implement ephemeral resource...
+		NewKubernetesEphemeralResource,
 	}
 }
 
