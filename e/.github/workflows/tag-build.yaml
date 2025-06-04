@@ -227,23 +227,6 @@ jobs:
       source-tag: ${{ needs.setup.outputs.version }}
       environment: ${{ inputs.environment }}
 
-  build-spacelift-runner-oci:
-    name: Build Spacelift Runner OCI
-    if: ${{ !inputs.cloud-only }}
-    needs: setup
-    secrets: inherit
-    permissions:
-      actions: read
-      contents: read
-      id-token: write
-      security-events: write
-    uses: ./.github/workflows/release-teleport-spacelift-runner-oci.yml
-    with:
-      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
-      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-      source-tag: ${{ needs.setup.outputs.version }}
-      environment: ${{ inputs.environment }}
-
   build-distroless-oci:
     name: Build Teleport Distroless OCI
     needs: [setup, build-linux]

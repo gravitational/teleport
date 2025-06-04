@@ -178,19 +178,6 @@ jobs:
       artifact-version: ${{ needs.setup.outputs.version }}
       environment: ${{ inputs.environment }}
 
-  publish-spacelift-runner:
-    name: Publish spacelift runner OCI image
-    if: ${{ !inputs.cloud-only }}
-    needs: setup
-    secrets: inherit
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-teleport-spacelift-runner-oci.yml
-    with:
-      release-source-tag: ${{ needs.setup.outputs.version }}
-      environment: ${{ inputs.environment }}
-
   publish-plugins:
     name: Publish Teleport Plugins
     if: ${{ !inputs.cloud-only }}
@@ -218,7 +205,6 @@ jobs:
       - publish-kube-agent-updater-oci
       - publish-operator-oci
       - publish-os-packages
-      - publish-spacelift-runner
       - publish-plugins
     secrets: inherit
     permissions:
