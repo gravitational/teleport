@@ -22,18 +22,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"encoding/json"
+	"fmt"
 	"net/http"
-	"strconv"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-
-	"github.com/hinshun/vt10x"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/metadata"
@@ -44,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web/ttyplayback"
+	"github.com/gravitational/teleport/lib/web/ttyplayback/terminal"
 )
 
 const (
@@ -125,9 +121,9 @@ func (h *Handler) sessionDetails(
 	}
 
 	type Thumbnail struct {
-		Screen    ttyplayback.SerializedTerminal `json:"screen"`
-		StartTime int64                          `json:"start_time"`
-		EndTime   int64                          `json:"end_time"`
+		Screen    terminal.SerializedTerminal `json:"screen"`
+		StartTime int64                       `json:"start_time"`
+		EndTime   int64                       `json:"end_time"`
 	}
 
 	type SessionEventsResponse struct {
@@ -135,7 +131,7 @@ func (h *Handler) sessionDetails(
 		Thumbnails []Thumbnail `json:"thumbnails"`
 	}
 
-	var sessionEvents []ttyplayback.Event
+	var sessionEvents []terminal.Event
 
 	evts, errs := clt.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, teleport.PTY), session.ID(sID), 0)
 	for {
@@ -148,20 +144,24 @@ func (h *Handler) sessionDetails(
 			}
 			switch evt := evt.(type) {
 			case *apievents.SessionPrint:
-				sessionEvents = append(sessionEvents, ttyplayback.Event{
+				sessionEvents = append(sessionEvents, terminal.Event{
 					Type: "print",
 					Data: string(evt.Data),
 					Time: evt.DelayMilliseconds,
 				})
+			case *apievents.SessionCommand:
+				fmt.Printf("Command event: %v\n", evt)
+			case *apievents.SessionJoin:
+				fmt.Printf("Join event: %v\n", evt)
 			case *apievents.SessionEnd:
-				sessionEvents = append(sessionEvents, ttyplayback.Event{
+				sessionEvents = append(sessionEvents, terminal.Event{
 					Type: "end",
 					Data: evt.EndTime.Format(time.RFC3339),
 					Time: int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond),
 				})
 
 				type FrameAtInterval struct {
-					frame ttyplayback.Frame
+					frame terminal.Frame
 					start int64
 					end   int64
 				}
@@ -172,8 +172,8 @@ func (h *Handler) sessionDetails(
 				intervalMs := 500
 				maxTime := sessionEvents[len(sessionEvents)-1].Time
 
-				iter := ttyplayback.NewSliceIterator(sessionEvents)
-				framesIter := ttyplayback.Frames(iter)
+				iter := terminal.NewSliceIterator(sessionEvents)
+				framesIter := terminal.Frames(iter)
 
 				frames := framesIter.CollectAll()
 
@@ -194,7 +194,7 @@ func (h *Handler) sessionDetails(
 				thumbnails := make([]Thumbnail, 0, len(frameAtInterval))
 				for _, frame := range frameAtInterval {
 					thumbnails = append(thumbnails, Thumbnail{
-						Screen: ttyplayback.SerializedTerminal{
+						Screen: terminal.SerializedTerminal{
 							Data:    frame.frame.Ansi,
 							Cols:    frame.frame.Cols,
 							Rows:    frame.frame.Rows,
@@ -211,170 +211,7 @@ func (h *Handler) sessionDetails(
 					Thumbnails: thumbnails,
 				}, nil
 			case *apievents.Resize:
-				sessionEvents = append(sessionEvents, ttyplayback.Event{
-					Type: "resize",
-					Data: evt.TerminalSize,
-				})
-			}
-		}
-	}
-}
-
-func (h *Handler) sessionEvents(
-	w http.ResponseWriter,
-	r *http.Request,
-	p httprouter.Params,
-	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
-) (interface{}, error) {
-	sID := p.ByName("sid")
-	if sID == "" {
-		return nil, trace.BadParameter("missing session ID in request URL")
-	}
-
-	var startFromTime int64
-
-	query := r.URL.Query()
-	// limit value is expected to be non empty and convertible to int.
-	startTimeValue := query.Get("start_time")
-	if startTimeValue == "" {
-		startFromTime = 0
-	} else {
-		var err error
-		startFromTime, err = strconv.ParseInt(startTimeValue, 10, 64)
-		if err != nil {
-			return nil, trace.BadParameter("invalid start index: %v", err)
-		}
-		if startFromTime < 0 {
-			return nil, trace.BadParameter("start index must be non-negative")
-		}
-	}
-
-	var limit int64 = 500
-	limitValue := query.Get("limit")
-	if limitValue != "" {
-		var err error
-		limit, err = strconv.ParseInt(limitValue, 10, 64)
-		if err != nil {
-			return nil, trace.BadParameter("invalid limit: %v", err)
-		}
-		if limit <= 0 {
-			return nil, trace.BadParameter("limit must be a positive integer")
-		}
-	}
-
-	ctx, cancel := context.WithCancel(r.Context())
-	defer cancel()
-
-	clt, err := sctx.GetUserClient(ctx, site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	type SessionEventsResponse struct {
-		CurrentScreen ttyplayback.SerializedTerminal `json:"currentScreen"`
-		Duration      int64                          `json:"duration"`
-		Events        []ttyplayback.Event            `json:"events"`
-	}
-
-	var currentScreen ttyplayback.SerializedTerminal
-
-	var sessionEvents []ttyplayback.Event
-
-	var lastEvent *apievents.SessionPrint
-
-	vt := vt10x.New()
-
-	evts, errs := clt.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, teleport.PTY), session.ID(sID), 0)
-	for {
-		select {
-		case err := <-errs:
-			return nil, trace.Wrap(err)
-		case evt, ok := <-evts:
-			if !ok {
-				return nil, trace.NotFound("could not find end event for session %v", sID)
-			}
-			switch evt := evt.(type) {
-			case *apievents.SessionStart:
-				if startFromTime > 0 {
-					// If the event is before the start time, skip it.
-					continue
-				}
-				sessionEvents = append(sessionEvents, ttyplayback.Event{
-					Type: "start",
-					Data: evt.TerminalSize,
-				})
-			case *apievents.SessionPrint:
-				if evt.DelayMilliseconds < startFromTime {
-					if _, err := vt.Write(evt.Data); err != nil {
-						h.logger.WarnContext(ctx, "failed to write to terminal", "error", err, "data", evt.Data)
-
-						continue
-					}
-
-					lastEvent = evt
-
-					continue
-				}
-
-				if lastEvent != nil {
-					currentScreen = ttyplayback.SerializeTerminal(vt)
-
-					lastEvent = nil
-				}
-
-				sessionEvents = append(sessionEvents, ttyplayback.Event{
-					Type: "print",
-					Data: string(evt.Data),
-					Time: evt.DelayMilliseconds,
-				})
-
-				if int64(len(sessionEvents)) >= limit {
-					// If we have reached the limit, return the events collected so far.
-					return SessionEventsResponse{
-						CurrentScreen: currentScreen,
-						Duration:      int64(evt.DelayMilliseconds),
-						Events:        sessionEvents,
-					}, nil
-				}
-			case *apievents.SessionEnd:
-				sessionEvents = append(sessionEvents, ttyplayback.Event{
-					Type: "end",
-					Data: evt.EndTime.Format(time.RFC3339),
-					Time: int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond),
-				})
-				return SessionEventsResponse{
-					CurrentScreen: currentScreen,
-					Duration:      int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond),
-					Events:        sessionEvents,
-				}, nil
-			case *apievents.Resize:
-				parts := strings.Split(evt.TerminalSize, ":")
-				if len(parts) != 2 {
-					h.logger.WarnContext(ctx, "invalid terminal size format", "size", evt.TerminalSize)
-					continue
-				}
-
-				width, err := strconv.Atoi(parts[0])
-				if err != nil {
-					h.logger.WarnContext(ctx, "invalid terminal width", "width", parts[0], "error", err)
-					continue
-				}
-
-				height, err := strconv.Atoi(parts[1])
-				if err != nil {
-					h.logger.WarnContext(ctx, "invalid terminal height", "height", parts[1], "error", err)
-					continue
-				}
-
-				vt.Resize(width, height)
-
-				if startFromTime > 0 {
-					// If the resize event is before the start time, skip it.
-					continue
-				}
-
-				sessionEvents = append(sessionEvents, ttyplayback.Event{
+				sessionEvents = append(sessionEvents, terminal.Event{
 					Type: "resize",
 					Data: evt.TerminalSize,
 				})
@@ -591,379 +428,16 @@ func (h *Handler) sessionEventsWs(
 		return nil, nil
 	}
 
-	ctx, cancel := context.WithCancel(r.Context())
-	defer cancel()
-
+	ctx := r.Context()
 	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		writeError(ws, err)
 		return nil, nil
 	}
 
-	type sessionEventStreamer struct {
-		events            <-chan apievents.AuditEvent
-		errors            <-chan error
-		cancel            context.CancelFunc
-		vt                vt10x.Terminal
-		vtMutex           sync.RWMutex
-		lastProcessedTime int64
-		currentTime       int64
-		terminalSize      string
-		pendingEvent      apievents.AuditEvent
-	}
+	handler := ttyplayback.NewSessionEventsHandler(ctx, ws, clt, sID, h.logger)
+	handler.Run()
 
-	var streamer *sessionEventStreamer
-	var streamerMutex sync.Mutex
-
-	rebuildVTState := func(upToTime int64) (*vt10x.Terminal, error) {
-		streamCtx, streamCancel := context.WithCancel(ctx)
-		defer streamCancel()
-
-		vt := vt10x.New()
-		evts, errs := clt.StreamSessionEvents(
-			metadata.WithSessionRecordingFormatContext(streamCtx, teleport.PTY),
-			session.ID(sID),
-			0,
-		)
-
-		for {
-			select {
-			case <-streamCtx.Done():
-				return &vt, nil
-			case err := <-errs:
-				if err != nil {
-					return nil, err
-				}
-				return &vt, nil
-			case evt, ok := <-evts:
-				if !ok {
-					return &vt, nil
-				}
-
-				switch evt := evt.(type) {
-				case *apievents.SessionStart:
-					parts := strings.Split(evt.TerminalSize, ":")
-					if len(parts) == 2 {
-						width, _ := strconv.Atoi(parts[0])
-						height, _ := strconv.Atoi(parts[1])
-						vt.Resize(width, height)
-					}
-
-				case *apievents.SessionPrint:
-					if evt.DelayMilliseconds > upToTime {
-						return &vt, nil
-					}
-					if _, err := vt.Write(evt.Data); err != nil {
-						h.logger.WarnContext(streamCtx, "failed to write to terminal", "error", err)
-					}
-
-				case *apievents.Resize:
-					parts := strings.Split(evt.TerminalSize, ":")
-					if len(parts) == 2 {
-						width, err := strconv.Atoi(parts[0])
-						if err == nil {
-							height, err := strconv.Atoi(parts[1])
-							if err == nil {
-								vt.Resize(width, height)
-							}
-						}
-					}
-
-				case *apievents.SessionEnd:
-					return &vt, nil
-				}
-			}
-		}
-	}
-
-	initStreamer := func(startTime int64) error {
-		streamerMutex.Lock()
-		defer streamerMutex.Unlock()
-
-		if streamer != nil && streamer.cancel != nil {
-			streamer.cancel()
-		}
-
-		streamCtx, streamCancel := context.WithCancel(ctx)
-
-		vt := vt10x.New()
-		if startTime > 0 {
-			rebuiltVT, err := rebuildVTState(startTime)
-			if err != nil {
-				return err
-			}
-			if rebuiltVT != nil {
-				vt = *rebuiltVT
-			}
-		}
-
-		evts, errs := clt.StreamSessionEvents(
-			metadata.WithSessionRecordingFormatContext(streamCtx, teleport.PTY),
-			session.ID(sID),
-			startTime,
-		)
-
-		streamer = &sessionEventStreamer{
-			events:            evts,
-			errors:            errs,
-			cancel:            streamCancel,
-			vt:                vt,
-			lastProcessedTime: startTime,
-			currentTime:       startTime,
-		}
-
-		return nil
-	}
-
-	type SessionEventsRequest struct {
-		Type                 string `json:"type"`
-		StartTime            int64  `json:"startTime"`
-		EndTime              int64  `json:"endTime"`
-		RequestCurrentScreen bool   `json:"requestCurrentScreen"`
-	}
-
-	type SessionEventsResponse struct {
-		Type          string                         `json:"type"`
-		CurrentScreen ttyplayback.SerializedTerminal `json:"currentScreen,omitempty"`
-		Duration      int64                          `json:"duration"`
-		Events        []ttyplayback.Event            `json:"events"`
-		HasMore       bool                           `json:"hasMore"`
-	}
-
-	go func() {
-		defer cancel()
-		for {
-			_, b, err := ws.ReadMessage()
-			if err != nil {
-				if !utils.IsOKNetworkError(err) {
-					h.logger.WarnContext(ctx, "websocket read error", "error", err)
-				}
-				return
-			}
-
-			var req SessionEventsRequest
-			if err := json.Unmarshal(b, &req); err != nil {
-				h.logger.WarnContext(ctx, "failed to unmarshal request", "error", err)
-				continue
-			}
-
-			switch req.Type {
-			case "fetch":
-				needsReinit := false
-				streamerMutex.Lock()
-				if streamer == nil {
-					needsReinit = true
-				} else if req.StartTime < streamer.lastProcessedTime {
-					needsReinit = true
-				}
-				streamerMutex.Unlock()
-
-				if needsReinit {
-					if err := initStreamer(req.StartTime); err != nil {
-						writeError(ws, err)
-						continue
-					}
-				}
-
-				go func() {
-					sessionEvents := make([]ttyplayback.Event, 0)
-					var currentScreen ttyplayback.SerializedTerminal
-					var duration int64
-					hasMore := true
-
-					streamerMutex.Lock()
-					localStreamer := streamer
-					streamerMutex.Unlock()
-
-					if localStreamer == nil {
-						writeError(ws, trace.BadParameter("streamer not initialized"))
-						return
-					}
-
-					if localStreamer.pendingEvent != nil {
-						evt := localStreamer.pendingEvent
-						localStreamer.pendingEvent = nil
-
-						switch evt := evt.(type) {
-						case *apievents.SessionPrint:
-							if evt.DelayMilliseconds >= req.StartTime && evt.DelayMilliseconds <= req.EndTime {
-								sessionEvents = append(sessionEvents, ttyplayback.Event{
-									Type: "print",
-									Data: string(evt.Data),
-									Time: evt.DelayMilliseconds,
-								})
-								duration = evt.DelayMilliseconds
-							}
-
-							localStreamer.vtMutex.Lock()
-							if _, err := localStreamer.vt.Write(evt.Data); err != nil {
-								h.logger.WarnContext(ctx, "failed to write to terminal", "error", err)
-							}
-							localStreamer.currentTime = evt.DelayMilliseconds
-							localStreamer.vtMutex.Unlock()
-
-							if evt.DelayMilliseconds > req.EndTime {
-								localStreamer.pendingEvent = evt
-								goto sendResponse
-							}
-						}
-					}
-
-				processLoop:
-					for {
-						select {
-						case <-ctx.Done():
-							return
-						case err := <-localStreamer.errors:
-							if err != nil {
-								writeError(ws, err)
-								return
-							}
-							hasMore = false
-							break processLoop
-						case evt, ok := <-localStreamer.events:
-							if !ok {
-								hasMore = false
-								break processLoop
-							}
-
-							switch evt := evt.(type) {
-							case *apievents.SessionStart:
-								if req.StartTime <= 0 {
-									sessionEvents = append(sessionEvents, ttyplayback.Event{
-										Type: "start",
-										Data: evt.TerminalSize,
-									})
-								}
-								localStreamer.terminalSize = evt.TerminalSize
-								parts := strings.Split(evt.TerminalSize, ":")
-								if len(parts) == 2 {
-									width, _ := strconv.Atoi(parts[0])
-									height, _ := strconv.Atoi(parts[1])
-									localStreamer.vtMutex.Lock()
-									localStreamer.vt.Resize(width, height)
-									localStreamer.vtMutex.Unlock()
-								}
-
-							case *apievents.SessionPrint:
-								localStreamer.vtMutex.Lock()
-								if _, err := localStreamer.vt.Write(evt.Data); err != nil {
-									h.logger.WarnContext(ctx, "failed to write to terminal", "error", err)
-									localStreamer.vtMutex.Unlock()
-									continue
-								}
-								localStreamer.currentTime = evt.DelayMilliseconds
-								localStreamer.vtMutex.Unlock()
-
-								if evt.DelayMilliseconds >= req.StartTime && evt.DelayMilliseconds <= req.EndTime {
-									sessionEvents = append(sessionEvents, ttyplayback.Event{
-										Type: "print",
-										Data: string(evt.Data),
-										Time: evt.DelayMilliseconds,
-									})
-									duration = evt.DelayMilliseconds
-								}
-
-								if evt.DelayMilliseconds > req.EndTime {
-									localStreamer.pendingEvent = evt
-									break processLoop
-								}
-
-								localStreamer.lastProcessedTime = evt.DelayMilliseconds
-
-							case *apievents.SessionEnd:
-								endTime := int64(evt.EndTime.Sub(evt.StartTime) / time.Millisecond)
-								if endTime >= req.StartTime && endTime <= req.EndTime {
-									sessionEvents = append(sessionEvents, ttyplayback.Event{
-										Type: "end",
-										Data: evt.EndTime.Format(time.RFC3339),
-										Time: endTime,
-									})
-									duration = endTime
-								}
-								hasMore = false
-								break processLoop
-
-							case *apievents.Resize:
-								parts := strings.Split(evt.TerminalSize, ":")
-								if len(parts) == 2 {
-									width, err := strconv.Atoi(parts[0])
-									if err == nil {
-										height, err := strconv.Atoi(parts[1])
-										if err == nil {
-											localStreamer.vtMutex.Lock()
-											localStreamer.vt.Resize(width, height)
-											localStreamer.vtMutex.Unlock()
-
-											sessionEvents = append(sessionEvents, ttyplayback.Event{
-												Type: "resize",
-												Data: evt.TerminalSize,
-											})
-										}
-									}
-								}
-							}
-						}
-					}
-
-				sendResponse:
-					localStreamer.vtMutex.RLock()
-					currentScreen = ttyplayback.SerializeTerminal(localStreamer.vt)
-					localStreamer.vtMutex.RUnlock()
-
-					resp := SessionEventsResponse{
-						Type:     "events",
-						Duration: duration,
-						Events:   sessionEvents,
-						HasMore:  hasMore,
-					}
-
-					if req.RequestCurrentScreen {
-						resp.CurrentScreen = currentScreen
-					}
-
-					respData, err := json.Marshal(resp)
-					if err != nil {
-						h.logger.WarnContext(ctx, "failed to marshal response", "error", err)
-						return
-					}
-
-					if err := ws.WriteMessage(websocket.TextMessage, respData); err != nil {
-						h.logger.WarnContext(ctx, "failed to write response", "error", err)
-						return
-					}
-				}()
-
-			case "close":
-				return
-
-			default:
-				h.logger.WarnContext(ctx, "unknown request type", "type", req.Type)
-			}
-		}
-	}()
-
-	go func() {
-		defer cancel()
-		defer func() {
-			h.logger.DebugContext(ctx, "closing websocket")
-			if err := ws.WriteMessage(websocket.CloseMessage, nil); err != nil {
-				h.logger.DebugContext(r.Context(), "error sending close message", "error", err)
-			}
-			if err := ws.Close(); err != nil {
-				h.logger.DebugContext(ctx, "error closing websocket", "error", err)
-			}
-			streamerMutex.Lock()
-			if streamer != nil && streamer.cancel != nil {
-				streamer.cancel()
-			}
-			streamerMutex.Unlock()
-		}()
-
-		<-ctx.Done()
-	}()
-
-	<-ctx.Done()
 	return nil, nil
 }
 
