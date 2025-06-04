@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "17.5.0"
+const Version = "17.5.0-dev.gus-mac-rust-override.1"
 
 const VersionMajor = 17
 const VersionMinor = 5
 const VersionPatch = 0
-const VersionPreRelease = ""
+const VersionPreRelease = "dev.gus-mac-rust-override.1"
 const VersionMetadata = ""
