@@ -71,7 +71,38 @@ network.
 
 ## Tunnel public address
 
-{/*TODO*/}
+{/*TODO: Add an introduction to this method*/}
+
+{/*TODO: explain the architecture of the setup, introduced in:
+
+https://github.com/gravitational/teleport/pull/13598 */}
+
+1. Edit the Teleport Auth Service configuration to disable TLS multiplexing.
+   {/*TODO: Would this be for the Proxy Service instance pool? Or just the Auth
+   Service? */}
+
+1. Edit the Teleport Proxy Service configuration to set a public address for
+   establishing reverse tunnels:
+
+   ```yaml
+   proxy_service:
+     enabled: true
+     public_addr: external_proxy.example.com:3080
+     tunnel_public_addr: internal_proxy.example.com:3024
+   ```
+
+1. Create two DNS records for the Teleport Proxy Service:
+
+   - One for the internal Proxy Service load balancer at
+     `internal_proxy.example.com`
+   - One for the external Proxy Service load balancer at
+     `external_proxy.example.com`
+
+{/*TODO: in this setup, would there be two different Proxy Service pools, one
+with a disabled web interface for internal clients? See the test here, where we
+disable the Proxy Service web interfacie:
+https://github.com/gravitational/teleport/pull/13598/files#diff-9f5fd20913c5fe80c85263153fa9a0b28dbd1407e53da4ab5d09e13d2774c5dbR6629
+*/}
 
 ## Multiple public addresses
 
