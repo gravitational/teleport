@@ -24,22 +24,28 @@ These issues are present in previous v17 releases.
 Impacted users are recommended to upgrade their auth and proxy servers to the latest version.
 
 #### [High] Unauthorized deletion in AWS IAM Identity Center integration
-Teleport did not implement sufficient authorization checks for AWS Identity Center integration deletion APIs. This could allow a malicious actor to delete Teleport resources related to the integration leading to denial of service.
+
+* Fixed an issue that allowed unauthenticated access to delete resources created by Identity Center integration. [#55400](https://github.com/gravitational/teleport/pull/55400)
+
 This vulnerability affects all AWS IAM Identity Center integration users. You can check whether you have AWS Identity Center integration installed either in the Teleport web UI under Zero Trust Access / Integrations or by running “tctl get plugins/aws-identity-center” CLI command.
 
 #### [High] Short to long term access escalation in Okta integration
+
+* Enterprise fix: Verify required Okta OAuth scopes during plugin creation/update.
+
 In Okta integration configurations with enabled access lists sync, a user with an approved  just-in-time access request to an Okta application could be unintentionally promoted to an access list granting access to the same application. This would result in the access to the Okta app/group persisting after the access request expiration.
+
 This vulnerability affects Okta integration users who have access lists sync enabled. You can check whether you have an Okta integration installed with access lists sync enabled either in the Teleport web UI under Zero Trust Access / Integrations page or by running “tctl get plugins/okta” CLI command and looking at the “spec.settings.okta.sync_settings.sync_access_lists” flag.
 
 #### [High] Credential theft via GitHub SSO authentication flow
-In some cases Teleport did not sufficiently validate the GitHub SSO client redirect URL. This could allow an attacker who is able to induce an authenticated user to follow a malicious link to obtain a cert/key pair on behalf of that user.
+
+* Fix improper redirect URL validation for SSO login which could be taken advantage of in a phishing attack. [#55399](https://github.com/gravitational/teleport/pull/55399)
+
 This vulnerability affects GitHub SSO users. You can check whether you’re using GitHub SSO either on the Zero Trust Access / Auth Connectors page in Teleport web UI or by running “tctl get connectors” CLI command against your cluster.
 
 ### Other fixes and improvements
 
 * Allow the `ssh_service.listen_addr` to forcibly be enabled when operating in reverse tunnel mode to provide an optional direct access path to hosts. [#54215](https://github.com/gravitational/teleport/pull/54215)
-* Fixed an issue that allowed unauthenticated access to delete resources created by Identity Center integration. [#55400](https://github.com/gravitational/teleport/pull/55400)
-* Fix improper redirect URL validation for SSO login which could be taken advantage of in a phishing attack. [#55399](https://github.com/gravitational/teleport/pull/55399)
 * View details for a bot instance. [#55347](https://github.com/gravitational/teleport/pull/55347)
 * Prevent unknown resource kinds from rendering errors in the web UI. [#55208](https://github.com/gravitational/teleport/pull/55208)
 * View and explore "active" bot instances. [#55201](https://github.com/gravitational/teleport/pull/55201)
@@ -80,7 +86,6 @@ This vulnerability affects GitHub SSO users. You can check whether you’re usin
 * Create and edit GitHub join tokens from the Join Tokens page. [#54477](https://github.com/gravitational/teleport/pull/54477)
 
 Enterprise:
-* Verify required Okta OAuth scopes during plugin creation/update.
 * Added ability to re-run group import in Identity Center integration.
 
 ## 17.4.8 (05/06/25)
