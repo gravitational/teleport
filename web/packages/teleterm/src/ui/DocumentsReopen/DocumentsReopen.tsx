@@ -76,11 +76,8 @@ export function DocumentsReopen(props: {
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>
-          <P color="text.slightlyMuted">
-            Do you want to reopen tabs from the previous session?
-          </P>
+          <P>Do you want to reopen tabs from the previous session?</P>
           <P
-            color="text.slightlyMuted"
             // Split long continuous cluster names into separate lines.
             css={`
               word-wrap: break-word;
