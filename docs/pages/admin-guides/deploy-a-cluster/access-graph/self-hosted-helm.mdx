@@ -24,7 +24,7 @@ to Teleport Enterprise customers.
   - For the purposes of this guide, we assume that the Teleport cluster is set up
     [using the `teleport-cluster` Helm chart](../helm-deployments/helm-deployments.mdx)
     in the same Kubernetes cluster that will be used to deploy Access Graph.
-- An updated `license.pem` with Identity Security enabled.
+- An updated Teleport Enterprise license file with Identity Security enabled.
 - A PostgreSQL database server v14 or later.
   - Access Graph needs a dedicated [database](https://www.postgresql.org/docs/current/sql-createdatabase.html) to store its data.
     The user that Teleport connects to the database with needs to be the owner of this database, or have similar broad permissions:

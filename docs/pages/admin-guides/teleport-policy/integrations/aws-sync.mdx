@@ -1,5 +1,5 @@
 ---
-title: Discover AWS Access Patterns and CloudTrail events with Teleport Identity Security
+title: Discover AWS Access Patterns and AWS CloudTrail events with Teleport Identity Security
 description: Describes how to import and visualize AWS accounts access patterns using Identity Security and Access Graph.
 ---
 
@@ -56,10 +56,10 @@ and resources retrieved from your AWS account, crafting a
 graphical representation thereof.
 
 
-### CloudTrail logs import (optional)
+### Importing AWS CloudTrail logs (optional)
 
 If CloudTrail is configured to log activity in your AWS account, it delivers log files to an S3 bucket.
-Identity Activity Center can process near real-time the Trail data. Enabling Amazon SNS notifications
+Identity Activity Center can process trail data in near real time. Enabling Amazon SNS notifications
 in the CloudTrail allows a new notification to be sent whenever a new log file is written.
 This SNS topic is subscribed to an SQS queue, which acts as a buffer for incoming notifications.
 
