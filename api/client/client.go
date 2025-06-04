@@ -3517,6 +3517,21 @@ func (c *Client) DeleteAllWindowsDesktopServices(ctx context.Context) error {
 	return nil
 }
 
+// GetRelayServer returns the relay server heartbeat with a given name.
+func (c *Client) GetRelayServer(ctx context.Context, name string) (*presencepb.RelayServer, error) {
+	panic("TODO(espadolini)")
+}
+
+// ListRelayServers returns a paginated list of relay server heartbeats.
+func (c *Client) ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencepb.RelayServer, nextPageToken string, _ error) {
+	panic("TODO(espadolini)")
+}
+
+// DeleteRelayServer deletes a relay server heartbeat by name.
+func (c *Client) DeleteRelayServer(ctx context.Context, name string) error {
+	panic("TODO(espadolini)")
+}
+
 func (c *Client) GetDesktopBootstrapScript(ctx context.Context) (string, error) {
 	resp, err := c.grpc.GetDesktopBootstrapScript(ctx, &emptypb.Empty{})
 	if err != nil {
