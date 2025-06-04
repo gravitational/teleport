@@ -3,19 +3,19 @@
 ## 17.5.0 (06/03/25)
 
 ### Azure Console via SAML IdP
-Teleport SAML IdP will support Azure web console as a service provider.
+Teleport SAML IdP now supports Azure web console as a service provider.
 
 ### Desktop Access in Teleport Connect
-Teleport Connect will allow users to connect to Windows desktops directly from the Teleport Connect application without needing to use a browser.
+Teleport Connect now allows users to connect to Windows desktops directly from the Teleport Connect application without needing to use a browser.
 
 ### Desktop Access latency detector
-Teleport's web UI will show latency measurements during remote desktop sessions which indicate both the latency between the user and the Teleport proxy as well as the latency between the Teleport proxy and the target host.
+Teleport's web UI now shows latency measurements during remote desktop sessions which indicate both the latency between the user and the Teleport proxy as well as the latency between the Teleport proxy and the target host.
 
 ### Machine & Workload Identity - Sigstore attestation
-Machine & Workload Identity will support attesting Sigstore signatures of workloads running on Docker, Podman and Kubernetes. This will allow the issuance of credentials to be restricted to workloads with container images produced by legitimate CI/CD systems.
+Machine & Workload Identity now supports attesting Sigstore signatures of workloads running on Docker, Podman and Kubernetes. This allows the issuance of credentials to be restricted to workloads with container images produced by legitimate CI/CD systems.
 
 ### Azure DevOps joining
-Teleport will support secretless authentication for Bots running within Azure DevOps pipelines.
+Teleport now supports secretless authentication for Bots running within Azure DevOps pipelines.
 
 ### Other fixes and improvements
 
