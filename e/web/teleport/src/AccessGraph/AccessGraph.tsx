@@ -42,7 +42,7 @@ declare global {
 
 const Graph = lazy(() =>
   loadAccessGraph<AccessGraphProps>(
-    'access-graph.umd.js',
+    'access-graph-react-19.umd.js',
     () => window.AccessGraphLib.AccessGraph
   )
 );

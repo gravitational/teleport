@@ -59,7 +59,7 @@ declare global {
 
 const Diff = lazy(() =>
   loadAccessGraph<AccessGraphDiffProps>(
-    'access-graph-diff.umd.js',
+    'access-graph-diff-react-19.umd.js',
     () => window.AccessGraphDiff.Diff
   )
 );
