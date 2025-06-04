@@ -19,6 +19,8 @@ func execAdminProcess(ctx context.Context, cfg LinuxAdminProcessConfig) error {
 		"--addr", cfg.ClientApplicationServiceAddr,
 		"--cred-path", cfg.ServiceCredentialPath,
 	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	log.DebugContext(ctx, "Escalating to root with sudo")
 	return trace.Wrap(cmd.Run(), "escalating to root with sudo")
 }
