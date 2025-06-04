@@ -46,6 +46,10 @@ type Backend interface {
 
 	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
 	DeleteReverseTunnel(ctx context.Context, tunnelName string) error
+
+	GetRelayServer(ctx context.Context, name string) (*presencepb.RelayServer, error)
+	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencepb.RelayServer, nextPageToken string, _ error)
+	DeleteRelayServer(ctx context.Context, name string) error
 }
 
 type Cache interface {
@@ -85,6 +89,8 @@ type Service struct {
 	reporter   usagereporter.UsageReporter
 	clock      clockwork.Clock
 }
+
+var _ presencepb.PresenceServiceServer = (*Service)(nil)
 
 // NewService returns a new presence gRPC service.
 func NewService(cfg ServiceConfig) (*Service, error) {
@@ -412,4 +418,62 @@ func (s *Service) DeleteReverseTunnel(
 	}
 
 	return nil, trace.Wrap(s.backend.DeleteReverseTunnel(ctx, req.Name))
+}
+
+// GetRelayServer implements [presencepb.PresenceServiceServer].
+func (s *Service) GetRelayServer(ctx context.Context, req *presencepb.GetRelayServerRequest) (*presencepb.GetRelayServerResponse, error) {
+	actx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := actx.CheckAccessToKind(types.KindRelayServer, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	relayServer, err := s.backend.GetRelayServer(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &presencepb.GetRelayServerResponse{
+		RelayServer: relayServer,
+	}, nil
+}
+
+// ListRelayServers implements [presencepb.PresenceServiceServer].
+func (s *Service) ListRelayServers(ctx context.Context, req *presencepb.ListRelayServersRequest) (*presencepb.ListRelayServersResponse, error) {
+	actx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := actx.CheckAccessToKind(types.KindRelayServer, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	relayServers, nextPageToken, err := s.backend.ListRelayServers(ctx, int(req.GetPageSize()), req.GetPageToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &presencepb.ListRelayServersResponse{
+		Relays:        relayServers,
+		NextPageToken: nextPageToken,
+	}, nil
+}
+
+// DeleteRelayServer implements [presencepb.PresenceServiceServer].
+func (s *Service) DeleteRelayServer(ctx context.Context, req *presencepb.DeleteRelayServerRequest) (*presencepb.DeleteRelayServerResponse, error) {
+	actx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := actx.CheckAccessToKind(types.KindRelayServer, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteRelayServer(ctx, req.GetName()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &presencepb.DeleteRelayServerResponse{}, nil
 }
