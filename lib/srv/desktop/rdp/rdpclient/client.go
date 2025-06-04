@@ -287,17 +287,21 @@ func (c *Client) readClientSize() error {
 }
 
 func (c *Client) readClientKeyboardLayout() error {
+	msgType, err := c.cfg.Conn.NextMessageType()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if msgType != tdp.TypeClientKeyboardLayout {
+		c.cfg.Logger.DebugContext(context.Background(), "Client did not send keyboard layout")
+		return nil
+	}
 	msg, err := c.cfg.Conn.ReadMessage()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	k, ok := msg.(tdp.ClientKeyboardLayout)
 	if !ok {
-		c.cfg.Logger.DebugContext(context.Background(), "Client did not send keyboard layout")
-		if err := c.handleTDPInput(msg); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
+		return trace.BadParameter("Unexpected message %T", msg)
 	}
 	c.cfg.Logger.DebugContext(context.Background(), "Got RDP keyboard layout", "keyboard_layout", k.KeyboardLayout)
 	c.keyboardLayout = k.KeyboardLayout
