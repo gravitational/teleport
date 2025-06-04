@@ -33,7 +33,7 @@ describe('selectIntegration', () => {
           name: 'my-custom-aws-integration',
           kind: IntegrationKind.AwsOidc,
           statusCode: IntegrationStatusCode.Running,
-          spec: { roleArn: '', issuerS3Bucket: '', issuerS3Prefix: '' },
+          spec: { roleArn: '' },
         },
       ],
     });
