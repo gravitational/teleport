@@ -67,11 +67,9 @@ var missingSyscallWarning sync.Once
 // RESOLVE_NO_SYMLINKS flag set.
 func openSecure(path string, flags OpenFlags) (*os.File, error) {
 	var mode uint64
-	if flags == ReadFlags {
-		// openat2() with nonzero mode will raise EINVAL unless O_CREATE or
-		// O_TMPFILE is set, so zero it out.
-		mode = 0
-	} else {
+	if flags != ReadFlags {
+		// openat2() with a nonzero mode will raise EINVAL unless O_CREATE or
+		// O_TMPFILE is set, so only set this in non-read mode.
 		mode = uint64(DefaultMode.Perm())
 	}
 
