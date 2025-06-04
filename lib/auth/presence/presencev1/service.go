@@ -47,13 +47,13 @@ type Backend interface {
 	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
 	DeleteReverseTunnel(ctx context.Context, tunnelName string) error
 
-	GetRelayServer(ctx context.Context, name string) (*presencepb.RelayServer, error)
-	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencepb.RelayServer, nextPageToken string, _ error)
 	DeleteRelayServer(ctx context.Context, name string) error
 }
 
 type Cache interface {
 	ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error)
+	GetRelayServer(ctx context.Context, name string) (*presencepb.RelayServer, error)
+	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencepb.RelayServer, nextPageToken string, _ error)
 }
 
 type AuthServer interface {
@@ -430,7 +430,7 @@ func (s *Service) GetRelayServer(ctx context.Context, req *presencepb.GetRelaySe
 		return nil, trace.Wrap(err)
 	}
 
-	relayServer, err := s.backend.GetRelayServer(ctx, req.GetName())
+	relayServer, err := s.cache.GetRelayServer(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -450,7 +450,7 @@ func (s *Service) ListRelayServers(ctx context.Context, req *presencepb.ListRela
 		return nil, trace.Wrap(err)
 	}
 
-	relayServers, nextPageToken, err := s.backend.ListRelayServers(ctx, int(req.GetPageSize()), req.GetPageToken())
+	relayServers, nextPageToken, err := s.cache.ListRelayServers(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
