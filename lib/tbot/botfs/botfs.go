@@ -135,8 +135,8 @@ func (s *ACLSelector) CheckAndSetDefaults() error {
 	return nil
 }
 
-// openStandard attempts to open the given path for reading and writing with
-// O_CREATE set.
+// openStandard attempts to open the given path. The file may be writable
+// depending on the provided `OpenFlags` value.
 func openStandard(path string, flags OpenFlags) (*os.File, error) {
 	file, err := os.OpenFile(path, flags.Flags(), DefaultMode)
 	if err != nil {
