@@ -3,9 +3,19 @@ title: Analyze and Correlate GitHub Audit Logs and Access Paths
 description: Describes how to import and correlate GitHub Audit Logs and Access Paths using Identity Security.
 ---
 
-The Identity Security product can ingest, analyze, enrich, and correlate Teleport Audit Logs
-through the Identity Activity Center.
+This guide walks you through configuring Identity Security to import
+GitHub Audit Logs, providing enhanced visibility and alerts for suspicious activities.
 
+(!docs/pages/includes/policy/identity-activity-center.mdx!)
+
+Identity Activity Center is a feature of the [Identity Security](https://goteleport.com/platform/policy/)
+product that is only available to Teleport Enterprise customers.
+
+## How it works
+
+Identity Activity Center retrieves GitHub Audit Logs through
+a polling mechanism that executes every minute, standardizing,
+analyzing, and storing them for long-term retention.
 
 ## Prerequisites
 
@@ -16,16 +26,16 @@ through the Identity Activity Center.
   - A running Access Graph node v1.28.0 or later with Identity Activity Center enabled.
 Check the [Identity Security page](../teleport-policy.mdx) for details on
 how to set up Access Graph and enable Identity Activity Center.
-- GitHub Organization and organization Admin access.
+- GitHub admin access to an organization.
 
 ## Step 1/2. Create a GitHub application
 
-Identity Activity Center accesses your GitHub Organization through a GitHub Application.
+Identity Activity Center accesses your GitHub organization through a GitHub application.
 
-Throughout this guide, you will create a GitHub Application, configure the required permissions,
-generate a Private Key, and finally install it into your Organization.
+Throughout this guide, you will create a GitHub application, configure the required permissions,
+generate a Private Key, and finally install it into your organization.
 
-First, navigate to your GitHub Organization page and select **Settings**. On the left menu,
+First, navigate to your GitHub organization page and select **Settings**. On the left menu,
 expand **Developer settings** and select **GitHub Apps**. In the top-right corner, select
 **New GitHub App**.
 
@@ -50,7 +60,7 @@ the App's **About** section.
 To restrict access to specific IPs, you can configure the **IP allow list** section
 to allow access only from the Teleport Auth server’s IP addresses.
 
-Finally, select **Install App** and install the Application into the desired Organization.
+Finally, select **Install App** and install the application into the desired organization.
 
 
 ## Step 2/2. Set up Audit Log and Access Path Sync

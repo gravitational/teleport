@@ -3,9 +3,20 @@ title: Analyze and Correlate Teleport Audit Logs
 description: Describes how to import and correlate Teleport Audit Logs using Identity Security.
 ---
 
-Teleport Identity Security can ingest, analyze, enhance and correlate Teleport Audit Logs
-though the Identity Activity Center.
+In this guide, you will configure your Teleport cluster to forward
+Audit Logs to Identity Security product for better visibility
+and alerts on suspicious activities.
 
+(!docs/pages/includes/policy/identity-activity-center.mdx!)
+
+Identity Activity Center is a feature of the [Identity Security](https://goteleport.com/platform/policy/)
+product that is only available to Teleport Enterprise customers.
+
+## How it works
+
+Your Teleport cluster will continuously monitor incoming Audit Logs and
+forward them to Identity Security, where they will be ingested, standardized,
+analyzed, and stored for long-term retention.
 
 ## Prerequisites
 
