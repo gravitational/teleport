@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -69,7 +68,7 @@ type DatabaseTunnelService struct {
 	proxyPingCache *proxyPingCache
 	log            *slog.Logger
 	resolver       reversetunnelclient.Resolver
-	botClient      *authclient.Client
+	botClient      Client
 	getBotIdentity getBotIdentityFn
 }
 
@@ -248,7 +247,7 @@ func (s *DatabaseTunnelService) getRouteToDatabaseWithImpersonation(ctx context.
 		return proto.RouteToDatabase{}, trace.Wrap(err)
 	}
 
-	impersonatedClient, err := clientForFacade(
+	impersonatedClient, err := temporaryClient(
 		ctx,
 		s.log,
 		s.botCfg,

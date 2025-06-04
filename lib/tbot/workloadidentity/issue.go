@@ -27,7 +27,6 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
@@ -70,7 +69,7 @@ func WorkloadIdentitiesLogValue(credentials []*workloadidentityv1pb.Credential) 
 }
 
 type authClient interface {
-	WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient
+	workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient
 	cryptosuites.AuthPreferenceGetter
 }
 
@@ -110,7 +109,7 @@ func IssueX509WorkloadIdentity(
 		)
 		// When using the "name" based selector, we either get a single WIC back,
 		// or an error. We don't need to worry about selecting the right one.
-		res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentity(ctx,
+		res, err := clt.IssueWorkloadIdentity(ctx,
 			&workloadidentityv1pb.IssueWorkloadIdentityRequest{
 				Name: workloadIdentity.Name,
 				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams{
@@ -139,7 +138,7 @@ func IssueX509WorkloadIdentity(
 			"Requesting issuance of X509 workload identity credentials using labels",
 			"labels", labelSelectors,
 		)
-		res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentities(ctx,
+		res, err := clt.IssueWorkloadIdentities(ctx,
 			&workloadidentityv1pb.IssueWorkloadIdentitiesRequest{
 				LabelSelectors: labelSelectors,
 				Credential: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams{
@@ -182,7 +181,7 @@ func labelsToSelectors(in map[string][]string) []*workloadidentityv1pb.LabelSele
 func IssueJWTWorkloadIdentity(
 	ctx context.Context,
 	log *slog.Logger,
-	clt *authclient.Client,
+	clt workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient,
 	workloadIdentity config.WorkloadIdentitySelector,
 	audiences []string,
 	ttl time.Duration,
@@ -207,7 +206,7 @@ func IssueJWTWorkloadIdentity(
 		)
 		// When using the "name" based selector, we either get a single WIC back,
 		// or an error. We don't need to worry about selecting the right one.
-		res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentity(ctx,
+		res, err := clt.IssueWorkloadIdentity(ctx,
 			&workloadidentityv1pb.IssueWorkloadIdentityRequest{
 				Name: workloadIdentity.Name,
 				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_JwtSvidParams{
@@ -235,7 +234,7 @@ func IssueJWTWorkloadIdentity(
 			"Requesting issuance of JWT workload identity credentials using labels",
 			"labels", labelSelectors,
 		)
-		res, err := clt.WorkloadIdentityIssuanceClient().IssueWorkloadIdentities(ctx,
+		res, err := clt.IssueWorkloadIdentities(ctx,
 			&workloadidentityv1pb.IssueWorkloadIdentitiesRequest{
 				LabelSelectors: labelSelectors,
 				Credential: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest_JwtSvidParams{

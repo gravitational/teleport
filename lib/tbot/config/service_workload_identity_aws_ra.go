@@ -49,6 +49,8 @@ type WorkloadIdentityAWSRAService struct {
 	// Destination is where the credentials should be written to.
 	Destination bot.Destination `yaml:"destination"`
 
+	Cache bot.Destination `yaml:"cache"`
+
 	// RoleARN is the ARN of the role to assume.
 	// Example: `arn:aws:iam::123456789012:role/example-role`
 	// Required.
@@ -96,15 +98,24 @@ type WorkloadIdentityAWSRAService struct {
 	EndpointOverride string `yaml:"-"`
 }
 
-// Init initializes the destination.
+// Init initializes the output and cache destinations.
 func (o *WorkloadIdentityAWSRAService) Init(ctx context.Context) error {
-	return trace.Wrap(o.Destination.Init(ctx, []string{}))
+	return trace.NewAggregate(
+		o.Destination.Init(ctx, []string{}),
+		o.Cache.Init(ctx, []string{}),
+	)
 }
 
 // CheckAndSetDefaults checks the WorkloadIdentityAWSRAService values and sets any defaults.
 func (o *WorkloadIdentityAWSRAService) CheckAndSetDefaults() error {
 	if err := validateOutputDestination(o.Destination); err != nil {
 		return trace.Wrap(err)
+	}
+	if o.Cache == nil {
+		o.Cache = &DestinationMemory{}
+	}
+	if err := o.Cache.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating cache destination")
 	}
 	if err := o.Selector.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating selector")
@@ -149,6 +160,8 @@ func (o *WorkloadIdentityAWSRAService) CheckAndSetDefaults() error {
 	return nil
 }
 
+// TODO: this seems to be wrong - check it out.
+//
 // Describe returns the file descriptions for the WorkloadIdentityJWTService.
 func (o *WorkloadIdentityAWSRAService) Describe() []FileDescription {
 	fds := []FileDescription{
@@ -175,12 +188,17 @@ func (o *WorkloadIdentityAWSRAService) UnmarshalYAML(node *yaml.Node) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	cache, err := extractDestinationField(node, "cache")
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw WorkloadIdentityAWSRAService
 	if err := node.Decode((*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
 	o.Destination = dest
+	o.Cache = cache
 	return nil
 }
 
