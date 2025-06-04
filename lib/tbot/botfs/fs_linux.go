@@ -28,7 +28,6 @@ import (
 	"io/fs"
 	"os"
 	"os/user"
-	"path/filepath"
 	"strconv"
 	"sync"
 	"syscall"
@@ -89,9 +88,15 @@ func openSecure(path string, flags OpenFlags) (*os.File, error) {
 			return nil, err
 		}
 
-		// os.File.Close() appears to close wrapped files sanely, so rely on that
-		// rather than relying on callers to use unix.Close(fd)
-		return os.NewFile(uintptr(fd), filepath.Base(path)), nil
+		file := os.NewFile(uintptr(fd), path)
+		if file == nil {
+			// Probably useless since this implies the fd itself is invalid, but
+			// attempt to close the fd anyway.
+			_ = unix.Close(fd)
+			return nil, os.ErrInvalid
+		}
+
+		return file, nil
 	}
 }
 
