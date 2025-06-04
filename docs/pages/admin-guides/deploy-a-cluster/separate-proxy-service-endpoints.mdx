@@ -1,0 +1,184 @@
+---
+title: Separate Internal and External Proxy Service Traffic
+description: Explains how to set up the Teleport Proxy Service to isolate traffic from the public internet from internal client traffic.
+---
+
+In a typical Teleport cluster, including clusters deployed on Teleport Cloud,
+the Teleport Proxy Service exposes a single HTTPS port to users on the public
+internet as well as infrastructure resources running in private networks. For
+self-hosted Teleport clusters with security needs that require it, you can
+configure your cluster to handle traffic to the Proxy Service differently
+depending on whether it originates from the public internet or from your
+internal networks.
+
+This guide explains three methods for separating Proxy Service HTTPS traffic by
+origin:
+
+## Architecture
+
+To handle Teleport Proxy Service traffic differently depending on the origin,
+you can deploy separate Proxy Service load balancers:
+
+- A load balancer for end-user traffic from the public internet
+- A load balancer for traffic from Teleport Agents in private networks
+
+Each load balancer has a separate IP address. Both load balancers route traffic
+to the same pool of Teleport Proxy Service instances, such as the same AWS
+target group.
+
+Clients then connect to the Proxy Service load balancer at the appropriate
+address. Teleport Agents establish SSH reverse tunnels to the Proxy Service by
+dialing the internal load balancer, while external clients connect to the Proxy
+Service using the external load balancer. 
+
+When an end user connects to an infrastructure resource, e.g., using `tsh proxy
+db` or sending an HTTP request to a Teleport-protected application, they dial
+the external load balancer, which forwards the traffic to the Teleport Proxy
+Service. The Proxy Service then routes the traffic to the appropriate
+infrastructure resource by selecting a reverse tunnel.
+
+## Routing traffic to the appropriate load balancer
+
+Assuming you have deployed two load balancers, one for external Proxy Service
+clients and one for internal clients, there are three ways strategies for
+routing traffic to the appropriate load balancer from Teleport Agents and end
+users:
+
+- [Split DNS](#split-dns)
+- [Multiple public addresses](#multiple-public-addresses)
+- [Tunnel public address](#tunnel-public-address)
+
+### Split DNS
+
+You can set up your infrastructure to use split DNS so that a single public
+address for your Teleport cluster resolves to the external endpoint for end
+users and the internal endpoint for infrastructure resources in your internal
+network.
+
+1. Determine the public address to use for the Teleport Proxy Service, e.g.,
+   `proxy.example.com`.
+
+1. Configure your DNS infrastructure to return the IP address of the internal
+   load balancer for your internal network and the external load balancer for
+   the public internet.
+
+   For example, in Amazon Route 53, you can create public and private hosted
+   zones for the same domain and add a separate record to each hosted zone ([AWS
+   documentation](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zone-private-considerations.html#hosted-zone-private-considerations-split-view-dns)).
+
+1. Edit your Proxy Service configuration to include a single value for its
+   public address:
+
+   ```yaml
+   proxy_service:
+     enabled: true
+     public_addr: proxy.example.com:3080
+   ```
+
+### Multiple public addresses
+
+You can configure the Teleport Proxy Service to advertise multiple addresses on
+its SSH host certificate. This enables you to instruct internal clients (e.g.,
+Teleport Agents) to connect to the Proxy Service on the internal address while
+external clients connect on the external address. 
+
+1. Configure the Teleport Proxy Service to use multiple public address values:
+
+   ```yaml
+   proxy_service:
+     enabled: true
+     public_addr: 
+       - external_proxy.example.com:3080
+       - internal_proxy.example.com:3024
+   ```
+
+1. On Teleport Agent hosts, start the `teleport` process with the
+   `TELEPORT_TUNNEL_PUBLIC_ADDR` environment variable assigned to the internal
+   Proxy Service load balancer address. 
+
+   Setting `TELEPORT_TUNNEL_PUBLIC_ADDR` overrides the default behavior, in
+   which an agent verifies the Proxy Service certificate using the first public
+   address listed, to use the value of the environment variable instead.
+
+   The step differs according to whether you installed Teleport on Linux servers
+   using a package manager or using the `teleport-kube-agent` Helm chart:
+
+   <Tabs>
+   <TabItem label="Linux Server">
+
+   By default, Teleport installations based on package managers (such as `apt` and
+   `yum`) configure the `teleport` systemd unit to read environment variables from
+   the file `/etc/default/teleport`.
+   
+   Edit the environment file to specify a tunnel public address with the
+   following line, updating the value to include the address of your internal
+   Proxy Service load balancer:
+
+   ```text
+   TELEPORT_TUNNEL_PUBLIC_ADDR=internal_proxy.example.com:3024
+   ```
+   </TabItem>
+   <TabItem label="Kubernetes">
+
+   In the values file for your `teleport-kube-agent` installation , assign the
+   following field:
+
+   ```yaml
+   extraEnv:
+     - name: TELEPORT_TUNNEL_PUBLIC_ADDR
+       value: "internal_proxy.example.com:3024"
+   ```
+
+   Upgrade your `teleport-kube-agent` Helm release, assigning 
+   <Var name="release-name" /> to the release name. This command assumes that the
+   path to your values file is `values.yaml`:
+
+   ```code
+   $ helm upgrade <Var name="release-name" /> teleport/teleport-kube-agent --values values.yaml
+   ```
+
+   </TabItem>
+   </Tabs>
+
+In this setup, end users would connect to the external address,
+`external_proxy.example.com:3080`, when using client tools such as `tsh`.
+
+### Tunnel public address
+
+If your cluster has disabled [TLS
+multiplexing](../../reference/architecture/tls-routing.mdx), you can configure
+internal clients, such as Teleport Agents, to connect to the Teleport Proxy
+Service over a port that is separate from the HTTPS port that end users connect
+to. We recommend using the split DNS or multiple public Proxy Service addresses
+unless your cluster already has TLS multiplexing disabled.
+
+1. Edit the Teleport Proxy Service configuration to set a public address for
+   establishing reverse tunnels:
+
+   ```yaml
+   proxy_service:
+     enabled: true
+     public_addr: external_proxy.example.com:3080
+     tunnel_public_addr: internal_proxy.example.com:3024
+   ```
+
+1. Create two DNS records for the Teleport Proxy Service:
+
+   - One for the internal Proxy Service load balancer at
+     `internal_proxy.example.com`
+   - One for the external Proxy Service load balancer at
+     `external_proxy.example.com`
+
+At this point, Teleport Agents can connect to the Proxy Service using the
+internal address, e.g., if you set the following field in your agents'
+configuration file:
+
+```yaml
+teleport:
+  proxy_server: internal_proxy.example.com:3024
+```
+
+End users can connect to the Teleport Proxy Service on
+`external_proxy.example.com:3080`.
+
+
