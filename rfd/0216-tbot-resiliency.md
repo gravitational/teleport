@@ -134,6 +134,12 @@ Many tools provide a way to "dry run" or test your configuration ahead of time,
 for example: `nginx -t`. Perhaps we could add a similar option to the `tbot` CLI?
 Or perhaps one-shot mode already achieves this?
 
+### UX Option 1c: Make "keep running" opt-in
+
+To avoid breaking things for existing users, we could add a CLI flag which
+opts-in to the new behavior. This has the downside of adding yet another
+configuration option and offloading even more complexity onto our users.
+
 ### UX Option 2: Test the connection on first run only
 
 Given `tbot` already stores state (e.g. identity certificates) for use between
