@@ -505,6 +505,10 @@ class FeatureAccessGraphAlerts extends FeatureAccessGraph {
     exact: false,
     searchableTags: ['access graph', 'graph', 'tag', 'alerts'],
   };
+
+  hasAccess(flags: FeatureFlags) {
+    return super.hasAccess(flags) && storageService.getAccessGraphIacEnabled();
+  }
 }
 
 class FeatureAccessGraphInvestigate extends FeatureAccessGraph {
@@ -524,6 +528,10 @@ class FeatureAccessGraphInvestigate extends FeatureAccessGraph {
     exact: false,
     searchableTags: ['access graph', 'graph', 'tag', 'investigate'],
   };
+
+  hasAccess(flags: FeatureFlags) {
+    return super.hasAccess(flags) && storageService.getAccessGraphIacEnabled();
+  }
 }
 
 class FeatureAccessGraphCrownJewels extends FeatureAccessGraph {
