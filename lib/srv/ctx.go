@@ -1084,6 +1084,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
 		SetSELinuxContext:     c.srv.GetSELinuxEnabled(),
+		RestrictedShell:       c.Identity.AccessPermit.RestrictedShell,
 	}, nil
 }
 

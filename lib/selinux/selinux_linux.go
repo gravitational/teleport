@@ -103,6 +103,18 @@ func CheckConfiguration(ensureEnforced bool, logger *slog.Logger) error {
 		}
 	}
 
+	label, err := ocselinux.CurrentLabel()
+	if err != nil {
+		return trace.Wrap(err, "failed to get SELinux context")
+	}
+	seCtx, err := ocselinux.NewContext(label)
+	if err != nil {
+		return trace.Wrap(err, "failed to parse SELinux context")
+	}
+	if seCtx["type"] != "teleport_ssh_t" {
+		return trace.Errorf("SELinux domain is %q", seCtx)
+	}
+
 	selinuxType, err := readConfig(selinuxTypeTag)
 	if err != nil {
 		return trace.Wrap(err, "failed to find SELinux type")

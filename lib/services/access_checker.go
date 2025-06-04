@@ -150,6 +150,9 @@ type AccessChecker interface {
 	// one or more of the roles in the set has disabled it.
 	CanCopyFiles() bool
 
+	// HasRestrictedShell returns true if this RoleSet needs to be in a restricted shell.
+	HasRestrictedShell() bool
+
 	// CertificateFormat returns the most permissive certificate format in a
 	// RoleSet.
 	CertificateFormat() string

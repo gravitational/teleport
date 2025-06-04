@@ -164,6 +164,9 @@ type ExecCommand struct {
 	// SetSELinuxContext is true when the SELinux context should be set
 	// for the child.
 	SetSELinuxContext bool `json:"set_selinux_context"`
+
+	// RestrictedShell sets the SELinux type to be very restrictive.
+	RestrictedShell bool `json:"restricted_shell"`
 }
 
 // PAMConfig represents all the configuration data that needs to be passed to the child.
@@ -339,9 +342,23 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	// enabled so the child process will be running with the correct SELinux
 	// user, role and domain.
 	if c.SetSELinuxContext {
-		seContext, err := selinux.UserContext(c.Login)
-		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to get SELinux context of login user")
+		var seContext string
+		if c.RestrictedShell {
+			label, err := ocselinux.CurrentLabel()
+			if err != nil {
+				return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to get current SELinux context")
+			}
+			seCtx, err := ocselinux.NewContext(label)
+			if err != nil {
+				return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+			}
+			seCtx["type"] = "rshell_t"
+			seContext = seCtx.Get()
+		} else {
+			seContext, err = selinux.UserContext(c.Login)
+			if err != nil {
+				return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to get SELinux context of login user")
+			}
 		}
 
 		// SetExecLabel changes the SELinux exec context for the
@@ -350,10 +367,10 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		// the thread as we're exiting after the child exits, and
 		// we want to avoid another goroutine getting denied due to
 		// running on this thread with a different (likely much more
-		// restrictive)SELinux context.
+		// restrictive) SELinux context.
 		runtime.LockOSThread()
 		if err := ocselinux.SetExecLabel(seContext); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set SELinux context")
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set SELinux context: %q", seContext)
 		}
 	}
 
