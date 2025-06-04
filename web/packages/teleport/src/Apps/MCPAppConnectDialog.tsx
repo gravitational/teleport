@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, ButtonSecondary, Text } from 'design';
+import { Box, ButtonSecondary, Stack, Text } from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
@@ -52,36 +52,40 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
       </DialogHeader>
 
       <DialogContent>
-        <Box>
-          <Text>
-            <Text bold as="span">
-              Step 1
+        <Stack gap={4}>
+          <Stack fullWidth gap={2}>
+            <Text>
+              <Text bold as="span">
+                Step 1
+              </Text>
+              {' - Log in to Teleport'}
             </Text>
-            {' - Log in to Teleport'}
-          </Text>
-          <TextSelectCopy
-            text={generateTshLoginCommand({
-              authType,
-              username,
-              clusterId,
-              accessRequestId,
-            })}
-          />
-        </Box>
+            <TextSelectCopy
+              text={generateTshLoginCommand({
+                authType,
+                username,
+                clusterId,
+                accessRequestId,
+              })}
+            />
+          </Stack>
 
-        <br />
-        <Box>
-          <Text>
-            <Text bold as="span">
-              Step 2
+          <Stack fullWidth gap={2}>
+            <Text>
+              <Text bold as="span">
+                Step 2
+              </Text>
+              {' - Log in the MCP server'}
             </Text>
-            {' - Log in the MCP server'}
-          </Text>
-          <TextSelectCopy text={`tsh mcp login ${app.name} --format claude`} />
-        </Box>
-        <Box>
-          Restart your AI client to load the updated configuration if necessary.
-        </Box>
+            <TextSelectCopy
+              text={`tsh mcp login ${app.name} --format claude`}
+            />
+          </Stack>
+          <Box>
+            Restart your AI client to load the updated configuration if
+            necessary.
+          </Box>
+        </Stack>
       </DialogContent>
 
       <DialogFooter>
