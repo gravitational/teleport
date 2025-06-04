@@ -20,9 +20,9 @@ import (
 	"context"
 	"log/slog"
 	"net"
-	"strings"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client/mcp"
 )
 
 // NewServerConfig configuration passed to the server constructors.
@@ -64,6 +64,8 @@ type DialContextFunc func(ctx context.Context, network string, addr string) (net
 type Database struct {
 	// DB contains all information from the database.
 	DB types.Database
+	// ClusterName is the cluster name where the database is located.
+	ClusterName string
 	// Addr is the address the MCP server used to create a new database
 	// connection.
 	Addr string
@@ -81,8 +83,8 @@ type Database struct {
 }
 
 // ResourceURI returns the database MCP resource URI.
-func (d Database) ResourceURI() string {
-	return DatabaseResourceURI(d.DB.GetName())
+func (d Database) ResourceURI() mcp.ResourceURI {
+	return mcp.NewDatabaseResourceURI(d.ClusterName, d.DB.GetName())
 }
 
 // DatabaseResource MCP resource representation of a Teleport database.
@@ -97,17 +99,6 @@ type DatabaseResource struct {
 // ToolName generates a database access tool name.
 func ToolName(protocol, name string) string {
 	return ToolPrefix + protocol + "_" + name
-}
-
-// DatabaseResourceURI generates a database MCP resource URI.
-func DatabaseResourceURI(name string) string {
-	return "teleport://databases/" + name
-}
-
-// IsDatabaseResourceURI checks if the provided name is a MCP resource URI or
-// not.
-func IsDatabaseResourceURI(name string) bool {
-	return strings.HasPrefix(name, "teleport://")
 }
 
 // ToolPrefix is the default tool prefix for every MCP tool.

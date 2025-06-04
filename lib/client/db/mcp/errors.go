@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mcp"
 )
 
 // ExtenralErrorRetriever returns an external error that might have happened.
@@ -45,10 +45,10 @@ func FormatErrorMessage(retreiver ExternalErrorRetriever, err error) error {
 	}
 
 	switch {
-	case client.IsErrorResolvableWithRelogin(err) || errors.Is(err, apiclient.ErrClientCredentialsHaveExpired):
+	case errors.Is(err, apiclient.ErrClientCredentialsHaveExpired):
 		return trace.BadParameter(ReloginRequiredErrorMessage)
 	case strings.Contains(err.Error(), "connection reset by peer") || errors.Is(err, io.ErrClosedPipe):
-		return trace.BadParameter(LocalProxyConnectionError)
+		return trace.BadParameter(LocalProxyConnectionErrorMessage)
 	}
 
 	return err
@@ -61,16 +61,27 @@ const (
 you must relogin (using "tsh login" on a terminal) before continue using this
 tool. After that, there is no need to update or relaunch the MCP client - just
 try using it again.`
-	// LocalProxyConnectionError is the message returned to the MCP client when
+	// LocalProxyConnectionErrorMessage is the message returned to the MCP client when
 	// the database client cannot connect to the local proxy.
-	LocalProxyConnectionError = `Teleport MCP server is having issue while
+	LocalProxyConnectionErrorMessage = `Teleport MCP server is having issue while
 establishing the database connection. You can verify the MCP logs for more
 details on what is causing this issue. After identifying and fixing the issue
 a restart on the MCP client might be necessary.`
-	// EmptyDatabasesListError is the message returned to the MCP client when
+	// EmptyDatabasesListErrorMessage is the message returned to the MCP client when
 	// the started database server is serving no databases.
-	EmptyDatabasesListError = `There are no active Teleport databases available
+	EmptyDatabasesListErrorMessage = `There are no active Teleport databases available
 for use on the MCP server. You can check the MCP server logs to see if any
 database was not included due to an error. You can also verify that the list
 of databases on the MCP command is correct.`
+)
+
+var (
+	// WrongDatabaseURIFormatError is the message returned to the MCP client
+	// when it sends a malformed database resource URI.
+	WrongDatabaseURIFormatError = trace.BadParameter("Malformed database resource URI. Database resources must follow the format: %q", mcp.SampleDatabaseResource)
+	// DatabaseNotFoundError is the message returned to the MCP client when the
+	// requested database is not available as MCP resource.
+	DatabaseNotFoundError = trace.NotFound(`Database not found. Only registered databases
+can be used. Ask the user to attach the database resource or list the availble
+resources with %q tool`, listDatabasesToolName)
 )

@@ -42,7 +42,7 @@ func TestRegisterDatabase(t *testing.T) {
 	}
 	// sort databases by name to ensure the same order every test.
 	slices.SortFunc(databases, func(a, b *Database) int {
-		return strings.Compare(a.ResourceURI(), b.ResourceURI())
+		return strings.Compare(a.ResourceURI().String(), b.ResourceURI().String())
 	})
 
 	for _, db := range databases {
@@ -121,7 +121,7 @@ func TestEmptyDatabasesServer(t *testing.T) {
 		content := res.Content[0]
 		require.IsType(t, mcp.TextContent{}, content)
 		textError := content.(mcp.TextContent).Text
-		require.Contains(t, textError, EmptyDatabasesListError, "expected empty databases error but got: %s", textError)
+		require.Contains(t, textError, EmptyDatabasesListErrorMessage, "expected empty databases error but got: %s", textError)
 	})
 }
 
@@ -148,8 +148,9 @@ func buildDatabase(t *testing.T, name string) *Database {
 	require.NoError(t, err)
 
 	return &Database{
-		DB:   db,
-		Addr: "localhost:5555",
+		DB:          db,
+		ClusterName: "root",
+		Addr:        "localhost:5555",
 	}
 }
 

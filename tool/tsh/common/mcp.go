@@ -89,8 +89,13 @@ func (c *mcpDBStartCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		if !uri.IsDatabase() || uri.GetDatabaseUser() == "" || uri.GetDatabaseName() == "" {
-			return trace.BadParameter("resource must be a database with valid database user and database name values")
+		if !uri.IsDatabase() {
+			return trace.BadParameter("%q resource must be a database", rawURI)
+		}
+
+		// TODO(gabrielcorado): support databases from different clusters.
+		if uri.GetClusterName() != tc.SiteName {
+			return trace.BadParameter("Databases must be from the same cluster (%q). %q is from a different cluster.", tc.SiteName, rawURI)
 		}
 
 		uris[i] = uri

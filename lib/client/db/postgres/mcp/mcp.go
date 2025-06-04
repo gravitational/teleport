@@ -29,6 +29,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 
 	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
+	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -63,7 +64,7 @@ func NewServer(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, e
 
 	for _, db := range cfg.Databases {
 		if db.DatabaseUser == "" || db.DatabaseName == "" {
-			return nil, trace.BadParameter("must specify the username and database name used to connect to the database")
+			return nil, trace.BadParameter("database %q is missing the username and database name", db.DB.GetName())
 		}
 
 		connCfg, err := buildConnConfig(db)
@@ -76,7 +77,7 @@ func NewServer(ctx context.Context, cfg *dbmcp.NewServerConfig) (dbmcp.Server, e
 			return nil, trace.BadParameter("failed to parse database %q connection config: %s", db.DB.GetName(), err)
 		}
 
-		s.databases[db.ResourceURI()] = &database{
+		s.databases[db.ResourceURI().String()] = &database{
 			Database: db,
 			pool:     pool,
 		}
@@ -190,16 +191,13 @@ func buildQueryResult(rows pgx.Rows) (string, error) {
 }
 
 func (s *Server) getDatabase(uri string) (*database, error) {
-	// The caller might refer to the database by its name instead of its URI.
-	// For this case we fallback into generating the URI as the databases are
-	// organized by URI.
-	if !dbmcp.IsDatabaseResourceURI(uri) {
-		uri = dbmcp.DatabaseResourceURI(uri)
+	if !clientmcp.IsDatabaseResourceURI(uri) {
+		return nil, dbmcp.WrongDatabaseURIFormatError
 	}
 
 	db, ok := s.databases[uri]
 	if !ok {
-		return nil, trace.NotFound("Database %q not found. Only Teleport databases resources can be used for queries.", uri)
+		return nil, dbmcp.DatabaseNotFoundError
 	}
 
 	return db, nil

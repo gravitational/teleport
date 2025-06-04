@@ -66,7 +66,7 @@ func (s *RootServer) ListDatabases(ctx context.Context, request mcp.CallToolRequ
 	defer s.mu.RUnlock()
 
 	if len(s.availableDatabases) == 0 {
-		return mcp.NewToolResultError(EmptyDatabasesListError), nil
+		return mcp.NewToolResultError(EmptyDatabasesListErrorMessage), nil
 	}
 
 	var res []mcp.Content
@@ -111,7 +111,7 @@ func (s *RootServer) RegisterDatabase(db *Database) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	uri := db.ResourceURI()
+	uri := db.ResourceURI().String()
 	s.availableDatabases[uri] = db
 	s.AddResource(mcp.NewResource(uri, fmt.Sprintf("%s Datatabase", db.DB.GetName()), mcp.WithMIMEType(databaseResourceMIMEType)), s.GetDatabaseResource)
 }
@@ -124,7 +124,7 @@ func (s *RootServer) ServeStdio(ctx context.Context, in io.Reader, out io.Writer
 func buildDatabaseResource(db *Database) DatabaseResource {
 	return DatabaseResource{
 		Metadata: db.DB.GetMetadata(),
-		URI:      db.ResourceURI(),
+		URI:      db.ResourceURI().String(),
 		Protocol: db.DB.GetProtocol(),
 	}
 }

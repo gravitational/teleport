@@ -17,6 +17,7 @@
 package mcp
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -30,27 +31,39 @@ func TestDatabaseResourceURI(t *testing.T) {
 		expectedServiceName  string
 		expectedDatabaseName string
 		expectedDatabaseUser string
+		expectedClusterName  string
 	}{
 		"valid database": {
-			uri:                  "teleport://databases/pg?dbName=database&dbUser=user",
+			uri:                  "teleport://clusters/default/databases/pg?dbName=database&dbUser=user",
 			expectedDatabase:     true,
 			expectedServiceName:  "pg",
 			expectedDatabaseName: "database",
 			expectedDatabaseUser: "user",
+			expectedClusterName:  "default",
 		},
 		"valid database without params": {
-			uri:                  "teleport://databases/pg",
+			uri:                  "teleport://clusters/default/databases/pg",
 			expectedDatabase:     true,
 			expectedServiceName:  "pg",
 			expectedDatabaseName: "",
 			expectedDatabaseUser: "",
+			expectedClusterName:  "default",
 		},
 		"random resource": {
-			uri:                  "teleport://random/random-resource",
+			uri:                  "teleport://clusters/default/random/random-resource",
 			expectedDatabase:     false,
 			expectedServiceName:  "",
 			expectedDatabaseName: "",
 			expectedDatabaseUser: "",
+			expectedClusterName:  "default",
+		},
+		"generated uri": {
+			uri:                  NewDatabaseResourceURI("default", "db").String(),
+			expectedDatabase:     true,
+			expectedServiceName:  "db",
+			expectedDatabaseName: "",
+			expectedDatabaseUser: "",
+			expectedClusterName:  "default",
 		},
 		"invalid schema": {
 			uri:         "http://databases/database",
@@ -69,10 +82,13 @@ func TestDatabaseResourceURI(t *testing.T) {
 			}
 
 			require.NotNil(t, uri)
+			fmt.Println(tc.uri)
+			require.Equal(t, tc.expectedDatabase, IsDatabaseResourceURI(tc.uri))
 			require.Equal(t, tc.expectedDatabase, uri.IsDatabase())
 			require.Equal(t, tc.expectedServiceName, uri.GetDatabaseServiceName())
 			require.Equal(t, tc.expectedDatabaseName, uri.GetDatabaseName())
 			require.Equal(t, tc.expectedDatabaseUser, uri.GetDatabaseUser())
+			require.Equal(t, tc.expectedClusterName, uri.GetClusterName())
 		})
 	}
 }

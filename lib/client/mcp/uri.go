@@ -18,17 +18,22 @@ package mcp
 
 import (
 	"net/url"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/ucarion/urlpath"
 )
 
-// databaseURITemplate template used to parse database resource URIs.
-var databaseURITemplate = urlpath.New("/databases/:name")
+var (
+	// clusterURITemplate is the base cluster template.
+	clusterURITemplate = urlpath.New("/clusters/:cluster/*")
+	// databaseURITemplate template used to parse database resource URIs.
+	databaseURITemplate = urlpath.New("/clusters/:cluster/databases/:dbName")
+)
 
 const (
-	// resourceSchema schema used by Teleport MCP resources.
-	resourceSchema = "teleport"
+	// resourceScheme scheme used by Teleport MCP resources.
+	resourceScheme = "teleport"
 
 	// databaseNameQueryParamName is the query param name used for database
 	// name.
@@ -39,29 +44,62 @@ const (
 )
 
 // ResourceURI is a Teleport MCP resource URI.
+//
+// Query parameters are not covered on the MCP spec but we use them to provide
+// additional information about the resource connection. For example, if the
+// resource requires a "username" value, this value is provided using the query
+// params.
+//
+// https://modelcontextprotocol.io/docs/concepts/resources#resource-uris
 type ResourceURI struct {
-	url *url.URL
+	url url.URL
 }
 
 // ParseResourceURI parses a raw resource URI into a Teleport URI.
 func ParseResourceURI(uri string) (*ResourceURI, error) {
 	parsedURL, err := url.Parse(uri)
 	if err != nil {
-		return nil, trace.BadParameter("invalid resource URI: %s", err)
+		return nil, trace.BadParameter("invalid resource URI format: %s", err)
 	}
 
-	if parsedURL.Scheme != resourceSchema {
-		return nil, trace.BadParameter("invalid URI schema")
+	if parsedURL.Scheme != resourceScheme {
+		return nil, trace.BadParameter("invalid URI scheme, must be %q", resourceScheme)
 	}
 
-	return &ResourceURI{url: parsedURL}, nil
+	return &ResourceURI{url: *parsedURL}, nil
+}
+
+// NewDatabaseResourceURI creates a new database resource URI.
+func NewDatabaseResourceURI(cluster, databaseName string) ResourceURI {
+	pathWithHost, _ := databaseURITemplate.Build(urlpath.Match{
+		Params: map[string]string{
+			"cluster": cluster,
+			"dbName":  databaseName,
+		},
+	})
+
+	return ResourceURI{
+		url: url.URL{
+			Scheme: resourceScheme,
+			Path:   strings.TrimPrefix(pathWithHost, "/"),
+		},
+	}
+}
+
+// GetDatabaseServiceName returns the Teleport cluster name.
+func (u ResourceURI) GetClusterName() string {
+	if match, ok := clusterURITemplate.Match(u.path()); ok {
+		return match.Params["cluster"]
+	}
+
+	return ""
 }
 
 // GetDatabaseServiceName returns the database service name of the resource.
 // Returns empty if the resource is not a database.
 func (u ResourceURI) GetDatabaseServiceName() string {
 	if match, ok := databaseURITemplate.Match(u.path()); ok {
-		return match.Params["name"]
+		return match.Params["dbName"]
 	}
 
 	return ""
@@ -84,8 +122,32 @@ func (u ResourceURI) IsDatabase() bool {
 	return u.GetDatabaseServiceName() != ""
 }
 
-// path returns the resoruce URI full path. For resources, we must include the
-// hostname as it indicates the resource type.
+// String returns the string representation of the resource URI (excluding the
+// query params).
+func (u ResourceURI) String() string {
+	c := u.url
+	c.RawQuery = ""
+	return c.String()
+}
+
+// path returns the resource URI full path. We must include the hostname as the
+// templates will also include them on the matching.
 func (u ResourceURI) path() string {
 	return "/" + u.url.Hostname() + u.url.Path
 }
+
+// IsDatabase returns true if the URI is a database resource.
+func IsDatabaseResourceURI(uri string) bool {
+	parsed, err := ParseResourceURI(uri)
+	if err != nil {
+		return false
+	}
+
+	return parsed.IsDatabase()
+}
+
+var (
+	// SampleDatabaseResource contains a sample full resource URI. This can be
+	// used on descriptions to show how a database resource URI looks like.
+	SampleDatabaseResource = NewDatabaseResourceURI("example-cluster", "myDatabase")
+)

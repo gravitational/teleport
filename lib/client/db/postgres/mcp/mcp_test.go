@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
+	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils/listener"
 )
@@ -84,6 +85,7 @@ func TestFormatErrors(t *testing.T) {
 		URI:      "localhost:5432",
 	})
 	require.NoError(t, err)
+	dbURI := clientmcp.NewDatabaseResourceURI("root", dbName).String()
 
 	for name, tc := range map[string]struct {
 		databaseURI            string
@@ -92,16 +94,23 @@ func TestFormatErrors(t *testing.T) {
 		expectErrorMessage     require.ValueAssertionFunc
 	}{
 		"database not found": {
+			databaseURI: "teleport://clusters/root/databases/not-found",
+			expectErrorMessage: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+				require.Equal(t, dbmcp.DatabaseNotFoundError.Error(), i1)
+			},
+		},
+		"malformed database uri": {
 			databaseURI: "not-found",
 			expectErrorMessage: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
-				require.Contains(t, i1, "not found")
+				require.Equal(t, dbmcp.WrongDatabaseURIFormatError.Error(), i1)
 			},
 		},
 		"local proxy rejects connection": {
-			databaseURI: dbName,
+			databaseURI: dbURI,
 			databases: []*dbmcp.Database{
 				&dbmcp.Database{
 					DB:           db,
+					ClusterName:  "root",
 					DatabaseUser: "postgres",
 					DatabaseName: "postgres",
 					Addr:         listener.Addr().String(),
@@ -112,14 +121,15 @@ func TestFormatErrors(t *testing.T) {
 				},
 			},
 			expectErrorMessage: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
-				require.Equal(t, dbmcp.LocalProxyConnectionError, i1)
+				require.Equal(t, dbmcp.LocalProxyConnectionErrorMessage, i1)
 			},
 		},
 		"relogin error": {
-			databaseURI: dbName,
+			databaseURI: dbURI,
 			databases: []*dbmcp.Database{
 				&dbmcp.Database{
 					DB:                     db,
+					ClusterName:            "root",
 					DatabaseUser:           "postgres",
 					DatabaseName:           "postgres",
 					Addr:                   listener.Addr().String(),
