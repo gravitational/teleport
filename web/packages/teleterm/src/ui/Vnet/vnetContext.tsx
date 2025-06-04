@@ -145,7 +145,7 @@ export const VnetContextProvider: FC<
     () => mainProcessClient.getRuntimeSettings().platform,
     [mainProcessClient]
   );
-  const isSupported = platform === 'darwin' || platform === 'win32';
+  const isSupported = platform === 'darwin' || platform === 'win32' || platform === 'linux';
   const isDiagSupported = platform === 'darwin';
 
   const [startAttempt, start] = useAsync(
