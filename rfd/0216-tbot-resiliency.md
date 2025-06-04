@@ -33,9 +33,9 @@ holistically in this document.
 
 ## How
 
-At this stage, we don't have a clear decision on the right path forward, so this
+At this stage, we don't have a final decision on the right path forward, so this
 section enumerates our possible options (both from a UX and implementation
-perspective).
+perspective) and ends with our current proposal.
 
 Let's begin with a brief overview of how `tbot` operates today.
 
@@ -222,3 +222,34 @@ Here's roughly how it would work:
 
 Complexity aside, these APIs are also marked as "experimental" which might make
 upgrading gRPC difficult in the future.
+
+### Current Proposal
+
+Given the factors above, and the need to backport this feature to v17 and v18
+for many customers (limiting our ability to make breaking changes) here is our
+current proposed solution.
+
+In one-shot mode, `tbot` will operate as it does today, and exit immediately if
+the auth server is unavailable. This feels most appropriate for the CI/CD
+environments where one-shot mode is primarily used, especially as it's unlikely
+for there to be any "state" from a previous run that can be used to offer a
+gracefully degraded experience.
+
+In v17 and v18, if you configure `proxy_server`, we will no longer try to
+connect to it "directly" as if it were an auth server. This functionality exists
+by accident, isn't documented, and is largely broken today.
+
+This change will remove the need to test the connection up-front, meaning we can
+create a gRPC `ClientConn` and API client even if the auth server is unavailable.
+
+From v19 onward, we will make a similar change to `auth_server` and no longer
+fall back to treating it as a proxy if the direct connection fails. As this is
+a breaking change, we cannot do the same in v17 and v18, so `tbot` will continue
+to exit if the connection fails on-startup. We may also add an environment
+variable to opt-in to the new behavior in these versions, but given how unusual
+connecting directly to an auth server is, this may not be necessary.
+
+On reflection, we realized there isn't a huge benefit to the process exiting
+from a the perspective of surfacing misconfigurations, because you'll need to
+refer to the logs anyway. So the most impactful thing we can do is to improve
+the log messages and add a meaningful readiness check.
