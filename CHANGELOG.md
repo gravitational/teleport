@@ -37,6 +37,7 @@ This vulnerability affects GitHub SSO users. You can check whether you’re usin
 
 ### Other fixes and improvements
 
+* Allow the `ssh_service.listen_addr` to forcibly be enabled when operating in reverse tunnel mode to provide an optional direct access path to hosts. [#54215](https://github.com/gravitational/teleport/pull/54215)
 * Fixed an issue that allowed unauthenticated access to delete resources created by Identity Center integration. [#55400](https://github.com/gravitational/teleport/pull/55400)
 * Fix improper redirect URL validation for SSO login which could be taken advantage of in a phishing attack. [#55399](https://github.com/gravitational/teleport/pull/55399)
 * View details for a bot instance. [#55347](https://github.com/gravitational/teleport/pull/55347)
