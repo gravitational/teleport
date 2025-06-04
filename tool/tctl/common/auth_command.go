@@ -20,11 +20,15 @@ package common
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/hex"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/template"
 	"time"
@@ -58,7 +62,7 @@ import (
 // authCommandClient is aggregated client interface for auth command.
 type authCommandClient interface {
 	certificateSigner
-	crlGenerator
+	crlGenerator // TODO(zmb3) remove this if it is no longer necessary
 	authclient.ClientI
 }
 
@@ -171,6 +175,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 
 	a.authCRL = auth.Command("crl", "Export empty certificate revocation list (CRL) for certificate authorities.")
 	a.authCRL.Flag("type", fmt.Sprintf("Certificate authority type, one of: %s", strings.Join(allowedCRLCertificateTypes, ", "))).Required().EnumVar(&a.caType, allowedCRLCertificateTypes...)
+	a.authCRL.Flag("out", "If set writes exported revocation lists to files with the given path prefix").StringVar(&a.output)
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
@@ -284,7 +289,7 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt authCommandClie
 			if err := os.WriteFile(name, authority.Data, perms); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Println(name)
+			fmt.Fprintln(os.Stderr, name)
 		}
 		return nil
 	}
@@ -505,11 +510,66 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI authComma
 		return trace.Wrap(err)
 	}
 
-	crl, err := clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
+	authorities, err := clusterAPI.GetCertAuthorities(ctx, certType, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	if a.output == "" {
+		l := len(authorities)
+		switch {
+		case l > 1:
+			return trace.BadParameter("found %d authorities, use --out to export all CRLs", l)
+		case l == 1 && len(authorities[0].GetActiveKeys().TLS) > 1:
+			return trace.BadParameter("CA has multiple active keys, use --out to export all CRLs")
+		}
+	}
+
+	if a.output != "" {
+		// collect the CRLs ahead of time so we can print a message
+		// like we do with tctl auth export
+		type output struct{ cert, crl []byte }
+		var results []output
+		for _, authority := range authorities {
+			for i, keypair := range authority.GetActiveKeys().TLS {
+				if len(keypair.CRL) == 0 {
+					fmt.Fprintf(os.Stderr, "keypair %v is missing CRL for %v authority %v, generating legacy fallback", i, authority.GetType(), authority.GetName())
+					crl, err := clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					results = append(results, output{keypair.Cert, crl})
+				}
+
+				results = append(results, output{keypair.Cert, keypair.CRL})
+			}
+		}
+
+		fmt.Fprintf(os.Stderr, "Writing %d files with prefix %q\n", len(results), a.output)
+		for _, out := range results {
+			block, _ := pem.Decode(out.cert)
+			cert, err := x509.ParseCertificate(block.Bytes)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			filename := fmt.Sprintf("%v-%v-%v.crl", cert.Subject.CommonName, certType, hex.EncodeToString(cert.SubjectKeyId))
+			if err := os.WriteFile(filepath.Join(a.output, filename), out.crl, os.FileMode(0644)); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Fprintln(os.Stderr, filename)
+		}
+		return nil
+	}
+
+	// Only a single CRL is exported if we got this far.
+	crl := authorities[0].GetActiveKeys().TLS[0].CRL
+	if len(crl) == 0 {
+		crl, err = clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	fmt.Println(string(crl))
 	return nil
 }
