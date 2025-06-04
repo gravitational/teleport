@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package ttyplayback
+package terminal
 
 import (
 	"fmt"
@@ -81,11 +81,11 @@ const (
 	attrWrap
 )
 
-func SerializeTerminal(vt vt10x.Terminal) SerializedTerminal {
+func Serialize(vt vt10x.Terminal) *SerializedTerminal {
 	cols, rows := vt.Size()
 	data := dumpTerminalWithANSI(vt)
 
-	return SerializedTerminal{
+	return &SerializedTerminal{
 		Cols: cols,
 		Rows: rows,
 		Data: data,
