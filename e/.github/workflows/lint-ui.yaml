@@ -39,7 +39,7 @@ jobs:
     if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport18
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
     steps:
       - name: Checkout OSS Teleport
         uses: actions/checkout@v4
