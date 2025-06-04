@@ -2,9 +2,9 @@
 
 package api
 
-const Version = "18.0.0-dev"
+const Version = "19.0.0-dev"
 
-const VersionMajor = 18
+const VersionMajor = 19
 const VersionMinor = 0
 const VersionPatch = 0
 const VersionPreRelease = "dev"
