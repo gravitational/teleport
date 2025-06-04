@@ -9,7 +9,7 @@
 name: Check
 on:
   pull_request_review:
-    type: [submitted, edited, dismissed]
+    types: [submitted, edited, dismissed]
   pull_request_target:
     types: [opened, ready_for_review, synchronize, labeled, unlabeled]
 
@@ -18,16 +18,16 @@ on:
 # reviews and delete workflow runs, so it needs write access to "actions" and
 # "pull-requests", nothing else.
 permissions:
-    actions: write
-    pull-requests: write
-    checks: none
-    contents: none
-    deployments: none
-    issues: none
-    packages: none
-    repository-projects: none
-    security-events: none
-    statuses: none
+  actions: write
+  pull-requests: write
+  checks: none
+  contents: none
+  deployments: none
+  issues: none
+  packages: none
+  repository-projects: none
+  security-events: none
+  statuses: none
 
 jobs:
   check-reviews:

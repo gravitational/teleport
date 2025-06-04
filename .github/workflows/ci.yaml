@@ -1,0 +1,1144 @@
+name: CI
+run-name: CI - ${{ github.run_id }} - @${{ github.actor }}
+on:
+  pull_request:
+  merge_group:
+env:
+  GOFLAGS: '-buildvcs=false'
+  E2E_TEST_AWS_REGION: us-west-2
+  E2E_TEST_GHA_ASSUME_ROLE: arn:aws:iam::307493967395:role/tf-aws-e2e-gha-role
+
+jobs:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      has_docs: ${{ steps.changes.outputs.has_docs }}
+      has_go: ${{ steps.changes.outputs.has_go }}
+      has_rust: ${{ steps.changes.outputs.has_rust }}
+      has_proto: ${{ steps.changes.outputs.has_proto }}
+      has_rfd: ${{ steps.changes.outputs.has_rfd }}
+      has_ui: ${{ steps.changes.outputs.has_ui }}
+      has_helm: ${{ steps.changes.outputs.has_helm }}
+      has_integrations: ${{ steps.changes.outputs.has_integrations }}
+      has_api: ${{ steps.changes.outputs.has_api }}
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'merge_group' }}
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            has_integrations:
+              - '.github/workflows/ci.yaml'
+              - 'go.mod'
+              - 'go.sum'
+              - 'integrations/**'
+              - 'api/proto/**'
+              - 'proto/**'
+              - 'api/types/**'
+              - 'gen/**'
+              - 'lib/tbot/**'
+              - 'Makefile'
+              - 'build.assets/Makefile'
+              - 'build.assets/Dockerfile*'
+            has_helm:
+              - '.github/workflows/ci.yaml'
+              - 'examples/chart/**'
+              - 'Makefile'
+              - 'docs/pages/reference/helm-reference/*'
+            has_api:
+              - '.github/workflows/ci.yaml'
+              - 'api/**/*.go'
+              - 'api/go.mod'
+              - 'api/go.sum'
+              - 'go.mod'
+              - 'go.sum'
+            has_docs:
+              - '.github/workflows/ci.yaml'
+              - 'CHANGELOG.md'
+              - 'docs/**'
+              - 'examples/**'
+            has_ui:
+              - '.github/workflows/ci.yaml'
+              - 'web/**'
+              - 'gen/proto/js/**'
+              - 'gen/proto/ts/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'tsconfig.json'
+              - 'tsconfig.node.json'
+              - 'jest.config.js'
+            has_rfd:
+              - '.github/workflows/ci.yaml'
+              - 'rfd/**.md'
+              - 'rfd/cspell.json'
+            has_go:
+              - '.github/workflows/ci.yaml'
+              - '**.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'build.assets/Makefile'
+              - 'build.assets/Dockerfile*'
+              - 'Makefile'
+              - '.golangci.yml'
+            has_rust:
+              - '.github/workflows/ci.yaml'
+              - '**.rs'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'build.assets/Makefile'
+              - 'build.assets/Dockerfile*'
+              - 'build.assets/versions.mk'
+              - 'Makefile'
+            has_proto:
+              - '.github/workflows/ci.yaml'
+              # proto files or buf changes
+              - 'go.mod'
+              - 'go.sum'
+              - 'api/proto/**'
+              - 'proto/**'
+              # operator protoc generator change
+              - 'integrations/operator/crdgen'
+              # terraform protoc generator changes
+              - 'integrations/terraform/go.mod'
+              - 'integrations/terraform/gen/docs.sh'
+              - 'integrations/terraform/protoc-gen-terraform-*'
+              - 'integrations/terraform/Makefile'
+              - 'integrations/terraform/examples/**'
+              - 'integrations/terraform/templates/**'
+              - 'integrations/terraform/provider/**'
+              # rendered doc changes
+              - 'docs/pages/admin-guides/**'
+              - 'docs/pages/enroll-resources/**'
+              - 'docs/pages/reference/operator-resources/**'
+              - 'docs/pages/reference/terraform-provider/**'
+              - 'examples/chart/teleport-cluster/charts/teleport-operator/operator-crds'
+
+  lint-go:
+    name: Lint (Go)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_go == 'true' }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for untidy go modules
+        shell: bash
+        run: |
+          find . -path ./e -prune -o -name go.mod -print | while read f; do
+            echo "checking $f"
+            pushd $(dirname "$f") > /dev/null;
+            go mod tidy -diff || (echo "Run 'make go-mod-tidy-all' to resolve" && exit 1);
+            popd > /dev/null;
+          done
+
+      - name: Set linter versions
+        run: |
+          echo GOLANGCI_LINT_VERSION=$(cd build.assets; make print-golangci-lint-version) >> $GITHUB_ENV
+
+      - name: Print linter versions
+        run: |
+          echo "GOLANGCI_LINT_VERSION=$GOLANGCI_LINT_VERSION"
+
+      # Run various golangci-lint checks.
+      # TODO(codingllama): Using go.work could save a bunch of repetition here.
+      - name: golangci-lint (api)
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: api
+          skip-cache: true
+      - name: golangci-lint (teleport)
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: --build-tags libfido2,piv
+          skip-cache: true
+      - name: golangci-lint (assets/backport)
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: assets/backport
+          skip-cache: true
+      - name: golangci-lint (build.assets/tooling)
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: build.assets/tooling
+          skip-cache: true
+      - name: golangci-lint (integrations/terraform)
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: integrations/terraform
+          skip-cache: true
+      - name: golangci-lint (integrations/event-handler)
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: integrations/event-handler
+          skip-cache: true
+
+      - name: Run (non-action) linters
+        run: make lint-no-actions
+
+      - name: Check if derived functions are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make derive-up-to-date
+
+      - name: Check if go generated files are up to date
+        run: make go-generate-up-to-date
+
+  lint-rust:
+    name: Lint (Rust)
+    runs-on: ubuntu-22.04
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_rust == 'true' }}
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Rust version
+        run: echo "RUST_VERSION=$(make -s -C build.assets print-rust-version)" >> $GITHUB_ENV
+
+      - name: Set up Rust
+        run: |
+          echo "Setting up Rust version ${RUST_VERSION}"
+          rustup toolchain install ${RUST_VERSION} --component rustfmt,clippy
+          rustup override set ${RUST_VERSION}
+          rustc --version
+          cargo --version
+          rustfmt --version
+          cargo clippy --version
+
+      - name: Run Rust linters
+        run: make lint-rust
+
+  lint-proto:
+    name: Lint (Proto)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_proto == 'true' }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set linter versions
+        run: |
+          echo BUF_VERSION=$(cd build.assets; make print-buf-version) >> $GITHUB_ENV
+
+      - name: Print linter versions
+        run: |
+          echo "BUF_VERSION=$BUF_VERSION"
+      - uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
+        with:
+          github_token: ${{ github.token }}
+          version: ${{ env.BUF_VERSION }}
+      - uses: bufbuild/buf-lint-action@06f9dd823d873146471cfaaf108a993fe00e5325 # v1.1.1
+      - name: buf breaking from parent to self
+        uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
+        with:
+          against: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}'
+      # Release branches must not add new fields to protos with respect to
+      # master, new fields should be added to master first.
+      - name: buf breaking from self to master
+        uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
+        if: startsWith(github.base_ref, 'branch/v') || startsWith(github.event.merge_group.base_ref, 'refs/heads/branch/v')
+        with:
+          input: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=master'
+          against: '.'
+
+      - name: Check if protos are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make protos-up-to-date/host
+
+      - name: Check if Operator CRDs are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make crds-up-to-date
+
+      - name: Check if Terraform resources are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        # The protoc-gen-terraform version must match the version in integrations/terraform/Makefile
+        run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform/v3@v3.0.2 && make terraform-resources-up-to-date
+
+  lint-rfd:
+    name: Lint (RFD)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_rfd == 'true' }}
+    runs-on: ubuntu-22.04
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check spelling
+        run: pnpm cspell -c ./rfd/cspell.json rfd
+
+  lint-ui:
+    needs: changes
+    name: Prettier, ESLint, & TSC
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_ui == 'true' }}
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+    steps:
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v4
+
+      - name: Print Node version
+        run: |
+          node --version
+
+      - name: Install JS dependencies
+        run: |
+          pnpm install --frozen-lockfile
+
+      - name: Build WASM
+        run: pnpm build-wasm
+
+      - name: Run Type Check
+        run: pnpm type-check
+
+      - name: Run lint
+        run: pnpm lint
+
+      - name: Run Storybook smoke test
+        run: pnpm storybook-smoke-test
+
+      - name: Lint licenses
+        run: make lint-license
+
+  lint-docs:
+    name: Lint (Docs)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_docs == 'true' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out teleport
+        uses: actions/checkout@v4
+        with:
+          repository: 'gravitational/teleport'
+          path: 'teleport'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: 'gravitational/docs-website'
+          path: 'docs'
+
+      - name: Generate GitHub Token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.REVIEWERS_APP_ID }}
+          private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
+
+      - name: Check out shared-workflows
+        uses: actions/checkout@v4
+        with:
+          repository: gravitational/shared-workflows
+          path: shared-workflows
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Ensure docs changes include redirects
+        env:
+          TOKEN: ${{ steps.generate_token.outputs.token }}
+          REVIEWERS: ${{ secrets.reviewers }}
+        run: cd shared-workflows/bot && go run main.go -workflow=docpaths -token="${TOKEN}" -teleport-path="${GITHUB_WORKSPACE}/teleport" -reviewers="${REVIEWERS}"
+      # Cache node_modules. Unlike the example in the actions/cache repo, this
+      # caches the node_modules directory instead of the yarn cache. This is
+      # because yarn needs to build fresh packages even when it copies files
+      # from the yarn cache into node_modules.
+      # See:
+      # https://github.com/actions/cache/blob/main/examples.md#node---yarn
+      - uses: actions/cache@v4
+        id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
+        with:
+          path: '${{ github.workspace }}/docs/node_modules'
+          key: ${{ runner.os }}-yarn-${{ hashFiles(format('{0}/docs/yarn.lock', github.workspace)) }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      - name: Install docs site dependencies
+        working-directory: docs
+        if: ${{ steps.yarn-cache.outputs.cache-hit != 'true' }}
+        # Prevent occasional `yarn install` executions that run indefinitely
+        timeout-minutes: 10
+        run: yarn install
+
+      - name: Prepare docs site configuration
+        working-directory: docs
+        # The environment we use for linting the docs differs from the one we
+        # use for the live docs site in that we only test a single version of
+        # the content.
+        #
+        # To do this, we delete the three submodules we use for building the
+        # live docs site and copy a gravitational/teleport clone into the
+        # content directory.
+        #
+        # The docs engine expects a config.json file at the root of the
+        # gravitational/docs clone that associates directories with git
+        # submodules. By default, these directories represent versioned branches
+        # of gravitational/teleport. We override this in order to build only a
+        # single version of the docs.
+        #
+        # We also replace data fetched from Sanity CMS with hardcoded JSON
+        # objects to remove the need to authenticate with Sanity. Each includes
+        # the minimal set of data required for docs builds to succeed.
+        run: |
+          echo "" > .gitmodules
+          rm -rf content/*
+          # Rather than using a submodule, copy the teleport source into the
+          # content directory.
+          cp -r "$GITHUB_WORKSPACE/teleport" "$GITHUB_WORKSPACE/docs/content/current"
+          jq -nr --arg version "current" '{"versions": [{"name": $version,"branch": $version,"deprecated": false,"isDefault": true}]}' > config.json
+          NEW_PACKAGE_JSON=$(jq '.scripts."git-update" = "echo Skipping submodule update"' package.json);
+          NEW_PACKAGE_JSON=$(jq '.scripts."prepare-sanity-data" = "echo Using pre-populated Sanity data"' <<< "$NEW_PACKAGE_JSON");
+          echo "$NEW_PACKAGE_JSON" > package.json;
+          echo "{}" > data/events.json
+          echo '{"bannerButtons":{"second":{"title":"LOG IN","url":"https://teleport.sh"},"first":{"title":"Support","url":"https://goteleport.com/support/"}},"navbarData":{"rightSide":{},"logo":"/favicon.svg","menu":[]}}' > data/navbar.json
+
+      - name: Check spelling
+        working-directory: 'docs'
+        run: yarn spellcheck content/current
+
+      - name: Lint docs formatting
+        working-directory: 'docs'
+        run: yarn markdown-lint
+
+      - name: Test the docs build
+        working-directory: docs
+        run: yarn build
+
+  build-api:
+    name: Build API
+    needs: changes
+    if: ${{ needs.changes.outputs.has_api == 'true' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          # use the version declared in API's go.mod
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+
+      - name: Build
+        run: cd api; go build ./...
+
+  build-macos:
+    name: Build on Mac OS
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && (needs.changes.outputs.has_go == 'true' || needs.changes.outputs.has_rust == 'true') && github.event_name == 'merge_group' }}
+    runs-on: macos-13-xl-arm64
+
+    permissions:
+      contents: read
+
+    steps:
+      # This is necessary on macos arm64 runners because the .cache and
+      # .config dirs on the runner are owned by root not the "runner" user.
+      - name: Fix home dir perms
+        run: sudo chown -R $(id -u):$(id -g) $HOME/.cache $HOME/.config
+
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Determine Toolchain Versions and cache paths
+        run: |
+          echo NODE_VERSION=$(make -s -C build.assets print-node-version) >> $GITHUB_ENV
+          echo GOLANG_VERSION=$(make -s -C build.assets print-go-version | sed 's/^go//') >> $GITHUB_ENV
+          echo RUST_VERSION=$(make -s -C build.assets print-rust-version) >> $GITHUB_ENV
+          echo PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)" >> $GITHUB_ENV
+
+      - name: Print versions
+        run: |
+          echo "make: $(make --version)"
+          echo "node: ${NODE_VERSION}"
+          echo "go: ${GOLANG_VERSION}"
+          echo "rust: ${RUST_VERSION}"
+
+      - name: Install Node Toolchain
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        run: |
+          corepack enable pnpm
+
+      - name: Install Go Toolchain
+        uses: actions/setup-go@v5
+        with:
+          cache: false
+          go-version: ${{ env.GOLANG_VERSION }}
+
+      - name: Configure Rust Toolchain
+        run: |
+          rustup override set ${{ env.RUST_VERSION }}
+
+      - name: Install wasm-pack
+        run: make ensure-wasm-deps
+
+      - name: Build
+        run: make binaries
+
+  build-windows:
+    name: Build on Windows
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_go == 'true' && github.event_name == 'merge_group' }}
+    runs-on: windows-2022-16core
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Get Go version
+        id: go-version
+        shell: bash
+        run: echo "go-version=$(make -s print-go-version | tr -d '\n')" >> $GITHUB_OUTPUT
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          cache: false
+          go-version: ${{ steps.go-version.outputs.go-version }}
+
+      - name: Build
+        shell: bash
+        run: |
+          export OS="windows"
+          make build/tsh build/tctl build/tbot
+
+  aws-e2e-tests:
+    name: AWS E2E Tests (Non-root)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_go == 'true'}}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      env:
+        WEBASSETS_SKIP_BUILD: 1
+        TEST_KUBE: true
+        TEST_AWS_DB: true
+        KUBERNETES_SERVICE_ASSUME_ROLE: arn:aws:iam::307493967395:role/tf-eks-discovery-ci-cluster-kubernetes-service-access-role
+        KUBE_DISCOVERY_SERVICE_ASSUME_ROLE: arn:aws:iam::307493967395:role/tf-eks-discovery-ci-cluster-discovery-service-access-role
+        EKS_CLUSTER_NAME: gha-discovery-ci-eks-us-west-2-307493967395
+        RDS_ACCESS_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-rds-access
+        RDS_DISCOVERY_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-rds-discovery
+        RDS_POSTGRES_INSTANCE_NAME: ci-database-e2e-tests-rds-postgres-instance-us-west-2-307493967395
+        RDS_MYSQL_INSTANCE_NAME: ci-database-e2e-tests-rds-mysql-instance-us-west-2-307493967395
+        RDS_MARIADB_INSTANCE_NAME: ci-database-e2e-tests-rds-mariadb-instance-us-west-2-307493967395
+        REDSHIFT_ACCESS_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-redshift-access
+        REDSHIFT_DISCOVERY_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-redshift-discovery
+        REDSHIFT_IAM_DB_USER: ci-database-e2e-tests-redshift-user
+        REDSHIFT_CLUSTER_NAME: ci-database-e2e-tests-redshift-cluster-us-west-2-307493967395
+        REDSHIFT_SERVERLESS_ACCESS_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-redshift-serverless-access
+        REDSHIFT_SERVERLESS_DISCOVERY_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-redshift-serverless-discovery
+        REDSHIFT_SERVERLESS_ENDPOINT_NAME: ci-database-e2e-tests-redshift-serverless-workgroup-rss-access-us-west-2-307493967395
+        REDSHIFT_SERVERLESS_IAM_DB_USER: ci-database-e2e-tests-redshift-serverless-user
+        REDSHIFT_SERVERLESS_WORKGROUP_NAME: ci-database-e2e-tests-redshift-serverless-workgroup-us-west-2-307493967395
+        DISCOVERY_MATCHER_LABELS: '*=*'
+      options: --cap-add=SYS_ADMIN --privileged
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Chown
+        run: |
+          mkdir -p $(go env GOMODCACHE)
+          mkdir -p $(go env GOCACHE)
+          chown -Rf ci:ci ${GITHUB_WORKSPACE} $(go env GOMODCACHE) $(go env GOCACHE)
+        continue-on-error: true
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+        with:
+          aws-region: ${{ env.E2E_TEST_AWS_REGION }}
+          role-to-assume: ${{ env.E2E_TEST_GHA_ASSUME_ROLE }}
+
+      - name: Run tests
+        timeout-minutes: 10
+        run: |
+          runuser -u ci -g ci make e2e-aws RDPCLIENT_SKIP_BUILD=1
+
+  flaky-tests:
+    name: Flaky Tests Detector
+    needs: changes
+    # We don't run the flaky test detector in the merge queue because
+    # it computes which tests were changed, so the PR run that succeeded
+    # to put the PR in the queue already check for flakiness.
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_go == 'true' && github.event_name != 'merge_group' }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+      packages: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      env:
+        TELEPORT_ETCD_TEST: yes
+        TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
+        TELEPORT_XAUTH_TEST: yes
+        TELEPORT_BPF_TEST: yes
+        WEBASSETS_SKIP_BUILD: 1
+      options: --cap-add=SYS_ADMIN --privileged
+
+    services:
+      etcd0:
+        image: ghcr.io/gravitational/ci-etcd:3.3.9
+        options: >-
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --add-host etcd0:127.0.0.1
+        ports:
+          - 2379:2379
+          - 2380:2380
+          - 3379:3379
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Mount debugfs
+        run: mount -t debugfs none /sys/kernel/debug/
+
+      - name: Prepare unit tests
+        run: make test-go-prepare
+
+      - name: Generate GitHub Token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.REVIEWERS_APP_ID }}
+          private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
+
+      - name: Checkout shared-workflows
+        uses: actions/checkout@v4
+        with:
+          repository: gravitational/shared-workflows
+          path: .github/shared-workflows
+          ref: main
+
+      - name: Find excluded tests
+        id: find_excluded
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=exclude-flakes -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"
+
+      - name: Run base difftest
+        uses: ./.github/actions/difftest
+        with:
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "integrations/operator/**/*" -e "integrations/terraform/**/*" -e "integrations/event-handler/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*" -e "examples/teleport-usage/**/*" -e "integrations/access/**" -e "integrations/lib/**" -e "integrations/lib/backoff/backoff_test.go" -e "e2e/**/*"
+          target: test-go-unit
+
+      - name: Run touch-id difftest
+        uses: ./.github/actions/difftest
+        with:
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "lib/auth/touchid/**/*"
+          target: test-go-touch-id
+
+      - name: Run tsh difftest
+        uses: ./.github/actions/difftest
+        with:
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "tool/tsh/**/*"
+          target: test-go-tsh
+
+      - name: Run api difftest
+        uses: ./.github/actions/difftest
+        with:
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "api/**/*" --relative "api"
+          target: test-api
+
+      - name: Run teleport-usage difftest
+        uses: ./.github/actions/difftest
+        with:
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "examples/teleport-usage/**/*" --relative "examples/teleport-usage"
+          target: test-teleport-usage
+
+  integration-tests:
+    name: Integration Tests (Non-root)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_go == 'true' }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+      packages: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      env:
+        TELEPORT_ETCD_TEST: yes
+        TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
+        WEBASSETS_SKIP_BUILD: 1
+        TELEPORT_XAUTH_TEST: yes
+        TEST_KUBE: false
+      options: --cap-add=SYS_ADMIN --privileged
+
+    services:
+      etcd0:
+        image: ghcr.io/gravitational/ci-etcd:3.3.9
+        options: >-
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --add-host etcd0:127.0.0.1
+        ports:
+          - 2379:2379
+          - 2380:2380
+          - 3379:3379
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Chown
+        run: |
+          mkdir -p $(go env GOMODCACHE)
+          mkdir -p $(go env GOCACHE)
+          chown -Rf ci:ci ${GITHUB_WORKSPACE} $(go env GOMODCACHE) $(go env GOCACHE)
+        continue-on-error: true
+
+      - name: Run tests
+        timeout-minutes: 40
+        run: runuser -u ci -g ci make integration RDPCLIENT_SKIP_BUILD=1
+
+  root-integration-tests:
+    name: Integration Tests (Root)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_go == 'true' }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      options: --cap-add=SYS_ADMIN --privileged
+      env:
+        WEBASSETS_SKIP_BUILD: 1
+        TELEPORT_XAUTH_TEST: yes
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Run tests
+        timeout-minutes: 40
+        run: |
+          make integration-root RDPCLIENT_SKIP_BUILD=1
+
+  kubernetes-integration-tests:
+    name: Kube Integration Tests (Non-root)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_go == 'true' }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+      packages: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      env:
+        WEBASSETS_SKIP_BUILD: 1
+        TEST_KUBE: true
+        KUBECONFIG: /home/.kube/config
+        ALPINE_VERSION: 3.20.3
+      options: --cap-add=SYS_ADMIN --privileged
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Chown
+        run: |
+          mkdir -p $(go env GOMODCACHE)
+          mkdir -p $(go env GOCACHE)
+          chown -Rf ci:ci ${GITHUB_WORKSPACE} $(go env GOMODCACHE) $(go env GOCACHE)
+        continue-on-error: true
+
+      - name: Create KinD cluster
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          cluster_name: kind
+          config: fixtures/kind/config.yaml
+
+      # The current container where tests run isn't linked to the KinD network and
+      # we won't be able to access the KinD control plane without linking them.
+      # This step is required because our tests run in teleport-buildbox container
+      # and by default the KinD container network isn't exposed to it.
+      # Connecting the network allow us to access the control plane using DNS kind-control-plane.
+      # It also copies the default kubeconfig and places it in /home/.kube so ci user
+      # is able to access it.
+      - name: Link test container to KinD network
+        run: |
+          docker network connect kind $(cat /etc/hostname)
+          kubectl config set-cluster kind-kind --server=https://kind-control-plane:6443
+          kubectl cluster-info
+          kubectl apply -f  fixtures/ci-teleport-rbac/ci-teleport.yaml
+          cp -r $HOME/.kube /home/
+          chown -R ci:ci /home/.kube
+
+      - name: Build Alpine image with webserver
+        run: |
+
+          export SHORT_VERSION=${ALPINE_VERSION%.*}
+
+          # download the alpine image
+          # store the files in the fixtures/alpine directory
+          # to avoid passing all the repository files to the docker build context.
+          cd ./fixtures/alpine
+
+          # download alpine minirootfs and signature
+          curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v$SHORT_VERSION/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz
+          curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v$SHORT_VERSION/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.asc
+          curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v$SHORT_VERSION/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.sha256
+
+          # verify the checksum
+          sha256sum -c alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.sha256
+
+          # verify the signature
+          gpg --import  ./alpine-ncopa.at.alpinelinux.org.asc
+          gpg --verify ./alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.asc ./alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz
+
+          # build the webserver
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./webserver ./webserver.go
+
+          docker build -t alpine-webserver:v1 --build-arg=ALPINE_VERSION=$ALPINE_VERSION -f ./Dockerfile .
+
+          # load the image into the kind cluster
+          kind load docker-image alpine-webserver:v1
+
+          cd -
+
+      - name: Run tests
+        timeout-minutes: 40
+        run: |
+          runuser -u ci -g ci make integration-kube RDPCLIENT_SKIP_BUILD=1
+
+  go-unit-tests:
+    name: Unit Tests (Go)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_go == 'true' }}
+    runs-on: ubuntu-22.04-32core
+
+    permissions:
+      contents: read
+      packages: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      env:
+        TELEPORT_ETCD_TEST: yes
+        TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
+        TELEPORT_XAUTH_TEST: yes
+        TELEPORT_BPF_TEST: yes
+        WEBASSETS_SKIP_BUILD: 1
+        AWS_REGION: ''
+      options: --cap-add=SYS_ADMIN --privileged
+
+    services:
+      etcd0:
+        image: ghcr.io/gravitational/ci-etcd:3.3.9
+        options: >-
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --add-host etcd0:127.0.0.1
+        ports:
+          - 2379:2379
+          - 2380:2380
+          - 3379:3379
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Prepare workspace
+        id: prepare
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Mount debugfs
+        run: mount -t debugfs none /sys/kernel/debug/
+
+      - name: Run tests
+        timeout-minutes: 20
+        run: make -j"$(nproc)" test-go test-sh test-api
+
+  helm-unit-tests:
+    name: Unit Tests (Helm)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_helm == 'true' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      env:
+        # TODO(hugoShaka) remove the '-new' prefix when updating to teleport13 buildbox
+        HELM_PLUGINS: /home/ci/.local/share/helm/plugins-new
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Lint helm
+        timeout-minutes: 10
+        run: make lint-helm
+
+      - name: Run tests
+        timeout-minutes: 10
+        run: make test-helm
+
+  integrations-unit-tests:
+    name: Unit Tests (Integrations)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_integrations == 'true' }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      options: --cap-add=SYS_ADMIN --privileged
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Run access plugin tests
+        run: make test-access-integrations
+        timeout-minutes: 5
+
+      - name: Run integrations lib tests
+        run: make test-integrations-lib
+        timeout-minutes: 5
+
+      - name: Run terraform provider OSS tests
+        run: make test-terraform-provider
+        timeout-minutes: 15
+
+      - name: Run integrations event-handler tests
+        run: make test-event-handler-integrations
+        timeout-minutes: 10
+
+      - name: Run operator tests
+        timeout-minutes: 40
+        run: make test-operator
+
+      - name: Run kube-agent-updater tests
+        timeout-minutes: 15
+        run: make test-kube-agent-updater
+
+      - name: Run teleport-usage tests
+        timeout-minutes: 15
+        run: make test-teleport-usage
+
+  rust-unit-tests:
+    name: Unit Tests (Rust)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_rust == 'true' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      options: --cap-add=SYS_ADMIN --privileged
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Run tests
+        timeout-minutes: 40
+        run: make test-rust
+
+  ui-unit-tests:
+    name: Test UI
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_ui == 'true' }}
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      # See https://github.com/gravitational/teleport/blob/2aaa3ec9a129213db8a18083d5b4681f86328d34/web/packages/teleterm/src/agentCleanupDaemon/agentCleanupDaemon.test.ts#L82-L89
+      # for the original impetus for adding --init.
+      options: --init
+    steps:
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v4
+
+      - name: Print Node version
+        run: |
+          node --version
+
+      - name: Install JS dependencies
+        run: |
+          pnpm install --frozen-lockfile
+
+      - name: Build WASM
+        run: pnpm build-wasm
+
+      - name: Run tests
+        run: pnpm test
+
+  benchmark-tests:
+    name: Benchmarks (Go)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_go == 'true' }}
+    runs-on: ubuntu-22.04-32core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      env:
+        TELEPORT_XAUTH_TEST: yes
+        WEBASSETS_SKIP_BUILD: 1
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Prepare workspace
+        id: prepare
+        uses: ./.github/actions/prepare-workspace
+
+      # Run benchmarks once to make sure they don't break
+      # Must be run separate since gotestsum is not compatible with benchmark output
+      - name: Run Benchmarks Once
+        timeout-minutes: 5
+        shell: bash # Overriding default shell which is `sh -e`
+        run: make test-go-bench | sed -u -E "s/^(FAIL\s+github)/::error title=Benchmark Failed::\1/"
+
+      - name: Construct Summary
+        shell: bash
+        run: |
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          go run golang.org/x/perf/cmd/benchstat@latest test-logs/bench.txt \
+          | sed -E -e 's/^pkg:\s+(github.*)/\n```\n## \1\n\n```/'  >> "$GITHUB_STEP_SUMMARY"
+
+  root-benchmark-tests:
+    name: Benchmarks (Root)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_go == 'true' }}
+    runs-on: ubuntu-22.04-32core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      options: --cap-add=SYS_ADMIN --privileged
+      env:
+        WEBASSETS_SKIP_BUILD: 1
+        TELEPORT_XAUTH_TEST: yes
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      # Run benchmarks once to make sure they don't break
+      # Must be run separate since gotestsum is not compatible with benchmark output
+      - name: Run Benchmarks Once
+        timeout-minutes: 5
+        shell: bash # Overriding default shell which is `sh -e`
+        run: make test-go-bench-root | sed -u -E "s/^(FAIL\s+github)/::error title=Benchmark Failed::\1/"
+
+      - name: Construct Summary
+        shell: bash
+        run: |
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          go run golang.org/x/perf/cmd/benchstat@latest test-logs/bench.txt \
+          | sed -E -e 's/^pkg:\s+(github.*)/\n```\n## \1\n\n```/'  >> "$GITHUB_STEP_SUMMARY"
