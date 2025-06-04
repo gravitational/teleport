@@ -150,7 +150,9 @@ jobs:
 
       - name: Install go-cache-plugin
         shell: bash
-        run: go install github.com/tailscale/go-cache-plugin/cmd/go-cache-plugin@latest
+        run: |
+          unset GOCACHEPROG
+          go install github.com/tailscale/go-cache-plugin/cmd/go-cache-plugin@latest
 
       - name: Check for untidy go modules
         shell: bash
