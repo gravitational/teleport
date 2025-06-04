@@ -281,6 +281,12 @@ type IntegrationConfAccessGraphAWSSync struct {
 	AccountID string
 	// AutoConfirm skips user confirmation of the operation plan if true.
 	AutoConfirm bool
+	// SQSQueueURL is the URL of the SQS queue to use for the Identity Security Activity Center.
+	SQSQueueURL string
+	// CloudTrailBucketARN is the name of the S3 bucket to use for the Identity Security Activity Center.
+	CloudTrailBucketARN string
+	// KMSKeyARNs is the ARN of the KMS key to use for decrypting the Identity Security Activity Center data.
+	KMSKeyARNs []string
 }
 
 // IntegrationConfAccessGraphAzureSync contains the arguments of
@@ -1982,6 +1988,14 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 					Port:    portRange.Port,
 					EndPort: portRange.EndPort,
 				})
+			}
+		}
+
+		if application.MCP != nil {
+			app.MCP = &types.MCP{
+				Command:       application.MCP.Command,
+				Args:          application.MCP.Args,
+				RunAsHostUser: application.MCP.RunAsHostUser,
 			}
 		}
 

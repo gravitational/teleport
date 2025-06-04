@@ -45,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -79,7 +78,6 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 		IsTestStub:             true,
 		ClusterName:            clusterName,
 		srv:                    srv,
-		sessionID:              rsession.NewID(),
 		Identity: IdentityContext{
 			UnmappedIdentity: ident,
 			Login:            usr.Username,

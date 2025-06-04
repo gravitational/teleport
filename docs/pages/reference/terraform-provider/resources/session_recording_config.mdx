@@ -44,6 +44,7 @@ resource "teleport_session_recording_config" "example" {
 
 - `metadata` (Attributes) Metadata is resource metadata (see [below for nested schema](#nested-schema-for-metadata))
 - `spec` (Attributes) Spec is a SessionRecordingConfig specification (see [below for nested schema](#nested-schema-for-spec))
+- `status` (Attributes) Status is the SessionRecordingConfig status containing active encryption keys (see [below for nested schema](#nested-schema-for-status))
 - `sub_kind` (String) SubKind is an optional resource sub kind, used in some resources
 
 ### Nested Schema for `metadata`
@@ -59,5 +60,26 @@ Optional:
 
 Optional:
 
+- `encryption` (Attributes) Encryption configures if and how session recordings should be encrypted. (see [below for nested schema](#nested-schema-for-specencryption))
 - `mode` (String) Mode controls where (or if) the session is recorded.
 - `proxy_checks_host_keys` (Boolean) ProxyChecksHostKeys is used to control if the proxy will check host keys when in recording mode.
+
+### Nested Schema for `spec.encryption`
+
+Optional:
+
+- `enabled` (Boolean) Enabled controls whether or not session recordings should be encrypted.
+
+
+
+### Nested Schema for `status`
+
+Optional:
+
+- `encryption_keys` (Attributes List) EncryptionKeys contain the currently active age encryption keys used for encrypted session recording. (see [below for nested schema](#nested-schema-for-statusencryption_keys))
+
+### Nested Schema for `status.encryption_keys`
+
+Optional:
+
+- `public_key` (String) PublicKey is a Bech32 encoded age X25519 public key.

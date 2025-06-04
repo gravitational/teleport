@@ -214,6 +214,26 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, isClusterWideResou
 			if ok, err := MatchString(input.Name, resource.Name); err != nil || ok {
 				return ok, trace.Wrap(err)
 			}
+		case input.Kind == "namespaces":
+			if input.Kind != resource.Kind && resource.Kind != types.Wildcard {
+				continue
+			}
+			if ok, err := MatchString(input.APIGroup, resource.APIGroup); err != nil {
+				return false, trace.Wrap(err)
+			} else if !ok {
+				continue
+			}
+			targetNamespace := resource.Namespace
+			if resource.Kind == "namespaces" {
+				targetNamespace = resource.Name
+			} else if resource.Kind == types.Wildcard && (resource.Namespace == "" || resource.Namespace == types.Wildcard) {
+				targetNamespace = resource.Name
+			}
+			if ok, err := MatchString(input.Name, targetNamespace); err != nil || ok {
+				return ok, trace.Wrap(err)
+			}
+			// No match.
+			continue
 		default:
 			if input.Kind != resource.Kind && resource.Kind != types.Wildcard {
 				continue
@@ -277,6 +297,17 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, isClusterWideRe
 			continue
 		}
 		switch {
+		case targetsReadOnlyNamespace && isDeny:
+			// For read-only namespace request, match the deny only if there is an explicit deny,
+			// i.e., if we have a wildcard deny, we should still be able to get namespaces.
+			// If the group doesn't match and is not wildcard, skip.
+			if resource.Kind != "namespaces" {
+				continue // The only possible way to match in deny is to have an explicit 'namespaces' rule.
+			}
+			if ok, err := MatchString(input.Name, resource.Name); err != nil || ok {
+				return ok, trace.Wrap(err)
+			}
+			continue
 		case targetsReadOnlyNamespace && !isDeny && resource.Kind != "namespaces" && resource.Namespace != "":
 			// If the user requests a read-only namespace get/list/watch, they should
 			// be able to see the list of namespaces they have resources defined in.
@@ -301,6 +332,11 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, isClusterWideRe
 				return true, nil
 			} else if isClusterWideResource {
 				return !isDeny, nil
+			}
+
+			// If we are listing a namespaced resource, we can't match against a cluster-wide entry.
+			if isDeny && resource.Namespace == "" {
+				return false, nil
 			}
 
 			// at this point, the resource is namespaced and if the namespace is empty,

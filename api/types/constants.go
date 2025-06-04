@@ -180,6 +180,14 @@ const (
 	// KindApp is a web app resource.
 	KindApp = "app"
 
+	// SubKindMCP represents an MCP server as a subkind of app.
+	SubKindMCP = KindMCP
+
+	// KindMCP is an MCP server resource.
+	// Currently, MCP servers are accessed through apps.
+	// In the future, they may become a standalone resource kind.
+	KindMCP = "mcp"
+
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
@@ -303,9 +311,16 @@ const (
 	// KindSessionRecordingConfig is the resource for session recording configuration.
 	KindSessionRecordingConfig = "session_recording_config"
 
+	// KindRecordingEncryption is the collection of active session recording encryption keys.
+	KindRecordingEncryption = "recording_encryption"
+
 	// MetaNameSessionRecordingConfig is the exact name of the singleton resource for
 	// session recording configuration.
 	MetaNameSessionRecordingConfig = "session-recording-config"
+
+	// MetaNameRecordingEncryption is the exact name of the singleton resource for
+	// session recording configuration.
+	MetaNameRecordingEncryption = "recording-encryption"
 
 	// KindExternalAuditStorage the resource kind for External Audit Storage
 	// configuration.
@@ -896,6 +911,11 @@ const (
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
 
+	// SchemaMCPStdio is a URI schema for MCP servers using stdio transport.
+	SchemaMCPStdio = "mcp+stdio://"
+	// MCPTransportStdio indicates the MCP server uses stdio transport.
+	MCPTransportStdio = "stdio"
+
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"
 	// DiscoveredResourceDatabase identifies a discovered database.
@@ -911,6 +931,8 @@ const (
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
+	// TeleportAzureIdentityEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
+	TeleportAzureIdentityEndpoint = "azure-identity." + TeleportNamespace
 
 	// ConnectMyComputerNodeOwnerLabel is a label used to control access to the node managed by
 	// Teleport Connect as part of Connect My Computer. See [teleterm.connectmycomputer.RoleSetup].

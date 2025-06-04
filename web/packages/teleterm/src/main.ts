@@ -48,6 +48,10 @@ if (!process.defaultApp) {
   app.setAsDefaultProtocolClient(CUSTOM_PROTOCOL);
 }
 
+// Fix a bug introduced in Electron 36.
+// https://github.com/electron/electron/issues/46538#issuecomment-2808806722
+app.commandLine.appendSwitch('gtk-version', '3');
+
 if (app.requestSingleInstanceLock()) {
   initializeApp();
 } else {

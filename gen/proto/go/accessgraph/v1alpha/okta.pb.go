@@ -467,7 +467,9 @@ func (x *OktaAuditLogV1) GetCursor() *OktaAuditLogV1Cursor {
 type OktaConfigV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The desired start date from which to begin exporting Okta audit logs.
-	StartDate     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
+	StartDate *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
+	// organization is the Okta organization name.
+	Organization  string `protobuf:"bytes,2,opt,name=organization,proto3" json:"organization,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -507,6 +509,13 @@ func (x *OktaConfigV1) GetStartDate() *timestamppb.Timestamp {
 		return x.StartDate
 	}
 	return nil
+}
+
+func (x *OktaConfigV1) GetOrganization() string {
+	if x != nil {
+		return x.Organization
+	}
+	return ""
 }
 
 // OktaTokenV1 holds information about an Okta token (ex.: an API token),
@@ -961,10 +970,11 @@ const file_accessgraph_v1alpha_okta_proto_rawDesc = "" +
 	"\x0flast_event_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\rlastEventTime\"\x8d\x01\n" +
 	"\x0eOktaAuditLogV1\x128\n" +
 	"\x06events\x18\x01 \x03(\v2 .accessgraph.v1alpha.OktaEventV1R\x06events\x12A\n" +
-	"\x06cursor\x18\x02 \x01(\v2).accessgraph.v1alpha.OktaAuditLogV1CursorR\x06cursor\"I\n" +
+	"\x06cursor\x18\x02 \x01(\v2).accessgraph.v1alpha.OktaAuditLogV1CursorR\x06cursor\"m\n" +
 	"\fOktaConfigV1\x129\n" +
 	"\n" +
-	"start_date\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\"\x8d\x02\n" +
+	"start_date\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\x12\"\n" +
+	"\forganization\x18\x02 \x01(\tR\forganization\"\x8d\x02\n" +
 	"\vOktaTokenV1\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
