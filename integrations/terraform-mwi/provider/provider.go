@@ -68,7 +68,7 @@ func (p *Provider) EphemeralResources(ctx context.Context) []func() ephemeral.Ep
 
 func (p *Provider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		// TODO: Implement data sources...
+		NewKubernetesDataSource,
 	}
 }
 
