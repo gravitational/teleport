@@ -53,7 +53,6 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/parse"
-	slicesutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // DefaultImplicitRules provides access to the default set of implicit rules
@@ -1030,15 +1029,18 @@ func (result *EnumerationResult) WildcardDenied() bool {
 	return result.wildcardDenied
 }
 
-// ToEntities converts result back to allowed and denied entity slices. Wildcard
-// will be placed in the slice if any.
+// ToEntities converts result back to allowed and denied entity slices.
+//
+// If wildcard is denied, only "*" is returned for the denied slice.
+// If wildcard is allowed, allowed entities will be appended to the allowed
+// slice after the "*" as a hint for users to select.
+// Denied entities is only included if the wildcard is allowed.
 func (result *EnumerationResult) ToEntities() (allowed, denied []string) {
 	if result.wildcardDenied {
 		return nil, []string{types.Wildcard}
 	}
-	// Only include denied entities if the wildcard is allowed.
 	if result.wildcardAllowed {
-		return []string{types.Wildcard}, result.Denied()
+		return append([]string{types.Wildcard}, result.Allowed()...), result.Denied()
 	}
 	return result.Allowed(), nil
 }
@@ -1055,30 +1057,28 @@ func NewEnumerationResult() EnumerationResult {
 // NewEnumerationResultFromEntities creates a new EnumerationResult and
 // populates the result with provided allowed and denied entries.
 func NewEnumerationResultFromEntities(allowed, denied []string) EnumerationResult {
-	switch {
-	// Wildcard deny, ignore all other entries.
-	case slices.Contains(denied, types.Wildcard):
-		return EnumerationResult{
-			allowedDeniedMap: make(map[string]bool),
-			wildcardDenied:   true,
+	var wildcardAllowed bool
+	var wildcardDenied bool
+	allowedDeniedMap := make(map[string]bool)
+	for _, allow := range allowed {
+		if allow == types.Wildcard {
+			wildcardAllowed = true
+		} else {
+			allowedDeniedMap[allow] = true
 		}
-
-	// Wildcard allow, ignore all allowed entries.
-	case slices.Contains(allowed, types.Wildcard):
-		return EnumerationResult{
-			allowedDeniedMap: slicesutils.ToMapWithDefaultValue(denied, false),
-			wildcardAllowed:  true,
+	}
+	for _, deny := range denied {
+		if deny == types.Wildcard {
+			wildcardDenied = true
+			wildcardAllowed = false
+			break
 		}
-
-	// No wildcard.
-	default:
-		allowedDeniedMap := slicesutils.ToMapWithDefaultValue(allowed, true)
-		for _, deny := range denied {
-			delete(allowedDeniedMap, deny)
-		}
-		return EnumerationResult{
-			allowedDeniedMap: allowedDeniedMap,
-		}
+		allowedDeniedMap[deny] = false
+	}
+	return EnumerationResult{
+		allowedDeniedMap: allowedDeniedMap,
+		wildcardAllowed:  wildcardAllowed,
+		wildcardDenied:   wildcardDenied,
 	}
 }
 

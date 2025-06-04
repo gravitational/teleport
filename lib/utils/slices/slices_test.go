@@ -20,7 +20,6 @@ package slices
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -182,25 +181,4 @@ func TestDeduplicateKey(t *testing.T) {
 			require.Equal(t, tt.expected, res)
 		})
 	}
-}
-
-func TestToMap(t *testing.T) {
-	numbers := []int{1, 2, 3, 4}
-	m := ToMap(numbers, strconv.Itoa)
-	require.Equal(t, map[int]string{
-		1: "1",
-		2: "2",
-		3: "3",
-		4: "4",
-	}, m)
-}
-
-func TestToMapWithDefaultValue(t *testing.T) {
-	s := []string{"a", "b", "c"}
-	m := ToMapWithDefaultValue(s, true)
-	require.Equal(t, map[string]bool{
-		"a": true,
-		"b": true,
-		"c": true,
-	}, m)
 }

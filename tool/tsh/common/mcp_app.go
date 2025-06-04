@@ -147,7 +147,7 @@ func fetchMCPServers(ctx context.Context, tc *client.TeleportClient, auth apicli
 func withMCPServerAppFilter(predicateExpression string) string {
 	return makePredicateConjunction(
 		predicateExpression,
-		"hasPrefix(resource.spec.uri, \"mcp+\")",
+		`resource.sub_kind == "mcp"`,
 	)
 }
 
