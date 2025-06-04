@@ -94,6 +94,8 @@ type DatabaseResource struct {
 	URI string `json:"uri"`
 	// Protocol is the database protocol.
 	Protocol string `json:"protocol"`
+	// ClusterName is the cluster the database is.
+	ClusterName string `json:"cluster_name"`
 }
 
 // ToolName generates a database access tool name.

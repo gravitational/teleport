@@ -82,6 +82,6 @@ var (
 	// DatabaseNotFoundError is the message returned to the MCP client when the
 	// requested database is not available as MCP resource.
 	DatabaseNotFoundError = trace.NotFound(`Database not found. Only registered databases
-can be used. Ask the user to attach the database resource or list the availble
+can be used. Ask the user to attach the database resource or list the available
 resources with %q tool`, listDatabasesToolName)
 )

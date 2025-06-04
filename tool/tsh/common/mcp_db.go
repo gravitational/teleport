@@ -199,6 +199,7 @@ func (c *mcpDBStartCommand) prepareDatabases(
 
 		mcpDB := &dbmcp.Database{
 			DB:                     db,
+			ClusterName:            uri.GetClusterName(),
 			DatabaseUser:           dbUser,
 			DatabaseName:           dbName,
 			Addr:                   listener.Addr().String(),

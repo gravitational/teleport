@@ -123,9 +123,10 @@ func (s *RootServer) ServeStdio(ctx context.Context, in io.Reader, out io.Writer
 
 func buildDatabaseResource(db *Database) DatabaseResource {
 	return DatabaseResource{
-		Metadata: db.DB.GetMetadata(),
-		URI:      db.ResourceURI().String(),
-		Protocol: db.DB.GetProtocol(),
+		Metadata:    db.DB.GetMetadata(),
+		URI:         db.ResourceURI().String(),
+		Protocol:    db.DB.GetProtocol(),
+		ClusterName: db.ClusterName,
 	}
 }
 
