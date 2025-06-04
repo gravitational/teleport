@@ -132,6 +132,7 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
