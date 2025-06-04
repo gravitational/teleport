@@ -16,34 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package oktaplugin
+package okta
 
 import (
 	"context"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 )
 
-// Get fetches the Okta plugin if it exists and does proper type assertions.
-func Get(ctx context.Context, plugins PluginGetter, withSecrets bool) (*types.PluginV1, error) {
-	plugin, err := plugins.GetPlugin(ctx, types.PluginTypeOkta, withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err, "getting Okta plugin")
-	}
-	pluginV1, ok := plugin.(*types.PluginV1)
-	if !ok {
-		return nil, trace.BadParameter("plugin.(%T) is not of type PluginV1", plugin)
-	}
+type PluginGetter interface {
+	GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error)
+}
 
-	oktaSettings := pluginV1.Spec.GetOkta()
-	if oktaSettings == nil {
-		return nil, trace.BadParameter("plugin %q does not have Okta settings", plugin.GetName())
-	}
-	if oktaSettings.SyncSettings == nil {
-		oktaSettings.SyncSettings = &types.PluginOktaSyncSettings{}
-	}
-
-	return pluginV1, nil
+type AuthServer interface {
+	PluginGetter
+	// GetApplicationServers returns all registered application servers.
+	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
+	// GetUserGroup returns the specified user group resources.
+	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
 }

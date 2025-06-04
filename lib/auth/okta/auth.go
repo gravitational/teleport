@@ -20,13 +20,14 @@ package okta
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	oktaplugin "github.com/gravitational/teleport/lib/okta/plugin"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // Okta-origin resources have some special access rules that are implemented in
@@ -99,7 +100,7 @@ func CheckAccess(authzCtx *authz.Context, existingResource types.ResourceWithLab
 
 // BidirectionalSyncEnabled checks if the bidirectional sync is enabled on the Okta plugin.  If the
 // Okta plugin does not exist the result is false.
-func BidirectionalSyncEnabled(ctx context.Context, plugins services.Plugins) (bool, error) {
+func BidirectionalSyncEnabled(ctx context.Context, plugins PluginGetter) (bool, error) {
 	plugin, err := oktaplugin.Get(ctx, plugins, false /* withSecrets */)
 	if trace.IsNotFound(err) {
 		return false, nil
@@ -107,12 +108,6 @@ func BidirectionalSyncEnabled(ctx context.Context, plugins services.Plugins) (bo
 		return false, trace.Wrap(err, "getting Okta plugin")
 	}
 	return plugin.Spec.GetOkta().GetSyncSettings().GetEnableBidirectionalSync(), nil
-}
-
-// AccessPoint provides services required by [CheckResourcesRequestable].
-type AccessPoint struct {
-	Plugins              services.Plugins
-	UnifiedResourceCache *services.UnifiedResourceCache
 }
 
 var (
@@ -130,8 +125,12 @@ var (
 //
 // If any resource is not requestable, [OktaResourceNotRequestableError] will be returned. Any
 // other error can be returned.
-func CheckResourcesRequestable(ctx context.Context, ids []types.ResourceID, ap AccessPoint) error {
-	bidirectionalSyncEnabled, err := BidirectionalSyncEnabled(ctx, ap.Plugins)
+func CheckResourcesRequestable(ctx context.Context, ids []types.ResourceID, auth AuthServer) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	bidirectionalSyncEnabled, err := BidirectionalSyncEnabled(ctx, auth)
 	if err != nil {
 		return trace.Wrap(err, "getting bidirectional sync")
 	}
@@ -139,20 +138,48 @@ func CheckResourcesRequestable(ctx context.Context, ids []types.ResourceID, ap A
 		return nil
 	}
 
-	var denied []types.ResourceID
-	for app, err := range ap.UnifiedResourceCache.AppServers(ctx, services.UnifiedResourcesIterateParams{}) {
+	hasApps := slices.ContainsFunc(ids, func(id types.ResourceID) bool {
+		return id.Kind == types.KindAppServer || id.Kind == types.KindApp
+	})
+	var oktaAppServers []types.AppServer
+	if hasApps {
+		// Unfortunately we have to pull all app_server resources here as there is no
+		// dedicated method to fetch a single app_server by name.
+		//
+		// [services.UnifiedResourceCache].GetUnifiedResourcesByIDs can't be used neither
+		// because Okta resources are keyed with [types.FriendlyName] (see
+		// [services.makeResourceSortKey]) and [types.ResourceID] does not contain labels.
+		//
+		// TODO(kopiczko): Create GetApplicationServer(ctx, name) of fix GetUnifiedResourcesByIDs and use it instead. See comments above.
+		oktaAppServers, err = auth.GetApplicationServers(ctx, apidefaults.Namespace)
 		if err != nil {
-			return trace.Wrap(err, "iterating cached AppServers")
+			return trace.Wrap(err, "getting app servers")
 		}
-		for _, id := range ids {
-			switch id.Kind {
-			case types.KindApp, types.KindAppServer:
-				// ok
-			default:
+		oktaAppServers = slices.DeleteFunc(oktaAppServers, func(appServer types.AppServer) bool {
+			return appServer.Origin() != types.OriginOkta
+		})
+	}
+
+	var denied []types.ResourceID
+	for _, id := range ids {
+		switch id.Kind {
+		case types.KindAppServer, types.KindApp:
+			if slices.ContainsFunc(oktaAppServers, func(appServer types.AppServer) bool {
+				return appServer.GetName() == id.Name
+			}) {
+				denied = append(denied, id)
 				continue
 			}
-			if app.GetName() == id.Name && app.Origin() == types.OriginOkta {
+		case types.KindUserGroup:
+			userGroup, err := auth.GetUserGroup(ctx, id.Name)
+			switch {
+			case trace.IsNotFound(err):
+				// ok
+			case err != nil:
+				return trace.Wrap(err, "getting user group %q", id.Name)
+			case userGroup.Origin() == types.OriginOkta:
 				denied = append(denied, id)
+				continue
 			}
 		}
 	}
