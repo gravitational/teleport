@@ -20,28 +20,16 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
-	"github.com/hashicorp/terraform-plugin-framework/ephemeral/schema"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-var _ ephemeral.EphemeralResourceWithConfigure = &KubernetesEphemeralResource{}
-
-func NewKubernetesEphemeralResource() ephemeral.EphemeralResource {
-	return &KubernetesEphemeralResource{}
+func NewKubernetesDataSource() datasource.DataSource {
+	return &KubernetesDataSource{}
 }
 
-type KubernetesEphemeralResource struct{}
-
-func (r *KubernetesEphemeralResource) Metadata(
-	_ context.Context,
-	req ephemeral.MetadataRequest,
-	resp *ephemeral.MetadataResponse,
-) {
-	resp.TypeName = req.ProviderTypeName + "_kubernetes"
-}
-
-type KubernetesEphemeralResourceModel struct {
+type KubernetesDataSourceModel struct {
 	// Inputs
 	ExampleInput types.String `tfsdk:"example_input"`
 
@@ -49,10 +37,20 @@ type KubernetesEphemeralResourceModel struct {
 	ExampleOutput types.String `tfsdk:"example_output"`
 }
 
-func (r *KubernetesEphemeralResource) Schema(
+type KubernetesDataSource struct{}
+
+func (d *KubernetesDataSource) Metadata(
+	ctx context.Context,
+	req datasource.MetadataRequest,
+	resp *datasource.MetadataResponse,
+) {
+	resp.TypeName = req.ProviderTypeName + "_kubernetes"
+}
+
+func (d *KubernetesDataSource) Schema(
 	_ context.Context,
-	_ ephemeral.SchemaRequest,
-	resp *ephemeral.SchemaResponse,
+	_ datasource.SchemaRequest,
+	resp *datasource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "TODO",
@@ -72,27 +70,26 @@ func (r *KubernetesEphemeralResource) Schema(
 	}
 }
 
-func (d *KubernetesEphemeralResource) Configure(
+func (d *KubernetesDataSource) Configure(
 	ctx context.Context,
-	req ephemeral.ConfigureRequest,
-	resp *ephemeral.ConfigureResponse,
+	req datasource.ConfigureRequest,
+	resp *datasource.ConfigureResponse,
 ) {
 	// TODO: Fetch bot config data from the provider.
 }
 
-func (r *KubernetesEphemeralResource) Open(
+func (d *KubernetesDataSource) Read(
 	ctx context.Context,
-	req ephemeral.OpenRequest,
-	resp *ephemeral.OpenResponse,
+	req datasource.ReadRequest,
+	resp *datasource.ReadResponse,
 ) {
-	var data KubernetesEphemeralResourceModel
+	var data KubernetesDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 	data.ExampleOutput = types.StringValue(
 		fmt.Sprintf("Hello, %s!", data.ExampleInput.ValueString()),
 	)
-	resp.Diagnostics.Append(resp.Result.Set(ctx, &data)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
