@@ -67,9 +67,9 @@ graceful degradation.
 tunnel through a proxy. These are the `auth_server` and `proxy_server`
 configuration options, respectively.
 
-For reasons of backward-compatibility and convenience, we largely don't
-differentiate between these options. For example, if you provide the address of
-an auth server as the `proxy_server` it will more-or-less work (and vice versa).
+Confusingly, for backward-compatibility reasons, we allow you to provide the
+address of a proxy as the `auth_server`. The inverse may also work but we don't
+make any promises about it.
 
 To support this, `tbot` first tries to connect to the configured address as if
 it were an auth server and makes a "ping" RPC to test the connection. If this
