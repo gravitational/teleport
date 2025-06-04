@@ -30,10 +30,10 @@ func NewKubernetesDataSource() datasource.DataSource {
 }
 
 type KubernetesDataSourceModel struct {
-	// Inputs
+	// Arguments
 	ExampleInput types.String `tfsdk:"example_input"`
 
-	// Outputs
+	// Attributes
 	ExampleOutput types.String `tfsdk:"example_output"`
 }
 

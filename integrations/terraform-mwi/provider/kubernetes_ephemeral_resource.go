@@ -42,10 +42,10 @@ func (r *KubernetesEphemeralResource) Metadata(
 }
 
 type KubernetesEphemeralResourceModel struct {
-	// Inputs
+	// Arguments
 	ExampleInput types.String `tfsdk:"example_input"`
 
-	// Outputs
+	// Attributes
 	ExampleOutput types.String `tfsdk:"example_output"`
 }
 
