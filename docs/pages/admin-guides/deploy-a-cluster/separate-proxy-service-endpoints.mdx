@@ -104,7 +104,32 @@ disable the Proxy Service web interfacie:
 https://github.com/gravitational/teleport/pull/13598/files#diff-9f5fd20913c5fe80c85263153fa9a0b28dbd1407e53da4ab5d09e13d2774c5dbR6629
 */}
 
+{/*TODO:
+This also will not work with trusted clusters.
+*/}
+
 ## Multiple public addresses
 
-{/*TODO*/}
+{/*TODO: introduce the architecture of this approach*/}
+
+1. Configure the Teleport Proxy Service to use multiple public address values:
+
+   ```yaml
+   proxy_service:
+     enabled: true
+     public_addr: 
+       - external_proxy.example.com:3080
+       - internal_proxy.example.com:3024
+   ```
+
+   In this configuration, the external address appears first. {/*TODO: why?*/}
+
+1. On Teleport Agent hosts, start the `teleport` process with the
+   `TELEPORT_TUNNEL_PUBLIC_ADDR` environment variable assigned to the internal
+   Proxy Service load balancer address.  {/*TODO: add instructions for Linux
+   servers (systemd environment file) and the `teleport-kube-agent` chart*/}
+
+   Setting `TELEPORT_TUNNEL_PUBLIC_ADDR` overrides the default behavior, in
+   which an agent joins using the first public address listed, to use the value
+   of the environment variable instead.
 
