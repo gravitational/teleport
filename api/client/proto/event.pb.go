@@ -33,6 +33,7 @@ import (
 	v15 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	v19 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	v16 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	v118 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	v113 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	v117 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	v13 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
@@ -194,6 +195,7 @@ type Event struct {
 	//	*Event_AutoUpdateAgentReport
 	//	*Event_ScopedRole
 	//	*Event_ScopedRoleAssignment
+	//	*Event_RelayServer
 	Resource      isEvent_Resource `protobuf_oneof:"Resource"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -927,6 +929,15 @@ func (x *Event) GetScopedRoleAssignment() *v117.ScopedRoleAssignment {
 	return nil
 }
 
+func (x *Event) GetRelayServer() *v118.RelayServer {
+	if x != nil {
+		if x, ok := x.Resource.(*Event_RelayServer); ok {
+			return x.RelayServer
+		}
+	}
+	return nil
+}
+
 type isEvent_Resource interface {
 	isEvent_Resource()
 }
@@ -1317,6 +1328,10 @@ type Event_ScopedRoleAssignment struct {
 	ScopedRoleAssignment *v117.ScopedRoleAssignment `protobuf:"bytes,81,opt,name=ScopedRoleAssignment,proto3,oneof"`
 }
 
+type Event_RelayServer struct {
+	RelayServer *v118.RelayServer `protobuf:"bytes,82,opt,name=relay_server,json=relayServer,proto3,oneof"`
+}
+
 func (*Event_ResourceHeader) isEvent_Resource() {}
 
 func (*Event_CertAuthority) isEvent_Resource() {}
@@ -1469,11 +1484,13 @@ func (*Event_ScopedRole) isEvent_Resource() {}
 
 func (*Event_ScopedRoleAssignment) isEvent_Resource() {}
 
+func (*Event_RelayServer) isEvent_Resource() {}
+
 var File_teleport_legacy_client_proto_event_proto protoreflect.FileDescriptor
 
 const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a-teleport/notifications/v1/notifications.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\x8d.\n" +
+	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xd5.\n" +
 	"\x05Event\x12$\n" +
 	"\x04Type\x18\x01 \x01(\x0e2\x10.proto.OperationR\x04Type\x12?\n" +
 	"\x0eResourceHeader\x18\x02 \x01(\v2\x15.types.ResourceHeaderH\x00R\x0eResourceHeader\x12>\n" +
@@ -1564,7 +1581,8 @@ const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\n" +
 	"ScopedRole\x18P \x01(\v2%.teleport.scopes.access.v1.ScopedRoleH\x00R\n" +
 	"ScopedRole\x12e\n" +
-	"\x14ScopedRoleAssignment\x18Q \x01(\v2/.teleport.scopes.access.v1.ScopedRoleAssignmentH\x00R\x14ScopedRoleAssignmentB\n" +
+	"\x14ScopedRoleAssignment\x18Q \x01(\v2/.teleport.scopes.access.v1.ScopedRoleAssignmentH\x00R\x14ScopedRoleAssignment\x12F\n" +
+	"\frelay_server\x18R \x01(\v2!.teleport.presence.v1.RelayServerH\x00R\vrelayServerB\n" +
 	"\n" +
 	"\bResourceJ\x04\b\a\x10\bJ\x04\b1\x102J\x04\b?\x10@J\x04\bD\x10ER\x12ExternalCloudAuditR\x0eStaticHostUserR\x13AutoUpdateAgentPlan**\n" +
 	"\tOperation\x12\b\n" +
@@ -1663,6 +1681,7 @@ var file_teleport_legacy_client_proto_event_proto_goTypes = []any{
 	(*v111.AutoUpdateAgentReport)(nil),          // 72: teleport.autoupdate.v1.AutoUpdateAgentReport
 	(*v117.ScopedRole)(nil),                     // 73: teleport.scopes.access.v1.ScopedRole
 	(*v117.ScopedRoleAssignment)(nil),           // 74: teleport.scopes.access.v1.ScopedRoleAssignment
+	(*v118.RelayServer)(nil),                    // 75: teleport.presence.v1.RelayServer
 }
 var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	0,  // 0: proto.Event.Type:type_name -> proto.Operation
@@ -1742,11 +1761,12 @@ var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	72, // 74: proto.Event.AutoUpdateAgentReport:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReport
 	73, // 75: proto.Event.ScopedRole:type_name -> teleport.scopes.access.v1.ScopedRole
 	74, // 76: proto.Event.ScopedRoleAssignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
-	77, // [77:77] is the sub-list for method output_type
-	77, // [77:77] is the sub-list for method input_type
-	77, // [77:77] is the sub-list for extension type_name
-	77, // [77:77] is the sub-list for extension extendee
-	0,  // [0:77] is the sub-list for field type_name
+	75, // 77: proto.Event.relay_server:type_name -> teleport.presence.v1.RelayServer
+	78, // [78:78] is the sub-list for method output_type
+	78, // [78:78] is the sub-list for method input_type
+	78, // [78:78] is the sub-list for extension type_name
+	78, // [78:78] is the sub-list for extension extendee
+	0,  // [0:78] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_event_proto_init() }
@@ -1831,6 +1851,7 @@ func file_teleport_legacy_client_proto_event_proto_init() {
 		(*Event_AutoUpdateAgentReport)(nil),
 		(*Event_ScopedRole)(nil),
 		(*Event_ScopedRoleAssignment)(nil),
+		(*Event_RelayServer)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
