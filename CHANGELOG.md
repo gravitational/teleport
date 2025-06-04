@@ -17,6 +17,24 @@ Machine & Workload Identity now supports attesting Sigstore signatures of worklo
 ### Azure DevOps joining
 Teleport now supports secretless authentication for Bots running within Azure DevOps pipelines.
 
+### Security fixes
+
+This release also includes fixes for the following security issues. 
+These issues are present in previous v17 releases. 
+Impacted users are recommended to upgrade their auth and proxy servers to the latest version.
+
+#### [High] Unauthorized deletion in AWS IAM Identity Center integration
+Teleport did not implement sufficient authorization checks for AWS Identity Center integration deletion APIs. This could allow a malicious actor to delete Teleport resources related to the integration leading to denial of service.
+This vulnerability affects all AWS IAM Identity Center integration users. You can check whether you have AWS Identity Center integration installed either in the Teleport web UI under Zero Trust Access / Integrations or by running “tctl get plugins/aws-identity-center” CLI command.
+
+#### [High] Short to long term access escalation in Okta integration
+In Okta integration configurations with enabled access lists sync, a user with an approved  just-in-time access request to an Okta application could be unintentionally promoted to an access list granting access to the same application. This would result in the access to the Okta app/group persisting after the access request expiration.
+This vulnerability affects Okta integration users who have access lists sync enabled. You can check whether you have an Okta integration installed with access lists sync enabled either in the Teleport web UI under Zero Trust Access / Integrations page or by running “tctl get plugins/okta” CLI command and looking at the “spec.settings.okta.sync_settings.sync_access_lists” flag.
+
+#### [High] Credential theft via GitHub SSO authentication flow
+In some cases Teleport did not sufficiently validate the GitHub SSO client redirect URL. This could allow an attacker who is able to induce an authenticated user to follow a malicious link to obtain a cert/key pair on behalf of that user.
+This vulnerability affects GitHub SSO users. You can check whether you’re using GitHub SSO either on the Zero Trust Access / Auth Connectors page in Teleport web UI or by running “tctl get connectors” CLI command against your cluster.
+
 ### Other fixes and improvements
 
 * Fixed an issue that allowed unauthenticated access to delete resources created by Identity Center integration. [#55400](https://github.com/gravitational/teleport/pull/55400)
