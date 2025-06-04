@@ -92,6 +92,8 @@ type Config struct {
 	// connections to the cluster.
 	Proxy ProxyConfig
 
+	Relay RelayConfig
+
 	// SSH service configuration. Manages SSH servers running within the cluster.
 	SSH SSHConfig
 
@@ -355,6 +357,7 @@ type RoleAndIdentityEvent struct {
 func DisableLongRunningServices(cfg *Config) {
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
+	cfg.Relay.Enabled = false
 	cfg.SSH.Enabled = false
 	cfg.Kube.Enabled = false
 	cfg.Apps.Enabled = false
@@ -796,6 +799,7 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.Auth.Enabled,
 		cfg.SSH.Enabled,
 		cfg.Proxy.Enabled,
+		cfg.Relay.Enabled,
 		cfg.Kube.Enabled,
 		cfg.Apps.Enabled,
 		cfg.Databases.Enabled,
