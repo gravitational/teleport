@@ -117,6 +117,16 @@ func TestNew(t *testing.T) {
 			_, err = clt.Ping(ctx)
 			assert.NoError(t, err, "Ping failed")
 			assert.NoError(t, clt.Close(), "Close failed")
+
+			// Try dialing the connection and creating the client separately.
+			conn, err := Dial(ctx, cfg)
+			require.NoError(t, err)
+
+			clt = NewWithConnection(conn)
+
+			_, err = clt.Ping(ctx)
+			assert.NoError(t, err, "Ping failed")
+			assert.NoError(t, clt.Close(), "Close failed")
 		})
 	}
 }
