@@ -17,7 +17,10 @@
  */
 
 import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
-import { SharedUnifiedResource } from 'shared/components/UnifiedResources';
+import {
+  ResourceStatus,
+  SharedUnifiedResource,
+} from 'shared/components/UnifiedResources';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
@@ -173,6 +176,7 @@ export interface DocumentClusterQueryParams {
     fieldName: string;
     dir: 'ASC' | 'DESC';
   };
+  statuses: ResourceStatus[];
 }
 
 // Any changes done to this type must be backwards compatible as
