@@ -79,7 +79,6 @@ import (
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -89,7 +88,6 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
@@ -5202,18 +5200,6 @@ func (c *Client) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, 
 		}
 		pageToken = nextToken
 	}
-}
-
-// IdentityCenterClient returns Identity Center service client using an underlying
-// gRPC connection.
-func (c *Client) IdentityCenterClient() identitycenterv1.IdentityCenterServiceClient {
-	return identitycenterv1.NewIdentityCenterServiceClient(c.conn)
-}
-
-// ProvisioningServiceClient returns provisioning service client using
-// an underlying gRPC connection.
-func (c *Client) ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient {
-	return provisioningv1.NewProvisioningServiceClient(c.conn)
 }
 
 // IntegrationsClient returns integrations client.
