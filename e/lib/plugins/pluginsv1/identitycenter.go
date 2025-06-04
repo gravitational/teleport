@@ -210,21 +210,19 @@ func getAllProvisioningStates(ctx context.Context, provisioningService services.
 
 func deleteIdentityCenterResources(ctx context.Context, icService services.IdentityCenter, provisioningService services.ProvisioningStates) error {
 	var errs []error
-	if _, err := icService.DeleteAllIdentityCenterAccounts(ctx, &identitycenterv1.DeleteAllIdentityCenterAccountsRequest{}); err != nil {
+	if err := icService.DeleteAllIdentityCenterAccounts(ctx); err != nil {
 		errs = append(errs, err)
 	}
-	if _, err := icService.DeleteAllAccountAssignments(ctx, &identitycenterv1.DeleteAllAccountAssignmentsRequest{}); err != nil {
+	if err := icService.DeleteAllAccountAssignments(ctx); err != nil {
 		errs = append(errs, err)
 	}
-	if _, err := icService.DeleteAllPrincipalAssignments(ctx, &identitycenterv1.DeleteAllPrincipalAssignmentsRequest{}); err != nil {
+	if err := icService.DeleteAllPrincipalAssignments(ctx); err != nil {
 		errs = append(errs, err)
 	}
-	if _, err := icService.DeleteAllPermissionSets(ctx, &identitycenterv1.DeleteAllPermissionSetsRequest{}); err != nil {
+	if err := icService.DeleteAllPermissionSets(ctx); err != nil {
 		errs = append(errs, err)
 	}
-	if _, err := provisioningService.DeleteDownstreamProvisioningStates(ctx, &provisioningv1.DeleteDownstreamProvisioningStatesRequest{
-		DownstreamId: string(identitycenter.IdentityCenterDownstreamID),
-	}); err != nil {
+	if err := provisioningService.DeleteDownstreamProvisioningStates(ctx, identitycenter.IdentityCenterDownstreamID); err != nil {
 		errs = append(errs, err)
 	}
 
