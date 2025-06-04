@@ -36,7 +36,7 @@ import (
 // with the current default nameservers as configured for the OS, and it is the
 // easiest place to read them. Eventually we should probably use a better
 // method, but for now this works.
-func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
+func platformLoadUpstreamNameservers(ctx context.Context) ([]netip.Addr, error) {
 	var confFilePath string
 	switch runtime.GOOS {
 	case "darwin":
@@ -52,7 +52,7 @@ func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
 	}
 	defer f.Close()
 
-	var nameservers []string
+	var nameservers []netip.Addr
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -71,7 +71,7 @@ func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
 			continue
 		}
 
-		nameservers = append(nameservers, withDNSPort(ip))
+		nameservers = append(nameservers, ip)
 	}
 
 	slog.DebugContext(ctx, "Loaded host upstream nameservers.", "nameservers", nameservers, "config_file", confFilePath)

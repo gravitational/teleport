@@ -21,6 +21,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"net/netip"
 	"os"
 	"sync"
 
@@ -242,7 +243,11 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 	if cfg.dnsIPv6 != (tcpip.Address{}) {
 		upstreamNameserverSource := cfg.upstreamNameserverSource
 		if upstreamNameserverSource == nil {
-			upstreamNameserverSource, err = dns.NewOSUpstreamNameserverSource()
+			localAddr, ok := netip.AddrFromSlice(cfg.dnsIPv6.AsSlice())
+			if !ok {
+				return nil, trace.Errorf("failed to config tcpip.Addr to netip.Addr: %s", cfg.dnsIPv6.String())
+			}
+			upstreamNameserverSource, err = dns.NewOSUpstreamNameserverSource(localAddr)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

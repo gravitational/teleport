@@ -20,6 +20,7 @@ package dns
 
 import (
 	"context"
+	"net/netip"
 	"runtime"
 
 	"github.com/gravitational/trace"
@@ -33,6 +34,6 @@ var (
 	_ = withDNSPort
 )
 
-func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
+func platformLoadUpstreamNameservers(ctx context.Context) ([]netip.Addr, error) {
 	return nil, trace.Wrap(vnetNotImplemented)
 }
