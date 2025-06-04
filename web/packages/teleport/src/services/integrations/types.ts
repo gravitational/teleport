@@ -109,8 +109,6 @@ export enum IntegrationAudience {
 
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
-  issuerS3Prefix?: string;
-  issuerS3Bucket?: string;
   /**
    * audience is used to record name of a plugin or discover services in Teleport
    * that depends on this integration.

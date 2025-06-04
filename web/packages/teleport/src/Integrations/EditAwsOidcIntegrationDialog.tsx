@@ -27,7 +27,6 @@ import {
   Link,
   Text,
 } from 'design';
-import { Info, Warning } from 'design/Alert/Alert';
 import Dialog, {
   DialogContent,
   DialogFooter,
@@ -49,7 +48,6 @@ import {
 } from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
-import { S3BucketConfiguration } from './Enroll/AwsOidc/S3BucketConfiguration';
 import { EditableIntegrationFields } from './Operations/useIntegrationOperation';
 
 type Props = {
@@ -98,13 +96,8 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
     setScriptUrl(newScriptUrl);
   }
 
-  const s3Bucket = integration.spec.issuerS3Bucket;
-  const s3Prefix = integration.spec.issuerS3Prefix;
-  const showReadonlyS3Fields = s3Bucket || s3Prefix;
-
   const isProcessing = updateAttempt.status === 'processing';
-  const showGenerateCommand =
-    integration.spec.roleArn !== roleArn || showReadonlyS3Fields;
+  const showGenerateCommand = integration.spec.roleArn !== roleArn;
 
   const changeDetected = integration.spec.roleArn !== roleArn;
 
@@ -133,7 +126,7 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
           disabled={
             isProcessing ||
             (showGenerateCommand && !confirmed) ||
-            (!showReadonlyS3Fields && !changeDetected)
+            !changeDetected
           }
           onClick={() => handleEdit(validator)}
         >
@@ -179,19 +172,6 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
               helperText="Role ARN can be found in the format: arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>"
               disabled={!!scriptUrl}
             />
-            {showReadonlyS3Fields && !scriptUrl && (
-              <>
-                <S3BucketConfiguration
-                  s3Bucket={s3Bucket}
-                  s3Prefix={s3Prefix}
-                />
-                <Warning>
-                  Using an S3 bucket to store the OpenID Configuration is not
-                  recommended. Reconfiguring this integration is suggested (this
-                  will not break existing features).
-                </Warning>
-              </>
-            )}
             {scriptUrl && (
               <Box mb={2} data-testid="scriptbox">
                 <Text mb={2}>
@@ -213,33 +193,6 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                       },
                     ]}
                   />
-                  {showReadonlyS3Fields && (
-                    <Info mt={3} linkColor="buttons.link.default">
-                      <Box>
-                        After running the command, delete the previous{' '}
-                        <Link
-                          target="_blank"
-                          href={`https://console.aws.amazon.com/iam/home#/identity_providers/details/OPENID/${getIdpArn(
-                            {
-                              s3Bucket,
-                              s3Prefix,
-                              roleArn: integration.spec.roleArn,
-                            }
-                          )}`}
-                        >
-                          identity provider
-                        </Link>{' '}
-                        along with its{' '}
-                        <Link
-                          target="_blank"
-                          href={`https://console.aws.amazon.com/s3/buckets/${s3Bucket}`}
-                        >
-                          S3 bucket
-                        </Link>{' '}
-                        from your AWS console.
-                      </Box>
-                    </Info>
-                  )}
                 </Box>
               </Box>
             )}
@@ -265,18 +218,4 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
       )}
     </Validation>
   );
-}
-
-function getIdpArn({
-  s3Bucket,
-  s3Prefix,
-  roleArn,
-}: {
-  s3Bucket: string;
-  s3Prefix: string;
-  roleArn: string;
-}) {
-  const { awsAccountId } = splitAwsIamArn(roleArn);
-  const arn = `arn:aws:iam::${awsAccountId}:oidc-provider/${s3Bucket}.s3.amazonaws.com/${s3Prefix}`;
-  return encodeURIComponent(arn);
 }

@@ -402,8 +402,7 @@ func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata
 	switch igMeta.SubKind {
 	case types.IntegrationSubKindAWSOIDC:
 		igMeta.AWSOIDC = &apievents.AWSOIDCIntegrationMetadata{
-			RoleARN:     ig.GetAWSOIDCIntegrationSpec().RoleARN,
-			IssuerS3URI: ig.GetAWSOIDCIntegrationSpec().IssuerS3URI,
+			RoleARN: ig.GetAWSOIDCIntegrationSpec().RoleARN,
 		}
 	case types.IntegrationSubKindAzureOIDC:
 		igMeta.AzureOIDC = &apievents.AzureOIDCIntegrationMetadata{

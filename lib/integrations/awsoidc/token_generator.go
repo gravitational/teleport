@@ -21,9 +21,6 @@ package awsoidc
 import (
 	"context"
 	"crypto"
-	"fmt"
-	"net/url"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -85,49 +82,13 @@ func (g *GenerateAWSOIDCTokenRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-// IssuerForIntegration returns the issuer for a given integration.
-// Returns the default Issuer (oidc.IssuerForCluster) if integrationName is empty.
-// All calls should be replaced with oidc.IssuerForCluster when IssuerS3URI is removed (it is currently deprecated).
-func issuerForIntegration(ctx context.Context, cacheClt Cache, integrationName string) (string, error) {
-	if integrationName == "" {
-		issuer, err := oidc.IssuerForCluster(ctx, cacheClt, "")
-		return issuer, trace.Wrap(err)
-	}
-
-	integration, err := cacheClt.GetIntegration(ctx, integrationName)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	if integration.GetSubKind() != types.IntegrationSubKindAWSOIDC {
-		return "", trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
-	}
-
-	if integration.GetAWSOIDCIntegrationSpec() == nil {
-		return "", trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
-	}
-
-	issuerS3URI := integration.GetAWSOIDCIntegrationSpec().IssuerS3URI
-	if issuerS3URI == "" {
-		issuer, err := oidc.IssuerForCluster(ctx, cacheClt, "")
-		return issuer, trace.Wrap(err)
-	}
-
-	issuerS3URL, err := url.Parse(issuerS3URI)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	prefix := strings.TrimLeft(issuerS3URL.Path, "/")
-	return fmt.Sprintf("https://%s.s3.amazonaws.com/%s", issuerS3URL.Host, prefix), nil
-}
-
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
 func GenerateAWSOIDCToken(ctx context.Context, cacheClt Cache, keyStoreManager KeyStoreManager, req GenerateAWSOIDCTokenRequest) (string, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	issuer, err := issuerForIntegration(ctx, cacheClt, req.Integration)
+	issuer, err := oidc.IssuerForCluster(ctx, cacheClt, "")
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

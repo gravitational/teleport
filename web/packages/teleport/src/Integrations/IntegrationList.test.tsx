@@ -40,7 +40,7 @@ test('integration list does not display action menu for aws-oidc, row click navi
             name: 'aws-integration',
             kind: IntegrationKind.AwsOidc,
             statusCode: IntegrationStatusCode.Running,
-            spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
+            spec: { roleArn: '' },
           },
         ]}
       />

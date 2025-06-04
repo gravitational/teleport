@@ -39,8 +39,6 @@ export const Story = () => (
         statusCode: IntegrationStatusCode.Running,
         spec: {
           roleArn: 'some-role-arn',
-          issuerS3Bucket: '',
-          issuerS3Prefix: '',
         },
       }}
     />
@@ -58,8 +56,6 @@ export const FinishDialogueDiscover = () => (
         statusCode: IntegrationStatusCode.Running,
         spec: {
           roleArn: 'some-role-arn',
-          issuerS3Bucket: '',
-          issuerS3Prefix: '',
         },
       }}
     />
