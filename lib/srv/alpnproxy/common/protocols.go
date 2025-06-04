@@ -118,6 +118,9 @@ const (
 	// ProtocolPingSuffix is TLS ALPN suffix used to wrap connections with
 	// Ping.
 	ProtocolPingSuffix Protocol = "-ping"
+
+	// ProtocolMCP is TLS ALPN protocol value used to indicate MCP connections.
+	ProtocolMCP Protocol = "teleport-mcp"
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
@@ -138,6 +141,7 @@ var SupportedProtocols = WithPingProtocols(
 		ProtocolProxySSHGRPC,
 		ProtocolProxyGRPCInsecure,
 		ProtocolProxyGRPCSecure,
+		ProtocolMCP,
 	}, DatabaseProtocols...),
 )
 
@@ -231,6 +235,7 @@ var DatabaseProtocols = []Protocol{
 var ProtocolsWithPingSupport = append(
 	DatabaseProtocols,
 	ProtocolTCP,
+	ProtocolMCP,
 )
 
 // WithPingProtocols adds Ping protocols to the list for each protocol that
