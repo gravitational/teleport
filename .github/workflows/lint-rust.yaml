@@ -1,0 +1,31 @@
+name: Lint (Rust)
+on:
+  workflow_call:
+
+jobs:
+  lint-rust:
+    name: Lint (Rust)
+    runs-on: ubuntu-22.04
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Rust version
+        run: echo "RUST_VERSION=$(make -s -C build.assets print-rust-version)" >> $GITHUB_ENV
+
+      - name: Set up Rust
+        run: |
+          echo "Setting up Rust version ${RUST_VERSION}"
+          rustup toolchain install ${RUST_VERSION} --component rustfmt,clippy
+          rustup override set ${RUST_VERSION}
+          rustc --version
+          cargo --version
+          rustfmt --version
+          cargo clippy --version
+
+      - name: Run Rust linters
+        run: make lint-rust
