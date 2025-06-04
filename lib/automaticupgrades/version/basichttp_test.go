@@ -60,7 +60,8 @@ func (m *ServerMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	require.NoError(m.t, err)
 }
 
-// NewServerMock builds and returns a
+// NewServerMock builds a [ServerMock] that only
+// responds to requests for the given path.
 func NewServerMock(path string) *ServerMock {
 	mock := ServerMock{path: path}
 	mock.Srv = httptest.NewServer(http.HandlerFunc(mock.ServeHTTP))

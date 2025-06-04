@@ -38,7 +38,7 @@ type FakeServer struct {
 	pods       map[string]*Pod
 }
 
-// NewFakeServer creates a test server that will run until the test exits.
+// NewFakeServer creates a test server. Call Start to run the server and Close to stop it.
 func NewFakeServer(socketAddr string, opts ...TestServerOption) (*FakeServer, error) {
 	lis, err := net.Listen("unix", filepath.Join(socketAddr, "podman.sock"))
 	if err != nil {
