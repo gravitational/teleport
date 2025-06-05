@@ -7,6 +7,10 @@ env:
   GOFLAGS: '-buildvcs=false'
   E2E_TEST_AWS_REGION: us-west-2
   E2E_TEST_GHA_ASSUME_ROLE: arn:aws:iam::307493967395:role/tf-aws-e2e-gha-role
+  GOCACHE_AWS_REGION: us-west-2
+  GOCACHE_ASSUME_ROLE: arn:aws:iam::966006926981:role/go-s3-cache
+  GOCACHEPROG: 'go-cache-plugin --cache-dir=/tmp/gocache --bucket=tp-hackathon-remote-go-cache --region=us-west-2'
+  GOLANGCI_LINT_CACHEPROG: 'go-cache-plugin --cache-dir=/tmp/gocache --bucket=tp-hackathon-remote-go-cache --region=us-west-2'
 
 jobs:
   changes:
@@ -130,6 +134,7 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -137,6 +142,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+        with:
+          aws-region: ${{ env.GOCACHE_AWS_REGION }}
+          role-to-assume: ${{ env.GOCACHE_ASSUME_ROLE }}
+
+      - name: Install go-cache-plugin
+        shell: bash
+        run: GOCACHEPROG="" go install github.com/tailscale/go-cache-plugin/cmd/go-cache-plugin@latest
 
       - name: Check for untidy go modules
         shell: bash
@@ -154,6 +169,7 @@ jobs:
 
       - name: Print linter versions
         run: |
+          echo "GOCACHEPROG=$GOCACHEPROG"
           echo "GOLANGCI_LINT_VERSION=$GOLANGCI_LINT_VERSION"
 
       # Run various golangci-lint checks.
@@ -163,37 +179,37 @@ jobs:
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: api
-          skip-cache: true
+          # skip-cache: true
       - name: golangci-lint (teleport)
         uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --build-tags libfido2,piv
-          skip-cache: true
+          # skip-cache: true
       - name: golangci-lint (assets/backport)
         uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: assets/backport
-          skip-cache: true
+          # skip-cache: true
       - name: golangci-lint (build.assets/tooling)
         uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: build.assets/tooling
-          skip-cache: true
+          # skip-cache: true
       - name: golangci-lint (integrations/terraform)
         uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: integrations/terraform
-          skip-cache: true
+          # skip-cache: true
       - name: golangci-lint (integrations/event-handler)
         uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: integrations/event-handler
-          skip-cache: true
+          # skip-cache: true
 
       - name: Run (non-action) linters
         run: make lint-no-actions
@@ -349,6 +365,8 @@ jobs:
     needs: changes
     if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_docs == 'true' }}
     runs-on: ubuntu-latest
+    env:
+      GOCACHEPROG: ''
 
     permissions:
       contents: read
@@ -459,6 +477,8 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.has_api == 'true' }}
     runs-on: ubuntu-latest
+    env:
+      GOCACHEPROG: ''
 
     permissions:
       contents: read
@@ -569,6 +589,9 @@ jobs:
     needs: changes
     if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_go == 'true'}}
     runs-on: ubuntu-22.04-16core
+
+    env:
+      GOCACHEPROG: ''
 
     permissions:
       contents: read
@@ -734,6 +757,7 @@ jobs:
     permissions:
       contents: read
       packages: read
+      id-token: write
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -762,6 +786,16 @@ jobs:
       - name: Checkout Teleport
         uses: actions/checkout@v4
 
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+        with:
+          aws-region: ${{ env.GOCACHE_AWS_REGION }}
+          role-to-assume: ${{ env.GOCACHE_ASSUME_ROLE }}
+
+      - name: Install go-cache-plugin
+        shell: bash
+        run: GOCACHEPROG="" go install github.com/tailscale/go-cache-plugin/cmd/go-cache-plugin@latest
+
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
 
@@ -784,6 +818,7 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -795,6 +830,16 @@ jobs:
     steps:
       - name: Checkout Teleport
         uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+        with:
+          aws-region: ${{ env.GOCACHE_AWS_REGION }}
+          role-to-assume: ${{ env.GOCACHE_ASSUME_ROLE }}
+
+      - name: Install go-cache-plugin
+        shell: bash
+        run: GOCACHEPROG="" go install github.com/tailscale/go-cache-plugin/cmd/go-cache-plugin@latest
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
@@ -813,6 +858,7 @@ jobs:
     permissions:
       contents: read
       packages: read
+      id-token: write
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -826,6 +872,16 @@ jobs:
     steps:
       - name: Checkout Teleport
         uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+        with:
+          aws-region: ${{ env.GOCACHE_AWS_REGION }}
+          role-to-assume: ${{ env.GOCACHE_ASSUME_ROLE }}
+
+      - name: Install go-cache-plugin
+        shell: bash
+        run: GOCACHEPROG="" go install github.com/tailscale/go-cache-plugin/cmd/go-cache-plugin@latest
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
@@ -905,6 +961,7 @@ jobs:
     permissions:
       contents: read
       packages: read
+      id-token: write
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -934,6 +991,16 @@ jobs:
       - name: Checkout Teleport
         uses: actions/checkout@v4
 
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+        with:
+          aws-region: ${{ env.GOCACHE_AWS_REGION }}
+          role-to-assume: ${{ env.GOCACHE_ASSUME_ROLE }}
+
+      - name: Install go-cache-plugin
+        shell: bash
+        run: GOCACHEPROG="" go install github.com/tailscale/go-cache-plugin/cmd/go-cache-plugin@latest
+
       - name: Prepare workspace
         id: prepare
         uses: ./.github/actions/prepare-workspace
@@ -942,14 +1009,18 @@ jobs:
         run: mount -t debugfs none /sys/kernel/debug/
 
       - name: Run tests
+        env:
+          AWS_REGION: us-east-1 # Configure AWS Credentials changes this so we need to reset it
         timeout-minutes: 20
-        run: make -j"$(nproc)" test-go test-sh test-api
+        run: make FLAGS="-race" -j"$(nproc)" test-go test-sh test-api
 
   helm-unit-tests:
     name: Unit Tests (Helm)
     needs: changes
     if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_helm == 'true' }}
     runs-on: ubuntu-latest
+    env:
+      GOCACHEPROG: ''
 
     permissions:
       contents: read
@@ -980,6 +1051,7 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -988,6 +1060,16 @@ jobs:
     steps:
       - name: Checkout Teleport
         uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+        with:
+          aws-region: ${{ env.GOCACHE_AWS_REGION }}
+          role-to-assume: ${{ env.GOCACHE_ASSUME_ROLE }}
+
+      - name: Install go-cache-plugin
+        shell: bash
+        run: GOCACHEPROG="" go install github.com/tailscale/go-cache-plugin/cmd/go-cache-plugin@latest
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
@@ -1077,6 +1159,7 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -1087,6 +1170,16 @@ jobs:
     steps:
       - name: Checkout Teleport
         uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+        with:
+          aws-region: ${{ env.GOCACHE_AWS_REGION }}
+          role-to-assume: ${{ env.GOCACHE_ASSUME_ROLE }}
+
+      - name: Install go-cache-plugin
+        shell: bash
+        run: GOCACHEPROG="" go install github.com/tailscale/go-cache-plugin/cmd/go-cache-plugin@latest
 
       - name: Prepare workspace
         id: prepare
@@ -1114,6 +1207,7 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -1125,6 +1219,16 @@ jobs:
     steps:
       - name: Checkout Teleport
         uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+        with:
+          aws-region: ${{ env.GOCACHE_AWS_REGION }}
+          role-to-assume: ${{ env.GOCACHE_ASSUME_ROLE }}
+
+      - name: Install go-cache-plugin
+        shell: bash
+        run: GOCACHEPROG="" go install github.com/tailscale/go-cache-plugin/cmd/go-cache-plugin@latest
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
