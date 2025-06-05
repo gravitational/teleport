@@ -501,6 +501,10 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	if app.IsMCP() {
+		return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp login --help' for more details.")
+	}
+
 	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, profile, appInfo.RouteToApp, app, portMapping, cf.InsecureSkipVerify)
 	if err != nil {
 		return trace.Wrap(err)
