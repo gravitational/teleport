@@ -33,10 +33,17 @@ import {
   useTransitionStyles,
   type Placement,
 } from '@floating-ui/react';
-import React, { PropsWithChildren, useRef, useState } from 'react';
+import React, {
+  Children,
+  cloneElement,
+  isValidElement,
+  ReactElement,
+  Ref,
+  useRef,
+  useState,
+} from 'react';
 import styled, { useTheme } from 'styled-components';
 
-import Flex from 'design/Flex';
 import Text from 'design/Text';
 
 type HoverTooltipProps = {
@@ -48,11 +55,6 @@ type HoverTooltipProps = {
    * Only show tooltip if trigger content is overflowing its container.
    */
   showOnlyOnOverflow?: boolean;
-  /**
-   * Element's class name. Might seem unimportant, but required for using the
-   * styled-components' `css` property.
-   */
-  className?: string;
   /**
    * Specifies the position of tooltip relative to trigger content.
    */
@@ -77,33 +79,68 @@ type HoverTooltipProps = {
    * Don't transition the tooltip in/out on mount/unmount.
    */
   disableTransitions?: boolean;
+  /**
+   * Child to render. The type allows only a single child.
+   */
+  children?: ReactElement;
 };
 
+/**
+ * Renders a tooltip on hover.
+ *
+ * The tooltip is anchored to the child element via a ref.
+ * Therefore, the child **must** be a single React element that accepts a `ref`.
+ * If the child cannot accept a ref, the tooltip will not be displayed.
+ */
 export const HoverTooltip = ({
   tipContent,
   children,
   showOnlyOnOverflow = false,
-  className,
   placement = 'top',
   position,
   offset: offsetDistance = 8,
   delay = 0,
   disableFlip = false,
   disableTransitions = false,
-}: PropsWithChildren<HoverTooltipProps>) => {
+}: HoverTooltipProps) => {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
   const arrowRef = useRef(null);
-  const contentRef = useRef<HTMLElement | null>(null);
 
   if (position) {
     placement = position;
   }
 
+  const handleOpenChange = (open: boolean, event?: Event) => {
+    if (!open) {
+      setOpen(false);
+      return;
+    }
+
+    if (!showOnlyOnOverflow) {
+      setOpen(true);
+      return;
+    }
+
+    if (!(event?.currentTarget instanceof HTMLElement)) {
+      return;
+    }
+
+    const target = event.currentTarget;
+    const parent = target?.parentElement;
+
+    const isOverflowing =
+      target && parent && target.scrollWidth > parent.offsetWidth;
+    if (!isOverflowing) {
+      return;
+    }
+    setOpen(true);
+  };
+
   const { x, y, strategy, refs, context } = useFloating({
     placement,
     open,
-    onOpenChange: setOpen,
+    onOpenChange: handleOpenChange,
     middleware: [
       offset(offsetDistance),
       !disableFlip && flip(),
@@ -133,7 +170,7 @@ export const HoverTooltip = ({
   const openDelay = typeof delay === 'object' ? delay.open : delay;
   const closeDelay = typeof delay === 'object' ? delay.close : delay;
 
-  const { getReferenceProps, getFloatingProps } = useInteractions([
+  const { getFloatingProps } = useInteractions([
     useHover(context, {
       delay: { open: openDelay, close: closeDelay },
       handleClose: null,
@@ -143,38 +180,24 @@ export const HoverTooltip = ({
     useRole(context, { role: 'tooltip' }),
   ]);
 
-  if (!tipContent) {
+  if (!tipContent || !children) {
     return <>{children}</>;
   }
 
-  const handleMouseEnter = (event: React.MouseEvent<Element>) => {
-    const { currentTarget } = event;
-    contentRef.current = currentTarget as HTMLElement;
+  // The type of `children` is `ReactElement` which allows only one child.
+  let child = Children.only(children);
+  if (isValidElement(child)) {
+    const originalRef = (child.props as { ref?: Ref<HTMLElement> }).ref;
 
-    if (showOnlyOnOverflow) {
-      if (
-        currentTarget instanceof Element &&
-        currentTarget.parentElement &&
-        currentTarget.scrollWidth > currentTarget.parentElement.offsetWidth
-      ) {
-        setOpen(true);
-      }
-      return;
-    }
-
-    setOpen(true);
-  };
+    child = cloneElement(child, {
+      // @ts-expect-error we don't know the child type.
+      ref: mergeRefs([refs.setReference, originalRef]),
+    });
+  }
 
   return (
-    <Flex
-      ref={refs.setReference}
-      {...getReferenceProps({
-        onMouseEnter: handleMouseEnter,
-        onMouseLeave: () => setOpen(false),
-      })}
-      className={className}
-    >
-      {children}
+    <>
+      {child}
       {isMounted && (
         <FloatingPortal>
           <StyledTooltip
@@ -204,7 +227,7 @@ export const HoverTooltip = ({
           </StyledTooltip>
         </FloatingPortal>
       )}
-    </Flex>
+    </>
   );
 };
 
@@ -222,3 +245,27 @@ const StyledContent = styled(Text)`
   max-width: 350px;
   word-wrap: break-word;
 `;
+
+/**
+ * Combines multiple refs into one that can be passed to a component.
+ *
+ * https://github.com/gregberge/react-merge-refs/tree/v2.1.1
+ * @example
+ * const Example = React.forwardRef(function Example(props, ref) {
+ *   const localRef = React.useRef();
+ *   return <div ref={mergeRefs([localRef, ref])} />;
+ * });
+ */
+function mergeRefs<T = any>(
+  refs: Array<React.RefObject<T> | React.Ref<T> | undefined | null>
+): React.RefCallback<T> {
+  return value => {
+    refs.forEach(ref => {
+      if (typeof ref === 'function') {
+        ref(value);
+      } else if (ref != null) {
+        (ref as React.RefObject<T | null>).current = value;
+      }
+    });
+  };
+}
