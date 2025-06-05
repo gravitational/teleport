@@ -51,6 +51,16 @@ const GlobalStyle = createGlobalStyle`
     }
   }
 
+  b, strong {
+    // Overrides the default font-weight: bolder which results in the bold font not being bold
+    // enough. That's because if the regular font-weight is set to 300, "bolder" means it'll go to
+    // just 400.
+    // https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight#meaning_of_relative_weights
+    //
+    // The Web UI uses <Text bold> to render bold text, whereas Connect mostly uses <strong>.
+    font-weight: ${props => props.theme.fontWeights.bold};
+  }
+
   ${() => !getPlatformType().isMac && customScrollbar}
 `;
 
