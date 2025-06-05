@@ -50,19 +50,27 @@ export interface TargetHealth {
      * @generated from protobuf field: string error = 2;
      */
     error: string;
+    /**
+     * message is additional information meant for a user.
+     *
+     * @generated from protobuf field: string message = 3;
+     */
+    message: string;
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class TargetHealth$Type extends MessageType<TargetHealth> {
     constructor() {
         super("teleport.lib.teleterm.v1.TargetHealth", [
             { no: 1, name: "status", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 2, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<TargetHealth>): TargetHealth {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.status = "";
         message.error = "";
+        message.message = "";
         if (value !== undefined)
             reflectionMergePartial<TargetHealth>(this, message, value);
         return message;
@@ -77,6 +85,9 @@ class TargetHealth$Type extends MessageType<TargetHealth> {
                     break;
                 case /* string error */ 2:
                     message.error = reader.string();
+                    break;
+                case /* string message */ 3:
+                    message.message = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -96,6 +107,9 @@ class TargetHealth$Type extends MessageType<TargetHealth> {
         /* string error = 2; */
         if (message.error !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.error);
+        /* string message = 3; */
+        if (message.message !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.message);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

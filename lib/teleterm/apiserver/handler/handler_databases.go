@@ -82,8 +82,9 @@ func newAPIDatabase(db clusters.Database) *api.Database {
 		Type:     db.GetType(),
 		Labels:   apiLabels,
 		TargetHealth: &api.TargetHealth{
-			Status: db.TargetHealth.Status,
-			Error:  db.TargetHealth.TransitionError,
+			Status:  db.TargetHealth.Status,
+			Error:   db.TargetHealth.TransitionError,
+			Message: db.TargetHealth.Message,
 		},
 	}
 }
@@ -94,8 +95,9 @@ func newAPIDatabaseServer(dbServer clusters.DatabaseServer) *api.DatabaseServer 
 		Hostname: dbServer.GetHostname(),
 		HostId:   dbServer.GetHostID(),
 		TargetHealth: &api.TargetHealth{
-			Status: dbServer.GetTargetHealth().Status,
-			Error:  dbServer.GetTargetHealth().TransitionError,
+			Status:  dbServer.GetTargetHealth().Status,
+			Error:   dbServer.GetTargetHealth().TransitionError,
+			Message: dbServer.GetTargetHealth().Message,
 		},
 	}
 }
