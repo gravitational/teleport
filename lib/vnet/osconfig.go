@@ -24,7 +24,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -151,14 +150,4 @@ func runCommand(ctx context.Context, path string, args ...string) error {
 		return trace.Wrap(err, `running "%s" output: %s`, cmdString, output.String())
 	}
 	return nil
-}
-
-func shouldReconfiguredDNSZones(cfg *osConfig, currentConfiguredZones []string) bool {
-	// Always reconfigure if there should be no zones, to make sure we clear
-	// any leftover state when starting up.
-	if len(cfg.dnsZones) == 0 {
-		return true
-	}
-	// Otherwise, reconfigure if anything has changed.
-	return !utils.ContainSameUniqueElements(cfg.dnsZones, currentConfiguredZones)
 }

@@ -20,6 +20,7 @@ import (
 	"context"
 	"slices"
 
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -79,7 +80,7 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		}
 		state.configuredNameserver = true
 	}
-	if shouldReconfiguredDNSZones(cfg, state.configuredDNSZones) {
+	if shouldReconfiguredDNSZones(cfg, state) {
 		log.InfoContext(ctx, "Configuring DNS zones", "zones", cfg.dnsZones)
 		domains := make([]string, 0, len(cfg.dnsZones))
 		for _, dnsZone := range cfg.dnsZones {
@@ -101,4 +102,8 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		state.broughtUpInterface = true
 	}
 	return nil
+}
+
+func shouldReconfiguredDNSZones(cfg *osConfig, state *platformOSConfigState) bool {
+	return !utils.ContainSameUniqueElements(cfg.dnsZones, state.configuredDNSZones)
 }

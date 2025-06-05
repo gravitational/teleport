@@ -113,7 +113,7 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		state.configuredV6Address = true
 	}
 
-	if shouldReconfiguredDNSZones(cfg, state.configuredDNSZones) {
+	if shouldReconfiguredDNSZones(cfg, state) {
 		if err := configureDNS(ctx, cfg.dnsZones, cfg.dnsAddr); err != nil {
 			return trace.Wrap(err, "configuring DNS")
 		}
