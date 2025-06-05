@@ -35,7 +35,9 @@ provider "teleportmwi" {
 }
 
 ephemeral "teleportmwi_kubernetes" "example" {
-  example_input = "example_value"
+  selector = {
+    name = "barry"
+  } 
 }
 
 provider "echo" {
@@ -60,7 +62,7 @@ resource "echo" "test" {}
 					statecheck.ExpectKnownValue(
 						"echo.test",
 						tfjsonpath.New("data"),
-						knownvalue.StringExact("Hello, example_value!"),
+						knownvalue.StringExact("Hello, barry!"),
 					),
 				},
 			},
