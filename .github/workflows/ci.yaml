@@ -150,9 +150,9 @@ jobs:
 
       - name: Install go-cache-plugin
         shell: bash
-        run: |
-          unset GOCACHEPROG
-          go install github.com/tailscale/go-cache-plugin/cmd/go-cache-plugin@latest
+        env:
+          GOCACHEPROG: ''
+        run: go install github.com/tailscale/go-cache-plugin/cmd/go-cache-plugin@latest
 
       - name: Check for untidy go modules
         shell: bash
@@ -170,6 +170,7 @@ jobs:
 
       - name: Print linter versions
         run: |
+          echo "GOCACHEPROG=$GOCACHEPROG"
           echo "GOLANGCI_LINT_VERSION=$GOLANGCI_LINT_VERSION"
 
       # Run various golangci-lint checks.
@@ -988,7 +989,7 @@ jobs:
 
       - name: Install go-cache-plugin
         shell: bash
-        run: go install github.com/tailscale/go-cache-plugin/cmd/go-cache-plugin@latest
+        run: GOCACHEPROG="" go install github.com/tailscale/go-cache-plugin/cmd/go-cache-plugin@latest
 
       - name: Prepare workspace
         id: prepare
@@ -999,7 +1000,7 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 20
-        run: make -j"$(nproc)" test-go test-sh test-api
+        run: make FLAGS="" -j"$(nproc)" test-go test-sh test-api
 
   helm-unit-tests:
     name: Unit Tests (Helm)
