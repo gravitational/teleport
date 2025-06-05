@@ -74,7 +74,9 @@ func (p *Provider) Schema(ctx context.Context, req provider.SchemaRequest, resp 
 				Required:            true,
 				Validators: []validator.String{
 					stringvalidator.OneOf(config.SupportedJoinMethods...),
-					// Explicitly prohibit the use of the token join method.
+					// Explicitly prohibit the use of the token join method
+					// as we won't be able to persist state for it to work
+					// effectively.
 					stringvalidator.NoneOf(string(apitypes.JoinMethodToken)),
 				},
 			},
