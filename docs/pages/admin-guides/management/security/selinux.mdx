@@ -28,6 +28,12 @@ The SELinux policy module for Teleport SSH is officially supported on Red Hat En
 
 ## Installation
 
+Before installing the SELinux module ensure that the `selinux-policy-devel` package is installed:
+
+```
+$ sudo dnf install selinux-policy-devel
+```
+
 To install the SELinux module, run the `install-selinux.sh` script included in Linux tarballs as `root`:
 
 ```code
@@ -92,7 +98,7 @@ When `--enable-selinux` is passed, Teleport will exit with an error if:
 - Teleport is not running under the correct SELinux domain.
 
 Teleport's binary must have the `teleport_ssh_exec_t` type. The install script will label the Teleport binary with the correct type if it is not already.
-If you copy or move the binary the label will need to be updated. You simply re-run the install script to update the label, or you can update the label manually:
+If you copy or move the binary the label will need to be updated. You can simply re-run the install script to update the label, or you can update the label manually:
 
 ```code
 $ sudo semanage fcontext -a -t teleport_ssh_exec_t /path/to/teleport
@@ -100,7 +106,7 @@ $ sudo semanage fcontext -a -t teleport_ssh_exec_t /path/to/teleport
 
 <Admonition type="note">
 
-Teleport will probably not run under the correct `teleport_ssh_t` domain and not be enforced by SELinux unless it is running as a systemd service. For more information on SELinux domains refer to the Red Hat article [Getting started with SELinux](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/using_selinux/getting-started-with-selinux_using-selinux).
+Teleport will probably not run under the correct `teleport_ssh_t` domain and not be enforced by SELinux unless it is running as a **systemd service**. For more information on SELinux domains refer to the Red Hat article [Getting started with SELinux](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/using_selinux/getting-started-with-selinux_using-selinux).
 
 </Admonition>
 
@@ -137,8 +143,6 @@ If you need to grant additional permissions beyond the defaults, you can create 
 The official Teleport SSH module is named `teleport_ssh`. The install script will overwrite any module of that name. Be sure to name your custom policy module something else (e.g., `my_teleport_ssh_extras`).
 
 </Admonition>
-
-1. Install the `selinux-policy-devel` package if not already installed.
 
 1. Write a new `.te` file defining the extra rules for `teleport_ssh_t`.
 
