@@ -47,9 +47,7 @@ func TestForwarder_getToken(t *testing.T) {
 		checkErr  require.ErrorAssertionFunc
 	}
 
-	var tests []testCase
-
-	tests = []testCase{
+	tests := []testCase{
 		{
 			name:            "base case",
 			getTokenContext: context.Background(),

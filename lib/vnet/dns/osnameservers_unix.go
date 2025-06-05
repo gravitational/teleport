@@ -37,6 +37,11 @@ import (
 // easiest place to read them. Eventually we should probably use a better
 // method, but for now this works.
 func platformLoadUpstreamNameservers(ctx context.Context) ([]netip.Addr, error) {
+	// TODO: this is very hacky and just happens to work on the EC2 I've been
+	// testing on, figure out a good way to find upstream nameservers on Linux
+	// or a better way of resolving queries VNet can't handle (names in custom
+	// DNS zones that don't match a teleport app may resolve to some other
+	// company internal app outside of VNet/Teleport).
 	var confFilePath string
 	switch runtime.GOOS {
 	case "darwin":
