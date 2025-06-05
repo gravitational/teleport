@@ -365,6 +365,8 @@ jobs:
     needs: changes
     if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_docs == 'true' }}
     runs-on: ubuntu-latest
+    env:
+      GOCACHEPROG: ''
 
     permissions:
       contents: read
@@ -475,6 +477,8 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.has_api == 'true' }}
     runs-on: ubuntu-latest
+    env:
+      GOCACHEPROG: ''
 
     permissions:
       contents: read
@@ -585,6 +589,9 @@ jobs:
     needs: changes
     if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_go == 'true'}}
     runs-on: ubuntu-22.04-16core
+
+    env:
+      GOCACHEPROG: ''
 
     permissions:
       contents: read
@@ -1002,6 +1009,8 @@ jobs:
         run: mount -t debugfs none /sys/kernel/debug/
 
       - name: Run tests
+        env:
+          AWS_REGION: us-east-1 # Configure AWS Credentials changes this so we need to reset it
         timeout-minutes: 20
         run: make FLAGS="-race" -j"$(nproc)" test-go test-sh test-api
 
@@ -1010,6 +1019,8 @@ jobs:
     needs: changes
     if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_helm == 'true' }}
     runs-on: ubuntu-latest
+    env:
+      GOCACHEPROG: ''
 
     permissions:
       contents: read
