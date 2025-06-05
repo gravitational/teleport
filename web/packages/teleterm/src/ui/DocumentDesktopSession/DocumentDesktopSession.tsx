@@ -130,6 +130,7 @@ export function DocumentDesktopSession(props: {
         client={client}
         username={login}
         aclAttempt={acl}
+        browserSupportsSharing
       />
     );
   }
