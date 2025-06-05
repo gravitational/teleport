@@ -78,7 +78,7 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
               {' - Log in the MCP server'}
             </Text>
             <TextSelectCopy
-              text={`tsh mcp login ${app.name} --format claude`}
+              text={`tsh mcp login ${app.name}`}
             />
           </Stack>
           <Box>
