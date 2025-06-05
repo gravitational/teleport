@@ -19,7 +19,9 @@ package provider
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -41,9 +43,14 @@ func (r *KubernetesEphemeralResource) Metadata(
 	resp.TypeName = req.ProviderTypeName + "_kubernetes"
 }
 
+type KubernetesEphemeralResourceModelSelector struct {
+	Name types.String `tfsdk:"name"`
+}
+
 type KubernetesEphemeralResourceModel struct {
 	// Arguments
-	ExampleInput types.String `tfsdk:"example_input"`
+	Selector      KubernetesEphemeralResourceModelSelector `tfsdk:"selector"`
+	CredentialTTL timetypes.GoDuration                     `tfsdk:"credential_ttl"`
 
 	// Attributes
 	ExampleOutput types.String `tfsdk:"example_output"`
@@ -55,15 +62,27 @@ func (r *KubernetesEphemeralResource) Schema(
 	resp *ephemeral.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "TODO",
+		MarkdownDescription: "The Kubernetes Ephemeral Resource provides credentials to allow other providers to access Kubernetes cluster through Teleport Machine & Workload Identity.",
 
 		Attributes: map[string]schema.Attribute{
-			// Input
-			"example_input": schema.StringAttribute{
-				MarkdownDescription: "TODO",
-				Required:            true,
+			// Arguments
+			"selector": schema.SingleNestedAttribute{
+				MarkdownDescription: "Selects the Kubernetes cluster to connect to.",
+				Attributes: map[string]schema.Attribute{
+					"name": schema.StringAttribute{
+						MarkdownDescription: "The name of the Kubernetes cluster to connect to.",
+						Required:            true,
+					},
+				},
+				Required: true,
 			},
-			// Output
+			"credential_ttl": schema.StringAttribute{
+				CustomType:          timetypes.GoDurationType{},
+				MarkdownDescription: "How long the issued credentials should be valid for. Defaults to 30 minutes.",
+				Optional:            true,
+				Computed:            true,
+			},
+			// Attributes
 			"example_output": schema.StringAttribute{
 				MarkdownDescription: "TODO",
 				Computed:            true,
@@ -80,19 +99,39 @@ func (d *KubernetesEphemeralResource) Configure(
 	// TODO: Fetch bot config data from the provider.
 }
 
+func (r *KubernetesEphemeralResource) loadModelAndSetDefaults(
+	ctx context.Context,
+	req ephemeral.OpenRequest,
+	resp *ephemeral.OpenResponse,
+) KubernetesEphemeralResourceModel {
+	var data KubernetesEphemeralResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return data
+	}
+
+	// Set default for credential TTL if not provided.
+	if data.CredentialTTL.IsNull() || data.CredentialTTL.IsUnknown() {
+		data.CredentialTTL = timetypes.NewGoDurationValue(
+			time.Minute * 30,
+		)
+	}
+
+	return data
+}
+
 func (r *KubernetesEphemeralResource) Open(
 	ctx context.Context,
 	req ephemeral.OpenRequest,
 	resp *ephemeral.OpenResponse,
 ) {
-	var data KubernetesEphemeralResourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	data := r.loadModelAndSetDefaults(ctx, req, resp)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	data.ExampleOutput = types.StringValue(
-		fmt.Sprintf("Hello, %s!", data.ExampleInput.ValueString()),
+		fmt.Sprintf("Hello, %s!", data.Selector.Name.ValueString()),
 	)
 	resp.Diagnostics.Append(resp.Result.Set(ctx, &data)...)
 }
