@@ -20,17 +20,22 @@ package notification
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/accessrequest"
+	"github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 	"github.com/gravitational/teleport/lib/accessmonitoring"
+	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -43,6 +48,8 @@ type Client interface {
 
 	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+	GetRole(ctx context.Context, name string) (types.Role, error)
 }
 
 type Bot interface {
@@ -53,7 +60,7 @@ type Bot interface {
 	NotifyRequestor(ctx context.Context, recipient common.Recipient, reqData pd.AccessRequestData) (data SentMessage, err error)
 
 	PostReview(ctx context.Context, originalMessage SentMessage, review types.AccessReview) (SentReview, error)
-	UpdateMessage(ctx context.Context, originalMessage SentMessage, reviews []types.AccessReview) error
+	UpdateMessage(ctx context.Context, originalMessage SentMessage, reviews []types.AccessReview, reqData pd.AccessRequestData, canReview bool) error
 
 	// NotifyApproverResolved(ctx context.Context, message SentMessage, reqData pd.AccessRequestData) (data SentMessage, err error)
 	// NotifyReviewerResolved(ctx context.Context, message SentMessage, reqData pd.AccessRequestData) (data SentMessage, err error)
@@ -75,6 +82,8 @@ type Config struct {
 
 	// Cache is the access monitoring rules cache.
 	Cache *accessmonitoring.Cache
+
+	StaticRecipients common.RawRecipientsMap
 }
 
 // CheckAndSetDefaults checks and sets default configuration.
@@ -84,6 +93,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.Client == nil {
 		return trace.BadParameter("teleport client is required")
+	}
+	if cfg.Bot == nil {
+		return trace.BadParameter("notification bot is required")
 	}
 	if cfg.Cache == nil {
 		cfg.Cache = accessmonitoring.NewCache()
@@ -215,29 +227,9 @@ func (handler *Handler) HandleAccessRequest(ctx context.Context, event types.Eve
 }
 
 func (handler *Handler) handleRequest(ctx context.Context, req types.AccessRequest) error {
-	// 1. Fetch Recipients
-	recipients, err := handler.getRecipients(ctx, req)
+	notification, err := handler.newNotification(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	// 2. Get/Create notifications
-	data := pd.AccessRequestData{
-		User:              req.GetUser(),
-		Roles:             req.GetRoles(),
-		RequestReason:     req.GetRequestReason(),
-		SystemAnnotations: req.GetSystemAnnotations(),
-
-		// TODO: Get resource by name and logins by role.
-		// Resources:         resourceNames,
-		// LoginsByRole:      loginsByRole,
-	}
-
-	notification := Notification{
-		ID:                req.GetName(),
-		Recipients:        recipients,
-		AccessRequestData: data,
-		SentMessages:      make(map[MessageID]Message),
 	}
 
 	notification, err = handler.createNotification(ctx, notification)
@@ -272,15 +264,7 @@ func (handler *Handler) handleRequest(ctx context.Context, req types.AccessReque
 func (handler *Handler) getRecipients(ctx context.Context, req types.AccessRequest) ([]common.Recipient, error) {
 	recipientSet := common.NewRecipientSet()
 
-	// Fetch requester recipient
-	recipient, err := handler.Bot.FetchRecipient(ctx, req.GetUser())
-	if err != nil {
-		handler.Logger.WarnContext(ctx, "Failed to fetch requester recipient", "error", err)
-	} else {
-		recipientSet.Add(*recipient)
-	}
-
-	// Fetch reviewer recipients
+	// Fetch reviewer recipients from Access Monitoring Rules
 	traits := handler.getUserTraits(ctx, req.GetUser())
 	env := getAccessRequestExpressionEnv(req, traits)
 	rules := handler.getMatchingRules(ctx, env)
@@ -296,14 +280,77 @@ func (handler *Handler) getRecipients(ctx context.Context, req types.AccessReque
 		}
 	}
 
-	// TODO: Get static recipients
-	// TODO: Get suggested reviewers
+	if recipientSet.Len() != 0 {
+		return recipientSet.ToSlice(), nil
+	}
 
-	recipients := recipientSet.ToSlice()
-	if len(recipients) == 0 {
+	// Fallback to static recipients if Access Monitoring Rule recipients are
+	// not configured
+
+	validEmailSuggReviewers := []string{}
+	for _, reviewer := range req.GetSuggestedReviewers() {
+		if !lib.IsEmail(reviewer) {
+			handler.Logger.WarnContext(ctx, "Failed to notify a suggested reviewer with an invalid email address", "reviewer", reviewer)
+			continue
+		}
+		validEmailSuggReviewers = append(validEmailSuggReviewers, reviewer)
+	}
+
+	rawRecipients := handler.StaticRecipients.GetRawRecipientsFor(req.GetRoles(), validEmailSuggReviewers)
+	for _, rawRecipient := range rawRecipients {
+		recipient, err := handler.Bot.FetchRecipient(ctx, rawRecipient)
+		if err != nil {
+			handler.Logger.WarnContext(ctx, "Failure when fetching recipient, continuing anyway", "error", err)
+		} else {
+			recipientSet.Add(*recipient)
+		}
+	}
+
+	if recipientSet.Len() == 0 {
 		return nil, trace.BadParameter("unable to get any recipients")
 	}
-	return recipients, nil
+	return recipientSet.ToSlice(), nil
+}
+
+func (handler *Handler) newNotification(ctx context.Context, req types.AccessRequest) (Notification, error) {
+	reviewerRecipients, err := handler.getRecipients(ctx, req)
+	if err != nil {
+		return Notification{}, trace.Wrap(err)
+	}
+	resourceNames, err := handler.getResourceNames(ctx, req)
+	if err != nil {
+		return Notification{}, trace.Wrap(err)
+	}
+
+	loginsByRole, err := handler.getLoginsByRole(ctx, req)
+	if trace.IsAccessDenied(err) {
+		handler.Logger.WarnContext(ctx, "Missing permissions to get logins by role, please add role.read to the associated role", "error", err)
+	} else if err != nil {
+		return Notification{}, trace.Wrap(err)
+	}
+
+	notification := Notification{
+		ID:                 req.GetName(),
+		ReviewerRecipients: reviewerRecipients,
+		AccessRequestData: pd.AccessRequestData{
+			User:              req.GetUser(),
+			Roles:             req.GetRoles(),
+			RequestReason:     req.GetRequestReason(),
+			SystemAnnotations: req.GetSystemAnnotations(),
+			Resources:         resourceNames,
+			LoginsByRole:      loginsByRole,
+		},
+		ReviewerMessages: make(map[MessageID]Message),
+	}
+
+	recipient, err := handler.Bot.FetchRecipient(ctx, req.GetUser())
+	if err != nil {
+		handler.Logger.WarnContext(ctx, "Failed to fetch requester recipient", "error", err)
+	} else {
+		notification.RequesterRecipient = *recipient
+	}
+
+	return notification, nil
 }
 
 func (handler *Handler) createNotification(ctx context.Context, notification Notification) (Notification, error) {
@@ -316,27 +363,34 @@ func (handler *Handler) createNotification(ctx context.Context, notification Not
 		// This is an unexpected error, returning
 		return Notification{}, trace.Wrap(err)
 	default:
-		sentMessages := []SentMessage{}
-
-		// TODO: Retry notification to recipient if previous attempt failed?
-		for _, recipient := range notification.Recipients {
+		for _, recipient := range notification.ReviewerRecipients {
 			sent, err := handler.Bot.NotifyApprover(ctx, recipient, notification.AccessRequestData)
 			if err != nil {
 				handler.Logger.ErrorContext(ctx, "Failed to post message", "error", err, "recipient", recipient)
 				continue
 			}
 			handler.Logger.InfoContext(ctx, "Successfully posted messages", "message_id", sent.ID())
-			sentMessages = append(sentMessages, sent)
+			notification.ReviewerMessages[sent.ID()] = Message{
+				SentMessage: sent,
+				Reviews:     make(map[ReviewID]SentReview),
+			}
+		}
+
+		sent, err := handler.Bot.NotifyRequestor(ctx, notification.RequesterRecipient, notification.AccessRequestData)
+		if err != nil {
+			handler.Logger.ErrorContext(ctx, "Failed to post message", "error", err, "recipient", notification.RequesterRecipient)
+		} else {
+			handler.Logger.InfoContext(ctx, "Successfully posted messages", "message_id", sent.ID())
+			notification.RequesterMessage = Message{
+				SentMessage: sent,
+				Reviews:     make(map[ReviewID]SentReview),
+			}
 		}
 
 		// Update plugin data with sent messages
 		notification, err = handler.notifications.Update(ctx, notification.ID, func(existing Notification) (Notification, error) {
-			for _, sent := range sentMessages {
-				existing.SentMessages[sent.ID()] = Message{
-					SentMessage: sent,
-					Reviews:     make(map[ReviewID]SentReview),
-				}
-			}
+			existing.ReviewerMessages = notification.ReviewerMessages
+			existing.RequesterMessage = notification.RequesterMessage
 			return existing, nil
 		})
 		return notification, trace.Wrap(err)
@@ -367,7 +421,7 @@ func (handler *Handler) updateNotification(
 		return trace.Wrap(err)
 	}
 
-	for _, message := range notification.SentMessages {
+	for _, message := range notification.ReviewerMessages {
 		for _, review := range reviews {
 			_, ok := message.Reviews[review.Author]
 			if ok {
@@ -382,15 +436,39 @@ func (handler *Handler) updateNotification(
 			}
 			message.Reviews[sentReview.ID()] = sentReview
 		}
+		notification.ReviewerMessages[message.SentMessage.ID()] = message
 
 		// TODO: handle unimplemented
-		if err := handler.Bot.UpdateMessage(ctx, message.SentMessage, reviews); err != nil {
+		const canReview = true
+		if err := handler.Bot.UpdateMessage(ctx, message.SentMessage, reviews, notification.AccessRequestData, canReview); err != nil {
 			handler.Logger.WarnContext(ctx, "Failed to update message", "error", err)
 		}
 	}
 
+	message := notification.RequesterMessage
+	for _, review := range reviews {
+		_, ok := message.Reviews[review.Author]
+		if ok {
+			continue // Review has already been posted. Nothing to do.
+		}
+
+		sentReview, err := handler.Bot.PostReview(ctx, message.SentMessage, review)
+		if err != nil {
+			handler.Logger.WarnContext(ctx, "Failed to post review", "error", err)
+			continue
+		}
+		message.Reviews[sentReview.ID()] = sentReview
+	}
+	notification.RequesterMessage = message
+
+	const canReview = false
+	if err := handler.Bot.UpdateMessage(ctx, message.SentMessage, reviews, notification.AccessRequestData, canReview); err != nil {
+		handler.Logger.WarnContext(ctx, "Failed to update message", "error", err)
+	}
+
 	_, err = handler.notifications.Update(ctx, notification.ID, func(existing Notification) (Notification, error) {
-		existing.SentMessages = notification.SentMessages
+		existing.ReviewerMessages = notification.ReviewerMessages
+		existing.RequesterMessage = notification.RequesterMessage
 		return existing, nil
 	})
 	return trace.Wrap(err)
@@ -433,6 +511,60 @@ func (handler *Handler) getMatchingRules(
 		rules = append(rules, rule)
 	}
 	return rules
+}
+
+func (handler *Handler) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map[string][]string, error) {
+	loginsByRole := make(map[string][]string, len(req.GetRoles()))
+
+	user, err := handler.Client.GetUser(ctx, req.GetUser(), false)
+	if err != nil {
+		handler.Logger.WarnContext(ctx, "Missing permissions to apply user traits to login roles, please add user.read to the associated role", "error", err)
+		for _, role := range req.GetRoles() {
+			currentRole, err := handler.Client.GetRole(ctx, role)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			loginsByRole[role] = currentRole.GetLogins(types.Allow)
+		}
+		return loginsByRole, nil
+	}
+	for _, role := range req.GetRoles() {
+		currentRole, err := handler.Client.GetRole(ctx, role)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		currentRole, err = services.ApplyTraits(currentRole, user.GetTraits())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		logins := currentRole.GetLogins(types.Allow)
+		if logins == nil {
+			logins = []string{}
+		}
+		loginsByRole[role] = logins
+	}
+	return loginsByRole, nil
+}
+
+func (handler *Handler) getResourceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	resourceNames := make([]string, 0, len(req.GetRequestedResourceIDs()))
+	resourcesByCluster := accessrequest.GetResourceIDsByCluster(req)
+
+	for cluster, resources := range resourcesByCluster {
+		resourceDetails, err := accessrequest.GetResourceDetails(ctx, cluster, handler.Client, resources)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, resource := range resources {
+			resourceName := types.ResourceIDToString(resource)
+			if details, ok := resourceDetails[resourceName]; ok && details.FriendlyName != "" {
+				resourceName = fmt.Sprintf("%s/%s", resource.Kind, details.FriendlyName)
+			}
+			resourceNames = append(resourceNames, resourceName)
+		}
+	}
+	return resourceNames, nil
 }
 
 // getAccessRequestExpressionEnv returns the expression env of the access request.
