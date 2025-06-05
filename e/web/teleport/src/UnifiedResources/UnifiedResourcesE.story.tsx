@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
@@ -66,11 +67,14 @@ const Provider = props => {
     isUpdateFlow: true,
   };
 
-  const updatePreferences = () => Promise.resolve();
+  const [preferences, setPreferences] = useState(makeDefaultUserPreferences());
+
+  const updatePreferences = async (partialPrefs: Partial<UserPreferences>) => {
+    setPreferences(currentPrefs => ({ ...currentPrefs, ...partialPrefs }));
+  };
   const getClusterPinnedResources = () => Promise.resolve([]);
   const updateClusterPinnedResources = () => Promise.resolve();
   const updateDiscoverResourcePreferences = () => Promise.resolve();
-  const preferences: UserPreferences = makeDefaultUserPreferences();
 
   const ctx = createTeleportContextE({ customAcl: props.customAcl });
   ctx.resourceService.fetchUnifiedResources = () => Promise.resolve(resources);
