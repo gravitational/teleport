@@ -10,6 +10,7 @@ env:
   GOCACHE_AWS_REGION: us-west-2
   GOCACHE_ASSUME_ROLE: arn:aws:iam::966006926981:role/go-s3-cache
   GOCACHEPROG: 'go-cache-plugin --cache-dir=/tmp/gocache --bucket=tp-hackathon-remote-go-cache --region=us-west-2'
+  GOLANGCI_LINT_CACHEPROG: 'go-cache-plugin --cache-dir=/tmp/gocache --bucket=tp-hackathon-remote-go-cache --region=us-west-2'
 
 jobs:
   changes:
