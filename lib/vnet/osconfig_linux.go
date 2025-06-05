@@ -18,21 +18,25 @@ package vnet
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 )
 
 type platformOSConfigState struct {
-	setupIPv6          bool
-	configuredDNS      bool
-	broughtUpInterface bool
+	configuredIPv6       bool
+	configuredIPv4       bool
+	configuredCidrRanges []string
+	configuredNameserver bool
+	configuredDNSZones   []string
+	broughtUpInterface   bool
 }
 
 // platformConfigureOS configures the host OS according to cfg. It is safe to
 // call repeatedly, and it is meant to be called with an empty osConfig to
 // deconfigure anything necessary before exiting.
 func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSConfigState) error {
-	if cfg.tunIPv6 != "" && !state.setupIPv6 {
+	if cfg.tunIPv6 != "" && !state.configuredIPv6 {
 		log.InfoContext(ctx, "Setting IPv6 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv6)
 		addrWithPrefix := cfg.tunIPv6 + "/64"
 		if err := runCommand(ctx,
@@ -40,15 +44,43 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		); err != nil {
 			return trace.Wrap(err)
 		}
-		state.setupIPv6 = true
+		state.configuredIPv6 = true
 	}
-	if cfg.dnsAddr != "" && !state.configuredDNS {
-		log.InfoContext(ctx, "Configuring DNS")
+	if cfg.tunIPv4 != "" {
+		if !state.configuredIPv4 {
+			log.InfoContext(ctx, "Setting IPv4 address for the TUN device.",
+				"device", cfg.tunName, "address", cfg.tunIPv4)
+			if err := runCommand(ctx,
+				"ip", "addr", "add", cfg.tunIPv4, "dev", cfg.tunName,
+			); err != nil {
+				return trace.Wrap(err)
+			}
+			state.configuredIPv4 = true
+		}
+		for _, cidrRange := range cfg.cidrRanges {
+			if slices.Contains(state.configuredCidrRanges, cidrRange) {
+				continue
+			}
+			log.InfoContext(ctx, "Setting an IPv4 route", "netmask", cidrRange)
+			if err := runCommand(ctx,
+				"ip", "route", "add", cidrRange, "via", cfg.tunIPv4, "dev", cfg.tunName,
+			); err != nil {
+				return trace.Wrap(err)
+			}
+			state.configuredCidrRanges = append(state.configuredCidrRanges, cidrRange)
+		}
+	}
+	if cfg.dnsAddr != "" && !state.configuredNameserver {
+		log.InfoContext(ctx, "Configuring DNS nameserver", "nameserver", cfg.dnsAddr)
 		if err := runCommand(ctx,
 			"resolvectl", "dns", cfg.tunName, cfg.dnsAddr,
 		); err != nil {
 			return trace.Wrap(err)
 		}
+		state.configuredNameserver = true
+	}
+	if shouldReconfiguredDNSZones(cfg, state.configuredDNSZones) {
+		log.InfoContext(ctx, "Configuring DNS zones", "zones", cfg.dnsZones)
 		domains := make([]string, 0, len(cfg.dnsZones))
 		for _, dnsZone := range cfg.dnsZones {
 			domains = append(domains, "~"+dnsZone)
@@ -57,9 +89,9 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		if err := runCommand(ctx, "resolvectl", args...); err != nil {
 			return trace.Wrap(err)
 		}
-		state.configuredDNS = true
+		state.configuredDNSZones = cfg.dnsZones
 	}
-	if state.setupIPv6 && state.configuredDNS && !state.broughtUpInterface {
+	if state.configuredIPv6 && state.configuredNameserver && !state.broughtUpInterface {
 		log.InfoContext(ctx, "Bringing up the VNet interface", "device", cfg.tunName)
 		if err := runCommand(ctx,
 			"ip", "link", "set", cfg.tunName, "up",
