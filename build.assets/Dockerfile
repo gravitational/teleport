@@ -90,7 +90,7 @@ RUN mkdir -p /opt && cd /opt &&  \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     BUILD_STATIC_ONLY=y EXTRA_CFLAGS=-fPIC DESTDIR=/opt/libbpf V=1 make install install_uapi_headers
 
-## BUILDBOX ###################################################################
+## BUILDBOX-INTERMEDIATE ###################################################################
 #
 # Image layers are ordered according to how slow that layer takes to build and
 # how frequently it is updated. Slow or infrequently updated dependencies come
@@ -107,7 +107,7 @@ RUN mkdir -p /opt && cd /opt &&  \
 # 4. Fast, language-dependent dependencies
 # 5. Multi-stage layer copies
 
-FROM ubuntu:22.04 AS buildbox
+FROM ubuntu:22.04 AS buildbox-intermediate
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
@@ -261,7 +261,7 @@ ENV GOPATH="/go" \
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
 RUN make -C /opt/pam_teleport install
-ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
+ENV SOFTHSM2_PATH="/usr/lib/softhsm/libsofthsm2.so"
 
 # Install bats.
 RUN git clone --depth=1 https://github.com/bats-core/bats-core.git -b v1.2.1 && \
@@ -361,6 +361,29 @@ RUN cd /usr/local/lib && \
     ln -s libssl.so.3 libssl.so && \
     ldconfig
 COPY pkgconfig/buildbox/ /
+
+## BUILDBOX-INTERMEDIATE ###################################################################
+#
+#  Squash everything into the final buildbox to reduce the number of layers in the final image.
+#
+FROM ubuntu:22.04 AS buildbox
+
+COPY --from=buildbox-intermediate / /
+
+ENV LANGUAGE="en_US.UTF-8" \
+    LANG="en_US.UTF-8" \
+    LC_ALL="en_US.UTF-8" \
+    LC_CTYPE="en_US.UTF-8" \
+    DEBIAN_FRONTEND="noninteractive" \
+    RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH \
+    RUST_VERSION=$RUST_VERSION \
+    NODE_PATH="/usr/local/lib/nodejs-linux" \
+    PATH="$PATH:${NODE_PATH}/bin:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build" \
+    GOPATH="/go" \
+    GOROOT="/opt/go" \
+    SOFTHSM2_PATH="/usr/lib/softhsm/libsofthsm2.so"
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
