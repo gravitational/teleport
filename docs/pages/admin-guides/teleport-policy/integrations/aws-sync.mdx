@@ -29,7 +29,7 @@ including IAM Policies, Groups, Users, User Groups, EC2 instances, EKS clusters,
 These resources are then visualized using the graph representation detailed in the
 [Identity Security usage page](../policy-how-to-use.mdx).
 
-The importing process involves tree primary steps:
+The importing process involves three primary steps:
 
 ### Polling Cloud APIs
 
@@ -74,11 +74,11 @@ services, including login attempts, API calls, and changes to infrastructure.
 
 ## Prerequisites
 
-- A running Teleport Enterprise cluster v14.3.9/v15.2.0 or later. Teleport v18.0.0 is required for Identity Activity Center.
+- A running Teleport Enterprise cluster v18.0.0 or later.
 - Identity Security enabled for your account.
 - For self-hosted clusters:
   - Ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
-  - A running Access Graph node v1.17.0 or later. Access Graph v1.28.0 is required for Identity Activity Center.
+  - A running Access Graph node v1.28.0 or later.
 Check the [Identity Security page](../teleport-policy.mdx) for details on
 how to set up Access Graph.
   - The node running the Access Graph service must be reachable from the Teleport Auth Service.
