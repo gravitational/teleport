@@ -18,9 +18,7 @@ This vulnerability affects Okta integration users who have access lists sync ena
 
 #### [Medium] Unsanitized user input affecting PKINIT (Kerberos)
 
-* Fixed the impact of malicious `--db-user` values on PKINIT flow. [#55143](https://github.com/gravitational/teleport/pull/55143)
-
-This vulnerability affects users who authenticate to SQL Server and Oracle with Kerberos using the PKINIT flow.
+* Fixed users being able to overwrite host files on SQL Server database systems when using Kerberos with PKINIT flow. [#55143](https://github.com/gravitational/teleport/pull/55143)
 
 ### Other fixes and improvements
 
