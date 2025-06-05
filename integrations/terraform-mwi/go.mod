@@ -4,6 +4,7 @@ go 1.24.3
 
 require (
 	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
+	github.com/gravitational/teleport/api v0.0.0
 	github.com/hashicorp/terraform-plugin-framework v1.15.0
 	github.com/hashicorp/terraform-plugin-framework-validators v0.18.0
 	github.com/hashicorp/terraform-plugin-go v0.27.0
@@ -139,7 +140,6 @@ require (
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/gravitational/license v0.0.0-20250329001817-070456fa8ec1 // indirect
 	github.com/gravitational/roundtrip v1.0.2 // indirect
-	github.com/gravitational/teleport/api v0.0.0 // indirect
 	github.com/gravitational/trace v1.5.1 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.1 // indirect
