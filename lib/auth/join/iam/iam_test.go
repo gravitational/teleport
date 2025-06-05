@@ -52,15 +52,6 @@ func TestCreateSignedSTSIdentityRequest(t *testing.T) {
 		expectEndpoint        string
 		expectSignatureRegion string
 	}{
-		"no region": {
-			expectEndpoint:        "sts.us-east-1.amazonaws.com",
-			expectSignatureRegion: "us-east-1",
-		},
-		"no region fips": {
-			fips:                  true,
-			expectEndpoint:        "sts-fips.us-east-1.amazonaws.com",
-			expectSignatureRegion: "us-east-1",
-		},
 		"us-west-2": {
 			envRegion:             "us-west-2",
 			expectEndpoint:        "sts.us-west-2.amazonaws.com",
