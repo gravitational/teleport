@@ -53,7 +53,12 @@ type KubernetesEphemeralResourceModel struct {
 	CredentialTTL timetypes.GoDuration                     `tfsdk:"credential_ttl"`
 
 	// Attributes
-	ExampleOutput types.String `tfsdk:"example_output"`
+	ExampleOutput        types.String `tfsdk:"example_output"`
+	ClientKey            types.String `tfsdk:"client_key"`
+	Host                 types.String `tfsdk:"host"`
+	TLSServerName        types.String `tfsdk:"tls_server_name"`
+	ClientCertificate    types.String `tfsdk:"client_certificate"`
+	ClusterCACertificate types.String `tfsdk:"cluster_ca_certificate"`
 }
 
 func (r *KubernetesEphemeralResource) Schema(
@@ -86,6 +91,27 @@ func (r *KubernetesEphemeralResource) Schema(
 			"example_output": schema.StringAttribute{
 				MarkdownDescription: "TODO",
 				Computed:            true,
+			},
+			"client_key": schema.StringAttribute{
+				Computed:            true,
+				Sensitive:           true,
+				MarkdownDescription: "Compatible with the `client_key` argument of the `kubernetes` provider.",
+			},
+			"host": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "Compatible with the `host` argument of the `kubernetes` provider.",
+			},
+			"tls_server_name": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "Compatible with the `tls_server_name` argument of the `kubernetes` provider.",
+			},
+			"client_certificate": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "Compatible with the `client_certificate` argument of the `kubernetes` provider.",
+			},
+			"cluster_ca_certificate": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "Compatible with the `cluster_ca_certificate` argument of the `kubernetes` provider.",
 			},
 		},
 	}
