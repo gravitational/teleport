@@ -2,6 +2,8 @@
 
 ## 17.5.1 (06/04/25)
 
+Rerelease of 17.5.0 due to some build issues.
+
 ### Azure Console via SAML IdP
 Teleport SAML IdP now supports Azure web console as a service provider.
 
