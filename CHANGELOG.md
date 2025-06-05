@@ -1,5 +1,25 @@
 # Changelog
 
+## 15.5.2 (06/05/25)
+
+### Security fixes
+
+This patch includes some security fixes.
+These issues are present in previous v15 releases.
+Impacted users are recommended to upgrade their auth and proxy servers to the latest version.
+
+#### [Medium] Unsanitized user input affecting PKINIT (Kerberos)
+
+* Fixed users being able to overwrite host files on SQL Server database systems when using Kerberos. [#55144](https://github.com/gravitational/teleport/pull/55144)
+
+This vulnerability affects users who authenticate to SQL Server with Kerberos using the PKINIT flow.
+
+### Other fixes and improvements
+
+* Fixed unknown resource kinds rendering errors in the web UI. [#55211](https://github.com/gravitational/teleport/pull/55211)
+* Fixed the formatting of the `cache_component` label for the Prometheus metrics `teleport_cache_health` and `teleport_cache_last_reset_seconds`. [#55193](https://github.com/gravitational/teleport/pull/55193)
+* Fixed database discovery failing when there are more than 5 OpenSearch domains. [#55060](https://github.com/gravitational/teleport/pull/55060)
+
 ## 15.5.1 (05/21/25)
 
 * Expose the Teleport service cache health via Prometheus metrics. [#54904](https://github.com/gravitational/teleport/pull/54904)
