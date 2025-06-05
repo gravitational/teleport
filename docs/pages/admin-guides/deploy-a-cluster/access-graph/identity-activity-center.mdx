@@ -68,6 +68,7 @@ which are necessary for the Terraform script to execute.
 - <Var name="example-db"/> is the name of the AWS Glue database.
 - <Var name="example-table"/> is the name of the AWS Glue table.
 - <Var name="example-workgroup"/> is the name of the AWS Athena Workgroup.
+- <Var name="aws-account-id"/> is the AWS account id.
 
 Define the variables using the script below or configure them in your
 Teleport IaC script.
@@ -180,7 +181,7 @@ identity_activity_center:
   s3: s3://<Var name="example-long-term-bucket"/>/data/
   s3_results: s3://<Var name="example-transient-bucket"/>/results/
   s3_large_files: s3://<Var name="example-transient-bucket"/>/large_files
-  sqs_queue_url: <Var name="https://sqs.<region>.amazonaws.com/<account_id>/<sqs-queue-name>"/>
+  sqs_queue_url: https://sqs.<Var name="eu-central-1"/>.amazonaws.com/<Var name="aws-account-id"/>/<Var name="example-sqs-queue"/>
   maxmind_geoip_city_db_path: /path/to/geoIp-city.mmdb # optional
 
 ```
@@ -215,7 +216,7 @@ identity_activity_center:
   s3: s3://<Var name="example-long-term-bucket"/>/data/
   s3_results: s3://<Var name="example-transient-bucket"/>/results/
   s3_large_files: s3://<Var name="example-transient-bucket"/>/large_files
-  sqs_queue_url: <Var name="https://sqs.<region>.amazonaws.com/<account_id>/<sqs-queue-name>"/>
+  sqs_queue_url: https://sqs.<Var name="eu-central-1"/>.amazonaws.com/<Var name="aws-account-id"/>/<Var name="example-sqs-queue"/>
   maxmind_geoip_city_db_path: "/etc/maxmindGeoIP/GeoLite2-City.mmdb" # optional
 ```
 
@@ -227,5 +228,18 @@ Run `helm upgrade` to re-deploy Identity Security.
 
 ## Step 4/4. Restart Identity Security
 
-The last step is to restart the Identity Security docker process or restart the process
+<Tabs>
+<TabItem label="Self-hosted cluster" >
+
+The final step is to restart the Identity Security docker process or restart the process
 so it can reload the latest configuration.
+
+</TabItem>
+
+<TabItem label="Self-hosted cluster using Helm Chart">
+
+The final step is to wait for the Identity Security Deployment to complete the rollout
+of the new replicas.
+
+</TabItem>
+</Tabs>
