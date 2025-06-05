@@ -30,7 +30,7 @@ teleport:
   # ```
   #
   # Check out the [Access Requests with
-  # PagerDuty](../../admin-guides/access-controls/access-request-plugins/ssh-approval-pagerduty.mdx) guide
+  # PagerDuty](../../identity-governance/access-request-plugins/ssh-approval-pagerduty.mdx) guide
   # for more information about how to acquire these credentials.
   identitySecretName: ""
   # teleport.identitySecretPath(string) -- is the key in the Kubernetes secret
