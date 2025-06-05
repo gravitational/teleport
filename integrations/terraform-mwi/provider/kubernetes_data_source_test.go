@@ -34,7 +34,9 @@ provider "teleportmwi" {
 }
 
 data "teleportmwi_kubernetes" "example" {
-  example_input = "example_value"
+  selector = {
+    name = "barry"
+  } 
 }
 `
 	resource.Test(t, resource.TestCase{
@@ -47,7 +49,7 @@ data "teleportmwi_kubernetes" "example" {
 					statecheck.ExpectKnownValue(
 						"data.teleportmwi_kubernetes.example",
 						tfjsonpath.New("example_output"),
-						knownvalue.StringExact("Hello, example_value!"),
+						knownvalue.StringExact("Hello, barry!"),
 					),
 				},
 			},
