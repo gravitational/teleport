@@ -1833,6 +1833,8 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindWindowsDesktopService,
 		types.KindUserGroup,
 		types.KindSAMLIdPServiceProvider,
+		types.KindIdentityCenterAccount,
+		types.KindIdentityCenterAccountAssignment,
 		types.KindGitServer:
 
 	default:
