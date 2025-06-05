@@ -47,29 +47,15 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		}
 		state.configuredIPv6 = true
 	}
-	if cfg.tunIPv4 != "" {
-		if !state.configuredIPv4 {
-			log.InfoContext(ctx, "Setting IPv4 address for the TUN device.",
-				"device", cfg.tunName, "address", cfg.tunIPv4)
-			if err := runCommand(ctx,
-				"ip", "addr", "add", cfg.tunIPv4, "dev", cfg.tunName,
-			); err != nil {
-				return trace.Wrap(err)
-			}
-			state.configuredIPv4 = true
+	if cfg.tunIPv4 != "" && !state.configuredIPv4 {
+		log.InfoContext(ctx, "Setting IPv4 address for the TUN device.",
+			"device", cfg.tunName, "address", cfg.tunIPv4)
+		if err := runCommand(ctx,
+			"ip", "addr", "add", cfg.tunIPv4, "dev", cfg.tunName,
+		); err != nil {
+			return trace.Wrap(err)
 		}
-		for _, cidrRange := range cfg.cidrRanges {
-			if slices.Contains(state.configuredCidrRanges, cidrRange) {
-				continue
-			}
-			log.InfoContext(ctx, "Setting an IPv4 route", "netmask", cidrRange)
-			if err := runCommand(ctx,
-				"ip", "route", "add", cidrRange, "via", cfg.tunIPv4, "dev", cfg.tunName,
-			); err != nil {
-				return trace.Wrap(err)
-			}
-			state.configuredCidrRanges = append(state.configuredCidrRanges, cidrRange)
-		}
+		state.configuredIPv4 = true
 	}
 	if cfg.dnsAddr != "" && !state.configuredNameserver {
 		log.InfoContext(ctx, "Configuring DNS nameserver", "nameserver", cfg.dnsAddr)
@@ -100,6 +86,20 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 			return trace.Wrap(err)
 		}
 		state.broughtUpInterface = true
+	}
+	if cfg.tunIPv4 != "" && state.configuredIPv4 && state.broughtUpInterface {
+		for _, cidrRange := range cfg.cidrRanges {
+			if slices.Contains(state.configuredCidrRanges, cidrRange) {
+				continue
+			}
+			log.InfoContext(ctx, "Setting an IPv4 route", "netmask", cidrRange)
+			if err := runCommand(ctx,
+				"ip", "route", "add", cidrRange, "via", cfg.tunIPv4, "dev", cfg.tunName,
+			); err != nil {
+				return trace.Wrap(err)
+			}
+			state.configuredCidrRanges = append(state.configuredCidrRanges, cidrRange)
+		}
 	}
 	return nil
 }
