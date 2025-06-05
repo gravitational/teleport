@@ -29,6 +29,7 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -126,6 +127,14 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*autoupdate.AutoUpdateAgentReport]:
 		out.Resource = &proto.Event_AutoUpdateAgentReport{
 			AutoUpdateAgentReport: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*accessv1.ScopedRole]:
+		out.Resource = &proto.Event_ScopedRole{
+			ScopedRole: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*accessv1.ScopedRoleAssignment]:
+		out.Resource = &proto.Event_ScopedRoleAssignment{
+			ScopedRoleAssignment: r.UnwrapT(),
 		}
 	case types.Resource153UnwrapperT[*identitycenterv1.Account]:
 		out.Resource = &proto.Event_IdentityCenterAccount{
@@ -608,6 +617,12 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetAutoUpdateAgentReport(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetScopedRole(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetScopedRoleAssignment(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetUserTask(); r != nil {

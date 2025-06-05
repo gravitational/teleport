@@ -54,6 +54,8 @@ const (
 	LoggingForDaemon LoggingPurpose = iota
 	// LoggingForCLI configures logging for user face utilities (tctl, tsh).
 	LoggingForCLI
+	// LoggingForMCP configures logging for MCP servers.
+	LoggingForMCP
 )
 
 // LoggingFormat defines the possible logging output formats.
@@ -100,7 +102,7 @@ func IsTerminal(w io.Writer) bool {
 }
 
 // InitLogger configures the global logger for a given purpose / verbosity level
-func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) error {
+func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) (*slog.Logger, error) {
 	var o logOpts
 
 	for _, opt := range opts {
@@ -110,23 +112,28 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 	// If debug or trace logging is not enabled for CLIs,
 	// then discard all log output.
 	if purpose == LoggingForCLI && level > slog.LevelDebug {
-		slog.SetDefault(slog.New(slog.DiscardHandler))
-		return nil
+		logger := slog.New(slog.DiscardHandler)
+		slog.SetDefault(logger)
+		return logger, nil
 	}
 
 	var output string
-	if o.osLogSubsystem != "" {
+	switch {
+	case o.osLogSubsystem != "":
 		output = logutils.LogOutputOSLog
+	case purpose == LoggingForMCP:
+		output = logutils.LogOutputMCP
+		o.format = LogFormatJSON
 	}
 
-	_, _, err := logutils.Initialize(logutils.Config{
+	logger, _, err := logutils.Initialize(logutils.Config{
 		Severity:       level.String(),
 		Format:         o.format,
 		EnableColors:   IsTerminal(os.Stderr),
 		Output:         output,
 		OSLogSubsystem: o.osLogSubsystem,
 	})
-	return trace.Wrap(err)
+	return logger, trace.Wrap(err)
 }
 
 var initTestLoggerOnce = sync.Once{}

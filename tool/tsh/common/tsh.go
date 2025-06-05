@@ -79,6 +79,7 @@ import (
 	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
+	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
@@ -618,6 +619,10 @@ type CLIConf struct {
 	// atomic here is overkill as the CLIConf is generally consumed sequentially. However, occasionally
 	// we need concurrency safety, such as for [forEachProfileParallel].
 	clientStoreSet int32
+
+	// databaseMCPRegistryOverride overrides database access MCP servers
+	// registry. used in tests.
+	databaseMCPRegistryOverride dbmcp.Registry
 }
 
 // Stdout returns the stdout writer.
@@ -785,7 +790,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// run early to enable debug logging if env var is set.
 	// this makes it possible to debug early startup functionality, particularly command aliases.
-	if err := initLogger(&cf, parseLoggingOptsFromEnv()); err != nil {
+	if _, err := initLogger(&cf, utils.LoggingForCLI, parseLoggingOptsFromEnv()); err != nil {
 		printInitLoggerError(err)
 	}
 
@@ -1431,7 +1436,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Enable debug logging if requested by --debug.
 	// If TELEPORT_DEBUG was set and --debug/--no-debug was not passed, debug logs were already
 	// enabled by a prior call to initLogger.
-	if err := initLogger(&cf, parseLoggingOptsFromEnvAndArgv(&cf)); err != nil {
+	if _, err := initLogger(&cf, utils.LoggingForCLI, parseLoggingOptsFromEnvAndArgv(&cf)); err != nil {
 		printInitLoggerError(err)
 	}
 
@@ -1746,6 +1751,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.clone.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
+	case mcpCmd.dbStart.FullCommand():
+		err = mcpCmd.dbStart.run(&cf)
 	case mcpCmd.list.FullCommand():
 		err = mcpCmd.list.run()
 	default:

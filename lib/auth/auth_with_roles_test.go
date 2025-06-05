@@ -42,6 +42,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
@@ -52,6 +53,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/metadata"
@@ -75,7 +77,9 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/okta/oktatest"
+	scopedrole "github.com/gravitational/teleport/lib/scopes/roles"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -6286,12 +6290,13 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 	const nodeCount = 150_000
 	const roleCount = 32
+	const dbCount = 150_000
 
 	ctx := context.Background()
 	srv := newTestTLSServer(b)
 
 	var ids []string
-	for i := 0; i < roleCount; i++ {
+	for range roleCount {
 		ids = append(ids, uuid.New().String())
 	}
 
@@ -6299,7 +6304,7 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 
 	var hiddenNodes int
 	// Create test nodes.
-	for i := 0; i < nodeCount; i++ {
+	for i := range nodeCount {
 		name := uuid.New().String()
 		id := ids[i%len(ids)]
 		if id == "hidden" {
@@ -6331,16 +6336,64 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 		require.NoError(b, err)
 	}
 
+	// Create test HA databases (multiple agents per database)
+	var hiddenDBs int
+	for i := range dbCount {
+		id := ids[i%len(ids)]
+		if id == "hidden" {
+			hiddenDBs++
+		}
+		name := "db-" + strconv.Itoa(i)
+		labels := map[string]string{
+			"kEy":   id,
+			"grouP": "useRs",
+		}
+		if i == 10 {
+			labels["ip"] = "10.20.30.40"
+			labels["ADDRESS"] = "10.20.30.41"
+			labels["food"] = "POTATO"
+		}
+
+		db, err := types.NewDatabaseV3(types.Metadata{
+			Name:   name,
+			Labels: labels,
+		}, types.DatabaseSpecV3{
+			Protocol: "test-protocol",
+			URI:      "test-uri:1234",
+		})
+		require.NoError(b, err)
+
+		statuses := []string{"healthy", "unknown", "healthy"}
+		if i == 10 {
+			statuses = []string{"unhealthy", "unhealthy", "unhealthy"}
+		}
+		for _, healthStatus := range statuses {
+			dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+				Name: db.GetName(),
+			}, types.DatabaseServerSpecV3{
+				Database: db.Copy(),
+				Hostname: name,
+				HostID:   uuid.New().String(),
+			})
+			require.NoError(b, err)
+			dbServer.SetTargetHealth(types.TargetHealth{Status: healthStatus})
+			_, err = srv.Auth().UpsertDatabaseServer(ctx, dbServer)
+			require.NoError(b, err)
+		}
+	}
+
 	b.Run("labels", func(b *testing.B) {
 		benchmarkListUnifiedResources(
 			b, ctx,
-			1,
+			2,
 			srv,
 			ids,
 			func(role types.Role, id string) {
 				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 			},
 			func(req *proto.ListUnifiedResourcesRequest) {
+				req.Kinds = []string{types.KindNode, types.KindDatabase}
 				req.Labels = map[string]string{"ip": "10.20.30.40"}
 			},
 		)
@@ -6348,13 +6401,15 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 	b.Run("predicate path", func(b *testing.B) {
 		benchmarkListUnifiedResources(
 			b, ctx,
-			1,
+			2,
 			srv,
 			ids,
 			func(role types.Role, id string) {
 				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 			},
 			func(req *proto.ListUnifiedResourcesRequest) {
+				req.Kinds = []string{types.KindNode, types.KindDatabase}
 				req.PredicateExpression = `labels.ip == "10.20.30.40"`
 			},
 		)
@@ -6362,18 +6417,20 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 	b.Run("predicate index", func(b *testing.B) {
 		benchmarkListUnifiedResources(
 			b, ctx,
-			1,
+			2,
 			srv,
 			ids,
 			func(role types.Role, id string) {
 				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 			},
 			func(req *proto.ListUnifiedResourcesRequest) {
+				req.Kinds = []string{types.KindNode, types.KindDatabase}
 				req.PredicateExpression = `labels["ip"] == "10.20.30.40"`
 			},
 		)
 	})
-	b.Run("search lower", func(b *testing.B) {
+	b.Run("predicate health status", func(b *testing.B) {
 		benchmarkListUnifiedResources(
 			b, ctx,
 			1,
@@ -6381,8 +6438,26 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 			ids,
 			func(role types.Role, id string) {
 				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 			},
 			func(req *proto.ListUnifiedResourcesRequest) {
+				req.Kinds = []string{types.KindNode, types.KindDatabase}
+				req.PredicateExpression = `health.status == "unhealthy"`
+			},
+		)
+	})
+	b.Run("search lower", func(b *testing.B) {
+		benchmarkListUnifiedResources(
+			b, ctx,
+			2,
+			srv,
+			ids,
+			func(role types.Role, id string) {
+				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+			},
+			func(req *proto.ListUnifiedResourcesRequest) {
+				req.Kinds = []string{types.KindNode, types.KindDatabase}
 				req.SearchKeywords = []string{"10.20.30.40"}
 			},
 		)
@@ -6390,13 +6465,15 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 	b.Run("search upper", func(b *testing.B) {
 		benchmarkListUnifiedResources(
 			b, ctx,
-			1,
+			2,
 			srv,
 			ids,
 			func(role types.Role, id string) {
 				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 			},
 			func(req *proto.ListUnifiedResourcesRequest) {
+				req.Kinds = []string{types.KindNode, types.KindDatabase}
 				req.SearchKeywords = []string{"POTATO"}
 			},
 		)
@@ -6415,12 +6492,13 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 func BenchmarkListUnifiedResources(b *testing.B) {
 	const nodeCount = 150_000
 	const roleCount = 32
+	const dbCount = 150_000
 
 	ctx := context.Background()
 	srv := newTestTLSServer(b)
 
 	var ids []string
-	for i := 0; i < roleCount; i++ {
+	for range roleCount {
 		ids = append(ids, uuid.New().String())
 	}
 
@@ -6428,7 +6506,7 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 
 	var hiddenNodes int
 	// Create test nodes.
-	for i := 0; i < nodeCount; i++ {
+	for i := range nodeCount {
 		name := uuid.New().String()
 		id := ids[i%len(ids)]
 		if id == "hidden" {
@@ -6451,6 +6529,40 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 		require.NoError(b, err)
 	}
 
+	// Create test HA databases (multiple agents per database)
+	var hiddenDBs int
+	for i := range dbCount {
+		id := ids[i%len(ids)]
+		if id == "hidden" {
+			hiddenDBs++
+		}
+		name := "db-" + strconv.Itoa(i)
+		db, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+			Labels: map[string]string{
+				"key":   id,
+				"group": "users",
+			},
+		}, types.DatabaseSpecV3{
+			Protocol: "test-protocol",
+			URI:      "test-uri:1234",
+		})
+		require.NoError(b, err)
+		for _, healthStatus := range []string{"healthy", "unhealthy", "unknown"} {
+			dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+				Name: db.GetName(),
+			}, types.DatabaseServerSpecV3{
+				Database: db.Copy(),
+				Hostname: name,
+				HostID:   uuid.New().String(),
+			})
+			require.NoError(b, err)
+			dbServer.SetTargetHealth(types.TargetHealth{Status: healthStatus})
+			_, err = srv.Auth().UpsertDatabaseServer(ctx, dbServer)
+			require.NoError(b, err)
+		}
+	}
+
 	for _, tc := range []struct {
 		desc     string
 		editRole func(types.Role, string)
@@ -6460,8 +6572,10 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 			editRole: func(r types.Role, id string) {
 				if id == "hidden" {
 					r.SetNodeLabels(types.Deny, types.Labels{"key": {id}})
+					r.SetDatabaseLabels(types.Deny, types.Labels{"key": {id}})
 				} else {
 					r.SetNodeLabels(types.Allow, types.Labels{"key": {id}})
+					r.SetDatabaseLabels(types.Allow, types.Labels{"key": {id}})
 				}
 			},
 		},
@@ -6469,11 +6583,13 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 		b.Run(tc.desc, func(b *testing.B) {
 			benchmarkListUnifiedResources(
 				b, ctx,
-				nodeCount-hiddenNodes,
+				nodeCount-hiddenNodes+dbCount-hiddenDBs,
 				srv,
 				ids,
 				tc.editRole,
-				func(req *proto.ListUnifiedResourcesRequest) {},
+				func(req *proto.ListUnifiedResourcesRequest) {
+					req.Kinds = []string{types.KindNode, types.KindDatabase}
+				},
 			)
 		})
 	}
@@ -9351,6 +9467,146 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 			})
 		}
 	})
+}
+
+// TestScopedRoleEvents verifies the basic functionality of the events API for the ScopedRole family of types.
+func TestScopedRoleEvents(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t, withCacheEnabled(true))
+
+	// get an admin client
+	client, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	watcher, err := client.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{
+			{
+				Kind: scopedrole.KindScopedRole,
+			},
+			{
+				Kind: scopedrole.KindScopedRoleAssignment,
+			},
+		},
+	})
+	require.NoError(t, err)
+	defer watcher.Close()
+
+	// as of time of writing, CRUD methods for scoped access resources are not
+	// exposed yet, so for the purposes of this test we're just going to write
+	// to the backend directly.
+	service := local.NewScopedAccessService(srv.AuthServer.Backend)
+
+	getNextEvent := func() types.Event {
+		select {
+		case event := <-watcher.Events():
+			return event
+		case <-watcher.Done():
+			require.FailNow(t, "Watcher exited with error", watcher.Error())
+		case <-time.After(time.Second * 5):
+			require.FailNow(t, "Timeout waiting for event", watcher.Error())
+		}
+
+		panic("unreachable")
+	}
+
+	event := getNextEvent()
+	require.Equal(t, types.OpInit, event.Type)
+
+	// Create a ScopedRole and verify create event is well-formed.
+	role := &accessv1.ScopedRole{
+		Kind: scopedrole.KindScopedRole,
+		Metadata: &headerv1.Metadata{
+			Name: "test-role",
+		},
+		Scope: "/",
+		Spec: &accessv1.ScopedRoleSpec{
+			AssignableScopes: []string{"/foo", "/bar"},
+		},
+		Version: types.V1,
+	}
+
+	crsp, err := service.CreateScopedRole(ctx, &accessv1.CreateScopedRoleRequest{
+		Role: role,
+	})
+	require.NoError(t, err)
+
+	event = getNextEvent()
+	require.Equal(t, types.OpPut, event.Type)
+
+	resource := (event.Resource).(types.Resource153UnwrapperT[*accessv1.ScopedRole]).UnwrapT()
+	require.Empty(t, cmp.Diff(crsp.Role, resource, protocmp.Transform() /* deliberately not ignoring revision */))
+
+	// delete the role and verify delete event is well-formed.
+	_, err = service.DeleteScopedRole(ctx, &accessv1.DeleteScopedRoleRequest{
+		Name: role.Metadata.Name,
+	})
+	require.NoError(t, err)
+
+	event = getNextEvent()
+	require.Equal(t, types.OpDelete, event.Type)
+
+	require.Empty(t, cmp.Diff(&types.ResourceHeader{
+		Kind: scopedrole.KindScopedRole,
+		Metadata: types.Metadata{
+			Name: role.Metadata.Name,
+		},
+	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
+
+	// recreate scoped role so that we can use it for testing assignment events
+	crsp, err = service.CreateScopedRole(ctx, &accessv1.CreateScopedRoleRequest{
+		Role: role,
+	})
+	require.NoError(t, err)
+
+	_ = getNextEvent() // drain the role create event
+
+	assignment := &accessv1.ScopedRoleAssignment{
+		Kind: scopedrole.KindScopedRoleAssignment,
+		Metadata: &headerv1.Metadata{
+			Name: uuid.New().String(),
+		},
+		Scope: "/",
+		Spec: &accessv1.ScopedRoleAssignmentSpec{
+			User: "alice",
+			Assignments: []*accessv1.Assignment{
+				{
+					Role:  role.Metadata.Name,
+					Scope: "/foo",
+				},
+			},
+		},
+		Version: types.V1,
+	}
+
+	acrsp, err := service.CreateScopedRoleAssignment(ctx, &accessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: assignment,
+		RoleRevisions: map[string]string{
+			role.Metadata.Name: crsp.Role.Metadata.Revision,
+		},
+	})
+	require.NoError(t, err)
+
+	event = getNextEvent()
+	require.Equal(t, types.OpPut, event.Type)
+	assignmentResource := (event.Resource).(types.Resource153UnwrapperT[*accessv1.ScopedRoleAssignment]).UnwrapT()
+	require.Empty(t, cmp.Diff(acrsp.Assignment, assignmentResource, protocmp.Transform() /* deliberately not ignoring revision */))
+
+	// delete the assignment and verify delete event is well-formed.
+	_, err = service.DeleteScopedRoleAssignment(ctx, &accessv1.DeleteScopedRoleAssignmentRequest{
+		Name: assignment.Metadata.Name,
+	})
+	require.NoError(t, err)
+
+	event = getNextEvent()
+	require.Equal(t, types.OpDelete, event.Type)
+
+	require.Empty(t, cmp.Diff(&types.ResourceHeader{
+		Kind: scopedrole.KindScopedRoleAssignment,
+		Metadata: types.Metadata{
+			Name: assignment.Metadata.Name,
+		},
+	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
 }
 
 func TestKubeKeepAliveServer(t *testing.T) {

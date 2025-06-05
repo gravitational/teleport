@@ -72,12 +72,12 @@
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.6",
-    "@codemirror/lang-sql": "^6.8.0",
+    "@codemirror/lang-sql": "^6.9.0",
     "@codemirror/view": "^6.36.7",
     "@floating-ui/react": "^0.27.8",
-    "@grpc/grpc-js": "1.13.3",
+    "@grpc/grpc-js": "1.13.4",
     "@lezer/highlight": "^1.2.1",
-    "@nivo/bar": "^0.93.0",
+    "@nivo/bar": "^0.99.0",
     "@protobuf-ts/runtime": "^2.10.0",
     "@protobuf-ts/runtime-rpc": "^2.10.0",
     "@tanstack/react-query": "^5.75.4",
@@ -108,7 +108,7 @@
       "web/.storybook/public"
     ]
   },
-  "packageManager": "pnpm@10.10.0+sha512.d615db246fe70f25dcfea6d8d73dee782ce23e2245e3c4f6f888249fb568149318637dca73c2c5c8ef2a4ca0d5657fb9567188bfab47f566d1ee6ce987815c39",
+  "packageManager": "pnpm@10.11.0+sha512.6540583f41cc5f628eb3d9773ecee802f4f9ef9923cc45b69890fb47991d4b092964694ec3a4f738a420c918a333062c8b925d312f42e4f0c263eb603551f977",
   "engines": {
     "node": "^22"
   }

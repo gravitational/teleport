@@ -22,6 +22,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -34,6 +35,16 @@ type sshConn struct {
 	reqs  <-chan *ssh.Request
 }
 
+// Close closes the connection and drains all channels.
+func (c *sshConn) Close() error {
+	err := trace.Wrap(c.conn.Close())
+	go ssh.DiscardRequests(c.reqs)
+	for newChan := range c.chans {
+		newChan.Reject(0, "")
+	}
+	return err
+}
+
 // proxySSHConnection transparently proxies SSH channels and requests
 // between 2 established SSH connections. serverConn represents an incoming SSH
 // connection where this proxy acts as a server, client represents an outgoing
@@ -44,8 +55,8 @@ func proxySSHConnection(
 	clientConn sshConn,
 ) {
 	closeConnections := sync.OnceFunc(func() {
-		clientConn.conn.Close()
-		serverConn.conn.Close()
+		clientConn.Close()
+		serverConn.Close()
 	})
 	// Close both connections if the context is canceled.
 	stop := context.AfterFunc(ctx, closeConnections)
