@@ -21,6 +21,8 @@ import styled from 'styled-components';
 import {
   alignItems,
   AlignItemsProps,
+  boxShadow,
+  BoxShadowProps,
   columnGap,
   ColumnGapProps,
   flexBasis,
@@ -46,6 +48,7 @@ interface FlexProps
     FlexWrapProps,
     FlexDirectionProps,
     FlexBasisProps,
+    BoxShadowProps,
     RowGapProps,
     ColumnGapProps,
     GapProps {
@@ -64,9 +67,10 @@ const Flex = styled(Box)<FlexProps>`
   ${flexWrap}
   ${flexBasis}
   ${flexDirection}
-  ${rowGap};
-  ${columnGap};
-  ${gap};
+  ${boxShadow}
+  ${rowGap}
+  ${columnGap}
+  ${gap}
 
   ${props =>
     props.fullWidth &&
