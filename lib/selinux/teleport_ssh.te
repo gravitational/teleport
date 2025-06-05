@@ -313,9 +313,6 @@ allow rshell_t shell_exec_t:file { exec_file_perms entrypoint };
 
 ###
 
-# TODO: remove and rework this?
-allow rshell_t teleport_ssh_exec_t:file entrypoint;
-
 allow rshell_t devpts_t:chr_file rw_chr_file_perms;
 allow rshell_t teleport_ssh_t:fifo_file read_fifo_file_perms;
 
@@ -336,6 +333,6 @@ allow rshell_t user_home_dir_t:lnk_file manage_lnk_file_perms;
 allow rshell_t cache_home_t:dir manage_dir_perms;
 allow rshell_t config_home_t:dir manage_dir_perms;
 allow rshell_t mail_spool_t:dir search_dir_perms;
-allow rshell_t proc_t:dir search_dir_perms;
+allow rshell_t proc_t:dir list_dir_perms;
 allow rshell_t user_home_t:dir manage_dir_perms;
 allow rshell_t user_home_dir_t:dir manage_dir_perms;
