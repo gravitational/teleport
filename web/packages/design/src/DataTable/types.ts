@@ -93,7 +93,7 @@ export type TableProps<T> = {
 };
 
 type TableColumnBase<T> = {
-  headerText?: string;
+  headerText?: string | JSX.Element;
   render?: (row: T) => JSX.Element;
   isSortable?: boolean;
   onSort?: (a: T, b: T) => number;
