@@ -8,7 +8,7 @@ This patch includes some security fixes.
 These issues are present in previous v16 releases.
 Impacted users are recommended to upgrade their auth and proxy servers to the latest version.
 
-#### [High]
+#### [High] Short to long term access escalation in Okta integration
 
 * Enterprise fix: Verify required Okta OAuth scopes during plugin creation/update.
 
