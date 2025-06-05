@@ -66,6 +66,7 @@
     "Exadata",
     "Exfiltrate",
     "Exrch",
+    "fcontext",
     "FGHIJ",
     "FIPS",
     "FLUSHALL",
@@ -1069,7 +1070,9 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"],
+  "flagWords": [
+    "hte"
+  ],
   "ignorePaths": [
     "**/reference/terraform-provider/**",
     "**/reference/operator-resources/**",

@@ -10,7 +10,7 @@ more Teleport features, and integration with Teleport Managed Updates.
 
 </Admonition>
 
-The Teleport SSH SELinux module builds on SELinux by confining the Teleport SSH Service. It ensures that Teleport SSH processes can only perform explicitly allowed operations, reducing the attack surface and preventing unauthorized actions even if the Teleport binary were compromised.
+The Teleport SSH SELinux module allows SELinux to confine the Teleport SSH Service. It ensures that Teleport SSH processes can only perform explicitly allowed operations, reducing the attack surface and preventing unauthorized actions even if the Teleport binary were compromised.
 
 ## Supported features
 
@@ -98,7 +98,11 @@ If you copy or move the binary the label will need to be updated. You simply re-
 $ sudo semanage fcontext -a -t teleport_ssh_exec_t /path/to/teleport
 ```
 
+<Admonition type="note">
+
 Teleport will probably not run under the correct `teleport_ssh_t` domain and not be enforced by SELinux unless it is running as a systemd service. For more information on SELinux domains refer to the Red Hat article [Getting started with SELinux](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/using_selinux/getting-started-with-selinux_using-selinux).
+
+</Admonition>
 
 The optional `--ensure-selinux-enforcing` flag causes Teleport to exit with an error if:
 
