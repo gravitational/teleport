@@ -18,18 +18,18 @@ This vulnerability affects Okta integration users who have access lists sync ena
 
 #### [Medium] Unsanitized user input affecting PKINIT (Kerberos)
 
-* Fix the impact of malicious `--db-user` values on PKINIT flow. [#55143](https://github.com/gravitational/teleport/pull/55143)
+* Fixed the impact of malicious `--db-user` values on PKINIT flow. [#55143](https://github.com/gravitational/teleport/pull/55143)
 
 This vulnerability affects users who authenticate to SQL Server and Oracle with Kerberos using the PKINIT flow.
 
 ### Other fixes and improvements
 
-* Prevent unknown resource kinds from rendering errors in the web UI. [#55210](https://github.com/gravitational/teleport/pull/55210)
-* Fixed formatting of the `cache_component` label for the Prometheus metrics `teleport_cache_health` and `teleport_cache_last_reset_seconds`. [#55192](https://github.com/gravitational/teleport/pull/55192)
+* Fixed unknown resource kinds from rendering errors in the web UI. [#55210](https://github.com/gravitational/teleport/pull/55210)
+* Fixed the formatting of the `cache_component` label for the Prometheus metrics `teleport_cache_health` and `teleport_cache_last_reset_seconds`. [#55192](https://github.com/gravitational/teleport/pull/55192)
 * Fixed `tctl` rendering of timestamps in BotInstance resource YAML. [#55164](https://github.com/gravitational/teleport/pull/55164)
-* Fix an issue with Hardware Key Support on Windows where a command would fail if the PIN prompt was not answered within 5 seconds. [#55109](https://github.com/gravitational/teleport/pull/55109)
-* Fix an issue "Allowed Users" from "tsh db ls" may include irrelevant entities. [#55069](https://github.com/gravitational/teleport/pull/55069)
-* Fix an issue database discovery fails when there are more than 5 OpenSearch domains. [#55059](https://github.com/gravitational/teleport/pull/55059)
+* Fixed an issue with Hardware Key Support on Windows where a command would fail if the PIN prompt was not answered within 5 seconds. [#55109](https://github.com/gravitational/teleport/pull/55109)
+* Fixed an issue where the "Allowed Users" field from "tsh db ls" may include irrelevant entities. [#55069](https://github.com/gravitational/teleport/pull/55069)
+* Fixed database discovery failing when there are more than 5 OpenSearch domains. [#55059](https://github.com/gravitational/teleport/pull/55059)
 
 ## 16.5.10 (05/22/25)
 
