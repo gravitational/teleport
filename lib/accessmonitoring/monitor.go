@@ -70,9 +70,12 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Logger == nil {
 		c.Logger = slog.Default()
 	}
-	if c.Backend == nil {
-		return trace.BadParameter("backend: must be non-nil")
-	}
+	// TODO: Delete backend?
+	/*
+		if c.Backend == nil {
+			return trace.BadParameter("backend: must be non-nil")
+		}
+	*/
 	if c.Events == nil {
 		return trace.BadParameter("events: must be non-nil")
 	}

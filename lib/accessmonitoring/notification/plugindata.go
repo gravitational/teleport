@@ -9,40 +9,40 @@ import (
 )
 
 type SentMessage interface {
-	ID() string
+	ID() MessageID
 }
 
 type SentReview interface {
-	ID() string
+	ID() ReviewID
 }
 
-type Message struct {
-	SentMessage SentMessage
-	Reviews     map[ReviewID]SentReview
+type Message[M SentMessage, R SentReview] struct {
+	SentMessage M
+	Reviews     map[string]R
 }
 
-type Notification struct {
+type Notification[M SentMessage, R SentReview] struct {
 	// ID specifies the notification ID.
 	ID string
 	// AccessRequestData contains Access Request data associated with this notification.
 	AccessRequestData plugindata.AccessRequestData
 
 	// RequesterRecipient specifies the requester recipient.
-	RequesterRecipient common.Recipient
+	RequesterRecipient *common.Recipient
 	// ReviewerRecipients contains the list of recipients to notify.
 	ReviewerRecipients []common.Recipient
 
 	// RequesterMessage specifies the requester message and reviews.
-	RequesterMessage Message
+	RequesterMessage *Message[M, R]
 	// SentMessages contains a map of messages and reviews.
-	ReviewerMessages map[MessageID]Message
+	ReviewerMessages map[MessageID]Message[M, R]
 }
 
-type MessageID any
-type ReviewID any
+type MessageID string
+type ReviewID string
 
 // DecodeNotification deserializes a string map to Notification struct.
-func DecodeNotification(data map[string]string) (notification Notification, err error) {
+func DecodeNotification[M SentMessage, R SentReview](data map[string]string) (notification Notification[M, R], err error) {
 	notification.AccessRequestData, err = plugindata.DecodeAccessRequestData(data)
 	if err != nil {
 		return notification, trace.Wrap(err)
@@ -50,52 +50,68 @@ func DecodeNotification(data map[string]string) (notification Notification, err 
 
 	notification.ID = data["id"]
 
-	if err := json.Unmarshal([]byte(data["requester_recipient"]), &notification.RequesterRecipient); err != nil {
-		return Notification{}, trace.Wrap(err)
+	if data["requester_recipient"] != "" {
+		if err := json.Unmarshal([]byte(data["requester_recipient"]), &notification.RequesterRecipient); err != nil {
+			return Notification[M, R]{}, trace.Wrap(err)
+		}
 	}
-	if err := json.Unmarshal([]byte(data["reviewer_recipients"]), &notification.ReviewerRecipients); err != nil {
-		return Notification{}, trace.Wrap(err)
+	if data["reviewer_recipients"] != "" {
+		if err := json.Unmarshal([]byte(data["reviewer_recipients"]), &notification.ReviewerRecipients); err != nil {
+			return Notification[M, R]{}, trace.Wrap(err)
+		}
 	}
-	if err := json.Unmarshal([]byte(data["requester_message"]), &notification.RequesterMessage); err != nil {
-		return Notification{}, trace.Wrap(err)
+	if data["requester_message"] != "" {
+		if err := json.Unmarshal([]byte(data["requester_message"]), &notification.RequesterMessage); err != nil {
+			return Notification[M, R]{}, trace.Wrap(err)
+		}
 	}
-	if err := json.Unmarshal([]byte(data["reviewer_messages"]), &notification.ReviewerMessages); err != nil {
-		return Notification{}, trace.Wrap(err)
+	if data["reviewer_messages"] != "" {
+		if err := json.Unmarshal([]byte(data["reviewer_messages"]), &notification.ReviewerMessages); err != nil {
+			return Notification[M, R]{}, trace.Wrap(err)
+		}
 	}
 
-	return notification, trace.NotImplemented("not implemented")
+	return notification, nil
 }
 
-func EncodeNotification(notification Notification) (map[string]string, error) {
+func EncodeNotification[M SentMessage, R SentReview](notification Notification[M, R]) (map[string]string, error) {
 	result, err := plugindata.EncodeAccessRequestData(notification.AccessRequestData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	result["id"] = notification.ID
 
-	bytes, err := json.Marshal(notification.RequesterRecipient)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if notification.RequesterRecipient != nil {
+		bytes, err := json.Marshal(notification.RequesterRecipient)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result["requester_recipient"] = string(bytes)
 	}
-	result["requester_recipient"] = string(bytes)
 
-	bytes, err = json.Marshal(notification.ReviewerRecipients)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if len(notification.ReviewerRecipients) > 0 {
+		bytes, err := json.Marshal(notification.ReviewerRecipients)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result["reviewer_recipients"] = string(bytes)
 	}
-	result["reviewer_recipients"] = string(bytes)
 
-	bytes, err = json.Marshal(notification.RequesterMessage)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if notification.RequesterMessage != nil {
+		bytes, err := json.Marshal(notification.RequesterMessage)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result["requester_message"] = string(bytes)
 	}
-	result["requester_message"] = string(bytes)
 
-	bytes, err = json.Marshal(notification.ReviewerMessages)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if len(notification.ReviewerMessages) > 0 {
+		bytes, err := json.Marshal(notification.ReviewerMessages)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result["reviewer_messages"] = string(bytes)
 	}
-	result["reviewer_messages"] = string(bytes)
 
 	return result, nil
 }

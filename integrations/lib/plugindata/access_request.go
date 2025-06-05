@@ -38,8 +38,33 @@ const (
 	ResolvedPromoted = ResolutionTag("PROMOTED")
 )
 
+func (t ResolutionTag) String() string {
+	if t == Unresolved {
+		return "PENDING"
+	}
+	return string(t)
+}
+
+func (t ResolutionTag) Emoji() string {
+	switch t {
+	case Unresolved:
+		return "⏳"
+	case ResolvedApproved:
+		return "✅"
+	case ResolvedDenied:
+		return "❌"
+	case ResolvedExpired:
+		return "⌛"
+	case ResolvedPromoted:
+		return "🎖️"
+	default:
+		return "❓"
+	}
+}
+
 // AccessRequestData represents generic plugin data required for access request processing
 type AccessRequestData struct {
+	ID                 string
 	User               string
 	Roles              []string
 	RequestReason      string

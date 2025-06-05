@@ -261,6 +261,7 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 	}
 
 	reqData := pd.AccessRequestData{
+		ID:                req.GetName(),
 		User:              req.GetUser(),
 		Roles:             req.GetRoles(),
 		RequestReason:     req.GetRequestReason(),

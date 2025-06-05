@@ -52,22 +52,22 @@ type Client interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
 
-type Bot interface {
+type Bot[M SentMessage, R SentReview] interface {
 	CheckHealth(ctx context.Context) error
 	FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error)
 
-	NotifyApprover(ctx context.Context, recipient common.Recipient, reqData pd.AccessRequestData) (data SentMessage, err error)
-	NotifyRequestor(ctx context.Context, recipient common.Recipient, reqData pd.AccessRequestData) (data SentMessage, err error)
+	NotifyApprover(ctx context.Context, recipient common.Recipient, reqData pd.AccessRequestData) (data M, err error)
+	NotifyRequestor(ctx context.Context, recipient common.Recipient, reqData pd.AccessRequestData) (data M, err error)
 
-	PostReview(ctx context.Context, originalMessage SentMessage, review types.AccessReview) (SentReview, error)
-	UpdateMessage(ctx context.Context, originalMessage SentMessage, reviews []types.AccessReview, reqData pd.AccessRequestData, canReview bool) error
+	PostReview(ctx context.Context, originalMessage M, review types.AccessReview) (R, error)
+	UpdateMessage(ctx context.Context, originalMessage M, reviews []types.AccessReview, reqData pd.AccessRequestData, canReview bool) error
 
 	// NotifyApproverResolved(ctx context.Context, message SentMessage, reqData pd.AccessRequestData) (data SentMessage, err error)
 	// NotifyReviewerResolved(ctx context.Context, message SentMessage, reqData pd.AccessRequestData) (data SentMessage, err error)
 }
 
 // Config specifies access review handler configuration.
-type Config struct {
+type Config[M SentMessage, R SentReview] struct {
 	// Logger is the logger for the handler.
 	Logger *slog.Logger
 
@@ -78,7 +78,7 @@ type Config struct {
 	Client Client
 
 	// Bot is the messaging service client interface.
-	Bot Bot
+	Bot Bot[M, R]
 
 	// Cache is the access monitoring rules cache.
 	Cache *accessmonitoring.Cache
@@ -87,7 +87,7 @@ type Config struct {
 }
 
 // CheckAndSetDefaults checks and sets default configuration.
-func (cfg *Config) CheckAndSetDefaults() error {
+func (cfg *Config[M, R]) CheckAndSetDefaults() error {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
@@ -104,15 +104,15 @@ func (cfg *Config) CheckAndSetDefaults() error {
 }
 
 // Handler handles automatic reviews of access requests.
-type Handler struct {
-	Config
+type Handler[M SentMessage, R SentReview] struct {
+	Config[M, R]
 
 	rules         *accessmonitoring.Cache
-	notifications *pd.CompareAndSwap[Notification]
+	notifications *pd.CompareAndSwap[Notification[M, R]]
 }
 
 // NewHandler returns a new access review handler.
-func NewHandler(cfg Config) (*Handler, error) {
+func NewHandler[M SentMessage, R SentReview](cfg Config[M, R]) (*Handler[M, R], error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,11 +121,11 @@ func NewHandler(cfg Config) (*Handler, error) {
 		cfg.Client,
 		cfg.HandlerName,
 		types.KindAccessRequest,
-		EncodeNotification,
-		DecodeNotification,
+		EncodeNotification[M, R],
+		DecodeNotification[M, R],
 	)
 
-	return &Handler{
+	return &Handler[M, R]{
 		Config:        cfg,
 		rules:         cfg.Cache,
 		notifications: notifications,
@@ -133,7 +133,7 @@ func NewHandler(cfg Config) (*Handler, error) {
 }
 
 // initialize the access monitoring rules cache.
-func (handler *Handler) initialize(ctx context.Context) error {
+func (handler *Handler[M, R]) initialize(ctx context.Context) error {
 	err := handler.rules.Initialize(ctx, func(ctx context.Context, pageSize int64, pageToken string) (
 		[]*accessmonitoringrulesv1.AccessMonitoringRule,
 		string,
@@ -162,7 +162,7 @@ func (handler *Handler) initialize(ctx context.Context) error {
 }
 
 // HandleAccessMonitoringRule handles access monitoring rule events.
-func (handler *Handler) HandleAccessMonitoringRule(ctx context.Context, event types.Event) error {
+func (handler *Handler[M, R]) HandleAccessMonitoringRule(ctx context.Context, event types.Event) error {
 	switch event.Type {
 	case types.OpInit:
 		if err := handler.initialize(ctx); err != nil {
@@ -190,7 +190,7 @@ func (handler *Handler) HandleAccessMonitoringRule(ctx context.Context, event ty
 }
 
 // ruleApplies returns true if the rule applies to this handler.
-func (handler *Handler) ruleApplies(rule *accessmonitoringrulesv1.AccessMonitoringRule) bool {
+func (handler *Handler[M, R]) ruleApplies(rule *accessmonitoringrulesv1.AccessMonitoringRule) bool {
 	if rule.GetSpec().GetNotification().GetName() != handler.HandlerName {
 		return false
 	}
@@ -198,7 +198,7 @@ func (handler *Handler) ruleApplies(rule *accessmonitoringrulesv1.AccessMonitori
 }
 
 // HandleAccessRequest handles access request events.
-func (handler *Handler) HandleAccessRequest(ctx context.Context, event types.Event) error {
+func (handler *Handler[M, R]) HandleAccessRequest(ctx context.Context, event types.Event) error {
 	switch event.Type {
 	case types.OpPut:
 		req, ok := event.Resource.(types.AccessRequest)
@@ -226,7 +226,7 @@ func (handler *Handler) HandleAccessRequest(ctx context.Context, event types.Eve
 	}
 }
 
-func (handler *Handler) handleRequest(ctx context.Context, req types.AccessRequest) error {
+func (handler *Handler[M, R]) handleRequest(ctx context.Context, req types.AccessRequest) error {
 	notification, err := handler.newNotification(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -261,7 +261,7 @@ func (handler *Handler) handleRequest(ctx context.Context, req types.AccessReque
 	return trace.Wrap(err)
 }
 
-func (handler *Handler) getRecipients(ctx context.Context, req types.AccessRequest) ([]common.Recipient, error) {
+func (handler *Handler[M, R]) getRecipients(ctx context.Context, req types.AccessRequest) ([]common.Recipient, error) {
 	recipientSet := common.NewRecipientSet()
 
 	// Fetch reviewer recipients from Access Monitoring Rules
@@ -312,24 +312,24 @@ func (handler *Handler) getRecipients(ctx context.Context, req types.AccessReque
 	return recipientSet.ToSlice(), nil
 }
 
-func (handler *Handler) newNotification(ctx context.Context, req types.AccessRequest) (Notification, error) {
+func (handler *Handler[M, R]) newNotification(ctx context.Context, req types.AccessRequest) (Notification[M, R], error) {
 	reviewerRecipients, err := handler.getRecipients(ctx, req)
 	if err != nil {
-		return Notification{}, trace.Wrap(err)
+		return Notification[M, R]{}, trace.Wrap(err)
 	}
 	resourceNames, err := handler.getResourceNames(ctx, req)
 	if err != nil {
-		return Notification{}, trace.Wrap(err)
+		return Notification[M, R]{}, trace.Wrap(err)
 	}
 
 	loginsByRole, err := handler.getLoginsByRole(ctx, req)
 	if trace.IsAccessDenied(err) {
 		handler.Logger.WarnContext(ctx, "Missing permissions to get logins by role, please add role.read to the associated role", "error", err)
 	} else if err != nil {
-		return Notification{}, trace.Wrap(err)
+		return Notification[M, R]{}, trace.Wrap(err)
 	}
 
-	notification := Notification{
+	notification := Notification[M, R]{
 		ID:                 req.GetName(),
 		ReviewerRecipients: reviewerRecipients,
 		AccessRequestData: pd.AccessRequestData{
@@ -340,20 +340,20 @@ func (handler *Handler) newNotification(ctx context.Context, req types.AccessReq
 			Resources:         resourceNames,
 			LoginsByRole:      loginsByRole,
 		},
-		ReviewerMessages: make(map[MessageID]Message),
+		ReviewerMessages: make(map[MessageID]Message[M, R]),
 	}
 
 	recipient, err := handler.Bot.FetchRecipient(ctx, req.GetUser())
 	if err != nil {
 		handler.Logger.WarnContext(ctx, "Failed to fetch requester recipient", "error", err)
 	} else {
-		notification.RequesterRecipient = *recipient
+		notification.RequesterRecipient = recipient
 	}
 
 	return notification, nil
 }
 
-func (handler *Handler) createNotification(ctx context.Context, notification Notification) (Notification, error) {
+func (handler *Handler[M, R]) createNotification(ctx context.Context, notification Notification[M, R]) (Notification[M, R], error) {
 	notification, err := handler.notifications.Create(ctx, notification.ID, notification)
 	switch {
 	case trace.IsAlreadyExists(err):
@@ -361,7 +361,7 @@ func (handler *Handler) createNotification(ctx context.Context, notification Not
 		return notification, nil
 	case err != nil:
 		// This is an unexpected error, returning
-		return Notification{}, trace.Wrap(err)
+		return Notification[M, R]{}, trace.Wrap(err)
 	default:
 		for _, recipient := range notification.ReviewerRecipients {
 			sent, err := handler.Bot.NotifyApprover(ctx, recipient, notification.AccessRequestData)
@@ -370,25 +370,26 @@ func (handler *Handler) createNotification(ctx context.Context, notification Not
 				continue
 			}
 			handler.Logger.InfoContext(ctx, "Successfully posted messages", "message_id", sent.ID())
-			notification.ReviewerMessages[sent.ID()] = Message{
+			notification.ReviewerMessages[sent.ID()] = Message[M, R]{
 				SentMessage: sent,
-				Reviews:     make(map[ReviewID]SentReview),
+				Reviews:     make(map[string]R),
 			}
 		}
 
-		sent, err := handler.Bot.NotifyRequestor(ctx, notification.RequesterRecipient, notification.AccessRequestData)
+		// TODO: make sure we don't dereference a nil pointer
+		sent, err := handler.Bot.NotifyRequestor(ctx, *notification.RequesterRecipient, notification.AccessRequestData)
 		if err != nil {
 			handler.Logger.ErrorContext(ctx, "Failed to post message", "error", err, "recipient", notification.RequesterRecipient)
 		} else {
 			handler.Logger.InfoContext(ctx, "Successfully posted messages", "message_id", sent.ID())
-			notification.RequesterMessage = Message{
+			notification.RequesterMessage = &Message[M, R]{
 				SentMessage: sent,
-				Reviews:     make(map[ReviewID]SentReview),
+				Reviews:     make(map[string]R),
 			}
 		}
 
 		// Update plugin data with sent messages
-		notification, err = handler.notifications.Update(ctx, notification.ID, func(existing Notification) (Notification, error) {
+		notification, err = handler.notifications.Update(ctx, notification.ID, func(existing Notification[M, R]) (Notification[M, R], error) {
 			existing.ReviewerMessages = notification.ReviewerMessages
 			existing.RequesterMessage = notification.RequesterMessage
 			return existing, nil
@@ -397,7 +398,7 @@ func (handler *Handler) createNotification(ctx context.Context, notification Not
 	}
 }
 
-func (handler *Handler) updateNotification(
+func (handler *Handler[M, R]) updateNotification(
 	ctx context.Context,
 	// req types.AccessRequest,
 	notificationID string,
@@ -405,10 +406,10 @@ func (handler *Handler) updateNotification(
 	reason string,
 	reviews []types.AccessReview,
 ) error {
-	notification, err := handler.notifications.Update(ctx, notificationID, func(existing Notification) (Notification, error) {
+	notification, err := handler.notifications.Update(ctx, notificationID, func(existing Notification[M, R]) (Notification[M, R], error) {
 		// If resolution field is not empty then we already resolved the incident before. In this case we just quit.
 		if existing.AccessRequestData.ResolutionTag != pd.Unresolved {
-			return Notification{}, trace.AlreadyExists("request is already resolved")
+			return Notification[M, R]{}, trace.AlreadyExists("request is already resolved")
 		}
 
 		// Mark plugin data as resolved.
@@ -434,7 +435,7 @@ func (handler *Handler) updateNotification(
 				handler.Logger.WarnContext(ctx, "Failed to post review", "error", err)
 				continue
 			}
-			message.Reviews[sentReview.ID()] = sentReview
+			message.Reviews[review.Author] = sentReview
 		}
 		notification.ReviewerMessages[message.SentMessage.ID()] = message
 
@@ -457,7 +458,7 @@ func (handler *Handler) updateNotification(
 			handler.Logger.WarnContext(ctx, "Failed to post review", "error", err)
 			continue
 		}
-		message.Reviews[sentReview.ID()] = sentReview
+		message.Reviews[review.Author] = sentReview
 	}
 	notification.RequesterMessage = message
 
@@ -466,7 +467,7 @@ func (handler *Handler) updateNotification(
 		handler.Logger.WarnContext(ctx, "Failed to update message", "error", err)
 	}
 
-	_, err = handler.notifications.Update(ctx, notification.ID, func(existing Notification) (Notification, error) {
+	_, err = handler.notifications.Update(ctx, notification.ID, func(existing Notification[M, R]) (Notification[M, R], error) {
 		existing.ReviewerMessages = notification.ReviewerMessages
 		existing.RequesterMessage = notification.RequesterMessage
 		return existing, nil
@@ -474,7 +475,7 @@ func (handler *Handler) updateNotification(
 	return trace.Wrap(err)
 }
 
-func (handler *Handler) getUserTraits(ctx context.Context, userName string) map[string][]string {
+func (handler *Handler[M, R]) getUserTraits(ctx context.Context, userName string) map[string][]string {
 	log := logger.Get(ctx)
 	const withSecretsFalse = false
 	user, err := handler.Client.GetUser(ctx, userName, withSecretsFalse)
@@ -490,7 +491,7 @@ func (handler *Handler) getUserTraits(ctx context.Context, userName string) map[
 
 // getMatchingRules returns the list access monitoring rules that match the
 // given access request environment.
-func (handler *Handler) getMatchingRules(
+func (handler *Handler[M, R]) getMatchingRules(
 	ctx context.Context,
 	env accessmonitoring.AccessRequestExpressionEnv,
 ) []*accessmonitoringrulesv1.AccessMonitoringRule {
@@ -513,7 +514,7 @@ func (handler *Handler) getMatchingRules(
 	return rules
 }
 
-func (handler *Handler) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map[string][]string, error) {
+func (handler *Handler[M, R]) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map[string][]string, error) {
 	loginsByRole := make(map[string][]string, len(req.GetRoles()))
 
 	user, err := handler.Client.GetUser(ctx, req.GetUser(), false)
@@ -546,7 +547,7 @@ func (handler *Handler) getLoginsByRole(ctx context.Context, req types.AccessReq
 	return loginsByRole, nil
 }
 
-func (handler *Handler) getResourceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {
+func (handler *Handler[M, R]) getResourceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {
 	resourceNames := make([]string, 0, len(req.GetRequestedResourceIDs()))
 	resourcesByCluster := accessrequest.GetResourceIDsByCluster(req)
 

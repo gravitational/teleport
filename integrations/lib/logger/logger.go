@@ -53,7 +53,7 @@ func Init() {
 	})
 }
 
-func Setup(conf Config) error {
+func Setup(conf Config) (*slog.Logger, error) {
 	var enableColors bool
 	switch conf.Output {
 	case "stderr", "error", "2":
@@ -63,7 +63,7 @@ func Setup(conf Config) error {
 	default:
 	}
 
-	_, _, err := logutils.Initialize(logutils.Config{
+	log, _, err := logutils.Initialize(logutils.Config{
 		Output:       conf.Output,
 		Severity:     conf.Severity,
 		Format:       conf.Format,
@@ -71,7 +71,7 @@ func Setup(conf Config) error {
 		EnableColors: enableColors,
 		Padding:      1,
 	})
-	return trace.Wrap(err)
+	return log, trace.Wrap(err)
 }
 
 func WithLogger(ctx context.Context, logger *slog.Logger) context.Context {
