@@ -33,10 +33,11 @@ type platformOSConfigState struct {
 	broughtUpInterface   bool
 }
 
-// platformConfigureOS configures the host OS according to cfg. It is safe to
-// call repeatedly, and it is meant to be called with an empty osConfig to
-// deconfigure anything necessary before exiting.
+// platformConfigureOS configures the host OS according to cfg.
 func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSConfigState) error {
+	// TODO: we should probably use proper APIs (dbus?) to set up IPs, routes,
+	// DNS etc and add checks that the host is actually using systemd-resolved
+	// before trying to run or supporting other DNS setups.
 	if cfg.tunIPv6 != "" && !state.configuredIPv6 {
 		log.InfoContext(ctx, "Setting IPv6 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv6)
 		addrWithPrefix := cfg.tunIPv6 + "/64"
