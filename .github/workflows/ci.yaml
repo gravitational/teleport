@@ -1,0 +1,155 @@
+name: CI
+run-name: CI - ${{ github.run_id }} - @${{ github.actor }}
+on:
+  pull_request:
+  merge_group:
+
+jobs:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      has_docs: ${{ steps.changes.outputs.has_docs }}
+      has_go: ${{ steps.changes.outputs.has_go }}
+      has_rust: ${{ steps.changes.outputs.has_rust }}
+      has_proto: ${{ steps.changes.outputs.has_proto }}
+      has_rfd: ${{ steps.changes.outputs.has_rfd }}
+      has_ui: ${{ steps.changes.outputs.has_ui }}
+      has_helm: ${{ steps.changes.outputs.has_helm }}
+      has_integrations: ${{ steps.changes.outputs.has_integrations }}
+      has_api: ${{ steps.changes.outputs.has_api }}
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'merge_group' }}
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            has_integrations:
+              - '.github/workflows/ci.yaml'
+              - 'go.mod'
+              - 'go.sum'
+              - 'integrations/**'
+              - 'api/proto/**'
+              - 'proto/**'
+              - 'api/types/**'
+              - 'gen/**'
+              - 'lib/tbot/**'
+              - 'Makefile'
+              - 'build.assets/Makefile'
+              - 'build.assets/Dockerfile*'
+            has_helm:
+              - '.github/workflows/ci.yaml'
+              - 'examples/chart/**'
+              - 'Makefile'
+              - 'docs/pages/reference/helm-reference/*'
+            has_api:
+              - '.github/workflows/ci.yaml'
+              - 'api/**/*.go'
+              - 'api/go.mod'
+              - 'api/go.sum'
+              - 'go.mod'
+              - 'go.sum'
+            has_docs:
+              - '.github/workflows/ci.yaml'
+              - 'CHANGELOG.md'
+              - 'docs/**'
+              - 'examples/**'
+            has_ui:
+              - '.github/workflows/ci.yaml'
+              - 'web/**'
+              - 'gen/proto/js/**'
+              - 'gen/proto/ts/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'tsconfig.json'
+              - 'tsconfig.node.json'
+              - 'jest.config.js'
+            has_rfd:
+              - '.github/workflows/ci.yaml'
+              - '.github/workflows/lint-rfd.yaml'
+              - 'rfd/**.md'
+              - 'rfd/cspell.json'
+            has_go:
+              - '.github/workflows/ci.yaml'
+              - '.github/workflows/lint-go.yaml'
+              - '**.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'build.assets/Makefile'
+              - 'build.assets/Dockerfile*'
+              - 'Makefile'
+              - '.golangci.yml'
+            has_rust:
+              - '.github/workflows/ci.yaml'
+              - '.github/workflows/lint-rust.yaml'
+              - '**.rs'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'build.assets/Makefile'
+              - 'build.assets/Dockerfile*'
+              - 'build.assets/versions.mk'
+              - 'Makefile'
+            has_proto:
+              - '.github/workflows/ci.yaml'
+              - '.github/workflows/lint-proto.yaml'
+              # proto files or buf changes
+              - 'go.mod'
+              - 'go.sum'
+              - 'api/proto/**'
+              - 'proto/**'
+              # operator protoc generator change
+              - 'integrations/operator/crdgen'
+              # terraform protoc generator changes
+              - 'integrations/terraform/go.mod'
+              - 'integrations/terraform/gen/docs.sh'
+              - 'integrations/terraform/protoc-gen-terraform-*'
+              - 'integrations/terraform/Makefile'
+              - 'integrations/terraform/examples/**'
+              - 'integrations/terraform/templates/**'
+              - 'integrations/terraform/provider/**'
+              # rendered doc changes
+              - 'docs/pages/admin-guides/**'
+              - 'docs/pages/enroll-resources/**'
+              - 'docs/pages/reference/operator-resources/**'
+              - 'docs/pages/reference/terraform-provider/**'
+              - 'examples/chart/teleport-cluster/charts/teleport-operator/operator-crds'
+
+  lint-go:
+    name: Lint (Go)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_go == 'true' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/lint-go.yaml
+
+  lint-rust:
+    name: Lint (Rust)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_rust == 'true' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/lint-rust.yaml
+
+  lint-proto:
+    name: Lint (Proto)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_proto == 'true' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/lint-proto.yaml
+
+  lint-rfd:
+    name: Lint (RFD)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_rfd == 'true' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/lint-rfd.yaml

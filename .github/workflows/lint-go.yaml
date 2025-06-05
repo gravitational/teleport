@@ -1,0 +1,87 @@
+name: Lint (Go)
+on:
+  workflow_call:
+env:
+  GOFLAGS: '-buildvcs=false'
+
+jobs:
+  lint-go:
+    name: Lint (Go)
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for untidy go modules
+        shell: bash
+        run: |
+          find . -path ./e -prune -o -name go.mod -print | while read f; do
+            echo "checking $f"
+            pushd $(dirname "$f") > /dev/null;
+            go mod tidy -diff || (echo "Run 'make go-mod-tidy-all' to resolve" && exit 1);
+            popd > /dev/null;
+          done
+
+      - name: Set linter versions
+        run: |
+          echo GOLANGCI_LINT_VERSION=$(cd build.assets; make print-golangci-lint-version) >> $GITHUB_ENV
+
+      - name: Print linter versions
+        run: |
+          echo "GOLANGCI_LINT_VERSION=$GOLANGCI_LINT_VERSION"
+
+      # Run various golangci-lint checks.
+      # TODO(codingllama): Using go.work could save a bunch of repetition here.
+      - name: golangci-lint (api)
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: api
+          skip-cache: true
+      - name: golangci-lint (teleport)
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: --build-tags libfido2,piv
+          skip-cache: true
+      - name: golangci-lint (assets/backport)
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: assets/backport
+          skip-cache: true
+      - name: golangci-lint (build.assets/tooling)
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: build.assets/tooling
+          skip-cache: true
+      - name: golangci-lint (integrations/terraform)
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: integrations/terraform
+          skip-cache: true
+      - name: golangci-lint (integrations/event-handler)
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: integrations/event-handler
+          skip-cache: true
+
+      - name: Run (non-action) linters
+        run: make lint-no-actions
+
+      - name: Check if derived functions are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make derive-up-to-date
+
+      - name: Check if go generated files are up to date
+        run: make go-generate-up-to-date
