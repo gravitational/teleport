@@ -27,6 +27,7 @@ import {
   MenuLogin,
 } from 'shared/components/MenuLogin';
 import { MenuLoginWithActionMenu } from 'shared/components/MenuLoginWithActionMenu';
+import { AppSubKind } from 'shared/services';
 import { AwsRole } from 'shared/services/apps';
 
 import { MCPAppConnectDialog } from 'teleport/Apps/MCPAppConnectDialog';
@@ -40,7 +41,7 @@ import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
 import { openNewTab } from 'teleport/lib/util';
 import { useSamlAppAction } from 'teleport/SamlApplications/useSamlAppActions';
 import { UnifiedResource } from 'teleport/services/agents';
-import { App, AppSubKind, SamlAppLaunchUrl } from 'teleport/services/apps';
+import { App, SamlAppLaunchUrl } from 'teleport/services/apps';
 import { Database } from 'teleport/services/databases';
 import { Desktop } from 'teleport/services/desktops';
 import { Kube } from 'teleport/services/kube';

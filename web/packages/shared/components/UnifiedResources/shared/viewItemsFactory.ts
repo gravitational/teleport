@@ -26,10 +26,8 @@ import {
   Server as ServerIcon,
 } from 'design/Icon';
 import { ResourceIconName } from 'design/ResourceIcon';
-import { NodeSubKind } from 'shared/services';
+import { AppSubKind, NodeSubKind } from 'shared/services';
 import { DbProtocol } from 'shared/services/databases';
-
-import { AppSubKind } from 'teleport/services/apps';
 
 import {
   SharedUnifiedResource,
@@ -117,7 +115,7 @@ export function makeUnifiedResourceViewItemApp(
   resource: UnifiedResourceApp,
   ui: UnifiedResourceUi
 ): UnifiedResourceViewItem {
-  if (resource.subKind == AppSubKind.MCP) {
+  if (resource.subKind === AppSubKind.MCP) {
     // TODO(greedy52) add address for non-stdio based MCP servers.
     return {
       name: resource.friendlyName || resource.name,

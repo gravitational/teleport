@@ -20,11 +20,11 @@ import React from 'react';
 
 import { Icon } from 'design/Icon';
 import { ResourceIconName } from 'design/ResourceIcon';
-import { NodeSubKind } from 'shared/services';
+import { AppSubKind, NodeSubKind } from 'shared/services';
 import { DbProtocol } from 'shared/services/databases';
 
 import { ResourceLabel } from 'teleport/services/agents';
-import { AppMCP, AppSubKind, PermissionSet } from 'teleport/services/apps';
+import { AppMCP, PermissionSet } from 'teleport/services/apps';
 
 /**
  * status == '' is a result of an older agent that does not

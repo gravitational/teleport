@@ -50,7 +50,7 @@ import {
   openStatusInfoPanel,
 } from 'shared/components/UnifiedResources/shared/StatusInfo';
 import { Attempt } from 'shared/hooks/useAsync';
-import { NodeSubKind } from 'shared/services';
+import { AppSubKind, NodeSubKind } from 'shared/services';
 import {
   DbProtocol,
   DbType,
@@ -58,7 +58,6 @@ import {
 } from 'shared/services/databases';
 import { waitForever } from 'shared/utils/wait';
 
-import { AppSubKind } from 'teleport/services/apps';
 import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 import { getWindowsDesktopAddrWithoutDefaultPort } from 'teleterm/services/tshd/windowsDesktop';
 import { useAppContext } from 'teleterm/ui/appContextProvider';

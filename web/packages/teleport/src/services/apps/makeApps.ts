@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AppSubKind } from 'shared/services';
 import { AwsRole } from 'shared/services/apps';
 
 import cfg from 'teleport/config';
 
-import { App, AppSubKind, PermissionSet } from './types';
+import { App, PermissionSet } from './types';
 
 function getLaunchUrl({
   fqdn,

@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AppSubKind } from 'shared/services';
 import { AwsRole } from 'shared/services/apps';
 
 import { ResourceLabel } from 'teleport/services/agents';
@@ -75,10 +76,12 @@ export type UserGroupAndDescription = {
 };
 
 /** AppSubKind defines names of SubKind for App resource. */
-export enum AppSubKind {
-  AwsIcAccount = 'aws_ic_account',
-  MCP = 'mcp',
-}
+export {
+  /*
+   * @deprecated Import AppSubKind from 'shared/services' instead.
+   */
+  AppSubKind,
+} from 'shared/services';
 
 /**
  * PermissionSet defines an AWS IAM Identity Center permission set that
