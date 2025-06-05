@@ -10067,3 +10067,46 @@ func TestMCPToolMatcher(t *testing.T) {
 		})
 	}
 }
+
+func TestNewEnumerationResultFromEntities(t *testing.T) {
+	tests := []struct {
+		name         string
+		inputAllowed []string
+		inputDenied  []string
+		wantAllowed  []string
+		wantDenied   []string
+	}{
+		{
+			name: "empty",
+		},
+		{
+			name:         "wildcard denied",
+			inputAllowed: []string{"allow_entry"},
+			inputDenied:  []string{"deny_entry", "*"},
+			wantDenied:   []string{"*"},
+		},
+		{
+			name:         "wildcard allowed",
+			inputAllowed: []string{"allow_entry", "*", "deny_overwrite"},
+			inputDenied:  []string{"deny_overwrite"},
+			wantAllowed:  []string{"*", "allow_entry"},
+			wantDenied:   []string{"deny_overwrite"},
+		},
+		{
+			name:         "no wildcard",
+			inputAllowed: []string{"allow_entry_1", "deny_overwrite", "allow_entry_2"},
+			inputDenied:  []string{"deny_overwrite", "deny_entry"},
+			wantAllowed:  []string{"allow_entry_1", "allow_entry_2"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := NewEnumerationResultFromEntities(test.inputAllowed, test.inputDenied)
+
+			actualAllowed, actualDenied := result.ToEntities()
+			require.Equal(t, test.wantAllowed, actualAllowed)
+			require.Equal(t, test.wantDenied, actualDenied)
+		})
+	}
+}

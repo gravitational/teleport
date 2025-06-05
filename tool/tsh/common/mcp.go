@@ -16,16 +16,20 @@
 
 package common
 
-import "github.com/alecthomas/kingpin/v2"
+import (
+	"github.com/alecthomas/kingpin/v2"
+)
 
 type mcpCommands struct {
 	dbStart *mcpDBStartCommand
+	list    *mcpListCommand
 }
 
-func newMCPCommands(app *kingpin.Application) *mcpCommands {
+func newMCPCommands(app *kingpin.Application, cf *CLIConf) *mcpCommands {
 	mcp := app.Command("mcp", "View and control proxied MCP servers.")
 	db := mcp.Command("db", "Database access for MCP servers.")
 	return &mcpCommands{
 		dbStart: newMCPDBCommand(db),
+		list:    newMCPListCommand(mcp, cf),
 	}
 }
