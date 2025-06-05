@@ -18,7 +18,7 @@
 
 import { createGlobalStyle, css } from 'styled-components';
 
-import { getPlatformType } from 'design/platform';
+import { getPlatform, Platform } from 'design/platform';
 
 const GlobalStyle = createGlobalStyle`
 
@@ -61,7 +61,7 @@ const GlobalStyle = createGlobalStyle`
     font-weight: ${props => props.theme.fontWeights.bold};
   }
 
-  ${() => !getPlatformType().isMac && customScrollbar}
+  ${() => getPlatform() !== Platform.macOS && customScrollbar}
 `;
 
 const customScrollbar = css`
