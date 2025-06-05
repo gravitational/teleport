@@ -1,5 +1,34 @@
 # Changelog
 
+## 16.5.11 (06/05/25)
+
+### Security fixes
+
+This patch includes some security fixes.
+These issues are present in previous v16 releases.
+Impacted users are recommended to upgrade their auth and proxy servers to the latest version.
+
+#### [High] Short to long term access escalation in Okta integration
+
+* Enterprise fix: Verify required Okta OAuth scopes during plugin creation/update.
+
+In Okta integration configurations with enabled access lists sync, a user with an approved  just-in-time access request to an Okta application could be unintentionally promoted to an access list granting access to the same application. This would result in the access to the Okta app/group persisting after the access request expiration.
+
+This vulnerability affects Okta integration users who have access lists sync enabled. You can check whether you have an Okta integration installed with access lists sync enabled either in the Teleport web UI under Zero Trust Access / Integrations page or by running “tctl get plugins/okta” CLI command and looking at the “spec.settings.okta.sync_settings.sync_access_lists” flag.
+
+#### [Medium] Unsanitized user input affecting PKINIT (Kerberos)
+
+* Fixed users being able to overwrite host files on SQL Server database systems when using Kerberos with PKINIT flow. [#55143](https://github.com/gravitational/teleport/pull/55143)
+
+### Other fixes and improvements
+
+* Fixed unknown resource kinds from rendering errors in the web UI. [#55210](https://github.com/gravitational/teleport/pull/55210)
+* Fixed the formatting of the `cache_component` label for the Prometheus metrics `teleport_cache_health` and `teleport_cache_last_reset_seconds`. [#55192](https://github.com/gravitational/teleport/pull/55192)
+* Fixed `tctl` rendering of timestamps in BotInstance resource YAML. [#55164](https://github.com/gravitational/teleport/pull/55164)
+* Fixed an issue with Hardware Key Support on Windows where a command would fail if the PIN prompt was not answered within 5 seconds. [#55109](https://github.com/gravitational/teleport/pull/55109)
+* Fixed an issue where the "Allowed Users" field from "tsh db ls" may include irrelevant entities. [#55069](https://github.com/gravitational/teleport/pull/55069)
+* Fixed database discovery failing when there are more than 5 OpenSearch domains. [#55059](https://github.com/gravitational/teleport/pull/55059)
+
 ## 16.5.10 (05/22/25)
 
 * Disabled the "another session is active" prompt when per-session MFA is enabled, since MFA already enforces user confirmation when starting a desktop session. [#54927](https://github.com/gravitational/teleport/pull/54927)
