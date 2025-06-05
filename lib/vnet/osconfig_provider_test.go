@@ -50,7 +50,7 @@ func TestOSConfigProvider(t *testing.T) {
 				tunName: "testtun1",
 				// Should be the first non-broadcast address under the IPv6 prefix.
 				tunIPv6:  "fd01:2345:6789::1",
-				dnsAddr:  "fd01:2345:6789::2",
+				dnsAddrs: []string{"fd01:2345:6789::2"},
 				dnsZones: []string{"test.example.com"},
 			},
 		},
@@ -64,9 +64,10 @@ func TestOSConfigProvider(t *testing.T) {
 			expectTargetOSConfig: &osConfig{
 				tunName: "testtun1",
 				// Should be the first non-broadcast address in the CIDR range.
-				tunIPv4:    "192.168.1.1",
-				tunIPv6:    "fd01:2345:6789::1",
-				dnsAddr:    "fd01:2345:6789::2",
+				tunIPv4: "192.168.1.1",
+				tunIPv6: "fd01:2345:6789::1",
+				// Should include the second non-broadcast address in the CIDR range.
+				dnsAddrs:   []string{"fd01:2345:6789::2", "192.168.1.2"},
 				dnsZones:   []string{"test.example.com"},
 				cidrRanges: []string{"192.168.1.0/24"},
 			},
@@ -83,7 +84,7 @@ func TestOSConfigProvider(t *testing.T) {
 				// Should be chosen from the first CIDR range.
 				tunIPv4:    "10.64.0.1",
 				tunIPv6:    "fd01:2345:6789::1",
-				dnsAddr:    "fd01:2345:6789::2",
+				dnsAddrs:   []string{"fd01:2345:6789::2", "10.64.0.2"},
 				dnsZones:   []string{"test.example.com"},
 				cidrRanges: []string{"10.64.0.0/16", "192.168.1.0/24"},
 			},

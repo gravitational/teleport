@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"net"
 
 	"github.com/gravitational/trace"
 
@@ -27,27 +28,27 @@ import (
 // osConfigProvider fetches a target OS configuration based on cluster
 // configuration fetched via the client application process available over gRPC.
 type osConfigProvider struct {
-	clt     targetOSConfigGetter
-	tunName string
-	dnsAddr string
-	tunIPv6 string
-	tunIPv4 string
+	clt      targetOSConfigGetter
+	tunName  string
+	dnsAddrs []string
+	tunIPv6  string
+	tunIPv4  string
 }
 
 type targetOSConfigGetter interface {
 	GetTargetOSConfiguration(context.Context) (*vnetv1.TargetOSConfiguration, error)
 }
 
-func newOSConfigProvider(clt targetOSConfigGetter, tunName, ipv6Prefix, dnsAddr string) (*osConfigProvider, error) {
+func newOSConfigProvider(clt targetOSConfigGetter, tunName, ipv6Prefix, dnsIPv6 string) (*osConfigProvider, error) {
 	tunIPv6, err := tunIPv6ForPrefix(ipv6Prefix)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &osConfigProvider{
-		clt:     clt,
-		tunName: tunName,
-		dnsAddr: dnsAddr,
-		tunIPv6: tunIPv6,
+		clt:      clt,
+		tunName:  tunName,
+		dnsAddrs: []string{dnsIPv6},
+		tunIPv6:  tunIPv6,
 	}, nil
 }
 
@@ -57,9 +58,11 @@ func (p *osConfigProvider) targetOSConfig(ctx context.Context) (*osConfig, error
 		return nil, trace.Wrap(err, "getting target OS configuration from client application")
 	}
 	if p.tunIPv4 == "" && len(targetOSConfig.Ipv4CidrRanges) > 0 {
-		// Choose an IPv4 address for the TUN interface from the CIDR range of one arbitrary currently
-		// logged-in cluster. Only one IPv4 address is needed.
-		if err := p.setTunIPv4FromCIDR(targetOSConfig.Ipv4CidrRanges[0]); err != nil {
+		// Choose an IPv4 address for the TUN interface and the IPv4 DNS server
+		// from the CIDR range of one arbitrary currently logged-in cluster.
+		// We currently only assign one V4 address to the interface and only
+		// advertise DNS on one V4 address.
+		if err := p.setV4IPsFromFirstCIDR(targetOSConfig.Ipv4CidrRanges[0]); err != nil {
 			return nil, trace.Wrap(err, "setting TUN IPv4 address")
 		}
 	}
@@ -67,20 +70,41 @@ func (p *osConfigProvider) targetOSConfig(ctx context.Context) (*osConfig, error
 		tunName:    p.tunName,
 		tunIPv6:    p.tunIPv6,
 		tunIPv4:    p.tunIPv4,
-		dnsAddr:    p.dnsAddr,
+		dnsAddrs:   p.dnsAddrs,
 		dnsZones:   targetOSConfig.GetDnsZones(),
 		cidrRanges: targetOSConfig.GetIpv4CidrRanges(),
 	}, nil
 }
 
-func (p *osConfigProvider) setTunIPv4FromCIDR(cidrRange string) error {
+func (p *osConfigProvider) setV4IPsFromFirstCIDR(cidrRange string) error {
 	if p.tunIPv4 != "" {
+		// Only set these once.
 		return nil
 	}
-	ip, err := tunIPv4ForCIDR(cidrRange)
+	tunIPv4, dnsIPv4, err := ipsForCIDR(cidrRange)
 	if err != nil {
 		return trace.Wrap(err, "setting TUN IPv4 address for range %s", cidrRange)
 	}
-	p.tunIPv4 = ip
+	p.tunIPv4 = tunIPv4
+	p.dnsAddrs = append(p.dnsAddrs, dnsIPv4)
 	return nil
+}
+
+// ipsForCIDR returns the V4 IPs to assign to the interface and use for DNS in
+// cidrRange.
+func ipsForCIDR(cidrRange string) (string, string, error) {
+	_, ipnet, err := net.ParseCIDR(cidrRange)
+	if err != nil {
+		return "", "", trace.Wrap(err, "parsing CIDR %q", cidrRange)
+	}
+	// ipnet.IP is the network address, ending in 0s, like 100.64.0.0
+	// Add 1 to assign the TUN address, like 100.64.0.1
+	tunAddress := ipnet.IP
+	tunAddress[len(tunAddress)-1]++
+
+	// Add 1 again to assign the DNS address, like 100.64.0.2
+	dnsAddress := append(net.IP{}, tunAddress...)
+	dnsAddress[len(dnsAddress)-1]++
+
+	return tunAddress.String(), dnsAddress.String(), nil
 }
