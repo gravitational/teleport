@@ -151,8 +151,6 @@ jobs:
 
       - name: Install go-cache-plugin
         shell: bash
-        env:
-          GOCACHEPROG: ''
         run: GOCACHEPROG="" go install github.com/tailscale/go-cache-plugin/cmd/go-cache-plugin@latest
 
       - name: Check for untidy go modules
@@ -752,6 +750,7 @@ jobs:
     permissions:
       contents: read
       packages: read
+      id-token: write
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -812,6 +811,7 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -851,6 +851,7 @@ jobs:
     permissions:
       contents: read
       packages: read
+      id-token: write
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -1039,6 +1040,7 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -1146,6 +1148,7 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -1193,6 +1196,7 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
