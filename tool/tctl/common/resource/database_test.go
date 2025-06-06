@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package resource
 
 import (
 	"bytes"
@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types/healthcheckconfig"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
 func testCreateHealthCheckConfig(t *testing.T, clt *authclient.Client) {
@@ -126,10 +127,8 @@ func testEditHealthCheckConfig(t *testing.T, clt *authclient.Client) {
 			return trace.Wrap(err, "opening file to edit")
 		}
 		expected.GetMetadata().Revision = created.GetMetadata().GetRevision()
-		collection := &healthCheckConfigCollection{
-			items: []*healthcheckconfigv1.HealthCheckConfig{expected},
-		}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		collection := collections.NewHealthCheckConfigCollection([]*healthcheckconfigv1.HealthCheckConfig{expected})
+		return trace.NewAggregate(collections.WriteYAML(collection, f), f.Close())
 	}
 
 	// Edit the AutoUpdateConfig resource.

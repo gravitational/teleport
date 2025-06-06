@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/decision"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/plugin"
+	"github.com/gravitational/teleport/tool/tctl/common/resource"
 	"github.com/gravitational/teleport/tool/tctl/common/stableunixusers"
 	"github.com/gravitational/teleport/tool/tctl/common/top"
 	"github.com/gravitational/teleport/tool/tctl/sso/configure"
@@ -51,8 +52,8 @@ func Commands() []CLICommand {
 		&RecordingsCommand{},
 		&AlertCommand{},
 		&ProxyCommand{},
-		&ResourceCommand{},
-		&EditCommand{},
+		&resource.ResourceCommand{},
+		&resource.EditCommand{},
 		&ExternalAuditStorageCommand{},
 		&LoadtestCommand{},
 		&DevicesCommand{},
