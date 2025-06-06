@@ -459,7 +459,8 @@ func TestLocalInstaller_Link(t *testing.T) {
 				InstallDir: versionsDir,
 				TargetServices: []ServiceFile{
 					{
-						Path: filepath.Join(linkDir, serviceDir, serviceName),
+						Path:        filepath.Join(linkDir, serviceDir, serviceName),
+						ExampleName: serviceName,
 						ExampleFunc: func(b []byte, pathDir string, flags autoupdate.InstallFlags) []byte {
 							return fmt.Appendf(nil, "[service=%s][path=%s][flags=%s]", string(b), pathDir, flags.Strings())
 						},
@@ -718,7 +719,8 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 				InstallDir: versionsDir,
 				TargetServices: []ServiceFile{
 					{
-						Path: filepath.Join(linkDir, serviceDir, serviceName),
+						Path:        filepath.Join(linkDir, serviceDir, serviceName),
+						ExampleName: serviceName,
 						ExampleFunc: func(b []byte, pathDir string, flags autoupdate.InstallFlags) []byte {
 							return fmt.Appendf(nil, "[service=%s][path=%s][flags=%s]", string(b), pathDir, flags.Strings())
 						},
@@ -860,7 +862,8 @@ func TestLocalInstaller_Remove(t *testing.T) {
 				InstallDir: versionsDir,
 				TargetServices: []ServiceFile{
 					{
-						Path: filepath.Join(linkDir, serviceDir, serviceName),
+						Path:        filepath.Join(linkDir, serviceDir, serviceName),
+						ExampleName: serviceName,
 						ExampleFunc: func(b []byte, pathDir string, flags autoupdate.InstallFlags) []byte {
 							return fmt.Appendf(nil, "[service=%s][path=%s][flags=%s]", string(b), pathDir, flags.Strings())
 						},
@@ -934,7 +937,8 @@ func TestLocalInstaller_IsLinked(t *testing.T) {
 				InstallDir: versionsDir,
 				TargetServices: []ServiceFile{
 					{
-						Path: filepath.Join(linkDir, serviceDir, serviceName),
+						Path:        filepath.Join(linkDir, serviceDir, serviceName),
+						ExampleName: serviceName,
 						ExampleFunc: func(b []byte, pathDir string, flags autoupdate.InstallFlags) []byte {
 							return fmt.Appendf(nil, "[service=%s][path=%s][flags=%s]", string(b), pathDir, flags.Strings())
 
