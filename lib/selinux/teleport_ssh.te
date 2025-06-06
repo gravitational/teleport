@@ -1,10 +1,13 @@
 policy_module(teleport_ssh, 1.0.0)
 
 require {
+    role system_r;
+
     attribute can_change_process_identity;
     attribute can_change_process_role;
 
     type bin_t;
+    type cache_home_t;
     type config_home_t;
     type default_t;
     type default_context_t;
@@ -12,12 +15,14 @@ require {
     type devpts_t;
     type fs_t;
     type groupadd_exec_t;
+    type hostname_exec_t;
     type http_port_t;
     type init_t;
     type initrc_var_run_t;
     type kernel_t;
     type lastlog_t;
     type machineid_t;
+    type mail_spool_t;
     type pam_var_run_t;
     type passwd_exec_t;
     type passwd_file_t;
@@ -26,7 +31,7 @@ require {
     type security_t;
     type selinux_config_t;
     type semanage_store_t;
-    type sssd_var_lib_t;
+    type shell_exec_t;
     type syslogd_var_run_t;
     type systemd_logind_t;
     type systemd_logind_sessions_t;
@@ -74,6 +79,8 @@ type teleport_ssh_data_t;
 files_type(teleport_ssh_data_t);
 type teleport_ssh_upgrade_data_t;
 files_type(teleport_ssh_upgrade_data_t);
+
+type rshell_t;
 
 ########################################
 #
@@ -293,3 +300,39 @@ optional_policy(`
     xserver_domtrans_xauth(teleport_ssh_t);
     xserver_xdm_signull(teleport_ssh_t);
 ')
+
+##
+# restricted shell
+##
+
+domain_type(rshell_t);
+role system_r types rshell_t;
+
+allow teleport_ssh_t rshell_t:process transition ;
+allow rshell_t shell_exec_t:file { exec_file_perms entrypoint };
+
+###
+
+allow rshell_t devpts_t:chr_file rw_chr_file_perms;
+allow rshell_t teleport_ssh_t:fifo_file read_fifo_file_perms;
+
+allow rshell_t self:process { setpgid setsched };
+allow rshell_t bin_t:file exec_file_perms;
+allow rshell_t hostname_exec_t:file exec_file_perms;
+
+allow rshell_t cache_home_t:dir manage_file_perms;
+allow rshell_t config_home_t:dir manage_file_perms;
+allow rshell_t passwd_file_t:file read_file_perms;
+allow rshell_t proc_t:file read_file_perms;
+allow rshell_t user_home_t:file manage_file_perms;
+allow rshell_t user_home_dir_t:file manage_file_perms;
+
+allow rshell_t user_home_t:lnk_file manage_lnk_file_perms;
+allow rshell_t user_home_dir_t:lnk_file manage_lnk_file_perms;
+
+allow rshell_t cache_home_t:dir manage_dir_perms;
+allow rshell_t config_home_t:dir manage_dir_perms;
+allow rshell_t mail_spool_t:dir search_dir_perms;
+allow rshell_t proc_t:dir list_dir_perms;
+allow rshell_t user_home_t:dir manage_dir_perms;
+allow rshell_t user_home_dir_t:dir manage_dir_perms;

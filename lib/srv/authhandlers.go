@@ -982,6 +982,7 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		HostSudoers:           hostSudoers,
 		BpfEvents:             bpfEvents,
 		HostUsersInfo:         hostUsersInfo,
+		RestrictedShell:       accessChecker.HasRestrictedShell(),
 	}, nil
 }
 

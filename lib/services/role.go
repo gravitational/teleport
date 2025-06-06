@@ -3123,6 +3123,16 @@ func (set RoleSet) CheckAgentForward(login string) error {
 	return trace.AccessDenied("%v can not forward agent for %v", set, login)
 }
 
+// HasRestrictedShell returns true if this RoleSet needs to be in a restricted shell.
+func (set RoleSet) HasRestrictedShell() bool {
+	for _, role := range set {
+		if role.GetOptions().RestrictedShell.Value() {
+			return true
+		}
+	}
+	return false
+}
+
 func (set RoleSet) String() string {
 	if len(set) == 0 {
 		return "user without assigned roles"

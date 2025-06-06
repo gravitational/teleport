@@ -247,6 +247,7 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		HostSudoers:           hostSudoers,
 		BpfEvents:             bpfEvents,
 		HostUsersInfo:         hostUsersInfo,
+		RestrictedShell:       accessChecker.HasRestrictedShell(),
 	}
 
 	return &decisionpb.EvaluateSSHAccessResponse{

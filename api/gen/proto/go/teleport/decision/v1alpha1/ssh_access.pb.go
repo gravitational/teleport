@@ -364,8 +364,10 @@ type SSHAccessPermit struct {
 	// HostUserInfo encodes relevant information for host user creation. Omitted if
 	// host user creation  is not permitted.
 	HostUsersInfo *HostUsersInfo `protobuf:"bytes,24,opt,name=host_users_info,json=hostUsersInfo,proto3" json:"host_users_info,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// RestrictedShell greatly reduces the privileges of SSH sessions.
+	RestrictedShell bool `protobuf:"varint,26,opt,name=restricted_shell,json=restrictedShell,proto3" json:"restricted_shell,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *SSHAccessPermit) Reset() {
@@ -515,6 +517,13 @@ func (x *SSHAccessPermit) GetHostUsersInfo() *HostUsersInfo {
 		return x.HostUsersInfo
 	}
 	return nil
+}
+
+func (x *SSHAccessPermit) GetRestrictedShell() bool {
+	if x != nil {
+		return x.RestrictedShell
+	}
+	return false
 }
 
 // SSHAccessDenial describes an SSH access denial.
@@ -772,7 +781,7 @@ const file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc = "" +
 	"\x06permit\x18\x01 \x01(\v2+.teleport.decision.v1alpha1.SSHAccessPermitH\x00R\x06permit\x12E\n" +
 	"\x06denial\x18\x02 \x01(\v2+.teleport.decision.v1alpha1.SSHAccessDenialH\x00R\x06denialB\n" +
 	"\n" +
-	"\bdecision\"\xca\a\n" +
+	"\bdecision\"\xf5\a\n" +
 	"\x0fSSHAccessPermit\x12F\n" +
 	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.PermitMetadataR\bmetadata\x12#\n" +
 	"\rforward_agent\x18\x03 \x01(\bR\fforwardAgent\x12Z\n" +
@@ -792,7 +801,8 @@ const file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc = "" +
 	"\x12private_key_policy\x18\x15 \x01(\tR\x10privateKeyPolicy\x12I\n" +
 	"\flock_targets\x18\x16 \x03(\v2&.teleport.decision.v1alpha1.LockTargetR\vlockTargets\x12!\n" +
 	"\fmapped_roles\x18\x17 \x03(\tR\vmappedRoles\x12Q\n" +
-	"\x0fhost_users_info\x18\x18 \x01(\v2).teleport.decision.v1alpha1.HostUsersInfoR\rhostUsersInfoJ\x04\b\x02\x10\x03J\x04\b\x04\x10\x05J\x04\b\a\x10\bJ\x04\b\f\x10\rJ\x04\b\r\x10\x0eJ\x04\b\x0f\x10\x10J\x04\b\x10\x10\x11J\x04\b\x11\x10\x12\"Y\n" +
+	"\x0fhost_users_info\x18\x18 \x01(\v2).teleport.decision.v1alpha1.HostUsersInfoR\rhostUsersInfo\x12)\n" +
+	"\x10restricted_shell\x18\x1a \x01(\bR\x0frestrictedShellJ\x04\b\x02\x10\x03J\x04\b\x04\x10\x05J\x04\b\a\x10\bJ\x04\b\f\x10\rJ\x04\b\r\x10\x0eJ\x04\b\x0f\x10\x10J\x04\b\x10\x10\x11J\x04\b\x11\x10\x12\"Y\n" +
 	"\x0fSSHAccessDenial\x12F\n" +
 	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.DenialMetadataR\bmetadata\"\xee\x01\n" +
 	"\n" +

@@ -115,6 +115,9 @@ message SSHAccessPermit {
   // HostUserInfo encodes relevant information for host user creation. Omitted if
   // host user creation  is not permitted.
   HostUsersInfo host_users_info = 24;
+
+  // RestrictedShell greatly reduces the privileges of SSH sessions.
+  bool restricted_shell = 26;
 }
 
 // SSHAccessDenial describes an SSH access denial.

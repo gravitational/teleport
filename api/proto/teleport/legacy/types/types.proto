@@ -3601,6 +3601,12 @@ message RoleOptions {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "ssh_port_forwarding,omitempty"
   ];
+
+  // RestrictedShell greatly reduces the privileges of SSH sessions.
+  bool RestrictedShell = 33 [
+    (gogoproto.jsontag) = "restricted_shell",
+    (gogoproto.casttype) = "Bool"
+  ];
 }
 
 message RecordSession {
