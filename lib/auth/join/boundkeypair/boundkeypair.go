@@ -56,6 +56,11 @@ type KeyHistoryEntry struct {
 	PrivateKey string `json:"private_key"`
 }
 
+// KeyHistory is a collection of `KeyHistoryEntry`.
+type KeyHistory struct {
+	Entries []KeyHistoryEntry `json:"entries"`
+}
+
 // ClientState contains state parameters stored on disk needed to complete the
 // bound keypair join process.
 type ClientState struct {
@@ -328,10 +333,11 @@ func NewStandardFS(parentDir string) FS {
 	}
 }
 
-func parseKeyHistory(data []byte) ([]KeyHistoryEntry, error) {
-	var history []KeyHistoryEntry
+// parseKeyHistory parses marshaled key history from JSON bytes
+func parseKeyHistory(data []byte) (KeyHistory, error) {
+	var history KeyHistory
 	if err := json.Unmarshal(data, &history); err != nil {
-		return []KeyHistoryEntry{}, trace.Wrap(err)
+		return KeyHistory{}, trace.Wrap(err)
 	}
 
 	return history, nil
@@ -362,7 +368,7 @@ func LoadClientState(ctx context.Context, fs FS) (*ClientState, error) {
 		return nil, trace.Wrap(err, "parsing private key")
 	}
 
-	var keyHistory []KeyHistoryEntry
+	var keyHistory KeyHistory
 	keyHistoryBytes, err := fs.Read(ctx, KeyHistoryPath)
 	if trace.IsNotFound(err) {
 		// No history, this is allowed.
@@ -376,8 +382,8 @@ func LoadClientState(ctx context.Context, fs FS) (*ClientState, error) {
 	}
 
 	// If the key history is empty, initialize it with just the current key.
-	if len(keyHistory) == 0 {
-		keyHistory = []KeyHistoryEntry{{
+	if len(keyHistory.Entries) == 0 {
+		keyHistory.Entries = []KeyHistoryEntry{{
 			Time:       time.Now(),
 			PrivateKey: string(privateKeyBytes),
 		}}
@@ -389,7 +395,7 @@ func LoadClientState(ctx context.Context, fs FS) (*ClientState, error) {
 		PrivateKey:      pk,
 		PrivateKeyBytes: privateKeyBytes,
 		JoinStateBytes:  joinStateBytes,
-		KeyHistory:      keyHistory,
+		KeyHistory:      keyHistory.Entries,
 	}, nil
 }
 
@@ -418,8 +424,9 @@ func (c *ClientState) Store(ctx context.Context) error {
 	}
 
 	if len(c.KeyHistory) > 0 {
-		// Keep only the first N elements to avoid excessive lookup times.
-		bytes, err := json.Marshal(c.KeyHistory[:min(len(c.KeyHistory), KeyHistoryLength)])
+		bytes, err := json.Marshal(KeyHistory{
+			Entries: c.KeyHistory,
+		})
 		if err != nil {
 			return trace.Wrap(err, "marshaling key key history")
 		}
