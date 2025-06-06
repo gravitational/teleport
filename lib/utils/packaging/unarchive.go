@@ -70,8 +70,7 @@ func RemoveWithSuffix(dir, suffix string, skipNames []string) error {
 
 // replaceZip un-archives the Teleport package in .zip format, iterates through
 // the compressed content, and ignores everything not matching the binaries specified
-// in the execNames argument. The data is extracted to extractDir, and symlinks are created
-// in toolsDir pointing to the extractDir path with binaries.
+// in the execNames argument. The data is extracted to extractDir, and copies are created in toolsDir.
 func replaceZip(toolsDir string, archivePath string, extractDir string, execNames []string) (map[string]string, error) {
 	execPaths := make(map[string]string, len(execNames))
 	f, err := os.Open(archivePath)

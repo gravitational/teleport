@@ -61,8 +61,10 @@ const (
 	reservedFreeDisk = 10 * 1024 * 1024 // 10 Mb
 	// lockFileName is file used for locking update process in parallel.
 	lockFileName = ".lock"
-	// updatePackageSuffix is directory suffix used for package extraction in tools directory.
-	updatePackageSuffix = "-update-pkg-v2"
+	// updatePackageSuffix is directory suffix used for package extraction in tools directory for v1.
+	updatePackageSuffix = "-update-pkg"
+	// updatePackageSuffix is directory suffix used for package extraction in tools directory for v2.
+	updatePackageSuffixV2 = "-update-pkg-v2"
 )
 
 var (
@@ -313,11 +315,18 @@ func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 		return trace.Wrap(err)
 	}
 
+	var pkgNames []string
 	for _, pkg := range packages {
-		pkgName := fmt.Sprint(uuid.New().String(), updatePackageSuffix)
+		pkgName := fmt.Sprint(uuid.New().String(), updatePackageSuffixV2)
 		if err := u.update(ctx, pkg, pkgName); err != nil {
 			return trace.Wrap(err)
 		}
+		pkgNames = append(pkgNames, pkgName)
+	}
+
+	// Cleanup the tools directory with previously downloaded and un-archived versions.
+	if err := packaging.RemoveWithSuffix(u.toolsDir, updatePackageSuffix, pkgNames); err != nil {
+		slog.WarnContext(ctx, "failed to clean up tools directory", "error", err)
 	}
 
 	return nil

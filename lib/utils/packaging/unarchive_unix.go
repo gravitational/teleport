@@ -87,21 +87,22 @@ func replaceTarGz(toolsDir string, archivePath string, extractDir string, execNa
 		}
 
 		if err = func(header *tar.Header) error {
-			tempFile, err := renameio.TempFile(extractDir, filepath.Join(toolsDir, baseName))
+			dest := filepath.Join(extractDir, baseName)
+			destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			defer tempFile.Cleanup()
-			if err := os.Chmod(tempFile.Name(), 0o755); err != nil {
+			defer destFile.Close()
+
+			if _, err := io.Copy(destFile, tarReader); err != nil {
 				return trace.Wrap(err)
 			}
-			if _, err := io.Copy(tempFile, tarReader); err != nil {
+
+			newName := filepath.Join(toolsDir, baseName)
+			if err := renameio.Symlink(dest, newName); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := tempFile.CloseAtomicallyReplace(); err != nil {
-				return trace.Wrap(err)
-			}
-			return trace.Wrap(tempFile.Cleanup())
+			return nil
 		}(header); err != nil {
 			return nil, trace.Wrap(err)
 		}
