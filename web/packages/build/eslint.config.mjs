@@ -28,6 +28,20 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
+    // Citing from the ESLint docs:
+    // https://eslint.org/docs/latest/use/configure/configuration-files#specifying-files-and-ignores
+    //
+    // "By default, ESLint lints files that match the patterns **/*.js, **/*.cjs, and **/*.mjs.
+    // Those files are always matched unless you explicitly exclude them using global ignores."
+    //
+    // "Configuration objects without files or ignores are automatically applied to any file that is
+    // matched by any other configuration object."
+    //
+    // Since no configs apply rules to jsx files specifically, we need to specify them manually.
+    // And just to be future-proof we specify other non-default extensions used in the project.
+    files: ['**/*.ts', '**/*.mts', '**/*.tsx', '**/*.jsx'],
+  },
+  {
     ignores: [
       '**/dist/**',
       '**/*_pb.*',
