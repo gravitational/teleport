@@ -98,15 +98,6 @@ jobs:
           echo "node: ${NODE_VERSION}"
           echo "rust: ${RUST_VERSION}"
 
-      # This is needed to build Teleport Connect.
-      # The @electron/rebuild tool that rebuilds native dependencies still
-      # uses node-gyp@9 that relies on distutils.
-      # Remove this step after @electron/rebuild migrates to node-gyp@10
-      # (which is compatible with Python 3.12).
-      - name: Install Python setuptools
-        run: |
-          brew install python-setuptools
-
       - name: Install Node Toolchain
         uses: actions/setup-node@v4
         with:
