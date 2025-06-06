@@ -369,6 +369,11 @@
       "source": "/enroll-resources/agents/introduction/",
       "destination": "/enroll-resources/agents/",
       "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/linux-demo/",
+      "destination": "/linux-demo/",
+      "permanent": true
     }
   ]
 }
