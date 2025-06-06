@@ -710,7 +710,6 @@ func botIdentityFromToken(
 	}
 
 	// Only set during bound keypair joining, but used both before and after.
-	var boundKeypairAdapter boundkeypair.FS
 	var boundKeypairState *boundkeypair.ClientState
 
 	switch params.JoinMethod {
@@ -727,8 +726,8 @@ func botIdentityFromToken(
 	case types.JoinMethodBoundKeypair:
 		joinSecret := cfg.Onboarding.BoundKeypair.InitialJoinSecret
 
-		boundKeypairAdapter = destination.NewBoundkeypairDestinationAdapter(cfg.Destination)
-		boundKeypairState, err = boundkeypair.LoadClientState(ctx, boundKeypairAdapter)
+		adapter := destination.NewBoundkeypairDestinationAdapter(cfg.Destination)
+		boundKeypairState, err = boundkeypair.LoadClientState(ctx, adapter)
 		if trace.IsNotFound(err) && joinSecret != "" {
 			return nil, trace.NotImplemented("no existing client state was found and join secrets are not yet supported")
 		} else if err != nil {
@@ -748,9 +747,7 @@ func botIdentityFromToken(
 			return nil, trace.Wrap(err)
 		}
 
-		log.DebugContext(ctx, "updating bound keypair client state")
-
-		if err := boundkeypair.StoreClientState(ctx, boundKeypairAdapter, boundKeypairState); err != nil {
+		if err := boundKeypairState.Store(ctx); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

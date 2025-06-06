@@ -26,6 +26,7 @@ import (
 
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client"
@@ -98,9 +99,13 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 	ctx := context.Background()
 
 	_, correctPublicKey := testBoundKeypair(t)
+	_, rotatedPublicKey := testBoundKeypair(t)
 	_, incorrectPublicKey := testBoundKeypair(t)
 
-	srv := newTestTLSServer(t)
+	clock := clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
+	startTime := clock.Now()
+
+	srv := newTestTLSServer(t, withClock(clock))
 	authServer := srv.Auth()
 	authServer.SetCreateBoundKeypairValidator(func(subject, clusterName string, publicKey crypto.PublicKey) (auth.BoundKeypairValidator, error) {
 		return &mockBoundKeypairValidator{
@@ -227,20 +232,55 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 		}
 	}
 
-	makeSolver := func(publicKey string) client.RegisterUsingBoundKeypairChallengeResponseFunc {
-		return func(challenge *proto.RegisterUsingBoundKeypairMethodResponse) (*proto.RegisterUsingBoundKeypairMethodRequest, error) {
+	type wrappedSolver struct {
+		rotatedPubKey string
+
+		rotationCount  uint32
+		challengeCount uint32
+		solutions      []string
+
+		wrapped client.RegisterUsingBoundKeypairChallengeResponseFunc
+	}
+
+	makeSolver := func(initialPubKey string, mutators ...func(s *wrappedSolver)) *wrappedSolver {
+		wrapper := &wrappedSolver{}
+		for _, mutator := range mutators {
+			mutator(wrapper)
+		}
+
+		wrapper.wrapped = func(challenge *proto.RegisterUsingBoundKeypairMethodResponse) (*proto.RegisterUsingBoundKeypairMethodRequest, error) {
 			switch r := challenge.Response.(type) {
 			case *proto.RegisterUsingBoundKeypairMethodResponse_Challenge:
-				if r.Challenge.PublicKey != publicKey {
+				wrapper.challengeCount++
+
+				switch r.Challenge.PublicKey {
+				case initialPubKey:
+				case wrapper.rotatedPubKey:
+				default:
 					return nil, trace.BadParameter("wrong public key")
 				}
+
+				wrapper.solutions = append(wrapper.solutions, r.Challenge.PublicKey)
 
 				return &proto.RegisterUsingBoundKeypairMethodRequest{
 					Payload: &proto.RegisterUsingBoundKeypairMethodRequest_ChallengeResponse{
 						ChallengeResponse: &proto.RegisterUsingBoundKeypairChallengeResponse{
 							// For testing purposes, we'll just reply with the
 							// public key, to avoid needing to parse the JWT.
-							Solution: []byte(publicKey),
+							Solution: []byte(r.Challenge.PublicKey),
+						},
+					},
+				}, nil
+			case *proto.RegisterUsingBoundKeypairMethodResponse_Rotation:
+				wrapper.rotationCount++
+				if wrapper.rotatedPubKey == "" {
+					return nil, trace.BadParameter("can't generate key")
+				}
+
+				return &proto.RegisterUsingBoundKeypairMethodRequest{
+					Payload: &proto.RegisterUsingBoundKeypairMethodRequest_RotationResponse{
+						RotationResponse: &proto.RegisterUsingBoundKeypairRotationResponse{
+							PublicKey: wrapper.rotatedPubKey,
 						},
 					},
 				}, nil
@@ -248,17 +288,30 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 				return nil, trace.BadParameter("invalid response type")
 			}
 		}
+
+		return wrapper
 	}
+
+	withRotatedPubKey := func(pubKey string) func(s *wrappedSolver) {
+		return func(s *wrappedSolver) {
+			s.rotatedPubKey = pubKey
+		}
+	}
+
+	// Advance the clock a bit. Tests may reference `startTime` for a past
+	// reference point.
+	clock.Advance(time.Hour)
 
 	tests := []struct {
 		name string
 
 		token   types.ProvisionTokenV2
 		initReq *proto.RegisterUsingBoundKeypairInitialRequest
-		solver  client.RegisterUsingBoundKeypairChallengeResponseFunc
+		solver  *wrappedSolver
 
-		assertError   require.ErrorAssertionFunc
-		assertSuccess func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse)
+		assertError       require.ErrorAssertionFunc
+		assertResponse    func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse)
+		assertSolverState func(t *testing.T, s *wrappedSolver)
 	}{
 		{
 			// no bound key, no bound bot instance, aka initial join without
@@ -270,7 +323,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			solver:  makeSolver(correctPublicKey),
 
 			assertError: require.NoError,
-			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2, _ *client.BoundKeypairRegistrationResponse) {
+			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, _ *client.BoundKeypairRegistrationResponse) {
 				// join count should be incremented
 				require.Equal(t, uint32(1), v2.Status.BoundKeypair.RecoveryCount)
 				require.NotEmpty(t, v2.Status.BoundKeypair.BoundBotInstanceID)
@@ -305,7 +358,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			solver: makeSolver(correctPublicKey),
 
 			assertError: require.NoError,
-			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2, _ *client.BoundKeypairRegistrationResponse) {
+			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, _ *client.BoundKeypairRegistrationResponse) {
 				// join count should not be incremented
 				require.Equal(t, uint32(0), v2.Status.BoundKeypair.RecoveryCount)
 			},
@@ -342,7 +395,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			solver:  makeSolver(correctPublicKey),
 
 			assertError: require.NoError,
-			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2, _ *client.BoundKeypairRegistrationResponse) {
+			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, _ *client.BoundKeypairRegistrationResponse) {
 				require.Equal(t, uint32(1), v2.Status.BoundKeypair.RecoveryCount)
 
 				// Should generate a new bot instance
@@ -386,31 +439,12 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			},
 		},
 		{
-			// TODO: rotation is not yet implemented.
-			name: "rotation-requested",
-
-			token: makeToken(func(v2 *types.ProvisionTokenV2) {
-				t := time.Now()
-				v2.Status.BoundKeypair.BoundPublicKey = correctPublicKey
-				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
-				v2.Spec.BoundKeypair.RotateAfter = &t
-				// TODO: test clock?
-			}),
-			initReq: makeInitReq(),
-			solver:  makeSolver(correctPublicKey),
-
-			assertError: func(tt require.TestingT, err error, i ...interface{}) {
-				require.Error(tt, err)
-				require.ErrorContains(tt, err, "key rotation not yet supported")
-			},
-		},
-		{
 			name:        "standard-initial-recovery-success",
 			token:       makeToken(withRecovery("standard", 0, 1, "")),
 			initReq:     makeInitReq(),
 			solver:      makeSolver(correctPublicKey),
 			assertError: require.NoError,
-			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
+			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
 				require.Equal(t, uint32(1), v2.Status.BoundKeypair.RecoveryCount)
 
 				require.NotNil(t, res)
@@ -423,7 +457,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			initReq:     makeInitReq(withJoinState(jwtSigner, withToken(withRecovery("standard", 1, 2, "id")))),
 			solver:      makeSolver(correctPublicKey),
 			assertError: require.NoError,
-			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
+			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
 				require.Equal(t, uint32(2), v2.Status.BoundKeypair.RecoveryCount)
 				require.NotNil(t, res)
 				state := parseJoinState(t, res.JoinState)
@@ -504,7 +538,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			initReq:     makeInitReq(withJoinState(jwtSigner, withToken(withRecovery("relaxed", 1, 0, "id")))),
 			solver:      makeSolver(correctPublicKey),
 			assertError: require.NoError,
-			assertSuccess: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
+			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
 				require.Equal(t, uint32(2), v2.Status.BoundKeypair.RecoveryCount)
 
 				require.NotNil(t, res)
@@ -514,28 +548,192 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 				require.Equal(t, v2.Status.BoundKeypair.RecoveryCount, state.RecoverySequence)
 			},
 		},
+		{
+			// Initial rotation, i.e. `LastRotatedAt` isn't set. This should
+			// trigger as soon as the `RotateAfter` threshold has been crossed.
+			name: "first-rotation-success",
+
+			token: makeToken(func(v2 *types.ProvisionTokenV2) {
+				v2.Spec.BoundKeypair.RotateAfter = &startTime
+
+				v2.Status.BoundKeypair.BoundPublicKey = correctPublicKey
+				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
+			}),
+			initReq: makeInitReq(),
+			solver:  makeSolver(correctPublicKey, withRotatedPubKey(rotatedPublicKey)),
+
+			assertError: require.NoError,
+			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
+				require.Equal(t, rotatedPublicKey, v2.Status.BoundKeypair.BoundPublicKey)
+				require.Equal(t, rotatedPublicKey, res.BoundPublicKey)
+			},
+			assertSolverState: func(t *testing.T, s *wrappedSolver) {
+				require.EqualValues(t, 2, s.challengeCount)
+				require.EqualValues(t, 1, s.rotationCount)
+				require.Equal(t, []string{correctPublicKey, rotatedPublicKey}, s.solutions)
+			},
+		},
+		{
+			// Initial rotation timestamp hasn't been reached
+			name: "first-rotation-skipped",
+
+			token: makeToken(func(v2 *types.ProvisionTokenV2) {
+				rotateAfter := clock.Now().Add(time.Minute)
+				v2.Spec.BoundKeypair.RotateAfter = &rotateAfter
+
+				v2.Status.BoundKeypair.BoundPublicKey = correctPublicKey
+				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
+			}),
+			initReq: makeInitReq(),
+			solver:  makeSolver(correctPublicKey, withRotatedPubKey(rotatedPublicKey)),
+
+			assertError: require.NoError,
+			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
+				require.Equal(t, correctPublicKey, v2.Status.BoundKeypair.BoundPublicKey)
+				require.Equal(t, correctPublicKey, res.BoundPublicKey)
+			},
+			assertSolverState: func(t *testing.T, s *wrappedSolver) {
+				require.EqualValues(t, 1, s.challengeCount)
+				require.EqualValues(t, 0, s.rotationCount)
+				require.Equal(t, []string{correctPublicKey}, s.solutions)
+			},
+		},
+		{
+			// This should only trigger after `RotateAfter` has been crossed and
+			// `LastRotatedAt` isn't after it.
+			name: "second-rotation-success",
+
+			token: makeToken(func(v2 *types.ProvisionTokenV2) {
+				rotateAfter := startTime.Add(10 * time.Minute)
+				v2.Spec.BoundKeypair.RotateAfter = &rotateAfter
+
+				v2.Status.BoundKeypair.BoundPublicKey = correctPublicKey
+				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
+				v2.Status.BoundKeypair.LastRotatedAt = &startTime
+			}),
+			initReq: makeInitReq(),
+			solver:  makeSolver(correctPublicKey, withRotatedPubKey(rotatedPublicKey)),
+
+			assertError: require.NoError,
+			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
+				require.Equal(t, rotatedPublicKey, v2.Status.BoundKeypair.BoundPublicKey)
+				require.Equal(t, rotatedPublicKey, res.BoundPublicKey)
+			},
+			assertSolverState: func(t *testing.T, s *wrappedSolver) {
+				require.EqualValues(t, 2, s.challengeCount)
+				require.EqualValues(t, 1, s.rotationCount)
+				require.Equal(t, []string{correctPublicKey, rotatedPublicKey}, s.solutions)
+			},
+		},
+		{
+			// We shouldn't try to rotate again if LastRotatedAt is greater than
+			// RotateAfter.
+			name: "second-rotation-skipped",
+
+			token: makeToken(func(v2 *types.ProvisionTokenV2) {
+				v2.Spec.BoundKeypair.RotateAfter = &startTime
+
+				v2.Status.BoundKeypair.BoundPublicKey = correctPublicKey
+				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
+
+				rotatedAt := startTime.Add(10 * time.Minute)
+				v2.Status.BoundKeypair.LastRotatedAt = &rotatedAt
+			}),
+			initReq: makeInitReq(),
+			solver:  makeSolver(correctPublicKey, withRotatedPubKey(rotatedPublicKey)),
+
+			assertError: require.NoError,
+			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
+				require.Equal(t, correctPublicKey, v2.Status.BoundKeypair.BoundPublicKey)
+				require.Equal(t, correctPublicKey, res.BoundPublicKey)
+			},
+			assertSolverState: func(t *testing.T, s *wrappedSolver) {
+				require.EqualValues(t, 1, s.challengeCount)
+				require.EqualValues(t, 0, s.rotationCount)
+				require.Equal(t, []string{correctPublicKey}, s.solutions)
+			},
+		},
+		{
+			// If the client doesn't complete rotation, an error should be
+			// returned and the key should not change on the server.
+			name: "rotation-failure",
+
+			token: makeToken(func(v2 *types.ProvisionTokenV2) {
+				v2.Spec.BoundKeypair.RotateAfter = &startTime
+
+				v2.Status.BoundKeypair.BoundPublicKey = correctPublicKey
+				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
+			}),
+			initReq: makeInitReq(),
+			solver:  makeSolver(correctPublicKey),
+
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "requesting a new public key")
+			},
+			assertSolverState: func(t *testing.T, s *wrappedSolver) {
+				require.EqualValues(t, 1, s.challengeCount)
+				require.EqualValues(t, 1, s.rotationCount)
+				require.Equal(t, []string{correctPublicKey}, s.solutions)
+			},
+			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
+				require.Equal(t, correctPublicKey, v2.Status.BoundKeypair.BoundPublicKey)
+				require.Nil(t, res)
+			},
+		},
+		{
+			name: "rotation-same-key-not-allowed",
+
+			token: makeToken(func(v2 *types.ProvisionTokenV2) {
+				v2.Spec.BoundKeypair.RotateAfter = &startTime
+
+				v2.Status.BoundKeypair.BoundPublicKey = correctPublicKey
+				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
+			}),
+			initReq: makeInitReq(),
+			solver:  makeSolver(correctPublicKey, withRotatedPubKey(correctPublicKey)),
+
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "public key may not be reused after rotation")
+			},
+			assertSolverState: func(t *testing.T, s *wrappedSolver) {
+				require.EqualValues(t, 2, s.challengeCount)
+				require.EqualValues(t, 1, s.rotationCount)
+
+				// note: the client does complete the challenge for the
+				// duplicate key, but the attempt will ultimately be rejected
+				require.Equal(t, []string{correctPublicKey, correctPublicKey}, s.solutions)
+			},
+			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
+				require.Equal(t, correctPublicKey, v2.Status.BoundKeypair.BoundPublicKey)
+				require.Nil(t, res)
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			token, err := types.NewProvisionTokenFromSpecAndStatus(
-				tt.name, time.Now().Add(time.Minute), tt.token.Spec, tt.token.Status,
+				tt.name, time.Now().Add(2*time.Hour), tt.token.Spec, tt.token.Status,
 			)
 			require.NoError(t, err)
 			require.NoError(t, authServer.CreateToken(ctx, token))
 			tt.initReq.JoinRequest.Token = tt.name
 
-			response, err := authServer.RegisterUsingBoundKeypairMethod(ctx, tt.initReq, tt.solver)
+			response, err := authServer.RegisterUsingBoundKeypairMethod(ctx, tt.initReq, tt.solver.wrapped)
 			tt.assertError(t, err)
 
-			if tt.assertSuccess != nil {
+			if tt.assertResponse != nil {
 				pt, err := authServer.GetToken(ctx, tt.name)
 				require.NoError(t, err)
 
 				ptv2, ok := pt.(*types.ProvisionTokenV2)
 				require.True(t, ok)
 
-				tt.assertSuccess(t, ptv2, response)
+				tt.assertResponse(t, ptv2, response)
+			}
+
+			if tt.assertSolverState != nil {
+				tt.assertSolverState(t, tt.solver)
 			}
 		})
 	}
