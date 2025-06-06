@@ -21,6 +21,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -128,6 +129,44 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 
 	failedPrompt := fakePrompt{err: errors.New("prompt failed intentionally")}
 
+	defaultGenerateUserCerts := func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+		var sshCert, tlsCert []byte
+		var err error
+		if req.SSHPublicKey != nil {
+			sshCert, err = ca.keygen.GenerateUserCert(sshca.UserCertificateRequest{
+				CASigner:          caSigner,
+				PublicUserKey:     req.SSHPublicKey,
+				TTL:               req.Expires.Sub(clock.Now()),
+				CertificateFormat: req.Format,
+				Identity: sshca.Identity{
+					Username:       req.Username,
+					RouteToCluster: req.RouteToCluster,
+				},
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		if req.TLSPublicKey != nil {
+			pub, err := keys.ParsePublicKey(req.TLSPublicKey)
+			require.NoError(t, err)
+			identity := tlsca.Identity{
+				Username: req.Username,
+				Groups:   []string{"groups"},
+			}
+			subject, err := identity.Subject()
+			require.NoError(t, err)
+			tlsCert, err = ca.tlsCA.GenerateCertificate(tlsca.CertificateRequest{
+				Clock:     clock,
+				PublicKey: pub,
+				Subject:   subject,
+				NotAfter:  req.Expires,
+			})
+			require.NoError(t, err)
+		}
+		return &proto.Certs{SSH: sshCert, TLS: tlsCert}, nil
+	}
+
 	tests := []struct {
 		name                    string
 		mfaRequired             proto.MFARequired
@@ -135,28 +174,32 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 		params                  ReissueParams
 		prompt                  fakePrompt
 		signatureAlgorithmSuite types.SignatureAlgorithmSuite
-		assertion               func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error)
+		assertion               func(t *testing.T, result *IssueUserCertsWithMFAResult, err error)
 	}{
 		{
 			name:        "ssh no mfa",
 			mfaRequired: proto.MFARequired_MFA_REQUIRED_NO,
 			params:      ReissueParams{NodeName: "test"},
-			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.NoError(t, err)
-				require.NotNil(t, keyRing)
-				require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, mfaRequired)
-				require.NotEmpty(t, keyRing.Cert)
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, result.MFARequired)
+				require.Nil(t, result.ReusableMFAResponse)
+				require.NotNil(t, result.KeyRing)
+				require.NotEmpty(t, result.KeyRing.Cert)
 			},
 		},
 		{
 			name:        "ssh mfa success",
 			mfaRequired: proto.MFARequired_MFA_REQUIRED_YES,
 			params:      ReissueParams{NodeName: "test"},
-			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.NoError(t, err)
-				require.NotNil(t, keyRing)
-				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
-				require.NotEmpty(t, keyRing.Cert)
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
+				require.Nil(t, result.ReusableMFAResponse)
+				require.NotNil(t, result.KeyRing)
+				require.NotEmpty(t, result.KeyRing.Cert)
 			},
 		},
 		{
@@ -164,32 +207,35 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			mfaRequired: proto.MFARequired_MFA_REQUIRED_YES,
 			params:      ReissueParams{NodeName: "test"},
 			prompt:      failedPrompt,
-			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.Error(t, err)
-				require.Nil(t, keyRing)
-				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
+				require.NotNil(t, result)
+				require.Nil(t, result.KeyRing)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
 			},
 		},
 		{
 			name:        "kube no mfa",
 			mfaRequired: proto.MFARequired_MFA_REQUIRED_NO,
 			params:      ReissueParams{KubernetesCluster: "test"},
-			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.NoError(t, err)
-				require.NotNil(t, keyRing)
-				require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, mfaRequired)
-				require.NotEmpty(t, keyRing.KubeTLSCredentials["test"])
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, result.MFARequired)
+				require.NotNil(t, result.KeyRing)
+				require.NotEmpty(t, result.KeyRing.KubeTLSCredentials["test"])
 			},
 		},
 		{
 			name:        "kube mfa success",
 			mfaRequired: proto.MFARequired_MFA_REQUIRED_YES,
 			params:      ReissueParams{KubernetesCluster: "test"},
-			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.NoError(t, err)
-				require.NotNil(t, keyRing)
-				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
-				cred := keyRing.KubeTLSCredentials["test"]
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
+				require.NotNil(t, result.KeyRing)
+				cred := result.KeyRing.KubeTLSCredentials["test"]
 				require.NotEmpty(t, cred)
 				_, err = cred.TLSCertificate()
 				require.NoError(t, err)
@@ -201,10 +247,11 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			mfaRequired:             proto.MFARequired_MFA_REQUIRED_YES,
 			params:                  ReissueParams{KubernetesCluster: "test"},
 			signatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
-			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.NoError(t, err)
-				require.NotNil(t, keyRing)
-				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
+				require.NotNil(t, result.KeyRing)
 				cred := keyRing.KubeTLSCredentials["test"]
 				require.NotEmpty(t, cred)
 				_, err = cred.TLSCertificate()
@@ -217,10 +264,11 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			mfaRequired: proto.MFARequired_MFA_REQUIRED_YES,
 			params:      ReissueParams{KubernetesCluster: "test"},
 			prompt:      failedPrompt,
-			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.Error(t, err)
-				require.Nil(t, keyRing)
-				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
+				require.NotNil(t, result)
+				require.Nil(t, result.KeyRing)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
 			},
 		}, {
 			name:        "db no mfa",
@@ -232,11 +280,12 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 					Database:    "test",
 				},
 			},
-			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.NoError(t, err)
-				require.NotNil(t, keyRing)
-				require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, mfaRequired)
-				require.NotEmpty(t, keyRing.DBTLSCredentials["test"])
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, result.MFARequired)
+				require.NotNil(t, result.KeyRing)
+				require.NotEmpty(t, result.KeyRing.DBTLSCredentials["test"])
 			},
 		},
 		{
@@ -249,10 +298,12 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 					Database:    "test",
 				},
 			},
-			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.NoError(t, err)
-				require.NotNil(t, keyRing)
-				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
+				require.Nil(t, result.ReusableMFAResponse)
+				require.NotNil(t, result.KeyRing)
 				cred := keyRing.DBTLSCredentials["test"]
 				require.NotEmpty(t, cred)
 				_, err = cred.TLSCertificate()
@@ -270,9 +321,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				},
 			},
 			prompt: failedPrompt,
-			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.Error(t, err)
-				require.Nil(t, keyRing)
+				require.Nil(t, result)
 			},
 		},
 		{
@@ -280,29 +331,26 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			agent: &LocalKeyAgent{
 				clientStore: NewMemClientStore(),
 			},
-			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.Error(t, err)
-				require.Nil(t, keyRing)
-				require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, mfaRequired)
+				require.Nil(t, result)
 			},
 		},
 		{
 			name:   "existing credentials used",
 			params: ReissueParams{NodeName: "test", ExistingCreds: keyRing},
-			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.Error(t, err)
-				require.Nil(t, keyRing)
-				require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, mfaRequired)
+				require.Nil(t, result)
 			},
 		},
 		{
 			name:        "mfa unknown",
 			mfaRequired: proto.MFARequired_MFA_REQUIRED_UNSPECIFIED,
 			params:      ReissueParams{NodeName: "test"},
-			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.Error(t, err)
-				require.Nil(t, keyRing)
-				require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, mfaRequired)
+				require.Nil(t, result)
 			},
 		},
 		{
@@ -317,11 +365,12 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 					},
 				},
 			},
-			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.NoError(t, err)
-				require.NotNil(t, keyRing)
-				require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, mfaRequired)
-				require.NotEmpty(t, keyRing.Cert)
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, result.MFARequired)
+				require.NotNil(t, result.KeyRing)
+				require.NotEmpty(t, result.KeyRing.Cert)
 			},
 		},
 		{
@@ -336,11 +385,114 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 					},
 				},
 			},
-			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.NoError(t, err)
-				require.NotNil(t, keyRing)
-				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
-				require.NotEmpty(t, keyRing.Cert)
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
+				require.NotNil(t, result.KeyRing)
+				require.NotEmpty(t, result.KeyRing.Cert)
+			},
+		},
+		{
+			name:        "tsh db exec no mfa",
+			mfaRequired: proto.MFARequired_MFA_REQUIRED_NO,
+			params: ReissueParams{
+				RouteToDatabase: proto.RouteToDatabase{
+					ServiceName: "test",
+					Username:    "test",
+				},
+				RequesterName:       proto.UserCertsRequest_TSH_DB_EXEC,
+				ReusableMFAResponse: &proto.MFAAuthenticateResponse{},
+				AuthClient: fakeAuthClient{
+					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_NO, Required: false}, nil
+					},
+					generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+						// Ensure no MFA response is passed.
+						if req.MFAResponse != nil {
+							return nil, trace.BadParameter("mfa response is not nil")
+						}
+						return defaultGenerateUserCerts(ctx, req)
+					},
+				},
+			},
+			prompt: failedPrompt, // should not be called
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, result.MFARequired)
+				require.Nil(t, result.ReusableMFAResponse)
+				require.NotNil(t, result.KeyRing)
+			},
+		},
+		{
+			name:        "tsh db exec mfa required",
+			mfaRequired: proto.MFARequired_MFA_REQUIRED_YES,
+			params: ReissueParams{
+				RouteToDatabase: proto.RouteToDatabase{
+					ServiceName: "test",
+					Username:    "test",
+				},
+				RequesterName: proto.UserCertsRequest_TSH_DB_EXEC,
+			},
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
+				require.NotNil(t, result.ReusableMFAResponse) // new MFA response
+				require.NotNil(t, result.KeyRing)
+			},
+		},
+		{
+			name:        "tsh db exec mfa required with reusable MFA",
+			mfaRequired: proto.MFARequired_MFA_REQUIRED_YES,
+			params: ReissueParams{
+				RouteToDatabase: proto.RouteToDatabase{
+					ServiceName: "test",
+					Username:    "test",
+				},
+				RequesterName:       proto.UserCertsRequest_TSH_DB_EXEC,
+				ReusableMFAResponse: &proto.MFAAuthenticateResponse{},
+			},
+			prompt: failedPrompt, // should not be called
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
+				require.Nil(t, result.ReusableMFAResponse) // no new MFA response
+				require.NotNil(t, result.KeyRing)
+			},
+		},
+		{
+			name:        "tsh db exec mfa required with reusable MFA expired",
+			mfaRequired: proto.MFARequired_MFA_REQUIRED_NO,
+			params: ReissueParams{
+				RouteToDatabase: proto.RouteToDatabase{
+					ServiceName: "test",
+					Username:    "test",
+				},
+				RequesterName:       proto.UserCertsRequest_TSH_DB_EXEC,
+				ReusableMFAResponse: &proto.MFAAuthenticateResponse{},
+				AuthClient: fakeAuthClient{
+					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
+					},
+					generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+						// This is the fake reusable MFA response passed in the first call.
+						if req.MFAResponse != nil && req.MFAResponse.Response == nil {
+							return nil, trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
+						}
+						// The second call should continue here.
+						return defaultGenerateUserCerts(ctx, req)
+					},
+				},
+			},
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
+				require.NotNil(t, result.ReusableMFAResponse) // new MFA response
+				require.NotNil(t, result.KeyRing)
 			},
 		},
 	}
@@ -350,6 +502,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			agent := agent
 			if test.agent != nil {
 				agent = test.agent
+			}
+			if test.params.AuthClient != nil {
+				defer test.params.AuthClient.Close()
 			}
 
 			suite := test.signatureAlgorithmSuite
@@ -367,6 +522,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 						MFAPromptConstructor: func(cfg *libmfa.PromptConfig) mfa.Prompt {
 							return test.prompt
 						},
+						Stderr: io.Discard,
 					},
 					lastPing: &webclient.PingResponse{
 						Auth: webclient.AuthenticationSettings{
@@ -386,43 +542,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 							return nil, trace.NotImplemented("mfa unknown")
 						}
 					},
-					generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-						var sshCert, tlsCert []byte
-						var err error
-						if req.SSHPublicKey != nil {
-							sshCert, err = ca.keygen.GenerateUserCert(sshca.UserCertificateRequest{
-								CASigner:          caSigner,
-								PublicUserKey:     req.SSHPublicKey,
-								TTL:               req.Expires.Sub(clock.Now()),
-								CertificateFormat: req.Format,
-								Identity: sshca.Identity{
-									Username:       req.Username,
-									RouteToCluster: req.RouteToCluster,
-								},
-							})
-							if err != nil {
-								return nil, trace.Wrap(err)
-							}
-						}
-						if req.TLSPublicKey != nil {
-							pub, err := keys.ParsePublicKey(req.TLSPublicKey)
-							require.NoError(t, err)
-							identity := tlsca.Identity{
-								Username: req.Username,
-								Groups:   []string{"groups"},
-							}
-							subject, err := identity.Subject()
-							require.NoError(t, err)
-							tlsCert, err = ca.tlsCA.GenerateCertificate(tlsca.CertificateRequest{
-								Clock:     clock,
-								PublicKey: pub,
-								Subject:   subject,
-								NotAfter:  req.Expires,
-							})
-							require.NoError(t, err)
-						}
-						return &proto.Certs{SSH: sshCert, TLS: tlsCert}, nil
-					},
+					generateUserCerts: defaultGenerateUserCerts,
 				},
 				Tracer:  tracing.NoopTracer("test"),
 				cluster: "test",
@@ -431,8 +551,8 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 
 			ctx := context.Background()
 
-			keyRing, mfaRequired, err := clt.IssueUserCertsWithMFA(ctx, test.params)
-			test.assertion(t, keyRing, mfaRequired, err)
+			result, err := clt.IssueUserCertsWithMFA(ctx, test.params)
+			test.assertion(t, result, err)
 		})
 	}
 }

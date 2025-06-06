@@ -23,6 +23,7 @@ import type { RuntimeSettings } from 'teleterm/mainProcess/types';
 import * as uri from 'teleterm/ui/uri';
 import {
   DocumentUri,
+  isWindowsDesktopUri,
   KubeUri,
   paths,
   RootClusterUri,
@@ -35,21 +36,19 @@ import { getDocumentGatewayTitle } from './documentsUtils';
 import {
   CreateAccessRequestDocumentOpts,
   CreateGatewayDocumentOpts,
-  CreateTshKubeDocumentOptions,
   Document,
   DocumentAccessRequests,
   DocumentAuthorizeWebSession,
   DocumentCluster,
   DocumentClusterQueryParams,
   DocumentConnectMyComputer,
+  DocumentDesktopSession,
   DocumentGateway,
   DocumentGatewayCliClient,
   DocumentGatewayKube,
   DocumentOrigin,
   DocumentPtySession,
-  DocumentTshKube,
   DocumentTshNode,
-  DocumentTshNodeWithServerId,
   DocumentVnetDiagReport,
   DocumentVnetInfo,
   WebSessionRequest,
@@ -109,38 +108,10 @@ export class DocumentsService {
     return createClusterDocument(opts);
   }
 
-  /**
-   * @deprecated Use createGatewayKubeDocument instead.
-   * DELETE IN 15.0.0. See DocumentGatewayKube for more details.
-   */
-  createTshKubeDocument(
-    options: CreateTshKubeDocumentOptions
-  ): DocumentTshKube {
-    const { params } = routing.parseKubeUri(options.kubeUri);
-    const uri = routing.getDocUri({ docId: unique() });
-    return {
-      uri,
-      kind: 'doc.terminal_tsh_kube',
-      status: 'connecting',
-      rootClusterId: params.rootClusterId,
-      leafClusterId: params.leafClusterId,
-      kubeId: params.kubeId,
-      kubeUri: options.kubeUri,
-      // We prepend the name with `rootClusterId/` to create a kube config
-      // inside this directory. When the user logs out of the cluster,
-      // the entire directory is deleted.
-      kubeConfigRelativePath:
-        options.kubeConfigRelativePath ||
-        `${params.rootClusterId}/${params.kubeId}-${unique(5)}`,
-      title: params.kubeId,
-      origin: options.origin,
-    };
-  }
-
   createTshNodeDocument(
     serverUri: ServerUri,
     params: { origin: DocumentOrigin }
-  ): DocumentTshNodeWithServerId {
+  ): DocumentTshNode {
     const { params: routingParams } = routing.parseServerUri(serverUri);
     const uri = routing.getDocUri({ docId: unique() });
 
@@ -586,6 +557,24 @@ export function createClusterDocument(opts: {
     title: clusterName,
     kind: 'doc.cluster',
     queryParams: opts.queryParams || getDefaultDocumentClusterQueryParams(),
+  };
+}
+
+export function createDesktopSessionDocument(opts: {
+  desktopUri: uri.DesktopUri;
+  login: string;
+  origin: DocumentOrigin;
+}): DocumentDesktopSession {
+  return {
+    kind: 'doc.desktop_session' as const,
+    uri: routing.getDocUri({ docId: unique() }),
+    title: isWindowsDesktopUri(opts.desktopUri)
+      ? `${opts.login} on ${routing.parseWindowsDesktopUri(opts.desktopUri).params.windowsDesktopId}`
+      : 'Unknown',
+    desktopUri: opts.desktopUri,
+    login: opts.login,
+    origin: opts.origin,
+    status: '',
   };
 }
 

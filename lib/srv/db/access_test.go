@@ -35,7 +35,6 @@ import (
 
 	"github.com/ClickHouse/ch-go"
 	cqlclient "github.com/datastax/go-cassandra-native-protocol/client"
-	elastic "github.com/elastic/go-elasticsearch/v8"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	mysqllib "github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/google/uuid"
@@ -747,7 +746,8 @@ func TestAccessMySQLServerPacket(t *testing.T) {
 // TestGCPRequireSSL tests connecting to GCP Cloud SQL Postgres and MySQL
 // databases with an ephemeral client certificate.
 func TestGCPRequireSSL(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	user := "alice"
 	testCtx := setupTestContext(ctx, t)
 	testCtx.createUserAndRole(ctx, t, user, "admin", []string{types.Wildcard}, []string{types.Wildcard})
@@ -2068,7 +2068,7 @@ func (c *testContext) snowflakeClient(ctx context.Context, teleportUser, dbServi
 }
 
 // elasticsearchClient returns an Elasticsearch test DB client.
-func (c *testContext) elasticsearchClient(ctx context.Context, teleportUser, dbService, dbUser string) (*elastic.Client, *alpnproxy.LocalProxy, error) {
+func (c *testContext) elasticsearchClient(ctx context.Context, teleportUser, dbService, dbUser string) (*elasticsearch.TestClient, *alpnproxy.LocalProxy, error) {
 	route := tlsca.RouteToDatabase{
 		ServiceName: dbService,
 		Protocol:    defaults.ProtocolElasticsearch,
@@ -2267,6 +2267,8 @@ func init() {
 }
 
 func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDatabaseOption) *testContext {
+	ctx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
 	testCtx := &testContext{
 		clusterName:   "root.example.com",
 		hostID:        uuid.New().String(),
@@ -2503,6 +2505,8 @@ func (p *agentParams) setDefaults(c *testContext) {
 }
 
 func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p agentParams) *Server {
+	ctx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
 	p.setDefaults(c)
 
 	// Database service credentials.
@@ -2561,11 +2565,11 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(clt.InventoryControlStream,
-		func(_ context.Context) (proto.UpstreamInventoryHello, error) {
-			return proto.UpstreamInventoryHello{
+		func(_ context.Context) (*proto.UpstreamInventoryHello, error) {
+			return &proto.UpstreamInventoryHello{
 				ServerID: p.HostID,
 				Version:  teleport.Version,
-				Services: []types.SystemRole{types.RoleDatabase},
+				Services: types.SystemRoles{types.RoleDatabase}.StringSlice(),
 				Hostname: "test",
 			}, nil
 		})
@@ -2627,7 +2631,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 			case sender := <-inventoryHandle.Sender():
 				dbServer, err := server.getServerInfo(ctx, db)
 				require.NoError(t, err)
-				require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat{
+				require.NoError(t, sender.Send(ctx, &proto.InventoryHeartbeat{
 					DatabaseServer: dbServer,
 				}))
 			case <-time.After(20 * time.Second):

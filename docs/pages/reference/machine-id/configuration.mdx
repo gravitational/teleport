@@ -692,6 +692,29 @@ attestors:
     # supported. This field is required and there is no default value. See the
     # Workload Identity API & Workload Attestation reference for more information.
     addr: unix:///run/podman/podman.sock
+  # sigstore is configuration for the Sigstore Workload attestor. See the
+  # Sigstore Workload Attestation page for more information.
+  sigstore:
+    # enabled specifies whether tbot will discover Sigstore signatures for the
+    # workload's container image. If unspecified, this defaults to false.
+    enabled: true
+    # additional_registries optionally configures the OCI registries that will
+    # be searched for signatures in addition to the workload container image's
+    # source registry.
+    additional_registries:
+      -
+        # host of the OCI registry.
+        host: ghcr.io
+    # credentials_path is the path to a Docker or Podman configuration file
+    # containing per-registry credentials.
+    credentials_path: /path/to/docker/config.json
+    # allowed_private_network_prefixes are the private IP address prefixes (CIDR
+    # blocks) that the Sigstore attestor is allowed to connect to. By default,
+    # tbot will only connect to registries at publicly-routable IP addresses to
+    # reduce the surface area for SSRF attacks.
+    allowed_private_network_prefixes:
+      - "192.168.1.42/32"
+      - "fd12:3456:789a:1::1/128"
   # systemd is configuration for the Systemd Workload Attestor. See the Workload
   # Identity API & Workload Attestation reference for more information.
   systemd:
@@ -1034,7 +1057,7 @@ then begin to forward traffic to the target host and port. The client can then
 make an SSH connection.
 
 <details>
-<summary>Example in Python (Paramiko)" close</summary>
+<summary>Example in Python (Paramiko)</summary>
 ```python
 import os
 import paramiko
@@ -1077,7 +1100,7 @@ print(stdout.read().decode())
 </details>
 
 <details>
-<summary>Example in Go" close</summary>
+<summary>Example in Go</summary>
 ```go
 package main
 

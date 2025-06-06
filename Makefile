@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.0.0-dev
+VERSION=19.0.0-dev
 
 DOCKER_IMAGE ?= teleport
 
@@ -605,6 +605,10 @@ build-archive: | $(RELEASE_DIR)
 		CHANGELOG.md \
 		build.assets/LICENSE-community \
 		teleport/
+	# add SELinux install script for Linux archives
+	$(if $(filter linux,$(OS)), \
+		cp assets/install-scripts/install-selinux.sh teleport/ \
+	)
 	echo $(GITTAG) > teleport/VERSION
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	cp $(RELEASE).tar.gz $(RELEASE_DIR)
@@ -1103,11 +1107,6 @@ test-sh:
 	fi; \
 	bats $(BATSFLAGS) ./assets/aws/files/tests
 
-
-.PHONY: test-e2e
-test-e2e:
-	make -C e2e test
-
 .PHONY: run-etcd
 run-etcd:
 	docker build -f .github/services/Dockerfile.etcd -t etcdbox --build-arg=ETCD_VERSION=3.5.9 .
@@ -1217,7 +1216,7 @@ fix-imports/host:
 		echo 'gci is not installed or is missing from PATH, consider installing it ("go install github.com/daixiang0/gci@latest") or use "make -C build.assets/ fix-imports"';\
 		exit 1;\
 	fi
-	gci write -s standard -s default  -s 'prefix(github.com/gravitational/teleport)' -s 'prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)' --skip-generated .
+	GOEXPERIMENT=synctest gci write -s standard -s default  -s 'prefix(github.com/gravitational/teleport)' -s 'prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)' --skip-generated .
 
 lint-build-tooling: GO_LINT_FLAGS ?=
 lint-build-tooling:
@@ -1598,7 +1597,7 @@ protos-up-to-date/host: must-start-clean/host grpc/host
 .PHONY: must-start-clean/host
 must-start-clean/host:
 	@if ! git diff --quiet; then \
-		@echo 'This must be run from a repo with no unstaged commits.'; \
+		echo 'This must be run from a repo with no unstaged commits.'; \
 		git diff; \
 		exit 1; \
 	fi
@@ -1606,7 +1605,7 @@ must-start-clean/host:
 # crds-up-to-date checks if the generated CRDs from the protobuf stubs are up to date.
 .PHONY: crds-up-to-date
 crds-up-to-date: must-start-clean/host
-	$(MAKE) -C integrations/operator manifests
+	$(MAKE) -C integrations/operator crd-manifests
 	@if ! git diff --quiet; then \
 		./build.assets/please-run.sh "operator CRD manifests" "make -C integrations/operator crd"; \
 		exit 1; \
@@ -1792,12 +1791,55 @@ ensure-js-deps:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
 	else $(MAKE) ensure-js-package-manager && pnpm install --frozen-lockfile; fi
 
+.PHONY: ensure-wasm-deps
+ifeq ($(WEBASSETS_SKIP_BUILD),1)
+ensure-wasm-deps:
+else
+ensure-wasm-deps: ensure-wasm-pack ensure-wasm-bindgen
+
+# Get the version of wasm-bindgen from cargo, as that is what wasm-pack is
+# going to do when it checks for the right version. The buildboxes do not
+# have jq installed (yet), so have a hacky awk version on standby.
+CARGO_GET_VERSION_JQ = cargo metadata --locked --format-version=1 | jq -r 'first(.packages[] | select(.name? == "$(1)") | .version)'
+CARGO_GET_VERSION_AWK = awk -F '[ ="]+' '/^name = "$(1)"$$/ {inpkg = 1} inpkg && $$1 == "version" {print $$2; exit}' Cargo.lock
+
+BIN_JQ = $(shell which jq 2>/dev/null)
+CARGO_GET_VERSION = $(if $(BIN_JQ),$(CARGO_GET_VERSION_JQ),$(CARGO_GET_VERSION_AWK))
+
+ensure-wasm-pack: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-wasm-pack-version)
+ensure-wasm-pack: INSTALLED_VERSION = $(word 2,$(shell wasm-pack --version 2>/dev/null))
+ensure-wasm-pack:
+	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
+		cargo install wasm-pack --force --locked --version "$(NEED_VERSION)", \
+		@echo wasm-pack up-to-date: $(INSTALLED_VERSION) \
+	)
+
+# TODO: Use CARGO_GET_VERSION_AWK instead of hardcoded version
+#       On 386 Arch, calling the variable produces a malformed command that fails the build.
+#ensure-wasm-bindgen: NEED_VERSION = $(shell $(call CARGO_GET_VERSION,wasm-bindgen))
+ensure-wasm-bindgen: NEED_VERSION = 0.2.99
+ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell wasm-bindgen --version 2>/dev/null))
+ensure-wasm-bindgen:
+ifneq ($(CI)$(FORCE),)
+	@: $(or $(NEED_VERSION),$(error Unknown wasm-bindgen version. Is it in Cargo.lock?))
+	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
+		cargo install wasm-bindgen-cli --force --locked --version "$(NEED_VERSION)", \
+		@echo wasm-bindgen-cli up-to-date: $(INSTALLED_VERSION) \
+	)
+else
+	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
+		@echo "Wrong wasm-bindgen version. Want $(NEED_VERSION) have $(INSTALLED_VERSION)"; \
+		echo "Run 'make $@ FORCE=true' to force installation." \
+	)
+endif
+endif
+
 .PHONY: build-ui
-build-ui: ensure-js-deps
+build-ui: ensure-js-deps ensure-wasm-deps
 	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-oss
 
 .PHONY: build-ui-e
-build-ui-e: ensure-js-deps
+build-ui-e: ensure-js-deps ensure-wasm-deps
 	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-e
 
 .PHONY: docker-ui
@@ -1863,3 +1905,7 @@ go-mod-tidy-all:
 dump-preset-roles:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go run ./build.assets/dump-preset-roles/main.go
 	pnpm test web/packages/teleport/src/Roles/RoleEditor/StandardEditor/standardmodel.test.ts
+
+.PHONY: test-e2e
+test-e2e: ensure-webassets
+	(cd e2e && pnpm install) && $(CGOFLAG) go test -tags=webassets_embed ./e2e/web_e2e_test.go

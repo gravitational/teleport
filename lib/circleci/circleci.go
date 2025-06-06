@@ -32,6 +32,8 @@ package circleci
 import (
 	"fmt"
 
+	"github.com/zitadel/oidc/v3/pkg/oidc"
+
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
@@ -45,6 +47,8 @@ func issuerURL(template, organizationID string) string {
 // ID token.
 // See https://circleci.com/docs/openid-connect-tokens/
 type IDTokenClaims struct {
+	oidc.TokenClaims
+
 	// Sub identifies who is running the CircleCI job and where.
 	// In the format of: `org/ORGANIZATION_ID/project/PROJECT_ID/user/USER_ID`
 	Sub string `json:"sub"`
@@ -52,6 +56,10 @@ type IDTokenClaims struct {
 	ContextIDs []string `json:"oidc.circleci.com/context-ids"`
 	// ProjectID is the ID of the project in which the job is running.
 	ProjectID string `json:"oidc.circleci.com/project-id"`
+}
+
+func (c *IDTokenClaims) GetSubject() string {
+	return c.Sub
 }
 
 // JoinAttrs returns the protobuf representation of the attested identity.

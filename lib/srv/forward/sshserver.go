@@ -505,6 +505,12 @@ func (s *Server) GetHostSudoers() srv.HostSudoers {
 	return &srv.HostSudoersNotImplemented{}
 }
 
+// GetSELinuxEnabled returns whether the node should enable SELinux
+// support or not.
+func (s *Server) GetSELinuxEnabled() bool {
+	return false
+}
+
 // GetInfo returns a services.Server that represents this server.
 func (s *Server) GetInfo() types.Server {
 	return &types.ServerV2{
@@ -606,7 +612,7 @@ func (s *Server) Serve() {
 	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
 		// OpenSSH nodes don't support moderated sessions, send an error to
 		// the user and gracefully fail if the user is attempting to create one.
-		policySets := s.identityContext.AccessChecker.SessionPolicySets()
+		policySets := s.identityContext.UnstableSessionJoiningAccessChecker.SessionPolicySets()
 		evaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, s.identityContext.TeleportUser)
 		if evaluator.IsModerated() {
 			s.rejectChannel(chans, "Moderated sessions cannot be created for OpenSSH nodes")
@@ -1121,7 +1127,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	}
 	defer conn.Close()
 
-	event := scx.GetPortForwardEvent(events.PortForwardEvent, events.PortForwardFailureCode, scx.DstAddr)
+	event := scx.GetPortForwardEvent(events.PortForwardEvent, events.PortForwardCode, scx.DstAddr)
 	if err := s.EmitAuditEvent(s.closeContext, &event); err != nil {
 		s.logger.WarnContext(ctx, "Failed to emit port forward event", "error", err)
 	}

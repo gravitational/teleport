@@ -33,7 +33,9 @@ import {
   getStatusBackgroundColor,
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
+import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
 import { SingleLineBox } from '../shared/SingleLineBox';
+import { shouldWarnResourceStatus } from '../shared/StatusInfo';
 import { ResourceItemProps } from '../types';
 import { WarningRightEdgeBadgeSvg } from './WarningRightEdgeBadgeSvg';
 
@@ -166,7 +168,7 @@ export function ResourceCard({
     }
   };
 
-  const hasUnhealthyStatus = status && status !== 'healthy';
+  const shouldDisplayStatusWarning = shouldWarnResourceStatus(status);
 
   return (
     <CardContainer
@@ -176,7 +178,7 @@ export function ResourceCard({
     >
       <CardOuterContainer
         showAllLabels={showAllLabels}
-        hasUnhealthyStatus={hasUnhealthyStatus}
+        shouldDisplayWarning={shouldDisplayStatusWarning}
       >
         <CardInnerContainer
           ref={innerContainer}
@@ -190,23 +192,17 @@ export function ResourceCard({
           requiresRequest={requiresRequest}
           selected={selected}
           showingStatusInfo={showingStatusInfo}
-          hasUnhealthyStatus={hasUnhealthyStatus}
+          shouldDisplayWarning={shouldDisplayStatusWarning}
           // we set extra padding to push contents to the right to make
           // space for the WarningRightEdgeBadgeIcon.
-          {...(hasUnhealthyStatus && !showAllLabels && { pr: '35px' })}
-          {...(hasUnhealthyStatus && showAllLabels && { pr: '7px' })}
+          {...(shouldDisplayStatusWarning && !showAllLabels && { pr: '35px' })}
+          {...(shouldDisplayStatusWarning && showAllLabels && { pr: '7px' })}
         >
-          <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
-            <CheckboxInput
-              css={`
-                position: absolute;
-                top: 16px;
-                left: 16px;
-              `}
-              checked={selected}
-              onChange={selectResource}
-            />
-          </HoverTooltip>
+          <CheckboxInput
+            checked={selected}
+            onChange={selectResource}
+            style={{ position: 'absolute', top: '16px', left: '16px' }}
+          />
           <Box
             css={`
               position: absolute;
@@ -241,7 +237,9 @@ export function ResourceCard({
                 </HoverTooltip>
               </SingleLineBox>
               {hovered && <CopyButton name={name} mr={2} />}
-              {ActionButton}
+              <ResourceActionButtonWrapper requiresRequest={requiresRequest}>
+                {ActionButton}
+              </ResourceActionButtonWrapper>
             </Flex>
             <Flex flexDirection="row" alignItems="center">
               <ResTypeIconBox>
@@ -265,7 +263,7 @@ export function ResourceCard({
             <LabelsContainer showAll={showAllLabels}>
               <LabelsInnerContainer
                 ref={labelsInnerContainer}
-                hasUnhealthyStatus={hasUnhealthyStatus}
+                hasUnhealthyStatus={shouldDisplayStatusWarning}
               >
                 <MoreLabelsButton
                   style={{
@@ -295,7 +293,7 @@ export function ResourceCard({
               </LabelsInnerContainer>
             </LabelsContainer>
           </Flex>
-          {hasUnhealthyStatus && !showAllLabels && (
+          {shouldDisplayStatusWarning && !showAllLabels && (
             <HoverTooltip tipContent={'Show Connection Issue'} placement="left">
               <WarningRightEdgeBadgeIcon onClick={onShowStatusInfo} />
             </HoverTooltip>
@@ -305,7 +303,9 @@ export function ResourceCard({
       {/* This is to let the WarningRightEdgeBadgeIcon stay in place while the
         InnerContainer pops out and expands vertically from rendering all
         labels. */}
-      {hasUnhealthyStatus && showAllLabels && <WarningRightEdgeBadgeIcon />}
+      {shouldDisplayStatusWarning && showAllLabels && (
+        <WarningRightEdgeBadgeIcon />
+      )}
     </CardContainer>
   );
 }
@@ -366,7 +366,7 @@ const CardContainer = styled(Box)<{
 
 const CardOuterContainer = styled(Box)<{
   showAllLabels?: boolean;
-  hasUnhealthyStatus: boolean;
+  shouldDisplayWarning: boolean;
 }>`
   border-radius: ${props => props.theme.radii[3]}px;
 
@@ -376,7 +376,7 @@ const CardOuterContainer = styled(Box)<{
       position: absolute;
       left: 0;
       // The padding is required to show the WarningRightEdgeBadgeIcon
-      right: ${props.hasUnhealthyStatus ? '28px' : 0};
+      right: ${props.shouldDisplayWarning ? '28px' : 0};
       z-index: 1;
     `}
   transition: all 150ms;
@@ -417,7 +417,7 @@ const CardInnerContainer = styled(Flex)<BackgroundColorProps>`
   background-color: ${props => getBackgroundColor(props)};
 
   ${p =>
-    p.hasUnhealthyStatus &&
+    p.shouldDisplayWarning &&
     css`
       border: 2px solid ${p.theme.colors.interactive.solid.alert.default};
       background-color: ${getStatusBackgroundColor({
@@ -439,7 +439,7 @@ const CardInnerContainer = styled(Flex)<BackgroundColorProps>`
     border: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
 
     ${p =>
-      p.hasUnhealthyStatus &&
+      p.shouldDisplayWarning &&
       css`
         border-color: ${p.theme.colors.interactive.solid.alert.hover};
         background-color: ${getStatusBackgroundColor({

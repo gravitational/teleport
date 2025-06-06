@@ -330,6 +330,14 @@ export const eventCodes = {
   HEALTH_CHECK_CONFIG_CREATE: 'THCC001I',
   HEALTH_CHECK_CONFIG_UPDATE: 'THCC002I',
   HEALTH_CHECK_CONFIG_DELETE: 'THCC003I',
+  AUTOUPDATE_AGENT_ROLLOUT_TRIGGER: 'AUAR001I',
+  AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE: 'AUAR002I',
+  AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK: 'AUAR003I',
+  MCP_SESSION_START: 'TMCP001I',
+  MCP_SESSION_END: 'TMCP002I',
+  MCP_SESSION_REQUEST: 'TMCP003I',
+  MCP_SESSION_REQUEST_FAILURE: 'TMCP003E',
+  MCP_SESSION_NOTIFICATION: 'TMCP004I',
 } as const;
 
 /**
@@ -1324,6 +1332,7 @@ export type RawEvents = {
     {
       bot_name: string;
       method: string;
+      token_name: string;
     }
   >;
   [eventCodes.BOT_JOIN_FAILURE]: RawEvent<
@@ -1331,6 +1340,7 @@ export type RawEvents = {
     {
       bot_name: string;
       method: string;
+      token_name: string;
     }
   >;
   [eventCodes.INSTANCE_JOIN]: RawEvent<
@@ -1528,6 +1538,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_CREATE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1535,6 +1546,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_CREATE_FAILURE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1542,6 +1554,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_UPDATE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1549,6 +1562,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_UPDATE_FAILURE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1556,6 +1570,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_DELETE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1563,6 +1578,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_DELETE_FAILURE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1570,6 +1586,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_REVIEW,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1577,6 +1594,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_REVIEW_FAILURE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1602,6 +1620,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST,
     {
       access_list_name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1609,6 +1628,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE,
     {
       access_list_name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1616,6 +1636,7 @@ export type RawEvents = {
     typeof eventCodes.USER_LOGIN_INVALID_ACCESS_LIST,
     {
       access_list_name: string;
+      access_list_title: string;
       user: string;
       missing_roles: string[];
     }
@@ -1889,6 +1910,74 @@ export type RawEvents = {
     typeof eventCodes.HEALTH_CHECK_CONFIG_DELETE,
     HasName
   >;
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER,
+    {
+      user: string;
+      groups: string[];
+    }
+  >;
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE,
+    {
+      user: string;
+      groups: string[];
+    }
+  >;
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK,
+    {
+      user: string;
+      groups: string[];
+    }
+  >;
+  [eventCodes.MCP_SESSION_START]: RawEvent<
+    typeof eventCodes.MCP_SESSION_START,
+    {
+      sid: string;
+      app_name: string;
+    }
+  >;
+  [eventCodes.MCP_SESSION_END]: RawEvent<
+    typeof eventCodes.MCP_SESSION_END,
+    {
+      sid: string;
+      app_name: string;
+    }
+  >;
+  [eventCodes.MCP_SESSION_REQUEST]: RawEvent<
+    typeof eventCodes.MCP_SESSION_REQUEST,
+    {
+      app_name: string;
+      message: {
+        method: string;
+        params?: {
+          name?: string;
+        };
+      };
+    }
+  >;
+  [eventCodes.MCP_SESSION_REQUEST_FAILURE]: RawEvent<
+    typeof eventCodes.MCP_SESSION_REQUEST_FAILURE,
+    {
+      app_name: string;
+      message: {
+        method: string;
+        params?: {
+          name?: string;
+        };
+      };
+    }
+  >;
+  [eventCodes.MCP_SESSION_NOTIFICATION]: RawEvent<
+    typeof eventCodes.MCP_SESSION_NOTIFICATION,
+    {
+      app_name: string;
+      message: {
+        method: string;
+      };
+    }
+  >;
 };
 
 /**
@@ -2031,6 +2120,7 @@ type RawEventAccessList<T extends EventCode> = RawEvent<
     access_list_name: string;
     members: { member_name: string }[];
     updated_by: string;
+    access_list_title: string;
   }
 >;
 

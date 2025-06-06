@@ -77,7 +77,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
@@ -287,10 +286,6 @@ type Config struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Stdin  io.Reader
-
-	// ExitStatus carries the returned value (exit status) of the remote
-	// process execution (via SSH exec)
-	ExitStatus int
 
 	// SiteName specifies site to execute operation,
 	// if omitted, first available site will be selected
@@ -754,10 +749,6 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	// Save profile to record proxy credentials
 	if err := tc.SaveProfile(opt.makeCurrentProfile); err != nil {
 		log.WarnContext(ctx, "Failed to save profile", "error", err)
-		return trace.Wrap(err)
-	}
-
-	if err := tools.CheckAndUpdateRemote(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify, os.Args[1:]); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1264,6 +1255,9 @@ type DTAutoEnrollFunc func(context.Context, devicepb.DeviceTrustServiceClient) (
 // TeleportClient is NOT safe for concurrent use.
 type TeleportClient struct {
 	Config
+	exitStatus int
+	statusMu   sync.Mutex
+
 	localAgent *LocalKeyAgent
 
 	// OnChannelRequest gets called when SSH channel requests are
@@ -1328,6 +1322,22 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	}
 
 	return tc, nil
+}
+
+// ExitStatus returns the exit status of the most recent SSH command. It is the
+// caller's responsibility to ensure the command has finished before checking
+// the exit status.
+func (tc *TeleportClient) ExitStatus() int {
+	tc.statusMu.Lock()
+	defer tc.statusMu.Unlock()
+	return tc.exitStatus
+}
+
+// SetExitStatus sets the exit status of the most recent SSH command.
+func (tc *TeleportClient) SetExitStatus(status int) {
+	tc.statusMu.Lock()
+	defer tc.statusMu.Unlock()
+	tc.exitStatus = status
 }
 
 func (tc *TeleportClient) stdin() prompt.StdinReader {
@@ -1722,8 +1732,11 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer clusterClient.Close()
 
-	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, params)
-	return keyRing, trace.Wrap(err)
+	result, err := clusterClient.IssueUserCertsWithMFA(ctx, params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return result.KeyRing, nil
 }
 
 // CreateAccessRequestV2 registers a new access request with the auth server.
@@ -2172,7 +2185,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		tc.Config.HostLogin,
 	)
 	if err != nil {
-		tc.ExitStatus = 1
+		tc.SetExitStatus(1)
 		return trace.Wrap(err)
 	}
 	defer nodeClient.Close()
@@ -2939,6 +2952,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 			)
 			defer span.End()
 
+			displayName := nodeName(node)
 			nodeClient, err := tc.ConnectToNode(
 				ctx,
 				clt,
@@ -2953,26 +2967,32 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 			if err != nil {
 				// Returning the error here would cancel all the other goroutines, so
 				// print the error instead to let them all finish.
-				fmt.Fprintln(tc.Stderr, err)
+				fmt.Fprintln(stderr, err)
+				resultsCh <- execResult{
+					hostname:   displayName,
+					exitStatus: 1,
+				}
 				return nil
 			}
 			defer nodeClient.Close()
 
-			displayName := nodeName(node)
-			fmt.Printf("Running command on %v:\n", displayName)
+			fmt.Fprintf(stdout, "Running command on %v:\n", displayName)
 
-			if err := nodeClient.RunCommand(
+			err = nodeClient.RunCommand(
 				ctx,
 				command,
 				WithLabeledOutput(width),
 				WithOutput(stdout, stderr),
-			); err != nil && tc.ExitStatus == 0 {
-				fmt.Fprintln(tc.Stderr, err)
+			)
+			// Use the status from the error to avoid a race on the exit status.
+			exitStatus := getExitStatus(err)
+			if err != nil && exitStatus == 0 {
+				fmt.Fprintln(stderr, err)
 				return nil
 			}
 			resultsCh <- execResult{
 				hostname:   displayName,
-				exitStatus: tc.ExitStatus,
+				exitStatus: exitStatus,
 			}
 			return nil
 		})
@@ -4209,8 +4229,13 @@ func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, connectorType s
 		}
 		defer rd.Close()
 
-		ssoCeremony := sso.NewCLICeremony(rd, tc.ssoLoginInitFn(keyRing, connectorID, connectorType))
+		if connectorType == constants.SAML {
+			ssoCeremony := sso.NewCLISAMLCeremony(rd, tc.samlSSOLoginInitFn(keyRing, connectorID, connectorType))
+			resp, err := ssoCeremony.Run(ctx)
+			return resp, trace.Wrap(err)
 
+		}
+		ssoCeremony := sso.NewCLICeremony(rd, tc.ssoLoginInitFn(keyRing, connectorID, connectorType))
 		resp, err := ssoCeremony.Run(ctx)
 		return resp, trace.Wrap(err)
 	}

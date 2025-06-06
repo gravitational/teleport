@@ -311,6 +311,14 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: Icons.Info,
   [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: Icons.Info,
   [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: Icons.RocketLaunch,
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: Icons.Checks,
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: Icons.Restore,
+  [eventCodes.MCP_SESSION_START]: Icons.ModelContextProtocol,
+  [eventCodes.MCP_SESSION_END]: Icons.ModelContextProtocol,
+  [eventCodes.MCP_SESSION_REQUEST]: Icons.ModelContextProtocol,
+  [eventCodes.MCP_SESSION_REQUEST_FAILURE]: Icons.Warning,
+  [eventCodes.MCP_SESSION_NOTIFICATION]: Icons.ModelContextProtocol,
 };
 
 export default function renderTypeCell(event: Event) {

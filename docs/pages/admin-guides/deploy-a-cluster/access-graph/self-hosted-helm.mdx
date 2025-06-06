@@ -20,11 +20,11 @@ to Teleport Enterprise customers.
 
 - Kubernetes >= v1.21
 - Helm >= (=helm.version=)
-- A running Teleport Enterprise cluster v14.3.6 or later.
+- A running Teleport Enterprise cluster v18.0.0 or later.
   - For the purposes of this guide, we assume that the Teleport cluster is set up
     [using the `teleport-cluster` Helm chart](../helm-deployments/helm-deployments.mdx)
     in the same Kubernetes cluster that will be used to deploy Access Graph.
-- An updated `license.pem` with Identity Security enabled.
+- An updated Teleport Enterprise license file with Teleport Identity Security enabled.
 - A PostgreSQL database server v14 or later.
   - Access Graph needs a dedicated [database](https://www.postgresql.org/docs/current/sql-createdatabase.html) to store its data.
     The user that Teleport connects to the database with needs to be the owner of this database, or have similar broad permissions:
@@ -192,8 +192,10 @@ If not using the `teleport-cluster` Helm chart, you will need to do the equivale
 - Add the `access_graph:` section at the top-level of the YAML config file for the Teleport Auth Service.
 - Mount the created ConfigMap as a volume so that the Auth Service can read the CA certificate.
 
-Finally, redeploy the Helm chart (assuming the values are stored in `values-teleport.yaml`).
-Once the Auth Service changes succeed, restart the Proxy Service.
+Finally, redeploy the Helm chart (assuming the values are stored in
+`values-teleport.yaml`).  Once the Auth Service changes succeed, restart the
+Proxy Service. Assign <Var name="teleport-cluster-deployment-name" /> to the
+name of your `teleport-cluster` deployment:
 
 ```code
 $ helm upgrade -n <Var name="teleport-cluster-namespace" /> -f values-teleport.yaml \
@@ -226,3 +228,8 @@ spec:
 ```
 
 The preset `editor` role has the required permissions by default.
+
+
+## Next steps
+
+- Configure [Identity Activity Center](./identity-activity-center.mdx)

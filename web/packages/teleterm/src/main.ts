@@ -31,10 +31,7 @@ import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandle
 import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
-import {
-  createConfigService,
-  runConfigFileMigration,
-} from 'teleterm/services/config';
+import { createConfigService } from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import { createFileLoggerService, LoggerColor } from 'teleterm/services/logger';
 import * as types from 'teleterm/types';
@@ -50,6 +47,10 @@ if (!app.isPackaged) {
 if (!process.defaultApp) {
   app.setAsDefaultProtocolClient(CUSTOM_PROTOCOL);
 }
+
+// Fix a bug introduced in Electron 36.
+// https://github.com/electron/electron/issues/46538#issuecomment-2808806722
+app.commandLine.appendSwitch('gtk-version', '3');
 
 if (app.requestSingleInstanceLock()) {
   initializeApp();
@@ -72,7 +73,6 @@ async function initializeApp(): Promise<void> {
     configJsonSchemaFileStorage,
   } = createFileStorages(settings.userDataDir);
 
-  runConfigFileMigration(configFileStorage);
   const configService = createConfigService({
     configFile: configFileStorage,
     jsonSchemaFile: configJsonSchemaFileStorage,
@@ -155,7 +155,7 @@ async function initializeApp(): Promise<void> {
   const rootClusterProxyHostAllowList = new Set<string>();
 
   (async () => {
-    const tshdClient = await mainProcess.initTshdClient();
+    const tshdClient = await mainProcess.getTshdClient();
 
     manageRootClusterProxyHostAllowList({
       tshdClient,

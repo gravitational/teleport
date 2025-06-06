@@ -31,6 +31,8 @@ import "teleport/machineid/v1/bot_instance.proto";
 import "teleport/machineid/v1/federation.proto";
 import "teleport/notifications/v1/notifications.proto";
 import "teleport/provisioning/v1/provisioning.proto";
+import "teleport/scopes/access/v1/assignment.proto";
+import "teleport/scopes/access/v1/role.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
@@ -199,7 +201,7 @@ message Event {
     // ProvisioningPrincipalState is a resource for tracking the provisioning of
     // users and groups into downstream systems.
     teleport.provisioning.v1.PrincipalState ProvisioningPrincipalState = 70;
-    // AutoUpdateVersion is a resource for controlling the autoupdate agent rollout.
+    // AutoUpdateAgentRollout is a resource for controlling the autoupdate agent rollout.
     teleport.autoupdate.v1.AutoUpdateAgentRollout AutoUpdateAgentRollout = 71;
     // IdentityCenterAccount is a resource for tracking Identity Center accounts
     teleport.identitycenter.v1.Account IdentityCenterAccount = 72;
@@ -217,5 +219,11 @@ message Event {
     teleport.workloadidentity.v1.WorkloadIdentityX509Revocation WorkloadIdentityX509Revocation = 77;
     // HealthCheckConfig is a resource for configuring health checks.
     teleport.healthcheckconfig.v1.HealthCheckConfig HealthCheckConfig = 78;
+    // AutoUpdateAgentReport is a resource for counting agents connected to an auth instance.
+    teleport.autoupdate.v1.AutoUpdateAgentReport AutoUpdateAgentReport = 79;
+    // ScopedRole is a role that descibes scoped privileges.
+    teleport.scopes.access.v1.ScopedRole ScopedRole = 80;
+    // ScopedRoleAssignment is an assignment of one or more scoped roles to a user.
+    teleport.scopes.access.v1.ScopedRoleAssignment ScopedRoleAssignment = 81;
   }
 }

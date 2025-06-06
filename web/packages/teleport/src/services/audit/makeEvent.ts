@@ -1419,15 +1419,15 @@ export const formatters: Formatters = {
   [eventCodes.BOT_JOIN]: {
     type: 'bot.join',
     desc: 'Bot Joined',
-    format: ({ bot_name, method }) => {
-      return `Bot [${bot_name}] joined the cluster using the [${method}] join method`;
+    format: ({ bot_name, method, token_name }) => {
+      return `Bot [${bot_name}] joined the cluster using the [${method}] join method and the [${token_name || 'unknown'}] token`;
     },
   },
   [eventCodes.BOT_JOIN_FAILURE]: {
     type: 'bot.join',
     desc: 'Bot Join Failed',
-    format: ({ bot_name }) => {
-      return `Bot [${bot_name || 'unknown'}] failed to join the cluster`;
+    format: ({ bot_name, method, token_name }) => {
+      return `Bot [${bot_name || 'unknown'}] failed to join the cluster using the [${method || 'unknown'}] join method and the [${token_name || 'unknown'}] token`;
     },
   },
   [eventCodes.INSTANCE_JOIN]: {
@@ -1663,116 +1663,130 @@ export const formatters: Formatters = {
   [eventCodes.ACCESS_LIST_CREATE]: {
     type: 'access_list.create',
     desc: 'Access list created',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] created access list [${name}]`,
+    format: ({ access_list_title, name, updated_by }) => {
+      return `User [${updated_by}] created access list [${access_list_title || name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_CREATE_FAILURE]: {
     type: 'access_list.create',
     desc: 'Access list create failed',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] failed to create access list [${name}]`,
+    format: ({ access_list_title, name, updated_by }) => {
+      return `User [${updated_by}] failed to create access list [${access_list_title || name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_UPDATE]: {
     type: 'access_list.update',
     desc: 'Access list updated',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] updated access list [${name}]`,
+    format: ({ access_list_title, name, updated_by }) => {
+      return `User [${updated_by}] updated access list [${access_list_title || name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_UPDATE_FAILURE]: {
     type: 'access_list.update',
     desc: 'Access list update failed',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] failed to update access list [${name}]`,
+    format: ({ access_list_title, name, updated_by }) => {
+      return `User [${updated_by}] failed to update access list [${access_list_title || name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_DELETE]: {
     type: 'access_list.delete',
     desc: 'Access list deleted',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] deleted access list [${name}]`,
+    format: ({ access_list_title, name, updated_by }) => {
+      return `User [${updated_by}] deleted access list [${access_list_title || name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_DELETE_FAILURE]: {
     type: 'access_list.delete',
     desc: 'Access list delete failed',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] failed to delete access list [${name}]`,
+    format: ({ access_list_title, name, updated_by }) => {
+      return `User [${updated_by}] failed to delete access list [${access_list_title || name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_REVIEW]: {
     type: 'access_list.review',
     desc: 'Access list reviewed',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] reviewed access list [${name}]`,
+    format: ({ access_list_title, name, updated_by }) => {
+      return `User [${updated_by}] reviewed access list [${access_list_title || name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_REVIEW_FAILURE]: {
     type: 'access_list.review',
     desc: 'Access list review failed',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] failed to to review access list [${name}]`,
+    format: ({ access_list_title, name, updated_by }) => {
+      return `User [${updated_by}] failed to to review access list [${access_list_title || name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_MEMBER_CREATE]: {
     type: 'access_list.member.create',
     desc: 'Access list member added',
-    format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] added ${formatMembers(
-        members
-      )} to access list [${access_list_name}]`,
+    format: ({ access_list_title, members, access_list_name, updated_by }) => {
+      return `User [${updated_by}] added ${formatMembers(members)} to access list [${access_list_title || access_list_name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: {
     type: 'access_list.member.create',
     desc: 'Access list member addition failure',
-    format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] failed to add ${formatMembers(
+    format: ({ access_list_title, members, access_list_name, updated_by }) => {
+      return `User [${updated_by}] failed to add ${formatMembers(
         members
-      )} to access list [${access_list_name}]`,
+      )} to access list [${access_list_title || access_list_name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: {
     type: 'access_list.member.update',
     desc: 'Access list member updated',
-    format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] updated ${formatMembers(
+    format: ({ access_list_title, members, access_list_name, updated_by }) => {
+      return `User [${updated_by}] updated ${formatMembers(
         members
-      )} in access list [${access_list_name}]`,
+      )} in access list [${access_list_title || access_list_name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: {
     type: 'access_list.member.update',
     desc: 'Access list member update failure',
-    format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] failed to update ${formatMembers(
+    format: ({ access_list_title, members, access_list_name, updated_by }) => {
+      return `User [${updated_by}] failed to update ${formatMembers(
         members
-      )} in access list [${access_list_name}]`,
+      )} in access list [${access_list_title || access_list_name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_MEMBER_DELETE]: {
     type: 'access_list.member.delete',
     desc: 'Access list member removed',
-    format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] removed ${formatMembers(
+    format: ({ access_list_title, members, access_list_name, updated_by }) => {
+      return `User [${updated_by}] removed ${formatMembers(
         members
-      )} from access list [${access_list_name}]`,
+      )} from access list [${access_list_title || access_list_name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: {
     type: 'access_list.member.delete',
     desc: 'Access list member removal failure',
-    format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] failed to remove ${formatMembers(
+    format: ({ access_list_title, members, access_list_name, updated_by }) => {
+      return `User [${updated_by}] failed to remove ${formatMembers(
         members
-      )} from access list [${access_list_name}]`,
+      )} from access list [${access_list_title || access_list_name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: {
     type: 'access_list.member.delete_all_members',
     desc: 'All members removed from access list',
-    format: ({ access_list_name, updated_by }) =>
-      `User [${updated_by}] removed all members from access list [${access_list_name}]`,
+    format: ({ access_list_title, access_list_name, updated_by }) => {
+      return `User [${updated_by}] removed all members from access list [${access_list_title || access_list_name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]: {
     type: 'access_list.member.delete_all_members',
     desc: 'Access list member delete all members failure',
-    format: ({ access_list_name, updated_by }) =>
-      `User [${updated_by}] failed to remove all members from access list [${access_list_name}]`,
+    format: ({ access_list_title, access_list_name, updated_by }) => {
+      return `User [${updated_by}] failed to remove all members from access list [${access_list_title || access_list_name}]`;
+    },
   },
   [eventCodes.USER_LOGIN_INVALID_ACCESS_LIST]: {
     type: 'user_login.invalid_access_list',
     desc: 'Access list skipped.',
-    format: ({ access_list_name, user, missing_roles }) =>
-      `Access list [${access_list_name}] is invalid and was skipped for member [${user}] because it references non-existent role${missing_roles.length > 1 ? 's' : ''} [${missing_roles}]`,
+    format: ({ access_list_title, access_list_name, user, missing_roles }) =>
+      `Access list [${access_list_title || access_list_name}] is invalid and was skipped for member [${user}] because it references non-existent role${missing_roles.length > 1 ? 's' : ''} [${missing_roles}]`,
   },
   [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: {
     type: 'secreports.audit.query.run"',
@@ -2153,6 +2167,70 @@ export const formatters: Formatters = {
     desc: 'Health Check Config Deleted',
     format: ({ user, name }) => {
       return `User [${user}] deleted a health check config [${name}]`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: {
+    type: 'auto_update_agent_rollout.trigger',
+    desc: 'Automatic Update Agent Rollout Triggered',
+    format: ({ user, groups }) => {
+      return `User ${user} triggered the rollout of the autoupdate rollout groups ${groups}`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: {
+    type: 'auto_update_agent_rollout.force_done',
+    desc: 'Automatic Update Agent Rollout Forced Done.',
+    format: ({ user, groups }) => {
+      return `User ${user} forced to the done state the autoupdate rollout groups ${groups}`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: {
+    type: 'auto_update_agent_rollout.rollback',
+    desc: 'Automatic Update Agent Rollout Rollback',
+    format: ({ user, groups }) => {
+      return `User ${user} rolled back the autoupdate rollout groups ${groups}`;
+    },
+  },
+  [eventCodes.MCP_SESSION_START]: {
+    type: 'mcp.session.start',
+    desc: 'MCP Session Started',
+    format: event => {
+      const { user, app_name } = event;
+      return `User [${user}] has connected to MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_END]: {
+    type: 'mcp.session.end',
+    desc: 'MCP Session Ended',
+    format: event => {
+      const { user, app_name } = event;
+      return `User [${user}] has disconnected from MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_REQUEST]: {
+    type: 'mcp.session.request',
+    desc: 'MCP Session Request',
+    format: ({ user, app_name, message }) => {
+      if (message.params?.name) {
+        return `User [${user}] sent an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
+      }
+      return `User [${user}] sent an MCP request [${message.method}] to MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_REQUEST_FAILURE]: {
+    type: 'mcp.session.request',
+    desc: 'MCP Session Request Failure',
+    format: ({ user, app_name, message }) => {
+      if (message.params?.name) {
+        return `User [${user}] was denied access to an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
+      }
+      return `User [${user}] was denied access to an MCP request [${message.method}] to MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_NOTIFICATION]: {
+    type: 'mcp.session.notification',
+    desc: 'MCP Session Notification',
+    format: ({ user, app_name, message }) => {
+      return `User [${user}] sent an MCP notification [${message.method}] to MCP server [${app_name}]`;
     },
   },
 };

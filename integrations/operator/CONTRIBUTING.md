@@ -8,9 +8,7 @@ The steps to add support for new Teleport types to the operator are as follows:
 
 In a clean repo before making any changes:
 
-1. Run `make manifests`.
-2. Run `make -C crdgen update-protos`.
-3. Run `make -C crdgen update-snapshot`.
+1. Run `make generate`.
 
 Make sure everything looks sane and commit any changes (there will be some if
 other .proto files used to generate the CRDs have changed).
@@ -19,10 +17,9 @@ other .proto files used to generate the CRDs have changed).
 
 1. Add the type name to the `resources` list in `crdgen/handlerequest.go`.
 2. Add the proto file to the `PROTOS` list in `Makefile` if it is not
-   already present. Also add it to the `PROTOS` list in `crdgen/Makefile`.
-3. Run `make manifests` to generate the CRD.
-4. Run `make crdgen-test`. This will should fail if your new CRD is generated.
-   Update the test snapshots with `make -C crdgen update-snapshot`
+   already present.
+4. Run `make crd-manifest-diff`. This will should output the new CRD file or the diff, and fail.
+3. Run `make crd` to generate the CRD and its documentation.
 
 #### Create a "scheme" defining Go types to match the CRD
 

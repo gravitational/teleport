@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -221,8 +222,6 @@ func TestCertificateVerification(t *testing.T) {
 }
 
 func TestBasicFunctionality(t *testing.T) {
-	t.Skip("disabled until quic-go/quic-go#4303 is fixed (data race)")
-
 	t.Parallel()
 
 	hostCA := newCA(t)
@@ -240,9 +239,14 @@ func TestBasicFunctionality(t *testing.T) {
 		Groups:   []string{string(types.RoleProxy)},
 	})
 
+	var serverPeerDialerFunc atomic.Value
+	serverPeerDialerFunc.Store(noDialer)
+
 	serverTransport := newTransport(t)
 	server, err := NewServer(ServerConfig{
-		Dialer: noDialer,
+		Dialer: peerDialerFunc(func(clusterName string, request peerdial.DialParams) (net.Conn, error) {
+			return serverPeerDialerFunc.Load().(peerDialerFunc)(clusterName, request)
+		}),
 		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 			return &serverCert, nil
 		},
@@ -296,9 +300,9 @@ func TestBasicFunctionality(t *testing.T) {
 		}
 		require.ErrorAs(t, err, new(*trace.NotImplementedError))
 
-		server.dialer = peerDialerFunc(func(clusterName string, request peerdial.DialParams) (net.Conn, error) {
+		serverPeerDialerFunc.Store(peerDialerFunc(func(clusterName string, request peerdial.DialParams) (net.Conn, error) {
 			return nil, trace.NotFound("nope")
-		})
+		}))
 		conn, err = clientDialRandomNode()
 		if !assert.Error(t, err) {
 			_ = conn.Close()
@@ -309,7 +313,7 @@ func TestBasicFunctionality(t *testing.T) {
 
 	t.Run("successful dial", func(t *testing.T) {
 		pipeClosed := make(chan struct{})
-		server.dialer = peerDialerFunc(func(clusterName string, request peerdial.DialParams) (net.Conn, error) {
+		serverPeerDialerFunc.Store(peerDialerFunc(func(clusterName string, request peerdial.DialParams) (net.Conn, error) {
 			if clusterName != "echo" {
 				return nil, trace.BadParameter("expected echo cluster")
 			}
@@ -328,7 +332,7 @@ func TestBasicFunctionality(t *testing.T) {
 				io.Copy(p2, p2)
 			}()
 			return p1, nil
-		})
+		}))
 
 		conn, err := client.Dial(
 			"echo.echo",

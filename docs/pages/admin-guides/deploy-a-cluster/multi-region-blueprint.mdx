@@ -80,7 +80,7 @@ This section describes this setup in more detail.
   - on GCP, GCS has a multi-region location
   - on-prem, MinIO supports [multi-site bucket replication](https://min.io/docs/minio/linux/administration/bucket-replication/enable-server-side-multi-site-bucket-replication.html)
   - on AWS, you can [set up two-way-replication](https://docs.aws.amazon.com/AmazonS3/latest/userguide/mrap-create-two-way-replication-rules.html)
-    between S3 buckets.
+    between S3 buckets. See [the dedicated S3 replication section](#setting-up-multi-region-aws-s3-replication) for more details.
 - Setup [a CockroachDB multi-region cluster](https://www.cockroachlabs.com/docs/v24.1/multiregion-overview)
 
 ### Teleport backend configuration
@@ -311,3 +311,21 @@ Terraform. With 3 buckets `bucketA`, `bucketB`, `bucketC` you need 6 rules:
     If you want Teleport to automatically clean up session recordings, you must
     enable "Delete marker replication" in the replication rules.
 </Admonition>
+
+Finally, you must configure Teleport to only complete file uploads
+initiated by itself (so Teleport does not attempt to complete uploads caused
+by the bucket replication rules).
+
+You can do so by setting `complete_initiators=<Var name= "teleport-iam-role"/>` in the `audit_sessions_uri` value.
+<Var name= "teleport-iam-role"/> is the name of the IAM role used by the Teleport Auth service to upload recording to
+the S3 bucket:
+
+```yaml
+auth:
+  teleportConfig:
+    teleport:
+      storage:
+        # [other storage options here...]
+        audit_sessions_uri: "uri://to-your-regional-bucket?complete_initiators=<Var name= "teleport-iam-role"/>"
+        # ...
+```

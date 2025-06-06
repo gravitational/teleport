@@ -356,20 +356,6 @@ type KeyedItem interface {
 	GetName() string
 }
 
-// NextPaginationKey returns the next pagination key.
-// For items that implement HostID, the next key will also
-// have the HostID part.
-func NextPaginationKey(ki KeyedItem) string {
-	var key Key
-	if h, ok := ki.(HostID); ok {
-		key = internalKey(h.GetHostID(), h.GetName())
-	} else {
-		key = NewKey(ki.GetName())
-	}
-
-	return nextKey(key).String()
-}
-
 // GetPaginationKey returns the pagination key given item.
 // For items that implement HostID, the next key will also
 // have the HostID part.

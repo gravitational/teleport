@@ -3327,6 +3327,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL001E',
@@ -3334,6 +3335,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL002I',
@@ -3341,6 +3343,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL002E',
@@ -3348,6 +3351,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL003I',
@@ -3355,6 +3359,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL003E',
@@ -3362,6 +3367,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL004I',
@@ -3369,6 +3375,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL004E',
@@ -3376,12 +3383,14 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL005I',
     event: 'access_list.member.add',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'user',
@@ -3394,6 +3403,7 @@ export const events = [
     event: 'access_list.member.add',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'user',
@@ -3406,6 +3416,7 @@ export const events = [
     event: 'access_list.member.update',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'user',
@@ -3418,6 +3429,7 @@ export const events = [
     event: 'access_list.member.update',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'user',
@@ -3430,6 +3442,7 @@ export const events = [
     event: 'access_list.member.delete',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'user',
@@ -3442,6 +3455,7 @@ export const events = [
     event: 'access_list.member.delete',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'carrot',
@@ -3460,6 +3474,7 @@ export const events = [
     event: 'access_list.member.delete_all_members',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     updated_by: 'mike',
   },
   {
@@ -3467,6 +3482,7 @@ export const events = [
     event: 'access_list.member.delete_all_members',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     updated_by: 'mike',
   },
   {
@@ -3988,6 +4004,148 @@ export const events = [
     uid: 'e52def2f-4109-4cc9-91a8-150c6792f89f',
     user: 'bob',
     user_kind: 1,
+  },
+  {
+    ei: 0,
+    event: 'auto_update_agent_rollout.trigger',
+    code: 'AUAR001I',
+    time: '0001-01-01T00:00:00Z',
+    user: 'system',
+    groups: ['dev', 'prod'],
+    success: true,
+  },
+  {
+    ei: 0,
+    event: 'auto_update_agent_rollout.force_done',
+    code: 'AUAR002I',
+    time: '0001-01-01T00:00:00Z',
+    user: 'system',
+    groups: ['prod'],
+    success: true,
+  },
+  {
+    ei: 0,
+    event: 'auto_update_agent_rollout.rollback',
+    code: 'AUAR003I',
+    time: '0001-01-01T00:00:00Z',
+    user: 'system',
+    groups: ['prod'],
+    success: true,
+  },
+  {
+    code: 'TMCP001I',
+    ei: 0,
+    event: 'mcp.session.start',
+    namespace: 'default',
+    server_id: 'a0518380-0d53-4188-ac8b-8ddd8103e45b',
+    sid: '6593cf87-9839-4f18-abf8-c54873aaeb4e',
+    time: '2025-05-23T11:11:11.111Z',
+    uid: '80400ed9-644e-4a6e-ab99-b264b34d0f55',
+    user: 'ai-user',
+    app_name: 'mcp-everything',
+  },
+  {
+    code: 'TMCP003I',
+    ei: 0,
+    event: 'mcp.session.request',
+    namespace: 'default',
+    server_id: 'a0518380-0d53-4188-ac8b-8ddd8103e45b',
+    sid: '6593cf87-9839-4f18-abf8-c54873aaeb4e',
+    time: '2025-05-23T11:11:11.222Z',
+    uid: '80400ed9-644e-4a6e-ab99-b264b34d0f55',
+    user: 'ai-user',
+    app_name: 'mcp-everything',
+    success: true,
+    message: {
+      id: 0,
+      method: 'initialize',
+      params: {
+        clientInfo: {
+          name: 'claude-ai',
+          version: '0.1.0',
+        },
+        protocolVersion: '2024-11-05',
+      },
+      jsonrpc: '2.0',
+    },
+  },
+  {
+    code: 'TMCP004I',
+    ei: 0,
+    event: 'mcp.session.notification',
+    namespace: 'default',
+    server_id: 'a0518380-0d53-4188-ac8b-8ddd8103e45b',
+    sid: '6593cf87-9839-4f18-abf8-c54873aaeb4e',
+    time: '2025-05-23T11:11:11.333Z',
+    uid: '80400ed9-644e-4a6e-ab99-b264b34d0f55',
+    user: 'ai-user',
+    app_name: 'mcp-everything',
+    success: true,
+    message: {
+      method: 'notifications/initialized',
+      jsonrpc: '2.0',
+    },
+  },
+  {
+    code: 'TMCP003I',
+    ei: 0,
+    event: 'mcp.session.request',
+    namespace: 'default',
+    server_id: 'a0518380-0d53-4188-ac8b-8ddd8103e45b',
+    sid: '6593cf87-9839-4f18-abf8-c54873aaeb4e',
+    time: '2025-05-23T11:11:11.444Z',
+    uid: '80400ed9-644e-4a6e-ab99-b264b34d0f55',
+    user: 'ai-user',
+    app_name: 'mcp-everything',
+    success: true,
+    message: {
+      id: 2,
+      method: 'tools/call',
+      params: {
+        name: 'get_weather',
+        arguments: {
+          location: 'New York',
+        },
+      },
+      jsonrpc: '2.0',
+    },
+  },
+  {
+    code: 'TMCP003E',
+    ei: 0,
+    event: 'mcp.session.request',
+    namespace: 'default',
+    server_id: 'a0518380-0d53-4188-ac8b-8ddd8103e45b',
+    sid: '6593cf87-9839-4f18-abf8-c54873aaeb4e',
+    time: '2025-05-23T11:11:11.555Z',
+    uid: '80400ed9-644e-4a6e-ab99-b264b34d0f55',
+    user: 'ai-user',
+    app_name: 'mcp-everything',
+    success: false,
+    error: 'access denied',
+    message: {
+      id: 2,
+      method: 'tools/call',
+      params: {
+        name: 'write_file',
+        arguments: {
+          path: '/etc/passwd',
+        },
+      },
+      jsonrpc: '2.0',
+    },
+  },
+  {
+    code: 'TMCP002I',
+    ei: 0,
+    event: 'mcp.session.end',
+    namespace: 'default',
+    server_id: 'a0518380-0d53-4188-ac8b-8ddd8103e45b',
+    sid: '6593cf87-9839-4f18-abf8-c54873aaeb4e',
+    time: '2025-05-23T12:22:22.222Z',
+    uid: '80400ed9-644e-4a6e-ab99-b264b34d0f55',
+    user: 'ai-user',
+    app_name: 'mcp-everything',
   },
 ].map(makeEvent);
 

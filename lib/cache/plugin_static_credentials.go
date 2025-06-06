@@ -22,63 +22,79 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 )
+
+type pluginStaticCredentialsIndex string
+
+const pluginStaticCredentialsNameIndex pluginStaticCredentialsIndex = "name"
+
+func newPluginStaticCredentialsCollection(upstream services.PluginStaticCredentials, w types.WatchKind) (*collection[types.PluginStaticCredentials, pluginStaticCredentialsIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter PluginStaticCredentials")
+	}
+
+	return &collection[types.PluginStaticCredentials, pluginStaticCredentialsIndex]{
+		store: newStore(
+			types.PluginStaticCredentials.Clone,
+			map[pluginStaticCredentialsIndex]func(types.PluginStaticCredentials) string{
+				pluginStaticCredentialsNameIndex: types.PluginStaticCredentials.GetName,
+			}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.PluginStaticCredentials, error) {
+			creds, err := upstream.GetAllPluginStaticCredentials(ctx)
+			return creds, trace.Wrap(err)
+
+		},
+		headerTransform: func(hdr *types.ResourceHeader) types.PluginStaticCredentials {
+			return &types.PluginStaticCredentialsV1{
+				ResourceHeader: types.ResourceHeader{
+					Kind:    hdr.Kind,
+					Version: hdr.Version,
+					Metadata: types.Metadata{
+						Name:        hdr.Metadata.Name,
+						Description: hdr.Metadata.Description,
+					},
+				},
+			}
+		},
+		watch: w,
+	}, nil
+}
 
 func (c *Cache) GetPluginStaticCredentials(ctx context.Context, name string) (types.PluginStaticCredentials, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetPluginStaticCredentials")
 	defer span.End()
 
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.pluginStaticCredentials)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	getter := genericGetter[types.PluginStaticCredentials, pluginStaticCredentialsIndex]{
+		cache:       c,
+		collection:  c.collections.pluginStaticCredentials,
+		index:       pluginStaticCredentialsNameIndex,
+		upstreamGet: c.Config.PluginStaticCredentials.GetPluginStaticCredentials,
 	}
-	defer rg.Release()
-	return rg.reader.GetPluginStaticCredentials(ctx, name)
+	out, err := getter.get(ctx, name)
+	return out, trace.Wrap(err)
 }
 
 func (c *Cache) GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetPluginStaticCredentialsByLabels")
 	defer span.End()
 
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.pluginStaticCredentials)
+	rg, err := acquireReadGuard(c, c.collections.pluginStaticCredentials)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetPluginStaticCredentialsByLabels(ctx, labels)
-}
 
-type pluginStaticCredentialsGetter interface {
-	GetPluginStaticCredentials(ctx context.Context, name string) (types.PluginStaticCredentials, error)
-	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
-}
-
-var _ executor[types.PluginStaticCredentials, pluginStaticCredentialsGetter] = pluginStaticCredentialsExecutor{}
-
-type pluginStaticCredentialsExecutor struct{}
-
-func (pluginStaticCredentialsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.PluginStaticCredentials, error) {
-	return cache.PluginStaticCredentials.GetAllPluginStaticCredentials(ctx)
-}
-
-func (pluginStaticCredentialsExecutor) upsert(ctx context.Context, cache *Cache, resource types.PluginStaticCredentials) error {
-	_, err := cache.pluginStaticCredentialsCache.UpsertPluginStaticCredentials(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (pluginStaticCredentialsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.pluginStaticCredentialsCache.DeleteAllPluginStaticCredentials(ctx)
-}
-
-func (pluginStaticCredentialsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.pluginStaticCredentialsCache.DeletePluginStaticCredentials(ctx, resource.GetName())
-}
-
-func (pluginStaticCredentialsExecutor) isSingleton() bool { return false }
-
-func (pluginStaticCredentialsExecutor) getReader(cache *Cache, cacheOK bool) pluginStaticCredentialsGetter {
-	if cacheOK {
-		return cache.pluginStaticCredentialsCache
+	if !rg.ReadCache() {
+		resp, err := c.Config.PluginStaticCredentials.GetPluginStaticCredentialsByLabels(ctx, labels)
+		return resp, trace.Wrap(err)
 	}
-	return cache.Config.PluginStaticCredentials
+
+	var out []types.PluginStaticCredentials
+	for cred := range rg.store.resources(pluginStaticCredentialsNameIndex, "", "") {
+		if types.MatchLabels(cred, labels) {
+			out = append(out, cred.Clone())
+		}
+	}
+	return out, nil
 }

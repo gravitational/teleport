@@ -676,6 +676,13 @@ const (
 	// AutoUpdateVersionDeleteCode is the auto update version delete event code.
 	AutoUpdateVersionDeleteCode = "AUV003I"
 
+	// AutoUpdateAgentRolloutTriggerCode is the auto update agent rollout trigger event code.
+	AutoUpdateAgentRolloutTriggerCode = "AUAR001I"
+	// AutoUpdateAgentRolloutForceDoneCode is the auto update agent rollout force-done event code.
+	AutoUpdateAgentRolloutForceDoneCode = "AUAR002I"
+	// AutoUpdateAgentRolloutRollbackCode is the auto update agent rollout rollback event code.
+	AutoUpdateAgentRolloutRollbackCode = "AUAR003I"
+
 	// ContactCreateCode is the auto update version create event code.
 	ContactCreateCode = "TCTC001I"
 	// ContactDeleteCode is the auto update version delete event code.
@@ -731,6 +738,19 @@ const (
 	// AWSICResourceSyncFailureCode is the AWS Identity Center resource
 	// sync attempt failure code.
 	AWSICResourceSyncFailureCode = "TAIC001E"
+
+	// MCPSessionStartCode is the event code for mcp.session.start.
+	MCPSessionStartCode = "TMCP001I"
+	// MCPSessionEndCode is the event code for mcp.session.end.
+	MCPSessionEndCode = "TMCP002I"
+	// MCPSessionRequestCode is the event code for mcp.session.request.
+	MCPSessionRequestCode = "TMCP003I"
+	// MCPSessionRequestFailureCode is the event code for mcp.session.request
+	// when the request is denied by Teleport.
+	MCPSessionRequestFailureCode = "TMCP003E"
+	// MCPSessionNotificationCode is the event code for
+	// mcp.session.notification.
+	MCPSessionNotificationCode = "TMCP004I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

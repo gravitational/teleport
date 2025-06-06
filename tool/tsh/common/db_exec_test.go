@@ -326,6 +326,14 @@ func (c *fakeDatabaseExecClient) issueCert(context.Context, *databaseInfo) (tls.
 	return c.cert, nil
 }
 func (c *fakeDatabaseExecClient) listDatabasesWithFilter(ctx context.Context, req *proto.ListResourcesRequest) ([]types.Database, error) {
+	filtered, err := matchResources(req, c.allDatabaseServers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return types.DatabaseServers(filtered).ToDatabases(), nil
+}
+
+func matchResources[R types.ResourceWithLabels](req *proto.ListResourcesRequest, s []R) ([]R, error) {
 	filter := services.MatchResourceFilter{
 		ResourceKind:   req.ResourceType,
 		Labels:         req.Labels,
@@ -339,13 +347,13 @@ func (c *fakeDatabaseExecClient) listDatabasesWithFilter(ctx context.Context, re
 		filter.PredicateExpression = expression
 	}
 
-	var filtered []types.Database
-	for _, dbServer := range c.allDatabaseServers {
-		match, err := services.MatchResourceByFilters(dbServer, filter, nil)
+	var filtered []R
+	for _, r := range s {
+		match, err := services.MatchResourceByFilters(r, filter, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		} else if match {
-			filtered = append(filtered, dbServer.GetDatabase())
+			filtered = append(filtered, r)
 		}
 	}
 	return filtered, nil

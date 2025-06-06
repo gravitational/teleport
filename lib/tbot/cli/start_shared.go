@@ -106,15 +106,19 @@ func (a *AuthProxyArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error
 type sharedStartArgs struct {
 	*AuthProxyArgs
 
-	JoinMethod      string
-	Token           string
-	CAPins          []string
-	CertificateTTL  time.Duration
-	RenewalInterval time.Duration
-	Storage         string
+	JoinMethod        string
+	Token             string
+	CAPins            []string
+	CertificateTTL    time.Duration
+	RenewalInterval   time.Duration
+	Storage           string
+	InitialJoinSecret string
+	Keypair           string
 
 	Oneshot  bool
 	DiagAddr string
+
+	oneshotSetByUser bool
 }
 
 // newSharedStartArgs initializes shared arguments on the given parent command.
@@ -132,9 +136,10 @@ func newSharedStartArgs(cmd *kingpin.CmdClause) *sharedStartArgs {
 	cmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").DurationVar(&args.CertificateTTL)
 	cmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&args.RenewalInterval)
 	cmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&args.JoinMethod, config.SupportedJoinMethods...)
-	cmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&args.Oneshot)
+	cmd.Flag("oneshot", "If set, quit after the first renewal.").IsSetByUser(&args.oneshotSetByUser).BoolVar(&args.Oneshot)
 	cmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&args.DiagAddr)
 	cmd.Flag("storage", "A destination URI for tbot's internal storage, e.g. file:///foo/bar").StringVar(&args.Storage)
+	cmd.Flag("initial-join-secret", "For bound keypair joining, specifies an initial joining secret.").StringVar(&args.InitialJoinSecret)
 
 	return args
 }
@@ -148,8 +153,8 @@ func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 		}
 	}
 
-	if s.Oneshot {
-		cfg.Oneshot = true
+	if s.oneshotSetByUser {
+		cfg.Oneshot = s.Oneshot
 	}
 
 	if s.CertificateTTL != 0 {
@@ -231,6 +236,14 @@ func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 			JoinMethod: types.JoinMethod(s.JoinMethod),
 		}
 		cfg.Onboarding.SetToken(s.Token)
+	}
+
+	if s.JoinMethod != string(types.JoinMethodBoundKeypair) && s.InitialJoinSecret != "" {
+		return trace.BadParameter("--initial-join-secret and --keypair are only valid with --join-method=%s", types.JoinMethodBoundKeypair)
+	}
+
+	if s.InitialJoinSecret != "" {
+		cfg.Onboarding.BoundKeypair.InitialJoinSecret = s.InitialJoinSecret
 	}
 
 	return nil

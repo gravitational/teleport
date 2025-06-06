@@ -63,7 +63,6 @@ import {
   DocumentCluster,
   DocumentGateway,
   DocumentsService,
-  DocumentTshKube,
   DocumentTshNode,
   DocumentVnetInfo,
   getDefaultDocumentClusterQueryParams,
@@ -551,11 +550,8 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         // DocumentsService
         // TrackedConnectionOperationsFactory
         // here
-        if (
-          d.kind === 'doc.terminal_tsh_kube' ||
-          d.kind === 'doc.terminal_tsh_node'
-        ) {
-          const documentTerminal: DocumentTshKube | DocumentTshNode = {
+        if (d.kind === 'doc.terminal_tsh_node') {
+          const documentTerminal: DocumentTshNode = {
             ...d,
             status: 'connecting',
             origin: 'reopened_session',

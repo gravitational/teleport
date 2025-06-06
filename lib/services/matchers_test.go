@@ -19,6 +19,8 @@
 package services
 
 import (
+	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -411,6 +413,119 @@ func TestMatchAndFilterKubeClusters(t *testing.T) {
 	}
 }
 
+func TestMatchResourceByHealthStatus(t *testing.T) {
+	var dbServers []types.ResourceWithLabels
+	for i := range 3 {
+		name := fmt.Sprintf("db-server-%d", i)
+		dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseServerSpecV3{
+			HostID:   name,
+			Hostname: name,
+			Database: &types.DatabaseV3{
+				Metadata: types.Metadata{Name: "foo"},
+				Spec: types.DatabaseSpecV3{
+					URI:      "localhost:12345",
+					Protocol: "postgres",
+				},
+			},
+		})
+		require.NoError(t, err)
+		switch i {
+		case 0:
+			dbServer.SetTargetHealth(types.TargetHealth{
+				Status: string(types.TargetHealthStatusHealthy),
+			})
+		case 1:
+			dbServer.SetTargetHealth(types.TargetHealth{
+				Status:  string(types.TargetHealthStatusUnhealthy),
+				Message: "failed to fizz the buzz",
+			})
+		case 2:
+			// health status is supported, but none reported (e.g. old db agent)
+		}
+		dbServers = append(dbServers, dbServer)
+	}
+
+	server, err := types.NewServerWithLabels("server", types.KindNode, types.ServerSpecV2{
+		Hostname: "test-hostname",
+		Addr:     "test-addr",
+		CmdLabels: map[string]types.CommandLabelV2{
+			"version": {
+				Result: "v8",
+			},
+		},
+	}, map[string]string{
+		"env": "prod",
+		"os":  "mac",
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		filterExpression string
+		resources        []types.ResourceWithLabels
+		matchedNames     []string
+		wantErr          string
+	}{
+		{
+			name:             "healthy db status",
+			resources:        dbServers,
+			filterExpression: `health.status == "healthy"`,
+			matchedNames:     []string{"db-server-0"},
+		},
+		{
+			name:             "unhealthy db status",
+			resources:        dbServers,
+			filterExpression: `health.status == "unhealthy"`,
+			matchedNames:     []string{"db-server-1"},
+		},
+		{
+			name:             "db health status is empty",
+			resources:        dbServers,
+			filterExpression: `health.status == ""`,
+			matchedNames:     []string{"db-server-2"},
+		},
+		{
+			name:             "db combo",
+			resources:        dbServers,
+			filterExpression: `contains(split("healthy,unhealthy", ","), health.status)`,
+			matchedNames:     []string{"db-server-0", "db-server-1"},
+		},
+		{
+			name:             "server health is empty",
+			resources:        []types.ResourceWithLabels{server},
+			filterExpression: `!exists(health.status)`,
+			matchedNames:     []string{"server"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			filterExpression, err := NewResourceExpression(test.filterExpression)
+			require.NoError(t, err)
+
+			filter := MatchResourceFilter{
+				ResourceKind:        types.KindDatabaseServer,
+				PredicateExpression: filterExpression,
+			}
+
+			var matched []types.ResourceWithLabels
+			for _, r := range test.resources {
+				match, err := MatchResourceByFilters(r, filter, nil)
+				require.NoError(t, err)
+				if match {
+					matched = append(matched, r)
+				}
+			}
+			require.Equal(t,
+				test.matchedNames,
+				slices.Collect(types.ResourceNames(matched)),
+			)
+		})
+	}
+}
+
 // TestMatchResourceByFilters tests supported resource kinds and
 // if a resource has contained resources, those contained resources
 // are filtered instead.
@@ -531,38 +646,6 @@ func TestMatchResourceByFilters(t *testing.T) {
 			},
 			filters: MatchResourceFilter{
 				ResourceKind:        types.KindWindowsDesktop,
-				PredicateExpression: filterExpression,
-			},
-		},
-		{
-			name: "AppServerOrSAMLIdPServiceProvider (App Server)r",
-			resource: func() types.ResourceWithLabels {
-				appServer, err := types.NewAppServerV3(types.Metadata{
-					Name: "_",
-				}, types.AppServerSpecV3{
-					HostID: "_",
-					App: &types.AppV3{
-						Metadata: types.Metadata{Name: "foo"},
-						Spec:     types.AppSpecV3{URI: "_"},
-					},
-				})
-				require.NoError(t, err)
-				return appServer
-			},
-			filters: MatchResourceFilter{
-				ResourceKind:        types.KindAppOrSAMLIdPServiceProvider,
-				PredicateExpression: filterExpression,
-			},
-		},
-		{
-			name: "AppServerOrSAMLIdPServiceProvider (Service Provider)",
-			resource: func() types.ResourceWithLabels {
-				appOrSP, err := types.NewSAMLIdPServiceProvider(types.Metadata{Name: "foo"}, types.SAMLIdPServiceProviderSpecV1{EntityDescriptor: "<></>", EntityID: "_"})
-				require.NoError(t, err)
-				return appOrSP
-			},
-			filters: MatchResourceFilter{
-				ResourceKind:        types.KindAppOrSAMLIdPServiceProvider,
 				PredicateExpression: filterExpression,
 			},
 		},
