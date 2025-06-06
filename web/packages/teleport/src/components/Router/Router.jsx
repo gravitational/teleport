@@ -18,6 +18,7 @@
 
 import { useEffect } from 'react';
 import {
+  Route as ReactRouterRoute,
   Router,
   useLocation,
   useParams,
@@ -55,7 +56,7 @@ const Route = props => {
     }
   }, [title]);
 
-  return <RouterDOM.Route {...rest} />;
+  return <ReactRouterRoute {...rest} />;
 };
 
 const NavLink = RouterDOM.NavLink;
