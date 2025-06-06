@@ -1,0 +1,40 @@
+---
+title: Teleport Identity Security Configuration
+h1: Teleport Identity Security Configuration Reference
+description: The detailed guide and reference documentation for configuring Teleport Identity Security.
+keywords: [config, file, reference, yaml, etc]
+tocDepth: 3
+---
+
+Teleport Identity Security uses the YAML file format for configuration. A full configuration
+reference file is shown below. This provides comments and all available options
+for `identity-security.yaml`.
+
+## Before using this reference
+
+<Admonition type="danger">
+
+Do not use this example configuration in production.
+
+</Admonition>
+
+You must edit your configuration file to meet the needs of your environment.
+Using a copy of the reference configuration will have unintended effects.
+
+## Reference configurations
+
+These example configurations include all possible configuration options in YAML
+format to demonstrate proper use of indentation.
+
+### Teleport Identity Security settings
+
+These settings apply the Teleport Identity Security process.
+
+```yaml
+(!docs/pages/includes/config-reference/identity-security.yaml!)
+```
+
+## Further reading
+
+- [Install Teleport Identity Security](../admin-guides/deploy-a-cluster/access-graph/access-graph.mdx): instructions on how to install Teleport Identity Security.
+- [Teleport Identity Security](../admin-guides/teleport-policy/teleport-policy.mdx): instructions on how to use Teleport Identity Security.

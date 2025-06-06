@@ -1,0 +1,164 @@
+# IP and the port for Teleport Identity Security to bind to.
+address: 0.0.0.0:8080
+
+# Registration CA certificates for the Identity Security service.
+# These are used to verify the authenticity of the Teleport clusters
+# when they register with the Identity Security service.
+# The Identity Security service uses these certificates to ensure that
+# only trusted Teleport clusters can register and communicate with it.
+# You can specify multiple CA certificates if you have multiple Teleport clusters
+# that need to register with the Identity Security service.
+# The certificates should be the Teleport Host CA certificate and be in the
+# PEM format.
+registration_cas:
+  - /var/is/teleport-host-ca.pem
+  - /var/is/teleport-host-ca2.pem
+  
+# TLS certificate for the HTTPS/gRPC connections. Configuring these properly is
+# critical for security.
+tls:
+  cert: /var/lib/teleport/identity_security_cert.pem
+  key: /var/lib/teleport/identity_security_key.pem
+
+# Teleport Identity Security service storage configuration.
+backend:
+  # postgres defines connection parameters for the PostgreSQL database
+  # used by the Identity Security service to store its data.
+  # If you use a PostgreSQL cluster, you must ensure to define
+  # the connection string to connect to the primary node (the writer).
+  postgres:
+    # Address and port for the PostgreSQL database to connect to.
+    # This is used to store the Identity Security service data.
+    # The database should be running and accessible from the Identity Security service.
+    # If you do not need a PostgreSQL database, you can disable this feature.
+    connection: postgres://teleport:teleport_password@localhost:5432/identity_security?sslmode=disable
+
+    # Maximum number of connections to the PostgreSQL database.
+    max_conns: 20
+
+    # Minimum number of connections to the PostgreSQL database.
+    min_conns: 10
+
+    # Maximum time a connection can be open before it is closed.
+    max_conn_lifetime: 24h
+
+    # Maximum time a connection can be idle before it is closed.
+    max_conn_idle_time: 10m
+
+    # Health check period for the PostgreSQL database.
+    health_check_period: 10s
+
+    # Maximum connection lifetime jitter in seconds.
+    max_conn_lifetime_jitter: 10s
+    
+    # If you want to use IAM authentication instead of password authentication,
+    # you can uncomment the following section and provide the AWS region.
+    #
+    # iam:
+    #   aws_region: us-west-2
+
+  # postgres_read_replica defines connection parameters for the PostgreSQL read replica
+  # used by the Identity Security service to store its data.
+  # postgres_read_replica:
+  #   Address and port for the PostgreSQL database to connect to.
+  #   This is used to store the Identity Security service data.
+  #   The database should be running and accessible from the Identity Security service.
+  #   If you do not need a PostgreSQL database, you can disable this feature.
+  #   connection: postgres://teleport:teleport_password@localhost:5432/identity_security?sslmode=disable
+
+  #  Maximum number of connections to the PostgreSQL database.
+  #  max_conns: 20
+
+  #  Minimum number of connections to the PostgreSQL database.
+  #  min_conns: 10
+
+  #  Maximum time a connection can be open before it is closed.
+  #  max_conn_lifetime: 24h
+
+  #  Maximum time a connection can be idle before it is closed.
+  #  max_conn_idle_time: 10m
+
+  #  Health check period for the PostgreSQL database.
+  #  health_check_period: 10s
+
+  #  Maximum connection lifetime jitter in seconds.
+  #  max_conn_lifetime_jitter: 10s
+
+  #  If you want to use IAM authentication instead of password authentication,
+  #  you can uncomment the following section and provide the AWS region.
+  #  iam:
+  #    aws_region: us-west-2
+
+# Teleport Identity Security Identity Activity Center configuration.
+identity_activity_center:
+  # region defines the AWS region where the Identity Activity Center is deployed.
+  region: eu-central-1
+  # The AWS Athena database and table used by the Identity Activity Center.
+  # This is used to query the Identity Activity Center data.
+  database: identity_activity_center
+  # The AWS Athena table used by the Identity Activity Center.
+  # This is used to query the Identity Activity Center data.
+  # The table should be created in the Athena database specified above.
+  table: identity_activity_center_table
+  # The S3 long-term bucket used by the Identity Activity Center to store its data.
+  # This must be the same bucket used by the Athena database and table.
+  s3: s3://long-term-bucket/data/
+  # Transient S3 bucket location used by the Identity Activity Center to store temporary data
+  # such as query results.
+  s3_results: s3://transient-bucket/results/
+  # Transient S3 bucket location used by the Identity Activity Center to store large files.
+  s3_large_files: s3://transient-bucket/large_files
+  # AWS SQS queue URL used by the Identity Activity Center to send notifications
+  # between the Teleport Identity Security replicas.
+  sqs_queue_url: https://sqs.eu-central-1.amazonaws.com/123456789/example-queue
+  # MaxMind GeoIP database path used by the Identity Activity Center
+  # to enrich the Identity Activity Center data with geolocation information.
+  # This is optional.
+  maxmind_geoip_city_db_path: /path/to/geoIp-city.mmdb
+
+# Teleport Identity Security metrics endpoint configuration.
+metrics:
+  # Enable Teleport Identity Security Metrics. This is used to collect
+  # and expose metrics about the Identity Security service such as
+  # the number of requests, errors, and latency.
+  # This is useful for monitoring and alerting purposes.
+  # If you do not need these metrics, you can disable this feature.
+  enabled: true
+
+  # Address and port for Teleport Identity Security Metrics to bind to.
+  address: 0.0.0.0:3000
+
+  # TLS configuration for the metrics endpoint.
+  # If you do not need TLS for the metrics endpoint, you can disable it.
+  # tls:
+  #   cert: /var/lib/is/identity_security_metrics_cert.pem
+  #   key: /var/lib/is/identity_security_metrics_key.pem
+
+  # Teleport Identity Security profiling endpoint configuration.
+  # This is used to collect profiling data about the Identity Security service.
+  pprof: false
+
+# Teleport Identity Security tracing configuration.
+# This is used to collect distributed tracing data about the Identity Security service.
+# If you do not need tracing, you can disable this feature.
+tracing:
+  # Enable Teleport Identity Security Tracing. This is used to collect
+  # and export tracing data about the Identity Security service.
+  enabled: false
+  # Exporter URL for the tracing data.
+  # This should be the URL of the OpenTelemetry Collector or any other
+  # compatible tracing backend.
+  # The URL should include the protocol (e.g., "otlp://") and the address
+  # of the tracing backend (e.g., "localhost:4317").
+  exporter_url: "otlp://localhost:4317"
+  # Sampling rate for the tracing data. This controls how many traces are sampled
+  # per million requests.
+  # A value of 1000 means that 1000 traces will be sampled per million requests
+  # i.e. 10%.
+  sampling_rate_per_million: 1000
+
+# Logging configuration.
+log:
+  # Possible severity values are DEBUG, INFO (default), WARN,
+  # and ERROR.
+  level: debug
