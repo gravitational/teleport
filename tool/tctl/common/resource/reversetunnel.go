@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -31,4 +32,12 @@ func (rc *ResourceCommand) getReverseTunnel(ctx context.Context, client *authcli
 		}
 	}
 	return collections.NewReverseTunnelCollection(tunnels), nil
+}
+
+func (rc *ResourceCommand) deleteReverseTunnel(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteTrustedCluster(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("trusted cluster %q has been deleted\n", rc.ref.Name)
+	return nil
 }

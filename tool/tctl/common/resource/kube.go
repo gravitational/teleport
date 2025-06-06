@@ -30,6 +30,27 @@ func (rc *ResourceCommand) getKubeServer(ctx context.Context, client *authclient
 	return collections.NewKubeServerCollection(servers), nil
 }
 
+func (rc *ResourceCommand) deleteKubeServer(ctx context.Context, client *authclient.Client) error {
+	servers, err := client.GetKubernetesServers(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	resDesc := "Kubernetes server"
+	servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
+	name, err := getOneResourceNameToDelete(servers, rc.ref, resDesc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, s := range servers {
+		err := client.DeleteKubernetesServer(ctx, s.GetHostID(), name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	fmt.Printf("%s %q has been deleted\n", resDesc, name)
+	return nil
+}
+
 func (rc *ResourceCommand) getKubeCluster(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	clusters, err := client.GetKubernetesClusters(ctx)
 	if err != nil {
@@ -64,5 +85,23 @@ func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authcl
 		return trace.Wrap(err)
 	}
 	fmt.Printf("Kubernetes cluster %q has been created\n", cluster.GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) deleteKubeCluster(ctx context.Context, client *authclient.Client) error {
+	clusters, err := client.GetKubernetesClusters(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	resDesc := "Kubernetes cluster"
+	clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
+	name, err := getOneResourceNameToDelete(clusters, rc.ref, resDesc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := client.DeleteKubernetesCluster(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	return nil
 }

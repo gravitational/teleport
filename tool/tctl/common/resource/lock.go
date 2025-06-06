@@ -56,3 +56,15 @@ func (rc *ResourceCommand) createLock(ctx context.Context, client *authclient.Cl
 	fmt.Printf("lock %q has been %s\n", name, UpsertVerb(exists, rc.force))
 	return nil
 }
+
+func (rc *ResourceCommand) deleteLock(ctx context.Context, client *authclient.Client) error {
+	name := rc.ref.Name
+	if rc.ref.SubKind != "" {
+		name = rc.ref.SubKind + "/" + name
+	}
+	if err := client.DeleteLock(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("lock %q has been deleted\n", name)
+	return nil
+}

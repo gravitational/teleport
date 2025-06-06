@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 
 	"github.com/gravitational/trace"
 
@@ -33,6 +34,27 @@ func (rc *ResourceCommand) getDatabaseServer(ctx context.Context, client *authcl
 		return nil, trace.NotFound("database server %q not found", rc.ref.Name)
 	}
 	return collections.NewDatabaseServerCollection(servers), nil
+}
+
+func (rc *ResourceCommand) deleteDatabaseServer(ctx context.Context, client *authclient.Client) error {
+	servers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	resDesc := "database server"
+	servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
+	name, err := getOneResourceNameToDelete(servers, rc.ref, resDesc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, s := range servers {
+		err := client.DeleteDatabaseServer(ctx, apidefaults.Namespace, s.GetHostID(), name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	fmt.Printf("%s %q has been deleted\n", resDesc, name)
+	return nil
 }
 
 func (rc *ResourceCommand) getDatabase(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
@@ -70,6 +92,24 @@ func (rc *ResourceCommand) createDatabase(ctx context.Context, client *authclien
 		return trace.Wrap(err)
 	}
 	fmt.Printf("database %q has been created\n", database.GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) deleteDatabase(ctx context.Context, client *authclient.Client) error {
+	databases, err := client.GetDatabases(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	resDesc := "database"
+	databases = filterByNameOrDiscoveredName(databases, rc.ref.Name)
+	name, err := getOneResourceNameToDelete(databases, rc.ref, resDesc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := client.DeleteDatabase(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	return nil
 }
 
@@ -150,6 +190,14 @@ func (rc *ResourceCommand) getDatabaseObjectImportRule(ctx context.Context, clie
 	return collections.NewDatabaseObjectImportRuleCollection(rules), nil
 }
 
+func (rc *ResourceCommand) deleteDatabaseObjectImportRule(ctx context.Context, client *authclient.Client) error {
+	if _, err := client.DatabaseObjectImportRuleClient().DeleteDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.DeleteDatabaseObjectImportRuleRequest{Name: rc.ref.Name}); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Rule %q has been deleted\n", rc.ref.Name)
+	return nil
+}
+
 func (rc *ResourceCommand) createDatabaseObject(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	object, err := databaseobject.UnmarshalJSON(raw.Raw)
 	if err != nil {
@@ -197,6 +245,14 @@ func (rc *ResourceCommand) getDatabaseObject(ctx context.Context, client *authcl
 		token = nextToken
 	}
 	return collections.NewDatabaseObjectCollection(objects), nil
+}
+
+func (rc *ResourceCommand) deleteDatabaseObject(ctx context.Context, client *authclient.Client) error {
+	if err := client.DatabaseObjectsClient().DeleteDatabaseObject(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Object %q has been deleted\n", rc.ref.Name)
+	return nil
 }
 
 func (rc *ResourceCommand) createHealthCheckConfig(ctx context.Context, clt *authclient.Client, raw services.UnknownResource) error {

@@ -100,3 +100,42 @@ func (rc *ResourceCommand) getDevice(ctx context.Context, client *authclient.Cli
 
 	return collections.NewDeviceCollection(devs), nil
 }
+
+func (rc *ResourceCommand) deleteDevice(ctx context.Context, client *authclient.Client) error {
+	remote := client.DevicesClient()
+	device, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := remote.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{
+		DeviceId: device[0].Id,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Device %q removed\n", rc.ref.Name)
+	return nil
+}
+
+func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustServiceClient, idOrTag string) ([]*devicepb.Device, error) {
+	resp, err := remote.FindDevices(ctx, &devicepb.FindDevicesRequest{
+		IdOrTag: idOrTag,
+	})
+	switch {
+	case err != nil:
+		return nil, trace.Wrap(err)
+	case len(resp.Devices) == 0:
+		return nil, trace.NotFound("device %q not found", idOrTag)
+	case len(resp.Devices) == 1:
+		return resp.Devices, nil
+	}
+
+	// Do we have an ID match?
+	for _, dev := range resp.Devices {
+		if dev.Id == idOrTag {
+			return []*devicepb.Device{dev}, nil
+		}
+	}
+
+	return nil, trace.BadParameter("found multiple devices for asset tag %q, please retry using the device ID instead", idOrTag)
+}

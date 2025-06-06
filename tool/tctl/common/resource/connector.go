@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	types "github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/trace"
 
@@ -89,6 +90,14 @@ func (rc *ResourceCommand) updateOIDCConnector(ctx context.Context, client *auth
 	return nil
 }
 
+func (rc *ResourceCommand) deleteOIDCConnector(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteOIDCConnector(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("OIDC connector %v has been deleted\n", rc.ref.Name)
+	return nil
+}
+
 func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	// Create services.SAMLConnector from raw YAML to extract the connector name.
 	conn, err := services.UnmarshalSAMLConnector(raw.Raw, services.DisallowUnknown())
@@ -135,6 +144,14 @@ func (rc *ResourceCommand) updateSAMLConnector(ctx context.Context, client *auth
 	return nil
 }
 
+func (rc *ResourceCommand) deleteSAMLConnector(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteSAMLConnector(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("SAML connector %v has been deleted\n", rc.ref.Name)
+	return nil
+}
+
 // createGithubConnector creates a Github connector
 func (rc *ResourceCommand) createGithubConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	connector, err := services.UnmarshalGithubConnector(raw.Raw, services.DisallowUnknown())
@@ -177,4 +194,57 @@ func (rc *ResourceCommand) updateGithubConnector(ctx context.Context, client *au
 	}
 	fmt.Printf("authentication connector %q has been updated\n", connector.GetName())
 	return nil
+}
+
+func (rc *ResourceCommand) deleteGithubConnector(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteGithubConnector(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("github connector %q has been deleted\n", rc.ref.Name)
+	return nil
+}
+
+func (rc *ResourceCommand) getSAMLConnectors(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+	if rc.ref.Name == "" {
+		connectors, err := client.GetSAMLConnectors(ctx, rc.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return collections.NewSAMLCollection(connectors), nil
+	}
+	connector, err := client.GetSAMLConnector(ctx, rc.ref.Name, rc.withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return collections.NewSAMLCollection([]types.SAMLConnector{connector}), nil
+}
+
+func (rc *ResourceCommand) getOIDCConnectors(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+	if rc.ref.Name == "" {
+		connectors, err := client.GetOIDCConnectors(ctx, rc.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return collections.NewOIDCCollection(connectors), nil
+	}
+	connector, err := client.GetOIDCConnector(ctx, rc.ref.Name, rc.withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return collections.NewOIDCCollection([]types.OIDCConnector{connector}), nil
+}
+
+func (rc *ResourceCommand) getGithubConnectors(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+	if rc.ref.Name == "" {
+		connectors, err := client.GetGithubConnectors(ctx, rc.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return collections.NewGithubCollection(connectors), nil
+	}
+	connector, err := client.GetGithubConnector(ctx, rc.ref.Name, rc.withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return collections.NewGithubCollection([]types.GithubConnector{connector}), nil
 }

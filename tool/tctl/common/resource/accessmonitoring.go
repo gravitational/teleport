@@ -70,3 +70,12 @@ func (rc *ResourceCommand) updateAccessMonitoringRule(ctx context.Context, clien
 	fmt.Printf("access monitoring rule %q has been updated\n", in.GetMetadata().GetName())
 	return nil
 }
+
+func (rc *ResourceCommand) deleteAccessMonitoringRule(ctx context.Context, client *authclient.Client) error {
+	if err := client.AccessMonitoringRuleClient().DeleteAccessMonitoringRule(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Access monitoring rule %q has been deleted\n", rc.ref.Name)
+	return nil
+
+}

@@ -72,3 +72,11 @@ func (rc *ResourceCommand) updateUserTask(ctx context.Context, client *authclien
 	fmt.Printf("user task %q has been updated\n", in.GetMetadata().GetName())
 	return nil
 }
+
+func (rc *ResourceCommand) deleteUserTask(ctx context.Context, client *authclient.Client) error {
+	if err := client.UserTasksServiceClient().DeleteUserTask(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("user task %q has been deleted\n", rc.ref.Name)
+	return nil
+}

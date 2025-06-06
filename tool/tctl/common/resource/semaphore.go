@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -19,4 +20,22 @@ func (rc *ResourceCommand) getSemaphore(ctx context.Context, client *authclient.
 		return nil, trace.Wrap(err)
 	}
 	return collections.NewSemaphoreCollection(sems), nil
+}
+
+func (rc *ResourceCommand) deleteSemaphore(ctx context.Context, client *authclient.Client) error {
+	if rc.ref.SubKind == "" || rc.ref.Name == "" {
+		return trace.BadParameter(
+			"full semaphore path must be specified (e.g. '%s/%s/alice@example.com')",
+			types.KindSemaphore, types.SemaphoreKindConnection,
+		)
+	}
+	err := client.DeleteSemaphore(ctx, types.SemaphoreFilter{
+		SemaphoreKind: rc.ref.SubKind,
+		SemaphoreName: rc.ref.Name,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("semaphore '%s/%s' has been deleted\n", rc.ref.SubKind, rc.ref.Name)
+	return nil
 }

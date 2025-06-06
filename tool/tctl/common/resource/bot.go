@@ -70,6 +70,14 @@ func (rc *ResourceCommand) getBot(ctx context.Context, client *authclient.Client
 	return collections.NewBotCollection(bots), nil
 }
 
+func (rc *ResourceCommand) deleteBot(ctx context.Context, client *authclient.Client) error {
+	if _, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{BotName: rc.ref.Name}); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Bot %q has been deleted\n", rc.ref.Name)
+	return nil
+}
+
 func (rc *ResourceCommand) getBotInstance(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" && rc.ref.SubKind != "" {
 		// Gets a specific bot instance, e.g. bot_instance/<bot name>/<instance id>

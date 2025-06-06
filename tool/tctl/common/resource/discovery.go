@@ -64,3 +64,12 @@ func (rc *ResourceCommand) getDiscoveryConfig(ctx context.Context, client *authc
 
 	return collections.NewDiscoveryConfigCollection(resources), nil
 }
+
+func (rc *ResourceCommand) deleteDiscoveryConfig(ctx context.Context, client *authclient.Client) error {
+	remote := client.DiscoveryConfigClient()
+	if err := remote.DeleteDiscoveryConfig(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("DiscoveryConfig %q removed\n", rc.ref.Name)
+	return nil
+}

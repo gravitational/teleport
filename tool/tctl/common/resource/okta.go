@@ -84,6 +84,15 @@ func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client *aut
 	fmt.Printf("Okta import rule %q has been %s\n", importRule.GetName(), UpsertVerb(exists, rc.IsForced()))
 	return nil
 }
+
+func (rc *ResourceCommand) deleteOktaImportRule(ctx context.Context, client *authclient.Client) error {
+	if err := client.OktaClient().DeleteOktaImportRule(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Okta import rule %q has been deleted\n", rc.ref.Name)
+	return nil
+}
+
 func (rc *ResourceCommand) getUserGroup(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		userGroup, err := client.GetUserGroup(ctx, rc.ref.Name)
@@ -108,4 +117,12 @@ func (rc *ResourceCommand) getUserGroup(ctx context.Context, client *authclient.
 		}
 	}
 	return collections.NewUserGroupCollection(resources), nil
+}
+
+func (rc *ResourceCommand) deleteUserGroup(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteUserGroup(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("User group %q has been deleted\n", rc.ref.Name)
+	return nil
 }

@@ -33,6 +33,14 @@ func (rc *ResourceCommand) getWindowsDesktopService(ctx context.Context, client 
 	return collections.NewWindowsDesktopServiceCollection(out), nil
 }
 
+func (rc *ResourceCommand) deleteWindowsDesktopService(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteWindowsDesktopService(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("windows desktop service %q has been deleted\n", rc.ref.Name)
+	return nil
+}
+
 func (rc *ResourceCommand) getWindowsDesktop(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	if err != nil {
@@ -65,6 +73,40 @@ func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client *aut
 	}
 
 	fmt.Printf("windows desktop %q has been updated\n", wd.GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) deleteWindowsDesktop(ctx context.Context, client *authclient.Client) error {
+	desktops, err := client.GetWindowsDesktops(ctx,
+		types.WindowsDesktopFilter{Name: rc.ref.Name})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(desktops) == 0 {
+		return trace.NotFound("no desktops with name %q were found", rc.ref.Name)
+	}
+	deleted := 0
+	var errs []error
+	for _, desktop := range desktops {
+		if desktop.GetName() == rc.ref.Name {
+			if err = client.DeleteWindowsDesktop(ctx, desktop.GetHostID(), rc.ref.Name); err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			deleted++
+		}
+	}
+	if deleted == 0 {
+		errs = append(errs,
+			trace.Errorf("failed to delete any desktops with the name %q, %d were found",
+				rc.ref.Name, len(desktops)))
+	}
+	fmts := "%d windows desktops with name %q have been deleted"
+	if err := trace.NewAggregate(errs...); err != nil {
+		fmt.Printf(fmts+" with errors while deleting\n", deleted, rc.ref.Name)
+		return err
+	}
+	fmt.Printf(fmts+"\n", deleted, rc.ref.Name)
 	return nil
 }
 
@@ -139,5 +181,13 @@ func (rc *ResourceCommand) updateDynamicWindowsDesktop(ctx context.Context, clie
 	}
 
 	fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) deleteDynamicWindowsDesktop(ctx context.Context, client *authclient.Client) error {
+	if err := client.DynamicDesktopClient().DeleteDynamicWindowsDesktop(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("dynamic windows desktop %q has been deleted\n", rc.ref.Name)
 	return nil
 }

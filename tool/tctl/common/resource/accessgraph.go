@@ -106,3 +106,11 @@ func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authcli
 	fmt.Printf("crown jewel %q has been updated\n", in.GetMetadata().GetName())
 	return nil
 }
+
+func (rc *ResourceCommand) deleteCrownJewel(ctx context.Context, client *authclient.Client) error {
+	if err := client.CrownJewelsClient().DeleteCrownJewel(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("crown_jewel %q has been deleted\n", rc.ref.Name)
+	return nil
+}

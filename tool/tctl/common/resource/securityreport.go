@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -44,6 +45,14 @@ func (rc *ResourceCommand) getAuditQuery(ctx context.Context, client *authclient
 	return collections.NewAuditQueryCollection(resources), nil
 }
 
+func (rc *ResourceCommand) deleteAuditQuery(ctx context.Context, client *authclient.Client) error {
+	if err := client.SecReportsClient().DeleteSecurityAuditQuery(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Audit query %q has been deleted\n", rc.ref.Name)
+	return nil
+}
+
 func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	in, err := services.UnmarshalSecurityReport(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -74,4 +83,12 @@ func (rc *ResourceCommand) getSecurityReport(ctx context.Context, client *authcl
 		return nil, trace.Wrap(err)
 	}
 	return collections.NewSecurityReportCollection(resources), nil
+}
+
+func (rc *ResourceCommand) deleteSecurityReport(ctx context.Context, client *authclient.Client) error {
+	if err := client.SecReportsClient().DeleteSecurityReport(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Security report %q has been deleted\n", rc.ref.Name)
+	return nil
 }

@@ -40,3 +40,11 @@ func (rc *ResourceCommand) createToken(ctx context.Context, client *authclient.C
 	fmt.Printf("provision_token %q has been created\n", token.GetName())
 	return nil
 }
+
+func (rc *ResourceCommand) deleteToken(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteToken(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("token %q has been deleted\n", rc.ref.Name)
+	return nil
+}

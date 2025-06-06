@@ -71,3 +71,11 @@ func (rc *ResourceCommand) updateStaticHostUser(ctx context.Context, client *aut
 	fmt.Printf("static host user %q has been updated\n", hostUser.GetMetadata().Name)
 	return nil
 }
+
+func (rc *ResourceCommand) deleteStaticHostUser(ctx context.Context, client *authclient.Client) error {
+	if err := client.StaticHostUserClient().DeleteStaticHostUser(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("static host user %q has been deleted\n", rc.ref.Name)
+	return nil
+}

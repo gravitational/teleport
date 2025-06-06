@@ -64,6 +64,18 @@ func (rc *ResourceCommand) getSPIFFEFederation(ctx context.Context, client *auth
 	return collections.NewSpiffeFederationCollection(resources), nil
 }
 
+func (rc *ResourceCommand) deleteSPIFFEFederation(ctx context.Context, client *authclient.Client) error {
+	if _, err := client.SPIFFEFederationServiceClient().DeleteSPIFFEFederation(
+		ctx, &machineidv1pb.DeleteSPIFFEFederationRequest{
+			Name: rc.ref.Name,
+		},
+	); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("SPIFFE federation %q has been deleted\n", rc.ref.Name)
+	return nil
+}
+
 func (rc *ResourceCommand) createWorkloadIdentity(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	in, err := services.UnmarshalWorkloadIdentity(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -122,6 +134,17 @@ func (rc *ResourceCommand) getWorkloadIdentity(ctx context.Context, client *auth
 	return collections.NewWorkloadIdentityCollection(resources), nil
 }
 
+func (rc *ResourceCommand) deleteWorkloadIdentity(ctx context.Context, client *authclient.Client) error {
+	if _, err := client.WorkloadIdentityResourceServiceClient().DeleteWorkloadIdentity(
+		ctx, &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
+			Name: rc.ref.Name,
+		}); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Workload identity %q has been deleted\n", rc.ref.Name)
+	return nil
+}
+
 func (rc *ResourceCommand) getWorkloadIdentityX509Revocation(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name != "" {
 		resource, err := client.
@@ -156,6 +179,17 @@ func (rc *ResourceCommand) getWorkloadIdentityX509Revocation(ctx context.Context
 	}
 
 	return collections.NewWorkloadIdentityX509RevocationCollection(resources), nil
+}
+
+func (rc *ResourceCommand) deleteWorkloadIdentityX509Revocation(ctx context.Context, client *authclient.Client) error {
+	if _, err := client.WorkloadIdentityRevocationServiceClient().DeleteWorkloadIdentityX509Revocation(
+		ctx, &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
+			Name: rc.ref.Name,
+		}); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Workload identity X509 revocation %q has been deleted\n", rc.ref.Name)
+	return nil
 }
 
 func (rc *ResourceCommand) createWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -255,6 +289,24 @@ func (rc *ResourceCommand) updateWorkloadIdentityX509IssuerOverride(ctx context.
 	return nil
 }
 
+func (rc *ResourceCommand) deleteWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client) error {
+	c := client.WorkloadIdentityX509OverridesClient()
+	if _, err := c.DeleteX509IssuerOverride(
+		ctx,
+		&workloadidentityv1pb.DeleteX509IssuerOverrideRequest{
+			Name: rc.ref.Name,
+		},
+	); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Fprintf(
+		rc.stdout,
+		types.KindWorkloadIdentityX509IssuerOverride+" %q has been deleted\n",
+		rc.ref.Name,
+	)
+	return nil
+}
+
 func (rc *ResourceCommand) createSigstorePolicy(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	r, err := services.UnmarshalProtoResource[*workloadidentityv1pb.SigstorePolicy](raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -348,6 +400,24 @@ func (rc *ResourceCommand) updateSigstorePolicy(ctx context.Context, client *aut
 		rc.stdout,
 		types.KindSigstorePolicy+" %q has been updated\n",
 		r.GetMetadata().GetName(),
+	)
+	return nil
+}
+
+func (rc *ResourceCommand) deleteSigstorePolicy(ctx context.Context, client *authclient.Client) error {
+	c := client.SigstorePolicyResourceServiceClient()
+	if _, err := c.DeleteSigstorePolicy(
+		ctx,
+		&workloadidentityv1pb.DeleteSigstorePolicyRequest{
+			Name: rc.ref.Name,
+		},
+	); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Fprintf(
+		rc.stdout,
+		types.KindSigstorePolicy+" %q has been deleted\n",
+		rc.ref.Name,
 	)
 	return nil
 }

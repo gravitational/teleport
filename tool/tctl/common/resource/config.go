@@ -38,7 +38,16 @@ func (rc *ResourceCommand) createUIConfig(ctx context.Context, client *authclien
 	return nil
 }
 
-func resetAuthPreference(ctx context.Context, client *authclient.Client) error {
+func (rc *ResourceCommand) deleteUIConfig(ctx context.Context, client *authclient.Client) error {
+	err := client.DeleteUIConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("%s has been deleted\n", types.KindUIConfig)
+	return nil
+}
+
+func (rc *ResourceCommand) resetAuthPreference(ctx context.Context, client *authclient.Client) error {
 	storedAuthPref, err := client.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -49,10 +58,14 @@ func resetAuthPreference(ctx context.Context, client *authclient.Client) error {
 		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
-	return trace.Wrap(client.ResetAuthPreference(ctx))
+	if err := client.ResetAuthPreference(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("cluster auth preference has been reset to defaults\n")
+	return nil
 }
 
-func resetClusterNetworkingConfig(ctx context.Context, client *authclient.Client) error {
+func (rc *ResourceCommand) resetClusterNetworkingConfig(ctx context.Context, client *authclient.Client) error {
 	storedNetConfig, err := client.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -63,10 +76,15 @@ func resetClusterNetworkingConfig(ctx context.Context, client *authclient.Client
 		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
-	return trace.Wrap(client.ResetClusterNetworkingConfig(ctx))
+	if err := client.ResetClusterNetworkingConfig(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("cluster networking configuration has been reset to defaults\n")
+	return nil
+
 }
 
-func resetSessionRecordingConfig(ctx context.Context, client *authclient.Client) error {
+func (rc *ResourceCommand) resetSessionRecordingConfig(ctx context.Context, client *authclient.Client) error {
 	storedRecConfig, err := client.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -77,11 +95,20 @@ func resetSessionRecordingConfig(ctx context.Context, client *authclient.Client)
 		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
-	return trace.Wrap(client.ResetSessionRecordingConfig(ctx))
+	if err := client.ResetSessionRecordingConfig(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("session recording configuration has been reset to defaults\n")
+	return nil
 }
 
-func resetNetworkRestrictions(ctx context.Context, client *authclient.Client) error {
-	return trace.Wrap(client.DeleteNetworkRestrictions(ctx))
+func (rc *ResourceCommand) resetNetworkRestrictions(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteNetworkRestrictions(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("network restrictions have been reset to defaults (allow all)\n")
+	return nil
+
 }
 
 func (rc *ResourceCommand) getAuthPreference(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
@@ -234,6 +261,14 @@ func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, c
 	}
 
 	fmt.Println("maintenance window has been updated")
+	return nil
+}
+
+func (rc *ResourceCommand) deleteClusterMaintenanceConfig(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteClusterMaintenanceConfig(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("cluster maintenance configuration has been deleted\n")
 	return nil
 }
 
