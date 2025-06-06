@@ -753,7 +753,24 @@ func initLogger(cf *CLIConf) {
 //
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
-	if err := tools.CheckAndUpdateLocal(ctx, args); err != nil {
+	// We need to parse the arguments before executing managed updates to identify
+	// the profile name and the required version for the current cluster.
+	// All other commands and flags may change between versions, so full parsing
+	// should be performed only after managed updates are applied.
+	var proxyArg string
+	muApp := utils.InitCLIParser("tsh", "")
+	muApp.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).Hidden().StringVar(&proxyArg)
+	muApp.Parse(utils.FilterArguments(args, "proxy"))
+	// Check local update for specific proxy from configuration.
+	var err error
+	var name string
+	if proxyArg != "" {
+		name, err = utils.Host(proxyArg)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if err := tools.CheckAndUpdateLocal(ctx, name, args); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1275,6 +1292,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		puttyConfig.Hidden()
 	}
 
+	// Client-tools managed updates commands.
+	autoupdate := newAutoUpdateCommand(app)
+
 	// FIDO2, TouchID and WebAuthnWin commands.
 	f2 := fido2.NewCommand(app)
 	tid := touchid.NewCommand(app)
@@ -1300,7 +1320,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		bench.Hidden()
 	}
 
-	var err error
 	cf.executablePath, err = os.Executable()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1693,6 +1712,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.clone.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
+	case autoupdate.update.FullCommand():
+		err = autoupdate.update.run(&cf)
+	case autoupdate.clean.FullCommand():
+		err = autoupdate.clean.run()
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -1980,8 +2003,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 				return trace.Wrap(err)
 			}
 
-			_, err := tc.PingAndShowMOTD(cf.Context)
-			if err != nil {
+			if _, err := tc.PingAndShowMOTD(cf.Context); err != nil {
 				return trace.Wrap(err)
 			}
 			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
@@ -2000,8 +2022,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 				return trace.Wrap(err)
 			}
 
-			_, err := tc.PingAndShowMOTD(cf.Context)
-			if err != nil {
+			if _, err := tc.PingAndShowMOTD(cf.Context); err != nil {
 				return trace.Wrap(err)
 			}
 
