@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package events
+package recorder
 
 import (
 	"crypto/rand"
@@ -25,10 +25,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 )
 
 func TestBytesToSessionPrintEvents(t *testing.T) {
-	b := make([]byte, MaxProtoMessageSizeBytes+1)
+	b := make([]byte, eventsclient.MaxProtoMessageSizeBytes+1)
 	_, err := rand.Read(b)
 	require.NoError(t, err)
 

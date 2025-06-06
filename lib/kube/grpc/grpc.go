@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
@@ -214,8 +214,8 @@ func (s *Server) emitAuditEvent(ctx context.Context, userContext *authz.Context,
 		ctx,
 		&apievents.AccessRequestResourceSearch{
 			Metadata: apievents.Metadata{
-				Type: events.AccessRequestResourceSearch,
-				Code: events.AccessRequestResourceSearchCode,
+				Type: eventsclient.AccessRequestResourceSearch,
+				Code: eventsclient.AccessRequestResourceSearchCode,
 			},
 			UserMetadata:        authz.ClientUserMetadata(ctx),
 			SearchAsRoles:       userContext.Checker.RoleNames(),

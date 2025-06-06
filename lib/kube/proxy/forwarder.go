@@ -72,7 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
@@ -904,14 +904,14 @@ func (f *Forwarder) emitAuditEvent(req *http.Request, sess *clusterSession, stat
 	// Emit audit event.
 	event := &apievents.KubeRequest{
 		Metadata: apievents.Metadata{
-			Type: events.KubeRequestEvent,
-			Code: events.KubeRequestCode,
+			Type: eventsclient.KubeRequestEvent,
+			Code: eventsclient.KubeRequestCode,
 		},
 		UserMetadata: sess.eventUserMeta(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: req.RemoteAddr,
 			LocalAddr:  sess.kubeAddress,
-			Protocol:   events.EventProtocolKube,
+			Protocol:   eventsclient.EventProtocolKube,
 		},
 		ServerMetadata:            sess.getServerMetadata(),
 		RequestPath:               req.URL.Path,
@@ -1499,13 +1499,13 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 	connectionMetdata := apievents.ConnectionMetadata{
 		RemoteAddr: req.RemoteAddr,
 		LocalAddr:  sess.kubeAddress,
-		Protocol:   events.EventProtocolKube,
+		Protocol:   eventsclient.EventProtocolKube,
 	}
 
 	sessionStartEvent := &apievents.SessionStart{
 		Metadata: apievents.Metadata{
-			Type:        events.SessionStartEvent,
-			Code:        events.SessionStartCode,
+			Type:        eventsclient.SessionStartEvent,
+			Code:        eventsclient.SessionStartCode,
 			ClusterName: f.cfg.ClusterName,
 		},
 		ServerMetadata:            serverMetadata,
@@ -1526,7 +1526,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 
 	execEvent := &apievents.Exec{
 		Metadata: apievents.Metadata{
-			Type:        events.ExecEvent,
+			Type:        eventsclient.ExecEvent,
 			ClusterName: f.cfg.ClusterName,
 		},
 		ServerMetadata:     serverMetadata,
@@ -1547,8 +1547,8 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 
 		sessionEndEvent := &apievents.SessionEnd{
 			Metadata: apievents.Metadata{
-				Type:        events.SessionEndEvent,
-				Code:        events.SessionEndCode,
+				Type:        eventsclient.SessionEndEvent,
+				Code:        eventsclient.SessionEndCode,
 				ClusterName: f.cfg.ClusterName,
 			},
 			ServerMetadata:            serverMetadata,
@@ -1571,7 +1571,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 
 	executor, err := f.getExecutor(sess, req)
 	if err != nil {
-		execEvent.Code = events.ExecFailureCode
+		execEvent.Code = eventsclient.ExecFailureCode
 		execEvent.Error, execEvent.ExitCode = exitCode(err)
 
 		f.log.WarnContext(f.ctx, "Failed creating executor", "error", err)
@@ -1581,14 +1581,14 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 	streamOptions := proxy.options()
 	err = executor.StreamWithContext(req.Context(), streamOptions)
 	if err != nil {
-		execEvent.Code = events.ExecFailureCode
+		execEvent.Code = eventsclient.ExecFailureCode
 		execEvent.Error, execEvent.ExitCode = exitCode(err)
 
 		f.log.WarnContext(f.ctx, "Executor failed while streaming", "error", err)
 		return trace.Wrap(err)
 	}
 
-	execEvent.Code = events.ExecCode
+	execEvent.Code = eventsclient.ExecCode
 
 	return nil
 }
@@ -1815,14 +1815,14 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 		auditSent[addr] = true
 		portForward := &apievents.PortForward{
 			Metadata: apievents.Metadata{
-				Type: events.PortForwardEvent,
-				Code: events.PortForwardCode,
+				Type: eventsclient.PortForwardEvent,
+				Code: eventsclient.PortForwardCode,
 			},
 			UserMetadata: authCtx.eventUserMeta(),
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  sess.kubeAddress,
 				RemoteAddr: req.RemoteAddr,
-				Protocol:   events.EventProtocolKube,
+				Protocol:   eventsclient.EventProtocolKube,
 			},
 			Addr: addr,
 			Status: apievents.Status{
@@ -1835,7 +1835,7 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 			},
 		}
 		if !success {
-			portForward.Code = events.PortForwardFailureCode
+			portForward.Code = eventsclient.PortForwardFailureCode
 		}
 		if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, portForward); err != nil {
 			f.log.WarnContext(ctx, "Failed to emit event", "error", err)
@@ -1845,14 +1845,14 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 		for addr := range auditSent {
 			portForward := &apievents.PortForward{
 				Metadata: apievents.Metadata{
-					Type: events.PortForwardEvent,
-					Code: events.PortForwardStopCode,
+					Type: eventsclient.PortForwardEvent,
+					Code: eventsclient.PortForwardStopCode,
 				},
 				UserMetadata: authCtx.eventUserMeta(),
 				ConnectionMetadata: apievents.ConnectionMetadata{
 					LocalAddr:  sess.kubeAddress,
 					RemoteAddr: req.RemoteAddr,
-					Protocol:   events.EventProtocolKube,
+					Protocol:   eventsclient.EventProtocolKube,
 				},
 				Addr:                      addr,
 				KubernetesClusterMetadata: sess.eventClusterMeta(req),

@@ -121,6 +121,7 @@ import (
 	"github.com/gravitational/teleport/lib/decision/decisionv1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
 	"github.com/gravitational/teleport/lib/modules"
@@ -450,7 +451,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			err = trace.NewAggregate(errors...)
 			if err != nil {
 				switch {
-				case events.IsPermanentEmitError(err):
+				case eventsclient.IsPermanentEmitError(err):
 					g.logger.ErrorContext(stream.Context(), "Failed to EmitAuditEvent due to a permanent error, event wil be omitted",
 						slog.Any("error", err),
 						slog.Group("event",

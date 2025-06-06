@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -90,7 +90,7 @@ func TestModeratedSessions(t *testing.T) {
 			// onEvent is called each time a new event is produced. We only care about
 			// sessionEnd events.
 			OnEvent: func(ae apievents.AuditEvent) {
-				if ae.GetType() == events.SessionEndEvent {
+				if ae.GetType() == eventsclient.SessionEndEvent {
 					atomic.AddInt64(numSessionEndEvents, 1)
 				}
 			},

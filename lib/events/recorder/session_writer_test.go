@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package events_test
+package recorder_test
 
 import (
 	"bytes"
@@ -34,6 +34,8 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/events/recorder"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -335,16 +337,16 @@ type sessionWriterTest struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 	preparer events.SessionEventPreparer
-	writer   *events.SessionWriter
+	writer   *recorder.SessionWriter
 	sid      session.ID
 }
 
 type newStreamerFn func(streamer events.Streamer) (*events.CallbackStreamer, error)
 
-type sessionWriterOption func(c *events.SessionWriterConfig)
+type sessionWriterOption func(c *recorder.SessionWriterConfig)
 
 func withBackoff(timeout, dur time.Duration) sessionWriterOption {
-	return func(c *events.SessionWriterConfig) {
+	return func(c *recorder.SessionWriterConfig) {
 		c.BackoffTimeout = timeout
 		c.BackoffDuration = dur
 	}
@@ -377,7 +379,7 @@ func newSessionWriterTest(t *testing.T, newStreamer newStreamerFn, opts ...sessi
 	})
 	require.NoError(t, err)
 
-	cfg := events.SessionWriterConfig{
+	cfg := recorder.SessionWriterConfig{
 		SessionID: sid,
 		Preparer:  preparer,
 		Streamer:  streamer,
@@ -386,7 +388,7 @@ func newSessionWriterTest(t *testing.T, newStreamer newStreamerFn, opts ...sessi
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	writer, err := events.NewSessionWriter(cfg)
+	writer, err := recorder.NewSessionWriter(cfg)
 	require.NoError(t, err)
 
 	return &sessionWriterTest{
@@ -493,7 +495,7 @@ func TestIsPermanentEmitError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := events.IsPermanentEmitError(tt.err)
+			got := eventsclient.IsPermanentEmitError(tt.err)
 			require.Equal(t, tt.want, got)
 		})
 	}

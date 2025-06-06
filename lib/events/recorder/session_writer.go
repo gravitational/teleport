@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package events
+package recorder
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"strings"
 	"sync"
@@ -33,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -80,10 +80,10 @@ type SessionWriterConfig struct {
 	MakeEvents func([]byte) []apievents.AuditEvent
 
 	// Preparer will set necessary fields of events created by Write.
-	Preparer SessionEventPreparer
+	Preparer eventsclient.SessionEventPreparer
 
 	// Streamer is used to create and resume audit streams
-	Streamer Streamer
+	Streamer eventsclient.Streamer
 
 	// Context is a context to cancel the writes
 	// or any other operations
@@ -119,10 +119,10 @@ func (cfg *SessionWriterConfig) CheckAndSetDefaults() error {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	if cfg.BackoffTimeout == 0 {
-		cfg.BackoffTimeout = AuditBackoffTimeout
+		cfg.BackoffTimeout = eventsclient.AuditBackoffTimeout
 	}
 	if cfg.BackoffDuration == 0 {
-		cfg.BackoffDuration = NetworkBackoffDuration
+		cfg.BackoffDuration = eventsclient.NetworkBackoffDuration
 	}
 	if cfg.MakeEvents == nil {
 		cfg.MakeEvents = bytesToSessionPrintEvents
@@ -136,13 +136,13 @@ func bytesToSessionPrintEvents(b []byte) []apievents.AuditEvent {
 	for len(b) != 0 {
 		printEvent := &apievents.SessionPrint{
 			Metadata: apievents.Metadata{
-				Type: SessionPrintEvent,
+				Type: eventsclient.SessionPrintEvent,
 				Time: start,
 			},
 			Data: b,
 		}
-		if printEvent.Size() > MaxProtoMessageSizeBytes {
-			extraBytes := printEvent.Size() - MaxProtoMessageSizeBytes
+		if printEvent.Size() > eventsclient.MaxProtoMessageSizeBytes {
+			extraBytes := printEvent.Size() - eventsclient.MaxProtoMessageSizeBytes
 			printEvent.Data = b[:extraBytes]
 			printEvent.Bytes = int64(len(printEvent.Data))
 			b = b[extraBytes:]
@@ -265,6 +265,16 @@ func (a *SessionWriter) maybeSetBackoff(backoffUntil time.Time) bool {
 		a.backoffUntil = backoffUntil
 		return true
 	}
+}
+
+func checkBasicEventFields(event apievents.AuditEvent) error {
+	if event.GetType() == "" {
+		return trace.BadParameter("missing mandatory event type field")
+	}
+	if event.GetCode() == "" && event.GetType() != eventsclient.SessionPrintEvent && event.GetType() != eventsclient.DesktopRecordingEvent {
+		return trace.BadParameter("missing mandatory event code field for %v event", event.GetType())
+	}
+	return nil
 }
 
 // RecordEvent emits audit event
@@ -434,7 +444,7 @@ func (a *SessionWriter) processEvents() {
 			a.buffer = append(a.buffer, event)
 			err := a.stream.RecordEvent(a.cfg.Context, event)
 			if err != nil {
-				if IsPermanentEmitError(err) {
+				if eventsclient.IsPermanentEmitError(err) {
 					a.log.WarnContext(a.cfg.Context, "Failed to emit audit event due to permanent emit audit event error. Event will be omitted.", "error", err, "event", event)
 					continue
 				}
@@ -470,34 +480,6 @@ func (a *SessionWriter) processEvents() {
 	}
 }
 
-// IsPermanentEmitError checks if the error contains either a sole
-// [trace.BadParameter] error in its chain, or a [trace.Aggregate] error
-// composed entirely of BadParameters.
-func IsPermanentEmitError(err error) bool {
-	return isPermanentEmitError(err, 1 /* depth */)
-}
-
-func isPermanentEmitError(err error, depth int) bool {
-	const maxDepth = 50
-	if depth >= maxDepth {
-		return false
-	}
-
-	// If Aggregate, then it must match entirely.
-	var agg trace.Aggregate
-	if errors.As(err, &agg) {
-		for _, e := range agg.Errors() {
-			if !isPermanentEmitError(e, depth+1) {
-				return false
-			}
-		}
-		return true
-	}
-
-	// Otherwise, a sole BadParameter is enough.
-	return trace.IsBadParameter(err)
-}
-
 func (a *SessionWriter) recoverStream() error {
 	a.closeStream(a.stream)
 	stream, err := a.tryResumeStream()
@@ -519,7 +501,7 @@ func (a *SessionWriter) recoverStream() error {
 }
 
 func (a *SessionWriter) closeStream(stream apievents.Stream) {
-	ctx, cancel := context.WithTimeout(a.cfg.Context, NetworkRetryDuration)
+	ctx, cancel := context.WithTimeout(a.cfg.Context, eventsclient.NetworkRetryDuration)
 	defer cancel()
 	if err := stream.Close(ctx); err != nil {
 		a.log.DebugContext(ctx, "Failed to close stream.")
@@ -530,7 +512,7 @@ func (a *SessionWriter) completeStream(stream apievents.Stream) {
 	// Cannot use the configured context because it's the server's and when the server
 	// is requested to close (and hence the context is canceled), the stream will not be able
 	// to complete
-	ctx, cancel := context.WithTimeout(context.Background(), NetworkBackoffDuration)
+	ctx, cancel := context.WithTimeout(context.Background(), eventsclient.NetworkBackoffDuration)
 	defer cancel()
 	if err := stream.Complete(ctx); err != nil {
 		a.log.WarnContext(ctx, "Failed to complete stream.", "error", err)
@@ -539,15 +521,15 @@ func (a *SessionWriter) completeStream(stream apievents.Stream) {
 
 func (a *SessionWriter) tryResumeStream() (apievents.Stream, error) {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		Step: NetworkRetryDuration,
-		Max:  NetworkBackoffDuration,
+		Step: eventsclient.NetworkRetryDuration,
+		Max:  eventsclient.NetworkBackoffDuration,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var resumedStream apievents.Stream
 	start := time.Now()
-	for i := 0; i < FastAttempts; i++ {
+	for i := 0; i < eventsclient.FastAttempts; i++ {
 		var streamType string
 		if a.lastStatus == nil {
 			// The stream was either never created or has failed to receive the
@@ -630,3 +612,9 @@ func diff(before, after time.Time) int64 {
 func isUnrecoverableError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), uploaderReservePartErrorMessage)
 }
+
+const (
+	// uploaderReservePartErrorMessage error message present when
+	// `ReserveUploadPart` fails.
+	uploaderReservePartErrorMessage = "uploader failed to reserve upload part"
+)

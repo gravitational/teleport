@@ -29,8 +29,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -62,7 +62,7 @@ type Config struct {
 	// SyncStreamer will be used to create session recording streams if
 	// RecordingCfg specifies that session recording should be done
 	// synchronously.
-	SyncStreamer events.Streamer
+	SyncStreamer eventsclient.Streamer
 
 	// DataDir is the directory that data should be stored in.
 	DataDir string
@@ -93,12 +93,12 @@ type Config struct {
 	StartTime time.Time
 }
 
-// New returns a [events.SessionPreparerRecorder]. If session recording is disabled,
+// New returns a [eventsclient.SessionPreparerRecorder]. If session recording is disabled,
 // a recorder is returned that will discard all session events. If session
 // recording is set to be synchronous, the returned recorder will use
 // syncStream to create an event stream. Otherwise, a streamer will be
 // used that will back recorded session events to disk for eventual upload.
-func New(cfg Config) (events.SessionPreparerRecorder, error) {
+func New(cfg Config) (eventsclient.SessionPreparerRecorder, error) {
 	if cfg.RecordingCfg == nil {
 		return nil, trace.BadParameter("RecordingCfg must be set")
 	}
@@ -109,7 +109,7 @@ func New(cfg Config) (events.SessionPreparerRecorder, error) {
 		return nil, trace.BadParameter("DataDir must be set")
 	}
 
-	preparer, err := events.NewPreparer(events.PreparerConfig{
+	preparer, err := eventsclient.NewPreparer(eventsclient.PreparerConfig{
 		SessionID:   cfg.SessionID,
 		ServerID:    cfg.ServerID,
 		Namespace:   cfg.Namespace,
@@ -123,14 +123,14 @@ func New(cfg Config) (events.SessionPreparerRecorder, error) {
 	}
 
 	if cfg.RecordingCfg.GetMode() == types.RecordOff {
-		return events.NewSessionPreparerRecorder(preparer, events.NewDiscardRecorder()), nil
+		return eventsclient.NewSessionPreparerRecorder(preparer, eventsclient.NewDiscardRecorder()), nil
 	}
 
 	streamer := cfg.SyncStreamer
 	if !services.IsRecordSync(cfg.RecordingCfg.GetMode()) {
 		uploadDir := filepath.Join(
 			cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-			events.StreamingSessionsDir, cfg.Namespace,
+			eventsclient.StreamingSessionsDir, cfg.Namespace,
 		)
 		fileStreamer, err := filesessions.NewStreamer(uploadDir)
 		if err != nil {
@@ -139,7 +139,7 @@ func New(cfg Config) (events.SessionPreparerRecorder, error) {
 		streamer = fileStreamer
 	}
 
-	rec, err := events.NewSessionWriter(events.SessionWriterConfig{
+	rec, err := NewSessionWriter(SessionWriterConfig{
 		SessionID:       cfg.SessionID,
 		Component:       cfg.Component,
 		MakeEvents:      cfg.MakeEvents,

@@ -56,8 +56,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -650,7 +650,7 @@ func (c *TestContext) NewJoiningSession(cfg *rest.Config, sessionID string, mode
 // even when recording mode is *-sync.
 type authClientWithStreamer struct {
 	*authclient.Client
-	streamer             events.Streamer
+	streamer             eventsclient.Streamer
 	createAuditStreamErr error
 }
 

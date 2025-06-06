@@ -37,7 +37,7 @@ import (
 	"k8s.io/client-go/tools/portforward"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -150,7 +150,7 @@ func runPortForwardingWebSocket(req portForwardRequest) error {
 		onPortForward: req.onPortForward,
 		logger: slog.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentProxyKube),
-			events.RemoteAddr, req.httpRequest.RemoteAddr,
+			eventsclient.RemoteAddr, req.httpRequest.RemoteAddr,
 		),
 		context: req.context,
 	}
@@ -345,7 +345,7 @@ func runPortForwardingTunneledHTTPStreams(req portForwardRequest) error {
 	h := &portForwardProxy{
 		logger: slog.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentProxyKube),
-			events.RemoteAddr, req.httpRequest.RemoteAddr,
+			eventsclient.RemoteAddr, req.httpRequest.RemoteAddr,
 		),
 		portForwardRequest:    req,
 		sourceConn:            spdyConn,

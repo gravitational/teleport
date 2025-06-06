@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
@@ -196,7 +197,7 @@ func TestSession_newRecorder(t *testing.T) {
 
 	isNotSessionWriter := func(t require.TestingT, i interface{}, i2 ...interface{}) {
 		require.NotNil(t, i)
-		_, ok := i.(*events.SessionWriter)
+		_, ok := i.(*recorder.SessionWriter)
 		require.False(t, ok)
 	}
 

@@ -49,8 +49,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -389,7 +389,7 @@ type session struct {
 
 	accessEvaluator auth.SessionAccessEvaluator
 
-	recorder events.SessionPreparerRecorder
+	recorder eventsclient.SessionPreparerRecorder
 
 	emitter apievents.Emitter
 
@@ -488,9 +488,9 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		partiesWg:                      sync.WaitGroup{},
 		// if session ever starts, emitter and recorder will be replaced
 		// by actual emitter and recorder.
-		emitter: events.NewDiscardEmitter(),
-		recorder: events.WithNoOpPreparer(
-			events.NewDiscardRecorder(),
+		emitter: eventsclient.NewDiscardEmitter(),
+		recorder: eventsclient.WithNoOpPreparer(
+			eventsclient.NewDiscardRecorder(),
 		),
 	}
 
@@ -636,8 +636,8 @@ func (s *session) launch(ephemeralContainerStatus *corev1.ContainerStatus) (retu
 
 	sessionStartEvent, err := s.recorder.PrepareSessionEvent(&apievents.SessionStart{
 		Metadata: apievents.Metadata{
-			Type:        events.SessionStartEvent,
-			Code:        events.SessionStartCode,
+			Type:        eventsclient.SessionStartEvent,
+			Code:        eventsclient.SessionStartCode,
 			ClusterName: s.forwarder.cfg.ClusterName,
 		},
 		ServerMetadata:  s.sess.getServerMetadata(),
@@ -646,7 +646,7 @@ func (s *session) launch(ephemeralContainerStatus *corev1.ContainerStatus) (retu
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: s.req.RemoteAddr,
 			LocalAddr:  s.sess.kubeAddress,
-			Protocol:   events.EventProtocolKube,
+			Protocol:   eventsclient.EventProtocolKube,
 		},
 		TerminalSize:              termParams.Serialize(),
 		KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
@@ -791,13 +791,13 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 
 			resizeEvent, err := s.recorder.PrepareSessionEvent(&apievents.Resize{
 				Metadata: apievents.Metadata{
-					Type:        events.ResizeEvent,
-					Code:        events.TerminalResizeCode,
+					Type:        eventsclient.ResizeEvent,
+					Code:        eventsclient.TerminalResizeCode,
 					ClusterName: s.forwarder.cfg.ClusterName,
 				},
 				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: s.req.RemoteAddr,
-					Protocol:   events.EventProtocolKube,
+					Protocol:   eventsclient.EventProtocolKube,
 				},
 				ServerMetadata:            s.sess.getServerMetadata(),
 				SessionMetadata:           s.getSessionMetadata(),
@@ -838,15 +838,15 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 		conMetadata := apievents.ConnectionMetadata{
 			RemoteAddr: s.req.RemoteAddr,
 			LocalAddr:  s.sess.kubeAddress,
-			Protocol:   events.EventProtocolKube,
+			Protocol:   eventsclient.EventProtocolKube,
 		}
 
 		execEvent := &apievents.Exec{
 			Metadata: apievents.Metadata{
-				Type:        events.ExecEvent,
+				Type:        eventsclient.ExecEvent,
 				ClusterName: s.forwarder.cfg.ClusterName,
 				// can be changed to ExecFailureCode if errExec is not nil
-				Code: events.ExecCode,
+				Code: eventsclient.ExecCode,
 			},
 			ServerMetadata:     serverMetadata,
 			SessionMetadata:    sessionMetadata,
@@ -860,7 +860,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 		}
 
 		if errExec != nil {
-			execEvent.Code = events.ExecFailureCode
+			execEvent.Code = eventsclient.ExecFailureCode
 			execEvent.Error, execEvent.ExitCode = exitCode(errExec)
 		}
 
@@ -870,8 +870,8 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 
 		sessionDataEvent := &apievents.SessionData{
 			Metadata: apievents.Metadata{
-				Type:        events.SessionDataEvent,
-				Code:        events.SessionDataCode,
+				Type:        eventsclient.SessionDataEvent,
+				Code:        eventsclient.SessionDataCode,
 				ClusterName: s.forwarder.cfg.ClusterName,
 			},
 			ServerMetadata:     serverMetadata,
@@ -890,8 +890,8 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 
 		sessionEndEvent, err := s.recorder.PrepareSessionEvent(&apievents.SessionEnd{
 			Metadata: apievents.Metadata{
-				Type:        events.SessionEndEvent,
-				Code:        events.SessionEndCode,
+				Type:        eventsclient.SessionEndEvent,
+				Code:        eventsclient.SessionEndCode,
 				ClusterName: s.forwarder.cfg.ClusterName,
 			},
 			ServerMetadata:            serverMetadata,
@@ -1186,8 +1186,8 @@ func (s *session) BroadcastMessage(format string, args ...any) {
 func (s *session) emitSessionJoinEvent(p *party) {
 	sessionJoinEvent := &apievents.SessionJoin{
 		Metadata: apievents.Metadata{
-			Type:        events.SessionJoinEvent,
-			Code:        events.SessionJoinCode,
+			Type:        eventsclient.SessionJoinEvent,
+			Code:        eventsclient.SessionJoinCode,
 			ClusterName: s.ctx.teleportCluster.name,
 		},
 		KubernetesClusterMetadata: apievents.KubernetesClusterMetadata{
@@ -1243,8 +1243,8 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 
 	sessionLeaveEvent := &apievents.SessionLeave{
 		Metadata: apievents.Metadata{
-			Type:        events.SessionLeaveEvent,
-			Code:        events.SessionLeaveCode,
+			Type:        eventsclient.SessionLeaveEvent,
+			Code:        eventsclient.SessionLeaveCode,
 			ClusterName: s.ctx.teleportCluster.name,
 		},
 		SessionMetadata: s.getSessionMetadata(),

@@ -31,7 +31,8 @@ import (
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events"
+
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -93,7 +94,7 @@ func runPortForwardingHTTPStreams(req portForwardRequest) error {
 	h := &portForwardProxy{
 		logger: slog.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentProxyKube),
-			events.RemoteAddr, req.httpRequest.RemoteAddr,
+			eventsclient.RemoteAddr, req.httpRequest.RemoteAddr,
 		),
 		portForwardRequest:    req,
 		sourceConn:            conn,

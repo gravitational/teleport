@@ -16,14 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package events
+package eventsclient
 
-import (
-	"github.com/gravitational/teleport/lib/eventsclient"
-)
+import apievents "github.com/gravitational/teleport/api/types/events"
 
 // Event describes an audit log event.
-type Event = eventsclient.Event
+type Event struct {
+	// Name is the event name.
+	Name string
+	// Code is the unique event code.
+	Code string
+}
 
 // There is no strict algorithm for picking an event code, however existing
 // event codes are currently loosely categorized as follows:
@@ -40,717 +43,717 @@ type Event = eventsclient.Event
 // entry in the `eventsMap` in `lib/events/events_test.go`.
 const (
 	// UserLocalLoginCode is the successful local user login event code.
-	UserLocalLoginCode = eventsclient.UserLocalLoginCode
+	UserLocalLoginCode = "T1000I"
 	// UserLocalLoginFailureCode is the unsuccessful local user login event code.
-	UserLocalLoginFailureCode = eventsclient.UserLocalLoginFailureCode
+	UserLocalLoginFailureCode = "T1000W"
 	// UserSSOLoginCode is the successful SSO user login event code.
-	UserSSOLoginCode = eventsclient.UserSSOLoginCode
+	UserSSOLoginCode = "T1001I"
 	// UserSSOLoginFailureCode is the unsuccessful SSO user login event code.
-	UserSSOLoginFailureCode = eventsclient.UserSSOLoginFailureCode
+	UserSSOLoginFailureCode = "T1001W"
 	// UserCreateCode is the user create event code.
-	UserCreateCode = eventsclient.UserCreateCode
+	UserCreateCode = "T1002I"
 	// UserUpdateCode is the user update event code.
-	UserUpdateCode = eventsclient.UserUpdateCode
+	UserUpdateCode = "T1003I"
 	// UserDeleteCode is the user delete event code.
-	UserDeleteCode = eventsclient.UserDeleteCode
+	UserDeleteCode = "T1004I"
 	// UserPasswordChangeCode is an event code for when user changes their own password.
-	UserPasswordChangeCode = eventsclient.UserPasswordChangeCode
+	UserPasswordChangeCode = "T1005I"
 	// MFADeviceAddEventCode is an event code for users adding MFA devices.
-	MFADeviceAddEventCode = eventsclient.MFADeviceAddEventCode
+	MFADeviceAddEventCode = "T1006I"
 	// MFADeviceDeleteEventCode is an event code for users deleting MFA devices.
-	MFADeviceDeleteEventCode = eventsclient.MFADeviceDeleteEventCode
+	MFADeviceDeleteEventCode = "T1007I"
 	// RecoveryCodesGenerateCode is an event code for generation of recovery codes.
-	RecoveryCodesGenerateCode = eventsclient.RecoveryCodesGenerateCode
+	RecoveryCodesGenerateCode = "T1008I"
 	// RecoveryCodeUseSuccessCode is an event code for when a
 	// recovery code was used successfully.
-	RecoveryCodeUseSuccessCode = eventsclient.RecoveryCodeUseSuccessCode
+	RecoveryCodeUseSuccessCode = "T1009I"
 	// RecoveryCodeUseFailureCode is an event code for when a
 	// recovery code was not used successfully.
-	RecoveryCodeUseFailureCode = eventsclient.RecoveryCodeUseFailureCode
+	RecoveryCodeUseFailureCode = "T1009W"
 	// UserSSOTestFlowLoginCode is the successful SSO test flow user login event code.
-	UserSSOTestFlowLoginCode = eventsclient.UserSSOTestFlowLoginCode
+	UserSSOTestFlowLoginCode = "T1010I"
 	// UserSSOTestFlowLoginFailureCode is the unsuccessful SSO test flow user login event code.
-	UserSSOTestFlowLoginFailureCode = eventsclient.UserSSOTestFlowLoginFailureCode
+	UserSSOTestFlowLoginFailureCode = "T1011W"
 	// UserHeadlessLoginRequestedCode is an event code for when headless login attempt was requested.
-	UserHeadlessLoginRequestedCode = eventsclient.UserHeadlessLoginRequestedCode
+	UserHeadlessLoginRequestedCode = "T1012I"
 	// UserHeadlessLoginApprovedCode is an event code for when headless login attempt was successfully approved.
-	UserHeadlessLoginApprovedCode = eventsclient.UserHeadlessLoginApprovedCode
+	UserHeadlessLoginApprovedCode = "T1013I"
 	// UserHeadlessLoginApprovedFailureCode is an event code for when headless login was approved with an error.
-	UserHeadlessLoginApprovedFailureCode = eventsclient.UserHeadlessLoginApprovedFailureCode
+	UserHeadlessLoginApprovedFailureCode = "T1013W"
 	// UserHeadlessLoginRejectedCode is an event code for when headless login attempt was rejected.
-	UserHeadlessLoginRejectedCode = eventsclient.UserHeadlessLoginRejectedCode
+	UserHeadlessLoginRejectedCode = "T1014W"
 	// CreateMFAAuthChallenge is an event code for when an MFA auth challenge is created.
-	CreateMFAAuthChallengeCode = eventsclient.CreateMFAAuthChallengeCode
+	CreateMFAAuthChallengeCode = "T1015I"
 	// ValidateMFAAuthResponseCode is an event code for when an MFA auth challenge
 	// response is successfully validated.
-	ValidateMFAAuthResponseCode = eventsclient.ValidateMFAAuthResponseCode
+	ValidateMFAAuthResponseCode = "T1016I"
 	// VValidateMFAAuthResponseFailureCode is an event code for when an MFA auth challenge
 	// response fails validation.
-	ValidateMFAAuthResponseFailureCode = eventsclient.ValidateMFAAuthResponseFailureCode
+	ValidateMFAAuthResponseFailureCode = "T1016W"
 
 	// BillingCardCreateCode is an event code for when a user creates a new credit card.
-	BillingCardCreateCode = eventsclient.BillingCardCreateCode
+	BillingCardCreateCode = "TBL00I"
 	// BillingCardDeleteCode is an event code for when a user deletes a credit card.
-	BillingCardDeleteCode = eventsclient.BillingCardDeleteCode
+	BillingCardDeleteCode = "TBL01I"
 	// BillingCardUpdateCode is an event code for when a user updates an existing credit card.
-	BillingCardUpdateCode = eventsclient.BillingCardUpdateCode
+	BillingCardUpdateCode = "TBL02I"
 	// BillingInformationUpdateCode is an event code for when a user updates their billing info.
-	BillingInformationUpdateCode = eventsclient.BillingInformationUpdateCode
+	BillingInformationUpdateCode = "TBL03I"
 
 	// SessionRejectedCode is an event code for when a user's attempt to create an
 	// session/connection has been rejected.
-	SessionRejectedCode = eventsclient.SessionRejectedCode
+	SessionRejectedCode = "T1006W"
 
 	// SessionStartCode is the session start event code.
-	SessionStartCode = eventsclient.SessionStartCode
+	SessionStartCode = "T2000I"
 	// SessionJoinCode is the session join event code.
-	SessionJoinCode = eventsclient.SessionJoinCode
+	SessionJoinCode = "T2001I"
 	// TerminalResizeCode is the terminal resize event code.
-	TerminalResizeCode = eventsclient.TerminalResizeCode
+	TerminalResizeCode = "T2002I"
 	// SessionLeaveCode is the session leave event code.
-	SessionLeaveCode = eventsclient.SessionLeaveCode
+	SessionLeaveCode = "T2003I"
 	// SessionEndCode is the session end event code.
-	SessionEndCode = eventsclient.SessionEndCode
+	SessionEndCode = "T2004I"
 	// SessionUploadCode is the session upload event code.
-	SessionUploadCode = eventsclient.SessionUploadCode
+	SessionUploadCode = "T2005I"
 	// SessionDataCode is the session data event code.
-	SessionDataCode = eventsclient.SessionDataCode
+	SessionDataCode = "T2006I"
 	// AppSessionStartCode is the application session start code.
-	AppSessionStartCode = eventsclient.AppSessionStartCode
+	AppSessionStartCode = "T2007I"
 	// AppSessionChunkCode is the application session chunk create code.
-	AppSessionChunkCode = eventsclient.AppSessionChunkCode
+	AppSessionChunkCode = "T2008I"
 	// AppSessionRequestCode is the application request/response code.
-	AppSessionRequestCode = eventsclient.AppSessionRequestCode
+	AppSessionRequestCode = "T2009I"
 	// SessionConnectCode is the session connect event code.
-	SessionConnectCode = eventsclient.SessionConnectCode
+	SessionConnectCode = "T2010I"
 	// AppSessionEndCode is the application session end event code.
-	AppSessionEndCode = eventsclient.AppSessionEndCode
+	AppSessionEndCode = "T2011I"
 	// SessionRecordingAccessCode is the session recording view data event code.
-	SessionRecordingAccessCode = eventsclient.SessionRecordingAccessCode
+	SessionRecordingAccessCode = "T2012I"
 	// AppSessionDynamoDBRequestCode is the application request/response code.
-	AppSessionDynamoDBRequestCode = eventsclient.AppSessionDynamoDBRequestCode
+	AppSessionDynamoDBRequestCode = "T2013I"
 
 	// AppCreateCode is the app.create event code.
-	AppCreateCode = eventsclient.AppCreateCode
+	AppCreateCode = "TAP03I"
 	// AppUpdateCode is the app.update event code.
-	AppUpdateCode = eventsclient.AppUpdateCode
+	AppUpdateCode = "TAP04I"
 	// AppDeleteCode is the app.delete event code.
-	AppDeleteCode = eventsclient.AppDeleteCode
+	AppDeleteCode = "TAP05I"
 
 	// DatabaseSessionStartCode is the database session start event code.
-	DatabaseSessionStartCode = eventsclient.DatabaseSessionStartCode
+	DatabaseSessionStartCode = "TDB00I"
 	// DatabaseSessionStartFailureCode is the database session start failure event code.
-	DatabaseSessionStartFailureCode = eventsclient.DatabaseSessionStartFailureCode
+	DatabaseSessionStartFailureCode = "TDB00W"
 	// DatabaseSessionEndCode is the database session end event code.
-	DatabaseSessionEndCode = eventsclient.DatabaseSessionEndCode
+	DatabaseSessionEndCode = "TDB01I"
 	// DatabaseSessionQueryCode is the database query event code.
-	DatabaseSessionQueryCode = eventsclient.DatabaseSessionQueryCode
+	DatabaseSessionQueryCode = "TDB02I"
 	// DatabaseSessionQueryFailedCode is the database query failure event code.
-	DatabaseSessionQueryFailedCode = eventsclient.DatabaseSessionQueryFailedCode
+	DatabaseSessionQueryFailedCode = "TDB02W"
 	// DatabaseSessionMalformedPacketCode is the db.session.malformed_packet event code.
-	DatabaseSessionMalformedPacketCode = eventsclient.DatabaseSessionMalformedPacketCode
+	DatabaseSessionMalformedPacketCode = "TDB06I"
 	// DatabaseSessionPermissionUpdateCode is the db.session.permissions.update event code.
-	DatabaseSessionPermissionUpdateCode = eventsclient.DatabaseSessionPermissionUpdateCode
+	DatabaseSessionPermissionUpdateCode = "TDB07I"
 	// DatabaseSessionUserCreateCode is the db.session.user.create event code.
-	DatabaseSessionUserCreateCode = eventsclient.DatabaseSessionUserCreateCode
+	DatabaseSessionUserCreateCode = "TDB08I"
 	// DatabaseSessionUserCreateFailureCode is the db.session.user.create event failure code.
-	DatabaseSessionUserCreateFailureCode = eventsclient.DatabaseSessionUserCreateFailureCode
+	DatabaseSessionUserCreateFailureCode = "TDB08W"
 	// DatabaseSessionUserDeactivateCode is the db.session.user.deactivate event code.
-	DatabaseSessionUserDeactivateCode = eventsclient.DatabaseSessionUserDeactivateCode
+	DatabaseSessionUserDeactivateCode = "TDB09I"
 	// DatabaseSessionUserDeactivateFailureCode is the db.session.user.deactivate event failure code.
-	DatabaseSessionUserDeactivateFailureCode = eventsclient.DatabaseSessionUserDeactivateFailureCode
+	DatabaseSessionUserDeactivateFailureCode = "TDB09W"
 	// DatabaseSessionCommandResultCode is the db.session.result event code.
-	DatabaseSessionCommandResultCode = eventsclient.DatabaseSessionCommandResultCode
+	DatabaseSessionCommandResultCode = "TDB10I"
 
 	// PostgresParseCode is the db.session.postgres.statements.parse event code.
-	PostgresParseCode = eventsclient.PostgresParseCode
+	PostgresParseCode = "TPG00I"
 	// PostgresBindCode is the db.session.postgres.statements.bind event code.
-	PostgresBindCode = eventsclient.PostgresBindCode
+	PostgresBindCode = "TPG01I"
 	// PostgresExecuteCode is the db.session.postgres.statements.execute event code.
-	PostgresExecuteCode = eventsclient.PostgresExecuteCode
+	PostgresExecuteCode = "TPG02I"
 	// PostgresCloseCode is the db.session.postgres.statements.close event code.
-	PostgresCloseCode = eventsclient.PostgresCloseCode
+	PostgresCloseCode = "TPG03I"
 	// PostgresFunctionCallCode is the db.session.postgres.function event code.
-	PostgresFunctionCallCode = eventsclient.PostgresFunctionCallCode
+	PostgresFunctionCallCode = "TPG04I"
 
 	// MySQLStatementPrepareCode is the db.session.mysql.statements.prepare event code.
-	MySQLStatementPrepareCode = eventsclient.MySQLStatementPrepareCode
+	MySQLStatementPrepareCode = "TMY00I"
 	// MySQLStatementExecuteCode is the db.session.mysql.statements.execute event code.
-	MySQLStatementExecuteCode = eventsclient.MySQLStatementExecuteCode
+	MySQLStatementExecuteCode = "TMY01I"
 	// MySQLStatementSendLongDataCode is the db.session.mysql.statements.send_long_data event code.
-	MySQLStatementSendLongDataCode = eventsclient.MySQLStatementSendLongDataCode
+	MySQLStatementSendLongDataCode = "TMY02I"
 	// MySQLStatementCloseCode is the db.session.mysql.statements.close event code.
-	MySQLStatementCloseCode = eventsclient.MySQLStatementCloseCode
+	MySQLStatementCloseCode = "TMY03I"
 	// MySQLStatementResetCode is the db.session.mysql.statements.reset event code.
-	MySQLStatementResetCode = eventsclient.MySQLStatementResetCode
+	MySQLStatementResetCode = "TMY04I"
 	// MySQLStatementFetchCode is the db.session.mysql.statements.fetch event code.
-	MySQLStatementFetchCode = eventsclient.MySQLStatementFetchCode
+	MySQLStatementFetchCode = "TMY05I"
 	// MySQLStatementBulkExecuteCode is the db.session.mysql.statements.bulk_execute event code.
-	MySQLStatementBulkExecuteCode = eventsclient.MySQLStatementBulkExecuteCode
+	MySQLStatementBulkExecuteCode = "TMY06I"
 	// MySQLInitDBCode is the db.session.mysql.init_db event code.
-	MySQLInitDBCode = eventsclient.MySQLInitDBCode
+	MySQLInitDBCode = "TMY07I"
 	// MySQLCreateDBCode is the db.session.mysql.create_db event code.
-	MySQLCreateDBCode = eventsclient.MySQLCreateDBCode
+	MySQLCreateDBCode = "TMY08I"
 	// MySQLDropDBCode is the db.session.mysql.drop_db event code.
-	MySQLDropDBCode = eventsclient.MySQLDropDBCode
+	MySQLDropDBCode = "TMY09I"
 	// MySQLShutDownCode is the db.session.mysql.shut_down event code.
-	MySQLShutDownCode = eventsclient.MySQLShutDownCode
+	MySQLShutDownCode = "TMY10I"
 	// MySQLProcessKillCode is the db.session.mysql.process_kill event code.
-	MySQLProcessKillCode = eventsclient.MySQLProcessKillCode
+	MySQLProcessKillCode = "TMY11I"
 	// MySQLDebugCode is the db.session.mysql.debug event code.
-	MySQLDebugCode = eventsclient.MySQLDebugCode
+	MySQLDebugCode = "TMY12I"
 	// MySQLRefreshCode is the db.session.mysql.refresh event code.
-	MySQLRefreshCode = eventsclient.MySQLRefreshCode
+	MySQLRefreshCode = "TMY13I"
 
 	// SQLServerRPCRequestCode is the db.session.sqlserver.rpc_request event code.
-	SQLServerRPCRequestCode = eventsclient.SQLServerRPCRequestCode
+	SQLServerRPCRequestCode = "TMS00I"
 
 	// CassandraBatchEventCode is the db.session.cassandra.batch event code.
-	CassandraBatchEventCode = eventsclient.CassandraBatchEventCode
+	CassandraBatchEventCode = "TCA01I"
 	// CassandraPrepareEventCode is the db.session.cassandra.prepare event code.
-	CassandraPrepareEventCode = eventsclient.CassandraPrepareEventCode
+	CassandraPrepareEventCode = "TCA02I"
 	// CassandraExecuteEventCode is the db.session.cassandra.execute event code.
-	CassandraExecuteEventCode = eventsclient.CassandraExecuteEventCode
+	CassandraExecuteEventCode = "TCA03I"
 	// CassandraRegisterEventCode is the db.session.cassandra.register event code.
-	CassandraRegisterEventCode = eventsclient.CassandraRegisterEventCode
+	CassandraRegisterEventCode = "TCA04I"
 
 	// ElasticsearchRequestCode is the db.session.elasticsearch.request event code.
-	ElasticsearchRequestCode = eventsclient.ElasticsearchRequestCode
+	ElasticsearchRequestCode = "TES00I"
 	// ElasticsearchRequestFailureCode is the db.session.elasticsearch.request event failure code.
-	ElasticsearchRequestFailureCode = eventsclient.ElasticsearchRequestFailureCode
+	ElasticsearchRequestFailureCode = "TES00E"
 
 	// OpenSearchRequestCode is the db.session.opensearch.request event code.
-	OpenSearchRequestCode = eventsclient.OpenSearchRequestCode
+	OpenSearchRequestCode = "TOS00I"
 	// OpenSearchRequestFailureCode is the db.session.opensearch.request event failure code.
-	OpenSearchRequestFailureCode = eventsclient.OpenSearchRequestFailureCode
+	OpenSearchRequestFailureCode = "TOS00E"
 
 	// DynamoDBRequestCode is the db.session.dynamodb.request event code.
-	DynamoDBRequestCode = eventsclient.DynamoDBRequestCode
+	DynamoDBRequestCode = "TDY01I"
 	// DynamoDBRequestFailureCode is the db.session.dynamodb.request event failure code.
 	// This is indicates that the database agent http transport failed to round trip the request.
-	DynamoDBRequestFailureCode = eventsclient.DynamoDBRequestFailureCode
+	DynamoDBRequestFailureCode = "TDY01E"
 
 	// SpannerRPCCode is the db.session.spanner.rpc event code.
-	SpannerRPCCode = eventsclient.SpannerRPCCode
+	SpannerRPCCode = "TSPN001I"
 	// SpannerRPCDeniedCode is the warning event code for a Spanner client RPC
 	// that is denied.
-	SpannerRPCDeniedCode = eventsclient.SpannerRPCDeniedCode
+	SpannerRPCDeniedCode = "TSPN001W"
 
 	// DatabaseCreateCode is the db.create event code.
-	DatabaseCreateCode = eventsclient.DatabaseCreateCode
+	DatabaseCreateCode = "TDB03I"
 	// DatabaseUpdateCode is the db.update event code.
-	DatabaseUpdateCode = eventsclient.DatabaseUpdateCode
+	DatabaseUpdateCode = "TDB04I"
 	// DatabaseDeleteCode is the db.delete event code.
-	DatabaseDeleteCode = eventsclient.DatabaseDeleteCode
+	DatabaseDeleteCode = "TDB05I"
 
 	// DesktopSessionStartCode is the desktop session start event code.
-	DesktopSessionStartCode = eventsclient.DesktopSessionStartCode
+	DesktopSessionStartCode = "TDP00I"
 	// DesktopSessionStartFailureCode is event code for desktop sessions
 	// that failed to start.
-	DesktopSessionStartFailureCode = eventsclient.DesktopSessionStartFailureCode
+	DesktopSessionStartFailureCode = "TDP00W"
 	// DesktopSessionEndCode is the desktop session end event code.
-	DesktopSessionEndCode = eventsclient.DesktopSessionEndCode
+	DesktopSessionEndCode = "TDP01I"
 	// DesktopClipboardSendCode is the desktop clipboard send code.
-	DesktopClipboardSendCode = eventsclient.DesktopClipboardSendCode
+	DesktopClipboardSendCode = "TDP02I"
 	// DesktopClipboardReceiveCode is the desktop clipboard receive code.
-	DesktopClipboardReceiveCode = eventsclient.DesktopClipboardReceiveCode
+	DesktopClipboardReceiveCode = "TDP03I"
 	// DesktopSharedDirectoryStartCode is the desktop directory start code.
-	DesktopSharedDirectoryStartCode = eventsclient.DesktopSharedDirectoryStartCode
+	DesktopSharedDirectoryStartCode = "TDP04I"
 	// DesktopSharedDirectoryStartFailureCode is the desktop directory start code
 	// for when a start operation fails, or for when the internal cache state was corrupted
 	// causing information loss, or for when the internal cache has exceeded its max size.
-	DesktopSharedDirectoryStartFailureCode = eventsclient.DesktopSharedDirectoryStartFailureCode
+	DesktopSharedDirectoryStartFailureCode = "TDP04W"
 	// DesktopSharedDirectoryReadCode is the desktop directory read code.
-	DesktopSharedDirectoryReadCode = eventsclient.DesktopSharedDirectoryReadCode
+	DesktopSharedDirectoryReadCode = "TDP05I"
 	// DesktopSharedDirectoryReadFailureCode is the desktop directory read code
 	// for when a read operation fails, or for if the internal cache state was corrupted
 	// causing information loss, or for when the internal cache has exceeded its max size.
-	DesktopSharedDirectoryReadFailureCode = eventsclient.DesktopSharedDirectoryReadFailureCode
+	DesktopSharedDirectoryReadFailureCode = "TDP05W"
 	// DesktopSharedDirectoryWriteCode is the desktop directory write code.
-	DesktopSharedDirectoryWriteCode = eventsclient.DesktopSharedDirectoryWriteCode
+	DesktopSharedDirectoryWriteCode = "TDP06I"
 	// DesktopSharedDirectoryWriteFailureCode is the desktop directory write code
 	// for when a write operation fails, or for if the internal cache state was corrupted
 	// causing information loss, or for when the internal cache has exceeded its max size.
-	DesktopSharedDirectoryWriteFailureCode = eventsclient.DesktopSharedDirectoryWriteFailureCode
+	DesktopSharedDirectoryWriteFailureCode = "TDP06W"
 
 	// SubsystemCode is the subsystem event code.
-	SubsystemCode = eventsclient.SubsystemCode
+	SubsystemCode = "T3001I"
 	// SubsystemFailureCode is the subsystem failure event code.
-	SubsystemFailureCode = eventsclient.SubsystemFailureCode
+	SubsystemFailureCode = "T3001E"
 	// ExecCode is the exec event code.
-	ExecCode = eventsclient.ExecCode
+	ExecCode = "T3002I"
 	// ExecFailureCode is the exec failure event code.
-	ExecFailureCode = eventsclient.ExecFailureCode
+	ExecFailureCode = "T3002E"
 	// PortForwardCode is the port forward event code.
-	PortForwardCode = eventsclient.PortForwardCode
+	PortForwardCode = "T3003I"
 	// PortForwardStopCode is the port forward stop event code.
-	PortForwardStopCode = eventsclient.PortForwardStopCode
+	PortForwardStopCode = "T3003S"
 	// PortForwardFailureCode is the port forward failure event code.
-	PortForwardFailureCode = eventsclient.PortForwardFailureCode
+	PortForwardFailureCode = "T3003E"
 	// SCPDownloadCode is the file download event code.
-	SCPDownloadCode = eventsclient.SCPDownloadCode
+	SCPDownloadCode = "T3004I"
 	// SCPDownloadFailureCode is the file download event failure code.
-	SCPDownloadFailureCode = eventsclient.SCPDownloadFailureCode
+	SCPDownloadFailureCode = "T3004E"
 	// SCPUploadCode is the file upload event code.
-	SCPUploadCode = eventsclient.SCPUploadCode
+	SCPUploadCode = "T3005I"
 	// SCPUploadFailureCode is the file upload failure event code.
-	SCPUploadFailureCode = eventsclient.SCPUploadFailureCode
+	SCPUploadFailureCode = "T3005E"
 	// ClientDisconnectCode is the client disconnect event code.
-	ClientDisconnectCode = eventsclient.ClientDisconnectCode
+	ClientDisconnectCode = "T3006I"
 	// AuthAttemptFailureCode is the auth attempt failure event code.
-	AuthAttemptFailureCode = eventsclient.AuthAttemptFailureCode
+	AuthAttemptFailureCode = "T3007W"
 	// X11ForwardCode is the x11 forward event code.
-	X11ForwardCode = eventsclient.X11ForwardCode
+	X11ForwardCode = "T3008I"
 	// X11ForwardFailureCode is the x11 forward failure event code.
-	X11ForwardFailureCode = eventsclient.X11ForwardFailureCode
+	X11ForwardFailureCode = "T3008W"
 	// KubeRequestCode is an event code for a generic kubernetes request.
 	//
 	// Note: some requests (like exec into a pod) use other codes (like
 	// ExecCode).
-	KubeRequestCode = eventsclient.KubeRequestCode
+	KubeRequestCode = "T3009I"
 	// SCPDisallowedCode is the SCP disallowed event code.
-	SCPDisallowedCode = eventsclient.SCPDisallowedCode
+	SCPDisallowedCode = "T3010E"
 
 	// KubernetesClusterCreateCode is the kube.create event code.
-	KubernetesClusterCreateCode = eventsclient.KubernetesClusterCreateCode
+	KubernetesClusterCreateCode = "T3010I"
 	// KubernetesClusterUpdateCode is the kube.update event code.
-	KubernetesClusterUpdateCode = eventsclient.KubernetesClusterUpdateCode
+	KubernetesClusterUpdateCode = "T3011I"
 	// KubernetesClusterDeleteCode is the kube.delete event code.
-	KubernetesClusterDeleteCode = eventsclient.KubernetesClusterDeleteCode
+	KubernetesClusterDeleteCode = "T3012I"
 
 	// The following codes correspond to SFTP file operations.
-	SFTPOpenCode           = eventsclient.SFTPOpenCode
-	SFTPOpenFailureCode    = eventsclient.SFTPOpenFailureCode
-	SFTPSetstatCode        = eventsclient.SFTPSetstatCode
-	SFTPSetstatFailureCode = eventsclient.SFTPSetstatFailureCode
-	SFTPOpendirCode        = eventsclient.SFTPOpendirCode
-	SFTPOpendirFailureCode = eventsclient.SFTPOpendirFailureCode
-	SFTPReaddirCode        = eventsclient.SFTPReaddirCode
-	SFTPReaddirFailureCode = eventsclient.SFTPReaddirFailureCode
-	SFTPRemoveCode         = eventsclient.SFTPRemoveCode
-	SFTPRemoveFailureCode  = eventsclient.SFTPRemoveFailureCode
-	SFTPMkdirCode          = eventsclient.SFTPMkdirCode
-	SFTPMkdirFailureCode   = eventsclient.SFTPMkdirFailureCode
-	SFTPRmdirCode          = eventsclient.SFTPRmdirCode
-	SFTPRmdirFailureCode   = eventsclient.SFTPRmdirFailureCode
-	SFTPRenameCode         = eventsclient.SFTPRenameCode
-	SFTPRenameFailureCode  = eventsclient.SFTPRenameFailureCode
-	SFTPSymlinkCode        = eventsclient.SFTPSymlinkCode
-	SFTPSymlinkFailureCode = eventsclient.SFTPSymlinkFailureCode
-	SFTPLinkCode           = eventsclient.SFTPLinkCode
-	SFTPLinkFailureCode    = eventsclient.SFTPLinkFailureCode
-	SFTPDisallowedCode     = eventsclient.SFTPDisallowedCode
+	SFTPOpenCode           = "TS001I"
+	SFTPOpenFailureCode    = "TS001E"
+	SFTPSetstatCode        = "TS007I"
+	SFTPSetstatFailureCode = "TS007E"
+	SFTPOpendirCode        = "TS009I"
+	SFTPOpendirFailureCode = "TS009E"
+	SFTPReaddirCode        = "TS010I"
+	SFTPReaddirFailureCode = "TS010E"
+	SFTPRemoveCode         = "TS011I"
+	SFTPRemoveFailureCode  = "TS011E"
+	SFTPMkdirCode          = "TS012I"
+	SFTPMkdirFailureCode   = "TS012E"
+	SFTPRmdirCode          = "TS013I"
+	SFTPRmdirFailureCode   = "TS013E"
+	SFTPRenameCode         = "TS016I"
+	SFTPRenameFailureCode  = "TS016E"
+	SFTPSymlinkCode        = "TS018I"
+	SFTPSymlinkFailureCode = "TS018E"
+	SFTPLinkCode           = "TS019I"
+	SFTPLinkFailureCode    = "TS019E"
+	SFTPDisallowedCode     = "TS020E"
 	// SFTPSummaryCode is the SFTP summary code.
-	SFTPSummaryCode = eventsclient.SFTPSummaryCode
+	SFTPSummaryCode = "TS021I"
 
 	// SessionCommandCode is a session command code.
-	SessionCommandCode = eventsclient.SessionCommandCode
+	SessionCommandCode = "T4000I"
 	// SessionDiskCode is a session disk code.
-	SessionDiskCode = eventsclient.SessionDiskCode
+	SessionDiskCode = "T4001I"
 	// SessionNetworkCode is a session network code.
-	SessionNetworkCode = eventsclient.SessionNetworkCode
+	SessionNetworkCode = "T4002I"
 
 	// AccessRequestCreateCode is the access request creation code.
-	AccessRequestCreateCode = eventsclient.AccessRequestCreateCode
+	AccessRequestCreateCode = "T5000I"
 	// AccessRequestUpdateCode is the access request state update code.
-	AccessRequestUpdateCode = eventsclient.AccessRequestUpdateCode
+	AccessRequestUpdateCode = "T5001I"
 	// AccessRequestReviewCode is the access review application code.
-	AccessRequestReviewCode = eventsclient.AccessRequestReviewCode
+	AccessRequestReviewCode = "T5002I"
 	// AccessRequestDeleteCode is the access request deleted code.
-	AccessRequestDeleteCode = eventsclient.AccessRequestDeleteCode
+	AccessRequestDeleteCode = "T5003I"
 	// AccessRequestResourceSearchCode is the access request resource search code.
-	AccessRequestResourceSearchCode = eventsclient.AccessRequestResourceSearchCode
+	AccessRequestResourceSearchCode = "T5004I"
 	// AccessRequestExpireCode is the access request expires code.
-	AccessRequestExpireCode = eventsclient.AccessRequestExpireCode
+	AccessRequestExpireCode = "T5005I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
-	ResetPasswordTokenCreateCode = eventsclient.ResetPasswordTokenCreateCode
+	ResetPasswordTokenCreateCode = "T6000I"
 	// RecoveryTokenCreateCode is the recovery token create event code.
-	RecoveryTokenCreateCode = eventsclient.RecoveryTokenCreateCode
+	RecoveryTokenCreateCode = "T6001I"
 	// PrivilegeTokenCreateCode is the privilege token create event code.
-	PrivilegeTokenCreateCode = eventsclient.PrivilegeTokenCreateCode
+	PrivilegeTokenCreateCode = "T6002I"
 
 	// TrustedClusterCreateCode is the event code for creating a trusted cluster.
-	TrustedClusterCreateCode = eventsclient.TrustedClusterCreateCode
+	TrustedClusterCreateCode = "T7000I"
 	// TrustedClusterDeleteCode is the event code for removing a trusted cluster.
-	TrustedClusterDeleteCode = eventsclient.TrustedClusterDeleteCode
+	TrustedClusterDeleteCode = "T7001I"
 	// TrustedClusterTokenCreateCode is the event code for creating new
 	// provisioning token for a trusted cluster. Deprecated in favor of
 	// [ProvisionTokenCreateEvent].
-	TrustedClusterTokenCreateCode = eventsclient.TrustedClusterTokenCreateCode
+	TrustedClusterTokenCreateCode = "T7002I"
 
 	// ProvisionTokenCreateCode is the event code for creating a provisioning
 	// token, also known as Join Token. See
 	// [github.com/gravitational/teleport/api/types.ProvisionToken].
-	ProvisionTokenCreateCode = eventsclient.ProvisionTokenCreateCode
+	ProvisionTokenCreateCode = "TJT00I"
 
 	// GithubConnectorCreatedCode is the Github connector created event code.
-	GithubConnectorCreatedCode = eventsclient.GithubConnectorCreatedCode
+	GithubConnectorCreatedCode = "T8000I"
 	// GithubConnectorDeletedCode is the Github connector deleted event code.
-	GithubConnectorDeletedCode = eventsclient.GithubConnectorDeletedCode
+	GithubConnectorDeletedCode = "T8001I"
 	// GithubConnectorUpdatedCode is the Github connector updated event code.
-	GithubConnectorUpdatedCode = eventsclient.GithubConnectorUpdatedCode
+	GithubConnectorUpdatedCode = "T80002I"
 
 	// OIDCConnectorCreatedCode is the OIDC connector created event code.
-	OIDCConnectorCreatedCode = eventsclient.OIDCConnectorCreatedCode
+	OIDCConnectorCreatedCode = "T8100I"
 	// OIDCConnectorDeletedCode is the OIDC connector deleted event code.
-	OIDCConnectorDeletedCode = eventsclient.OIDCConnectorDeletedCode
+	OIDCConnectorDeletedCode = "T8101I"
 	// OIDCConnectorUpdatedCode is the OIDC connector updated event code.
-	OIDCConnectorUpdatedCode = eventsclient.OIDCConnectorUpdatedCode
+	OIDCConnectorUpdatedCode = "T8102I"
 
 	// SAMLConnectorCreatedCode is the SAML connector created event code.
-	SAMLConnectorCreatedCode = eventsclient.SAMLConnectorCreatedCode
+	SAMLConnectorCreatedCode = "T8200I"
 	// SAMLConnectorDeletedCode is the SAML connector deleted event code.
-	SAMLConnectorDeletedCode = eventsclient.SAMLConnectorDeletedCode
+	SAMLConnectorDeletedCode = "T8201I"
 	// SAMLConnectorUpdatedCode is the SAML connector updated event code.
-	SAMLConnectorUpdatedCode = eventsclient.SAMLConnectorUpdatedCode
+	SAMLConnectorUpdatedCode = "T8202I"
 
 	// RoleCreatedCode is the role created event code.
-	RoleCreatedCode = eventsclient.RoleCreatedCode
+	RoleCreatedCode = "T9000I"
 	// RoleDeletedCode is the role deleted event code.
-	RoleDeletedCode = eventsclient.RoleDeletedCode
+	RoleDeletedCode = "T9001I"
 	// RoleUpdatedCode is the role created event code.
-	RoleUpdatedCode = eventsclient.RoleUpdatedCode
+	RoleUpdatedCode = "T9002I"
 
 	// BotJoinCode is the 'bot.join' event code.
-	BotJoinCode = eventsclient.BotJoinCode
+	BotJoinCode = "TJ001I"
 	// BotJoinFailureCode is the 'bot.join' event code for failures.
-	BotJoinFailureCode = eventsclient.BotJoinFailureCode
+	BotJoinFailureCode = "TJ001E"
 	// InstanceJoinCode is the 'node.join' event code.
-	InstanceJoinCode = eventsclient.InstanceJoinCode
+	InstanceJoinCode = "TJ002I"
 	// InstanceJoinFailureCode is the 'node.join' event code for failures.
-	InstanceJoinFailureCode = eventsclient.InstanceJoinFailureCode
+	InstanceJoinFailureCode = "TJ002E"
 
 	// BotCreateCode is the `bot.create` event code.
-	BotCreateCode = eventsclient.BotCreateCode
+	BotCreateCode = "TB001I"
 	// BotUpdateCode is the `bot.update` event code.
-	BotUpdateCode = eventsclient.BotUpdateCode
+	BotUpdateCode = "TB002I"
 	// BotDeleteCode is the `bot.delete` event code.
-	BotDeleteCode = eventsclient.BotDeleteCode
+	BotDeleteCode = "TB003I"
 
 	// LockCreatedCode is the lock created event code.
-	LockCreatedCode = eventsclient.LockCreatedCode
+	LockCreatedCode = "TLK00I"
 	// LockDeletedCode is the lock deleted event code.
-	LockDeletedCode = eventsclient.LockDeletedCode
+	LockDeletedCode = "TLK01I"
 
 	// CertificateCreateCode is the certificate issuance event code.
-	CertificateCreateCode = eventsclient.CertificateCreateCode
+	CertificateCreateCode = "TC000I"
 
 	// RenewableCertificateGenerationMismatchCode is the renewable cert
 	// generation mismatch code.
-	RenewableCertificateGenerationMismatchCode = eventsclient.RenewableCertificateGenerationMismatchCode
+	RenewableCertificateGenerationMismatchCode = "TCB00W"
 
 	// UpgradeWindowStartUpdatedCode is the edit code of UpgradeWindowStartUpdateEvent.
-	UpgradeWindowStartUpdatedCode = eventsclient.UpgradeWindowStartUpdatedCode
+	UpgradeWindowStartUpdatedCode = "TUW01I"
 
 	// SSMRunSuccessCode is the discovery script success code.
-	SSMRunSuccessCode = eventsclient.SSMRunSuccessCode
+	SSMRunSuccessCode = "TDS00I"
 	// SSMRunFailCode is the discovery script success code.
-	SSMRunFailCode = eventsclient.SSMRunFailCode
+	SSMRunFailCode = "TDS00W"
 
 	// DeviceCreateCode is the device creation/registration code.
-	DeviceCreateCode = eventsclient.DeviceCreateCode
+	DeviceCreateCode = "TV001I"
 	// DeviceDeleteCode is the device deletion code.
-	DeviceDeleteCode = eventsclient.DeviceDeleteCode
+	DeviceDeleteCode = "TV002I"
 	// DeviceEnrollTokenCreateCode is the device enroll token creation code
-	DeviceEnrollTokenCreateCode = eventsclient.DeviceEnrollTokenCreateCode
+	DeviceEnrollTokenCreateCode = "TV003I"
 	// DeviceEnrollTokenSpentCode is the device enroll token spent code.
-	DeviceEnrollTokenSpentCode = eventsclient.DeviceEnrollTokenSpentCode
+	DeviceEnrollTokenSpentCode = "TV004I"
 	// DeviceEnrollCode is the device enrollment completion code.
-	DeviceEnrollCode = eventsclient.DeviceEnrollCode
+	DeviceEnrollCode = "TV005I"
 	// DeviceAuthenticateCode is the device authentication code.
-	DeviceAuthenticateCode = eventsclient.DeviceAuthenticateCode
+	DeviceAuthenticateCode = "TV006I"
 	// DeviceUpdateCode is the device update code.
-	DeviceUpdateCode = eventsclient.DeviceUpdateCode
+	DeviceUpdateCode = "TV007I"
 	// DeviceWebTokenCreateCode is the device web token creation code.
-	DeviceWebTokenCreateCode = eventsclient.DeviceWebTokenCreateCode
+	DeviceWebTokenCreateCode = "TV008I"
 	// DeviceAuthenticateConfirmCode is the device authentication confirm code.
-	DeviceAuthenticateConfirmCode = eventsclient.DeviceAuthenticateConfirmCode
+	DeviceAuthenticateConfirmCode = "TV009I"
 
 	// LoginRuleCreateCode is the login rule create code.
-	LoginRuleCreateCode = eventsclient.LoginRuleCreateCode
+	LoginRuleCreateCode = "TLR00I"
 	// LoginRuleDeleteCode is the login rule delete code.
-	LoginRuleDeleteCode = eventsclient.LoginRuleDeleteCode
+	LoginRuleDeleteCode = "TLR01I"
 
 	// SAMLIdPAuthAttemptCode is the SAML IdP auth attempt code.
-	SAMLIdPAuthAttemptCode = eventsclient.SAMLIdPAuthAttemptCode
+	SAMLIdPAuthAttemptCode = "TSI000I"
 
 	// SAMLIdPServiceProviderCreateCode is the SAML IdP service provider create code.
-	SAMLIdPServiceProviderCreateCode = eventsclient.SAMLIdPServiceProviderCreateCode
+	SAMLIdPServiceProviderCreateCode = "TSI001I"
 
 	// SAMLIdPServiceProviderCreateFailureCode is the SAML IdP service provider create failure code.
-	SAMLIdPServiceProviderCreateFailureCode = eventsclient.SAMLIdPServiceProviderCreateFailureCode
+	SAMLIdPServiceProviderCreateFailureCode = "TSI001W"
 
 	// SAMLIdPServiceProviderUpdateCode is the SAML IdP service provider update code.
-	SAMLIdPServiceProviderUpdateCode = eventsclient.SAMLIdPServiceProviderUpdateCode
+	SAMLIdPServiceProviderUpdateCode = "TSI002I"
 
 	// SAMLIdPServiceProviderUpdateFailureCode is the SAML IdP service provider update failure code.
-	SAMLIdPServiceProviderUpdateFailureCode = eventsclient.SAMLIdPServiceProviderUpdateFailureCode
+	SAMLIdPServiceProviderUpdateFailureCode = "TSI002W"
 
 	// SAMLIdPServiceProviderDeleteCode is the SAML IdP service provider delete code.
-	SAMLIdPServiceProviderDeleteCode = eventsclient.SAMLIdPServiceProviderDeleteCode
+	SAMLIdPServiceProviderDeleteCode = "TSI003I"
 
 	// SAMLIdPServiceProviderDeleteFailureCode is the SAML IdP service provider delete failure code.
-	SAMLIdPServiceProviderDeleteFailureCode = eventsclient.SAMLIdPServiceProviderDeleteFailureCode
+	SAMLIdPServiceProviderDeleteFailureCode = "TSI003W"
 
 	// SAMLIdPServiceProviderDeleteAllCode is the SAML IdP service provider delete all code.
-	SAMLIdPServiceProviderDeleteAllCode = eventsclient.SAMLIdPServiceProviderDeleteAllCode
+	SAMLIdPServiceProviderDeleteAllCode = "TSI004I"
 
 	// SAMLIdPServiceProviderDeleteAllFailureCode is the SAML IdP service provider delete all failure code.
-	SAMLIdPServiceProviderDeleteAllFailureCode = eventsclient.SAMLIdPServiceProviderDeleteAllFailureCode
+	SAMLIdPServiceProviderDeleteAllFailureCode = "TSI004W"
 
 	// OktaGroupsUpdateCode is the Okta groups updated code.
-	OktaGroupsUpdateCode = eventsclient.OktaGroupsUpdateCode
+	OktaGroupsUpdateCode = "TOK001I"
 
 	// OktaApplicationsUpdateCode is the Okta applications updated code.
-	OktaApplicationsUpdateCode = eventsclient.OktaApplicationsUpdateCode
+	OktaApplicationsUpdateCode = "TOK002I"
 
 	// OktaSyncFailureCode is the Okta synchronization failure code.
-	OktaSyncFailureCode = eventsclient.OktaSyncFailureCode
+	OktaSyncFailureCode = "TOK003E"
 
 	// OktaAssignmentProcessSuccessCode is the Okta assignment process success code.
-	OktaAssignmentProcessSuccessCode = eventsclient.OktaAssignmentProcessSuccessCode
+	OktaAssignmentProcessSuccessCode = "TOK004I"
 
 	// OktaAssignmentProcessFailureCode is the Okta assignment process failure code.
-	OktaAssignmentProcessFailureCode = eventsclient.OktaAssignmentProcessFailureCode
+	OktaAssignmentProcessFailureCode = "TOK004E"
 
 	// OktaAssignmentCleanupSuccessCode is the Okta assignment cleanup success code.
-	OktaAssignmentCleanupSuccessCode = eventsclient.OktaAssignmentCleanupSuccessCode
+	OktaAssignmentCleanupSuccessCode = "TOK005I"
 
 	// OktaAssignmentCleanupFailureCode is the Okta assignment cleanup failure code.
-	OktaAssignmentCleanupFailureCode = eventsclient.OktaAssignmentCleanupFailureCode
+	OktaAssignmentCleanupFailureCode = "TOK005E"
 
 	// OktaAccessListSyncSuccessCode is the Okta access list sync success code.
-	OktaAccessListSyncSuccessCode = eventsclient.OktaAccessListSyncSuccessCode
+	OktaAccessListSyncSuccessCode = "TOK006I"
 
 	// OktaAccessListSyncSuccessCode is the Okta access list sync failure code.
-	OktaAccessListSyncFailureCode = eventsclient.OktaAccessListSyncFailureCode
+	OktaAccessListSyncFailureCode = "TOK006E"
 
 	// OktaUserSyncSuccessCode is the Okta user sync success code.
-	OktaUserSyncSuccessCode = eventsclient.OktaUserSyncSuccessCode
+	OktaUserSyncSuccessCode = "TOK007I"
 
 	// OktaUserSyncSuccessCode is the Okta user sync failure code.
-	OktaUserSyncFailureCode = eventsclient.OktaUserSyncFailureCode
+	OktaUserSyncFailureCode = "TOK007E"
 
 	// AccessListCreateSuccessCode is the access list create success code.
-	AccessListCreateSuccessCode = eventsclient.AccessListCreateSuccessCode
+	AccessListCreateSuccessCode = "TAL001I"
 
 	// AccessListCreateFailureCode is the access list create failure code.
-	AccessListCreateFailureCode = eventsclient.AccessListCreateFailureCode
+	AccessListCreateFailureCode = "TAL001E"
 
 	// AccessListUpdateSuccessCode is the access list update success code.
-	AccessListUpdateSuccessCode = eventsclient.AccessListUpdateSuccessCode
+	AccessListUpdateSuccessCode = "TAL002I"
 
 	// AccessListUpdateFailureCode is the access list update failure code.
-	AccessListUpdateFailureCode = eventsclient.AccessListUpdateFailureCode
+	AccessListUpdateFailureCode = "TAL002E"
 
 	// AccessListDeleteSuccessCode is the access list delete success code.
-	AccessListDeleteSuccessCode = eventsclient.AccessListDeleteSuccessCode
+	AccessListDeleteSuccessCode = "TAL003I"
 
 	// AccessListDeleteFailureCode is the access list delete failure code.
-	AccessListDeleteFailureCode = eventsclient.AccessListDeleteFailureCode
+	AccessListDeleteFailureCode = "TAL003E"
 
 	// AccessListReviewSuccessCode is the access list review success code.
-	AccessListReviewSuccessCode = eventsclient.AccessListReviewSuccessCode
+	AccessListReviewSuccessCode = "TAL004I"
 
 	// AccessListReviewFailureCode is the access list review failure code.
-	AccessListReviewFailureCode = eventsclient.AccessListReviewFailureCode
+	AccessListReviewFailureCode = "TAL004E"
 
 	// AccessListMemberCreateSuccessCode is the access list member create success code.
-	AccessListMemberCreateSuccessCode = eventsclient.AccessListMemberCreateSuccessCode
+	AccessListMemberCreateSuccessCode = "TAL005I"
 
 	// AccessListMemberCreateFailureCode is the access list member create failure code.
-	AccessListMemberCreateFailureCode = eventsclient.AccessListMemberCreateFailureCode
+	AccessListMemberCreateFailureCode = "TAL005E"
 
 	// AccessListMemberUpdateSuccessCode is the access list member update success code.
-	AccessListMemberUpdateSuccessCode = eventsclient.AccessListMemberUpdateSuccessCode
+	AccessListMemberUpdateSuccessCode = "TAL006I"
 
 	// AccessListMemberUpdateFailureCode is the access list member update failure code.
-	AccessListMemberUpdateFailureCode = eventsclient.AccessListMemberUpdateFailureCode
+	AccessListMemberUpdateFailureCode = "TAL006E"
 
 	// AccessListMemberDeleteSuccessCode is the access list member delete success code.
-	AccessListMemberDeleteSuccessCode = eventsclient.AccessListMemberDeleteSuccessCode
+	AccessListMemberDeleteSuccessCode = "TAL007I"
 
 	// AccessListMemberDeleteFailureCode is the access list member delete failure code.
-	AccessListMemberDeleteFailureCode = eventsclient.AccessListMemberDeleteFailureCode
+	AccessListMemberDeleteFailureCode = "TAL007E"
 
 	// AccessListMemberDeleteAllForAccessListSuccessCode is the access list all member delete success code.
-	AccessListMemberDeleteAllForAccessListSuccessCode = eventsclient.AccessListMemberDeleteAllForAccessListSuccessCode
+	AccessListMemberDeleteAllForAccessListSuccessCode = "TAL008I"
 
 	// AccessListMemberDeleteAllForAccessListFailureCode is the access list member delete failure code.
-	AccessListMemberDeleteAllForAccessListFailureCode = eventsclient.AccessListMemberDeleteAllForAccessListFailureCode
+	AccessListMemberDeleteAllForAccessListFailureCode = "TAL008E"
 
 	// UserLoginAccessListInvalidCode is the user login access list invalid code. This event is a warning that an access list is invalid and was not applied upon the user's login.
-	UserLoginAccessListInvalidCode = eventsclient.UserLoginAccessListInvalidCode
+	UserLoginAccessListInvalidCode = "TAL009W"
 
 	// SecReportsAuditQueryRunCode is used when a custom Security Reports Query is run.
-	SecReportsAuditQueryRunCode = eventsclient.SecReportsAuditQueryRunCode
+	SecReportsAuditQueryRunCode = "SRE001I"
 
 	// SecReportsReportRunCode is used when a report in run.
-	SecReportsReportRunCode = eventsclient.SecReportsReportRunCode
+	SecReportsReportRunCode = "SRE002I"
 
 	// ExternalAuditStorageEnableCode is the External Audit Storage enabled code.
-	ExternalAuditStorageEnableCode = eventsclient.ExternalAuditStorageEnableCode
+	ExternalAuditStorageEnableCode = "TEA001I"
 	// ExternalAuditStorageDisableCode is the External Audit Storage disabled code.
-	ExternalAuditStorageDisableCode = eventsclient.ExternalAuditStorageDisableCode
+	ExternalAuditStorageDisableCode = "TEA002I"
 
 	// SPIFFESVIDIssuedSuccessCode is the SPIFFE SVID issued success code.
-	SPIFFESVIDIssuedSuccessCode = eventsclient.SPIFFESVIDIssuedSuccessCode
+	SPIFFESVIDIssuedSuccessCode = "TSPIFFE000I"
 	// SPIFFESVIDIssuedFailureCode is the SPIFFE SVID issued failure code.
-	SPIFFESVIDIssuedFailureCode = eventsclient.SPIFFESVIDIssuedFailureCode
+	SPIFFESVIDIssuedFailureCode = "TSPIFFE000E"
 	// SPIFFEFederationCreateCode is the SPIFFE Federation created code.
-	SPIFFEFederationCreateCode = eventsclient.SPIFFEFederationCreateCode
+	SPIFFEFederationCreateCode = "TSPIFFE001I"
 	// SPIFFEFederationDeleteCode is the SPIFFE Federation deleted code.
-	SPIFFEFederationDeleteCode = eventsclient.SPIFFEFederationDeleteCode
+	SPIFFEFederationDeleteCode = "TSPIFFE002I"
 
 	// AuthPreferenceUpdateCode is the auth preference updated event code.
-	AuthPreferenceUpdateCode = eventsclient.AuthPreferenceUpdateCode
+	AuthPreferenceUpdateCode = "TCAUTH001I"
 	// ClusterNetworkingConfigUpdateCode is the cluster networking config updated event code.
-	ClusterNetworkingConfigUpdateCode = eventsclient.ClusterNetworkingConfigUpdateCode
+	ClusterNetworkingConfigUpdateCode = "TCNET002I"
 	// SessionRecordingConfigUpdateCode is the session recording config updated event code.
-	SessionRecordingConfigUpdateCode = eventsclient.SessionRecordingConfigUpdateCode
+	SessionRecordingConfigUpdateCode = "TCREC003I"
 	// AccessGraphSettingsUpdateCode is the access graph settings updated event code.
-	AccessGraphSettingsUpdateCode = eventsclient.AccessGraphSettingsUpdateCode
+	AccessGraphSettingsUpdateCode = "TCAGC003I"
 
 	// AccessGraphAccessPathChangedCode is the access graph access path changed event code.
-	AccessGraphAccessPathChangedCode = eventsclient.AccessGraphAccessPathChangedCode
+	AccessGraphAccessPathChangedCode = "TAG001I"
 
 	// DiscoveryConfigCreateCode is the discovery config created event code.
-	DiscoveryConfigCreateCode = eventsclient.DiscoveryConfigCreateCode
+	DiscoveryConfigCreateCode = "DC001I"
 	// DiscoveryConfigUpdateCode is the discovery config updated event code.
-	DiscoveryConfigUpdateCode = eventsclient.DiscoveryConfigUpdateCode
+	DiscoveryConfigUpdateCode = "DC002I"
 	// DiscoveryConfigDeleteCode is the discovery config delete event code.
-	DiscoveryConfigDeleteCode = eventsclient.DiscoveryConfigDeleteCode
+	DiscoveryConfigDeleteCode = "DC003I"
 	// DiscoveryConfigDeleteAllCode is the discovery config delete all event code.
-	DiscoveryConfigDeleteAllCode = eventsclient.DiscoveryConfigDeleteAllCode
+	DiscoveryConfigDeleteAllCode = "DC004I"
 
 	// IntegrationCreateCode is the integration resource create event code.
-	IntegrationCreateCode = eventsclient.IntegrationCreateCode
+	IntegrationCreateCode = "IG001I"
 	// IntegrationUpdateCode is the integration resource update event code.
-	IntegrationUpdateCode = eventsclient.IntegrationUpdateCode
+	IntegrationUpdateCode = "IG002I"
 	// IntegrationDeleteCode is the integration resource delete event code.
-	IntegrationDeleteCode = eventsclient.IntegrationDeleteCode
+	IntegrationDeleteCode = "IG003I"
 
 	// PluginCreateCode is the plugin resource create event code.
-	PluginCreateCode = eventsclient.PluginCreateCode
+	PluginCreateCode = "PG001I"
 	// PluginUpdateCode is the plugin resource update event code.
-	PluginUpdateCode = eventsclient.PluginUpdateCode
+	PluginUpdateCode = "PG002I"
 	// PluginDeleteCode is the plugin resource delete event code.
-	PluginDeleteCode = eventsclient.PluginDeleteCode
+	PluginDeleteCode = "PG003I"
 
 	// StaticHostUserCreateCode is the static host user resource create event code.
-	StaticHostUserCreateCode = eventsclient.StaticHostUserCreateCode
+	StaticHostUserCreateCode = "SHU001I"
 	// StaticHostUserUpdateCode is the static host user resource update event code.
-	StaticHostUserUpdateCode = eventsclient.StaticHostUserUpdateCode
+	StaticHostUserUpdateCode = "SHU002I"
 	// StaticHostUserDeleteCode is the static host user resource delete event code.
-	StaticHostUserDeleteCode = eventsclient.StaticHostUserDeleteCode
+	StaticHostUserDeleteCode = "SHU003I"
 
 	// CrownJewelCreateCode is the crown jewel create event code.
-	CrownJewelCreateCode = eventsclient.CrownJewelCreateCode
+	CrownJewelCreateCode = "CJ001I"
 	// CrownJewelUpdateCode is the crown jewel update event code.
-	CrownJewelUpdateCode = eventsclient.CrownJewelUpdateCode
+	CrownJewelUpdateCode = "CJ002I"
 	// CrownJewelDeleteCode is the crown jewel delete event code.
-	CrownJewelDeleteCode = eventsclient.CrownJewelDeleteCode
+	CrownJewelDeleteCode = "CJ003I"
 
 	// UserTaskCreateCode is the user task create event code.
-	UserTaskCreateCode = eventsclient.UserTaskCreateCode
+	UserTaskCreateCode = "UT001I"
 	// UserTaskUpdateCode is the user task update event code.
-	UserTaskUpdateCode = eventsclient.UserTaskUpdateCode
+	UserTaskUpdateCode = "UT002I"
 	// UserTaskDeleteCode is the user task delete event code.
-	UserTaskDeleteCode = eventsclient.UserTaskDeleteCode
+	UserTaskDeleteCode = "UT003I"
 
 	// AutoUpdateConfigCreateCode is the auto update config create event code.
-	AutoUpdateConfigCreateCode = eventsclient.AutoUpdateConfigCreateCode
+	AutoUpdateConfigCreateCode = "AUC001I"
 	// AutoUpdateConfigUpdateCode is the auto update config update event code.
-	AutoUpdateConfigUpdateCode = eventsclient.AutoUpdateConfigUpdateCode
+	AutoUpdateConfigUpdateCode = "AUC002I"
 	// AutoUpdateConfigDeleteCode is the auto update config delete event code.
-	AutoUpdateConfigDeleteCode = eventsclient.AutoUpdateConfigDeleteCode
+	AutoUpdateConfigDeleteCode = "AUC003I"
 
 	// AutoUpdateVersionCreateCode is the auto update version create event code.
-	AutoUpdateVersionCreateCode = eventsclient.AutoUpdateVersionCreateCode
+	AutoUpdateVersionCreateCode = "AUV001I"
 	// AutoUpdateVersionUpdateCode is the auto update version update event code.
-	AutoUpdateVersionUpdateCode = eventsclient.AutoUpdateVersionUpdateCode
+	AutoUpdateVersionUpdateCode = "AUV002I"
 	// AutoUpdateVersionDeleteCode is the auto update version delete event code.
-	AutoUpdateVersionDeleteCode = eventsclient.AutoUpdateVersionDeleteCode
+	AutoUpdateVersionDeleteCode = "AUV003I"
 
 	// AutoUpdateAgentRolloutTriggerCode is the auto update agent rollout trigger event code.
-	AutoUpdateAgentRolloutTriggerCode = eventsclient.AutoUpdateAgentRolloutTriggerCode
+	AutoUpdateAgentRolloutTriggerCode = "AUAR001I"
 	// AutoUpdateAgentRolloutForceDoneCode is the auto update agent rollout force-done event code.
-	AutoUpdateAgentRolloutForceDoneCode = eventsclient.AutoUpdateAgentRolloutForceDoneCode
+	AutoUpdateAgentRolloutForceDoneCode = "AUAR002I"
 	// AutoUpdateAgentRolloutRollbackCode is the auto update agent rollout rollback event code.
-	AutoUpdateAgentRolloutRollbackCode = eventsclient.AutoUpdateAgentRolloutRollbackCode
+	AutoUpdateAgentRolloutRollbackCode = "AUAR003I"
 
 	// ContactCreateCode is the auto update version create event code.
-	ContactCreateCode = eventsclient.ContactCreateCode
+	ContactCreateCode = "TCTC001I"
 	// ContactDeleteCode is the auto update version delete event code.
-	ContactDeleteCode = eventsclient.ContactDeleteCode
+	ContactDeleteCode = "TCTC002I"
 
 	// WorkloadIdentityCreateCode is the workload identity create event code.
-	WorkloadIdentityCreateCode = eventsclient.WorkloadIdentityCreateCode
+	WorkloadIdentityCreateCode = "WID001I"
 	// WorkloadIdentityUpdateCode is the workload identity update event code.
-	WorkloadIdentityUpdateCode = eventsclient.WorkloadIdentityUpdateCode
+	WorkloadIdentityUpdateCode = "WID002I"
 	// WorkloadIdentityDeleteCode is the workload identity delete event code.
-	WorkloadIdentityDeleteCode = eventsclient.WorkloadIdentityDeleteCode
+	WorkloadIdentityDeleteCode = "WID003I"
 	// WorkloadIdentityX509RevocationCreateCode is the
 	// WorkloadIdentityX509Revocation create event code.
-	WorkloadIdentityX509RevocationCreateCode = eventsclient.WorkloadIdentityX509RevocationCreateCode
+	WorkloadIdentityX509RevocationCreateCode = "WID004I"
 	// WorkloadIdentityX509RevocationUpdateCode is the
 	// WorkloadIdentityX509Revocation update event code.
-	WorkloadIdentityX509RevocationUpdateCode = eventsclient.WorkloadIdentityX509RevocationUpdateCode
+	WorkloadIdentityX509RevocationUpdateCode = "WID005I"
 	// WorkloadIdentityX509RevocationDeleteCode is the
 	// WorkloadIdentityX509Revocation delete event code.
-	WorkloadIdentityX509RevocationDeleteCode = eventsclient.WorkloadIdentityX509RevocationDeleteCode
+	WorkloadIdentityX509RevocationDeleteCode = "WID006I"
 	// WorkloadIdentityX509IssuerOverrideCreateCode is the code for the
 	// workload_identity_x509_issuer_override.create event.
-	WorkloadIdentityX509IssuerOverrideCreateCode = eventsclient.WorkloadIdentityX509IssuerOverrideCreateCode
+	WorkloadIdentityX509IssuerOverrideCreateCode = "WID007I"
 	// WorkloadIdentityX509IssuerOverrideDeleteCode is the code for the
 	// workload_identity_x509_issuer_override.delete event.
-	WorkloadIdentityX509IssuerOverrideDeleteCode = eventsclient.WorkloadIdentityX509IssuerOverrideDeleteCode
+	WorkloadIdentityX509IssuerOverrideDeleteCode = "WID008I"
 
 	// SigstorePolicyCreateCode is the Sigstore policy create event code.
-	SigstorePolicyCreateCode = eventsclient.SigstorePolicyCreateCode
+	SigstorePolicyCreateCode = "TSSP001I"
 	// SigstorePolicyUpdateCode is the Sigstore policy update event code.
-	SigstorePolicyUpdateCode = eventsclient.SigstorePolicyUpdateCode
+	SigstorePolicyUpdateCode = "TSSP002I"
 	// SigstorePolicyDeleteCode is the Sigstore policy delete event code.
-	SigstorePolicyDeleteCode = eventsclient.SigstorePolicyDeleteCode
+	SigstorePolicyDeleteCode = "TSSP003I"
 
 	// HealthCheckConfigCreateCode is the health check config create event code.
-	HealthCheckConfigCreateCode = eventsclient.HealthCheckConfigCreateCode
+	HealthCheckConfigCreateCode = "THCC001I"
 	// HealthCheckConfigUpdateCode is the health check config update event code.
-	HealthCheckConfigUpdateCode = eventsclient.HealthCheckConfigUpdateCode
+	HealthCheckConfigUpdateCode = "THCC002I"
 	// HealthCheckConfigDeleteCode is the health check config delete event code.
-	HealthCheckConfigDeleteCode = eventsclient.HealthCheckConfigDeleteCode
+	HealthCheckConfigDeleteCode = "THCC003I"
 
 	// GitCommandCode is the git command event code
-	GitCommandCode = eventsclient.GitCommandCode
+	GitCommandCode = "TGIT001I"
 	// GitCommandFailureCode is the git command feature event code.
-	GitCommandFailureCode = eventsclient.GitCommandFailureCode
+	GitCommandFailureCode = "TGIT001E"
 
 	// StableUNIXUserCreateCode is the stable UNIX user create event code.
-	StableUNIXUserCreateCode = eventsclient.StableUNIXUserCreateCode
+	StableUNIXUserCreateCode = "TSUU001I"
 
 	// AWSICResourceSyncSuccessCode is the AWS Identity Center resource
 	// sync attempt success code.
-	AWSICResourceSyncSuccessCode = eventsclient.AWSICResourceSyncSuccessCode
+	AWSICResourceSyncSuccessCode = "TAIC001I"
 	// AWSICResourceSyncFailureCode is the AWS Identity Center resource
 	// sync attempt failure code.
-	AWSICResourceSyncFailureCode = eventsclient.AWSICResourceSyncFailureCode
+	AWSICResourceSyncFailureCode = "TAIC001E"
 
 	// MCPSessionStartCode is the event code for mcp.session.start.
-	MCPSessionStartCode = eventsclient.MCPSessionStartCode
+	MCPSessionStartCode = "TMCP001I"
 	// MCPSessionEndCode is the event code for mcp.session.end.
-	MCPSessionEndCode = eventsclient.MCPSessionEndCode
+	MCPSessionEndCode = "TMCP002I"
 	// MCPSessionRequestCode is the event code for mcp.session.request.
-	MCPSessionRequestCode = eventsclient.MCPSessionRequestCode
+	MCPSessionRequestCode = "TMCP003I"
 	// MCPSessionRequestFailureCode is the event code for mcp.session.request
 	// when the request is denied by Teleport.
-	MCPSessionRequestFailureCode = eventsclient.MCPSessionRequestFailureCode
+	MCPSessionRequestFailureCode = "TMCP003E"
 	// MCPSessionNotificationCode is the event code for
 	// mcp.session.notification.
-	MCPSessionNotificationCode = eventsclient.MCPSessionNotificationCode
+	MCPSessionNotificationCode = "TMCP004I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
-	UnknownCode = eventsclient.UnknownCode
+	UnknownCode = apievents.UnknownCode
 )
 
 // After defining an event code, make sure to keep

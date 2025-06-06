@@ -41,7 +41,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 )
 
@@ -449,7 +449,7 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 			}, 5*time.Second, 100*time.Millisecond, "expected exec event to be recorded")
 
 			eventsLock.Lock()
-			require.Equal(t, events.ExecFailureCode, execEvent.Code)
+			require.Equal(t, eventsclient.ExecFailureCode, execEvent.Code)
 			require.Equal(t, "403", execEvent.ExitCode)
 			require.NotEmpty(t, execEvent.Error)
 			eventsLock.Unlock()
@@ -591,7 +591,7 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 			}, 5*time.Second, 100*time.Millisecond, "expected exec event to be recorded")
 
 			eventsLock.Lock()
-			require.Equal(t, events.ExecFailureCode, execEvent.Code)
+			require.Equal(t, eventsclient.ExecFailureCode, execEvent.Code)
 			require.Equal(t, "403", execEvent.ExitCode)
 			require.NotEmpty(t, execEvent.Error)
 			eventsLock.Unlock()

@@ -45,7 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -174,16 +174,16 @@ func TestSessionEndError(t *testing.T) {
 					hasSessionEndEvent := false
 					hasSessionExecEvent := false
 					for _, event := range eventsResult {
-						if event.GetType() == events.SessionEndEvent {
+						if event.GetType() == eventsclient.SessionEndEvent {
 							hasSessionEndEvent = true
 						}
-						if event.GetType() != events.ExecEvent {
+						if event.GetType() != eventsclient.ExecEvent {
 							continue
 						}
 
 						execEvent, ok := event.(*apievents.Exec)
 						assert.True(t, ok)
-						assert.Equal(t, events.ExecFailureCode, execEvent.GetCode())
+						assert.Equal(t, eventsclient.ExecFailureCode, execEvent.GetCode())
 						if tt.recordingErr == nil {
 							assert.Equal(t, strconv.Itoa(errorCode), execEvent.ExitCode)
 							assert.Equal(t, errorMessage, execEvent.Error)
