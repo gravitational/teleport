@@ -37,21 +37,7 @@ import (
 // TestPackaging verifies un-archiving of all supported teleport package formats.
 func TestPackaging(t *testing.T) {
 	script := "#!/bin/sh\necho test"
-
-	sourceDir, err := os.MkdirTemp(os.TempDir(), "source")
-	require.NoError(t, err)
-
-	toolsDir, err := os.MkdirTemp(os.TempDir(), "dest")
-	require.NoError(t, err)
-
-	extractDir, err := os.MkdirTemp(toolsDir, "extract")
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		require.NoError(t, os.RemoveAll(extractDir))
-		require.NoError(t, os.RemoveAll(sourceDir))
-		require.NoError(t, os.RemoveAll(toolsDir))
-	})
+	sourceDir := t.TempDir()
 
 	// Create test script for packaging in relative path `teleport\bin` to ensure that
 	// binaries going to be identified and extracted flatten to `extractDir`.
@@ -63,16 +49,23 @@ func TestPackaging(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("tar.gz", func(t *testing.T) {
+		toolsDir := t.TempDir()
+		extractDir, err := os.MkdirTemp(toolsDir, "extract")
+		require.NoError(t, err)
+
 		archivePath := filepath.Join(toolsDir, "tsh.tar.gz")
 		err = archive.CompressDirToTarGzFile(ctx, sourceDir, archivePath)
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
 		// For the .tar.gz format we extract app by app to check that content discard is not required.
-		_, err := replaceTarGz(toolsDir, archivePath, extractDir, []string{"tsh", "tctl"})
+		toolsMap, err := replaceTarGz(toolsDir, archivePath, extractDir, []string{"tsh", "tctl"})
 		require.NoError(t, err)
 		assert.FileExists(t, filepath.Join(toolsDir, "tsh"), "script not created")
 		assert.FileExists(t, filepath.Join(toolsDir, "tctl"), "script not created")
+		for tool, path := range toolsMap {
+			assert.FileExists(t, path, fmt.Sprintf("script: %q not found", tool))
+		}
 
 		data, err := os.ReadFile(filepath.Join(toolsDir, "tsh"))
 		require.NoError(t, err)
@@ -83,6 +76,10 @@ func TestPackaging(t *testing.T) {
 		if runtime.GOOS != "darwin" {
 			t.Skip("unsupported platform")
 		}
+		toolsDir := t.TempDir()
+		extractDir, err := os.MkdirTemp(toolsDir, "extract")
+		require.NoError(t, err)
+
 		archivePath := filepath.Join(toolsDir, "tsh.pkg")
 		err = archive.CompressDirToPkgFile(ctx, sourceDir, archivePath, "com.example.pkgtest")
 		require.NoError(t, err)
@@ -102,6 +99,10 @@ func TestPackaging(t *testing.T) {
 	})
 
 	t.Run("zip", func(t *testing.T) {
+		toolsDir := t.TempDir()
+		extractDir, err := os.MkdirTemp(toolsDir, "extract")
+		require.NoError(t, err)
+
 		archivePath := filepath.Join(toolsDir, "tsh.zip")
 		err = archive.CompressDirToZipFile(ctx, sourceDir, archivePath)
 		require.NoError(t, err)
