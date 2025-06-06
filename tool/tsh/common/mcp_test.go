@@ -118,10 +118,11 @@ func Test_isLocalMCPServerFromTeleport(t *testing.T) {
 
 func Test_mcpConfigFileFlags(t *testing.T) {
 	tests := []struct {
-		name       string
-		flags      *mcpConfigFileFlags
-		checkIsSet require.BoolAssertionFunc
-		checkError require.ErrorAssertionFunc
+		name         string
+		flags        *mcpConfigFileFlags
+		checkIsSet   require.BoolAssertionFunc
+		checkError   require.ErrorAssertionFunc
+		updatedFlags *mcpConfigFileFlags
 	}{
 		{
 			name:       "empty",
@@ -130,36 +131,60 @@ func Test_mcpConfigFileFlags(t *testing.T) {
 			checkError: require.Error,
 		},
 		{
-			name: "claude",
+			name: "format claude",
 			flags: &mcpConfigFileFlags{
-				claude: true,
+				format: "claude",
 			},
 			checkIsSet: require.True,
 			checkError: require.NoError,
 		},
 		{
-			name: "json-file",
+			name: "config-file",
 			flags: &mcpConfigFileFlags{
-				jsonFile: "some-file",
+				path: "some-file",
+			},
+			checkIsSet: require.True,
+			checkError: require.NoError,
+			updatedFlags: &mcpConfigFileFlags{
+				format: "claude",
+				path:   "some-file",
+			},
+		},
+		{
+			name: "format and config-file",
+			flags: &mcpConfigFileFlags{
+				format: "claude",
+				path:   "some-file",
 			},
 			checkIsSet: require.True,
 			checkError: require.NoError,
 		},
 		{
-			name: "both set",
+			name: "unknown format",
 			flags: &mcpConfigFileFlags{
-				claude:   true,
-				jsonFile: "some-file",
+				format: "bad-format",
 			},
 			checkIsSet: require.True,
 			checkError: require.Error,
+		},
+		{
+			name: "allow unset",
+			flags: &mcpConfigFileFlags{
+				allowUnset: true,
+			},
+			checkIsSet: require.False,
+			checkError: require.NoError,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.checkIsSet(t, tt.flags.isSet())
-			tt.checkError(t, tt.flags.check())
+			tt.checkError(t, tt.flags.checkAndSetDefaults())
+
+			if tt.updatedFlags != nil {
+				require.Equal(t, tt.updatedFlags, tt.flags)
+			}
 		})
 	}
 }

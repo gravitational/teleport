@@ -61,6 +61,9 @@ func newMCPLoginCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpLoginCommand
 	cmd := &mcpLoginCommand{
 		CmdClause: parent.Command("login", "Update the local client configuration file with MCP server applications."),
 		cf:        cf,
+		configFile: mcpConfigFileFlags{
+			allowUnset: true,
+		},
 	}
 
 	cmd.Flag("all", "Login to all MCP servers. Mutually exclusive with --labels or --query.").Short('R').BoolVar(&cf.ListAll)
@@ -271,10 +274,10 @@ type mcpLoginCommand struct {
 }
 
 func (c *mcpLoginCommand) run() error {
-	if err := c.checkSelectorFlags(); err != nil {
+	if err := c.configFile.checkAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := c.configFile.checkIfSet(); err != nil {
+	if err := c.checkSelectorFlags(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -393,25 +396,16 @@ func (c *mcpLoginCommand) updateConfigFile() error {
 		return trace.Wrap(err)
 	}
 
-	if c.configFile.claude {
-		_, err = fmt.Fprintf(c.cf.Stdout(), `Updated Claude Desktop configuration at:
-%s
-
-Logged in Teleport MCP servers will be prefixed with "teleport-mcp-" in this
-configuration.
-
-You may need to restart Claude Desktop to reload these new configurations. If
-you encounter a "disconnected" error when tsh session expires, you may also need
-to restart Claude Desktop after logging in a new tsh session.
-`, config.Path())
-		return trace.Wrap(err)
-	}
-
+	// TODO(greedy52) update hint once auto-reconnection is handled.
 	_, err = fmt.Fprintf(c.cf.Stdout(), `Updated client configuration at:
 %s
 
-Logged in Teleport MCP servers will be prefixed with "teleport-mcp-" in this
+Logged-in Teleport MCP servers will be prefixed with "teleport-mcp-" in this
 configuration.
+
+You may need to restart your client to reload these new configurations. If you
+encounter a "disconnected" error when tsh session expires, you may also need to
+restart your client after logging in a new tsh session.
 `, config.Path())
 	return trace.Wrap(err)
 }
@@ -423,7 +417,7 @@ type mcpLogoutCommand struct {
 }
 
 func (c *mcpLogoutCommand) run() error {
-	if err := c.configFile.check(); err != nil {
+	if err := c.configFile.checkAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -387,7 +387,7 @@ func Test_mcpLoginCommand(t *testing.T) {
 			disableConfigFile: true,
 			checkError:        require.NoError,
 			// Hints for config file flags.
-			wantOutputContains: "Use the --claude flag",
+			wantOutputContains: "Use --format=claude",
 			wantNamesInConfig:  []string{"local-everything"},
 		},
 	}
@@ -404,8 +404,9 @@ func Test_mcpLoginCommand(t *testing.T) {
 
 			cmd := mcpLoginCommand{
 				configFile: mcpConfigFileFlags{
-					jsonFile:   configPath,
+					path:       configPath,
 					jsonFormat: "pretty",
+					allowUnset: true,
 				},
 				cf: tt.cf,
 				fetchFunc: func(ctx context.Context, tc *client.TeleportClient, _ apiclient.GetResourcesClient) ([]types.Application, error) {
@@ -414,7 +415,9 @@ func Test_mcpLoginCommand(t *testing.T) {
 			}
 
 			if tt.disableConfigFile {
-				cmd.configFile = mcpConfigFileFlags{}
+				cmd.configFile = mcpConfigFileFlags{
+					allowUnset: true,
+				}
 			}
 
 			err := cmd.run()
@@ -483,7 +486,7 @@ func Test_mcpLogoutCommand(t *testing.T) {
 			var buf bytes.Buffer
 			cmd := &mcpLogoutCommand{
 				configFile: mcpConfigFileFlags{
-					jsonFile:   configPath,
+					path:       configPath,
 					jsonFormat: "pretty",
 				},
 				cf: &CLIConf{

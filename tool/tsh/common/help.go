@@ -80,10 +80,10 @@ Examples:
 	mcpLoginHelp = `
 Examples:
   Login a MCP server for Claude Desktop:
-  $ tsh mcp login my-mcp-server-app --claude
+  $ tsh mcp login my-mcp-server-app --format claude
 
   Add all MCP servers to a JSON config:
-  $ tsh mcp login --all --json-file /path/to/my-llm-mcp-config.json
+  $ tsh mcp login --all --config-file /path/to/my-llm-mcp-config.json
 
   Search by labels and print a sample JSON:
   $ tsh mcp login --labels env=dev`

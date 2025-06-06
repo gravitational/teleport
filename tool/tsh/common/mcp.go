@@ -53,28 +53,48 @@ func newMCPCommands(app *kingpin.Application, cf *CLIConf) *mcpCommands {
 }
 
 type mcpConfigFileFlags struct {
-	claude     bool
-	jsonFile   string
+	format     string
+	path       string
 	jsonFormat string
+
+	allowUnset bool
 }
 
+const (
+	mcpConfigFormatClaude = "claude"
+)
+
 func (m *mcpConfigFileFlags) addToCmd(cmd *kingpin.CmdClause) {
-	cmd.Flag(
-		"claude",
-		fmt.Sprintf("Updates claude_desktop_config.json from default Claude Desktop location. Can also be set with environment variable %s=true. Mutually exclusive with --json-file.",
-			mcpConfigClaudeEnvVar,
-		)).
-		Envar(mcpConfigClaudeEnvVar).
-		BoolVar(&m.claude)
+	if m.allowUnset {
+		cmd.Flag(
+			"format",
+			fmt.Sprintf("Client configuration format (%s). Can also be set with environment variable %s. A sample JSON is printed if not specified.",
+				strings.Join(m.configFormatOptions(), ", "),
+				mcpConfigFormatEnvVar,
+			)).
+			Envar(mcpConfigFormatEnvVar).
+			EnumVar(&m.format, append(m.configFormatOptions(), "")...)
+	} else {
+		cmd.Flag(
+			"format",
+			fmt.Sprintf("Client configuration format (%s). Can also be set with environment variable %s. Default is %s.",
+				strings.Join(m.configFormatOptions(), ", "),
+				mcpConfigFormatEnvVar,
+				mcpConfigFormatClaude,
+			)).
+			Envar(mcpConfigFormatEnvVar).
+			Default(mcpConfigFormatClaude).
+			EnumVar(&m.format, m.configFormatOptions()...)
+	}
 
 	cmd.Flag(
-		"json-file",
+		"config-file",
 		fmt.Sprintf(
-			"Updates \"mcpServer\" mapping in the provided json file. Can also be set with environment variable %s. Mutually exclusive with --claude.",
-			mcpConfigJSONFileEnvVar,
+			"Path to the client configuration file. Can also be set with environment variable %s. Defaults to client's default location if not set.",
+			mcpConfigFileEnvVar,
 		)).
-		Envar(mcpConfigJSONFileEnvVar).
-		StringVar(&m.jsonFile)
+		Envar(mcpConfigFileEnvVar).
+		StringVar(&m.path)
 
 	cmd.Flag(
 		"json-format",
@@ -90,36 +110,43 @@ func (m *mcpConfigFileFlags) addToCmd(cmd *kingpin.CmdClause) {
 }
 
 // isSet checks if any of the config file option set. Commands like "login" may
-// allow the case where none of the file options is set. Note that check() will
-// return an error if nothing is set.
+// allow the case where none of the file options is set.
 func (m *mcpConfigFileFlags) isSet() bool {
-	return m.claude || m.jsonFile != ""
+	return m.format != "" || m.path != ""
 }
 
-func (m *mcpConfigFileFlags) checkIfSet() error {
-	if m.isSet() {
-		return trace.Wrap(m.check())
-	}
-	return nil
-}
-
-func (m *mcpConfigFileFlags) check() error {
-	switch {
-	case m.claude && m.jsonFile != "":
-		return trace.BadParameter("only one of --claude and --json-file can be specified")
-	case !m.claude && m.jsonFile == "":
-		return trace.BadParameter("one of --claude and --json-file must be specified")
-	default:
+func (m *mcpConfigFileFlags) checkAndSetDefaults() error {
+	switch m.format {
+	case "":
+		// If no format but config file path is provided, let's just assume it's
+		// claude.
+		if m.path != "" {
+			m.format = mcpConfigFormatClaude
+		} else if !m.allowUnset {
+			return trace.BadParameter("--format must be specified")
+		}
 		return nil
+	case mcpConfigFormatClaude:
+		return nil
+	default:
+		return trace.BadParameter("unsupported format %q", m.format)
 	}
 }
 
 func (m *mcpConfigFileFlags) loadConfig() (*claude.FileConfig, error) {
-	if m.claude {
-		return claude.LoadConfigFromDefaultPath()
+	switch m.format {
+	case mcpConfigFormatClaude:
+		if m.path == "" {
+			return claude.LoadConfigFromDefaultPath()
+		}
+		return claude.LoadConfigFromFile(m.path)
+	default:
+		return nil, trace.BadParameter("unsupported format %q", m.format)
 	}
-	// For now assume all json configs use the same claude format.
-	return claude.LoadConfigFromFile(m.jsonFile)
+}
+
+func (m *mcpConfigFileFlags) configFormatOptions() []string {
+	return []string{"claude"}
 }
 
 func (m *mcpConfigFileFlags) jsonFormatOptions() []string {
@@ -132,14 +159,15 @@ func (m *mcpConfigFileFlags) jsonFormatOptions() []string {
 }
 
 func (m *mcpConfigFileFlags) printHint(w io.Writer) error {
-	_, err := fmt.Fprintf(w, `Use the --claude flag to automatically update your Claude Desktop
-configuration. You can also set the environment variable
-%s=true to achieve the same.
+	// TODO(greedy52) upgrade this hint when more formats are supported.
+	_, err := fmt.Fprintf(w, `Use --format=claude to automatically update your Claude Desktop configuration.
+You can also set the environment variable %s=claude
+to achieve the same.
 
-Similarly, use the --json-file <path> flag for any client configuration file
-that supports the "mcpServer" mapping. You can also set the environment variable
+Alternatively, use --config-file <path> for any client configuration file that
+supports the "mcpServer" mapping. You can also set the environment variable
 %s=<path> to achieve the same.
-`, mcpConfigClaudeEnvVar, mcpConfigJSONFileEnvVar)
+`, mcpConfigFormatEnvVar, mcpConfigFileEnvVar)
 	return trace.Wrap(err)
 }
 
@@ -174,7 +202,7 @@ func isLocalMCPServerFromTeleport(cf *CLIConf, localName string, server claude.M
 		return false
 	}
 
-	// Double check binary path.
+	// Double-check binary path.
 	if cf.executablePath != server.Command {
 		return false
 	}

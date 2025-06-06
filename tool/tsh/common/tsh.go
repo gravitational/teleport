@@ -745,8 +745,8 @@ const (
 	proxyKubeConfigEnvVar     = "TELEPORT_KUBECONFIG"
 	noResumeEnvVar            = "TELEPORT_NO_RESUME"
 	requestModeEnvVar         = "TELEPORT_REQUEST_MODE"
-	mcpConfigClaudeEnvVar     = "TELEPORT_MCP_CONFIG_CLAUDE"
-	mcpConfigJSONFileEnvVar   = "TELEPORT_MCP_CONFIG_JSON_FILE"
+	mcpConfigFormatEnvVar     = "TELEPORT_MCP_CONFIG_FORMAT"
+	mcpConfigFileEnvVar       = "TELEPORT_MCP_CONFIG_FILE"
 	mcpConfigJSONFormatEnvVar = "TELEPORT_MCP_CONFIG_JSON_FORMAT"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
