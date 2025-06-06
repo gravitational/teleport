@@ -46,11 +46,11 @@ guide you through configuring the Okta integration.
 ## Step 1/4. Create & assign groups
 
 Okta indicates a user's group membership as a SAML assertion in the data it
-provides to Teleport. We will configure Teleport to assign the "dev" role to
+provides to Teleport. We will configure Teleport to assign the "access" role to
 members of the `okta-dev` Okta group, and the prest "editor" role to members of
 the `okta-admin` group.
 
-If you already have Okta groups you want to assign to "dev" and "editor" roles in
+If you already have Okta groups you want to assign to "access" and "editor" roles in
 Teleport, you can skip to the [next step](#step-24-configure-okta).
 
 ### Create Groups
@@ -173,7 +173,7 @@ flags for this command:
 $ tctl sso configure saml --preset=okta \
 --entity-descriptor "https://example.okta.com/app/000000/sso/saml/metadata" \
 --attributes-to-roles=groups,okta-admin,editor \
---attributes-to-roles=groups,okta-dev,dev > okta-connector.yaml
+--attributes-to-roles=groups,okta-dev,access > okta-connector.yaml
 ```
 
 The contents of `okta-connector.yaml` should resemble the following:
@@ -191,7 +191,7 @@ spec:
     value: okta-admin
   - name: groups
     roles:
-    - dev
+    - access
     value: okta-dev
   audience: https://teleport.example.com:443/v1/webapi/saml/acs/okta
   cert: ""
@@ -221,7 +221,7 @@ Success! Logged in as: alice@example.com
 Authentication details:
    roles:
    - editor
-   - dev
+   - access
    traits:
      groups:
      - Everyone
@@ -238,7 +238,7 @@ Authentication details:
   value: okta-admin
 - name: groups
   roles:
-  - dev
+  - access
   value: okta-dev
 
 --------------------------------------------------------------------------------
@@ -261,51 +261,6 @@ $ tctl create okta-connector.yaml
 ```
 
 (!docs/pages/includes/enterprise/samlauthentication.mdx!)
-
-## Step 4/4. Create a developer Teleport role
-
-Now let's create the Teleport role that we will assign to members of the
-`okta-dev` group. Create the local file `dev.yaml` with the content below.
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: dev
-spec:
-  options:
-    max_session_ttl: 24h
-  allow:
-    logins: [ "{{email.local(external.username)}}", ubuntu ]
-    node_labels:
-      access: relaxed
-```
-
-Members of this role have are assigned several attributes:
-
-- they are only allowed to login to nodes labelled with `access: relaxed` label.
-- they can log in as `ubuntu` user or a user matching their email prefix.
-- they do not have any "allow rules" i.e. they will not be able to
-  see/replay past sessions or re-configure the Teleport cluster.
-
-Notice the `{{external.username}}` login. It configures Teleport to look at the
-*"username"* Okta claim and use that field as an allowed login for each user.
-This example uses email as the username format.  The
-`email.local(external.username)` function call will remove the `@domain` and
-leave the username prefix. For full details on how variable expansion works in
-Teleport roles, see the [Access Controls
-Reference](../../../reference/access-controls/roles.mdx).
-
-Use `tctl` to create this role in the Teleport Auth Service:
-
-```code
-$ tctl create dev.yaml
-```
-
-We don't need to repeat this process for the "editor" role because this is a
-preset role that is available by default in all Teleport clusters.
-
-(!docs/pages/includes/create-role-using-web.mdx!)
 
 ## Testing
 
