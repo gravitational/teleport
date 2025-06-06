@@ -59,7 +59,14 @@
             "type": "doc",
             "id": "upgrading/upgrading"
           }
-        },
+        }
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Quick Links",
+      "collapsible": true,
+      "items": [
         {
           "type": "doc",
           "label": "FAQ",

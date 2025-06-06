@@ -70,6 +70,7 @@ const props: DesktopSessionProps = {
   client: fakeClient(),
   username: 'user',
   desktop: 'windows-11',
+  browserSupportsSharing: true,
   hasAnotherSession: () => Promise.resolve(false),
 };
 
