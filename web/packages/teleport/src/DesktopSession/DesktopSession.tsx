@@ -103,6 +103,7 @@ export function DesktopSession() {
         }
       }}
       aclAttempt={aclAttempt}
+      browserSupportsSharing={navigator.userAgent.includes('Chrome')}
       hasAnotherSession={hasAnotherSession}
     />
   );
