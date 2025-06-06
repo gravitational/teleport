@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 type mockServerInfoAccessPoint struct {
@@ -115,7 +115,7 @@ func TestReconcileServerInfo(t *testing.T) {
 			regularServerInfo.GetName(): regularServerInfo,
 		}
 
-		utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+		testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 			Name: "ReconcileServerInfos",
 			Task: func(ctx context.Context) error {
 				return trace.Wrap(ReconcileServerInfos(ctx, ap))
@@ -145,7 +145,7 @@ func TestReconcileServerInfo(t *testing.T) {
 			regularServerInfo.GetName(): regularServerInfo,
 		}
 
-		utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+		testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 			Name: "ReconcileServerInfos",
 			Task: func(ctx context.Context) error {
 				return trace.Wrap(ReconcileServerInfos(ctx, ap))

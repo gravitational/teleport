@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -962,7 +961,8 @@ func TestPluginDataExpectations(t *testing.T) {
 			"missing": "key",
 		},
 	})
-	fixtures.AssertCompareFailed(t, err)
+
+	require.True(t, trace.IsCompareFailed(err))
 
 	// Expect a value to not exist when it does exist.
 	err = data.Update(types.PluginDataUpdateParams{
@@ -977,7 +977,7 @@ func TestPluginDataExpectations(t *testing.T) {
 			"spam":  "",
 		},
 	})
-	fixtures.AssertCompareFailed(t, err)
+	require.True(t, trace.IsCompareFailed(err))
 
 	// Expect the correct state, updating one key and removing another.
 	err = data.Update(types.PluginDataUpdateParams{
