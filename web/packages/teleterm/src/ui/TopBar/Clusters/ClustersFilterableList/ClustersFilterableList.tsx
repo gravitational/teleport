@@ -42,7 +42,7 @@ export function ClustersFilterableList(props: ClustersFilterableListProps) {
           onFilterChange={value =>
             value.length ? setActiveIndex(0) : setActiveIndex(-1)
           }
-          placeholder="Search Leaf Cluster"
+          placeholder="Search leaf clusters"
           Node={({ item, index }) => (
             <ClusterItem
               item={item}
