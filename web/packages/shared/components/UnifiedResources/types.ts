@@ -23,7 +23,9 @@ import { ResourceIconName } from 'design/ResourceIcon';
 import { AppSubKind, NodeSubKind } from 'shared/services';
 import { DbProtocol } from 'shared/services/databases';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourceLabel } from 'teleport/services/agents';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { AppMCP, PermissionSet } from 'teleport/services/apps';
 
 // "mixed" indicates the resource has a mix of health
