@@ -80,6 +80,7 @@ type AccessRequestData struct {
 
 // DecodeAccessRequestData deserializes a string map to PluginData struct.
 func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData, err error) {
+	data.ID = dataMap["id"]
 	data.User = dataMap["user"]
 	if str := dataMap["roles"]; str != "" {
 		data.Roles = strings.Split(str, ",")
@@ -147,6 +148,7 @@ func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData,
 func EncodeAccessRequestData(data AccessRequestData) (map[string]string, error) {
 	result := make(map[string]string)
 
+	result["id"] = data.ID
 	result["user"] = data.User
 	result["roles"] = strings.Join(data.Roles, ",")
 	result["resources"] = strings.Join(data.Resources, ",")

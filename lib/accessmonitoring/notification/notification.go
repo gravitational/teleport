@@ -333,6 +333,7 @@ func (handler *Handler[M, R]) newNotification(ctx context.Context, req types.Acc
 		ID:                 req.GetName(),
 		ReviewerRecipients: reviewerRecipients,
 		AccessRequestData: pd.AccessRequestData{
+			ID:                req.GetName(),
 			User:              req.GetUser(),
 			Roles:             req.GetRoles(),
 			RequestReason:     req.GetRequestReason(),
