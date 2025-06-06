@@ -41,6 +41,10 @@ const (
 	moduleName           = "teleport_ssh"
 	domain               = "teleport_ssh_t"
 	permissiveModuleName = "permissive_" + domain
+
+	// the SELinux user and role that Systemd services run as by default
+	seSystemUser = "system_u"
+	seSystemRole = "system_r"
 )
 
 //go:embed teleport_ssh.te
@@ -86,9 +90,39 @@ func FileContexts(dataDir, configPath string) (string, error) {
 	return buf.String(), nil
 }
 
+type selinuxContext struct {
+	user   string
+	role   string
+	domain string
+	mls    string
+}
+
+// parseLabel parses an SELinux context string.
+func parseLabel(label string) (*selinuxContext, error) {
+	seCtx, err := ocselinux.NewContext(label)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse SELinux context")
+	}
+
+	return &selinuxContext{
+		user:   seCtx["user"],
+		role:   seCtx["role"],
+		domain: seCtx["type"],
+		mls:    seCtx["level"],
+	}, nil
+}
+
+func (c *selinuxContext) String() string {
+	if c.mls == "" {
+		return c.user + ":" + c.role + ":" + c.domain
+	}
+	return c.user + ":" + c.role + ":" + c.domain + ":" + c.mls
+}
+
 // CheckConfiguration returns an error if SELinux is not configured to
 // enforce the SSH service correctly.
 func CheckConfiguration(ensureEnforced bool, logger *slog.Logger) error {
+	// ensure SELinux is enable and running with the correct mode.
 	if !ocselinux.GetEnabled() {
 		return trace.Errorf("SELinux is disabled or not present")
 	}
@@ -103,6 +137,20 @@ func CheckConfiguration(ensureEnforced bool, logger *slog.Logger) error {
 		}
 	}
 
+	// ensure we are running under the correct domain.
+	label, err := ocselinux.CurrentLabel()
+	if err != nil {
+		return trace.Wrap(err, "failed to get SELinux context")
+	}
+	seCtx, err := parseLabel(label)
+	if err != nil {
+		return trace.Wrap(err, "failed to parse SELinux context")
+	}
+	if seCtx.domain != domain {
+		return trace.Wrap(diagnoseDomain(seCtx, logger))
+	}
+
+	// ensure the SELinux module is installed and enabled.
 	selinuxType, err := readConfig(selinuxTypeTag)
 	if err != nil {
 		return trace.Wrap(err, "failed to find SELinux type")
@@ -129,6 +177,32 @@ func CheckConfiguration(ensureEnforced bool, logger *slog.Logger) error {
 	}
 
 	return nil
+}
+
+// this function attempts to diagnose why Teleport is not running under the correct SELinux domain.
+func diagnoseDomain(procCtx *selinuxContext, logger *slog.Logger) error {
+	if procCtx.user != seSystemUser || procCtx.role != seSystemRole {
+		logger.WarnContext(context.TODO(), "Teleport is not running as the system_u:system_r SELinux user and role, running Teleport as a Systemd service is recommended when --enable-selinux is passed", "selinux_context", procCtx.String())
+	}
+	fallbackErr := trace.Errorf("Teleport is running under the wrong SELinux domain %q instead of %q, SELinux will not enforce Teleport correctly", procCtx.domain, domain)
+
+	execPath, err := os.Executable()
+	if err != nil {
+		return trace.NewAggregate(trace.Wrap(err, "failed to get executable path"), fallbackErr)
+	}
+	label, err := ocselinux.FileLabel(execPath)
+	if err != nil {
+		return trace.NewAggregate(trace.Wrap(err, "failed to get SELinux label of executable"), fallbackErr)
+	}
+	fileCtx, err := parseLabel(label)
+	if err != nil {
+		return trace.NewAggregate(trace.Wrap(err, "failed to parse SELinux context"), fallbackErr)
+	}
+	if fileCtx.domain != domain {
+		return trace.Errorf("Teleport binary %q is labeled with SELinux type %q, it needs to be labeled with type %q to be enforced by SELinux correctly", execPath, fileCtx.domain, domain)
+	}
+
+	return fallbackErr
 }
 
 func moduleStatus(modulesDir string) (installed bool, disabled bool, permissive bool, err error) {
