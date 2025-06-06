@@ -78,11 +78,7 @@ func CreateEllipticCertificate(principal string, certType uint32) (*ssh.Certific
 // some of the more core packages like "sshutils".
 func createCertificate(principal string, certType uint32, caKey crypto.Signer, key crypto.Signer) (*ssh.Certificate, ssh.Signer, error) {
 	// Create CA.
-	caPublicKey, err := ssh.NewPublicKey(caKey.Public())
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	caSigner, err := ssh.NewSignerFromKey(caKey)
+	caSigner, err := ssh.NewSignerFromSigner(caKey)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -102,7 +98,6 @@ func createCertificate(principal string, certType uint32, caKey crypto.Signer, k
 		KeyId:           principal,
 		ValidPrincipals: []string{principal},
 		Key:             publicKey,
-		SignatureKey:    caPublicKey,
 		ValidAfter:      uint64(time.Now().UTC().Add(-1 * time.Minute).Unix()),
 		ValidBefore:     uint64(time.Now().UTC().Add(1 * time.Minute).Unix()),
 		CertType:        certType,
