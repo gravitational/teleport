@@ -168,5 +168,73 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-require-imports': 'warn',
     },
+  },
+
+  /*
+   * Restricted imports
+   *
+   * If an import is caught by these rules, it means that the imported package needs to be moved
+   * elsewhere in the dependency tree.
+   * https://github.com/gravitational/teleport/issues/54872
+   */
+  {
+    files: ['web/packages/shared/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['teleport/*', 'e-teleport/*', 'teleterm/*'],
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['web/packages/teleport/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['e-teleport/*', 'teleterm/*'],
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['e/web/teleport/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['teleterm/*'],
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['web/packages/teleterm/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['teleport/*', 'e-teleport/*'],
+            },
+          ],
+        },
+      ],
+    },
   }
 );
