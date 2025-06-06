@@ -100,7 +100,7 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 	// the profile name and the required version for the current cluster.
 	// All other commands and flags may change between versions, so full parsing
 	// should be performed only after managed updates are applied.
-	app.Parse(args)
+	app.Parse(utils.FilterArguments(args, "proxy"))
 
 	// cfg (teleport auth server configuration) is going to be shared by all
 	// commands

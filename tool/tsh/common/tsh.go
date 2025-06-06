@@ -735,27 +735,19 @@ func initLogger(cf *CLIConf) {
 //
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
-	cf := CLIConf{
-		Context:            ctx,
-		TracingProvider:    tracing.NoopProvider(),
-		DTAuthnRunCeremony: dtauthn.NewCeremony().Run,
-		DTAutoEnroll:       dtenroll.AutoEnroll,
-	}
-	// configure CLI argument parser:
-	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(true)
-	app.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
-	login := app.Command("login", "Log in to a cluster and retrieve the session certificate.")
 	// We need to parse the arguments before executing managed updates to identify
 	// the profile name and the required version for the current cluster.
 	// All other commands and flags may change between versions, so full parsing
 	// should be performed only after managed updates are applied.
-	app.Parse(args)
-
+	var proxyArg string
+	muApp := utils.InitCLIParser("tsh", "")
+	muApp.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).Hidden().StringVar(&proxyArg)
+	muApp.Parse(utils.FilterArguments(args, "proxy"))
 	// Check local update for specific proxy from configuration.
 	var err error
 	var name string
-	if cf.Proxy != "" {
-		name, err = utils.Host(cf.Proxy)
+	if proxyArg != "" {
+		name, err = utils.Host(proxyArg)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -764,13 +756,22 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		return trace.Wrap(err)
 	}
 
+	cf := CLIConf{
+		Context:            ctx,
+		TracingProvider:    tracing.NoopProvider(),
+		DTAuthnRunCeremony: dtauthn.NewCeremony().Run,
+		DTAutoEnroll:       dtenroll.AutoEnroll,
+	}
+
 	// run early to enable debug logging if env var is set.
 	// this makes it possible to debug early startup functionality, particularly command aliases.
 	initLogger(&cf)
 
 	moduleCfg := modules.GetModules()
 	var cpuProfile, memProfile, traceProfile string
-
+	// configure CLI argument parser:
+	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(true)
+	app.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
 	app.Flag("login", "Remote host login").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
 	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", "Teleport user, defaults to current local user").Envar(userEnvVar).StringVar(&cf.Username)
@@ -1096,6 +1097,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
+	login := app.Command("login", "Log in to a cluster and retrieve the session certificate.")
 	login.Flag("out", "Identity output").Short('o').AllowDuplicate().StringVar(&cf.IdentityFileOut)
 	login.Flag("format", fmt.Sprintf("Identity format: %s, %s (for OpenSSH compatibility) or %s (for kubeconfig)",
 		identityfile.DefaultFormat,

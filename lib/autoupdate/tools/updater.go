@@ -313,13 +313,11 @@ func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 		return trace.Wrap(err)
 	}
 
-	var pkgNames []string
 	for _, pkg := range packages {
 		pkgName := fmt.Sprint(uuid.New().String(), updatePackageSuffix)
 		if err := u.update(ctx, pkg, pkgName); err != nil {
 			return trace.Wrap(err)
 		}
-		pkgNames = append(pkgNames, pkgName)
 	}
 
 	return nil
