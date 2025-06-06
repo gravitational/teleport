@@ -35,15 +35,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
-	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/mfa"
-	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -60,6 +53,9 @@ type ResourceGetHandler func(ctx context.Context, client *authclient.Client) (co
 
 // ResourceCreateHandler is the generic implementation of a resource creation handler
 type ResourceCreateHandler func(context.Context, *authclient.Client, services.UnknownResource) error
+
+// ResourceDeleteHandler is the generic implementation of a resource creation handler
+type ResourceDeleteHandler func(context.Context, *authclient.Client) error
 
 // ResourceKind is the string form of a resource, i.e. "oidc"
 type ResourceKind string
@@ -95,9 +91,11 @@ type ResourceCommand struct {
 
 	verbose bool
 
-	GetHandlers    map[ResourceKind]ResourceGetHandler
-	CreateHandlers map[ResourceKind]ResourceCreateHandler
-	UpdateHandlers map[ResourceKind]ResourceCreateHandler
+	GetHandlers             map[ResourceKind]ResourceGetHandler
+	CreateHandlers          map[ResourceKind]ResourceCreateHandler
+	UpdateHandlers          map[ResourceKind]ResourceCreateHandler
+	DeleteSingletonHandlers map[ResourceKind]ResourceDeleteHandler
+	DeleteHandlers          map[ResourceKind]ResourceDeleteHandler
 
 	// stdout allows to switch standard output source for resource command. Used in tests.
 	stdout io.Writer
@@ -269,6 +267,70 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindWorkloadIdentityX509IssuerOverride: rc.updateWorkloadIdentityX509IssuerOverride,
 		types.KindSigstorePolicy:                     rc.updateSigstorePolicy,
 		types.KindHealthCheckConfig:                  rc.updateHealthCheckConfig,
+	}
+	rc.DeleteSingletonHandlers = map[ResourceKind]ResourceDeleteHandler{
+		types.KindClusterAuthPreference:    rc.resetAuthPreference,
+		types.KindClusterMaintenanceConfig: rc.resetClusterNetworkingConfig,
+		types.KindClusterNetworkingConfig:  rc.resetClusterNetworkingConfig,
+		types.KindSessionRecordingConfig:   rc.resetSessionRecordingConfig,
+		types.KindUIConfig:                 rc.deleteUIConfig,
+		types.KindNetworkRestrictions:      rc.resetNetworkRestrictions,
+		types.KindAutoUpdateConfig:         rc.deleteAutoUpdateConfig,
+		types.KindAutoUpdateVersion:        rc.deleteAutoUpdateVersion,
+		types.KindAutoUpdateAgentRollout:   rc.deleteAutoUpdateAgentRollout,
+	}
+	rc.DeleteHandlers = map[ResourceKind]ResourceDeleteHandler{
+		types.KindNode:                  rc.deleteNode,
+		types.KindUser:                  rc.deleteUser,
+		types.KindRole:                  rc.deleteRole,
+		types.KindToken:                 rc.deleteToken,
+		types.KindSAMLConnector:         rc.deleteSAMLConnector,
+		types.KindOIDCConnector:         rc.deleteOIDCConnector,
+		types.KindGithubConnector:       rc.deleteGithubConnector,
+		types.KindReverseTunnel:         rc.deleteReverseTunnel,
+		types.KindTrustedCluster:        rc.deleteTrustedCluster,
+		types.KindRemoteCluster:         rc.deleteRemoteCluster,
+		types.KindSemaphore:             rc.deleteSemaphore,
+		types.KindExternalAuditStorage:  rc.deleteExternalAuditStorage,
+		types.KindLock:                  rc.deleteLock,
+		types.KindDatabaseServer:        rc.deleteDatabaseServer,
+		types.KindApp:                   rc.deleteApp,
+		types.KindDatabase:              rc.deleteDatabase,
+		types.KindKubernetesCluster:     rc.deleteKubeCluster,
+		types.KindCrownJewel:            rc.deleteCrownJewel,
+		types.KindWindowsDesktopService: rc.deleteWindowsDesktopService,
+		types.KindDynamicWindowsDesktop: rc.deleteDynamicWindowsDesktop,
+		types.KindWindowsDesktop:        rc.deleteWindowsDesktop,
+		types.KindCertAuthority:         rc.deleteCertAuthority,
+		types.KindKubeServer:            rc.deleteKubeServer,
+		// Was previously in the singleton rule, but I don't think this is a singleton
+		types.KindInstaller:                          rc.deleteInstaller,
+		types.KindLoginRule:                          rc.deleteLoginRule,
+		types.KindSAMLIdPServiceProvider:             rc.deleteSAMLIdPServiceProvider,
+		types.KindDevice:                             rc.deleteDevice,
+		types.KindIntegration:                        rc.deleteIntegration,
+		types.KindUserTask:                           rc.deleteUserTask,
+		types.KindDiscoveryConfig:                    rc.deleteDiscoveryConfig,
+		types.KindAppServer:                          rc.deleteAppServer,
+		types.KindOktaImportRule:                     rc.deleteOktaImportRule,
+		types.KindUserGroup:                          rc.deleteUserGroup,
+		types.KindProxy:                              rc.deleteProxy,
+		types.KindAccessList:                         rc.deleteAccessList,
+		types.KindAuditQuery:                         rc.deleteAuditQuery,
+		types.KindSecurityReport:                     rc.deleteSecurityReport,
+		types.KindServerInfo:                         rc.deleteServerInfo,
+		types.KindBot:                                rc.deleteBot,
+		types.KindDatabaseObjectImportRule:           rc.deleteDatabaseObjectImportRule,
+		types.KindDatabaseObject:                     rc.deleteDatabaseObject,
+		types.KindAccessMonitoringRule:               rc.deleteAccessMonitoringRule,
+		types.KindSPIFFEFederation:                   rc.deleteSPIFFEFederation,
+		types.KindWorkloadIdentity:                   rc.deleteWorkloadIdentity,
+		types.KindWorkloadIdentityX509Revocation:     rc.deleteWorkloadIdentityX509Revocation,
+		types.KindWorkloadIdentityX509IssuerOverride: rc.deleteWorkloadIdentityX509IssuerOverride,
+		types.KindSigstorePolicy:                     rc.deleteSigstorePolicy,
+		types.KindStaticHostUser:                     rc.deleteStaticHostUser,
+		types.KindGitServer:                          rc.deleteGitServer,
+		types.KindHealthCheckConfig:                  rc.deleteHealthCheckConfig,
 	}
 	rc.config = config
 
@@ -496,488 +558,19 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client) (err error) {
-	singletonResources := []string{
-		types.KindClusterAuthPreference,
-		types.KindClusterMaintenanceConfig,
-		types.KindClusterNetworkingConfig,
-		types.KindSessionRecordingConfig,
-		types.KindInstaller,
-		types.KindUIConfig,
-		types.KindNetworkRestrictions,
-		types.KindAutoUpdateConfig,
-		types.KindAutoUpdateVersion,
-		types.KindAutoUpdateAgentRollout,
+	if deleteHandler, ok := rc.DeleteSingletonHandlers[ResourceKind(rc.ref.Kind)]; ok {
+		return trace.Wrap(deleteHandler(ctx, client))
 	}
-	if !slices.Contains(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
+
+	if rc.ref.Name == "" {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
 	}
 
-	switch rc.ref.Kind {
-	case types.KindNode:
-		if err = client.DeleteNode(ctx, apidefaults.Namespace, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("node %v has been deleted\n", rc.ref.Name)
-	case types.KindUser:
-		if err = client.DeleteUser(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("user %q has been deleted\n", rc.ref.Name)
-	case types.KindRole:
-		if err = client.DeleteRole(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("role %q has been deleted\n", rc.ref.Name)
-	case types.KindToken:
-		if err = client.DeleteToken(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("token %q has been deleted\n", rc.ref.Name)
-	case types.KindSAMLConnector:
-		if err = client.DeleteSAMLConnector(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("SAML connector %v has been deleted\n", rc.ref.Name)
-	case types.KindOIDCConnector:
-		if err = client.DeleteOIDCConnector(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("OIDC connector %v has been deleted\n", rc.ref.Name)
-	case types.KindGithubConnector:
-		if err = client.DeleteGithubConnector(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("github connector %q has been deleted\n", rc.ref.Name)
-	case types.KindReverseTunnel:
-		if err := client.DeleteReverseTunnel(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("reverse tunnel %v has been deleted\n", rc.ref.Name)
-	case types.KindTrustedCluster:
-		if err = client.DeleteTrustedCluster(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("trusted cluster %q has been deleted\n", rc.ref.Name)
-	case types.KindRemoteCluster:
-		if err = client.DeleteRemoteCluster(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("remote cluster %q has been deleted\n", rc.ref.Name)
-	case types.KindSemaphore:
-		if rc.ref.SubKind == "" || rc.ref.Name == "" {
-			return trace.BadParameter(
-				"full semaphore path must be specified (e.g. '%s/%s/alice@example.com')",
-				types.KindSemaphore, types.SemaphoreKindConnection,
-			)
-		}
-		err := client.DeleteSemaphore(ctx, types.SemaphoreFilter{
-			SemaphoreKind: rc.ref.SubKind,
-			SemaphoreName: rc.ref.Name,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("semaphore '%s/%s' has been deleted\n", rc.ref.SubKind, rc.ref.Name)
-	case types.KindClusterAuthPreference:
-		if err = resetAuthPreference(ctx, client); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("cluster auth preference has been reset to defaults\n")
-	case types.KindClusterMaintenanceConfig:
-		if err := client.DeleteClusterMaintenanceConfig(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("cluster maintenance configuration has been deleted\n")
-	case types.KindClusterNetworkingConfig:
-		if err = resetClusterNetworkingConfig(ctx, client); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("cluster networking configuration has been reset to defaults\n")
-	case types.KindSessionRecordingConfig:
-		if err = resetSessionRecordingConfig(ctx, client); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("session recording configuration has been reset to defaults\n")
-	case types.KindExternalAuditStorage:
-		if rc.ref.Name == types.MetaNameExternalAuditStorageCluster {
-			if err := client.ExternalAuditStorageClient().DisableClusterExternalAuditStorage(ctx); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("cluster External Audit Storage configuration has been disabled\n")
-		} else {
-			if err := client.ExternalAuditStorageClient().DeleteDraftExternalAuditStorage(ctx); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("draft External Audit Storage configuration has been deleted\n")
-		}
-	case types.KindLock:
-		name := rc.ref.Name
-		if rc.ref.SubKind != "" {
-			name = rc.ref.SubKind + "/" + name
-		}
-		if err = client.DeleteLock(ctx, name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("lock %q has been deleted\n", name)
-	case types.KindDatabaseServer:
-		servers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resDesc := "database server"
-		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
-		name, err := getOneResourceNameToDelete(servers, rc.ref, resDesc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, s := range servers {
-			err := client.DeleteDatabaseServer(ctx, apidefaults.Namespace, s.GetHostID(), name)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		fmt.Printf("%s %q has been deleted\n", resDesc, name)
-	case types.KindNetworkRestrictions:
-		if err = resetNetworkRestrictions(ctx, client); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("network restrictions have been reset to defaults (allow all)\n")
-	case types.KindApp:
-		if err = client.DeleteApp(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("application %q has been deleted\n", rc.ref.Name)
-	case types.KindDatabase:
-		databases, err := client.GetDatabases(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resDesc := "database"
-		databases = filterByNameOrDiscoveredName(databases, rc.ref.Name)
-		name, err := getOneResourceNameToDelete(databases, rc.ref, resDesc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := client.DeleteDatabase(ctx, name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("%s %q has been deleted\n", resDesc, name)
-	case types.KindKubernetesCluster:
-		clusters, err := client.GetKubernetesClusters(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resDesc := "Kubernetes cluster"
-		clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
-		name, err := getOneResourceNameToDelete(clusters, rc.ref, resDesc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := client.DeleteKubernetesCluster(ctx, name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("%s %q has been deleted\n", resDesc, name)
-	case types.KindCrownJewel:
-		if err := client.CrownJewelsClient().DeleteCrownJewel(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("crown_jewel %q has been deleted\n", rc.ref.Name)
-	case types.KindWindowsDesktopService:
-		if err = client.DeleteWindowsDesktopService(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("windows desktop service %q has been deleted\n", rc.ref.Name)
-	case types.KindDynamicWindowsDesktop:
-		if err = client.DynamicDesktopClient().DeleteDynamicWindowsDesktop(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("dynamic windows desktop %q has been deleted\n", rc.ref.Name)
-	case types.KindWindowsDesktop:
-		desktops, err := client.GetWindowsDesktops(ctx,
-			types.WindowsDesktopFilter{Name: rc.ref.Name})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(desktops) == 0 {
-			return trace.NotFound("no desktops with name %q were found", rc.ref.Name)
-		}
-		deleted := 0
-		var errs []error
-		for _, desktop := range desktops {
-			if desktop.GetName() == rc.ref.Name {
-				if err = client.DeleteWindowsDesktop(ctx, desktop.GetHostID(), rc.ref.Name); err != nil {
-					errs = append(errs, err)
-					continue
-				}
-				deleted++
-			}
-		}
-		if deleted == 0 {
-			errs = append(errs,
-				trace.Errorf("failed to delete any desktops with the name %q, %d were found",
-					rc.ref.Name, len(desktops)))
-		}
-		fmts := "%d windows desktops with name %q have been deleted"
-		if err := trace.NewAggregate(errs...); err != nil {
-			fmt.Printf(fmts+" with errors while deleting\n", deleted, rc.ref.Name)
-			return err
-		}
-		fmt.Printf(fmts+"\n", deleted, rc.ref.Name)
-	case types.KindCertAuthority:
-		if rc.ref.SubKind == "" || rc.ref.Name == "" {
-			return trace.BadParameter(
-				"full %s path must be specified (e.g. '%s/%s/clustername')",
-				types.KindCertAuthority, types.KindCertAuthority, types.HostCA,
-			)
-		}
-		err := client.DeleteCertAuthority(ctx, types.CertAuthID{
-			Type:       types.CertAuthType(rc.ref.SubKind),
-			DomainName: rc.ref.Name,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("%s '%s/%s' has been deleted\n", types.KindCertAuthority, rc.ref.SubKind, rc.ref.Name)
-	case types.KindKubeServer:
-		servers, err := client.GetKubernetesServers(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resDesc := "Kubernetes server"
-		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
-		name, err := getOneResourceNameToDelete(servers, rc.ref, resDesc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, s := range servers {
-			err := client.DeleteKubernetesServer(ctx, s.GetHostID(), name)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		fmt.Printf("%s %q has been deleted\n", resDesc, name)
-	case types.KindUIConfig:
-		err := client.DeleteUIConfig(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("%s has been deleted\n", types.KindUIConfig)
-	case types.KindInstaller:
-		err := client.DeleteInstaller(ctx, rc.ref.Name)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if rc.ref.Name == installers.InstallerScriptName {
-			fmt.Printf("%s has been reset to a default value\n", rc.ref.Name)
-		} else {
-			fmt.Printf("%s has been deleted\n", rc.ref.Name)
-		}
-	case types.KindLoginRule:
-		loginRuleClient := client.LoginRuleClient()
-		_, err := loginRuleClient.DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
-			Name: rc.ref.Name,
-		})
-		if err != nil {
-			return trail.FromGRPC(err)
-		}
-		fmt.Printf("login rule %q has been deleted\n", rc.ref.Name)
-	case types.KindSAMLIdPServiceProvider:
-		if err := client.DeleteSAMLIdPServiceProvider(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("SAML IdP service provider %q has been deleted\n", rc.ref.Name)
-	case types.KindDevice:
-		remote := client.DevicesClient()
-		device, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if _, err := remote.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{
-			DeviceId: device[0].Id,
-		}); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Device %q removed\n", rc.ref.Name)
-
-	case types.KindIntegration:
-		if err := client.DeleteIntegration(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Integration %q removed\n", rc.ref.Name)
-
-	case types.KindUserTask:
-		if err := client.UserTasksServiceClient().DeleteUserTask(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("user task %q has been deleted\n", rc.ref.Name)
-
-	case types.KindDiscoveryConfig:
-		remote := client.DiscoveryConfigClient()
-		if err := remote.DeleteDiscoveryConfig(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("DiscoveryConfig %q removed\n", rc.ref.Name)
-
-	case types.KindAppServer:
-		appServers, err := client.GetApplicationServers(ctx, rc.namespace)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		deleted := false
-		for _, server := range appServers {
-			if server.GetName() == rc.ref.Name {
-				if err := client.DeleteApplicationServer(ctx, server.GetNamespace(), server.GetHostID(), server.GetName()); err != nil {
-					return trace.Wrap(err)
-				}
-				deleted = true
-			}
-		}
-		if !deleted {
-			return trace.NotFound("application server %q not found", rc.ref.Name)
-		}
-		fmt.Printf("application server %q has been deleted\n", rc.ref.Name)
-	case types.KindOktaImportRule:
-		if err := client.OktaClient().DeleteOktaImportRule(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Okta import rule %q has been deleted\n", rc.ref.Name)
-	case types.KindUserGroup:
-		if err := client.DeleteUserGroup(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("User group %q has been deleted\n", rc.ref.Name)
-	case types.KindProxy:
-		if err := client.DeleteProxy(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Proxy %q has been deleted\n", rc.ref.Name)
-	case types.KindAccessList:
-		if err := client.AccessListClient().DeleteAccessList(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Access list %q has been deleted\n", rc.ref.Name)
-	case types.KindAuditQuery:
-		if err := client.SecReportsClient().DeleteSecurityAuditQuery(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Audit query %q has been deleted\n", rc.ref.Name)
-	case types.KindSecurityReport:
-		if err := client.SecReportsClient().DeleteSecurityReport(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Security report %q has been deleted\n", rc.ref.Name)
-	case types.KindServerInfo:
-		if err := client.DeleteServerInfo(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Server info %q has been deleted\n", rc.ref.Name)
-	case types.KindBot:
-		if _, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{BotName: rc.ref.Name}); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Bot %q has been deleted\n", rc.ref.Name)
-	case types.KindDatabaseObjectImportRule:
-		if _, err := client.DatabaseObjectImportRuleClient().DeleteDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.DeleteDatabaseObjectImportRuleRequest{Name: rc.ref.Name}); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Rule %q has been deleted\n", rc.ref.Name)
-	case types.KindDatabaseObject:
-		if err := client.DatabaseObjectsClient().DeleteDatabaseObject(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Object %q has been deleted\n", rc.ref.Name)
-	case types.KindAccessMonitoringRule:
-		if err := client.AccessMonitoringRuleClient().DeleteAccessMonitoringRule(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Access monitoring rule %q has been deleted\n", rc.ref.Name)
-	case types.KindSPIFFEFederation:
-		if _, err := client.SPIFFEFederationServiceClient().DeleteSPIFFEFederation(
-			ctx, &machineidv1pb.DeleteSPIFFEFederationRequest{
-				Name: rc.ref.Name,
-			},
-		); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("SPIFFE federation %q has been deleted\n", rc.ref.Name)
-	case types.KindWorkloadIdentity:
-		if _, err := client.WorkloadIdentityResourceServiceClient().DeleteWorkloadIdentity(
-			ctx, &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
-				Name: rc.ref.Name,
-			}); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Workload identity %q has been deleted\n", rc.ref.Name)
-	case types.KindWorkloadIdentityX509Revocation:
-		if _, err := client.WorkloadIdentityRevocationServiceClient().DeleteWorkloadIdentityX509Revocation(
-			ctx, &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
-				Name: rc.ref.Name,
-			}); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Workload identity X509 revocation %q has been deleted\n", rc.ref.Name)
-	case types.KindWorkloadIdentityX509IssuerOverride:
-		c := client.WorkloadIdentityX509OverridesClient()
-		if _, err := c.DeleteX509IssuerOverride(
-			ctx,
-			&workloadidentityv1pb.DeleteX509IssuerOverrideRequest{
-				Name: rc.ref.Name,
-			},
-		); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Fprintf(
-			rc.stdout,
-			types.KindWorkloadIdentityX509IssuerOverride+" %q has been deleted\n",
-			rc.ref.Name,
-		)
-	case types.KindSigstorePolicy:
-		c := client.SigstorePolicyResourceServiceClient()
-		if _, err := c.DeleteSigstorePolicy(
-			ctx,
-			&workloadidentityv1pb.DeleteSigstorePolicyRequest{
-				Name: rc.ref.Name,
-			},
-		); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Fprintf(
-			rc.stdout,
-			types.KindSigstorePolicy+" %q has been deleted\n",
-			rc.ref.Name,
-		)
-	case types.KindStaticHostUser:
-		if err := client.StaticHostUserClient().DeleteStaticHostUser(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("static host user %q has been deleted\n", rc.ref.Name)
-	case types.KindGitServer:
-		if err := client.GitServerClient().DeleteGitServer(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("git_server %q has been deleted\n", rc.ref.Name)
-	case types.KindAutoUpdateConfig:
-		if err := client.DeleteAutoUpdateConfig(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("AutoUpdateConfig has been deleted\n")
-	case types.KindAutoUpdateVersion:
-		if err := client.DeleteAutoUpdateVersion(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("AutoUpdateVersion has been deleted\n")
-	case types.KindAutoUpdateAgentRollout:
-		if err := client.DeleteAutoUpdateAgentRollout(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("AutoUpdateAgentRollout has been deleted\n")
-	case types.KindHealthCheckConfig:
-		return trace.Wrap(rc.deleteHealthCheckConfig(ctx, client))
-	default:
-		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
+	if deleteHandler, ok := rc.DeleteHandlers[ResourceKind(rc.ref.Kind)]; ok {
+		return trace.Wrap(deleteHandler(ctx, client))
 	}
-	return nil
+
+	return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 }
 
 // UpdateFields updates select resource fields: expiry and labels
@@ -1049,51 +642,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
 
-func (rc *ResourceCommand) getSAMLConnectors(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name == "" {
-		connectors, err := client.GetSAMLConnectors(ctx, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return collections.NewSAMLCollection(connectors), nil
-	}
-	connector, err := client.GetSAMLConnector(ctx, rc.ref.Name, rc.withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return collections.NewSAMLCollection([]types.SAMLConnector{connector}), nil
-}
-
-func (rc *ResourceCommand) getOIDCConnectors(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name == "" {
-		connectors, err := client.GetOIDCConnectors(ctx, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return collections.NewOIDCCollection(connectors), nil
-	}
-	connector, err := client.GetOIDCConnector(ctx, rc.ref.Name, rc.withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return collections.NewOIDCCollection([]types.OIDCConnector{connector}), nil
-}
-
-func (rc *ResourceCommand) getGithubConnectors(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name == "" {
-		connectors, err := client.GetGithubConnectors(ctx, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return collections.NewGithubCollection(connectors), nil
-	}
-	connector, err := client.GetGithubConnector(ctx, rc.ref.Name, rc.withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return collections.NewGithubCollection([]types.GithubConnector{connector}), nil
-}
-
 // UpsertVerb generates the correct string form of a verb based on the action taken
 func UpsertVerb(exists bool, force bool) string {
 	if !force && exists {
@@ -1120,29 +668,6 @@ If you would still like to proceed, re-run the command with the --confirm flag.`
 }
 
 const managedByStaticDeleteMsg = `This resource is managed by static configuration. In order to reset it to defaults, remove relevant configuration from teleport.yaml and restart the servers.`
-
-func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustServiceClient, idOrTag string) ([]*devicepb.Device, error) {
-	resp, err := remote.FindDevices(ctx, &devicepb.FindDevicesRequest{
-		IdOrTag: idOrTag,
-	})
-	switch {
-	case err != nil:
-		return nil, trace.Wrap(err)
-	case len(resp.Devices) == 0:
-		return nil, trace.NotFound("device %q not found", idOrTag)
-	case len(resp.Devices) == 1:
-		return resp.Devices, nil
-	}
-
-	// Do we have an ID match?
-	for _, dev := range resp.Devices {
-		if dev.Id == idOrTag {
-			return []*devicepb.Device{dev}, nil
-		}
-	}
-
-	return nil, trace.BadParameter("found multiple devices for asset tag %q, please retry using the device ID instead", idOrTag)
-}
 
 // keepFn is a predicate function that returns true if a resource should be
 // retained by filterResources.

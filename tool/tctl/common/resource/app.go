@@ -48,6 +48,27 @@ func (rc *ResourceCommand) createAppServer(ctx context.Context, client *authclie
 	return nil
 }
 
+func (rc *ResourceCommand) deleteAppServer(ctx context.Context, client *authclient.Client) error {
+	appServers, err := client.GetApplicationServers(ctx, rc.namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	deleted := false
+	for _, server := range appServers {
+		if server.GetName() == rc.ref.Name {
+			if err := client.DeleteApplicationServer(ctx, server.GetNamespace(), server.GetHostID(), server.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+			deleted = true
+		}
+	}
+	if !deleted {
+		return trace.NotFound("application server %q not found", rc.ref.Name)
+	}
+	fmt.Printf("application server %q has been deleted\n", rc.ref.Name)
+	return nil
+}
+
 func (rc *ResourceCommand) getApp(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name == "" {
 		apps, err := client.GetApps(ctx)
@@ -82,5 +103,13 @@ func (rc *ResourceCommand) createApp(ctx context.Context, client *authclient.Cli
 		return trace.Wrap(err)
 	}
 	fmt.Printf("application %q has been created\n", app.GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) deleteApp(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteApp(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("application %q has been deleted\n", rc.ref.Name)
 	return nil
 }

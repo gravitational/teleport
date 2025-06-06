@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
@@ -77,4 +78,12 @@ func (rc *ResourceCommand) getSAMLIdPServiceProvider(ctx context.Context, client
 		}
 	}
 	return collections.NewSAMLIdPServiceProviderCollection(resources), nil
+}
+
+func (rc *ResourceCommand) deleteSAMLIdPServiceProvider(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteSAMLIdPServiceProvider(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("SAML IdP service provider %q has been deleted\n", rc.ref.Name)
+	return nil
 }

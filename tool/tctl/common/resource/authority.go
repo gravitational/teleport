@@ -51,3 +51,21 @@ func (rc *ResourceCommand) createCertAuthority(ctx context.Context, client *auth
 	fmt.Printf("certificate authority %q has been updated\n", certAuthority.GetName())
 	return nil
 }
+
+func (rc *ResourceCommand) deleteCertAuthority(ctx context.Context, client *authclient.Client) error {
+	if rc.ref.SubKind == "" || rc.ref.Name == "" {
+		return trace.BadParameter(
+			"full %s path must be specified (e.g. '%s/%s/clustername')",
+			types.KindCertAuthority, types.KindCertAuthority, types.HostCA,
+		)
+	}
+	err := client.DeleteCertAuthority(ctx, types.CertAuthID{
+		Type:       types.CertAuthType(rc.ref.SubKind),
+		DomainName: rc.ref.Name,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("%s '%s/%s' has been deleted\n", types.KindCertAuthority, rc.ref.SubKind, rc.ref.Name)
+	return nil
+}

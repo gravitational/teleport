@@ -86,6 +86,14 @@ func (rc *ResourceCommand) updateRole(ctx context.Context, client *authclient.Cl
 	return nil
 }
 
+func (rc *ResourceCommand) deleteRole(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteRole(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("role %q has been deleted\n", rc.ref.Name)
+	return nil
+}
+
 // warnAboutKubernetesResources warns about kubernetes resources
 // if kubernetes_labels are set but kubernetes_resources are not.
 func warnAboutKubernetesResources(ctx context.Context, logger *slog.Logger, r types.Role) {

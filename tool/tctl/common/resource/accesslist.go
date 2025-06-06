@@ -48,3 +48,11 @@ func (rc *ResourceCommand) getAccessList(ctx context.Context, client *authclient
 
 	return collections.NewAccessListCollection(accessLists), trace.Wrap(err)
 }
+
+func (rc *ResourceCommand) deleteAccessList(ctx context.Context, client *authclient.Client) error {
+	if err := client.AccessListClient().DeleteAccessList(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Access list %q has been deleted\n", rc.ref.Name)
+	return nil
+}

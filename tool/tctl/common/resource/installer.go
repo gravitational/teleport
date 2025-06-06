@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"github.com/gravitational/teleport/api/types/installers"
 
 	"github.com/gravitational/trace"
 
@@ -38,5 +39,18 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client *authclie
 		return trace.Wrap(err)
 	}
 	fmt.Printf("installer %q has been set\n", inst.GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) deleteInstaller(ctx context.Context, client *authclient.Client) error {
+	err := client.DeleteInstaller(ctx, rc.ref.Name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if rc.ref.Name == installers.InstallerScriptName {
+		fmt.Printf("%s has been reset to a default value\n", rc.ref.Name)
+	} else {
+		fmt.Printf("%s has been deleted\n", rc.ref.Name)
+	}
 	return nil
 }

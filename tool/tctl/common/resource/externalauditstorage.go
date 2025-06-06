@@ -72,3 +72,18 @@ func (rc *ResourceCommand) getExternalAuditStorage(ctx context.Context, client *
 		return nil, trace.BadParameter("unsupported resource name for external_audit_storage, valid for get are: '', %q, %q", types.MetaNameExternalAuditStorageDraft, types.MetaNameExternalAuditStorageCluster)
 	}
 }
+
+func (rc *ResourceCommand) deleteExternalAuditStorage(ctx context.Context, client *authclient.Client) error {
+	if rc.ref.Name == types.MetaNameExternalAuditStorageCluster {
+		if err := client.ExternalAuditStorageClient().DisableClusterExternalAuditStorage(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("cluster External Audit Storage configuration has been disabled\n")
+	} else {
+		if err := client.ExternalAuditStorageClient().DeleteDraftExternalAuditStorage(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("draft External Audit Storage configuration has been deleted\n")
+	}
+	return nil
+}

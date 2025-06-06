@@ -68,3 +68,11 @@ func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclie
 	fmt.Printf("git server %q has been updated\n", server.GetName())
 	return nil
 }
+
+func (rc *ResourceCommand) deleteGitServer(ctx context.Context, client *authclient.Client) error {
+	if err := client.GitServerClient().DeleteGitServer(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("git_server %q has been deleted\n", rc.ref.Name)
+	return nil
+}

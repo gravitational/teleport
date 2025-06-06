@@ -78,3 +78,11 @@ func (rc *ResourceCommand) updateUser(ctx context.Context, client *authclient.Cl
 
 	return nil
 }
+
+func (rc *ResourceCommand) deleteUser(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteUser(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("user %q has been deleted\n", rc.ref.Name)
+	return nil
+}

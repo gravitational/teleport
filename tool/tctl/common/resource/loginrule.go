@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"github.com/gravitational/teleport/api/trail"
 
 	"github.com/gravitational/trace"
 
@@ -63,4 +64,17 @@ func (rc *ResourceCommand) getLoginRule(ctx context.Context, client *authclient.
 		Name: rc.ref.Name,
 	})
 	return collections.NewLoginRuleCollection([]*loginrulepb.LoginRule{rule}), trail.FromGRPC(err)
+}
+
+func (rc *ResourceCommand) deleteLoginRule(ctx context.Context, client *authclient.Client) error {
+	loginRuleClient := client.LoginRuleClient()
+	_, err := loginRuleClient.DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
+		Name: rc.ref.Name,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	fmt.Printf("login rule %q has been deleted\n", rc.ref.Name)
+	return nil
+
 }

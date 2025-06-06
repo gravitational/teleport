@@ -3,6 +3,8 @@ package resource
 import (
 	"context"
 	"fmt"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -66,6 +68,14 @@ func (rc *ResourceCommand) getNode(ctx context.Context, client *authclient.Clien
 	return collections.NewServerCollection(servers), nil
 }
 
+func (rc *ResourceCommand) deleteNode(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteNode(ctx, apidefaults.Namespace, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("node %v has been deleted\n", rc.ref.Name)
+	return nil
+}
+
 func (rc *ResourceCommand) createNode(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	server, err := services.UnmarshalServer(raw.Raw, types.KindNode, services.DisallowUnknown())
 	if err != nil {
@@ -126,6 +136,14 @@ func (rc *ResourceCommand) getProxy(ctx context.Context, client *authclient.Clie
 	return nil, trace.NotFound("proxy with ID %q not found", rc.ref.Name)
 }
 
+func (rc *ResourceCommand) deleteProxy(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteProxy(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Proxy %q has been deleted\n", rc.ref.Name)
+	return nil
+}
+
 func (rc *ResourceCommand) createServerInfo(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	si, err := services.UnmarshalServerInfo(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -167,4 +185,12 @@ func (rc *ResourceCommand) getServerInfo(ctx context.Context, client *authclient
 		return nil, trace.Wrap(err)
 	}
 	return collections.NewServerInfoCollection(serverInfos), nil
+}
+
+func (rc *ResourceCommand) deleteServerInfo(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteServerInfo(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Server info %q has been deleted\n", rc.ref.Name)
+	return nil
 }

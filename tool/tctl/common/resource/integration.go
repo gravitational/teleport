@@ -89,3 +89,11 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 
 	return nil
 }
+
+func (rc *ResourceCommand) deleteIntegration(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteIntegration(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Integration %q removed\n", rc.ref.Name)
+	return nil
+}

@@ -60,6 +60,14 @@ func (rc *ResourceCommand) updateAutoUpdateConfig(ctx context.Context, client *a
 	return nil
 }
 
+func (rc *ResourceCommand) deleteAutoUpdateConfig(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteAutoUpdateConfig(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("AutoUpdateConfig has been deleted\n")
+	return nil
+}
+
 func (rc *ResourceCommand) getAutoUpdateConfig(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	config, err := client.GetAutoUpdateConfig(ctx)
 	if err != nil {
@@ -122,6 +130,14 @@ func (rc *ResourceCommand) getAutoUpdateVersion(ctx context.Context, client *aut
 	return collections.NewAutoUpdateVersionCollection(version), nil
 }
 
+func (rc *ResourceCommand) deleteAutoUpdateVersion(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteAutoUpdateVersion(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("AutoUpdateVersion has been deleted\n")
+	return nil
+}
+
 func (rc *ResourceCommand) createAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	rollout, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -154,6 +170,14 @@ func (rc *ResourceCommand) getAutoUpdateAgentRollout(ctx context.Context, client
 		return nil, trace.Wrap(err)
 	}
 	return collections.NewAutoUpdateAgentRolloutCollection(version), nil
+}
+
+func (rc *ResourceCommand) deleteAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteAutoUpdateAgentRollout(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("AutoUpdateAgentRollout has been deleted\n")
+	return nil
 }
 
 func (rc *ResourceCommand) upsertAutoUpdateAgentReport(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {

@@ -68,6 +68,14 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 	return nil
 }
 
+func (rc *ResourceCommand) deleteTrustedCluster(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteTrustedCluster(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("trusted cluster %q has been deleted\n", rc.ref.Name)
+	return nil
+}
+
 func (rc *ResourceCommand) getRemoteCluster(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
 	if rc.ref.Name == "" {
 		remoteClusters, err := client.GetRemoteClusters(ctx)
@@ -81,4 +89,12 @@ func (rc *ResourceCommand) getRemoteCluster(ctx context.Context, client *authcli
 		return nil, trace.Wrap(err)
 	}
 	return collections.NewRemoteClusterCollection([]types.RemoteCluster{remoteCluster}), nil
+}
+
+func (rc *ResourceCommand) deleteRemoteCluster(ctx context.Context, client *authclient.Client) error {
+	if err := client.DeleteRemoteCluster(ctx, rc.ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("remote cluster %q has been deleted\n", rc.ref.Name)
+	return nil
 }
