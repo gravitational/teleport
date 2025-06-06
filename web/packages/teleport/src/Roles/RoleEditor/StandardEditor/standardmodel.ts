@@ -23,6 +23,7 @@ import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
 import {
   KubernetesResource,
   Labels,
+  MCPPermissions,
   Role,
   RoleConditions,
 } from 'teleport/services/resources';
@@ -30,7 +31,7 @@ import {
   CreateDBUserMode,
   CreateHostUserMode,
   GitHubPermission,
-  KubernetesResourceKind,
+  isLegacySamlIdpRbac,
   KubernetesVerb,
   RequireMFAType,
   ResourceKind,
@@ -71,6 +72,12 @@ export type StandardEditorModel = {
    * Will be true if fields have been modified from the original.
    */
   isDirty: boolean;
+  /**
+   * Indicates if the user interacted with the editor. It's different from
+   * {@link StandardEditorModel.isDirty} by not taking into consideration if
+   * anything changed from the original.
+   */
+  isTouched: boolean;
   /**
    * Result of validating {@link StandardEditorModel.roleModel}. Can be
    * undefined if there was an unhandled error when converting an existing
@@ -178,7 +185,7 @@ export type KubernetesResourceModel = {
   name: string;
   namespace: string;
   verbs: readonly KubernetesVerbOption[];
-
+  apiGroup?: string;
   /**
    * Version of the role that owns this section. Required in order to support
    * version-specific validation rules. It's the responsibility of
@@ -188,13 +195,16 @@ export type KubernetesResourceModel = {
   roleVersion: RoleVersion;
 };
 
-type KubernetesResourceKindOption = Option<KubernetesResourceKind, string>;
+type KubernetesResourceKindOption = Option<string, string>;
 
 /**
  * All possible resource kind drop-down options. This array needs to be kept in
  * sync with `KubernetesResourcesKinds` in `api/types/constants.go.
+ *
+ * This type list needs to be kept in sync with
+ * `KubernetesResourcesKinds` in `api/types/constants.go for roles <=v7.
  */
-export const kubernetesResourceKindOptions: KubernetesResourceKindOption[] = [
+export const kubernetesResourceKindOptionsV7: KubernetesResourceKindOption[] = [
   // The "any kind" option goes first.
   { value: '*', label: 'Any kind' },
 
@@ -229,11 +239,92 @@ export const kubernetesResourceKindOptions: KubernetesResourceKindOption[] = [
   ).toSorted((a, b) => a.label.localeCompare(b.label)),
 ];
 
+// Map of kinds/groups to detect v7->v8 upgrade issues.
+//
+// Record<v7kind, { group: ['main group', 'optional additional groups'], v8name: 'v8 plural name' }>
+export const kubernetesResourceKindV7Groups: Record<
+  string,
+  { groups: string[]; v8name: string }
+> = {
+  pod: { groups: ['core'], v8name: 'pods' },
+  secret: { groups: ['core'], v8name: 'secrets' },
+  configmap: { groups: ['core'], v8name: 'configmaps' },
+  namespace: { groups: ['core'], v8name: 'namespaces' },
+  service: { groups: ['core'], v8name: 'services' },
+  serviceaccount: { groups: ['core'], v8name: 'serviceaccounts' },
+  kube_node: { groups: ['core'], v8name: 'nodes' },
+  persistentvolume: { groups: ['core'], v8name: 'persistentvolumes' },
+  persistentvolumeclaim: { groups: ['core'], v8name: 'persistentvolumeclaims' },
+  deployment: { groups: ['apps', 'extensions'], v8name: 'deployments' },
+  replicaset: { groups: ['apps', 'extensions'], v8name: 'replicasets' },
+  statefulset: { groups: ['apps'], v8name: 'statefulsets' },
+  daemonset: { groups: ['apps', 'extensions'], v8name: 'daemonsets' },
+  clusterrole: {
+    groups: ['rbac.authorization.k8s.io'],
+    v8name: 'clusterroles',
+  },
+  kube_role: { groups: ['rbac.authorization.k8s.io'], v8name: 'roles' },
+  clusterrolebinding: {
+    groups: ['rbac.authorization.k8s.io'],
+    v8name: 'clusterrolebindings',
+  },
+  rolebinding: {
+    groups: ['rbac.authorization.k8s.io'],
+    v8name: 'rolebindings',
+  },
+  cronjob: { groups: ['batch'], v8name: 'cronjobs' },
+  job: { groups: ['batch'], v8name: 'jobs' },
+  certificatesigningrequest: {
+    groups: ['certificates.k8s.io'],
+    v8name: 'certificatesigningrequests',
+  },
+  ingress: { groups: ['networking.k8s.io', 'extensions'], v8name: 'ingresses' },
+} as const;
+
+/**
+ * Some of the possible values for the Kubernetes resource kind drop-down.
+ * Arbitrary list, only preset for the sake of the UI.
+ */
+export const kubernetesResourceKindOptionsV8: KubernetesResourceKindOption[] = [
+  // The "any kind" option goes first.
+  { value: '*', label: 'Any kind' },
+
+  // The rest is sorted by label.
+  ...(
+    [
+      { value: 'pods', label: 'pods' },
+      { value: 'secrets', label: 'secrets' },
+      { value: 'configmaps', label: 'configmaps' },
+      { value: 'namespaces', label: 'namespaces' },
+      { value: 'services', label: 'services' },
+      { value: 'serviceaccounts', label: 'serviceaccounts' },
+      { value: 'nodes', label: 'nodes' },
+      { value: 'persistentvolumes', label: 'persistentvolumes' },
+      { value: 'persistentvolumeclaims', label: 'persistentvolumeclaims' },
+      { value: 'deployments', label: 'deployments' },
+      { value: 'replicasets', label: 'replicasets' },
+      { value: 'statefulsets', label: 'statefulsets' },
+      { value: 'daemonsets', label: 'daemonsets' },
+      { value: 'clusterroles', label: 'clusterroles' },
+      { value: 'roles', label: 'roles' },
+      { value: 'clusterrolebindings', label: 'clusterrolebindings' },
+      { value: 'rolebindings', label: 'rolebindings' },
+      { value: 'cronjobs', label: 'cronjobs' },
+      { value: 'jobs', label: 'jobs' },
+      {
+        value: 'certificatesigningrequests',
+        label: 'certificatesigningrequests',
+      },
+      { value: 'ingresses', label: 'ingresses' },
+    ] as const
+  ).toSorted((a, b) => a.label.localeCompare(b.label)),
+];
+
 const optionsToMap = <K, V>(opts: Option<K, V>[]) =>
   new Map(opts.map(o => [o.value, o]));
 
-export const kubernetesResourceKindOptionsMap = optionsToMap(
-  kubernetesResourceKindOptions
+export const kubernetesResourceKindOptionsMapV7 = optionsToMap(
+  kubernetesResourceKindOptionsV7
 );
 
 export type KubernetesVerbOption = Option<KubernetesVerb, string>;
@@ -309,6 +400,7 @@ export type AppAccess = ResourceAccessBase<'app'> & {
   awsRoleARNs: string[];
   azureIdentities: string[];
   gcpServiceAccounts: string[];
+  mcpTools: string[];
 };
 
 export type DatabaseAccess = ResourceAccessBase<'db'> & {
@@ -458,7 +550,7 @@ export const roleVersionOptions = Object.values(RoleVersion)
   .map(o => ({ value: o, label: o }));
 export const roleVersionOptionsMap = optionsToMap(roleVersionOptions);
 
-export const defaultRoleVersion = RoleVersion.V7;
+export const defaultRoleVersion = RoleVersion.V8;
 
 /**
  * Returns the role object with required fields defined with empty values.
@@ -472,7 +564,7 @@ export function newRole(): Role {
     spec: {
       allow: {},
       deny: {},
-      options: defaultOptions(),
+      options: defaultOptions(defaultRoleVersion),
     },
     version: defaultRoleVersion,
   };
@@ -542,6 +634,7 @@ export function newResourceAccess(
         awsRoleARNs: ['{{internal.aws_role_arns}}'],
         azureIdentities: ['{{internal.azure_identities}}'],
         gcpServiceAccounts: ['{{internal.gcp_service_accounts}}'],
+        mcpTools: ['{{internal.mcp_tools}}'],
         hideValidationErrors: true,
       };
     case 'db':
@@ -572,15 +665,26 @@ export function newResourceAccess(
   }
 }
 
+export function supportsKubernetesCustomResources(roleVersion: RoleVersion) {
+  return ![
+    RoleVersion.V3,
+    RoleVersion.V4,
+    RoleVersion.V5,
+    RoleVersion.V6,
+    RoleVersion.V7,
+  ].includes(roleVersion);
+}
+
 export function newKubernetesResourceModel(
   roleVersion: RoleVersion
 ): KubernetesResourceModel {
   return {
     id: crypto.randomUUID(),
-    kind: kubernetesResourceKindOptions.find(k => k.value === '*'),
+    kind: kubernetesResourceKindOptionsV7.find(k => k.value === '*'),
     name: '*',
     namespace: '*',
     verbs: [],
+    apiGroup: supportsKubernetesCustomResources(roleVersion) ? '*' : '',
     roleVersion,
   };
 }
@@ -610,7 +714,7 @@ export function roleToRoleEditorModel(
   // We use destructuring to strip fields from objects and assert that nothing
   // has been left. Therefore, we don't want Lint to warn us that we didn't use
   // some of the fields.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const { kind, metadata, spec, version, ...unsupported } = role;
   conversionErrors.push(...unsupportedFieldErrorsFromObject('', unsupported));
 
@@ -629,7 +733,7 @@ export function roleToRoleEditorModel(
   const versionOption = getOptionOrPushError(
     version,
     roleVersionOptionsMap,
-    RoleVersion.V7,
+    RoleVersion.V8,
     'version',
     conversionErrors
   );
@@ -649,7 +753,7 @@ export function roleToRoleEditorModel(
   conversionErrors.push(...allowConversionErrors);
 
   const { model: optionsModel, conversionErrors: optionsConversionErrors } =
-    optionsToModel(options, 'spec.options');
+    optionsToModel(version, options, 'spec.options');
   conversionErrors.push(...optionsConversionErrors);
 
   return {
@@ -715,6 +819,9 @@ function roleConditionsToModel(
     // Admin rules
     rules,
 
+    // MCP permissions
+    mcp,
+
     ...unsupported
   } = conditions;
   conversionErrors.push(
@@ -770,12 +877,16 @@ function roleConditionsToModel(
   const awsRoleARNsModel = aws_role_arns ?? [];
   const azureIdentitiesModel = azure_identities ?? [];
   const gcpServiceAccountsModel = gcp_service_accounts ?? [];
+  const { model: mcpToolsModel, conversionErrors: mcpToolsConversionErrors } =
+    mcpToolsToModel(mcp || {}, `${pathPrefix}.mcp`);
+  conversionErrors.push(...mcpToolsConversionErrors);
   if (
     someNonEmpty(
       appLabelsModel,
       awsRoleARNsModel,
       azureIdentitiesModel,
-      gcpServiceAccountsModel
+      gcpServiceAccountsModel,
+      mcpToolsModel
     )
   ) {
     resources.push({
@@ -784,6 +895,7 @@ function roleConditionsToModel(
       awsRoleARNs: awsRoleARNsModel,
       azureIdentities: azureIdentitiesModel,
       gcpServiceAccounts: gcpServiceAccountsModel,
+      mcpTools: mcpToolsModel,
       hideValidationErrors: false,
     });
   }
@@ -908,17 +1020,40 @@ function kubernetesResourceToModel(
   model?: KubernetesResourceModel;
   conversionErrors: ConversionError[];
 } {
-  const { kind, name, namespace = '', verbs = [], ...unsupported } = res;
+  const {
+    kind,
+    name,
+    namespace = '',
+    verbs = [],
+    api_group: apiGroup,
+    ...unsupported
+  } = res;
   const conversionErrors = unsupportedFieldErrorsFromObject(
     pathPrefix,
     unsupported
   );
 
-  const kindOption = kubernetesResourceKindOptionsMap.get(kind);
-  if (kindOption === undefined) {
+  const supportsCrds = supportsKubernetesCustomResources(roleVersion);
+  const kindOption = supportsCrds
+    ? { value: kind, label: kind }
+    : kubernetesResourceKindOptionsMapV7.get(kind);
+
+  if (supportsCrds) {
+    // If we have an exact match with a v7 entry, it is most likely a mistake.
+    const v7groups = kubernetesResourceKindV7Groups[kind];
+    if (v7groups && (apiGroup == '*' || v7groups.groups.includes(apiGroup))) {
+      kindOption.value = v7groups.v8name;
+      kindOption.label = v7groups.v8name;
+      conversionErrors.push(
+        unsupportedValueWithReplacement(`${pathPrefix}.kind`, v7groups.v8name)
+      );
+    }
+  }
+
+  if (!kindOption) {
     conversionErrors.push({
       type: ConversionErrorType.UnsupportedValue,
-      path: pathPrefix,
+      path: `${pathPrefix}.kind`,
     });
   }
 
@@ -945,9 +1080,24 @@ function kubernetesResourceToModel(
             namespace,
             verbs: knownVerbOptions,
             roleVersion,
+            apiGroup,
           }
         : undefined,
     conversionErrors,
+  };
+}
+
+export function mcpToolsToModel(
+  mcpPermissions: MCPPermissions,
+  pathPrefix: string
+): {
+  model: string[];
+  conversionErrors: ConversionError[];
+} {
+  const { tools, ...unsupported } = mcpPermissions;
+  return {
+    model: tools || [],
+    conversionErrors: unsupportedFieldErrorsFromObject(pathPrefix, unsupported),
   };
 }
 
@@ -1128,13 +1278,14 @@ const uneditableOptionKeys: (keyof RoleOptions)[] = [
 ];
 
 function optionsToModel(
+  roleVersion: RoleVersion,
   options: RoleOptions,
   pathPrefix: string
 ): {
   model: OptionsModel;
   conversionErrors: ConversionError[];
 } {
-  const defaultOpts = defaultOptions();
+  const defaultOpts = defaultOptions(roleVersion);
   const conversionErrors: ConversionError[] = [];
   const {
     // Customizable options.
@@ -1155,8 +1306,13 @@ function optionsToModel(
 
     ...unsupported
   } = options;
-
   for (const key of uneditableOptionKeys) {
+    // delete saml idp option for role v8 and above as it
+    // is no longer supported.
+    if (!isLegacySamlIdpRbac(roleVersion) && key === 'idp') {
+      delete unsupported[key];
+      continue;
+    }
     // Report uneditable options as errors if they diverge from their defaults.
     if (!equalsDeep(options[key], defaultOpts[key])) {
       conversionErrors.push(
@@ -1362,7 +1518,7 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
     spec: {
       allow: {},
       deny: {},
-      options: optionsModelToRoleOptions(roleModel.options),
+      options: optionsModelToRoleOptions(version.value, roleModel.options),
     },
     version: version.value,
   };
@@ -1379,11 +1535,12 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
         role.spec.allow.kubernetes_groups = optionsToStrings(res.groups);
         role.spec.allow.kubernetes_labels = labelsModelToLabels(res.labels);
         role.spec.allow.kubernetes_resources = res.resources.map(
-          ({ kind, name, namespace, verbs }) => ({
+          ({ kind, name, namespace, verbs, apiGroup }) => ({
             kind: kind.value,
             name,
             namespace,
             verbs: optionsToStrings(verbs),
+            api_group: apiGroup,
           })
         );
         role.spec.allow.kubernetes_users = optionsToStrings(res.users);
@@ -1394,6 +1551,12 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
         role.spec.allow.aws_role_arns = res.awsRoleARNs;
         role.spec.allow.azure_identities = res.azureIdentities;
         role.spec.allow.gcp_service_accounts = res.gcpServiceAccounts;
+        if (res.mcpTools.length > 0) {
+          if (role.spec.allow.mcp === undefined) {
+            role.spec.allow.mcp = {};
+          }
+          role.spec.allow.mcp.tools = res.mcpTools;
+        }
         break;
 
       case 'db':
@@ -1456,9 +1619,12 @@ export function labelsModelToLabels(uiLabels: UILabel[]): Labels {
   return labels;
 }
 
-function optionsModelToRoleOptions(model: OptionsModel): RoleOptions {
+function optionsModelToRoleOptions(
+  roleVersion: RoleVersion,
+  model: OptionsModel
+): RoleOptions {
   const options = {
-    ...defaultOptions(),
+    ...defaultOptions(roleVersion),
 
     // Note: technically, coercing the optional fields to undefined is not
     // necessary, but it's easier to test it this way, since we achieve

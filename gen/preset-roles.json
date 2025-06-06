@@ -145,7 +145,12 @@
               "{{internal.github_orgs}}"
             ]
           }
-        ]
+        ],
+        "mcp": {
+          "tools": [
+            "{{internal.mcp_tools}}"
+          ]
+        }
       },
       "deny": {}
     }
@@ -1073,6 +1078,42 @@
           {
             "resources": [
               "health_check_config"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "sigstore_policy"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "workload_identity_x509_issuer_override"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "workload_identity_x509_issuer_override_csr"
             ],
             "verbs": [
               "list",

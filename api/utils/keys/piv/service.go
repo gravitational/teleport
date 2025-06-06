@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"sync"
 
 	"github.com/go-piv/piv-go/piv"
@@ -43,8 +42,15 @@ var yubiKeyServiceMu sync.Mutex
 
 // YubiKeyService is a YubiKey PIV implementation of [hardwarekey.Service].
 type YubiKeyService struct {
-	prompt   hardwarekey.Prompt
+	prompt hardwarekey.Prompt
+	// TODO(Joerger): Remove prompt mutex once there is no longer a shared global service
+	// that needs its protection.
 	promptMu sync.Mutex
+
+	// signMu prevents prompting for PIN/touch repeatedly for concurrent signatures.
+	// TODO(Joerger): Rather than preventing concurrent signatures, we can make the
+	// PIN and touch prompts durable to concurrent signatures.
+	signMu sync.Mutex
 
 	// yubiKeys is a shared, thread-safe [YubiKey] cache by serial number. It allows for
 	// separate goroutines to share a YubiKey connection to work around the single PC/SC
@@ -64,7 +70,7 @@ func NewYubiKeyService(customPrompt hardwarekey.Prompt) *YubiKeyService {
 	if yubiKeyService != nil {
 		// If a prompt is provided, prioritize it over the existing prompt value.
 		if customPrompt != nil {
-			yubiKeyService.prompt = customPrompt
+			yubiKeyService.setPrompt(customPrompt)
 		}
 		return yubiKeyService
 	}
@@ -112,43 +118,56 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 	}
 
 	// If PIN is required, check that PIN and PUK are not the defaults.
+	// This also caches the PIN in the PIV connection, similar to a call
+	// to [hardwarekey.Signer.WarmupHardwareKey].
 	if config.Policy.PINRequired {
-		if err := s.checkOrSetPIN(ctx, y, config.ContextualKeyInfo); err != nil {
+		if err := y.checkOrSetPIN(ctx, s.getPrompt(), config.ContextualKeyInfo, config.PINCacheTTL); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	generatePrivateKey := func() (*hardwarekey.Signer, error) {
-		ref, err := y.generatePrivateKey(pivSlot, config.Policy, config.Algorithm)
+		ref, err := y.generatePrivateKey(pivSlot, config.Policy, config.Algorithm, config.PINCacheTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return hardwarekey.NewSigner(s, ref, config.ContextualKeyInfo), nil
+
+		signer := hardwarekey.NewSigner(s, ref, config.ContextualKeyInfo)
+		if config.Policy.TouchRequired {
+			// Warmup the hardware key with a touch prompt now rather than later. This is intended
+			// to avoid prompting for PIV touch directly after a WebAuthn touch prompt, which
+			// can delay the PIV signature and beyond the expected [sigsignTouchPromptDelay].
+			if err := signer.WarmupHardwareKey(ctx); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		return signer, nil
 	}
 
 	// If a custom slot was not specified, check for a key in the
 	// default slot for the given policy and generate a new one if needed.
 	if config.CustomSlot == "" {
-		switch cert, err := y.getCertificate(pivSlot); {
-		case errors.Is(err, piv.ErrNotFound):
+		switch err := y.checkCertificate(pivSlot); {
+		case trace.IsNotFound(err):
+			return generatePrivateKey()
+
+		// Unknown cert found, this slot could be in use by a non-teleport client.
+		// Prompt the user before we overwrite the slot.
+		case errors.As(err, &nonTeleportCertError{}):
+			if err := s.promptOverwriteSlot(ctx, err.Error(), config.ContextualKeyInfo); err != nil {
+				return nil, trace.Wrap(err)
+			}
 			return generatePrivateKey()
 
 		case err != nil:
 			return nil, trace.Wrap(err)
-
-		// Unknown cert found, this slot could be in use by a non-teleport client.
-		// Prompt the user before we overwrite the slot.
-		case !isTeleportMetadataCertificate(cert):
-			if err := s.promptOverwriteSlot(ctx, nonTeleportCertificateMessage(pivSlot, cert), config.ContextualKeyInfo); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return generatePrivateKey()
 		}
 	}
 
 	// Check for an existing key in the slot that satisfies the required
 	// prompt policy, or generate a new one if needed.
-	keyRef, err := y.getKeyRef(pivSlot)
+	keyRef, err := y.getKeyRef(pivSlot, config.PINCacheTTL)
 	switch {
 	case errors.Is(err, piv.ErrNotFound):
 		return generatePrivateKey()
@@ -171,7 +190,17 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 		return generatePrivateKey()
 	}
 
-	return hardwarekey.NewSigner(s, keyRef, config.ContextualKeyInfo), nil
+	signer := hardwarekey.NewSigner(s, keyRef, config.ContextualKeyInfo)
+	if config.Policy.TouchRequired {
+		// Warmup the hardware key with a touch prompt now rather than later. This is intended
+		// to avoid prompting for PIV touch directly after a WebAuthn touch prompt, which
+		// can delay the PIV signature and beyond the expected [sigsignTouchPromptDelay].
+		if err := signer.WarmupHardwareKey(ctx); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return signer, nil
 }
 
 // Sign performs a cryptographic signature using the specified hardware
@@ -182,10 +211,33 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 		return nil, trace.Wrap(err)
 	}
 
-	s.promptMu.Lock()
-	defer s.promptMu.Unlock()
+	pivSlot, err := parsePIVSlot(ref.SlotKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return y.sign(ctx, ref, keyInfo, s.prompt, rand, digest, opts)
+	// Check that the public key in the slot matches our record.
+	publicKey, err := y.getPublicKey(pivSlot)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !publicKey.Equal(ref.PublicKey) {
+		return nil, trace.CompareFailed("public key mismatch on PIV slot 0x%x", pivSlot.Key)
+	}
+
+	// If the sign request is for an unknown agent key, ensure that the requested PIV slot was
+	// configured with a self-signed Teleport metadata certificate.
+	if keyInfo.AgentKeyInfo.UnknownAgentKey {
+		switch err := y.checkCertificate(pivSlot); {
+		case trace.IsNotFound(err), errors.As(err, &nonTeleportCertError{}):
+			return nil, trace.Wrap(err, agentRequiresTeleportCertMessage)
+		case err != nil:
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return y.sign(ctx, ref, keyInfo, s.getPrompt(), rand, digest, opts)
 }
 
 // TODO(Joerger): Re-attesting the key every time we decode a hardware key signer is very resource
@@ -227,27 +279,13 @@ func (s *YubiKeyService) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.
 		return nil, trace.Wrap(err)
 	}
 
-	ref, err := y.getKeyRef(pivSlot)
+	ref, err := y.getKeyRef(pivSlot, 0 /*PIN is not cached for out-of-date client keys*/)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	keyRefs[baseRef] = ref
 	return ref, nil
-}
-
-// SetPrompt sets the hardware key prompt used by the service.
-func (s *YubiKeyService) SetPrompt(prompt hardwarekey.Prompt) {
-	s.promptMu.Lock()
-	defer s.promptMu.Unlock()
-	s.prompt = prompt
-}
-
-// GetPrompt gets the hardware key prompt used by the service.
-func (s *YubiKeyService) GetPrompt() hardwarekey.Prompt {
-	s.promptMu.Lock()
-	defer s.promptMu.Unlock()
-	return s.prompt
 }
 
 // Get the given YubiKey with the serial number. If the provided serialNumber is "0",
@@ -269,41 +307,24 @@ func (s *YubiKeyService) getYubiKey(serialNumber uint32) (*YubiKey, error) {
 	return y, nil
 }
 
-// checkOrSetPIN prompts the user for PIN and verifies it with the YubiKey.
-// If the user provides the default PIN, they will be prompted to set a
-// non-default PIN and PUK before continuing.
-func (s *YubiKeyService) checkOrSetPIN(ctx context.Context, y *YubiKey, keyInfo hardwarekey.ContextualKeyInfo) error {
-	s.promptMu.Lock()
-	defer s.promptMu.Unlock()
-
-	pin, err := s.prompt.AskPIN(ctx, hardwarekey.PINOptional, keyInfo)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	switch pin {
-	case piv.DefaultPIN:
-		fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", piv.DefaultPIN)
-		fallthrough
-	case "":
-		pin, err = y.setPINAndPUKFromDefault(ctx, s.prompt, keyInfo)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return trace.Wrap(y.verifyPIN(pin))
-}
-
 func (s *YubiKeyService) promptOverwriteSlot(ctx context.Context, msg string, keyInfo hardwarekey.ContextualKeyInfo) error {
-	s.promptMu.Lock()
-	defer s.promptMu.Unlock()
-
 	promptQuestion := fmt.Sprintf("%v\nWould you like to overwrite this slot's private key and certificate?", msg)
-	if confirmed, confirmErr := s.prompt.ConfirmSlotOverwrite(ctx, promptQuestion, keyInfo); confirmErr != nil {
+	if confirmed, confirmErr := s.getPrompt().ConfirmSlotOverwrite(ctx, promptQuestion, keyInfo); confirmErr != nil {
 		return trace.Wrap(confirmErr)
 	} else if !confirmed {
 		return trace.Wrap(trace.CompareFailed(msg), "user declined to overwrite slot")
 	}
 	return nil
+}
+
+func (s *YubiKeyService) setPrompt(prompt hardwarekey.Prompt) {
+	s.promptMu.Lock()
+	defer s.promptMu.Unlock()
+	s.prompt = prompt
+}
+
+func (s *YubiKeyService) getPrompt() hardwarekey.Prompt {
+	s.promptMu.Lock()
+	defer s.promptMu.Unlock()
+	return s.prompt
 }

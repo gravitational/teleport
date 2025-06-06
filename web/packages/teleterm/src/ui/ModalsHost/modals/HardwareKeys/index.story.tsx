@@ -27,11 +27,29 @@ import { Touch as TouchComponent } from './Touch';
 
 const rootCluster = makeRootCluster();
 
-export default {
-  title: 'Teleterm/ModalsHost/HardwareKeys',
-} satisfies Meta;
+interface StoryProps {
+  command: boolean;
+}
 
-export function AskPinOptional() {
+const meta: Meta<StoryProps> = {
+  title: 'Teleterm/ModalsHost/HardwareKeys',
+  argTypes: {
+    command: {
+      control: { type: 'boolean' },
+      description: 'Show a command when asked for pin or touch.',
+    },
+  },
+  args: {
+    command: true,
+  },
+};
+
+export default meta;
+
+const longCommand =
+  'tsh ssh -X --forward-agent=yes --proxy=root.example.com --user=testuser';
+
+export function AskPinOptional(props: StoryProps) {
   return (
     <AskPinComponent
       onSuccess={() => {}}
@@ -39,13 +57,13 @@ export function AskPinOptional() {
       req={{
         proxyHostname: rootCluster.proxyHost,
         pinOptional: true,
-        command: '',
+        command: props.command ? longCommand : '',
       }}
     />
   );
 }
 
-export function AskPinRequired() {
+export function AskPinRequired(props: StoryProps) {
   return (
     <AskPinComponent
       onSuccess={() => {}}
@@ -53,19 +71,19 @@ export function AskPinRequired() {
       req={{
         proxyHostname: rootCluster.proxyHost,
         pinOptional: false,
-        command: '',
+        command: props.command ? longCommand : '',
       }}
     />
   );
 }
 
-export function Touch() {
+export function Touch(props: StoryProps) {
   return (
     <TouchComponent
       onCancel={() => {}}
       req={{
         proxyHostname: rootCluster.proxyHost,
-        command: '',
+        command: props.command ? longCommand : '',
       }}
     />
   );

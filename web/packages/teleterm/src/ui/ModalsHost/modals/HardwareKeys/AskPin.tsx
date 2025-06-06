@@ -18,7 +18,7 @@
 
 import { useState } from 'react';
 
-import { ButtonPrimary, Flex, P2 } from 'design';
+import { ButtonPrimary, P2, Stack } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
@@ -27,6 +27,8 @@ import { PromptHardwareKeyPINRequest } from 'gen-proto-ts/teleport/lib/teleterm/
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
+
+import { CliCommand } from 'teleterm/ui/components/CliCommand';
 
 import { CommonHeader } from './CommonHeader';
 
@@ -62,21 +64,16 @@ export function AskPin(props: {
             />
 
             <DialogContent mb={4}>
-              <Flex flexDirection="column" gap={4} alignItems="flex-start">
-                <P2 color="text.slightlyMuted">
+              <Stack>
+                <P2>
                   Enter your YubiKey PIV PIN to continue
-                  {props.req.command && (
-                    <>
-                      {' with command:'}
-                      <pre>{props.req.command}</pre>
-                    </>
-                  )}
-                  <br />
-                  {props.req.pinOptional &&
-                    'To change the default PIN, leave the field blank.'}
+                  {props.req.command ? ' with command:' : '.'}
                 </P2>
-
+                {props.req.command && (
+                  <CliCommand cliCommand={props.req.command} wrapContent />
+                )}
                 <FieldInput
+                  mt={3}
                   flex="1"
                   autoFocus
                   type="password"
@@ -91,7 +88,11 @@ export function AskPin(props: {
                   placeholder="123 456"
                   mb={0}
                 />
-              </Flex>
+                <P2 color="text.slightlyMuted">
+                  {props.req.pinOptional &&
+                    'To change the default PIN, leave the field blank.'}
+                </P2>
+              </Stack>
             </DialogContent>
 
             <DialogFooter>

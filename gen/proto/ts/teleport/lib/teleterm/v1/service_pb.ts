@@ -43,6 +43,7 @@ import { Kube } from "./kube_pb";
 import { Database } from "./database_pb";
 import { Server } from "./server_pb";
 import { Gateway } from "./gateway_pb";
+import { DatabaseServer } from "./database_pb";
 import { Cluster } from "./cluster_pb";
 import { KubeResource } from "./kube_pb";
 import { AccessList } from "../../../accesslist/v1/accesslist_pb";
@@ -701,6 +702,60 @@ export interface ListDatabaseUsersResponse {
     users: string[];
 }
 /**
+ * ListResourcesParams describes different types of params
+ * that can be applied when sending a request to a method that
+ * uses the ListResources API underneath.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.ListResourcesParams
+ */
+export interface ListResourcesParams {
+    /**
+     * @generated from protobuf field: string start_key = 1;
+     */
+    startKey: string;
+    /**
+     * @generated from protobuf field: int32 limit = 2;
+     */
+    limit: number;
+    /**
+     * @generated from protobuf field: string predicate_expression = 3;
+     */
+    predicateExpression: string;
+    /**
+     * UseSearchAsRoles indicates that the response should include all resources
+     * the caller is able to request access to using search_as_roles
+     *
+     * @generated from protobuf field: bool use_search_as_roles = 4;
+     */
+    useSearchAsRoles: boolean;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.ListDatabaseServersRequest
+ */
+export interface ListDatabaseServersRequest {
+    /**
+     * @generated from protobuf field: string cluster_uri = 1;
+     */
+    clusterUri: string;
+    /**
+     * @generated from protobuf field: teleport.lib.teleterm.v1.ListResourcesParams params = 2;
+     */
+    params?: ListResourcesParams;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.ListDatabaseServersResponse
+ */
+export interface ListDatabaseServersResponse {
+    /**
+     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.DatabaseServer resources = 1;
+     */
+    resources: DatabaseServer[];
+    /**
+     * @generated from protobuf field: string next_key = 2;
+     */
+    nextKey: string;
+}
+/**
  * @generated from protobuf message teleport.lib.teleterm.v1.CreateGatewayRequest
  */
 export interface CreateGatewayRequest {
@@ -769,56 +824,6 @@ export interface SetGatewayLocalPortRequest {
      * @generated from protobuf field: string local_port = 2;
      */
     localPort: string;
-}
-/**
- * @generated from protobuf message teleport.lib.teleterm.v1.GetServersRequest
- */
-export interface GetServersRequest {
-    /**
-     * @generated from protobuf field: string cluster_uri = 1;
-     */
-    clusterUri: string;
-    /**
-     * @generated from protobuf field: int32 limit = 2;
-     */
-    limit: number;
-    /**
-     * @generated from protobuf field: string start_key = 3;
-     */
-    startKey: string;
-    /**
-     * @generated from protobuf field: string search = 4;
-     */
-    search: string;
-    /**
-     * @generated from protobuf field: string query = 5;
-     */
-    query: string;
-    /**
-     * @generated from protobuf field: string sort_by = 6;
-     */
-    sortBy: string;
-    /**
-     * @generated from protobuf field: string search_as_roles = 7;
-     */
-    searchAsRoles: string;
-}
-/**
- * @generated from protobuf message teleport.lib.teleterm.v1.GetServersResponse
- */
-export interface GetServersResponse {
-    /**
-     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.Server agents = 1;
-     */
-    agents: Server[];
-    /**
-     * @generated from protobuf field: int32 total_count = 2;
-     */
-    totalCount: number;
-    /**
-     * @generated from protobuf field: string start_key = 3;
-     */
-    startKey: string;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.GetAuthSettingsRequest
@@ -1046,7 +1051,7 @@ export interface ListUnifiedResourcesResponse {
      */
     resources: PaginatedResource[];
     /**
-     * A key to use as start_key in a ListResourcesRequest to continue retrieving
+     * A key to use as start_key in a ListUnifiedResourcesRequest to continue retrieving
      * the next pages. If it is empty, there are no more pages.
      *
      * @generated from protobuf field: string next_key = 2;
@@ -1203,6 +1208,90 @@ export interface GetAppResponse {
      * @generated from protobuf field: teleport.lib.teleterm.v1.App app = 1;
      */
     app?: App;
+}
+/**
+ * TargetDesktop contains information about the destination desktop.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.TargetDesktop
+ */
+export interface TargetDesktop {
+    /**
+     * URI of the desktop to connect to.
+     *
+     * @generated from protobuf field: string desktop_uri = 1;
+     */
+    desktopUri: string;
+    /**
+     * Login for the desktop session.
+     *
+     * @generated from protobuf field: string login = 2;
+     */
+    login: string;
+}
+/**
+ * Request for ConnectToDesktop.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.ConnectToDesktopRequest
+ */
+export interface ConnectToDesktopRequest {
+    /**
+     * Data is a TDP (Teleport Desktop Protocol) message sent from the client to the desktop service.
+     * Must be empty in the first message and nonempty in subsequent messages.
+     *
+     * @generated from protobuf field: bytes data = 1;
+     */
+    data: Uint8Array;
+    /**
+     * Target desktop and login. Must be set in the first message and unset in subsequent messages.
+     *
+     * @generated from protobuf field: teleport.lib.teleterm.v1.TargetDesktop target_desktop = 2;
+     */
+    targetDesktop?: TargetDesktop;
+}
+/**
+ * Response for ConnectToDesktop.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.ConnectToDesktopResponse
+ */
+export interface ConnectToDesktopResponse {
+    /**
+     * Data is a TDP (Teleport Desktop Protocol) message sent from the desktop service to the client.
+     *
+     * @generated from protobuf field: bytes data = 1;
+     */
+    data: Uint8Array;
+}
+/**
+ * Request for SetSharedDirectoryForDesktopSession.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest
+ */
+export interface SetSharedDirectoryForDesktopSessionRequest {
+    /**
+     * URI of the desktop.
+     *
+     * @generated from protobuf field: string desktop_uri = 1;
+     */
+    desktopUri: string;
+    /**
+     * Login for the desktop session.
+     *
+     * @generated from protobuf field: string login = 2;
+     */
+    login: string;
+    /**
+     * Path to share with a remote machine. Must be a directory.
+     *
+     * @generated from protobuf field: string path = 3;
+     */
+    path: string;
+}
+/**
+ * Response for SetSharedDirectoryForDesktopSession.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
+ */
+export interface SetSharedDirectoryForDesktopSessionResponse {
 }
 /**
  * PasswordlessPrompt describes different prompts we need from users
@@ -3487,6 +3576,186 @@ class ListDatabaseUsersResponse$Type extends MessageType<ListDatabaseUsersRespon
  */
 export const ListDatabaseUsersResponse = new ListDatabaseUsersResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class ListResourcesParams$Type extends MessageType<ListResourcesParams> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ListResourcesParams", [
+            { no: 1, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "limit", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 3, name: "predicate_expression", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "use_search_as_roles", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ListResourcesParams>): ListResourcesParams {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.startKey = "";
+        message.limit = 0;
+        message.predicateExpression = "";
+        message.useSearchAsRoles = false;
+        if (value !== undefined)
+            reflectionMergePartial<ListResourcesParams>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListResourcesParams): ListResourcesParams {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string start_key */ 1:
+                    message.startKey = reader.string();
+                    break;
+                case /* int32 limit */ 2:
+                    message.limit = reader.int32();
+                    break;
+                case /* string predicate_expression */ 3:
+                    message.predicateExpression = reader.string();
+                    break;
+                case /* bool use_search_as_roles */ 4:
+                    message.useSearchAsRoles = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListResourcesParams, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string start_key = 1; */
+        if (message.startKey !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.startKey);
+        /* int32 limit = 2; */
+        if (message.limit !== 0)
+            writer.tag(2, WireType.Varint).int32(message.limit);
+        /* string predicate_expression = 3; */
+        if (message.predicateExpression !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.predicateExpression);
+        /* bool use_search_as_roles = 4; */
+        if (message.useSearchAsRoles !== false)
+            writer.tag(4, WireType.Varint).bool(message.useSearchAsRoles);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListResourcesParams
+ */
+export const ListResourcesParams = new ListResourcesParams$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListDatabaseServersRequest$Type extends MessageType<ListDatabaseServersRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ListDatabaseServersRequest", [
+            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "params", kind: "message", T: () => ListResourcesParams }
+        ]);
+    }
+    create(value?: PartialMessage<ListDatabaseServersRequest>): ListDatabaseServersRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.clusterUri = "";
+        if (value !== undefined)
+            reflectionMergePartial<ListDatabaseServersRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListDatabaseServersRequest): ListDatabaseServersRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string cluster_uri */ 1:
+                    message.clusterUri = reader.string();
+                    break;
+                case /* teleport.lib.teleterm.v1.ListResourcesParams params */ 2:
+                    message.params = ListResourcesParams.internalBinaryRead(reader, reader.uint32(), options, message.params);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListDatabaseServersRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string cluster_uri = 1; */
+        if (message.clusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
+        /* teleport.lib.teleterm.v1.ListResourcesParams params = 2; */
+        if (message.params)
+            ListResourcesParams.internalBinaryWrite(message.params, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListDatabaseServersRequest
+ */
+export const ListDatabaseServersRequest = new ListDatabaseServersRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListDatabaseServersResponse$Type extends MessageType<ListDatabaseServersResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ListDatabaseServersResponse", [
+            { no: 1, name: "resources", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => DatabaseServer },
+            { no: 2, name: "next_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ListDatabaseServersResponse>): ListDatabaseServersResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.resources = [];
+        message.nextKey = "";
+        if (value !== undefined)
+            reflectionMergePartial<ListDatabaseServersResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListDatabaseServersResponse): ListDatabaseServersResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated teleport.lib.teleterm.v1.DatabaseServer resources */ 1:
+                    message.resources.push(DatabaseServer.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string next_key */ 2:
+                    message.nextKey = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListDatabaseServersResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated teleport.lib.teleterm.v1.DatabaseServer resources = 1; */
+        for (let i = 0; i < message.resources.length; i++)
+            DatabaseServer.internalBinaryWrite(message.resources[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* string next_key = 2; */
+        if (message.nextKey !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.nextKey);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListDatabaseServersResponse
+ */
+export const ListDatabaseServersResponse = new ListDatabaseServersResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class CreateGatewayRequest$Type extends MessageType<CreateGatewayRequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.CreateGatewayRequest", [
@@ -3786,164 +4055,6 @@ class SetGatewayLocalPortRequest$Type extends MessageType<SetGatewayLocalPortReq
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.SetGatewayLocalPortRequest
  */
 export const SetGatewayLocalPortRequest = new SetGatewayLocalPortRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class GetServersRequest$Type extends MessageType<GetServersRequest> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.GetServersRequest", [
-            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "limit", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 3, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "search", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "query", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 6, name: "sort_by", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 7, name: "search_as_roles", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<GetServersRequest>): GetServersRequest {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.clusterUri = "";
-        message.limit = 0;
-        message.startKey = "";
-        message.search = "";
-        message.query = "";
-        message.sortBy = "";
-        message.searchAsRoles = "";
-        if (value !== undefined)
-            reflectionMergePartial<GetServersRequest>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetServersRequest): GetServersRequest {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string cluster_uri */ 1:
-                    message.clusterUri = reader.string();
-                    break;
-                case /* int32 limit */ 2:
-                    message.limit = reader.int32();
-                    break;
-                case /* string start_key */ 3:
-                    message.startKey = reader.string();
-                    break;
-                case /* string search */ 4:
-                    message.search = reader.string();
-                    break;
-                case /* string query */ 5:
-                    message.query = reader.string();
-                    break;
-                case /* string sort_by */ 6:
-                    message.sortBy = reader.string();
-                    break;
-                case /* string search_as_roles */ 7:
-                    message.searchAsRoles = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: GetServersRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string cluster_uri = 1; */
-        if (message.clusterUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
-        /* int32 limit = 2; */
-        if (message.limit !== 0)
-            writer.tag(2, WireType.Varint).int32(message.limit);
-        /* string start_key = 3; */
-        if (message.startKey !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.startKey);
-        /* string search = 4; */
-        if (message.search !== "")
-            writer.tag(4, WireType.LengthDelimited).string(message.search);
-        /* string query = 5; */
-        if (message.query !== "")
-            writer.tag(5, WireType.LengthDelimited).string(message.query);
-        /* string sort_by = 6; */
-        if (message.sortBy !== "")
-            writer.tag(6, WireType.LengthDelimited).string(message.sortBy);
-        /* string search_as_roles = 7; */
-        if (message.searchAsRoles !== "")
-            writer.tag(7, WireType.LengthDelimited).string(message.searchAsRoles);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetServersRequest
- */
-export const GetServersRequest = new GetServersRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class GetServersResponse$Type extends MessageType<GetServersResponse> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.GetServersResponse", [
-            { no: 1, name: "agents", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Server },
-            { no: 2, name: "total_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 3, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<GetServersResponse>): GetServersResponse {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.agents = [];
-        message.totalCount = 0;
-        message.startKey = "";
-        if (value !== undefined)
-            reflectionMergePartial<GetServersResponse>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetServersResponse): GetServersResponse {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* repeated teleport.lib.teleterm.v1.Server agents */ 1:
-                    message.agents.push(Server.internalBinaryRead(reader, reader.uint32(), options));
-                    break;
-                case /* int32 total_count */ 2:
-                    message.totalCount = reader.int32();
-                    break;
-                case /* string start_key */ 3:
-                    message.startKey = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: GetServersResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* repeated teleport.lib.teleterm.v1.Server agents = 1; */
-        for (let i = 0; i < message.agents.length; i++)
-            Server.internalBinaryWrite(message.agents[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* int32 total_count = 2; */
-        if (message.totalCount !== 0)
-            writer.tag(2, WireType.Varint).int32(message.totalCount);
-        /* string start_key = 3; */
-        if (message.startKey !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.startKey);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetServersResponse
- */
-export const GetServersResponse = new GetServersResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetAuthSettingsRequest$Type extends MessageType<GetAuthSettingsRequest> {
     constructor() {
@@ -5363,6 +5474,250 @@ class GetAppResponse$Type extends MessageType<GetAppResponse> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetAppResponse
  */
 export const GetAppResponse = new GetAppResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class TargetDesktop$Type extends MessageType<TargetDesktop> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.TargetDesktop", [
+            { no: 1, name: "desktop_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "login", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<TargetDesktop>): TargetDesktop {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.desktopUri = "";
+        message.login = "";
+        if (value !== undefined)
+            reflectionMergePartial<TargetDesktop>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: TargetDesktop): TargetDesktop {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string desktop_uri */ 1:
+                    message.desktopUri = reader.string();
+                    break;
+                case /* string login */ 2:
+                    message.login = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: TargetDesktop, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string desktop_uri = 1; */
+        if (message.desktopUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.desktopUri);
+        /* string login = 2; */
+        if (message.login !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.login);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.TargetDesktop
+ */
+export const TargetDesktop = new TargetDesktop$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ConnectToDesktopRequest$Type extends MessageType<ConnectToDesktopRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ConnectToDesktopRequest", [
+            { no: 1, name: "data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
+            { no: 2, name: "target_desktop", kind: "message", T: () => TargetDesktop }
+        ]);
+    }
+    create(value?: PartialMessage<ConnectToDesktopRequest>): ConnectToDesktopRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.data = new Uint8Array(0);
+        if (value !== undefined)
+            reflectionMergePartial<ConnectToDesktopRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConnectToDesktopRequest): ConnectToDesktopRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bytes data */ 1:
+                    message.data = reader.bytes();
+                    break;
+                case /* teleport.lib.teleterm.v1.TargetDesktop target_desktop */ 2:
+                    message.targetDesktop = TargetDesktop.internalBinaryRead(reader, reader.uint32(), options, message.targetDesktop);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ConnectToDesktopRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bytes data = 1; */
+        if (message.data.length)
+            writer.tag(1, WireType.LengthDelimited).bytes(message.data);
+        /* teleport.lib.teleterm.v1.TargetDesktop target_desktop = 2; */
+        if (message.targetDesktop)
+            TargetDesktop.internalBinaryWrite(message.targetDesktop, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ConnectToDesktopRequest
+ */
+export const ConnectToDesktopRequest = new ConnectToDesktopRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ConnectToDesktopResponse$Type extends MessageType<ConnectToDesktopResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ConnectToDesktopResponse", [
+            { no: 1, name: "data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ConnectToDesktopResponse>): ConnectToDesktopResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.data = new Uint8Array(0);
+        if (value !== undefined)
+            reflectionMergePartial<ConnectToDesktopResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConnectToDesktopResponse): ConnectToDesktopResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bytes data */ 1:
+                    message.data = reader.bytes();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ConnectToDesktopResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bytes data = 1; */
+        if (message.data.length)
+            writer.tag(1, WireType.LengthDelimited).bytes(message.data);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ConnectToDesktopResponse
+ */
+export const ConnectToDesktopResponse = new ConnectToDesktopResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SetSharedDirectoryForDesktopSessionRequest$Type extends MessageType<SetSharedDirectoryForDesktopSessionRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest", [
+            { no: 1, name: "desktop_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "login", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SetSharedDirectoryForDesktopSessionRequest>): SetSharedDirectoryForDesktopSessionRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.desktopUri = "";
+        message.login = "";
+        message.path = "";
+        if (value !== undefined)
+            reflectionMergePartial<SetSharedDirectoryForDesktopSessionRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SetSharedDirectoryForDesktopSessionRequest): SetSharedDirectoryForDesktopSessionRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string desktop_uri */ 1:
+                    message.desktopUri = reader.string();
+                    break;
+                case /* string login */ 2:
+                    message.login = reader.string();
+                    break;
+                case /* string path */ 3:
+                    message.path = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SetSharedDirectoryForDesktopSessionRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string desktop_uri = 1; */
+        if (message.desktopUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.desktopUri);
+        /* string login = 2; */
+        if (message.login !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.login);
+        /* string path = 3; */
+        if (message.path !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.path);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest
+ */
+export const SetSharedDirectoryForDesktopSessionRequest = new SetSharedDirectoryForDesktopSessionRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SetSharedDirectoryForDesktopSessionResponse$Type extends MessageType<SetSharedDirectoryForDesktopSessionResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse", []);
+    }
+    create(value?: PartialMessage<SetSharedDirectoryForDesktopSessionResponse>): SetSharedDirectoryForDesktopSessionResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<SetSharedDirectoryForDesktopSessionResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SetSharedDirectoryForDesktopSessionResponse): SetSharedDirectoryForDesktopSessionResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: SetSharedDirectoryForDesktopSessionResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
+ */
+export const SetSharedDirectoryForDesktopSessionResponse = new SetSharedDirectoryForDesktopSessionResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.v1.TerminalService
  */
@@ -5372,7 +5727,7 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "ListLeafClusters", options: {}, I: ListLeafClustersRequest, O: ListClustersResponse },
     { name: "StartHeadlessWatcher", options: {}, I: StartHeadlessWatcherRequest, O: StartHeadlessWatcherResponse },
     { name: "ListDatabaseUsers", options: {}, I: ListDatabaseUsersRequest, O: ListDatabaseUsersResponse },
-    { name: "GetServers", options: {}, I: GetServersRequest, O: GetServersResponse },
+    { name: "ListDatabaseServers", options: {}, I: ListDatabaseServersRequest, O: ListDatabaseServersResponse },
     { name: "GetAccessRequests", options: {}, I: GetAccessRequestsRequest, O: GetAccessRequestsResponse },
     { name: "GetAccessRequest", options: {}, I: GetAccessRequestRequest, O: GetAccessRequestResponse },
     { name: "DeleteAccessRequest", options: {}, I: DeleteAccessRequestRequest, O: EmptyResponse },
@@ -5407,5 +5762,7 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "GetUserPreferences", options: {}, I: GetUserPreferencesRequest, O: GetUserPreferencesResponse },
     { name: "UpdateUserPreferences", options: {}, I: UpdateUserPreferencesRequest, O: UpdateUserPreferencesResponse },
     { name: "AuthenticateWebDevice", options: {}, I: AuthenticateWebDeviceRequest, O: AuthenticateWebDeviceResponse },
-    { name: "GetApp", options: {}, I: GetAppRequest, O: GetAppResponse }
+    { name: "GetApp", options: {}, I: GetAppRequest, O: GetAppResponse },
+    { name: "ConnectToDesktop", serverStreaming: true, clientStreaming: true, options: {}, I: ConnectToDesktopRequest, O: ConnectToDesktopResponse },
+    { name: "SetSharedDirectoryForDesktopSession", options: {}, I: SetSharedDirectoryForDesktopSessionRequest, O: SetSharedDirectoryForDesktopSessionResponse }
 ]);

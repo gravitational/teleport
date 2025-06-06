@@ -1235,6 +1235,12 @@ func manualSteps(caType types.CertAuthType, phase string) []string {
 	case types.OktaCA:
 		// TODO(smallinsky): populate any known manual steps during Okta CA rotation.
 		fallthrough
+	case types.AWSRACA:
+		// TODO(marco): populate any known manual steps during AWS IAM Roles Anywhere CA rotation.
+		fallthrough
+	case types.BoundKeypairCA:
+		// TODO(timothyb89): add any manual steps; this should mostly be handled automatically.
+		fallthrough
 	default:
 		return []string{"Consult the CA rotation docs for any manual steps that may be required: https://goteleport.com/docs/admin-guides/management/operations/ca-rotation/"}
 	}

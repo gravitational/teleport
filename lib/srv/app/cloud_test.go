@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/tlsca"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
@@ -159,7 +158,7 @@ func TestCloudGetFederationDuration(t *testing.T) {
 					}),
 				},
 				Clock:  clockwork.NewFakeClockAt(now),
-				Logger: slog.New(logutils.DiscardHandler{}),
+				Logger: slog.New(slog.DiscardHandler),
 			})
 			require.NoError(t, err)
 
@@ -234,7 +233,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 				values := r.URL.Query()
 				require.Equal(t, "getSigninToken", values.Get("Action"))
 				require.Equal(t, `{"sessionId":"FAKEACCESSKEYID","sessionKey":"secret","sessionToken":"token"}`, values.Get("Session"))
-				require.Equal(t, "", values.Get("SessionDuration"))
+				require.Empty(t, values.Get("SessionDuration"))
 				w.Write([]byte(`{"SigninToken":"generated-token"}`))
 			}),
 			expectedToken: "generated-token",
@@ -256,7 +255,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 						mocks.NewAssumeRoleClientProviderFunc(&mocks.STSClient{}),
 					),
 				},
-				Logger: slog.New(logutils.DiscardHandler{}),
+				Logger: slog.New(slog.DiscardHandler),
 			})
 			require.NoError(t, err)
 

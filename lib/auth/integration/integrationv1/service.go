@@ -214,7 +214,7 @@ func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetInte
 	return igV1, nil
 }
 
-// CreateIntegration creates a new Okta import rule resource.
+// CreateIntegration creates a new Integration resource.
 func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.CreateIntegrationRequest) (*types.IntegrationV1, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -413,6 +413,10 @@ func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata
 	case types.IntegrationSubKindGitHub:
 		igMeta.GitHub = &apievents.GitHubIntegrationMetadata{
 			Organization: ig.GetGitHubIntegrationSpec().Organization,
+		}
+	case types.IntegrationSubKindAWSRolesAnywhere:
+		igMeta.AWSRA = &apievents.AWSRAIntegrationMetadata{
+			TrustAnchorARN: ig.GetAWSRolesAnywhereIntegrationSpec().TrustAnchorARN,
 		}
 	default:
 		return apievents.IntegrationMetadata{}, fmt.Errorf("unknown integration subkind: %s", igMeta.SubKind)

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { JSX } from 'react';
 import { useHistory } from 'react-router';
 import { Link as InternalLink } from 'react-router-dom';
 import { useTheme } from 'styled-components';
@@ -65,17 +66,22 @@ export function AwsOidcTitle({
   }
 
   return (
-    <Flex justifyContent="space-between">
+    <Flex mt={3} justifyContent="space-between" alignItems="center">
       <Flex alignItems="center" data-testid="aws-oidc-title">
         <HoverTooltip placement="bottom" tipContent={content.helper}>
           <ButtonIcon as={InternalLink} to={content.to} aria-label="back">
             <ArrowLeft size="medium" />
           </ButtonIcon>
         </HoverTooltip>
-        <Flex flexDirection="column" mx={2}>
-          <Text bold fontSize={6}>
-            {content.content}
-          </Text>
+        <Flex flexDirection="column" ml={1}>
+          <Flex alignItems="center" gap={2}>
+            <Text bold fontSize={6}>
+              {content.content}
+            </Text>
+            <Label kind={labelKind} aria-label="status" px={3}>
+              {status}
+            </Label>
+          </Flex>
           <Flex gap={1}>
             Role ARN:{' '}
             <Link
@@ -92,9 +98,6 @@ export function AwsOidcTitle({
             </Link>
           </Flex>
         </Flex>
-        <Label kind={labelKind} aria-label="status" px={3}>
-          {status}
-        </Label>
       </Flex>
       <Flex gap={1} alignItems="center">
         {!resource && !tasks && (

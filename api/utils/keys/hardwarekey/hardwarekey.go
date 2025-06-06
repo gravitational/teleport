@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"io"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -38,13 +39,6 @@ type Service interface {
 	// GetFullKeyRef gets the full [PrivateKeyRef] for an existing hardware private
 	// key in the given slot of the hardware key with the given serial number.
 	GetFullKeyRef(serialNumber uint32, slotKey PIVSlotKey) (*PrivateKeyRef, error)
-	// SetPrompt sets the hardware key prompt used by the hardware key service, if applicable.
-	// This is used by Teleport Connect which sets the prompt later than the hardware key service,
-	// due to process initialization constraints.
-	SetPrompt(prompt Prompt)
-	// GetPrompt gets the hardware key prompt used by the hardware key service, or nil if
-	// the service does not support prompts.
-	GetPrompt() Prompt
 }
 
 // Signer is a hardware key implementation of [crypto.Signer].
@@ -131,6 +125,8 @@ type PrivateKeyRef struct {
 	// AttestationStatement contains the hardware private key's attestation statement, which is
 	// to attest the touch and pin requirements for this hardware private key during login.
 	AttestationStatement *AttestationStatement `json:"attestation_statement"`
+	// PINCacheTTL is how long hardware key prompts should cache the PIN for this key, if at all.
+	PINCacheTTL time.Duration `json:"pin_cache_ttl"`
 }
 
 // encode encodes a [PrivateKeyRef] to JSON.
@@ -246,6 +242,8 @@ type PrivateKeyConfig struct {
 	Algorithm SignatureAlgorithm
 	// ContextualKeyInfo contains additional info to associate with the key.
 	ContextualKeyInfo ContextualKeyInfo
+	// PINCacheTTL is an option to enable PIN caching for this key with the specified TTL.
+	PINCacheTTL time.Duration
 }
 
 // ContextualKeyInfo contains contextual information associated with a hardware [PrivateKey].
@@ -256,13 +254,21 @@ type ContextualKeyInfo struct {
 	Username string
 	// ClusterName is a Teleport cluster name that the key is associated with.
 	ClusterName string
-	// AgentKey specifies whether this key is being utilized through an agent.
-	// The hardware key service may impose additional restrictions in this case,
-	// such as checking that the PIV slot certificate matches the Teleport client
-	// metadata certificate format, to ensure the agent doesn't provide access to
-	// non teleport client PIV keys.
-	AgentKey bool
-	// Command is the running command utilizing this key.
+	// AgentKeyInfo contains info associated with an hardware key agent signature request.
+	AgentKeyInfo AgentKeyInfo
+}
+
+// AgentKeyInfo contains info associated with an hardware key agent signature request.
+type AgentKeyInfo struct {
+	// UnknownAgentKey indicates whether this hardware private key is known to the hardware key agent
+	// process, usually based on whether a matching key is found in the process's client key store.
+	//
+	// For unknown agent keys, the hardware key service will check that the certificate in the same
+	// slot as the key matches a Teleport client metadata certificate in order to ensure the agent
+	// doesn't provide access to non teleport client PIV keys.
+	UnknownAgentKey bool
+	// Command is the command reported by the agent client which this agent key is being utilized to
+	// complete, e.g. `tsh ssh server01`.
 	Command string
 }
 

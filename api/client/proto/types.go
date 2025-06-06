@@ -85,7 +85,6 @@ func (req *ListResourcesRequest) RequiresFakePagination() bool {
 	return req.SortBy.Field != "" ||
 		req.NeedTotalCount ||
 		req.ResourceType == types.KindKubernetesCluster ||
-		req.ResourceType == types.KindAppOrSAMLIdPServiceProvider ||
 		// KindSAMLIdPServiceProvider supports paginated List, but it is not
 		// available in the Presence service, hence defined here under
 		// RequiresFakePagination.
@@ -98,15 +97,15 @@ type UpstreamInventoryMessage interface {
 	sealedUpstreamInventoryMessage()
 }
 
-func (h UpstreamInventoryHello) sealedUpstreamInventoryMessage() {}
+func (h *UpstreamInventoryHello) sealedUpstreamInventoryMessage() {}
 
-func (h InventoryHeartbeat) sealedUpstreamInventoryMessage() {}
+func (h *InventoryHeartbeat) sealedUpstreamInventoryMessage() {}
 
-func (p UpstreamInventoryPong) sealedUpstreamInventoryMessage() {}
+func (p *UpstreamInventoryPong) sealedUpstreamInventoryMessage() {}
 
-func (a UpstreamInventoryAgentMetadata) sealedUpstreamInventoryMessage() {}
+func (a *UpstreamInventoryAgentMetadata) sealedUpstreamInventoryMessage() {}
 
-func (h UpstreamInventoryGoodbye) sealedUpstreamInventoryMessage() {}
+func (h *UpstreamInventoryGoodbye) sealedUpstreamInventoryMessage() {}
 
 // DownstreamInventoryMessage is a sealed interface representing the possible
 // downstream messages of the inventory controls stream after initial hello.
@@ -114,8 +113,13 @@ type DownstreamInventoryMessage interface {
 	sealedDownstreamInventoryMessage()
 }
 
-func (h DownstreamInventoryHello) sealedDownstreamInventoryMessage() {}
+func (h *DownstreamInventoryHello) sealedDownstreamInventoryMessage() {}
 
-func (p DownstreamInventoryPing) sealedDownstreamInventoryMessage() {}
+func (p *DownstreamInventoryPing) sealedDownstreamInventoryMessage() {}
 
-func (u DownstreamInventoryUpdateLabels) sealedDownstreamInventoryMessage() {}
+func (u *DownstreamInventoryUpdateLabels) sealedDownstreamInventoryMessage() {}
+
+// AllowsMFAReuse returns true if the MFA response provided allows reuse.
+func (r *UserCertsRequest) AllowsMFAReuse() bool {
+	return r.RequesterName == UserCertsRequest_TSH_DB_EXEC
+}

@@ -421,8 +421,11 @@ Ingest:
 				userRecord(te.UserName, te.UserKind).KubePortSessions++
 			case usagereporter.TCPSessionType:
 				userRecord(te.UserName, te.UserKind).AppTcpSessions++
-			case string(types.KindSAMLIdPSession):
+			case usagereporter.SAMLIdPSessionType:
 				userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).SamlIdpSessions++
+			case usagereporter.MCPAppSessionType:
+				// TODO(greedy52) switch to MCPSessions when it's available.
+				userRecord(te.UserName, te.UserKind).AppSessions++
 			}
 		case *usagereporter.KubeRequestEvent:
 			userRecord(te.UserName, te.UserKind).KubeRequests++

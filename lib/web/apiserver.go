@@ -31,6 +31,7 @@ import (
 	"html/template"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/url"
@@ -360,7 +361,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 	}
 	publicAddr := raddr.Host()
 
-	servers, err := app.Match(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
+	servers, err := app.MatchUnshuffled(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
 	if err != nil {
 		h.handler.logger.InfoContext(r.Context(), "failed to match application with public addr", "public_addr", publicAddr)
 		return
@@ -371,7 +372,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	foundApp := servers[0].GetApp()
+	foundApp := servers[rand.N(len(servers))].GetApp()
 	corsPolicy := foundApp.GetCORS()
 	if corsPolicy == nil {
 		return
@@ -642,7 +643,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 					return
 				}
 			}
-			httplib.RouteNotFoundResponse(r.Context(), w, teleport.Version)
+			httplib.RouteNotFoundResponse(r.Context(), w)
 			return
 		}
 
@@ -694,7 +695,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				h.logger.ErrorContext(r.Context(), "Failed to execute index page template", "error", err)
 			}
 		} else {
-			httplib.RouteNotFoundResponse(r.Context(), w, teleport.Version)
+			httplib.RouteNotFoundResponse(r.Context(), w)
 			return
 		}
 	})
@@ -824,10 +825,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
 	h.POST("/webapi/users/privilege/token", h.WithAuth(h.createPrivilegeTokenHandle))
 
-	// Issues SSH temp certificates based on 2FA access creds
-	// TODO(Joerger): DELETE IN v18.0.0, deprecated in favor of mfa login endpoints.
-	h.POST("/webapi/ssh/certs", h.WithUnauthenticatedLimiter(h.createSSHCert))
-
 	h.POST("/webapi/headless/login", h.WithUnauthenticatedLimiter(h.headlessLogin))
 
 	// list available sites
@@ -847,9 +844,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	// get nodes
 	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.clusterNodesGet))
 	h.POST("/webapi/sites/:site/nodes", h.WithClusterAuth(h.handleNodeCreate))
-
-	// Get applications.
-	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.clusterAppsGet))
 
 	// get login alerts
 	h.GET("/webapi/sites/:site/alerts", h.WithClusterAuth(h.clusterLoginAlertsGet))
@@ -917,9 +911,6 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
-	// Deprecated: Use `/webapi/sites/:site/resources` instead.
-	// TODO(kiosion): DELETE in 18.0
-	h.GET("/webapi/sites/:site/resources/check", h.WithClusterAuth(h.checkAccessToRegisteredResource))
 
 	// Database access handlers.
 	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
@@ -962,9 +953,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/mfa/registerchallenge", h.WithAuth(h.createRegisterChallengeHandle))
 
 	h.POST("/webapi/mfa/devices", h.WithAuth(h.addMFADeviceHandle))
-	// DEPRECATED in favor of mfa/authenticatechallenge.
-	// TODO(bl-nero): DELETE IN 17.0.0
-	h.POST("/webapi/mfa/authenticatechallenge/password", h.WithAuth(h.createAuthenticateChallengeWithPassword))
 
 	// Device Trust.
 	// Do not enforce bearer token for /webconfirm, it is called from outside the
@@ -1069,6 +1057,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind/aws-app-access/:name", h.WithClusterAuth(h.awsOIDCDeleteAWSAppAccess))
 	h.GET("/webapi/scripts/integrations/configure/ec2-ssm-iam.sh", h.WithLimiter(h.awsOIDCConfigureEC2SSMIAM))
 
+	// AWS IAM Roles Anywhere Integration Actions
+	h.GET("/webapi/scripts/integrations/configure/awsra-trust-anchor.sh", h.WithLimiter(h.awsRolesAnywhereConfigureTrustAnchor))
+
 	// SAML IDP integration endpoints
 	h.GET("/webapi/scripts/integrations/configure/gcp-workforce-saml.sh", h.WithLimiter(h.gcpWorkforceConfigScript))
 
@@ -1147,6 +1138,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBot))
 	// Delete Machine ID bot
 	h.DELETE("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.deleteBot))
+
+	// GET Machine ID instance for a bot by id
+	h.GET("/webapi/sites/:site/machine-id/bot/:name/bot-instance/:id", h.WithClusterAuth(h.getBotInstance))
+	// GET Machine ID bot instances (paged)
+	h.GET("/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstances))
 
 	// GET a paginated list of notifications for a user
 	h.GET("/webapi/sites/:site/notifications", h.WithClusterAuth(h.notificationsGet))
@@ -1624,7 +1620,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		Auth:              authSettings,
 		Proxy:             *proxyConfig,
 		ServerVersion:     teleport.Version,
-		MinClientVersion:  teleport.MinClientVersion,
+		MinClientVersion:  teleport.MinClientSemVer().String(),
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
 		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, "" /* updater UUID */),
@@ -1656,7 +1652,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			Proxy:            *proxyConfig,
 			Auth:             webclient.AuthenticationSettings{SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite()},
 			ServerVersion:    teleport.Version,
-			MinClientVersion: teleport.MinClientVersion,
+			MinClientVersion: teleport.MinClientSemVer().String(),
 			ClusterName:      h.auth.clusterName,
 			Edition:          modules.GetModules().BuildType(),
 			FIPS:             modules.IsBoringBinary(),
@@ -1691,7 +1687,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	response := &webclient.PingResponse{
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
-		MinClientVersion: teleport.MinClientVersion,
+		MinClientVersion: teleport.MinClientSemVer().String(),
 		ClusterName:      h.auth.clusterName,
 	}
 
@@ -2248,7 +2244,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	targetVersion, err := h.autoUpdateAgentVersion(r.Context(), group, agentUUD)
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Error retrieving the target version", "error", err)
-		targetVersion = teleport.SemVersion
+		targetVersion = teleport.SemVer()
 	}
 
 	instTmpl, err := template.New("").Parse(installer.GetScript())
@@ -2333,18 +2329,19 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Extract secret out of the request.
-	secretKey := u.Query().Get("secret_key")
-
-	// We don't use a secret key for WebUI SSO MFA redirects. The request ID itself is
-	// kept a secret on the front end to minimize the risk of a phishing attack.
-	if secretKey == "" && u.Path == sso.WebMFARedirect && response.MFAToken != "" {
+	if u.Path == sso.WebMFARedirect {
+		// Transform the web sso mfa redirectURL into a relative redirect, preserving
+		// query parameters while ignoring scheme, hostname, and other url parts.
 		q := u.Query()
 		q.Add("response", string(out))
-		u.RawQuery = q.Encode()
-		return u, nil
+		return &url.URL{
+			Path:     sso.WebMFARedirect,
+			RawQuery: q.Encode(),
+		}, nil
 	}
 
+	// Extract secret out of the request.
+	secretKey := u.Query().Get("secret_key")
 	if secretKey == "" {
 		return nil, trace.BadParameter("missing secret_key")
 	}
@@ -3170,7 +3167,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				unifiedResources = append(unifiedResources, ui.MakeGitServer(site.GetName(), r, enriched.RequiresRequest))
 			}
 		case types.DatabaseServer:
-			db := ui.MakeDatabase(r.GetDatabase(), accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
+			db := ui.MakeDatabaseFromDatabaseServer(r, accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
 			allowedAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)
@@ -3181,9 +3178,15 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				r.GetApp().GetName(): allowedAWSRoles,
 			}
 
+			proxyDNSName := h.proxyDNSName()
+			if r.GetApp().GetUseAnyProxyPublicAddr() {
+				// let the current proxy user is connected to override the dns name
+				proxyDNSName = utils.FindMatchingProxyDNS(request.Host, h.proxyDNSNames())
+			}
+
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
 				LocalClusterName:      h.auth.clusterName,
-				LocalProxyDNSName:     h.proxyDNSName(),
+				LocalProxyDNSName:     proxyDNSName,
 				AppClusterName:        site.GetName(),
 				AllowedAWSRolesLookup: allowedAWSRolesLookup,
 				UserGroupLookup:       getUserGroupLookup(),
@@ -3191,35 +3194,6 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				RequiresRequest:       enriched.RequiresRequest,
 			})
 			unifiedResources = append(unifiedResources, app)
-		case types.AppServerOrSAMLIdPServiceProvider:
-			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
-			if r.IsAppServer() {
-				allowedAWSRoles, err := accessChecker.GetAllowedLoginsForResource(r.GetAppServer().GetApp())
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				allowedAWSRolesLookup := map[string][]string{
-					r.GetAppServer().GetApp().GetName(): allowedAWSRoles,
-				}
-				app := ui.MakeApp(r.GetAppServer().GetApp(), ui.MakeAppsConfig{
-					LocalClusterName:      h.auth.clusterName,
-					LocalProxyDNSName:     h.proxyDNSName(),
-					AppClusterName:        site.GetName(),
-					AllowedAWSRolesLookup: allowedAWSRolesLookup,
-					UserGroupLookup:       getUserGroupLookup(),
-					Logger:                h.logger,
-					RequiresRequest:       enriched.RequiresRequest,
-				})
-				unifiedResources = append(unifiedResources, app)
-			} else {
-				app := ui.MakeAppTypeFromSAMLApp(r.GetSAMLIdPServiceProvider(), ui.MakeAppsConfig{
-					LocalClusterName:  h.auth.clusterName,
-					LocalProxyDNSName: h.proxyDNSName(),
-					AppClusterName:    site.GetName(),
-					RequiresRequest:   enriched.RequiresRequest,
-				})
-				unifiedResources = append(unifiedResources, app)
-			}
 		case types.SAMLIdPServiceProvider:
 			// SAMLIdPServiceProvider resources are shown as
 			// "apps" in the UI.
@@ -3944,7 +3918,6 @@ func (h *Handler) generateSession(ctx context.Context, req *TerminalRequest, clu
 		ServerHostname: host,
 		ServerHostPort: port,
 		Moderated:      accessEvaluator.IsModerated(),
-		ID:             session.NewID(),
 		Created:        time.Now().UTC(),
 		LastActive:     time.Now().UTC(),
 		Namespace:      apidefaults.Namespace,
@@ -4283,98 +4256,6 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	return certs, nil
-}
-
-// createSSHCert is a web call that generates new SSH certificate based
-// on user's name, password, 2nd factor token and public key user wishes to sign
-//
-// POST /v1/webapi/ssh/certs
-//
-// { "user": "bob", "password": "pass", "otp_token": "tok", "pub_key": "key to sign", "ttl": 1000000000 }
-//
-// # Success response
-//
-// { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
-//
-// TODO(Joerger): DELETE IN v18.0.0, deprecated in favor of mfa login endpoints.
-func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req client.CreateSSHCertReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authClient := h.cfg.ProxyClient
-
-	cap, err := authClient.GetAuthPreference(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authSSHUserReq := authclient.AuthenticateSSHRequest{
-		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-			Username:       req.User,
-			SSHPublicKey:   req.SSHPubKey,
-			TLSPublicKey:   req.TLSPubKey,
-			ClientMetadata: clientMetaFromReq(r),
-		},
-		CompatibilityMode:       req.Compatibility,
-		TTL:                     req.TTL,
-		RouteToCluster:          req.RouteToCluster,
-		KubernetesCluster:       req.KubernetesCluster,
-		SSHAttestationStatement: req.SSHAttestationStatement,
-		TLSAttestationStatement: req.TLSAttestationStatement,
-	}
-
-	if req.HeadlessAuthenticationID != "" {
-		// We need to use the default callback timeout rather than the standard client timeout.
-		// However, authClient is shared across all Proxy->Auth requests, so we need to create
-		// a new client to avoid applying the callback timeout to other concurrent requests. To
-		// this end, we create a clone of the HTTP Client with the desired timeout instead.
-		httpClient, err := authClient.CloneHTTPClient(
-			authclient.ClientParamTimeout(defaults.HeadlessLoginTimeout),
-			authclient.ClientParamResponseHeaderTimeout(defaults.HeadlessLoginTimeout),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// HTTP server has shorter WriteTimeout than is needed, so we override WriteDeadline of the connection.
-		if conn, err := authz.ConnFromContext(r.Context()); err == nil {
-			if err := conn.SetWriteDeadline(h.clock.Now().Add(defaults.HeadlessLoginTimeout)); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-
-		authSSHUserReq.AuthenticateUserRequest.HeadlessAuthenticationID = req.HeadlessAuthenticationID
-		loginResp, err := httpClient.AuthenticateSSHUser(r.Context(), authSSHUserReq)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return loginResp, nil
-	}
-
-	switch {
-	case !cap.IsSecondFactorEnforced():
-		authSSHUserReq.AuthenticateUserRequest.Pass = &authclient.PassCreds{
-			Password: []byte(req.Password),
-		}
-	case cap.IsSecondFactorTOTPAllowed():
-		authSSHUserReq.AuthenticateUserRequest.OTP = &authclient.OTPCreds{
-			Password: []byte(req.Password),
-			Token:    req.OTPToken,
-		}
-	default:
-		return nil, trace.AccessDenied("direct login with password+otp not supported by this cluster")
-	}
-
-	loginResp, err := authClient.AuthenticateSSHUser(r.Context(), authSSHUserReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return loginResp, nil
 }
 
 // headlessLogin is a web call that perform headless login based on a user's
@@ -4769,7 +4650,8 @@ func checkTokenTTL(tok types.ProvisionToken) bool {
 
 type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)
 
-func isValidRedirectURL(redirectURL string) bool {
+// IsValidRedirectURL validates redirect URL.
+func IsValidRedirectURL(redirectURL string) bool {
 	u, err := url.ParseRequestURI(redirectURL)
 	return err == nil && (!u.IsAbs() || (u.Scheme == "http" || u.Scheme == "https"))
 }
@@ -4780,7 +4662,7 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 		app.SetRedirectPageHeaders(w.Header(), "")
 
 		redirectURL := fn(w, r, p)
-		if !isValidRedirectURL(redirectURL) {
+		if !IsValidRedirectURL(redirectURL) {
 			redirectURL = client.LoginFailedRedirectURL
 		}
 		http.Redirect(w, r, redirectURL, http.StatusFound)
@@ -4794,7 +4676,7 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		redirectURL := fn(w, r, p)
-		if !isValidRedirectURL(redirectURL) {
+		if !IsValidRedirectURL(redirectURL) {
 			redirectURL = client.LoginFailedRedirectURL
 		}
 		err := app.MetaRedirect(w, redirectURL)
@@ -5066,7 +4948,7 @@ func (h *Handler) ProxyWithRoles(ctx context.Context, sctx *SessionContext) (rev
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return reversetunnelclient.NewTunnelWithRoles(h.cfg.Proxy, cn.GetClusterName(), accessChecker, h.cfg.AccessPoint), nil
+	return reversetunnelclient.NewTunnelWithRoles(h.cfg.Proxy, cn.GetClusterName(), accessChecker.CheckAccessToRemoteCluster, h.cfg.AccessPoint), nil
 }
 
 // ProxyHostPort returns the address of the proxy server using --proxy

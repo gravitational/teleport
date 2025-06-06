@@ -102,10 +102,11 @@ export function AccessRequestCheckout() {
     onStartTimeChange,
     fetchKubeNamespaces,
     updateNamespacesForKubeCluster,
+    reasonPrompts,
   } = useAccessRequestCheckout();
 
   const isRoleRequest = pendingAccessRequests[0]?.kind === 'role';
-  const transitionRef = useRef<HTMLDivElement>();
+  const transitionRef = useRef<HTMLDivElement>(null);
 
   function closeCheckout() {
     setShowCheckout(false);
@@ -283,6 +284,7 @@ export function AccessRequestCheckout() {
             onStartTimeChange={onStartTimeChange}
             fetchKubeNamespaces={fetchKubeNamespaces}
             updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
+            reasonPrompts={reasonPrompts}
           />
         )}
       </Transition>

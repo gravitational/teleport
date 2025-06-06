@@ -25,6 +25,8 @@ import (
 	"mime"
 	"net/http"
 	"path"
+	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -44,12 +46,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer/streaming"
 	kubetypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/dynamic"
 	restclientwatch "k8s.io/client-go/rest/watch"
 	controllerclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
-	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	tkm "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -67,7 +70,7 @@ func TestListPodRBAC(t *testing.T) {
 	// Once a new session is created, this mock will write to
 	// stdout and stdin (if available) the pod name, followed
 	// by copying the contents of stdin into both streams.
-	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	kubeMock, err := tkm.NewKubeAPIMock()
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
 
@@ -96,10 +99,11 @@ func TestListPodRBAC(t *testing.T) {
 			SetupRoleFunc: func(r types.Role) {
 				r.SetKubeResources(types.Allow, []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Name:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				})
 			},
@@ -119,10 +123,11 @@ func TestListPodRBAC(t *testing.T) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
-							Kind:      types.KindKubePod,
+							Kind:      "pods",
 							Name:      types.Wildcard,
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{types.Wildcard},
+							APIGroup:  types.Wildcard,
 						},
 					})
 			},
@@ -144,10 +149,11 @@ func TestListPodRBAC(t *testing.T) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
-							Kind:      types.KindKubePod,
+							Kind:      "pods",
 							Name:      types.Wildcard,
 							Namespace: "{{external.namespaces}}",
 							Verbs:     []string{types.Wildcard},
+							APIGroup:  types.Wildcard,
 						},
 					})
 			},
@@ -168,10 +174,11 @@ func TestListPodRBAC(t *testing.T) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
-							Kind:      types.KindKubePod,
+							Kind:      "pods",
 							Name:      "nginx-*",
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{types.Wildcard},
+							APIGroup:  types.Wildcard,
 						},
 					},
 				)
@@ -192,10 +199,11 @@ func TestListPodRBAC(t *testing.T) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
-							Kind:      types.KindKubePod,
+							Kind:      "pods",
 							Name:      "*",
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{"get"},
+							APIGroup:  types.Wildcard,
 						},
 					},
 				)
@@ -217,20 +225,22 @@ func TestListPodRBAC(t *testing.T) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
-							Kind:      types.KindKubePod,
+							Kind:      "pods",
 							Name:      types.Wildcard,
 							Namespace: types.Wildcard,
 							Verbs:     []string{types.Wildcard},
+							APIGroup:  types.Wildcard,
 						},
 					},
 				)
 				r.SetKubeResources(types.Deny,
 					[]types.KubernetesResource{
 						{
-							Kind:      types.KindKubePod,
+							Kind:      "pods",
 							Name:      types.Wildcard,
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{types.Wildcard},
+							APIGroup:  types.Wildcard,
 						},
 					},
 				)
@@ -476,7 +486,6 @@ func TestListPodRBAC(t *testing.T) {
 		return pods
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			// generate a kube client with user certs for auth
@@ -558,10 +567,11 @@ func TestWatcherResponseWriter(t *testing.T) {
 			args: args{
 				allowed: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: "*",
 						Name:      "*",
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  "",
 					},
 				},
 			},
@@ -572,10 +582,11 @@ func TestWatcherResponseWriter(t *testing.T) {
 			args: args{
 				allowed: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: defaultNamespace,
 						Name:      "*",
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  "",
 					},
 				},
 			},
@@ -586,18 +597,20 @@ func TestWatcherResponseWriter(t *testing.T) {
 			args: args{
 				allowed: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: defaultNamespace,
 						Name:      "*",
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  "",
 					},
 				},
 				denied: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: defaultNamespace,
 						Name:      "otherPod",
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  "",
 					},
 				},
 			},
@@ -608,10 +621,11 @@ func TestWatcherResponseWriter(t *testing.T) {
 			args: args{
 				allowed: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Namespace: defaultNamespace,
 						Name:      "rand*",
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  "",
 					},
 				},
 			},
@@ -627,11 +641,10 @@ func TestWatcherResponseWriter(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			userReader, userWriter := io.Pipe()
 			negotiator := newClientNegotiator(&globalKubeCodecs)
-			filterWrapper := newResourceFilterer(types.KindKubePod, types.KubeVerbWatch, &globalKubeCodecs, tt.args.allowed, tt.args.denied, utils.NewSlogLoggerForTests())
+			filterWrapper := newResourceFilterer("pods", "", types.KubeVerbWatch, false, &globalKubeCodecs, tt.args.allowed, tt.args.denied, utils.NewSlogLoggerForTests())
 			// watcher parses the data written into itself and if the user is allowed to
 			// receive the update, it writes the event into target.
 			watcher, err := responsewriters.NewWatcherResponseWriter(newFakeResponseWriter(userWriter) /*target*/, negotiator, filterWrapper)
@@ -834,7 +847,7 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 	// Once a new session is created, this mock will write to
 	// stdout and stdin (if available) the pod name, followed
 	// by copying the contents of stdin into both streams.
-	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	kubeMock, err := tkm.NewKubeAPIMock()
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
 
@@ -863,10 +876,11 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 			SetupRoleFunc: func(r types.Role) {
 				r.SetKubeResources(types.Allow, []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      "pods",
 						Name:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				})
 			},
@@ -886,10 +900,11 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
-							Kind:      types.KindKubePod,
+							Kind:      "pods",
 							Name:      types.Wildcard,
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{types.Wildcard},
+							APIGroup:  types.Wildcard,
 						},
 					})
 			},
@@ -910,10 +925,11 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
-							Kind:      types.KindKubePod,
+							Kind:      "pods",
 							Name:      "nginx-*",
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{types.Wildcard},
+							APIGroup:  types.Wildcard,
 						},
 					},
 				)
@@ -1013,17 +1029,17 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 	require.Empty(t, kubeMock.DeletedPods(""), "a request as received without metav1.DeleteOptions.Preconditions.UID")
 }
 
-func TestListClusterRoleRBAC(t *testing.T) {
+func TestDeleteCRDCollectionRBAC(t *testing.T) {
 	const (
-		usernameWithFullAccess    = "full_user"
-		usernameWithLimitedAccess = "limited_user"
-		testPodName               = "test"
+		usernameWithFullAccess      = "full_user"
+		usernameWithNamespaceAccess = "default_user"
+		usernameWithLimitedAccess   = "limited_user"
 	)
 	// kubeMock is a Kubernetes API mock for the session tests.
 	// Once a new session is created, this mock will write to
 	// stdout and stdin (if available) the pod name, followed
 	// by copying the contents of stdin into both streams.
-	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	kubeMock, err := tkm.NewKubeAPIMock(tkm.WithTeleportRoleCRD)
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
 
@@ -1052,11 +1068,37 @@ func TestListClusterRoleRBAC(t *testing.T) {
 			SetupRoleFunc: func(r types.Role) {
 				r.SetKubeResources(types.Allow, []types.KubernetesResource{
 					{
-						Kind:  types.KindKubeClusterRole,
-						Name:  types.Wildcard,
-						Verbs: []string{types.Wildcard},
+						Kind:      "teleportroles",
+						Name:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  "resources.teleport.dev",
 					},
 				})
+			},
+		},
+	)
+	// create a user with full access to kubernetes Pods.
+	// (kubernetes_user and kubernetes_groups specified)
+	userWithNamespaceAccess, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		usernameWithNamespaceAccess,
+		RoleSpec{
+			Name:       usernameWithNamespaceAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow,
+					[]types.KubernetesResource{
+						{
+							Kind:      "teleportroles",
+							Name:      types.Wildcard,
+							Namespace: metav1.NamespaceDefault,
+							Verbs:     []string{types.Wildcard},
+							APIGroup:  "resources.teleport.dev",
+						},
+					})
 			},
 		},
 	)
@@ -1075,9 +1117,183 @@ func TestListClusterRoleRBAC(t *testing.T) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
-							Kind:  types.KindKubeClusterRole,
-							Name:  "nginx-*",
-							Verbs: []string{types.Wildcard},
+							Kind:      "teleportroles",
+							Name:      "*-test",
+							Namespace: metav1.NamespaceDefault,
+							Verbs:     []string{types.Wildcard},
+							APIGroup:  "resources.teleport.dev",
+						},
+					},
+				)
+			},
+		},
+	)
+
+	type args struct {
+		user      types.User
+		namespace string
+	}
+	tests := []struct {
+		name        string
+		args        args
+		deletedCRDs []string
+		wantErr     bool
+	}{
+		{
+			name: "delete teleportroles in default namespace for user with full access",
+			args: args{
+				user:      userWithFullAccess,
+				namespace: metav1.NamespaceDefault,
+			},
+
+			deletedCRDs: []string{
+				"default/telerole-1",
+				"default/telerole-1",
+				"default/telerole-2",
+				"default/telerole-test",
+			},
+		},
+		{
+			name: "delete teleportroles for user limited to default namespace",
+			args: args{
+				user:      userWithNamespaceAccess,
+				namespace: metav1.NamespaceDefault,
+			},
+			deletedCRDs: []string{
+				"default/telerole-1",
+				"default/telerole-1",
+				"default/telerole-2",
+				"default/telerole-test",
+			},
+		},
+		{
+			name: "delete teleportroles in dev namespace for user limited to default",
+			args: args{
+				user:      userWithNamespaceAccess,
+				namespace: "dev",
+			},
+			wantErr:     true,
+			deletedCRDs: []string{},
+		},
+		{
+			name: "delete teleportroles in default namespace for user with limited access",
+			args: args{
+				user:      userWithLimitedAccess,
+				namespace: metav1.NamespaceDefault,
+			},
+
+			deletedCRDs: []string{
+				"default/telerole-test",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			requestID := kubetypes.UID(uuid.NewString())
+			// generate a kube client with user certs for auth
+			_, client, _ := testCtx.GenTestKubeClientsTLSCert(
+				t,
+				tt.args.user.GetName(),
+				kubeCluster,
+			)
+			err := client.Resource(schema.GroupVersionResource{
+				Group:    "resources.teleport.dev",
+				Version:  "v6",
+				Resource: "teleportroles",
+			}).Namespace(tt.args.namespace).DeleteCollection(
+				testCtx.Context,
+				metav1.DeleteOptions{
+					// We send the requestID as precondition to identify the request where it came
+					// from. kubemock receives this metav1.DeleteOptions and
+					// accumulates the deleted pods per Preconditions.UID.
+					Preconditions: &metav1.Preconditions{
+						UID: &requestID,
+					},
+				},
+				metav1.ListOptions{},
+			)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.deletedCRDs, kubeMock.DeletedCRDs("TeleportRole", string(requestID)))
+		})
+	}
+	require.Empty(t, kubeMock.DeletedCRDs("TeleportRole", ""), "a request as received without metav1.DeleteOptions.Preconditions.UID")
+}
+
+func TestListClusterRoleRBAC(t *testing.T) {
+	t.Parallel()
+
+	const (
+		usernameWithFullAccess    = "full_user"
+		usernameWithLimitedAccess = "limited_user"
+		testClusterRoleName       = "cr-test"
+	)
+	// kubeMock is a Kubernetes API mock for the session tests.
+	// Once a new session is created, this mock will write to
+	// stdout and stdin (if available) the pod name, followed
+	// by copying the contents of stdin into both streams.
+	kubeMock, err := tkm.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	// creates a Kubernetes service with a configured cluster pointing to mock api server
+	testCtx := SetupTestContext(
+		context.Background(),
+		t,
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+		},
+	)
+	// close tests
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	// create a user with full access to kubernetes Pods.
+	// (kubernetes_user and kubernetes_groups specified)
+	userWithFullAccess, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		usernameWithFullAccess,
+		RoleSpec{
+			Name:       usernameWithFullAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow, []types.KubernetesResource{
+					{
+						Kind:     "clusterroles",
+						Name:     types.Wildcard,
+						Verbs:    []string{types.Wildcard},
+						APIGroup: types.Wildcard,
+					},
+				})
+			},
+		},
+	)
+
+	// Create a moderator user with access to kubernetes
+	// (kubernetes_user and kubernetes_groups specified).
+	userWithLimitedAccess, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		usernameWithLimitedAccess,
+		RoleSpec{
+			Name:       usernameWithLimitedAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow,
+					[]types.KubernetesResource{
+						{
+							Kind:     "clusterroles",
+							Name:     "cr-nginx-*",
+							Verbs:    []string{types.Wildcard},
+							APIGroup: types.Wildcard,
 						},
 					},
 				)
@@ -1106,9 +1322,9 @@ func TestListClusterRoleRBAC(t *testing.T) {
 			},
 			want: want{
 				listClusterRolesResult: []string{
-					"nginx-1",
-					"nginx-2",
-					"test",
+					"cr-nginx-1",
+					"cr-nginx-2",
+					"cr-test",
 				},
 			},
 		},
@@ -1119,13 +1335,13 @@ func TestListClusterRoleRBAC(t *testing.T) {
 			},
 			want: want{
 				listClusterRolesResult: []string{
-					"nginx-1",
-					"nginx-2",
+					"cr-nginx-1",
+					"cr-nginx-2",
 				},
 				getTestResult: &kubeerrors.StatusError{
 					ErrStatus: metav1.Status{
 						Status:  "Failure",
-						Message: "clusterroles \"test\" is forbidden: User \"limited_user\" cannot get resource \"clusterroles\" in API group \"rbac.authorization.k8s.io\"",
+						Message: "clusterroles \"cr-test\" is forbidden: User \"limited_user\" cannot get resource \"clusterroles\" in API group \"rbac.authorization.k8s.io\"",
 						Code:    403,
 						Reason:  metav1.StatusReasonForbidden,
 					},
@@ -1143,7 +1359,7 @@ func TestListClusterRoleRBAC(t *testing.T) {
 							ClusterName:     testCtx.ClusterName,
 							Kind:            types.KindKubePod,
 							Name:            kubeCluster,
-							SubResourceName: fmt.Sprintf("%s/%s", metav1.NamespaceDefault, testPodName),
+							SubResourceName: fmt.Sprintf("%s/%s", metav1.NamespaceDefault, testClusterRoleName),
 						},
 					),
 				},
@@ -1161,7 +1377,7 @@ func TestListClusterRoleRBAC(t *testing.T) {
 				getTestResult: &kubeerrors.StatusError{
 					ErrStatus: metav1.Status{
 						Status:  "Failure",
-						Message: "clusterroles \"test\" is forbidden: User \"limited_user\" cannot get resource \"clusterroles\" in API group \"rbac.authorization.k8s.io\"",
+						Message: "clusterroles \"cr-test\" is forbidden: User \"limited_user\" cannot get resource \"clusterroles\" in API group \"rbac.authorization.k8s.io\"",
 						Code:    403,
 						Reason:  metav1.StatusReasonForbidden,
 					},
@@ -1179,10 +1395,9 @@ func TestListClusterRoleRBAC(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			// generate a kube client with user certs for auth
+			// Generate a kube client with user certs for auth.
 			client, _ := testCtx.GenTestKubeClientTLSCert(
 				t,
 				tt.args.user.GetName(),
@@ -1204,7 +1419,7 @@ func TestListClusterRoleRBAC(t *testing.T) {
 
 			_, err = client.RbacV1().ClusterRoles().Get(
 				testCtx.Context,
-				testPodName,
+				testClusterRoleName,
 				metav1.GetOptions{},
 			)
 
@@ -1218,49 +1433,18 @@ func TestListClusterRoleRBAC(t *testing.T) {
 	}
 }
 
-func TestCustomResourcesRBAC(t *testing.T) {
+func TestGenericCustomResourcesRBAC(t *testing.T) {
+	t.Parallel()
+
 	const (
-		usernameWithFullAccess    = "full_user"
-		usernameWithLimitedAccess = "limited_user"
-		testTeleportRoleName      = "telerole-test"
-		testTeleportRoleNamespace = "default"
+		usernameWithFullAccess     = "full_user"
+		usernameWithLimitedAccess  = "limited_user"
+		usernameWithSpecificAccess = "specific_user"
+		testTeleportRoleName       = "telerole-test"
+		testTeleportRoleNamespace  = "default"
 	)
 
-	getTeleroleUnstructured := func(kind string) *unstructured.Unstructured {
-		u := &unstructured.Unstructured{}
-		u.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   "resources.teleport.dev",
-			Version: "v6",
-			Kind:    kind,
-		})
-		return u
-	}
-
-	// register the custom resources with the scheme
-	kubeScheme := runtime.NewScheme()
-	require.NoError(t, registerDefaultKubeTypes(kubeScheme))
-	for _, kind := range []string{"TeleportRole", "TeleportRoleList"} {
-		kubeScheme.AddKnownTypeWithName(getTeleroleUnstructured(kind).GroupVersionKind(), getTeleroleUnstructured(kind))
-	}
-
-	// kubeMock is a Kubernetes API mock for the session tests.
-	// Once a new session is created, this mock will write to
-	// stdout and stdin (if available) the pod name, followed
-	// by copying the contents of stdin into both streams.
-	kubeMock, err := testingkubemock.NewKubeAPIMock()
-	require.NoError(t, err)
-	t.Cleanup(func() { kubeMock.Close() })
-
-	// creates a Kubernetes service with a configured cluster pointing to mock api server
-	testCtx := SetupTestContext(
-		context.Background(),
-		t,
-		TestConfig{
-			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
-		},
-	)
-	// close tests
-	t.Cleanup(func() { assert.NoError(t, testCtx.Close()) })
+	kubeScheme, testCtx := newTestKubeCRDMock(t, tkm.WithTeleportRoleCRD)
 
 	// create a user with full access to all namespaces.
 	// (kubernetes_user and kubernetes_groups specified)
@@ -1276,9 +1460,11 @@ func TestCustomResourcesRBAC(t *testing.T) {
 			SetupRoleFunc: func(r types.Role) {
 				r.SetKubeResources(types.Allow, []types.KubernetesResource{
 					{
-						Kind:  types.KindKubeNamespace,
-						Name:  types.Wildcard,
-						Verbs: []string{types.Wildcard},
+						Kind:      types.Wildcard,
+						Name:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
 					},
 				})
 			},
@@ -1298,9 +1484,41 @@ func TestCustomResourcesRBAC(t *testing.T) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
-							Kind:  types.KindKubeNamespace,
+							Kind:      types.Wildcard,
+							Name:      types.Wildcard,
+							Namespace: "dev",
+							Verbs:     []string{types.Wildcard},
+							APIGroup:  types.Wildcard,
+						},
+						{
+							Kind:  "namespaces",
 							Name:  "dev",
 							Verbs: []string{types.Wildcard},
+						},
+					},
+				)
+			},
+		},
+	)
+
+	// create a user with limited access to kubernetes namespaces.
+	userWithSpecificAccess, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		usernameWithSpecificAccess,
+		RoleSpec{
+			Name:       usernameWithSpecificAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow,
+					[]types.KubernetesResource{
+						{
+							Kind:      "teleportroles",
+							Name:      types.Wildcard,
+							Namespace: "dev",
+							Verbs:     []string{types.Wildcard},
+							APIGroup:  "resources.teleport.dev",
 						},
 					},
 				)
@@ -1316,6 +1534,7 @@ func TestCustomResourcesRBAC(t *testing.T) {
 		listTeleportRolesResult []string
 		wantListErr             bool
 		getTestResult           error
+		deleteAllTestResult     error
 	}
 	tests := []struct {
 		name string
@@ -1335,6 +1554,29 @@ func TestCustomResourcesRBAC(t *testing.T) {
 					"default/telerole-test",
 					"dev/telerole-1",
 					"dev/telerole-2",
+				},
+			},
+		},
+		{
+			name: "list teleport roles for user with specific crd access",
+			args: args{
+				user: userWithSpecificAccess,
+			},
+			want: want{
+				listTeleportRolesResult: []string{
+					"dev/telerole-1",
+					"dev/telerole-2",
+				},
+				getTestResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status: "Failure",
+						Message: fmt.Sprintf(
+							"teleportroles \"telerole-test\" is forbidden: User %q cannot get resource \"teleportroles\" in API group \"resources.teleport.dev\"",
+							usernameWithSpecificAccess,
+						),
+						Code:   403,
+						Reason: metav1.StatusReasonForbidden,
+					},
 				},
 			},
 		},
@@ -1384,8 +1626,17 @@ func TestCustomResourcesRBAC(t *testing.T) {
 						Reason:  metav1.StatusReasonForbidden,
 					},
 				},
+				deleteAllTestResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "User \"limited_user\" cannot deletecollection resource \"teleportroles\" in API group \"resources.teleport.dev\" at the cluster scope",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
 			},
 		},
+
 		{
 			name: "user with namespace access request that restricts the role requirements",
 			args: args{
@@ -1402,7 +1653,10 @@ func TestCustomResourcesRBAC(t *testing.T) {
 				},
 			},
 			want: want{
-				listTeleportRolesResult: []string{"dev/telerole-1", "dev/telerole-2"},
+				listTeleportRolesResult: []string{
+					"dev/telerole-1",
+					"dev/telerole-2",
+				},
 				getTestResult: &kubeerrors.StatusError{
 					ErrStatus: metav1.Status{
 						Status:  "Failure",
@@ -1416,10 +1670,10 @@ func TestCustomResourcesRBAC(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			// generate a kube client with user certs for auth
+
+			// Generate a kube client with user certs for auth.
 			_, rest := testCtx.GenTestKubeClientTLSCert(
 				t,
 				tt.args.user.GetName(),
@@ -1430,21 +1684,25 @@ func TestCustomResourcesRBAC(t *testing.T) {
 			client, err := controllerclient.New(rest, controllerclient.Options{
 				Scheme: kubeScheme,
 			})
-
 			require.NoError(t, err)
-			list := getTeleroleUnstructured("TeleportRole")
 
-			err = client.List(context.Background(), list)
-			var teleportRolesList []string
-			if tt.want.wantListErr {
-				require.Error(t, err)
-				return
-			} else {
-				require.NoError(t, err)
+			t.Run("list", func(t *testing.T) {
+				t.Parallel()
+
+				list := tkm.NewTeleportRoleCRD()
+
+				if err := client.List(context.Background(), list); tt.want.wantListErr {
+					require.Error(t, err)
+					return
+				} else {
+					require.NoError(t, err)
+				}
+
 				require.True(t, list.IsList())
 
-				// iterate over the list of teleport roles and get the namespace and name
-				// of each role in the format <namespace>/<name>
+				var teleportRolesList []string
+				// Iterate over the list of teleport roles and get the namespace and name
+				// of each role in the format <namespace>/<name>.
 				require.NoError(
 					t,
 					list.EachListItem(
@@ -1454,27 +1712,2048 @@ func TestCustomResourcesRBAC(t *testing.T) {
 							return nil
 						},
 					))
+				require.ElementsMatch(t, tt.want.listTeleportRolesResult, teleportRolesList)
+			})
+
+			t.Run("get", func(t *testing.T) {
+				t.Parallel()
+
+				get := tkm.NewTeleportRoleCRD()
+
+				if err := client.Get(context.Background(),
+					kubetypes.NamespacedName{
+						Name:      testTeleportRoleName,
+						Namespace: testTeleportRoleNamespace,
+					},
+					get,
+				); tt.want.getTestResult == nil {
+					require.NoError(t, err)
+					require.Equal(t, testTeleportRoleName, get.GetName())
+					require.Equal(t, testTeleportRoleNamespace, get.GetNamespace())
+				} else {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tt.want.getTestResult.Error())
+				}
+			})
+
+			t.Run("delete_collection", func(t *testing.T) {
+				t.Parallel()
+
+				dl := tkm.NewTeleportRoleCRD()
+
+				if err := client.DeleteAllOf(context.Background(),
+					dl,
+				); tt.want.deleteAllTestResult != nil {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tt.want.deleteAllTestResult.Error())
+					return
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		})
+	}
+}
+
+func TestV8JailedNamespaceListRBAC(t *testing.T) {
+	t.Parallel()
+
+	_, testCtx := newTestKubeCRDMock(t, tkm.WithTeleportRoleCRD)
+
+	newTestUser := newTestUserFactory(t, testCtx, "", types.V8)
+
+	tests := []struct {
+		name string
+		user types.User
+		ns   string
+		want []string
+	}{
+		{
+			name: "full default access",
+			user: newTestUser(nil, nil),
+			ns:   "default",
+			want: []string{
+				// teleportroles.
+				"telerole-1",
+				"telerole-1",
+				"telerole-2",
+				"telerole-test",
+				// pods.
+				"nginx-1",
+				"nginx-2",
+				"test",
+				// clusterroles.
+				"cr-nginx-1",
+				"cr-nginx-2",
+				"cr-test",
+				// namespaces.
+				"default",
+				"test",
+				"dev",
+				"prod",
+			},
+		},
+		{
+			name: "full wildcard access",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			}, nil),
+			ns: "default",
+			want: []string{
+				// teleportroles.
+				"telerole-1",
+				"telerole-1",
+				"telerole-2",
+				"telerole-test",
+				// pods.
+				"nginx-1",
+				"nginx-2",
+				"test",
+				// clusterroles.
+				"cr-nginx-1",
+				"cr-nginx-2",
+				"cr-test",
+				// namespaces.
+				"default",
+				"test",
+				"dev",
+				"prod",
+			},
+		},
+		{
+			name: "namespaced wildcard access",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "^" + types.Wildcard + "$",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			}, nil),
+			ns: "default",
+			want: []string{
+				// teleportroles.
+				"telerole-1",
+				"telerole-1",
+				"telerole-2",
+				"telerole-test",
+				// pods.
+				"nginx-1",
+				"nginx-2",
+				"test",
+				// clusterroles.
+				// namespaces.
+				"default",
+				"test",
+				"dev",
+				"prod",
+			},
+		},
+		{
+			name: "clusterwide wildcard access",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			}, nil),
+			ns: "default",
+			want: []string{
+				// teleportroles.
+				// pods.
+				// clusterroles.
+				"cr-nginx-1",
+				"cr-nginx-2",
+				"cr-test",
+				// namespaces.
+				"default",
+				"test",
+				"dev",
+				"prod",
+			},
+		},
+		{
+			name: "single wildcard access",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "default",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			}, nil),
+			ns: "default",
+			want: []string{
+				// teleportroles.
+				"telerole-1",
+				"telerole-1",
+				"telerole-2",
+				"telerole-test",
+				// pods.
+				"nginx-1",
+				"nginx-2",
+				"test",
+				// clusterroles.
+				// NOTE: Wildcard kind with namespace means no access to global resources.
+				// namespaces.
+				"default",
+			},
+		},
+		{
+			name: "wildcard single namespace access default",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "default",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+				{
+					Kind:  "namespaces",
+					Name:  "default",
+					Verbs: []string{types.Wildcard},
+				},
+			}, nil),
+			ns: "default",
+			want: []string{
+				// teleportroles.
+				"telerole-1",
+				"telerole-1",
+				"telerole-2",
+				"telerole-test",
+				// pods.
+				"nginx-1",
+				"nginx-2",
+				"test",
+				// clusterroles.
+				// namespaces.
+				"default",
+			},
+		},
+		{
+			name: "wildcard single namespace access dev",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+				{
+					Kind:  "namespaces",
+					Name:  "dev",
+					Verbs: []string{types.Wildcard},
+				},
+			}, nil),
+			ns: "dev",
+			want: []string{
+				// teleportroles.
+				"telerole-1",
+				"telerole-2",
+				// pods.
+				"nginx-1",
+				"nginx-2",
+				// clusterroles.
+				// namespaces.
+				"dev",
+			},
+		},
+		{
+			name: "regular namespace all access by name",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespaces",
+					Name:  types.Wildcard,
+					Verbs: []string{types.Wildcard},
+				},
+			}, nil),
+			ns: "default",
+			want: []string{
+				// teleportroles.
+				// pods.
+				// clusterroles.
+				// namespaces.
+				"default",
+				"test",
+				"dev",
+				"prod",
+			},
+		},
+		{
+			name: "regular namespace all access by namespace",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:      "namespaces",
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			}, nil),
+			ns: "default",
+			want: []string{
+				// teleportroles.
+				// pods.
+				// clusterroles.
+				// namespaces.
+				"default",
+				"test",
+				"dev",
+				"prod",
+			},
+		},
+		{
+			name: "regular namespace single access by name default",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespaces",
+					Name:  "default",
+					Verbs: []string{types.Wildcard},
+				},
+			}, nil),
+			ns: "default",
+			want: []string{
+				// teleportroles.
+				// pods.
+				// clusterroles.
+				// namespaces.
+				"default",
+			},
+		},
+		{
+			name: "regular namespace single access by name dev",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespaces",
+					Name:  "dev",
+					Verbs: []string{types.Wildcard},
+				},
+			}, nil),
+			ns: "dev",
+			want: []string{
+				// teleportroles.
+				// pods.
+				// clusterroles.
+				// namespaces.
+				"dev",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Generate a kube dynClient with user certs for auth.
+			_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), kubeCluster)
+
+			// List TeleportRoles (namespaced), pods (namespaced), clusterroles (cluster wide) and namespaces (kind of cluster wide).
+			got := []string{}
+			got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("resources.teleport.dev/v6/teleportroles")).Namespace(tt.ns))...)
+			got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("v1/pods")).Namespace(tt.ns))...)
+			got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("rbac.authorization.k8s.io/v1/clusterroles")))...)
+			got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("v1/namespaces")))...)
+
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestV7JailedNamespaceListRBAC(t *testing.T) {
+	t.Parallel()
+
+	_, testCtx := newTestKubeCRDMock(t, tkm.WithTeleportRoleCRD)
+
+	newTestUser := newTestUserFactory(t, testCtx, "", types.V7)
+
+	tests := []struct {
+		name string
+		user types.User
+		ns   string
+		want []string
+	}{
+		{
+			name: "full default access",
+			user: newTestUser(nil, nil),
+			ns:   "default",
+			want: []string{
+				// teleportroles.
+				"telerole-1",
+				"telerole-1",
+				"telerole-2",
+				"telerole-test",
+				// pods.
+				"nginx-1",
+				"nginx-2",
+				"test",
+				// clusterroles.
+				"cr-nginx-1",
+				"cr-nginx-2",
+				"cr-test",
+				// namespaces.
+				"default",
+				"test",
+				"dev",
+				"prod",
+			},
+		},
+		{
+			name: "full wildcard access",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			}, nil),
+			ns: "default",
+			want: []string{
+				// teleportroles.
+				"telerole-1",
+				"telerole-1",
+				"telerole-2",
+				"telerole-test",
+				// pods.
+				"nginx-1",
+				"nginx-2",
+				"test",
+				// clusterroles.
+				"cr-nginx-1",
+				"cr-nginx-2",
+				"cr-test",
+				// namespaces.
+				"default",
+				"test",
+				"dev",
+				"prod",
+			},
+		},
+		{
+			name: "namespaced wildcard access",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:      "namespace",
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			}, nil),
+			ns: "default",
+			want: []string{
+				// teleportroles.
+				"telerole-1",
+				"telerole-1",
+				"telerole-2",
+				"telerole-test",
+				// pods.
+				"nginx-1",
+				"nginx-2",
+				"test",
+				// clusterroles.
+				// namespaces.
+				"default",
+				"test",
+				"dev",
+				"prod",
+			},
+		},
+		{
+			name: "single wildcard access",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "default",
+					Verbs:     []string{types.Wildcard},
+				},
+			}, nil),
+			ns: "default",
+			want: []string{
+				// teleportroles.
+				"telerole-1",
+				"telerole-1",
+				"telerole-2",
+				"telerole-test",
+				// pods.
+				"nginx-1",
+				"nginx-2",
+				"test",
+				// clusterroles.
+				"cr-nginx-1",
+				"cr-nginx-2",
+				"cr-test",
+				// namespaces.
+				"default",
+			},
+		},
+		{
+			name: "regular namespace all access by name",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespace",
+					Name:  types.Wildcard,
+					Verbs: []string{types.Wildcard},
+				},
+			}, nil),
+			ns: "default",
+			want: []string{
+				// teleportroles.
+				"telerole-1",
+				"telerole-1",
+				"telerole-2",
+				"telerole-test",
+				// pods.
+				"nginx-1",
+				"nginx-2",
+				"test",
+				// clusterroles.
+				// namespaces.
+				"default",
+				"test",
+				"dev",
+				"prod",
+			},
+		},
+		{
+			name: "regular namespace single access by name default",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespace",
+					Name:  "default",
+					Verbs: []string{types.Wildcard},
+				},
+			}, nil),
+			ns: "default",
+			want: []string{
+				// teleportroles.
+				"telerole-1",
+				"telerole-1",
+				"telerole-2",
+				"telerole-test",
+				// pods.
+				"nginx-1",
+				"nginx-2",
+				"test",
+				// clusterroles.
+				// namespaces.
+				"default",
+			},
+		},
+		{
+			name: "regular namespace single access by name dev",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespace",
+					Name:  "dev",
+					Verbs: []string{types.Wildcard},
+				},
+			}, nil),
+			ns: "dev",
+			want: []string{
+				// teleportroles.
+				"telerole-1",
+				"telerole-2",
+				// pods.
+				"nginx-1",
+				"nginx-2",
+				// clusterroles.
+				// namespaces.
+				"dev",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Generate a kube dynClient with user certs for auth.
+			_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), kubeCluster)
+
+			// List TeleportRoles (namespaced), pods (namespaced), clusterroles (cluster wide) and namespaces (kind of cluster wide).
+			got := []string{}
+			got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("resources.teleport.dev/v6/teleportroles")).Namespace(tt.ns))...)
+			got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("v1/pods")).Namespace(tt.ns))...)
+			got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("rbac.authorization.k8s.io/v1/clusterroles")))...)
+			got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("v1/namespaces")))...)
+
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// Test role equivalence between v7 and v8.
+// Assert the same result from both roles.
+func TestV7V8Match(t *testing.T) {
+	t.Parallel()
+
+	_, testCtx := newTestKubeCRDMock(t, tkm.WithTeleportRoleCRD)
+
+	// Create a factory to generate users in various role versions.
+	newV7TestUser := newTestUserFactory(t, testCtx, "v7v8", types.V7)
+	newV8TestUser := newTestUserFactory(t, testCtx, "v7v8", types.V8)
+
+	fullV7Access := []types.KubernetesResource{
+		{
+			Kind:      types.Wildcard,
+			Name:      types.Wildcard,
+			Namespace: types.Wildcard,
+			Verbs:     []string{types.Wildcard},
+		},
+	}
+
+	// Define the well-known state to test against.
+	fullV8Access := []types.KubernetesResource{
+		{
+			Kind:      types.Wildcard,
+			APIGroup:  types.Wildcard,
+			Name:      types.Wildcard,
+			Namespace: types.Wildcard,
+			Verbs:     []string{types.Wildcard},
+		},
+		{
+			Kind:      types.Wildcard,
+			APIGroup:  types.Wildcard,
+			Name:      types.Wildcard,
+			Namespace: "",
+			Verbs:     []string{types.Wildcard},
+		},
+	}
+
+	agg := func(in ...[]string) []string {
+		var out []string
+		for _, elem := range in {
+			out = append(out, elem...)
+		}
+		return out
+	}
+	nsDefault := []string{
+		// teleportroles.
+		"telerole-1",
+		"telerole-1",
+		"telerole-2",
+		"telerole-test",
+		// pods.
+		"nginx-1",
+		"nginx-2",
+		"test",
+	}
+	nsDev := []string{
+		// teleportroles.
+		"telerole-1",
+		"telerole-2",
+		// pods.
+		"nginx-1",
+		"nginx-2",
+	}
+	globals := []string{
+		// clusterroles.
+		"cr-nginx-1",
+		"cr-nginx-2",
+		"cr-test",
+	}
+	namespaces := []string{
+		// namespaces.
+		"default",
+		"test",
+		"dev",
+		"prod",
+	}
+	fullDefaultResult := agg(nsDefault, globals, namespaces)
+	fullDevResult := agg(nsDev, globals, namespaces)
+
+	tests := []struct {
+		name         string
+		user7, user8 types.User
+		ns           string
+		want         []string
+	}{
+		{
+			name:  "default role all",
+			user7: newV7TestUser(nil, nil),
+			user8: newV8TestUser(nil, nil),
+			ns:    "",
+			want:  agg(nsDefault, nsDev, globals, namespaces),
+		},
+		{
+			name:  "default role default",
+			user7: newV7TestUser(nil, nil),
+			user8: newV8TestUser(nil, nil),
+			ns:    "default",
+			want:  fullDefaultResult,
+		},
+		{
+			name:  "default role dev",
+			user7: newV7TestUser(nil, nil),
+			user8: newV8TestUser(nil, nil),
+			ns:    "dev",
+			want:  fullDevResult,
+		},
+		{
+			name:  "full access",
+			user7: newV7TestUser(fullV7Access, nil),
+			user8: newV8TestUser(fullV8Access, nil),
+			ns:    "default",
+			want:  fullDefaultResult,
+		},
+		{
+			name:  "no access all",
+			user7: newV7TestUser(fullV7Access, fullV7Access),
+			user8: newV8TestUser(fullV8Access, fullV8Access),
+			ns:    "",
+			want:  []string{},
+		},
+		{
+			name:  "no access default",
+			user7: newV7TestUser(fullV7Access, fullV7Access),
+			user8: newV8TestUser(fullV8Access, fullV8Access),
+			ns:    "default",
+			want:  []string{},
+		},
+		{
+			name: "all namespaced resources all namespaces all",
+			user7: newV7TestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespace",
+					Name:  types.Wildcard,
+					Verbs: []string{types.Wildcard},
+				},
+			}, nil),
+			user8: newV8TestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "^" + types.Wildcard + "$",
+					Verbs:     []string{types.Wildcard},
+				},
+			}, nil),
+			ns:   "",
+			want: agg(nsDefault, nsDev, namespaces),
+		},
+		{
+			name: "all namespaced resources all namespaces default",
+			user7: newV7TestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespace",
+					Name:  types.Wildcard,
+					Verbs: []string{types.Wildcard},
+				},
+			}, nil),
+			user8: newV8TestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "^" + types.Wildcard + "$",
+					Verbs:     []string{types.Wildcard},
+				},
+			}, nil),
+			ns:   "default",
+			want: agg(nsDefault, namespaces),
+		},
+		{
+			name: "all namespaced resources all namespaces dev",
+			user7: newV7TestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespace",
+					Name:  types.Wildcard,
+					Verbs: []string{types.Wildcard},
+				},
+			}, nil),
+			user8: newV8TestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "^" + types.Wildcard + "$",
+					Verbs:     []string{types.Wildcard},
+				},
+			}, nil),
+			ns:   "dev",
+			want: agg(nsDev, namespaces),
+		},
+		{
+			name: "all namespaced resources single namespaces default",
+			user7: newV7TestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespace",
+					Name:  "default",
+					Verbs: []string{types.Wildcard},
+				},
+			}, nil),
+			user8: newV8TestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "default",
+					Verbs:     []string{types.Wildcard},
+				},
+			}, nil),
+			ns:   "default",
+			want: agg(nsDefault, []string{"default"}),
+		},
+		{
+			name: "all namespaced resources single namespaces dev",
+			user7: newV7TestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespace",
+					Name:  "dev",
+					Verbs: []string{types.Wildcard},
+				},
+			}, nil),
+			user8: newV8TestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+				},
+			}, nil),
+			ns:   "dev",
+			want: agg(nsDev, []string{"dev"}),
+		},
+		{
+			name: "wildcard kind all namespaces default",
+			user7: newV7TestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      "*test*",
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			}, nil),
+			user8: newV8TestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      "*test*",
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			}, nil),
+			ns:   "default",
+			want: agg([]string{"cr-test", "telerole-test", "test"}, namespaces),
+		},
+		{
+			name: "wildcard kind all namespaces dev",
+			user7: newV7TestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      "*test*",
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			}, nil),
+			user8: newV8TestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      "*test*",
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			}, nil),
+			ns:   "dev",
+			want: agg([]string{"cr-test"}, namespaces),
+		},
+		{
+			name: "clusterwide access all",
+			user7: newV7TestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "doest-not-exist",
+					Verbs:     []string{types.Wildcard},
+				},
+			}, nil),
+			user8: newV8TestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+				},
+			}, []types.KubernetesResource{
+				{
+					Kind:      "namespaces",
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			}),
+			ns:   "",
+			want: agg(globals),
+		},
+		{
+			name: "clusterwide access dev",
+			user7: newV7TestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "doest-not-exist",
+					Verbs:     []string{types.Wildcard},
+				},
+			}, nil),
+			user8: newV8TestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+				},
+			}, []types.KubernetesResource{
+				{
+					Kind:      "namespaces",
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			}),
+			ns:   "dev",
+			want: agg(globals),
+		},
+	}
+	for _, tt := range tests {
+		sort.Strings(tt.want)
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			run := func(t *testing.T, userName string) {
+				// Generate a kube dynClient with user certs for auth.
+				_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, userName, kubeCluster)
+
+				// List TeleportRoles (namespaced), pods (namespaced), clusterroles (cluster wide) and namespaces (kind of cluster wide).
+				got := []string{}
+				got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("resources.teleport.dev/v6/teleportroles")).Namespace(tt.ns))...)
+				got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("v1/pods")).Namespace(tt.ns))...)
+				got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("rbac.authorization.k8s.io/v1/clusterroles")))...)
+				got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("v1/namespaces")))...)
+
+				sort.Strings(got)
+				require.Equal(t, tt.want, got)
 			}
 
-			require.ElementsMatch(t, tt.want.listTeleportRolesResult, teleportRolesList)
+			t.Run("v7", func(t *testing.T) { run(t, tt.user7.GetName()) })
+			t.Run("v8", func(t *testing.T) { run(t, tt.user8.GetName()) })
+		})
+	}
+}
 
-			get := getTeleroleUnstructured("TeleportRole")
+func TestNamespaceListRBAC(t *testing.T) {
+	t.Parallel()
 
-			err = client.Get(context.Background(),
-				kubetypes.NamespacedName{
-					Name:      testTeleportRoleName,
-					Namespace: testTeleportRoleNamespace,
+	_, testCtx := newTestKubeCRDMock(t, tkm.WithTeleportRoleCRD)
+
+	newTestUser := newTestUserFactory(t, testCtx, "nslist", types.V8)
+
+	commonResources := []types.KubernetesResource{
+		{
+			Kind:      "teleportroles",
+			Name:      types.Wildcard,
+			Namespace: "test",
+			Verbs:     []string{types.Wildcard},
+			APIGroup:  "resources.teleport.dev",
+		},
+		{
+			Kind:     "clusterroles",
+			Name:     types.Wildcard,
+			Verbs:    []string{types.Wildcard},
+			APIGroup: types.Wildcard,
+		},
+		{
+			Kind:      "pods",
+			Name:      types.Wildcard,
+			Namespace: "pr*",
+			Verbs:     []string{types.Wildcard},
+			APIGroup:  "",
+		},
+	}
+
+	tests := []struct {
+		name string
+		user types.User
+		want []string
+	}{
+		{
+			name: "common resources",
+			user: newTestUser(commonResources, nil),
+			want: []string{
+				"test",
+				"prod",
+			},
+		},
+		{
+			name: "common resources with deny",
+			user: newTestUser(commonResources, []types.KubernetesResource{
+				{
+					Kind:      "teleportroles",
+					Name:      types.Wildcard,
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  "resources.teleport.dev",
 				},
-				get,
-			)
+				{
+					Kind:      "pods",
+					Name:      types.Wildcard,
+					Namespace: "prod",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  "",
+				},
+			}),
+			want: []string{
+				"test",
+				"prod",
+			},
+		},
+		{
+			name: "full wildcard access",
+			user: newTestUser(append(commonResources, types.KubernetesResource{
+				Kind:      types.Wildcard,
+				Name:      types.Wildcard,
+				Namespace: types.Wildcard,
+				Verbs:     []string{types.Wildcard},
+				APIGroup:  types.Wildcard,
+			}), nil),
+			want: []string{
+				// All namespaces because of the wildcard.
+				"default",
+				"test",
+				"dev",
+				"prod",
+			},
+		},
+		{
+			name: "single wildcard access",
+			user: newTestUser(append(commonResources, types.KubernetesResource{
+				Kind:      types.Wildcard,
+				Name:      types.Wildcard,
+				Namespace: "dev",
+				Verbs:     []string{types.Wildcard},
+				APIGroup:  types.Wildcard,
+			}), nil),
+			want: []string{
+				//  test and prod from common resources, dev from main one.
+				"test",
+				"dev",
+				"prod",
+			},
+		},
+		{
+			name: "reg ns access",
+			user: newTestUser(append(commonResources, types.KubernetesResource{
+				Kind:  "namespaces",
+				Name:  "dev",
+				Verbs: []string{types.Wildcard},
+			}), nil),
+			want: []string{
+				//  test and prod from common resources, dev from main one.
+				"test",
+				"dev",
+				"prod",
+			},
+		},
+		{
+			name: "ns wildcard access",
+			user: newTestUser(append(commonResources, types.KubernetesResource{
+				Kind:      types.Wildcard,
+				Name:      types.Wildcard,
+				Namespace: types.Wildcard,
+				Verbs:     []string{types.Wildcard},
+				APIGroup:  types.Wildcard,
+			}), nil),
+			want: []string{
+				// All namespaces because of the wildcard.
+				"default",
+				"test",
+				"dev",
+				"prod",
+			},
+		},
+		{
+			name: "wildcard ns single access",
+			user: newTestUser(append(commonResources, types.KubernetesResource{
+				Kind:      types.Wildcard,
+				Name:      types.Wildcard,
+				Namespace: "test",
+				Verbs:     []string{types.Wildcard},
+				APIGroup:  types.Wildcard,
+			}), nil),
+			want: []string{
+				// test and prod from the common resources, test from main one.
+				"test",
+				"prod",
+			},
+		},
+		{
+			name: "jailed and reg ns single access",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:     "namespaces",
+					Name:     "default",
+					Verbs:    []string{types.Wildcard},
+					APIGroup: types.Wildcard,
+				},
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "test",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+				{
+					Kind:      "pods",
+					Name:      types.Wildcard,
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			}, nil),
+			want: []string{
+				"default",
+				"test",
+				"dev",
+			},
+		},
+		{
+			name: "deny single ns",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespaces",
+					Name:  "*",
+					Verbs: []string{types.Wildcard},
+				},
+			}, []types.KubernetesResource{
+				{
+					Kind:  "namespaces",
+					Name:  "dev",
+					Verbs: []string{types.Wildcard},
+				},
+			}),
+			want: []string{
+				"default",
+				"test",
+				"prod",
+			},
+		},
+		{
+			name: "ns resource deny cluster-wide wildcard",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespaces",
+					Name:  types.Wildcard,
+					Verbs: []string{types.Wildcard},
+				},
+			}, []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+				},
+			}),
+			want: []string{},
+		},
+		{
+			name: "ns pods deny cluster-wide wildcard",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespaces",
+					Name:  types.Wildcard,
+					Verbs: []string{types.Wildcard},
+				},
+				{
+					Kind:      "pods",
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			}, []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+				},
+			}),
+			// Even though the user has access to pods and still can get pods in all NSs, the list namespace is empty
+			// because of the deny rule.
+			want: []string{},
+		},
+		{
+			name: "ns pods deny ns wildcard",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:  "namespaces",
+					Name:  types.Wildcard,
+					Verbs: []string{types.Wildcard},
+				},
+				{
+					Kind:      "pods",
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			}, []types.KubernetesResource{
+				{
+					Kind:  "namespaces",
+					Name:  types.Wildcard,
+					Verbs: []string{types.Wildcard},
+				},
+			}),
+			// Even though the user has access to pods and still can get pods in all NSs, the list namespace is empty
+			// because of the deny rule.
+			want: []string{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-			if tt.want.getTestResult == nil {
-				require.NoError(t, err)
-				require.Equal(t, testTeleportRoleName, get.GetName())
-				require.Equal(t, testTeleportRoleNamespace, get.GetNamespace())
-			} else {
+			// Generate a kube dynClient with user certs for auth.
+			_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), kubeCluster)
+
+			got := []string{}
+			got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("v1/namespaces")))...)
+
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestDenyClusterWideResources(t *testing.T) {
+	t.Parallel()
+
+	_, testCtx := newTestKubeCRDMock(t, tkm.WithTeleportRoleCRD)
+
+	newTestUser := newTestUserFactory(t, testCtx, "deny-cw", types.V8)
+
+	fullAccess := []types.KubernetesResource{
+		{
+			Kind:      types.Wildcard,
+			APIGroup:  types.Wildcard,
+			Name:      types.Wildcard,
+			Namespace: types.Wildcard,
+			Verbs:     []string{types.Wildcard},
+		},
+	}
+	podList := []string{
+		"nginx-1",
+		"nginx-2",
+		"test",
+		"nginx-1",
+		"nginx-2",
+	}
+
+	tests := []struct {
+		name string
+		user types.User
+		want []string
+	}{
+		{
+			name: "allow two ns deny all cluster-wide resources",
+			user: newTestUser([]types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+				},
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "prod",
+					Verbs:     []string{types.Wildcard},
+				},
+			}, []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+				},
+			}),
+			want: []string{"nginx-1", "nginx-2"},
+		},
+		{
+			name: "full access deny all cluster-wide resources",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+				},
+			}),
+			want: podList,
+		},
+		{
+			name: "full access deny all cluster-wide resources and one ns",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+				},
+				{
+					Kind:  "namespaces",
+					Name:  "dev",
+					Verbs: []string{types.Wildcard},
+				},
+			}),
+			want: podList,
+		},
+		{
+			name: "full access deny all cluster-wide resources and wildcard ns",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+				},
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+				},
+			}),
+			want: []string{"nginx-1", "nginx-2", "test"},
+		},
+		{
+			name: "full access deny clusterroles and wildcard ns",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:      "clusterroles",
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "",
+					Verbs:     []string{types.Wildcard},
+				},
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+				},
+				{
+					Kind:  "namespaces",
+					Name:  "test",
+					Verbs: []string{"delete"},
+				},
+			}),
+			want: slices.Concat([]string{"default", "test", "prod"}, []string{"nginx-1", "nginx-2", "test"}),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Generate a kube dynClient with user certs for auth.
+			_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), kubeCluster)
+
+			got := []string{}
+			// Get namespaces in read-only, should work.
+			got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("v1/namespaces")))...)
+			// Get pods in all namespaces, should work.
+			got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("v1/pods")))...)
+			require.Equal(t, tt.want, got)
+
+			// Attempt to delete a namespace, should fail.
+			require.Error(t, dynClient.Resource(gvr("v1/namespaces")).Delete(testCtx.Context, "test", metav1.DeleteOptions{}))
+		})
+	}
+}
+
+func TestDeleteNamespace(t *testing.T) {
+	t.Parallel()
+
+	_, testCtx := newTestKubeCRDMock(t, tkm.WithTeleportRoleCRD)
+
+	newTestUser := newTestUserFactory(t, testCtx, "delete-ns", types.V8)
+
+	fullAccess := []types.KubernetesResource{
+		{
+			Kind:      types.Wildcard,
+			APIGroup:  types.Wildcard,
+			Name:      types.Wildcard,
+			Namespace: types.Wildcard,
+			Verbs:     []string{types.Wildcard},
+		},
+	}
+
+	tests := []struct {
+		name    string
+		user    types.User
+		ns      string
+		wantErr bool
+	}{
+		{
+			name: "full access deny all wildcard ns",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "test",
+					Verbs:     []string{types.Wildcard},
+				},
+			}),
+			ns:      "test",
+			wantErr: true,
+		},
+		{
+			name: "full access deny wildcard ns resource",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:     "namespaces",
+					APIGroup: types.Wildcard,
+					Name:     types.Wildcard,
+					Verbs:    []string{types.Wildcard},
+				},
+			}),
+			ns:      "test",
+			wantErr: true,
+		},
+		{
+			name: "full access deny specific ns resource - denied",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:     "namespaces",
+					APIGroup: types.Wildcard,
+					Name:     "test",
+					Verbs:    []string{types.Wildcard},
+				},
+			}),
+			ns:      "test",
+			wantErr: true,
+		},
+		{
+			name: "full access deny specific ns resource - allowed",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:     "namespaces",
+					APIGroup: types.Wildcard,
+					Name:     "test",
+					Verbs:    []string{types.Wildcard},
+				},
+			}),
+			ns:      "dev",
+			wantErr: false,
+		},
+		{
+			name: "full access deny unrelated resource - allowed",
+			user: newTestUser(fullAccess, []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      types.Wildcard,
+					Namespace: "test",
+					Verbs:     []string{types.Wildcard},
+				},
+			}),
+			ns: "test",
+			// TODO(@creack): Reconsider this behavior. We may consider denying this. Keeping as is for now
+			//                to maintain v17's / rolev7 behavior.
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Generate a kube dynClient with user certs for auth.
+			_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), kubeCluster)
+
+			// Attempt to delete a namespace, should fail.
+			if err := dynClient.Resource(gvr("v1/namespaces")).Delete(testCtx.Context, tt.ns, metav1.DeleteOptions{}); tt.wantErr {
 				require.Error(t, err)
-				require.ErrorContains(t, err, tt.want.getTestResult.Error())
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestFullNamespaceNoDeleteRBAC(t *testing.T) {
+	t.Parallel()
+
+	_, testCtx := newTestKubeCRDMock(t, tkm.WithTeleportRoleCRD)
+
+	newTestUser := newTestUserFactory(t, testCtx, "fullnsnodelete", types.V8)
+
+	tests := []struct {
+		name string
+		user types.User
+		ns   string
+	}{
+		{
+			name: "wildcard access",
+			user: newTestUser(
+				[]types.KubernetesResource{
+					{
+						Kind:      types.Wildcard,
+						Name:      types.Wildcard,
+						Namespace: "dev",
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+				},
+				[]types.KubernetesResource{
+					{
+						Kind:  "namespaces",
+						Name:  "dev",
+						Verbs: []string{"delete"},
+					},
+				},
+			),
+			ns: "dev",
+		},
+		{
+			name: "wildcard ns access",
+			user: newTestUser(
+				[]types.KubernetesResource{
+					{
+						Kind:      types.Wildcard,
+						Name:      types.Wildcard,
+						Namespace: "dev",
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+					{
+						Kind:  "namespaces",
+						Name:  "dev",
+						Verbs: []string{types.Wildcard},
+					},
+				},
+				[]types.KubernetesResource{
+					{
+						Kind:  "namespaces",
+						Name:  "dev",
+						Verbs: []string{"delete"},
+					},
+				},
+			),
+			ns: "dev",
+		},
+		{
+			name: "regular access",
+			user: newTestUser(
+				[]types.KubernetesResource{
+					{
+						Kind:      "pods",
+						Name:      types.Wildcard,
+						Namespace: "dev",
+						Verbs:     []string{types.Wildcard},
+					},
+					{
+						Kind:      "secrets",
+						Name:      types.Wildcard,
+						Namespace: "dev",
+						Verbs:     []string{types.Wildcard},
+					},
+					{
+						Kind:      "namespaces",
+						Name:      types.Wildcard,
+						Namespace: "dev",
+						Verbs:     []string{types.Wildcard},
+					},
+				},
+				[]types.KubernetesResource{
+					{
+						Kind:  "namespaces",
+						Name:  "dev",
+						Verbs: []string{"delete"},
+					},
+				},
+			),
+			ns: "dev",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Generate a kube dynClient with user certs for auth.
+			_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), kubeCluster)
+
+			require.NoError(t, dynClient.Resource(gvr("v1/pods")).DeleteCollection(testCtx.Context, metav1.DeleteOptions{}, metav1.ListOptions{}))
+			require.NoError(t, dynClient.Resource(gvr("v1/secrets")).DeleteCollection(testCtx.Context, metav1.DeleteOptions{}, metav1.ListOptions{}))
+			require.Error(t, dynClient.Resource(gvr("v1/namespaces")).Delete(testCtx.Context, tt.ns, metav1.DeleteOptions{}))
+		})
+	}
+}
+
+func newTestKubeCRDMock(t *testing.T, opts ...tkm.Option) (*runtime.Scheme, *TestContext) {
+	t.Helper()
+
+	// kubeMock is a Kubernetes API mock for the session tests.
+	// Once a new session is created, this mock will write to
+	// stdout and stdin (if available) the pod name, followed
+	// by copying the contents of stdin into both streams.
+	kubeMock, err := tkm.NewKubeAPIMock(opts...)
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	// Register the custom resources with the scheme.
+	kubeScheme := kubeMock.CRDScheme()
+	require.NoError(t, registerDefaultKubeTypes(kubeScheme))
+
+	// Creates a Kubernetes service with a configured cluster pointing to mock api server.
+	testCtx := SetupTestContext(
+		context.Background(),
+		t,
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+		},
+	)
+	// Close tests.
+	t.Cleanup(func() { assert.NoError(t, testCtx.Close()) })
+
+	return kubeScheme, testCtx
+}
+
+func newTestUserFactory(t *testing.T, testCtx *TestContext, prefix, roleVersion string) func(allow, deny []types.KubernetesResource) types.User {
+	count := 0
+	if prefix == "" {
+		prefix = "test"
+	}
+	return func(allow, deny []types.KubernetesResource) types.User {
+		t.Helper()
+		count++
+		name := fmt.Sprintf("%s-user-%s-%d", prefix, roleVersion, count)
+		user, _ := testCtx.CreateUserAndRoleVersion(
+			testCtx.Context,
+			t,
+			name,
+			roleVersion,
+			RoleSpec{
+				Name:       name,
+				KubeUsers:  roleKubeUsers,
+				KubeGroups: roleKubeGroups,
+				SetupRoleFunc: func(r types.Role) {
+					r.SetKubeResources(types.Allow, allow)
+					r.SetKubeResources(types.Deny, deny)
+				},
+			},
+		)
+		return user
+	}
+}
+
+func unstructuredListNames(items *unstructured.UnstructuredList) []string {
+	if items == nil {
+		return nil
+	}
+	names := make([]string, 0, len(items.Items))
+	for _, item := range items.Items {
+		names = append(names, item.GetName())
+	}
+	return names
+}
+
+func gvr(in string) schema.GroupVersionResource {
+	pars := strings.Split(in, "/")
+	if len(pars) == 2 {
+		return schema.GroupVersionResource{
+			Group:    "",
+			Version:  pars[0],
+			Resource: pars[1],
+		}
+	}
+	return schema.GroupVersionResource{
+		Group:    pars[0],
+		Version:  pars[1],
+		Resource: pars[2],
+	}
+}
+
+// dynList fetches the list for the given resource. Returns the names of the found resources.
+// Ignores the error if any.
+func dynList(ctx context.Context, r dynamic.ResourceInterface) []string {
+	roles, _ := r.List(ctx, metav1.ListOptions{})
+	return unstructuredListNames(roles)
+}
+
+// Test cases:
+// Given
+//   - 1 CRD (namespaced)
+//   - 3 NS: dev, staging, production
+//   - Resources
+//   - name: test-dev, ns: dev
+//   - name: debug, ns: dev
+//   - name: debug, ns: staging
+//   - name: web, ns: dev
+//   - name: web-dev, ns: dev
+//   - name: web-dev, ns: production
+//   - name:
+//     name: *-dev, ns: *
+//     name: *-dev, ns: dev
+//     name: debug, ns: *
+//     name: *, ns dev
+//     name: *, ns dev, { pod name *, pod ns * }
+//     name: *, ns dev, staging
+func TestSpecificCustomResourcesRBAC(t *testing.T) {
+	telerolev8 := tkm.NewCRD("resources.teleport.dev", "v8", "teleportroles", "TeleportRole", "TeleportRoleList", true)
+	teleswagv1 := tkm.NewCRD("swag.teleport.dev", "v1", "teleswags", "TeleportSwag", "TeleportSwagList", true)
+	clusterswagv0 := tkm.NewCRD("resources.teleport.dev", "v0", "clusterswags", "ClusterSwag", "ClusterSwagList", false)
+
+	kubeScheme, testCtx := newTestKubeCRDMock(t,
+		tkm.WithTeleportRoleCRD,
+		tkm.WithCRD(telerolev8,
+			tkm.NewObject("default", "telerole-1"),
+			tkm.NewObject("default", "telerole-2"),
+			tkm.NewObject("default", "telerole-test"),
+			tkm.NewObject("dev", "telerole-1"),
+			tkm.NewObject("dev", "telerole-2"),
+		),
+		tkm.WithCRD(teleswagv1,
+			tkm.NewObject("default", "teleswag-1"),
+		),
+		tkm.WithCRD(clusterswagv0,
+			tkm.NewObject("", "clusterswag-1"),
+			tkm.NewObject("", "clusterswag-2"),
+			tkm.NewObject("", "my-clusterswag"),
+		),
+	)
+
+	newUser := func(name string, resources []types.KubernetesResource) types.User {
+		u, _ := testCtx.CreateUserAndRole(
+			testCtx.Context,
+			t,
+			name,
+			RoleSpec{
+				Name:          name,
+				KubeUsers:     roleKubeUsers,
+				KubeGroups:    roleKubeGroups,
+				SetupRoleFunc: func(r types.Role) { r.SetKubeResources(types.Allow, resources) },
+			},
+		)
+		return u
+	}
+
+	type args struct {
+		user types.User
+		crds []*tkm.CRD
+	}
+	type want struct {
+		listTeleportRolesResult [][]string // One list per CRDs in args.
+		wantListErr             []bool     // One per CRDs in args.
+	}
+	tests := []struct {
+		name string
+		args args
+		want want
+	}{
+		{
+			name: "list crds on multiple versions",
+			args: args{
+				user: newUser("dev_access_two_versions", []types.KubernetesResource{
+					{
+						Kind:      tkm.NewTeleportRoleCRD().GetKindPlural(),
+						Name:      types.Wildcard,
+						Namespace: "dev",
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+					{
+						Kind:      telerolev8.GetKindPlural(),
+						Name:      types.Wildcard,
+						Namespace: "dev",
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+				}),
+				crds: []*tkm.CRD{tkm.NewTeleportRoleCRD(), telerolev8.Copy()},
+			},
+			want: want{
+				listTeleportRolesResult: [][]string{
+					{
+						"dev/telerole-1",
+						"dev/telerole-2",
+					}, {
+						"dev/telerole-1",
+						"dev/telerole-2",
+					},
+				},
+				wantListErr: []bool{false, false},
+			},
+		},
+		{
+			name: "access to multiple crds listing one without access",
+			args: args{
+				user: newUser("no_swag_access", []types.KubernetesResource{
+					{
+						Kind:      tkm.NewTeleportRoleCRD().GetKindPlural(),
+						Name:      types.Wildcard,
+						Namespace: "dev",
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  "badgroup",
+					},
+					{
+						Kind:      telerolev8.GetKindPlural(),
+						Name:      types.Wildcard,
+						Namespace: "dev",
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+				}),
+				crds: []*tkm.CRD{tkm.NewTeleportRoleCRD(), telerolev8.Copy(), teleswagv1.Copy()},
+			},
+			want: want{
+				listTeleportRolesResult: [][]string{
+					{
+						"dev/telerole-1",
+						"dev/telerole-2",
+					},
+					{
+						"dev/telerole-1",
+						"dev/telerole-2",
+					},
+					nil,
+				},
+				wantListErr: []bool{false, false, true},
+			},
+		},
+		{
+			name: "valid kind format",
+			args: args{
+				user: newUser("diff_fmt_ok", []types.KubernetesResource{
+					{
+						Kind:      "teleportroles",
+						Name:      types.Wildcard,
+						Namespace: "dev",
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+					{
+						Kind:      "teleportroles",
+						Name:      types.Wildcard,
+						Namespace: "dev",
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  "resources.teleport.dev",
+					},
+				}),
+				crds: []*tkm.CRD{telerolev8},
+			},
+			want: want{
+				listTeleportRolesResult: [][]string{
+					{
+						"dev/telerole-1",
+						"dev/telerole-2",
+					},
+				},
+				wantListErr: []bool{false},
+			},
+		},
+		{
+			name: "different invalid kind format",
+			args: args{
+				user: newUser("diff_fmt_ko", []types.KubernetesResource{
+					{
+						Kind:      "TeleportRole",
+						Name:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+					{
+						Kind:      "teleportrole",
+						Name:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+					{
+						Kind:      "*/teleportrole",
+						Name:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+					{
+						Kind:      "resources.teleport.dev/v8/teleportrole",
+						Name:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+					{
+						Kind:      "resources.teleport.dev/v8/*",
+						Name:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+					{
+						Kind:      "resources.teleport.dev/v8/",
+						Name:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+					{
+						Kind:      "resources.teleport.dev/v8",
+						Name:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+					{
+						Kind:      "resources.teleport.dev/",
+						Name:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+					{
+						Kind:      "resources.teleport.dev",
+						Name:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+				}),
+				crds: []*tkm.CRD{telerolev8},
+			},
+			want: want{
+				wantListErr: []bool{true},
+			},
+		},
+		{
+			name: "cluster wide crd",
+			args: args{
+				user: newUser("cluster_crd_ok", []types.KubernetesResource{
+					{
+						Kind:      clusterswagv0.GetKindPlural(),
+						Name:      "clusterswag-*",
+						Namespace: "",
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+				}),
+				crds: []*tkm.CRD{clusterswagv0},
+			},
+			want: want{
+				listTeleportRolesResult: [][]string{
+					{
+						"clusterswag-1",
+						"clusterswag-2",
+					},
+				},
+				wantListErr: []bool{false},
+			},
+		},
+		{
+			name: "cluster wide crd no access",
+			args: args{
+				user: newUser("cluster_crd_ko", []types.KubernetesResource{
+					{
+						Kind:      telerolev8.GetKindPlural(),
+						Name:      types.Wildcard,
+						Namespace: "",
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+				}),
+				crds: []*tkm.CRD{clusterswagv0},
+			},
+			want: want{
+				wantListErr: []bool{true},
+			},
+		},
+		{
+			name: "cluster wide crd no acces wildcard",
+			args: args{
+				user: newUser("cluster_crd_ko", []types.KubernetesResource{
+					{
+						Kind:      telerolev8.GetKindPlural(),
+						Name:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+						APIGroup:  types.Wildcard,
+					},
+				}),
+				crds: []*tkm.CRD{clusterswagv0},
+			},
+			want: want{
+				wantListErr: []bool{true},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// Generate a kube client with user certs for auth.
+			_, rest := testCtx.GenTestKubeClientTLSCert(t, tt.args.user.GetName(), kubeCluster)
+
+			client, err := controllerclient.New(rest, controllerclient.Options{
+				Scheme: kubeScheme,
+			})
+			require.NoError(t, err)
+
+			for i, list := range tt.args.crds {
+				list := list.Copy()
+				if err := client.List(context.Background(), list); tt.want.wantListErr[i] {
+					require.Error(t, err)
+					continue
+				} else {
+					require.NoError(t, err)
+				}
+				require.True(t, list.IsList())
+
+				// Iterate over the list of teleport roles and get the namespace and name
+				// of each role in the format <namespace>/<name>.
+				var retList []string
+				require.NoError(
+					t,
+					list.EachListItem(
+						func(itemI runtime.Object) error {
+							item, ok := itemI.(*unstructured.Unstructured)
+							if !ok {
+								return fmt.Errorf("invalid item type %T", itemI)
+							}
+							retList = append(retList, path.Join(item.GetNamespace(), item.GetName()))
+							return nil
+						},
+					),
+				)
+				require.ElementsMatch(t, tt.want.listTeleportRolesResult[i], retList)
 			}
 		})
 	}

@@ -111,6 +111,17 @@ onboarding:
   # Teleport Proxy. The ca_pins option should be preferred over ca_path.
   ca_path: "/path/to/ca.pem"
 
+  # gitlab holds configuration specific to the "gitlab" join method.
+  gitlab:
+    # token_env_var_name allows the environment variable that contains the
+    # GitLab ID token to be specified. If unspecified, this defaults to
+    # "TBOT_GITLAB_JWT".
+    #
+    # Overriding this is useful when you need to use `tbot` to authenticate to
+    # multiple Teleport clusters from a single GitLab CI job.
+    token_env_var_name: "MY_GITLAB_ID_TOKEN"
+
+
 # storage specifies the destination that `tbot` should use to store its
 # internal state. This state is sensitive, and you should ensure that the
 # destination you specify here can only be accessed by `tbot`.
@@ -500,6 +511,17 @@ session_duration: 6h
 # be renewed. This should be less than the session duration. If omitted, this
 # defaults to 1 hour.
 session_renewal_interval: 1h
+# credential_profile_name is the name of the profile to write to in the AWS
+# credentials file. If unspecified, this profile will be named `default`.
+credential_profile_name: my-profile
+# artifact_name is the name of the file that the AWS credentials should be
+# written to. If unspecified, this defaults to `aws_credentials`.
+artifact_name: my-credentials-file
+# overwrite_credential_file controls whether the AWS credentials file should be
+# overwritten if it already exists, or whether the profile added by tbot should
+# be merged with any existing profiles in the file. If unspecified, this
+# defaults to `false`.
+overwrite_credential_file: false
 (!docs/pages/includes/machine-id/workload-identity-selector-config.yaml!)
 ```
 
@@ -670,6 +692,29 @@ attestors:
     # supported. This field is required and there is no default value. See the
     # Workload Identity API & Workload Attestation reference for more information.
     addr: unix:///run/podman/podman.sock
+  # sigstore is configuration for the Sigstore Workload attestor. See the
+  # Sigstore Workload Attestation page for more information.
+  sigstore:
+    # enabled specifies whether tbot will discover Sigstore signatures for the
+    # workload's container image. If unspecified, this defaults to false.
+    enabled: true
+    # additional_registries optionally configures the OCI registries that will
+    # be searched for signatures in addition to the workload container image's
+    # source registry.
+    additional_registries:
+      -
+        # host of the OCI registry.
+        host: ghcr.io
+    # credentials_path is the path to a Docker or Podman configuration file
+    # containing per-registry credentials.
+    credentials_path: /path/to/docker/config.json
+    # allowed_private_network_prefixes are the private IP address prefixes (CIDR
+    # blocks) that the Sigstore attestor is allowed to connect to. By default,
+    # tbot will only connect to registries at publicly-routable IP addresses to
+    # reduce the surface area for SSRF attacks.
+    allowed_private_network_prefixes:
+      - "192.168.1.42/32"
+      - "fd12:3456:789a:1::1/128"
   # systemd is configuration for the Systemd Workload Attestor. See the Workload
   # Identity API & Workload Attestation reference for more information.
   systemd:
@@ -1012,7 +1057,7 @@ then begin to forward traffic to the target host and port. The client can then
 make an SSH connection.
 
 <details>
-<summary>Example in Python (Paramiko)" close</summary>
+<summary>Example in Python (Paramiko)</summary>
 ```python
 import os
 import paramiko
@@ -1055,7 +1100,7 @@ print(stdout.read().decode())
 </details>
 
 <details>
-<summary>Example in Go" close</summary>
+<summary>Example in Go</summary>
 ```go
 package main
 

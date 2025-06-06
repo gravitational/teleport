@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -63,13 +64,8 @@ func TestDiscoveryLDAPFilter(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			s := &WindowsService{
-				cfg: WindowsServiceConfig{
-					DiscoveryLDAPFilters: test.filters,
-				},
-			}
-
-			filter := s.ldapSearchFilter()
+			s := new(WindowsService)
+			filter := s.ldapSearchFilter(test.filters)
 			_, err := ldap.CompileFilter(filter)
 			test.assert(t, err)
 		})
@@ -89,12 +85,11 @@ func TestAppliesLDAPLabels(t *testing.T) {
 		"quux":                {""},
 	})
 
-	s := &WindowsService{
-		cfg: WindowsServiceConfig{
-			DiscoveryLDAPAttributeLabels: []string{"bar"},
-		},
-	}
-	s.applyLabelsFromLDAP(entry, l)
+	s := new(WindowsService)
+	s.applyLabelsFromLDAP(entry, l, &servicecfg.LDAPDiscoveryConfig{
+		BaseDN:          "*",
+		LabelAttributes: []string{"bar"},
+	})
 
 	// check default labels
 	require.Equal(t, types.OriginDynamic, l[types.OriginLabel])
@@ -142,7 +137,7 @@ func TestLabelsDomainControllers(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			l := make(map[string]string)
-			s.applyLabelsFromLDAP(test.entry, l)
+			s.applyLabelsFromLDAP(test.entry, l, new(servicecfg.LDAPDiscoveryConfig))
 
 			b, _ := strconv.ParseBool(l[types.DiscoveryLabelWindowsIsDomainController])
 			test.assert(t, b)
@@ -257,7 +252,18 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 			t.Cleanup(func() {
 				reconciler.Close()
 				require.NoError(t, authServer.AuthServer.DeleteAllWindowsDesktops(ctx))
-				require.NoError(t, authServer.AuthServer.DeleteAllDynamicWindowsDesktops(ctx))
+				var key string
+				for {
+					page, next, err := authServer.AuthServer.ListDynamicWindowsDesktops(ctx, 0, key)
+					require.NoError(t, err)
+					for _, dwd := range page {
+						require.NoError(t, authServer.AuthServer.DeleteDynamicWindowsDesktop(ctx, dwd.GetName()))
+					}
+					if next == "" {
+						break
+					}
+					key = next
+				}
 			})
 
 			desktop, err := types.NewDynamicWindowsDesktopV1("test", testCase.labels, types.DynamicWindowsDesktopSpecV1{

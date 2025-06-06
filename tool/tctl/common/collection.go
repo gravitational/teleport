@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 	"sort"
 	"strconv"
@@ -1644,6 +1645,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		settingsDatadogIncidentManagement = "datadog_incident_management"
 		settingsEmailAccessPlugin         = "email_access_plugin"
 		settingsAWSIdentityCenter         = "aws_ic"
+		settingsNetIQ                     = "net_iq"
 	)
 	type unknownPluginType struct {
 		Spec struct {
@@ -1697,6 +1699,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Openai{}
 		case settingsOkta:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Okta{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_Okta{}
 		case settingsJamf:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Jamf{}
 		case settingsPagerDuty:
@@ -1711,8 +1714,10 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_ServiceNow{}
 		case settingsGitlab:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Gitlab{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_Gitlab{}
 		case settingsEntraID:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_EntraId{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_EntraId{}
 		case settingsDatadogIncidentManagement:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Datadog{}
 		case settingsEmailAccessPlugin:
@@ -1720,6 +1725,10 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		case settingsAWSIdentityCenter:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_AwsIc{}
 			p.PluginV1.Status.Details = &types.PluginStatusV1_AwsIc{}
+		case settingsNetIQ:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_NetIq{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_NetIq{}
+
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)
 		}
@@ -1758,7 +1767,7 @@ type botInstanceCollection struct {
 func (c *botInstanceCollection) resources() []types.Resource {
 	r := make([]types.Resource, 0, len(c.items))
 	for _, resource := range c.items {
-		r = append(r, types.Resource153ToLegacy(resource))
+		r = append(r, types.ProtoResource153ToLegacy(resource))
 	}
 	return r
 }
@@ -2024,6 +2033,54 @@ func (c *autoUpdateAgentRolloutCollection) writeText(w io.Writer, verbose bool) 
 		fmt.Sprintf("%v", c.rollout.GetSpec().GetSchedule()),
 		fmt.Sprintf("%v", c.rollout.GetSpec().GetStrategy()),
 	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type autoUpdateAgentReportCollection struct {
+	reports []*autoupdatev1pb.AutoUpdateAgentReport
+}
+
+func (c *autoUpdateAgentReportCollection) resources() []types.Resource {
+	resources := make([]types.Resource, len(c.reports))
+	for i, report := range c.reports {
+		resources[i] = types.ProtoResource153ToLegacy(report)
+	}
+	return resources
+}
+
+func (c *autoUpdateAgentReportCollection) writeText(w io.Writer, verbose bool) error {
+	groupSet := make(map[string]any)
+	versionsSet := make(map[string]any)
+	for _, report := range c.reports {
+		for groupName, group := range report.GetSpec().GetGroups() {
+			groupSet[groupName] = struct{}{}
+			for versionName := range group.GetVersions() {
+				versionsSet[versionName] = struct{}{}
+			}
+		}
+	}
+
+	groupNames := slices.Collect(maps.Keys(groupSet))
+	versionNames := slices.Collect(maps.Keys(versionsSet))
+	slices.Sort(groupNames)
+	slices.Sort(versionNames)
+
+	t := asciitable.MakeTable(append([]string{"Auth Server ID", "Agent Version"}, groupNames...))
+	for _, report := range c.reports {
+		for i, versionName := range versionNames {
+			row := make([]string, len(groupNames)+2)
+			if i == 0 {
+				row[0] = report.GetMetadata().GetName()
+			}
+			row[1] = versionName
+			for j, groupName := range groupNames {
+				row[j+2] = strconv.Itoa(int(report.GetSpec().GetGroups()[groupName].GetVersions()[versionName].GetCount()))
+			}
+			t.AddRow(row)
+		}
+		t.AddRow(make([]string, len(versionNames)+2))
+	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

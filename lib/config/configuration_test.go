@@ -446,6 +446,15 @@ func TestConfigReading(t *testing.T) {
 					StaticLabels:  Labels,
 					DynamicLabels: CommandLabels,
 				},
+				{
+					Name:         "mcp-everything",
+					StaticLabels: Labels,
+					MCP: &MCP{
+						Command:       "docker",
+						RunAsHostUser: "docker",
+						Args:          []string{"run", "-i", "--rm", "mcp/everything"},
+					},
+				},
 			},
 			ResourceMatchers: []ResourceMatcher{
 				{
@@ -780,7 +789,7 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, "tcp://peerhost:1234", cfg.Proxy.PeerAddress.FullAddress())
 	require.Equal(t, "tcp://peer.example:1234", cfg.Proxy.PeerPublicAddr.FullAddress())
 	require.True(t, cfg.Proxy.IdP.SAMLIdP.Enabled)
-	require.Equal(t, "", cfg.Proxy.IdP.SAMLIdP.BaseURL)
+	require.Empty(t, cfg.Proxy.IdP.SAMLIdP.BaseURL)
 
 	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
 
@@ -796,7 +805,7 @@ func TestApplyConfig(t *testing.T) {
 		},
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOptional,
+			SecondFactor: constants.SecondFactorWebauthn,
 			Webauthn: &types.Webauthn{
 				RPID: "goteleport.com",
 				AttestationAllowedCAs: []string{
@@ -1643,6 +1652,15 @@ func makeConfigFixture() string {
 			StaticLabels:  Labels,
 			DynamicLabels: CommandLabels,
 		},
+		{
+			Name:         "mcp-everything",
+			StaticLabels: Labels,
+			MCP: &MCP{
+				Command:       "docker",
+				Args:          []string{"run", "-i", "--rm", "mcp/everything"},
+				RunAsHostUser: "docker",
+			},
+		},
 	}
 	conf.Apps.ResourceMatchers = []ResourceMatcher{
 		{
@@ -2351,6 +2369,22 @@ func TestWindowsDesktopService(t *testing.T) {
 			mutate: func(fc *FileConfig) {
 				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
 					BaseDN: "",
+				}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
+			},
+		},
+		{
+			desc:        "NOK - legacy discovery and new discovery_configs both specified",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
+					BaseDN: "*",
+				}
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{BaseDN: "OU=stage,DC=example,DC=com"},
+					{BaseDN: "OU=prod,DC=example,DC=com"},
 				}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",

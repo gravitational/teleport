@@ -1,0 +1,5 @@
+[test-profile]
+aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYzEXAMPLESAK
+aws_access_key_id=AKIAIOSFODNN7EXAMPLEAKID
+aws_session_token=AQoDYXdzEJrtyWJ4NjK7PiEXAMPLEST
+expiration=1848285415000

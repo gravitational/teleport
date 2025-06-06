@@ -1,6 +1,6 @@
 ```yaml
 kind: role
-version: v7
+version: v8
 metadata:
   name: example
   description: This is an example role.
@@ -94,14 +94,14 @@ spec:
       # Access). If not set, the value set on default will be used.
       ssh: best_effort|strict
     # Specify whether clipboard sharing should be allowed with the
-    # remote desktop (requires a supported browser). Defaults to true
-    # if unspecified. If one or more of the user's roles has disabled
-    # the clipboard, then it will be disabled.
+    # remote desktop (requires a supported browser or Teleport Connect).
+    # Defaults to true if unspecified.
+    # If one or more of the user's roles has disabled the clipboard, then it will be disabled.
     desktop_clipboard: true
     # Specify whether directory sharing should be allowed from the
-    # local machine to remote desktop (requires a supported browser). Defaults to true
-    # if unspecified. If one or more of the user's roles has disabled
-    # directory sharing, then it will be disabled.
+    # local machine to remote desktop (requires a supported browser or Teleport Connect).
+    # Defaults to true if unspecified.
+    # If one or more of the user's roles has disabled directory sharing, then it will be disabled.
     desktop_directory_sharing: true
     # enterprise-only: when enabled, the source IP that was used to log in is embedded in the user
     # certificates, preventing a compromised certificate from being used on another
@@ -130,13 +130,6 @@ spec:
     # best_effort_drop (try to drop the user at session end, if it doesn't
     # succeed, fallback to disabling it).
     create_db_user_mode: keep
-    # Specifies role specific options for identity provider access.
-    idp:
-      # Specifies role specific options for SAML identity provider access.
-      saml:
-        # Specifies whether this role has access to the SAML identity provider.
-        # Defaults to true.
-        enabled: true
 
   # The allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. By default, nothing is allowed.
@@ -206,31 +199,15 @@ spec:
     kubernetes_resources:
         # The resource kind. Teleport currently supports:
         # - * (all resources)
-        # - pod
-        # - secret
-        # - configmap
-        # - namespace
-        # - service
-        # - serviceaccount
-        # - kube_node
-        # - persistentvolume
-        # - persistentvolumeclaim
-        # - deployment
-        # - replicaset
-        # - statefulset
-        # - daemonset
-        # - clusterrole
-        # - kube_role
-        # - clusterrolebinding
-        # - rolebinding
-        # - cronjob
-        # - job
-        # - certificatesigningrequest
-        # - ingress
+        # - <arbitrary string> (Resource plural name, e.g. pods, deployments, cronjobs, mycustomresources)
       - kind: '*'
+        # The resource name of the Kubernetes cluster in which to allow access
+        # to the resources you specify with 'name' and 'kind'.
+        api_group: '*'
         # The name of the Kubernetes namespace in which to allow access the
         # resources you specify with 'name' and 'kind'.
-        # The wildcard character '*' matches any sequence of characters.
+        # The wildcard character '*' matches any sequence of characters for namespaced
+        # resource. If set, global resources will not match.
         # If the value begins with '^' and ends with '$', the Kubernetes
         # Service will treat it as a regular expression.
         namespace: '*'
@@ -303,6 +280,11 @@ spec:
     cluster_labels:
       'env': 'prod'
 
+    # workload_identity_labels: a user/bot with this role will be allowed to
+    # issue Workload Identities with labels matching below.
+    workload_identity_labels:
+      'env': 'prod'
+
     # node_labels_expression has the same purpose as node_labels but
     # supports predicate expressions to configure custom logic.
     # A user with this role will be allowed to access nodes if they are in the
@@ -321,6 +303,7 @@ spec:
     db_service_labels_expression: 'labels["env"] == "staging"'
     windows_desktop_labels_expression: 'labels["env"] == "staging"'
     group_labels_expression: 'labels["env"] == "staging"'
+    workload_identity_labels_expression: 'labels["env"] == "staging"'
 
     # aws_role_arns allows a user with this role to assume AWS roles when
     # accessing AWS console using UI or AWS API using CLI

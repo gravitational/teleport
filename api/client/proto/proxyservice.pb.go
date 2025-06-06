@@ -4,14 +4,10 @@
 package proto
 
 import (
-	context "context"
 	fmt "fmt"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
 	github_com_gravitational_teleport_api_types "github.com/gravitational/teleport/api/types"
-	grpc "google.golang.org/grpc"
-	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
 	io "io"
 	math "math"
 	math_bits "math/bits"
@@ -476,159 +472,6 @@ var fileDescriptor_b76fff22d4479739 = []byte{
 	0xa0, 0x7f, 0xb0, 0x15, 0xaf, 0x5c, 0x8c, 0x5f, 0xfd, 0x58, 0x0d, 0xd8, 0xcf, 0xd5, 0x80, 0xfd,
 	0x59, 0x0d, 0xd8, 0xf9, 0xe8, 0x76, 0x83, 0xad, 0x7f, 0x42, 0xf3, 0xb6, 0x3b, 0x9e, 0xff, 0x0b,
 	0x00, 0x00, 0xff, 0xff, 0xf7, 0xa9, 0x04, 0x60, 0x69, 0x03, 0x00, 0x00,
-}
-
-// Reference imports to suppress errors if they are not otherwise used.
-var _ context.Context
-var _ grpc.ClientConn
-
-// This is a compile-time assertion to ensure that this generated file
-// is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
-
-// ProxyServiceClient is the client API for ProxyService service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type ProxyServiceClient interface {
-	// DialNode opens a bidrectional stream to the requested node.
-	DialNode(ctx context.Context, opts ...grpc.CallOption) (ProxyService_DialNodeClient, error)
-	// Ping checks if the peer is reachable and responsive.
-	Ping(ctx context.Context, in *ProxyServicePingRequest, opts ...grpc.CallOption) (*ProxyServicePingResponse, error)
-}
-
-type proxyServiceClient struct {
-	cc *grpc.ClientConn
-}
-
-func NewProxyServiceClient(cc *grpc.ClientConn) ProxyServiceClient {
-	return &proxyServiceClient{cc}
-}
-
-func (c *proxyServiceClient) DialNode(ctx context.Context, opts ...grpc.CallOption) (ProxyService_DialNodeClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_ProxyService_serviceDesc.Streams[0], "/proto.ProxyService/DialNode", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &proxyServiceDialNodeClient{stream}
-	return x, nil
-}
-
-type ProxyService_DialNodeClient interface {
-	Send(*Frame) error
-	Recv() (*Frame, error)
-	grpc.ClientStream
-}
-
-type proxyServiceDialNodeClient struct {
-	grpc.ClientStream
-}
-
-func (x *proxyServiceDialNodeClient) Send(m *Frame) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *proxyServiceDialNodeClient) Recv() (*Frame, error) {
-	m := new(Frame)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *proxyServiceClient) Ping(ctx context.Context, in *ProxyServicePingRequest, opts ...grpc.CallOption) (*ProxyServicePingResponse, error) {
-	out := new(ProxyServicePingResponse)
-	err := c.cc.Invoke(ctx, "/proto.ProxyService/Ping", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// ProxyServiceServer is the server API for ProxyService service.
-type ProxyServiceServer interface {
-	// DialNode opens a bidrectional stream to the requested node.
-	DialNode(ProxyService_DialNodeServer) error
-	// Ping checks if the peer is reachable and responsive.
-	Ping(context.Context, *ProxyServicePingRequest) (*ProxyServicePingResponse, error)
-}
-
-// UnimplementedProxyServiceServer can be embedded to have forward compatible implementations.
-type UnimplementedProxyServiceServer struct {
-}
-
-func (*UnimplementedProxyServiceServer) DialNode(srv ProxyService_DialNodeServer) error {
-	return status.Errorf(codes.Unimplemented, "method DialNode not implemented")
-}
-func (*UnimplementedProxyServiceServer) Ping(ctx context.Context, req *ProxyServicePingRequest) (*ProxyServicePingResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
-}
-
-func RegisterProxyServiceServer(s *grpc.Server, srv ProxyServiceServer) {
-	s.RegisterService(&_ProxyService_serviceDesc, srv)
-}
-
-func _ProxyService_DialNode_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(ProxyServiceServer).DialNode(&proxyServiceDialNodeServer{stream})
-}
-
-type ProxyService_DialNodeServer interface {
-	Send(*Frame) error
-	Recv() (*Frame, error)
-	grpc.ServerStream
-}
-
-type proxyServiceDialNodeServer struct {
-	grpc.ServerStream
-}
-
-func (x *proxyServiceDialNodeServer) Send(m *Frame) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *proxyServiceDialNodeServer) Recv() (*Frame, error) {
-	m := new(Frame)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func _ProxyService_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ProxyServicePingRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ProxyServiceServer).Ping(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/proto.ProxyService/Ping",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProxyServiceServer).Ping(ctx, req.(*ProxyServicePingRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-var _ProxyService_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "proto.ProxyService",
-	HandlerType: (*ProxyServiceServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "Ping",
-			Handler:    _ProxyService_Ping_Handler,
-		},
-	},
-	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "DialNode",
-			Handler:       _ProxyService_DialNode_Handler,
-			ServerStreams: true,
-			ClientStreams: true,
-		},
-	},
-	Metadata: "teleport/legacy/client/proto/proxyservice.proto",
 }
 
 func (m *Frame) Marshal() (dAtA []byte, err error) {

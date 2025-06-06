@@ -90,7 +90,7 @@ func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.Clus
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
+	result, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		RouteToApp:     routeToApp,
 		AccessRequests: c.status.ActiveRequests,
@@ -101,7 +101,7 @@ func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.Clus
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	appCert, err := keyRing.AppTLSCert(routeToApp.Name)
+	appCert, err := result.KeyRing.AppTLSCert(routeToApp.Name)
 	return appCert, trace.Wrap(err)
 }
 

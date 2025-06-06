@@ -58,6 +58,13 @@ type YubiKey struct {
 	serialNumber uint32
 	// version is the YubiKey's version.
 	version piv.Version
+	// pinCache can be used to skip PIN prompts for keys that have PIN caching enabled.
+	pinCache *pinCache
+
+	// promptMu prevents prompting for PIN/touch repeatedly for concurrent signatures.
+	// TODO(Joerger): Rather than preventing concurrent signatures, we can make the
+	// PIN and touch prompts durable to concurrent signatures.
+	promptMu sync.Mutex
 }
 
 // FindYubiKey finds a YubiKey PIV card by serial number. If the provided
@@ -111,6 +118,7 @@ func findYubiKeyCards() ([]string, error) {
 
 func newYubiKey(card string) (*YubiKey, error) {
 	y := &YubiKey{
+		pinCache: newPINCache(),
 		conn: &sharedPIVConnection{
 			card: card,
 		},
@@ -144,186 +152,54 @@ const (
 	signTouchPromptDelay = time.Millisecond * 200
 )
 
-var (
-	ErrMissingTeleportCert = trace.BadParameterError{
-		Message: "hardware key agent cannot perform signatures on PIV slots that aren't configured for Teleport. " +
-			"The PIV slot should be configured automatically by the Teleport client during login. If you are " +
-			"are configuring the PIV slot manually, you must also generate a certificate in the slot with " +
-			"\"teleport\" as the organization name: " +
-			"e.g. \"ykman piv keys generate -a ECCP256 9a pub.pem && ykman piv certificate generate 9a pub.pem -s O=teleport\"",
-	}
+const (
+	// For generic auth errors, such as when PIN is not provided, the smart card returns the error code 0x6982.
+	// The piv-go library wraps error codes like this with a user readable message: "security status not satisfied".
+	pivGenericAuthErrCodeString = "6982"
 )
 
 func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, prompt hardwarekey.Prompt, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	pivSlot, err := parsePIVSlot(ref.SlotKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Check that the public key in the slot matches our record.
-	slotCert, err := y.conn.attest(pivSlot)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	type cryptoPublicKeyI interface {
-		Equal(x crypto.PublicKey) bool
-	}
-	if slotPub, ok := slotCert.PublicKey.(cryptoPublicKeyI); !ok {
-		return nil, trace.BadParameter("expected crypto.PublicKey but got %T", slotCert.PublicKey)
-	} else if !slotPub.Equal(ref.PublicKey) {
-		return nil, trace.CompareFailed("public key mismatch on PIV slot 0x%x", pivSlot.Key)
-	}
-
-	// If this sign request is coming from the hardware key agent, ensure that the requested PIV
-	// slot was configured by a Teleport client, or manually configured by the user / hardware key
-	// administrator. Manual configuration is used in cases where the default PIV management key
-	// is not used, e.g. when the hardware key is managed by a third party provider by an admin.
-	if keyInfo.AgentKey {
-		cert, err := y.getCertificate(pivSlot)
-		switch {
-		case errors.Is(err, piv.ErrNotFound):
-			return nil, trace.Wrap(&ErrMissingTeleportCert, "certificate not found in PIV slot 0x%x", pivSlot.Key)
-		case err != nil:
-			return nil, trace.Wrap(err)
-		case !isTeleportMetadataCertificate(cert):
-			return nil, trace.Wrap(&ErrMissingTeleportCert, nonTeleportCertificateMessage(pivSlot, cert))
-		}
-	}
-
-	ctx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
-
-	// Lock the connection for the entire duration of the sign
-	// process. Without this, the connection will be released,
-	// leading to a failure when providing PIN or touch input:
-	// "verify pin: transmitting request: the supplied handle was invalid".
-	release, err := y.conn.connect()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer release()
-
-	var touchPromptDelayTimer *time.Timer
-	if ref.Policy.TouchRequired {
-		touchPromptDelayTimer = time.NewTimer(signTouchPromptDelay)
-		defer touchPromptDelayTimer.Stop()
-
-		go func() {
-			select {
-			case <-touchPromptDelayTimer.C:
-				// Prompt for touch after a delay, in case the function succeeds without touch due to a cached touch.
-				err := prompt.Touch(ctx, keyInfo)
-				if err != nil {
-					// Cancel the entire function when an error occurs.
-					// This is typically used for aborting the prompt.
-					cancel(trace.Wrap(err))
-				}
-				return
-			case <-ctx.Done():
-				// touch cached, skip prompt.
-				return
-			}
-		}()
-	}
-
-	promptPIN := func() (string, error) {
-		// touch prompt delay is disrupted by pin prompts. To prevent misfired
-		// touch prompts, pause the timer for the duration of the pin prompt.
-		if touchPromptDelayTimer != nil {
-			if touchPromptDelayTimer.Stop() {
-				defer touchPromptDelayTimer.Reset(signTouchPromptDelay)
-			}
-		}
-		pass, err := prompt.AskPIN(ctx, hardwarekey.PINRequired, keyInfo)
-		return pass, trace.Wrap(err)
-	}
-
-	pinPolicy := piv.PINPolicyNever
-	if ref.Policy.PINRequired {
-		pinPolicy = piv.PINPolicyOnce
-	}
-
+	// When using [piv.PINPolicyOnce], PIN is only required when it isn't cached in the PCSC
+	// transaction internally. The piv-go prompt logic attempts to check this requirement
+	// before prompting, which is generally workable. However, the PIN prompt logic is not
+	// flexible enough for the retry and PIN caching mechanisms supported in Teleport. As a
+	// result, we must first try signature without PIN and only prompt for PIN when we get a
+	// "security status not satisfied" error ([pivGenericAuthErrCodeString]).
+	//
+	// TODO(Joerger): Once https://github.com/go-piv/piv-go/pull/174 is merged upstream, we can
+	// check if PIN is required and verify PIN before attempting the signature. This is a more
+	// reliable method of checking the PIN requirement than the somewhat general auth error
+	// returned by the failed signature.
+	// IMPORTANT: Maintain the signature retry flow for firmware version 5.3.1, which has a bug
+	// with checking the PIN requirement - https://github.com/gravitational/teleport/pull/36427.
 	auth := piv.KeyAuth{
-		PINPrompt: promptPIN,
-		PINPolicy: pinPolicy,
+		PINPolicy: piv.PINPolicyNever,
 	}
 
-	// YubiKeys with firmware version 5.3.1 have a bug where insVerify(0x20, 0x00, 0x80, nil)
-	// clears the PIN cache instead of performing a non-mutable check. This causes the signature
-	// with pin policy "once" to fail unless PIN is provided for each call. We can avoid this bug
-	// by skipping the insVerify check and instead manually retrying with a PIN prompt only when
-	// the signature fails.
-	manualRetryWithPIN := false
-	fw531 := piv.Version{Major: 5, Minor: 3, Patch: 1}
-	if auth.PINPolicy == piv.PINPolicyOnce && y.conn.conn.Version() == fw531 {
-		// Set the keys PIN policy to never to skip the insVerify check. If PIN was provided in
-		// a previous recent call, the signature will succeed as expected of the "once" policy.
-		auth.PINPolicy = piv.PINPolicyNever
-		manualRetryWithPIN = true
+	var promptTouch promptTouch
+	if ref.Policy.TouchRequired {
+		promptTouch = func(ctx context.Context) error {
+			return y.promptTouch(ctx, prompt, keyInfo)
+		}
 	}
 
-	privateKey, err := y.conn.privateKey(pivSlot, ref.PublicKey, auth)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	signer, ok := privateKey.(crypto.Signer)
-	if !ok {
-		return nil, trace.BadParameter("private key type %T does not implement crypto.Signer", privateKey)
-	}
-
-	// For generic auth errors, such as when PIN is not provided, the smart card returns the error code 0x6982.
-	// The piv-go library wraps error codes like this with a user readable message: "security status not satisfied".
-	const pivGenericAuthErrCodeString = "6982"
-
-	signature, err := abandonableSign(ctx, signer, rand, digest, opts)
+	signature, err := y.conn.sign(ctx, ref, auth, promptTouch, rand, digest, opts)
 	switch {
 	case err == nil:
 		return signature, nil
-	case manualRetryWithPIN && strings.Contains(err.Error(), pivGenericAuthErrCodeString):
-		pin, err := promptPIN()
+	case strings.Contains(err.Error(), pivGenericAuthErrCodeString) && ref.Policy.PINRequired:
+		pin, err := y.promptPIN(ctx, prompt, hardwarekey.PINRequired, keyInfo, ref.PINCacheTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := y.conn.verifyPIN(pin); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		signature, err := abandonableSign(ctx, signer, rand, digest, opts)
-		return signature, trace.Wrap(err)
+
+		// Setting the [piv.PINPolicyAlways] ensures that the PIN is used and skips
+		// the required check usually used with [piv.PINPolicyOnce].
+		auth.PINPolicy = piv.PINPolicyAlways
+		auth.PIN = pin
+		return y.conn.sign(ctx, ref, auth, promptTouch, rand, digest, opts)
 	default:
 		return nil, trace.Wrap(err)
-	}
-}
-
-// abandonableSign is a wrapper around signer.Sign.
-// It enhances the functionality of signer.Sign by allowing the caller to stop
-// waiting for the result if the provided context is canceled.
-// It is especially important for WarmupHardwareKey,
-// where waiting for the user providing a PIN/touch could block program termination.
-// Important: this function only abandons the signer.Sign result, doesn't cancel it.
-func abandonableSign(ctx context.Context, signer crypto.Signer, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	type signResult struct {
-		signature []byte
-		err       error
-	}
-
-	signResultCh := make(chan signResult)
-	go func() {
-		if err := ctx.Err(); err != nil {
-			return
-		}
-		signature, err := signer.Sign(rand, digest, opts)
-		select {
-		case <-ctx.Done():
-		case signResultCh <- signResult{signature: signature, err: trace.Wrap(err)}:
-		}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case result := <-signResultCh:
-		return result.signature, trace.Wrap(result.err)
 	}
 }
 
@@ -334,7 +210,7 @@ func (y *YubiKey) Reset() error {
 }
 
 // generatePrivateKey generates a new private key in the given PIV slot.
-func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPolicy, algorithm hardwarekey.SignatureAlgorithm) (*hardwarekey.PrivateKeyRef, error) {
+func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPolicy, algorithm hardwarekey.SignatureAlgorithm, pinCacheTTL time.Duration) (*hardwarekey.PrivateKeyRef, error) {
 	touchPolicy := piv.TouchPolicyNever
 	if policy.TouchRequired {
 		touchPolicy = piv.TouchPolicyCached
@@ -367,7 +243,7 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPol
 		TouchPolicy: touchPolicy,
 	}
 
-	if _, err := y.conn.generateKey(piv.DefaultManagementKey, slot, opts); err != nil {
+	if err := y.GenerateKey(slot, opts); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -378,7 +254,13 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPol
 		return nil, trace.Wrap(err)
 	}
 
-	return y.getKeyRef(slot)
+	return y.getKeyRef(slot, pinCacheTTL)
+}
+
+// GenerateKey generates a new private key in the given PIV slot.
+func (y *YubiKey) GenerateKey(slot piv.Slot, opts piv.Key) error {
+	_, err := y.conn.generateKey(piv.DefaultManagementKey, slot, opts)
+	return trace.Wrap(err)
 }
 
 // SetMetadataCertificate creates a self signed certificate and stores it in the YubiKey's
@@ -395,10 +277,41 @@ func (y *YubiKey) SetMetadataCertificate(slot piv.Slot, subject pkix.Name) error
 	return trace.Wrap(err)
 }
 
-// getCertificate gets a certificate from the given PIV slot.
-func (y *YubiKey) getCertificate(slot piv.Slot) (*x509.Certificate, error) {
+// checkCertificate checks for a certificate on the PIV slot matching a Teleport client
+// metadata certificate. Expected errors include [trace.NotFoundError] and [nonTeleportCertError].
+func (y *YubiKey) checkCertificate(slot piv.Slot) error {
 	cert, err := y.conn.certificate(slot)
-	return cert, trace.Wrap(err)
+	switch {
+	case errors.Is(err, piv.ErrNotFound):
+		return trace.NotFound("certificate not found in PIV slot 0x%x", slot.Key)
+	case err != nil:
+		return trace.Wrap(err)
+	case !isTeleportMetadataCertificate(cert):
+		return nonTeleportCertError{
+			slot: slot,
+			cert: cert,
+		}
+	}
+	return nil
+}
+
+type cryptoPublicKey interface {
+	Equal(x crypto.PublicKey) bool
+}
+
+// getPublicKey gets a public key from the given PIV slot.
+func (y *YubiKey) getPublicKey(slot piv.Slot) (cryptoPublicKey, error) {
+	slotCert, err := y.conn.attest(slot)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get slot cert on PIV slot 0x%x", slot.Key)
+	}
+
+	slotPub, ok := slotCert.PublicKey.(cryptoPublicKey)
+	if !ok {
+		return nil, trace.BadParameter("expected crypto.PublicKey but got %T", slotCert.PublicKey)
+	}
+
+	return slotPub, nil
 }
 
 // attestKey attests the key in the given PIV slot.
@@ -422,7 +335,7 @@ func (y *YubiKey) attestKey(slot piv.Slot) (slotCert *x509.Certificate, attCert 
 	return slotCert, attCert, att, nil
 }
 
-func (y *YubiKey) getKeyRef(slot piv.Slot) (*hardwarekey.PrivateKeyRef, error) {
+func (y *YubiKey) getKeyRef(slot piv.Slot, pinCacheTTL time.Duration) (*hardwarekey.PrivateKeyRef, error) {
 	slotCert, attCert, att, err := y.attestKey(slot)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -444,6 +357,7 @@ func (y *YubiKey) getKeyRef(slot piv.Slot) (*hardwarekey.PrivateKeyRef, error) {
 				},
 			},
 		},
+		PINCacheTTL: pinCacheTTL,
 	}
 
 	if err := ref.Validate(); err != nil {
@@ -459,7 +373,79 @@ func (y *YubiKey) SetPIN(oldPin, newPin string) error {
 	return trace.Wrap(err)
 }
 
-func (y *YubiKey) setPINAndPUKFromDefault(ctx context.Context, prompt hardwarekey.Prompt, keyInfo hardwarekey.ContextualKeyInfo) (string, error) {
+// checkOrSetPIN prompts the user for PIN and verifies it with the YubiKey.
+// If the user provides the default PIN, they will be prompted to set a
+// non-default PIN and PUK before continuing.
+func (y *YubiKey) checkOrSetPIN(ctx context.Context, prompt hardwarekey.Prompt, keyInfo hardwarekey.ContextualKeyInfo, pinCacheTTL time.Duration) error {
+	pin, err := y.promptPIN(ctx, prompt, hardwarekey.PINOptional, keyInfo, pinCacheTTL)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if pin == piv.DefaultPIN {
+		pin, err = y.setPINAndPUKFromDefault(ctx, prompt, keyInfo, pinCacheTTL)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// PIN (or PUK) prompts time out after 1 minute to prevent an indefinite hold of
+// the pin cache mutex or the exclusive PC/SC transaction.
+const pinPromptTimeout = time.Minute
+
+// promptPIN prompts for PIN. If PIN caching is enabled, it verifies and caches the PIN for future calls.
+func (y *YubiKey) promptPIN(ctx context.Context, prompt hardwarekey.Prompt, requirement hardwarekey.PINPromptRequirement, keyInfo hardwarekey.ContextualKeyInfo, pinCacheTTL time.Duration) (string, error) {
+	y.pinCache.mu.Lock()
+	defer y.pinCache.mu.Unlock()
+
+	pin := y.pinCache.getPIN(pinCacheTTL)
+	if pin != "" {
+		return pin, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, pinPromptTimeout)
+	defer cancel()
+
+	y.promptMu.Lock()
+	defer y.promptMu.Unlock()
+
+	pin, err := prompt.AskPIN(ctx, requirement, keyInfo)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// Verify that the PIN is correct before we cache it. This also caches it internally in the PC/SC transaction.
+	// TODO(Joerger): In the signature pin prompt logic, we unfortunately repeat this verification
+	// due to the way the upstream piv-go library handles PIN prompts.
+	if err := y.verifyPIN(pin); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	y.pinCache.setPIN(pin, pinCacheTTL)
+	return pin, nil
+}
+
+func (y *YubiKey) promptTouch(ctx context.Context, prompt hardwarekey.Prompt, keyInfo hardwarekey.ContextualKeyInfo) error {
+	y.promptMu.Lock()
+	defer y.promptMu.Unlock()
+
+	return prompt.Touch(ctx, keyInfo)
+}
+
+func (y *YubiKey) setPINAndPUKFromDefault(ctx context.Context, prompt hardwarekey.Prompt, keyInfo hardwarekey.ContextualKeyInfo, pinCacheTTL time.Duration) (string, error) {
+	y.pinCache.mu.Lock()
+	defer y.pinCache.mu.Unlock()
+
+	// Use a longer timeout than pinPromptTimeout since this specific prompt requires the user to
+	// re-type both PIN and PUK. The user might also want to save the values somewhere.
+	// pinPromptTimeout just doesn't give enough time for that.
+	const newPinPromptTimeout = 3 * time.Minute
+	ctx, cancel := context.WithTimeout(ctx, newPinPromptTimeout)
+	defer cancel()
+
 	pinAndPUK, err := prompt.ChangePIN(ctx, keyInfo)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -475,10 +461,12 @@ func (y *YubiKey) setPINAndPUKFromDefault(ctx context.Context, prompt hardwareke
 		}
 	}
 
+	// unblock caches the new PIN the same way verify does.
 	if err := y.conn.unblock(pinAndPUK.PUK, pinAndPUK.PIN); err != nil {
 		return "", trace.Wrap(err)
 	}
 
+	y.pinCache.setPIN(pinAndPUK.PIN, pinCacheTTL)
 	return pinAndPUK.PIN, nil
 }
 
@@ -496,6 +484,10 @@ type sharedPIVConnection struct {
 	conn              *piv.YubiKey
 	mu                sync.Mutex
 	activeConnections int
+
+	// exclusiveOperationMu is used to ensure that PIV operations that don't
+	// support concurrency are not run concurrently.
+	exclusiveOperationMu sync.RWMutex
 }
 
 // connect establishes a connection to a YubiKey PIV module and returns a release function.
@@ -543,6 +535,11 @@ func (c *sharedPIVConnection) connect() (func(), error) {
 	retryCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
+	isRetryError := func(err error) bool {
+		const retryError = "connecting to smart card: the smart card cannot be accessed because of other connections outstanding"
+		return strings.Contains(err.Error(), retryError)
+	}
+
 	err = linearRetry.For(retryCtx, func() error {
 		c.conn, err = piv.Open(c.card)
 		if err != nil && !isRetryError(err) {
@@ -568,14 +565,89 @@ func (c *sharedPIVConnection) connect() (func(), error) {
 	return release, nil
 }
 
-func (c *sharedPIVConnection) privateKey(slot piv.Slot, public crypto.PublicKey, auth piv.KeyAuth) (crypto.PrivateKey, error) {
+type promptTouch func(ctx context.Context) error
+
+func (c *sharedPIVConnection) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, auth piv.KeyAuth, promptTouch promptTouch, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	pivSlot, err := parsePIVSlot(ref.SlotKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	release, err := c.connect()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer release()
-	privateKey, err := c.conn.PrivateKey(slot, public, auth)
-	return privateKey, trace.Wrap(err)
+
+	c.exclusiveOperationMu.RLock()
+	defer c.exclusiveOperationMu.RUnlock()
+
+	// Prepare the key and perform the signature with the same connection.
+	// Closing the connection in between breaks the underlying PIV handle.
+	priv, err := c.conn.PrivateKey(pivSlot, ref.PublicKey, auth)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	signer, ok := priv.(crypto.Signer)
+	if !ok {
+		return nil, trace.BadParameter("private key type %T does not implement crypto.Signer", priv)
+	}
+
+	return abandonableSign(ctx, signer, promptTouch, rand, digest, opts)
+}
+
+// abandonableSign extends [sharedPIVConnection.sign] to handle context, allowing the
+// caller to stop waiting for the result if the provided context is canceled.
+//
+// This is necessary for hardware key signatures which sometimes require touch from the
+// user to complete, which can block program termination.
+//
+// Important: this function only abandons the signer.Sign result, doesn't cancel it.
+func abandonableSign(ctx context.Context, signer crypto.Signer, promptTouch promptTouch, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Since this function isn't fully synchronous, the goroutines below may outlive
+	// the function call, especially sign which cannot be stopped once started. We
+	// use buffered channels to ensure these goroutines can send even with no receiver
+	// to avoid leaking.
+	signatureC := make(chan []byte, 1)
+	errC := make(chan error, 2)
+
+	go func() {
+		signature, err := signer.Sign(rand, digest, opts)
+		if err != nil {
+			errC <- err
+			return
+		}
+		signatureC <- signature
+	}()
+
+	if promptTouch != nil {
+		go func() {
+			// There is no built in mechanism to prompt for touch on demand, so we simply prompt for touch after
+			// a short duration in hopes of lining up with the actual YubiKey touch prompt (flashing key). In the
+			// case where touch is cached, the delay prevents the prompt from firing when it isn't needed.
+			select {
+			case <-time.After(signTouchPromptDelay):
+				if err := promptTouch(ctx); err != nil {
+					errC <- promptTouch(ctx)
+				}
+			case <-ctx.Done():
+				// prompt cached or signature canceled, skip prompt.
+			}
+		}()
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
+	case err := <-errC:
+		return nil, trace.Wrap(err)
+	case signature := <-signatureC:
+		return signature, nil
+	}
 }
 
 func (c *sharedPIVConnection) getSerialNumber() (uint32, error) {
@@ -584,6 +656,10 @@ func (c *sharedPIVConnection) getSerialNumber() (uint32, error) {
 		return 0, trace.Wrap(err)
 	}
 	defer release()
+
+	c.exclusiveOperationMu.RLock()
+	defer c.exclusiveOperationMu.RUnlock()
+
 	serial, err := c.conn.Serial()
 	return serial, trace.Wrap(err)
 }
@@ -594,6 +670,8 @@ func (c *sharedPIVConnection) getVersion() (piv.Version, error) {
 		return piv.Version{}, trace.Wrap(err)
 	}
 	defer release()
+
+	// Version only requires an open connection, so we don't need to lock on [c.exclusiveOperationMu].
 	return c.conn.Version(), nil
 }
 
@@ -603,6 +681,10 @@ func (c *sharedPIVConnection) reset() error {
 		return trace.Wrap(err)
 	}
 	defer release()
+
+	c.exclusiveOperationMu.Lock()
+	defer c.exclusiveOperationMu.Unlock()
+
 	return trace.Wrap(c.conn.Reset())
 }
 
@@ -612,6 +694,10 @@ func (c *sharedPIVConnection) setCertificate(key [24]byte, slot piv.Slot, cert *
 		return trace.Wrap(err)
 	}
 	defer release()
+
+	c.exclusiveOperationMu.Lock()
+	defer c.exclusiveOperationMu.Unlock()
+
 	return trace.Wrap(c.conn.SetCertificate(key, slot, cert))
 }
 
@@ -621,6 +707,10 @@ func (c *sharedPIVConnection) certificate(slot piv.Slot) (*x509.Certificate, err
 		return nil, trace.Wrap(err)
 	}
 	defer release()
+
+	c.exclusiveOperationMu.Lock()
+	defer c.exclusiveOperationMu.Unlock()
+
 	cert, err := c.conn.Certificate(slot)
 	return cert, trace.Wrap(err)
 }
@@ -631,6 +721,10 @@ func (c *sharedPIVConnection) generateKey(key [24]byte, slot piv.Slot, opts piv.
 		return nil, trace.Wrap(err)
 	}
 	defer release()
+
+	c.exclusiveOperationMu.Lock()
+	defer c.exclusiveOperationMu.Unlock()
+
 	pubKey, err := c.conn.GenerateKey(key, slot, opts)
 	return pubKey, trace.Wrap(err)
 }
@@ -641,6 +735,10 @@ func (c *sharedPIVConnection) attest(slot piv.Slot) (*x509.Certificate, error) {
 		return nil, trace.Wrap(err)
 	}
 	defer release()
+
+	c.exclusiveOperationMu.Lock()
+	defer c.exclusiveOperationMu.Unlock()
+
 	cert, err := c.conn.Attest(slot)
 	return cert, trace.Wrap(err)
 }
@@ -651,6 +749,10 @@ func (c *sharedPIVConnection) attestationCertificate() (*x509.Certificate, error
 		return nil, trace.Wrap(err)
 	}
 	defer release()
+
+	c.exclusiveOperationMu.Lock()
+	defer c.exclusiveOperationMu.Unlock()
+
 	cert, err := c.conn.AttestationCertificate()
 	return cert, trace.Wrap(err)
 }
@@ -661,6 +763,10 @@ func (c *sharedPIVConnection) setPIN(oldPIN string, newPIN string) error {
 		return trace.Wrap(err)
 	}
 	defer release()
+
+	c.exclusiveOperationMu.RLock()
+	defer c.exclusiveOperationMu.RUnlock()
+
 	return trace.Wrap(c.conn.SetPIN(oldPIN, newPIN))
 }
 
@@ -670,6 +776,10 @@ func (c *sharedPIVConnection) setPUK(oldPUK string, newPUK string) error {
 		return trace.Wrap(err)
 	}
 	defer release()
+
+	c.exclusiveOperationMu.RLock()
+	defer c.exclusiveOperationMu.RUnlock()
+
 	return trace.Wrap(c.conn.SetPUK(oldPUK, newPUK))
 }
 
@@ -679,6 +789,10 @@ func (c *sharedPIVConnection) unblock(puk string, newPIN string) error {
 		return trace.Wrap(err)
 	}
 	defer release()
+
+	c.exclusiveOperationMu.RLock()
+	defer c.exclusiveOperationMu.RUnlock()
+
 	return trace.Wrap(c.conn.Unblock(puk, newPIN))
 }
 
@@ -688,12 +802,11 @@ func (c *sharedPIVConnection) verifyPIN(pin string) error {
 		return trace.Wrap(err)
 	}
 	defer release()
-	return trace.Wrap(c.conn.VerifyPIN(pin))
-}
 
-func isRetryError(err error) bool {
-	const retryError = "connecting to smart card: the smart card cannot be accessed because of other connections outstanding"
-	return strings.Contains(err.Error(), retryError)
+	c.exclusiveOperationMu.RLock()
+	defer c.exclusiveOperationMu.RUnlock()
+
+	return trace.Wrap(c.conn.VerifyPIN(pin))
 }
 
 func parsePIVSlot(slotKey hardwarekey.PIVSlotKey) (piv.Slot, error) {
@@ -741,9 +854,14 @@ func isTeleportMetadataCertificate(cert *x509.Certificate) bool {
 	return len(cert.Subject.Organization) > 0 && cert.Subject.Organization[0] == certOrgName
 }
 
-func nonTeleportCertificateMessage(slot piv.Slot, cert *x509.Certificate) string {
+type nonTeleportCertError struct {
+	slot piv.Slot
+	cert *x509.Certificate
+}
+
+func (e nonTeleportCertError) Error() string {
 	// Gather a small list of user-readable x509 certificate fields to display to the user.
-	sum := sha256.Sum256(cert.Raw)
+	sum := sha256.Sum256(e.cert.Raw)
 	fingerPrint := hex.EncodeToString(sum[:])
 	return fmt.Sprintf(`Certificate in YubiKey PIV slot %q is not a Teleport client cert:
 Slot %s:
@@ -755,13 +873,19 @@ Slot %s:
 	Not before:		%v
 	Not after:		%v
 `,
-		slot, slot,
-		cert.SignatureAlgorithm,
-		cert.Subject,
-		cert.Issuer,
-		cert.SerialNumber,
+		e.slot, e.slot,
+		e.cert.SignatureAlgorithm,
+		e.cert.Subject,
+		e.cert.Issuer,
+		e.cert.SerialNumber,
 		fingerPrint,
-		cert.NotBefore,
-		cert.NotAfter,
+		e.cert.NotBefore,
+		e.cert.NotAfter,
 	)
 }
+
+const agentRequiresTeleportCertMessage = "hardware key agent cannot perform signatures on PIV slots that aren't configured for Teleport. " +
+	"The PIV slot should be configured automatically by the Teleport client during login. If you are " +
+	"are configuring the PIV slot manually, you must also generate a certificate in the slot with " +
+	"\"teleport\" as the organization name: " +
+	"e.g. \"ykman piv keys generate -a ECCP256 9a pub.pem && ykman piv certificate generate 9a pub.pem -s O=teleport\""

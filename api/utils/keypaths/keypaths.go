@@ -57,6 +57,8 @@ const (
 	dbDirSuffix = "-db"
 	// kubeDirSuffix is the suffix of a sub-directory where kube TLS certs are stored.
 	kubeDirSuffix = "-kube"
+	// windowsDesktopDirSuffix is the suffix of a subdirectory where Windows desktop TLS certs are stored.
+	windowsDesktopDirSuffix = "-windowsdesktop"
 	// kubeConfigSuffix is the suffix of a kubeconfig file stored under the keys directory.
 	kubeConfigSuffix = "-kubeconfig"
 	// fileNameKubeCredLock is file name of lockfile used to prevent excessive login attempts.
@@ -71,6 +73,18 @@ const (
 	profileFileExt = ".yaml"
 	// oracleWalletDirSuffix is the suffix of the oracle wallet database directory.
 	oracleWalletDirSuffix = "-wallet"
+	// VNetClientSSHKey is the file name of the SSH key used by third-party SSH
+	// clients to connect to VNet SSH.
+	VNetClientSSHKey = "id_vnet"
+	// VNetClientSSHKeyPub is the file name of the SSH public key matching
+	// VNetClientSSHKey.
+	VNetClientSSHKeyPub = VNetClientSSHKey + fileExtPub
+	// vnetKnownHosts is the file name of the known_hosts file trusted by
+	// third-party SSH clients connecting to VNet SSH.
+	vnetKnownHosts = "vnet_known_hosts"
+	// vnetSSHConfig is the file name of the generated OpenSSH-compatible config
+	// file to be used by third-party SSH clients connecting to VNet SSH.
+	vnetSSHConfig = "vnet_ssh_config"
 )
 
 // Here's the file layout of all these keypaths.
@@ -79,6 +93,10 @@ const (
 // ├── one.example.com.yaml            --> file containing profile details for proxy "one.example.com"
 // ├── two.example.com.yaml            --> file containing profile details for proxy "two.example.com"
 // ├── known_hosts                     --> trusted certificate authorities (their keys) in a format similar to known_hosts
+// ├── id_vnet                         --> SSH Private Key for third-party clients of VNet SSH
+// ├── id_vnet.pub                     --> SSH Public Key for third-party clients of VNet SSH
+// ├── vnet_known_hosts                --> trusted certificate authorities (their keys) for third-party clients of VNet SSH
+// ├── vnet_ssh_config                 --> OpenSSH-compatible config file for third-party clients of VNet SSH
 // └── keys							   --> session keys directory
 //    ├── one.example.com              --> Proxy hostname
 //    │   ├── certs.pem                --> TLS CA certs for the Teleport CA
@@ -112,20 +130,29 @@ const (
 //    │   │   │   ├── dbC.crt          --> TLS cert for database service "dbC"
 //    │   │   │   └── dbC.key          --> private key for database service "dbC"
 //    │   │   └── proxy-localca.pem    --> Self-signed TLS Routing local proxy CA
+//    │   ├── foo-windowsdesktop       --> Windows desktop access certs for user "foo"
+//    │   │   ├── root                 --> Windows desktop access certs for cluster "root"
+//    │   │   │   ├── desktopA.crt     --> TLS cert for desktop service "desktopA"
+//    │   │   │   ├── desktopA.key     --> private key for desktop service "desktopA"
+//    │   │   │   ├── desktopB.crt     --> TLS cert for desktop service "desktopB"
+//    │   │   │   └── desktopB.key     --> private key for desktop service "desktopB"
+//    │   │   └── leaf                 --> Windows desktop access for cluster "leaf"
+//    │   │       ├── desktopC.crt     --> TLS cert for desktop service "desktopC"
+//    │   │       └── desktopC.key     --> private key for desktop service "desktopC"
 //    │   ├── foo-kube                 --> Kubernetes certs for user "foo"
-//    │   |    ├── root                 --> Kubernetes certs for Teleport cluster "root"
-//    │   |    │   ├── kubeA-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeA"
-//    │   |    │   ├── kubeA.cred       --> TLS private key and cert for Kubernetes cluster "kubeA"
-//    │   |    │   ├── kubeB-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeB"
-//    │   |    │   ├── kubeB.cred       --> TLS private key and cert for Kubernetes cluster "kubeB"
-//    │   |    │   └── localca.pem      --> Self-signed localhost CA cert for Teleport cluster "root"
-//    │   |    └── leaf                 --> Kubernetes certs for Teleport cluster "leaf"
-//    │   |        ├── kubeC-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeC"
-//    │   |        └── kubeC.cred       --> TLS private key and cert for Kubernetes cluster "kubeC"
-//    |   └── cas                       --> Trusted clusters certificates
-//    |        ├── root.pem             --> TLS CA for teleport cluster "root"
-//    |        ├── leaf1.pem            --> TLS CA for teleport cluster "leaf1"
-//    |        └── leaf2.pem            --> TLS CA for teleport cluster "leaf2"
+//    │   │    ├── root                 --> Kubernetes certs for Teleport cluster "root"
+//    │   │    │   ├── kubeA-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeA"
+//    │   │    │   ├── kubeA.cred       --> TLS private key and cert for Kubernetes cluster "kubeA"
+//    │   │    │   ├── kubeB-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeB"
+//    │   │    │   ├── kubeB.cred       --> TLS private key and cert for Kubernetes cluster "kubeB"
+//    │   │    │   └── localca.pem      --> Self-signed localhost CA cert for Teleport cluster "root"
+//    │   │    └── leaf                 --> Kubernetes certs for Teleport cluster "leaf"
+//    │   │        ├── kubeC-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeC"
+//    │   │        └── kubeC.cred       --> TLS private key and cert for Kubernetes cluster "kubeC"
+//    │   └── cas                       --> Trusted clusters certificates
+//    │        ├── root.pem             --> TLS CA for teleport cluster "root"
+//    │        ├── leaf1.pem            --> TLS CA for teleport cluster "leaf1"
+//    │        └── leaf2.pem            --> TLS CA for teleport cluster "leaf2"
 //    └── two.example.com			    --> Additional proxy host entries follow the same format
 //		  ...
 
@@ -289,6 +316,38 @@ func AppLocalCAPath(baseDir, proxy, username, cluster, appname string) string {
 	return filepath.Join(AppCredentialDir(baseDir, proxy, username, cluster), appname+fileExtLocalCA)
 }
 
+// WindowsDesktopDir returns the path to the user's Windows desktop directory
+// for the given proxy.
+//
+// <baseDir>/keys/<proxy>/<username>-windowsdesktop
+func WindowsDesktopDir(baseDir, proxy, username string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+windowsDesktopDirSuffix)
+}
+
+// WindowsDesktopCredentialDir returns the path to the user's Windows desktop credential directory for
+// the given proxy and cluster.
+//
+// <baseDir>/keys/<proxy>/<username>-windowsdesktop/<cluster>
+func WindowsDesktopCredentialDir(baseDir, proxy, username, cluster string) string {
+	return filepath.Join(WindowsDesktopDir(baseDir, proxy, username), cluster)
+}
+
+// WindowsDesktopCertPath returns the path to the user's TLS certificate
+// for the given proxy, cluster, and Windows desktop.
+//
+// <baseDir>/keys/<proxy>/<username>-windowsdesktop/<cluster>/<desktop>.crt
+func WindowsDesktopCertPath(baseDir, proxy, username, cluster, desktop string) string {
+	return filepath.Join(WindowsDesktopCredentialDir(baseDir, proxy, username, cluster), desktop+FileExtTLSCert)
+}
+
+// WindowsDesktopKeyPath returns the path to the user's private key for the given proxy,
+// cluster, and Windows desktop.
+//
+// <baseDir>/keys/<proxy>/<username>-windowsdesktop/<cluster>/<desktop>.key
+func WindowsDesktopKeyPath(baseDir, proxy, username, cluster, desktop string) string {
+	return filepath.Join(WindowsDesktopCredentialDir(baseDir, proxy, username, cluster), desktop+fileExtTLSKey)
+}
+
 // DatabaseDir returns the path to the user's database directory
 // for the given proxy.
 //
@@ -384,6 +443,27 @@ func IsProfileKubeConfigPath(path string) (bool, error) {
 // <identity-file-dir>/<path>-cert.pub
 func IdentitySSHCertPath(path string) string {
 	return path + fileExtSSHCert
+}
+
+// VNetClientSSHKeyPath returns the path to the VNet client SSH private key.
+func VNetClientSSHKeyPath(baseDir string) string {
+	return filepath.Join(baseDir, VNetClientSSHKey)
+}
+
+// VNetClientSSHKeyPubPath returns the path to the VNet client SSH public key.
+func VNetClientSSHKeyPubPath(baseDir string) string {
+	return filepath.Join(baseDir, VNetClientSSHKeyPub)
+}
+
+// VNetKnownHostsPath returns the path to the VNet known_hosts file.
+func VNetKnownHostsPath(baseDir string) string {
+	return filepath.Join(baseDir, vnetKnownHosts)
+}
+
+// VNetSSHConfigPath returns the path to VNet's generated OpenSSH-compatible
+// config file.
+func VNetSSHConfigPath(baseDir string) string {
+	return filepath.Join(baseDir, vnetSSHConfig)
 }
 
 // TrimKeyPathSuffix returns the given path with any key suffix/extension trimmed off.

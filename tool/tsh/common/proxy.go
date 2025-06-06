@@ -115,7 +115,7 @@ func formatCommand(cmd *exec.Cmd) string {
 	var args []string
 	for _, arg := range cmd.Args {
 		// escape the potential quotes within
-		arg = strings.Replace(arg, `"`, `\"`, -1)
+		arg = strings.ReplaceAll(arg, `"`, `\"`)
 
 		// if there is whitespace within, surround with quotes
 		if strings.IndexFunc(arg, unicode.IsSpace) != -1 {
@@ -143,7 +143,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -216,21 +216,15 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		opts := []dbcmd.ConnectCommandFunc{
+		opts, err := makeDatabaseCommandOptions(cf.Context, tc, dbInfo,
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
-			dbcmd.WithLogger(logger),
 			dbcmd.WithPrintFormat(),
 			dbcmd.WithTolerateMissingCLIClient(),
-			dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
-		}
-		if opts, err = maybeAddDBUserPassword(cf, tc, dbInfo, opts); err != nil {
+		)
+		if err != nil {
 			return trace.Wrap(err)
 		}
-		if opts, err = maybeAddGCPMetadata(cf.Context, tc, dbInfo, opts); err != nil {
-			return trace.Wrap(err)
-		}
-		opts = maybeAddOracleOptions(cf.Context, tc, dbInfo, opts)
 
 		commands, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootCluster,
 			opts...,
@@ -278,9 +272,9 @@ func onProxyCommandDB(cf *CLIConf) error {
 	return nil
 }
 
-func maybeAddDBUserPassword(cf *CLIConf, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
+func maybeAddDBUserPassword(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
 	if dbInfo.Protocol == defaults.ProtocolCassandra {
-		db, err := dbInfo.GetDatabase(cf.Context, tc)
+		db, err := dbInfo.GetDatabase(ctx, tc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -300,6 +294,22 @@ func maybeAddDBUserPassword(cf *CLIConf, tc *libclient.TeleportClient, dbInfo *d
 
 func requiresGCPMetadata(protocol string) bool {
 	return protocol == defaults.ProtocolSpanner
+}
+
+func makeDatabaseCommandOptions(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, extraOpts ...dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
+	var err error
+	opts := append([]dbcmd.ConnectCommandFunc{
+		dbcmd.WithLogger(logger),
+		dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
+	}, extraOpts...)
+
+	if opts, err = maybeAddDBUserPassword(ctx, tc, dbInfo, opts); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if opts, err = maybeAddGCPMetadata(ctx, tc, dbInfo, opts); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return maybeAddOracleOptions(ctx, tc, dbInfo, opts), nil
 }
 
 func maybeAddGCPMetadata(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
@@ -489,6 +499,10 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if app.IsMCP() {
+		return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp login --help' for more details.")
 	}
 
 	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, profile, appInfo.RouteToApp, app, portMapping, cf.InsecureSkipVerify)

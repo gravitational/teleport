@@ -10,10 +10,11 @@
   },
   "license": "Apache-2.0",
   "scripts": {
-    "start": "electron-vite dev",
-    "build": "electron-vite build",
+    "start": "pnpm build-wasm && electron-vite dev",
+    "build": "pnpm build-wasm && electron-vite build",
     "package": "electron-builder build --config electron-builder-config.js --publish never -c.extraMetadata.name=teleport-connect",
-    "generate-grpc-shared": "npx -y --target_arch=x64 --package=@protobuf-ts/plugin@2.9.3 -- protoc -I=src/sharedProcess/api/proto --ts_opt long_type_number,eslint_disable,add_pb_suffix,client_grpc1,server_grpc1,ts_nocheck --ts_out=src/sharedProcess/api/protogen src/sharedProcess/api/proto/*.proto"
+    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm",
+    "generate-grpc-shared": "buf generate"
   },
   "repository": {
     "type": "git",
@@ -23,10 +24,10 @@
   "private": true,
   "homepage": "https://goteleport.com",
   "dependencies": {
-    "@grpc/grpc-js": "1.13.2",
+    "@grpc/grpc-js": "1.13.4",
     "@types/which": "^3.0.4",
     "node-forge": "^1.3.1",
-    "node-pty": "1.1.0-beta33",
+    "node-pty": "1.1.0-beta34",
     "ring-buffer-ts": "^1.2.0",
     "split2": "4.2.0",
     "strip-ansi": "^7.1.0",
@@ -39,13 +40,13 @@
     "@gravitational/build": "workspace:*",
     "@gravitational/design": "workspace:*",
     "@gravitational/shared": "workspace:*",
-    "@protobuf-ts/grpc-transport": "^2.9.6",
+    "@protobuf-ts/grpc-transport": "^2.10.0",
     "@types/node-forge": "^1.3.11",
     "@types/tar-fs": "^2.0.4",
     "@types/whatwg-url": "^13.0.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
-    "electron": "35.1.4",
+    "electron": "36.3.2",
     "electron-builder": "^26.0.12",
     "electron-vite": "^3.1.0",
     "events": "3.3.0",
@@ -53,7 +54,7 @@
     "react-dnd": "^14.0.4",
     "react-dnd-html5-backend": "^14.0.2",
     "whatwg-url": "^14.2.0",
-    "zod": "^3.24.2",
+    "zod": "^3.24.4",
     "zod-to-json-schema": "^3.24.5"
   },
   "productName": "Teleport Connect"

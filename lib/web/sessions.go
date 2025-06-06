@@ -786,7 +786,7 @@ func (s *sessionCache) watchWebSessions(ctx context.Context) {
 		return
 	}
 
-	linear := utils.NewDefaultLinear()
+	linear := utils.NewDefaultLinear(s.clock)
 	if s.sessionWatcherStartImmediately {
 		linear.First = 0
 	}
@@ -828,7 +828,7 @@ func (s *sessionCache) watchWebSessionsOnce(ctx context.Context, reset func()) e
 			{
 				Kind: types.KindWebSession,
 				// Watch only for KindWebSession.
-				// SubKinds include KindAppSession, KindSAMLIdPSession, etc.
+				// SubKinds include KindAppSession, KindSnowflakeSession, etc.
 				SubKind: types.KindWebSession,
 			},
 		},

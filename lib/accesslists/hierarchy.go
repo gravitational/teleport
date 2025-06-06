@@ -20,6 +20,7 @@ package accesslists
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"slices"
 
@@ -440,6 +441,26 @@ func maxDepthUpwards(
 	return maxDepth, nil
 }
 
+// userLockedError is used to check specific condition of user being locked with [IsUserLocked]. It
+// is also being matched by [trace.IsAccessDenied] while allowing creating a dynamic error message
+// containing the user name.
+type userLockedError struct{ err error }
+
+// newUserLockedError returns a new userLockedError.
+func newUserLockedError(user string) userLockedError {
+	return userLockedError{trace.AccessDenied("User %q is currently locked", user)}
+}
+
+func (e userLockedError) Unwrap() error { return e.err }
+func (e userLockedError) Error() string { return e.err.Error() }
+
+// IsUserLocked checks if the error was a result of the Access List member user having a lock.
+func IsUserLocked(err error) bool {
+	return errors.As(err, &userLockedError{})
+}
+
+// IsAccessListOwner checks if the given user is the Access List owner. It returns an error matched
+// by [IsUserLocked] if the user is locked.
 func IsAccessListOwner(
 	ctx context.Context,
 	user types.User,
@@ -456,7 +477,7 @@ func IsAccessListOwner(
 			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 		}
 		if len(locks) > 0 {
-			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.AccessDenied("User '%s' is currently locked", user.GetName())
+			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, newUserLockedError(user.GetName())
 		}
 	}
 
@@ -499,6 +520,8 @@ func IsAccessListOwner(
 	return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(ownershipErr)
 }
 
+// IsAccessListMember checks if the given user is the Access List member. It returns an error
+// matched by [IsUserLocked] if the user is locked.
 func IsAccessListMember(
 	ctx context.Context,
 	user types.User,
@@ -515,7 +538,7 @@ func IsAccessListMember(
 			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 		}
 		if len(locks) > 0 {
-			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.AccessDenied("User '%s' is currently locked", user.GetName())
+			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, newUserLockedError(user.GetName())
 		}
 	}
 

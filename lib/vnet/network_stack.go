@@ -45,14 +45,14 @@ import (
 	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "vnet")
+var log = logutils.NewPackageLogger(teleport.ComponentKey, logComponent)
 
 const (
+	logComponent                     = "vnet"
 	nicID                            = 1
 	mtu                              = 1500
 	tcpReceiveBufferSize             = 0 // 0 means a default will be used.
 	maxInFlightTCPConnectionAttempts = 1024
-	defaultIPv4CIDRRange             = "100.64.0.0/10"
 )
 
 // networkStackConfig holds configuration parameters for the VNet network stack.
@@ -63,9 +63,9 @@ type networkStackConfig struct {
 	ipv6Prefix tcpip.Address
 	// dnsIPv6 is the IPv6 address on which to host the DNS server. It must be under IPv6Prefix.
 	dnsIPv6 tcpip.Address
-	// tcpHandlerResolver will be used to resolve all DNS queries that may be valid public addresses for
-	// Teleport apps.
-	tcpHandlerResolver tcpHandlerResolver
+	// tcpHandlerResolver will be used to resolve all DNS queries that VNet may
+	// need to handle.
+	tcpHandlerResolver *tcpHandlerResolver
 
 	// upstreamNameserverSource, if set, overrides the default OS UpstreamNameserverSource which provides the
 	// IP addresses that unmatched DNS queries should be forwarded to. It is used in tests.
@@ -86,25 +86,6 @@ func (c *networkStackConfig) checkAndSetDefaults() error {
 	return nil
 }
 
-// tcpHandlerResolver describes a type that can resolve a fully-qualified domain
-// name to a tcpHandlerSpec that defines the CIDR range to assign an IP to
-// that handler from, and a handler for all future connections to that IP
-// address.
-//
-// Implementations beware - an FQDN always ends with a '.'.
-type tcpHandlerResolver interface {
-	// resolveTCPHandler decides if fqdn should match a TCP handler.
-	//
-	// If fqdn matches a Teleport-managed TCP app it must return a
-	// tcpHandlerSpec defining the CIDR range to assign an IP from, and a
-	// handler for future connections to any assigned IPs.
-	//
-	// If fqdn does not match it must return errNoTCPHandler. Avoid using
-	// [trace.Wrap] on errNoTCPHandler to prevent collecting a full stack trace
-	// on every unhandled query.
-	resolveTCPHandler(ctx context.Context, fqdn string) (*tcpHandlerSpec, error)
-}
-
 // errNoTCPHandler should be returned by tcpHandlerResolvers when no handler
 // matches the FQDN.
 //
@@ -122,7 +103,7 @@ type tcpHandlerSpec struct {
 
 // tcpHandler defines the behavior for handling TCP connections from VNet.
 //
-// Implementations should attempt to dial the target application and return any errors before calling
+// Implementations should attempt to dial the target and return any errors before calling
 // [connector] to complete the TCP handshake and get the TCP conn. This is so that clients will see that the
 // TCP connection was refused, instead of seeing a successful TCP dial that is immediately closed.
 type tcpHandler interface {
@@ -177,9 +158,9 @@ type networkStack struct {
 	// ipv6Prefix holds the 96-bit prefix that will be used for all IPv6 addresses assigned in the VNet.
 	ipv6Prefix tcpip.Address
 
-	// tcpHandlerResolver resolves app FQDNs to a TCP handler that will be used to handle all future TCP
+	// tcpHandlerResolver resolves FQDNs to a TCP handler that will be used to handle all future TCP
 	// connections to IP addresses that will be assigned to that FQDN.
-	tcpHandlerResolver tcpHandlerResolver
+	tcpHandlerResolver *tcpHandlerResolver
 	// resolveHandlerGroup is a [singleflight.Group] that will be used to avoid resolving the same FQDN
 	// multiple times concurrently. Every call to [tcpHandlerResolver.ResolveTCPHandler] will be wrapped by
 	// this. The key will be the FQDN.
@@ -202,14 +183,14 @@ type state struct {
 	// mu is a single mutex that protects the whole state struct. This could be optimized as necessary.
 	mu sync.RWMutex
 
-	// Each app gets assigned both an IPv4 address and an IPv6 address, where the 4-bit suffix of the IPv6
-	// matches the IPv4 address exactly. All per-app state references the smaller IPv4 address only and
+	// Each FQDN gets assigned both an IPv4 address and an IPv6 address, where the 4-bit suffix of the IPv6
+	// matches the IPv4 address exactly. All per-FQDN state references the smaller IPv4 address only and
 	// lookups based on an IPv6 address can use the 4-byte suffix.
 
 	// tcpHandlers holds the map of IP addresses to assigned TCP handlers.
 	tcpHandlers map[ipv4]tcpHandler
-	// appIPs holds the map of app FQDNs to their assigned IP address, it like a reverse map of [tcpHandlers].
-	appIPs map[string]ipv4
+	// assignedIPs holds the map of app FQDNs to their assigned IP address, it's a reverse map of [tcpHandlers].
+	assignedIPs map[string]ipv4
 
 	// udpHandlers holds the map of IP addresses to assigned UDP handlers.
 	udpHandlers map[ipv4]udpHandler
@@ -219,7 +200,7 @@ func newState() state {
 	return state{
 		tcpHandlers: make(map[ipv4]tcpHandler),
 		udpHandlers: make(map[ipv4]udpHandler),
-		appIPs:      make(map[string]ipv4),
+		assignedIPs: make(map[string]ipv4),
 	}
 }
 
@@ -230,7 +211,7 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	slog := slog.With(teleport.ComponentKey, "VNet")
+	slog := slog.With(teleport.ComponentKey, logComponent)
 
 	stack, linkEndpoint, err := createStack()
 	if err != nil {
@@ -469,7 +450,7 @@ func (ns *networkStack) assignTCPHandler(handlerSpec *tcpHandlerSpec, fqdn strin
 	}
 
 	ns.state.tcpHandlers[ip] = handlerSpec.tcpHandler
-	ns.state.appIPs[fqdn] = ip
+	ns.state.assignedIPs[fqdn] = ip
 
 	if err := ns.addProtocolAddress(tcpip.AddrFrom4(ip.asArray())); err != nil {
 		return 0, trace.Wrap(err)
@@ -566,24 +547,25 @@ func (ns *networkStack) ResolveA(ctx context.Context, fqdn string) (dns.Result, 
 	// Do the actual resolution within a [singleflight.Group] keyed by [fqdn] to avoid concurrent requests to
 	// resolve an FQDN and then assign an address to it.
 	resultAny, err, _ := ns.resolveHandlerGroup.Do(fqdn, func() (any, error) {
-		// If we've already assigned an IP address to this app, resolve to it.
-		if ip, ok := ns.appIPv4(fqdn); ok {
+		// If we've already assigned an IP address to this fqdn, resolve to it.
+		if ip, ok := ns.assignedIPv4(fqdn); ok {
 			return dns.Result{
 				A: ip.asArray(),
 			}, nil
 		}
 
-		// If fqdn is a Teleport-managed app, create a new handler for it.
+		// If fqdn matches an address that should be handled by VNet, create a
+		// new handler for it.
 		handlerSpec, err := ns.tcpHandlerResolver.resolveTCPHandler(ctx, fqdn)
 		if err != nil {
 			if errors.Is(err, errNoTCPHandler) {
-				// Did not find any known app, forward the DNS request upstream.
+				// Did not find any match, forward the DNS request upstream.
 				return dns.Result{}, nil
 			}
 			return dns.Result{}, trace.Wrap(err, "resolving TCP handler for fqdn %q", fqdn)
 		}
 
-		// Assign an unused IP address to this app's handler.
+		// Assign an unused IP address to this handler.
 		ip, err := ns.assignTCPHandler(handlerSpec, fqdn)
 		if err != nil {
 			return dns.Result{}, trace.Wrap(err, "assigning address to handler for %q", fqdn)
@@ -613,10 +595,10 @@ func (ns *networkStack) ResolveAAAA(ctx context.Context, fqdn string) (dns.Resul
 	return result, nil
 }
 
-func (ns *networkStack) appIPv4(fqdn string) (ipv4, bool) {
+func (ns *networkStack) assignedIPv4(fqdn string) (ipv4, bool) {
 	ns.state.mu.RLock()
 	defer ns.state.mu.RUnlock()
-	ipv4, ok := ns.state.appIPs[fqdn]
+	ipv4, ok := ns.state.assignedIPs[fqdn]
 	return ipv4, ok
 }
 

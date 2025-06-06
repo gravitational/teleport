@@ -56,7 +56,7 @@ func BenchmarkStore(b *testing.B) {
 				defer wg.Done()
 				serverID := fmt.Sprintf("server-%d", sn%uniqueServers)
 				handle := &upstreamHandle{
-					hello: proto.UpstreamInventoryHello{
+					hello: &proto.UpstreamInventoryHello{
 						ServerID: serverID,
 					},
 				}
@@ -73,7 +73,7 @@ func BenchmarkStore(b *testing.B) {
 					go func() {
 						defer wg.Done()
 						var foundServer bool
-						store.Iter(func(h UpstreamHandle) {
+						store.UniqueHandles(func(h UpstreamHandle) {
 							if h.Hello().ServerID == serverID {
 								foundServer = true
 							}
@@ -110,7 +110,7 @@ func TestStoreAccess(t *testing.T) {
 	for i := 0; i < 1_000; i++ {
 		serverID := fmt.Sprintf("server-%d", i%100)
 		handle := &upstreamHandle{
-			hello: proto.UpstreamInventoryHello{
+			hello: &proto.UpstreamInventoryHello{
 				ServerID: serverID,
 			},
 		}
@@ -126,7 +126,7 @@ func TestStoreAccess(t *testing.T) {
 
 	// ensure that all handles are visited if we iterate many times
 	for i := 0; i < 1_000; i++ {
-		store.Iter(func(h UpstreamHandle) {
+		store.UniqueHandles(func(h UpstreamHandle) {
 			ptr := h.(*upstreamHandle)
 			n, ok := handles[ptr]
 			require.True(t, ok)
@@ -142,7 +142,52 @@ func TestStoreAccess(t *testing.T) {
 
 	// verify that all handles were removed
 	var count int
-	store.Iter(func(h UpstreamHandle) {
+	store.UniqueHandles(func(h UpstreamHandle) {
+		count++
+	})
+	require.Zero(t, count)
+}
+
+// TestAllHandles verifies that AllHandles allows us to visit
+// every handle in the store, even when multiple handles are registered with
+// the same server ID.
+func TestAllHandles(t *testing.T) {
+	store := NewStore()
+
+	// we keep a record of all handles inserted into the store
+	// so that we can ensure that we visit all of them during
+	// iteration.
+	handles := make(map[*upstreamHandle]int)
+
+	// create 1_000 handles across 100 unique server IDs.
+	for i := 0; i < 1_000; i++ {
+		serverID := fmt.Sprintf("server-%d", i%100)
+		handle := &upstreamHandle{
+			hello: &proto.UpstreamInventoryHello{
+				ServerID: serverID,
+			},
+		}
+		store.Insert(handle)
+		handles[handle] = 0
+	}
+
+	// ensure that all handles are visited
+	store.AllHandles(func(h UpstreamHandle) {
+		ptr := h.(*upstreamHandle)
+		n, ok := handles[ptr]
+		require.True(t, ok)
+		handles[ptr] = n + 1
+	})
+
+	// verify that each handle was seen, then remove it
+	for h, n := range handles {
+		require.NotZero(t, n)
+		store.Remove(h)
+	}
+
+	// verify that all handles were removed
+	var count int
+	store.UniqueHandles(func(h UpstreamHandle) {
 		count++
 	})
 	require.Zero(t, count)

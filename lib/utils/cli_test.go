@@ -37,7 +37,7 @@ func TestUserMessageFromError(t *testing.T) {
 
 	var leveler slog.LevelVar
 	leveler.Set(slog.LevelInfo)
-	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: &leveler})))
+	slog.SetDefault(slog.New(slog.DiscardHandler))
 	t.Cleanup(func() {
 		slog.SetDefault(defaultLogger)
 	})

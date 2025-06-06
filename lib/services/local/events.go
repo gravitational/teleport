@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	scopedrole "github.com/gravitational/teleport/lib/scopes/roles"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -102,10 +103,16 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAutoUpdateVersionParser()
 		case types.KindAutoUpdateAgentRollout:
 			parser = newAutoUpdateAgentRolloutParser()
+		case types.KindAutoUpdateAgentReport:
+			parser = newAutoUpdateAgentReportParser()
 		case types.KindNamespace:
 			parser = newNamespaceParser(kind.Name)
 		case types.KindRole:
 			parser = newRoleParser()
+		case scopedrole.KindScopedRole:
+			parser = newScopedRoleParser()
+		case scopedrole.KindScopedRoleAssignment:
+			parser = newScopedRoleAssignmentParser()
 		case types.KindUser:
 			parser = newUserParser()
 		case types.KindNode:
@@ -131,8 +138,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAppServerV3Parser()
 		case types.KindWebSession:
 			switch kind.SubKind {
-			case types.KindSAMLIdPSession:
-				parser = newSAMLIdPSessionParser(kind.LoadSecrets)
 			case types.KindSnowflakeSession:
 				parser = newSnowflakeSessionParser(kind.LoadSecrets)
 			case types.KindAppSession:
@@ -258,6 +263,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWorkloadIdentityX509RevocationParser()
 		case types.KindHealthCheckConfig:
 			parser = newHealthCheckConfigParser()
+		case types.KindRecordingEncryption:
+			parser = newRecordingEncryptionParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -865,6 +872,45 @@ func (p *autoUpdateAgentRolloutParser) parse(event backend.Event) (types.Resourc
 	}
 }
 
+func newAutoUpdateAgentReportParser() *autoUpdateAgentReportParser {
+	return &autoUpdateAgentReportParser{
+		baseParser: newBaseParser(backend.NewKey(autoUpdateAgentReportPrefix)),
+	}
+}
+
+type autoUpdateAgentReportParser struct {
+	baseParser
+}
+
+func (p *autoUpdateAgentReportParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(autoUpdateAgentReportPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindAutoUpdateAgentReport,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		autoUpdateAgentReport, err := services.UnmarshalProtoResource[*autoupdate.AutoUpdateAgentReport](event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(autoUpdateAgentReport), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func newNamespaceParser(name string) *namespaceParser {
 	prefix := backend.NewKey(namespacesPrefix)
 	if name != "" {
@@ -937,7 +983,7 @@ func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 
 		return &types.ResourceHeader{
 			Kind:    types.KindRole,
-			Version: types.V7,
+			Version: types.V8,
 			Metadata: types.Metadata{
 				Name:      strings.TrimPrefix(name, backend.SeparatorString),
 				Namespace: apidefaults.Namespace,
@@ -952,6 +998,74 @@ func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.Wrap(err)
 		}
 		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newScopedRoleParser() *scopedRoleParser {
+	return &scopedRoleParser{
+		baseParser: newBaseParser(scopedRoleWatchPrefix()),
+	}
+}
+
+type scopedRoleParser struct {
+	baseParser
+}
+
+func (p *scopedRoleParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := strings.TrimPrefix(event.Item.Key.TrimPrefix(scopedRoleWatchPrefix()).String(), backend.SeparatorString)
+		if name == "" || strings.Contains(name, "/") {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		return &types.ResourceHeader{
+			Kind: scopedrole.KindScopedRole,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+		}, nil
+	case types.OpPut:
+		role, err := scopedRoleFromItem(&event.Item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(role), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newScopedRoleAssignmentParser() *scopedRoleAssignmentParser {
+	return &scopedRoleAssignmentParser{
+		baseParser: newBaseParser(scopedRoleAssignmentWatchPrefix()),
+	}
+}
+
+type scopedRoleAssignmentParser struct {
+	baseParser
+}
+
+func (p *scopedRoleAssignmentParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := strings.TrimPrefix(event.Item.Key.TrimPrefix(scopedRoleAssignmentWatchPrefix()).String(), backend.SeparatorString)
+		if name == "" || strings.Contains(name, "/") {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		return &types.ResourceHeader{
+			Kind: scopedrole.KindScopedRoleAssignment,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+		}, nil
+	case types.OpPut:
+		assignment, err := scopedRoleAssignmentFromItem(&event.Item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(assignment), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
@@ -1305,18 +1419,6 @@ func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
-func newSAMLIdPSessionParser(loadSecrets bool) *webSessionParser {
-	return &webSessionParser{
-		baseParser:  newBaseParser(backend.NewKey(samlIdPPrefix, sessionsPrefix)),
-		loadSecrets: loadSecrets,
-		hdr: types.ResourceHeader{
-			Kind:    types.KindWebSession,
-			SubKind: types.KindSAMLIdPSession,
-			Version: types.V2,
-		},
 	}
 }
 
@@ -1842,16 +1944,11 @@ func (p *networkRestrictionsParser) match(key backend.Key) bool {
 func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(restrictionsPrefix, network)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
-		}
-
 		return &types.ResourceHeader{
 			Kind:    types.KindNetworkRestrictions,
 			Version: types.V1,
 			Metadata: types.Metadata{
-				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Name:      types.MetaNameNetworkRestrictions,
 				Namespace: apidefaults.Namespace,
 			},
 		}, nil

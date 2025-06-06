@@ -29,6 +29,7 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -48,6 +49,7 @@ import (
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/openssh"
+	"github.com/gravitational/teleport/lib/selinux"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv"
@@ -55,7 +57,10 @@ import (
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/versioncontrol"
 )
+
+const selinuxUnsupportedErr = "--enable-selinux is allowed only when the SSH service is the only service enabled"
 
 // Options combines init/start teleport options
 type Options struct {
@@ -197,6 +202,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		"AWS region AWS hosted database instance is running in.").Hidden().
 		StringVar(&ccf.DatabaseAWSRegion)
 	start.Flag("no-debug-service", "Disables debug service.").BoolVar(&ccf.DisableDebugService)
+	if runtime.GOOS == "linux" {
+		start.Flag("enable-selinux", "Enables SELinux support for Teleport SSH and exits if SELinux is not configured correctly.").Hidden().BoolVar(&ccf.EnableSELinux)
+		start.Flag("ensure-selinux-enforcing", "Exits with an error if SELinux is not configured to enforce Teleport SSH.").Hidden().BoolVar(&ccf.EnsureSELinuxEnforcing)
+	}
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
@@ -513,6 +522,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfAccessGraphAWSSyncCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.Role)
 	integrationConfAccessGraphAWSSyncCmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.AccountID)
 	integrationConfAccessGraphAWSSyncCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.AutoConfirm)
+	integrationConfAccessGraphAWSSyncCmd.Flag("sqs-queue-url", "SQS Queue URL used to receive notifications from CloudTrail.").StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.SQSQueueURL)
+	integrationConfAccessGraphAWSSyncCmd.Flag("cloud-trail-bucket", "ARN of the S3 bucket where CloudTrail writes events to.").StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.CloudTrailBucketARN)
+	integrationConfAccessGraphAWSSyncCmd.Flag("kms-key", "List of KMS Keys used to decrypt SQS and S3 bucket data.").StringsVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.KMSKeyARNs)
 
 	integrationConfAccessGraphAzureSyncCmd := integrationConfAccessGraphCmd.Command("azure", "Adds required Azure permissions for syncing Azure resources into Access Graph service.")
 	integrationConfAccessGraphAzureSyncCmd.Flag("managed-identity", "The ID of the managed identity to run the Discovery service.").Required().StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.ManagedIdentity)
@@ -581,6 +593,15 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	collectProfilesCmd.Alias(collectProfileUsageExamples) // We're using "alias" section to display usage examples.
 	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(slices.Collect(maps.Keys(debugclient.SupportedProfiles)), ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
 	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration (if set to 0, it returns a profile snapshot). For other profiles, return a delta profile. Default: 0").Short('s').Default("0").IntVar(&ccf.ProfileSeconds)
+
+	var moduleSourceCmd, fileContextsCmd, selinuxDirsCmd *kingpin.CmdClause
+	if runtime.GOOS == "linux" {
+		selinuxCmd := app.Command("selinux-ssh", "Commands related to SSH SELinux module.").Hidden()
+		selinuxCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
+		moduleSourceCmd = selinuxCmd.Command("module-source", "Export SSH SELinux module source to stdout.").Hidden()
+		fileContextsCmd = selinuxCmd.Command("file-contexts", "Export SSH SELinux file contexts to stdout.").Hidden()
+		selinuxDirsCmd = selinuxCmd.Command("dirs", "Export directories that may need to be labeled for SSH SELinux module to work correctly.").Hidden()
+	}
 
 	backendCmd := app.Command("backend", "Commands for managing backend data.")
 	backendCmd.Hidden()
@@ -656,6 +677,11 @@ Examples:
 			if err := dtconfig.ValidateConfigAgainstModules(conf.Auth.Preference.GetDeviceTrust()); err != nil {
 				utils.FatalError(err)
 			}
+		}
+
+		// Validate SELinux configuration if SELinux support is enabled
+		if ccf.EnableSELinux && !conf.SSH.Enabled {
+			utils.FatalError(trace.BadParameter(selinuxUnsupportedErr))
 		}
 
 		if !options.InitOnly {
@@ -747,6 +773,13 @@ Examples:
 		err = onGetLogLevel(ccf.ConfigFile)
 	case collectProfilesCmd.FullCommand():
 		err = onCollectProfiles(ccf.ConfigFile, ccf.Profiles, ccf.ProfileSeconds)
+	case moduleSourceCmd.FullCommand():
+		moduleSrc := selinux.ModuleSource()
+		fmt.Printf("%s", moduleSrc)
+	case fileContextsCmd.FullCommand():
+		err = onSELinuxFileContexts(ccf.ConfigFile)
+	case selinuxDirsCmd.FullCommand():
+		err = onSELinuxDirs(ccf.ConfigFile)
 	case backendCloneCmd.FullCommand():
 		err = onClone(context.Background(), ccf.ConfigFile)
 	}
@@ -1029,12 +1062,12 @@ func onSCP(scpFlags *scp.Flags) error {
 		verbosity = teleport.DebugLevel
 	}
 	_, _, err := logutils.Initialize(logutils.Config{
-		Output:   teleport.Syslog,
+		Output:   logutils.LogOutputSyslog,
 		Severity: verbosity,
 	})
 	if err != nil {
 		// If something went wrong, discard all logs and continue command execution.
-		slog.SetDefault(slog.New(logutils.DiscardHandler{}))
+		slog.SetDefault(slog.New(slog.DiscardHandler))
 	}
 
 	if len(scpFlags.Target) == 0 {
@@ -1094,5 +1127,41 @@ func onJoinOpenSSH(clf config.CommandLineFlags, conf *servicecfg.Config) error {
 	if err := OnStart(clf, conf); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+func onSELinuxFileContexts(configPath string) error {
+	// Explicitly set the default config path so ReadConfigFile won't
+	// return (nil, nil) if configPath is unset and the default config
+	// path doesn't have a file
+	if configPath == "" {
+		configPath = defaults.ConfigFilePath
+	}
+	cfg, err := config.ReadConfigFile(configPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fileContexts, err := selinux.FileContexts(cfg.DataDir, configPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println(fileContexts)
+
+	return nil
+}
+
+func onSELinuxDirs(configPath string) error {
+	// Explicitly set the default config path so ReadConfigFile won't
+	// return (nil, nil) if configPath is unset and the default config
+	// path doesn't have a file
+	if configPath == "" {
+		configPath = defaults.ConfigFilePath
+	}
+	cfg, err := config.ReadConfigFile(configPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("%s\n%s\n%s\n%s\n", "/opt/teleport/default", cfg.DataDir, filepath.Dir(configPath), versioncontrol.UnitConfigDir)
 	return nil
 }

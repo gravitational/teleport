@@ -151,7 +151,14 @@ func NewImplicitRole() types.Role {
 //
 // Used in tests only.
 func RoleForUser(u types.User) types.Role {
-	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV6{
+	return RoleWithVersionForUser(u, types.DefaultRoleVersion)
+}
+
+// RoleWithVersionForUser creates an admin role for a services.User.
+//
+// Used in tests only.
+func RoleWithVersionForUser(u types.User, v string) types.Role {
+	role, _ := types.NewRoleWithVersion(RoleNameForUser(u.GetName()), v, types.RoleSpecV6{
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
 			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
@@ -345,6 +352,7 @@ func validateRoleExpressions(r types.Role) error {
 			{"node_labels", types.KindNode},
 			{"kubernetes_labels", types.KindKubernetesCluster},
 			{"app_labels", types.KindApp},
+			{"saml_idp_service_provider", types.KindSAMLIdPServiceProvider},
 			{"db_labels", types.KindDatabase},
 			{"db_service_labels", types.KindDatabaseService},
 			{"windows_desktop_labels", types.KindWindowsDesktop},
@@ -539,6 +547,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 						Namespace: namespace,
 						Name:      name,
 						Verbs:     verbs,
+						APIGroup:  rec.APIGroup,
 					})
 				}
 			}
@@ -554,6 +563,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 			types.KindDatabaseService,
 			types.KindWindowsDesktop,
 			types.KindUserGroup,
+			types.KindSAMLIdPServiceProvider,
 		} {
 			labelMatchers, err := r.GetLabelMatchers(condition, kind)
 			if err != nil {
@@ -685,7 +695,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
 				constants.TraitGCPServiceAccounts, constants.TraitJWT,
-				constants.TraitGitHubOrgs:
+				constants.TraitGitHubOrgs, constants.TraitMCPTools:
 			default:
 				return trace.BadParameter("unsupported variable %q", name)
 			}
@@ -1019,12 +1029,56 @@ func (result *EnumerationResult) WildcardDenied() bool {
 	return result.wildcardDenied
 }
 
+// ToEntities converts result back to allowed and denied entity slices.
+//
+// If wildcard is denied, only "*" is returned for the denied slice.
+// If wildcard is allowed, allowed entities will be appended to the allowed
+// slice after the "*" as a hint for users to select.
+// Denied entities is only included if the wildcard is allowed.
+func (result *EnumerationResult) ToEntities() (allowed, denied []string) {
+	if result.wildcardDenied {
+		return nil, []string{types.Wildcard}
+	}
+	if result.wildcardAllowed {
+		return append([]string{types.Wildcard}, result.Allowed()...), result.Denied()
+	}
+	return result.Allowed(), nil
+}
+
 // NewEnumerationResult returns new EnumerationResult.
 func NewEnumerationResult() EnumerationResult {
 	return EnumerationResult{
 		allowedDeniedMap: map[string]bool{},
 		wildcardAllowed:  false,
 		wildcardDenied:   false,
+	}
+}
+
+// NewEnumerationResultFromEntities creates a new EnumerationResult and
+// populates the result with provided allowed and denied entries.
+func NewEnumerationResultFromEntities(allowed, denied []string) EnumerationResult {
+	var wildcardAllowed bool
+	var wildcardDenied bool
+	allowedDeniedMap := make(map[string]bool)
+	for _, allow := range allowed {
+		if allow == types.Wildcard {
+			wildcardAllowed = true
+		} else {
+			allowedDeniedMap[allow] = true
+		}
+	}
+	for _, deny := range denied {
+		if deny == types.Wildcard {
+			wildcardDenied = true
+			wildcardAllowed = false
+			break
+		}
+		allowedDeniedMap[deny] = false
+	}
+	return EnumerationResult{
+		allowedDeniedMap: allowedDeniedMap,
+		wildcardAllowed:  wildcardAllowed,
+		wildcardDenied:   wildcardDenied,
 	}
 }
 
@@ -1555,17 +1609,11 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 	return utils.StringsSliceFromSet(accounts), nil
 }
 
-// CheckAccessToSAMLIdP checks access to the SAML IdP.
-//
-//nolint:revive // Because we want this to be IdP.
-func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, state AccessState) error {
+// checkAccessToSAMLIdPLegacy checks access to the SAML IdP based on
+// IDP enabled/disabled in role option and MFA. The IDP option is enforced
+// in Teleport role version v7 and below.
+func checkAccessToSAMLIdPLegacy(state AccessState, role types.Role) error {
 	ctx := context.Background()
-
-	if authPref != nil {
-		if !authPref.IsSAMLIdPEnabled() {
-			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
-		}
-	}
 
 	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
 		rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access to SAML IdP denied, cluster requires per-session MFA")
@@ -1573,27 +1621,65 @@ func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, state 
 	}
 
 	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
+	options := role.GetOptions()
+	// This should never happen, but we should make sure that we don't get a nil pointer error here.
+	if options.IDP == nil || options.IDP.SAML == nil || options.IDP.SAML.Enabled == nil {
+		return nil
+	}
+	// If any role specifically denies access to the IdP, we'll return AccessDenied.
+	if !options.IDP.SAML.Enabled.Value {
+		return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
+	}
 
+	if !mfaAllowed && options.RequireMFAType.IsSessionMFARequired() {
+		rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access to SAML IdP denied, role requires per-session MFA",
+			slog.String("role", role.GetName()),
+		)
+		return trace.Wrap(ErrSessionMFARequired)
+	}
+
+	return nil
+}
+
+// CheckAccessToSAMLIdP checks access to SAML service provider resource.
+// For Teleport role version v7 and below (legacy SAML IdP RBAC), only MFA
+// and IDP role option is checked.
+// For Teleport role version v8 and above (non-legacy SAML IdP RBAC),
+// labels, MFA and Device Trust is checked.
+// IDP option in the auth preference is checked in both the cases.
+func (set RoleSet) CheckAccessToSAMLIdP(r AccessCheckable, traits wrappers.Traits, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
+	if authPref != nil {
+		if !authPref.IsSAMLIdPEnabled() {
+			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
+		}
+	}
+
+	if len(set) == 0 {
+		return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+			r.GetKind(), "No roles assigned to user")
+	}
+
+	var v8RoleSet RoleSet
 	for _, role := range set {
-		options := role.GetOptions()
-
-		// This should never happen, but we should make sure that we don't get a nil pointer error here.
-		if options.IDP == nil || options.IDP.SAML == nil || options.IDP.SAML.Enabled == nil {
+		if !types.IsLegacySAMLRBAC(role.GetVersion()) {
+			v8RoleSet = append(v8RoleSet, role)
 			continue
 		}
-
-		// If any role specifically denies access to the IdP, we'll return AccessDenied.
-		if !options.IDP.SAML.Enabled.Value {
-			return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
+		if err := checkAccessToSAMLIdPLegacy(state, role); err != nil {
+			return trace.Wrap(err)
 		}
+	}
 
-		if !mfaAllowed && options.RequireMFAType.IsSessionMFARequired() {
-			rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access to SAML IdP denied, role requires per-session MFA",
-				slog.String("role", role.GetName()),
-			)
+	// We checked for empty roleset early on this method. Reaching this part
+	// and zero non-legacy roleset means that the user was allowed access
+	// with legacy roles. We'll honor that and return, otherwise, checkAccess
+	// will deny access on empty role set.
+	if len(v8RoleSet) == 0 {
+		return nil
+	}
 
-			return trace.Wrap(ErrSessionMFARequired)
-		}
+	if err := v8RoleSet.checkAccess(r, traits, state, matchers...); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -2435,21 +2521,22 @@ func (m *KubeResourcesMatcher) Unmatched() []string {
 // KubernetesResourceMatcher matches a role against a Kubernetes Resource.
 // Kind is must be stricly equal but namespace and name allow wildcards.
 type KubernetesResourceMatcher struct {
-	resource types.KubernetesResource
+	resource              types.KubernetesResource
+	isClusterWideResource bool
 }
 
 // NewKubernetesResourceMatcher creates a KubernetesResourceMatcher that checks
 // whether the role's KubeResources match the specified condition.
-func NewKubernetesResourceMatcher(resource types.KubernetesResource) *KubernetesResourceMatcher {
+func NewKubernetesResourceMatcher(resource types.KubernetesResource, isClusterWideResource bool) *KubernetesResourceMatcher {
 	return &KubernetesResourceMatcher{
-		resource: resource,
+		resource:              resource,
+		isClusterWideResource: isClusterWideResource,
 	}
 }
 
 // Match matches a Kubernetes Resource against provided role and condition.
 func (m *KubernetesResourceMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	result, err := utils.KubeResourceMatchesRegex(m.resource, role.GetKubeResources(condition), condition)
-
+	result, err := utils.KubeResourceMatchesRegex(m.resource, m.isClusterWideResource, role.GetKubeResources(condition), condition)
 	return result, trace.Wrap(err)
 }
 
@@ -2497,6 +2584,7 @@ func (l kubernetesClusterLabelMatcher) getKubeLabelMatchers(role types.Role, typ
 // AccessCheckable is the subset of types.Resource required for the RBAC checks.
 type AccessCheckable interface {
 	GetKind() string
+	GetSubKind() string
 	GetName() string
 	GetMetadata() types.Metadata
 	GetLabel(key string) (value string, ok bool)
@@ -2505,7 +2593,7 @@ type AccessCheckable interface {
 
 var rbacLogger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentRBAC)
 
-// resourceRequiresLabelMatching decides if a resource requires lapel matching
+// resourceRequiresLabelMatching decides if a resource requires label matching
 // when making RBAC access decisions.
 func resourceRequiresLabelMatching(r AccessCheckable) bool {
 	// Some resources do not need label matching when assessing whether the user
@@ -2514,7 +2602,10 @@ func resourceRequiresLabelMatching(r AccessCheckable) bool {
 	switch r.GetKind() {
 	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
 		return false
+	case types.KindApp, types.KindAppServer:
+		return r.GetSubKind() != types.KindIdentityCenterAccount
 	}
+
 	return true
 }
 
@@ -3470,7 +3561,7 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 	version := jsoniter.Get(bytes, "version").ToString()
 	switch version {
 	// these are all backed by the same shape of data, they just have different semantics and defaults
-	case types.V3, types.V4, types.V5, types.V6, types.V7:
+	case types.V3, types.V4, types.V5, types.V6, types.V7, types.V8:
 	default:
 		return nil, trace.BadParameter("role version %q is not supported", version)
 	}
@@ -3539,4 +3630,24 @@ func AccessStateFromSSHIdentity(ctx context.Context, ident *sshca.Identity, chec
 	state.EnableDeviceVerification = true
 	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(ident)
 	return state, nil
+}
+
+// MCPToolMatcher matches a role against MCP tool.
+type MCPToolMatcher struct {
+	Name string
+}
+
+// Match matches MCP tool name against provided role and condition.
+func (m *MCPToolMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	mcpSpec := role.GetMCPPermissions(condition)
+	if mcpSpec == nil {
+		return false, nil
+	}
+	match, err := utils.SliceMatchesRegex(m.Name, mcpSpec.Tools)
+	return match, trace.Wrap(err)
+}
+
+// String returns the matcher's string representation.
+func (m *MCPToolMatcher) String() string {
+	return fmt.Sprintf("MCPToolMatcher(Name=%v)", m.Name)
 }

@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
 
@@ -60,7 +59,7 @@ func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
 	}
 	defer tun.Close()
 
-	networkStackConfig, err := newNetworkStackConfig(tun, clt)
+	networkStackConfig, err := newNetworkStackConfig(ctx, tun, clt)
 	if err != nil {
 		return trace.Wrap(err, "creating network stack config")
 	}
@@ -114,22 +113,6 @@ func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
 		}
 	})
 	return trace.Wrap(g.Wait(), "running VNet admin process")
-}
-
-func newNetworkStackConfig(tun tunDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {
-	appProvider := newRemoteAppProvider(clt)
-	appResolver := newTCPAppResolver(appProvider, clockwork.NewRealClock())
-	ipv6Prefix, err := newIPv6Prefix()
-	if err != nil {
-		return nil, trace.Wrap(err, "creating new IPv6 prefix")
-	}
-	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
-	return &networkStackConfig{
-		tunDevice:          tun,
-		ipv6Prefix:         ipv6Prefix,
-		dnsIPv6:            dnsIPv6,
-		tcpHandlerResolver: appResolver,
-	}, nil
 }
 
 func createTUNDevice(ctx context.Context) (tun.Device, string, error) {

@@ -95,7 +95,7 @@ func onListDatabases(cf *CLIConf) error {
 		logger.DebugContext(cf.Context, "Failed to fetch user roles", "error", err)
 	}
 
-	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
+	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -251,7 +251,7 @@ func onDatabaseLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -367,7 +367,7 @@ func onDatabaseLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	activeRoutes, err := profile.DatabasesForCluster(tc.SiteName)
+	activeRoutes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -447,7 +447,7 @@ func onDatabaseEnv(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -509,7 +509,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -652,8 +652,11 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	// certificate's DNS names. As such, connecting to 127.0.0.1 will fail
 	// validation, so connect to localhost.
 	host := "localhost"
-	cmdOpts := []dbcmd.ConnectCommandFunc{
+	cmdOpts, err := makeDatabaseCommandOptions(ctx, tc, dbInfo,
 		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(rootClusterName)),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if requires.tunnel {
 		cmdOpts = append(cmdOpts, dbcmd.WithNoTLS())
@@ -751,7 +754,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -783,18 +786,6 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	opts = append(opts,
-		dbcmd.WithLogger(logger),
-		dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
-	)
-
-	if opts, err = maybeAddDBUserPassword(cf, tc, dbInfo, opts); err != nil {
-		return trace.Wrap(err)
-	}
-	if opts, err = maybeAddGCPMetadata(cf.Context, tc, dbInfo, opts); err != nil {
-		return trace.Wrap(err)
-	}
-	opts = maybeAddOracleOptions(cf.Context, tc, dbInfo, opts)
 
 	bb := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootClusterName, opts...)
 	cmd, err := bb.GetConnectCommand(cf.Context)
@@ -975,22 +966,7 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 		return nil
 	}
 
-	var clusterClient *client.ClusterClient
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		clusterClient, err = tc.ConnectToCluster(cf.Context)
-		return trace.Wrap(err)
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer clusterClient.Close()
-
-	profile, err := tc.ProfileStatus()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	checker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
+	checker, err := d.getChecker(cf.Context, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1014,6 +990,34 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 	return nil
 }
 
+func (d *databaseInfo) getChecker(ctx context.Context, tc *client.TeleportClient) (services.AccessChecker, error) {
+	if d.checker != nil {
+		return d.checker, nil
+	}
+	var clusterClient *client.ClusterClient
+	var err error
+	err = client.RetryWithRelogin(ctx, tc, func() error {
+		clusterClient, err = tc.ConnectToCluster(ctx)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	return makeAccessChecker(ctx, tc, clusterClient.AuthClient)
+}
+
+func makeAccessChecker(ctx context.Context, tc *client.TeleportClient, auth services.CurrentUserRoleGetter) (services.AccessChecker, error) {
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	checker, err := services.NewAccessCheckerForRemoteCluster(ctx, profile.AccessInfo(), tc.SiteName, auth)
+	return checker, trace.Wrap(err)
+}
+
 // databaseInfo wraps a RouteToDatabase and the corresponding database.
 // Its purpose is to prevent repeated fetches of the same database, by lazily
 // fetching and caching the database for use as needed.
@@ -1024,6 +1028,7 @@ type databaseInfo struct {
 	database types.Database
 	// isActive indicates an active database matched this db info.
 	isActive bool
+	checker  services.AccessChecker
 	mu       sync.Mutex
 }
 
@@ -1085,7 +1090,10 @@ func chooseOneDatabase(cf *CLIConf, databases types.Databases) (types.Database, 
 			"%v not found, use '%v' to see registered databases", selectors,
 			formatDatabaseListCommand(cf.SiteName))
 	}
-	errMsg := formatAmbiguousDB(cf, selectors, databases)
+	errMsg, err := formatAmbiguousDB(cf, selectors, databases)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return nil, trace.BadParameter("%s", errMsg)
 }
 
@@ -1356,7 +1364,7 @@ func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route tlsca.Rou
 		}
 	}
 	found := false
-	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
+	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -1811,10 +1819,10 @@ func getDbCmdAlternatives(clusterFlag string, route tlsca.RouteToDatabase) []str
 
 // formatAmbiguousDB is a helper func that formats an ambiguous database error
 // message.
-func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs types.Databases) string {
+func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs types.Databases) (string, error) {
 	var activeDBs []tlsca.RouteToDatabase
 	if profile, err := cf.ProfileStatus(); err == nil {
-		if dbs, err := profile.DatabasesForCluster(cf.SiteName); err == nil {
+		if dbs, err := profile.DatabasesForCluster(cf.SiteName, cf.getClientStore()); err == nil {
 			activeDBs = dbs
 		}
 	}
@@ -1827,7 +1835,7 @@ func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs type
 
 	listCommand := formatDatabaseListCommand(cf.SiteName)
 	fullNameExample := matchedDBs[0].GetName()
-	return formatAmbiguityErrTemplate(cf, selectors, listCommand, sb.String(), fullNameExample)
+	return formatAmbiguityErrTemplate(cf, selectors, listCommand, sb.String(), fullNameExample), nil
 }
 
 // resourceSelectors is a helper struct for gathering up the selectors for a

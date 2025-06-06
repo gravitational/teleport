@@ -51,8 +51,6 @@ type Cluster struct {
 	ProfileName string
 	// Logger is a component logger
 	Logger *slog.Logger
-	// dir is the directory where cluster certificates are stored
-	dir string
 	// Status is the cluster status
 	status client.ProfileStatus
 	// If not empty, it means that there was a problem with reading the cluster status.
@@ -386,4 +384,12 @@ func UserTypeFromString(userType types.UserType) (api.LoggedInUser_UserType, err
 		return api.LoggedInUser_USER_TYPE_UNSPECIFIED,
 			trace.BadParameter("unknown user type %q", userType)
 	}
+}
+
+// Server describes an SSH node.
+type Server struct {
+	// URI is the database URI
+	URI uri.ResourceURI
+
+	types.Server
 }

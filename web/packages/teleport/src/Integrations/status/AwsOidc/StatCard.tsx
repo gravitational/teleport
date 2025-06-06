@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { formatDistanceStrict } from 'date-fns';
 import { Link as InternalLink } from 'react-router-dom';
 
 import { CardTile, Flex, H2, P2, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
+import { SyncStamp } from 'design/SyncStamp/SyncStamp';
 
 import cfg from 'teleport/config';
 import { EnrollCard } from 'teleport/Integrations/status/AwsOidc/EnrollCard';
@@ -104,18 +104,7 @@ export function StatCard({ name, item, resource, summary }: StatCardProps) {
             </Flex>
           </Flex>
         </Flex>
-        {updated && (
-          <Text
-            typography="body3"
-            color="text.slightlyMuted"
-            data-testid="sync"
-          >
-            Last Sync:{' '}
-            {formatDistanceStrict(new Date(updated), new Date(), {
-              addSuffix: true,
-            })}
-          </Text>
-        )}
+        <SyncStamp date={updated} />
       </Flex>
     </CardTile>
   );

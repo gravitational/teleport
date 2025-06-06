@@ -1270,6 +1270,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindIdentityCenterAccountAssignment:
 		keyPrefix = []string{awsResourcePrefix, awsAccountAssignmentPrefix}
 		unmarshalItemFunc = backendItemToIdentityCenterAccountAssignment
+	case types.KindGitServer:
+		keyPrefix = []string{gitServerPrefix}
+		unmarshalItemFunc = backendItemToServer(types.KindGitServer)
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1667,10 +1670,10 @@ func backendItemToIdentityCenterAccount(item backend.Item) (types.ResourceWithLa
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resource := types.Resource153ToUnifiedResource(
+
+	return types.Resource153ToResourceWithLabels(
 		services.IdentityCenterAccount{Account: assignment},
-	)
-	return resource.(types.ResourceWithLabels), nil
+	), nil
 }
 
 func backendItemToIdentityCenterAccountAssignment(item backend.Item) (types.ResourceWithLabels, error) {
@@ -1682,7 +1685,7 @@ func backendItemToIdentityCenterAccountAssignment(item backend.Item) (types.Reso
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return types.Resource153ToUnifiedResource(
+	return types.Resource153ToResourceWithLabels(
 		services.IdentityCenterAccountAssignment{AccountAssignment: assignment},
 	), nil
 }

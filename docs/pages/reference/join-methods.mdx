@@ -7,7 +7,7 @@ tocDepth: 3
 ---
 
 This guide explains the core concepts behind the Teleport joining process,
-references all support join methods and classifies them based on their
+references all supported join methods and classifies them based on their
 security properties. This guide does not explain step-by-step how to
 join an instance with each join method, but links to the relevant How-To
 guides when possible.
@@ -115,6 +115,7 @@ service account, or cloud account ID.
 
 Delegated join methods are:
 - [`azure`](#azure-managed-identity-azure)
+- [`azure_devops`](#azure-devops-azure_devops)
 - [`bitbucket`](#bitbucket-pipelines-bitbucket)
 - [`circleci`](#circleci-circleci)
 - [`ec2`](#aws-ec2-identity-document-ec2)
@@ -153,6 +154,7 @@ temporary workloads such as CI/CD pipelines or containerized environments.
 Non-renewable join methods are:
 - [`iam`](#aws-iam-role-iam)
 - [`azure`](#azure-managed-identity-azure)
+- [`azure_devops`](#azure-devops-azure_devops)
 - [`gcp`](#gcp-service-account-gcp)
 - [`github`](#github-actions-github)
 - [`circleci`](#circleci-circleci)
@@ -258,7 +260,7 @@ Or as Teleport resources:
 When a MachineID bot uses an ephemeral join token, the token is deleted.
 
 <Admonition type="note" title="See Also">
-- How to [Join Services with a Secure Token](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
+- How to [Join Services with a Secure Token](../enroll-resources/agents/join-token.mdx).
 - [Deploying Machine ID on Linux](../enroll-resources/machine-id/deployment/linux.mdx)
 </Admonition>
 
@@ -273,7 +275,7 @@ This is the recommended method to join workload running on AWS.
 (!docs/pages/includes/provision-token/iam-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via AWS IAM Role](../enroll-resources/agents/join-services-to-your-cluster/aws-iam.mdx).
+- [Joining Services via AWS IAM Role](../enroll-resources/agents/aws-iam.mdx).
 - [Deploying Machine ID on AWS](../enroll-resources/machine-id/deployment/aws.mdx)
 </Admonition>
 
@@ -298,7 +300,7 @@ method](#aws-iam-role-iam) or [ephemeral secret tokens](#ephemeral-tokens).
 (!docs/pages/includes/provision-token/ec2-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-[Joining Services via AWS EC2 Identity Document](../enroll-resources/agents/join-services-to-your-cluster/aws-ec2.mdx).
+[Joining Services via AWS EC2 Identity Document](../enroll-resources/agents/aws-ec2.mdx).
 </Admonition>
 
 ### Azure managed identity: `azure`
@@ -310,8 +312,22 @@ behind a layer 7 load balancer or reverse proxy is available in Teleport 13.0+.
 (!docs/pages/includes/provision-token/azure-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via Azure Managed Identity](../enroll-resources/agents/join-services-to-your-cluster/azure.mdx).
+- [Joining Services via Azure Managed Identity](../enroll-resources/agents/azure.mdx).
 - [Deploying Machine ID on Azure](../enroll-resources/machine-id/deployment/azure.mdx)
+</Admonition>
+
+### Azure Devops: `azure_devops`
+
+The Azure DevOps is available to any Teleport process running in an Azure DevOps
+pipeline. This join method is typically used with
+[Machine & Workload Identity](../enroll-resources/machine-id/introduction.mdx)
+to access Teleport-protected resources in Azure DevOps pipelines without the
+use of long-lived secrets.
+
+(!docs/pages/includes/provision-token/azure-devops-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- [Deploying Machine ID on Azure DevOps](../enroll-resources/machine-id/deployment/azure-devops.mdx)
 </Admonition>
 
 ### GCP service account: `gcp`
@@ -325,7 +341,7 @@ on the Teleport process joining the cluster.
 (!docs/pages/includes/provision-token/gcp-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- How to [Join Services with GCP](../enroll-resources/agents/join-services-to-your-cluster/gcp.mdx).
+- How to [Join Services with GCP](../enroll-resources/agents/gcp.mdx).
 - [Deploying Machine ID on GCP](../enroll-resources/machine-id/deployment/gcp.mdx)
 </Admonition>
 
@@ -389,7 +405,7 @@ the pod enters the `Terminated` state.
 (!docs/pages/includes/provision-token/kubernetes-in-cluster-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- [Joining Services via Kubernetes ServiceAccount Token](../enroll-resources/agents/join-services-to-your-cluster/kubernetes.mdx)
+- [Joining Services via Kubernetes ServiceAccount Token](../enroll-resources/agents/kubernetes.mdx)
 </Admonition>
 
 #### Kubernetes JWKS
@@ -476,5 +492,5 @@ Cloud Compute instance.
 (!docs/pages/includes/provision-token/oracle-spec.mdx!)
 
 <Admonition type="note" title="See Also">
-- How to [Join Services with Oracle Cloud](../enroll-resources/agents/join-services-to-your-cluster/oracle.mdx).
+- How to [Join Services with Oracle Cloud](../enroll-resources/agents/oracle.mdx).
 </Admonition>

@@ -218,7 +218,8 @@ spec:
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
-    - kind: pod
+    - api_group: '*'
+      kind: pods
       name: '*'
       namespace: '*'
     logins:
@@ -236,16 +237,13 @@ spec:
     - command
     - network
     forward_agent: false
-    idp:
-      saml:
-        enabled: true
     max_session_ttl: 30h0m0s
     pin_source_ip: false
     record_session:
       default: best_effort
       desktop: true
     ssh_file_copy: true
-version: v7
+version: v8
 `
 	role, err := types.NewRole("roleName", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -256,7 +254,7 @@ version: v7
 			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, APIGroup: types.Wildcard,
 				},
 			},
 		},
@@ -297,7 +295,7 @@ version: v2
 	}, item)
 }
 
-func TestGetRoles(t *testing.T) {
+func TestListRoles(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockListRoles = func(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
@@ -419,7 +417,7 @@ func TestRoleCRUD(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &getResponse), "invalid resource item received")
 	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting roles")
 
-	assert.Equal(t, "", getResponse.StartKey)
+	assert.Empty(t, getResponse.StartKey)
 	for _, item := range getResponse.Items.([]interface{}) {
 		assert.NotEqual(t, "test-role", item.(map[string]interface{})["name"], "expected test-role to be deleted")
 	}
@@ -536,7 +534,7 @@ func TestGithubConnectorsCRUD(t *testing.T) {
 			assert.Equal(t, tt.wantConnectorType, connResponse.DefaultConnectorType)
 
 			// Verify connectors list
-			require.Equal(t, len(tt.connectors), len(connResponse.Connectors))
+			require.Len(t, tt.connectors, len(connResponse.Connectors))
 			for i, conn := range tt.connectors {
 				expectedItem, err := ui.NewResourceItem(conn)
 				require.NoError(t, err)

@@ -215,6 +215,9 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindGitServer, RW()),
 					types.NewRule(types.KindWorkloadIdentityX509Revocation, RW()),
 					types.NewRule(types.KindHealthCheckConfig, RW()),
+					types.NewRule(types.KindSigstorePolicy, RW()),
+					types.NewRule(types.KindWorkloadIdentityX509IssuerOverride, RW()),
+					types.NewRule(types.KindWorkloadIdentityX509IssuerOverrideCSR, RW()),
 				},
 			},
 		},
@@ -281,6 +284,7 @@ func NewPresetAccessRole() types.Role {
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						APIGroup:  "",
 					},
 				},
 				GitHubPermissions: []types.GitHubPermission{{
@@ -295,6 +299,9 @@ func NewPresetAccessRole() types.Role {
 					},
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindClusterMaintenanceConfig, RO()),
+				},
+				MCP: &types.MCPPermissions{
+					Tools: []string{teleport.TraitInternalMCPTools},
 				},
 			},
 		},
@@ -368,7 +375,7 @@ func NewPresetReviewerRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetReviewerRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -395,7 +402,7 @@ func NewPresetRequesterRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetRequesterRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -422,7 +429,7 @@ func NewPresetGroupAccessRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetGroupAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -456,7 +463,7 @@ func NewPresetDeviceAdminRole() types.Role {
 
 	return &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetDeviceAdminRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -485,7 +492,7 @@ func NewPresetDeviceEnrollRole() types.Role {
 
 	return &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetDeviceEnrollRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -515,7 +522,7 @@ func NewPresetRequireTrustedDeviceRole() types.Role {
 
 	return &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetRequireTrustedDeviceRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -1040,6 +1047,15 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 		}
 	}
 
+	if role.GetMCPPermissions(types.Allow) == nil {
+		if mcpTools := defaultMCPTools()[role.GetName()]; len(mcpTools) > 0 {
+			role.SetMCPPermissions(types.Allow, &types.MCPPermissions{
+				Tools: mcpTools,
+			})
+			changed = true
+		}
+	}
+
 	if !changed {
 		return nil, trace.AlreadyExists("no change")
 	}
@@ -1155,5 +1171,11 @@ func updateAllowLabels(role types.Role, kind string, defaultLabels types.Labels)
 func defaultGitHubOrgs() map[string][]string {
 	return map[string][]string{
 		teleport.PresetAccessRoleName: []string{teleport.TraitInternalGitHubOrgs},
+	}
+}
+
+func defaultMCPTools() map[string][]string {
+	return map[string][]string{
+		teleport.PresetAccessRoleName: []string{teleport.TraitInternalMCPTools},
 	}
 }

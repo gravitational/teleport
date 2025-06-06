@@ -63,6 +63,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -146,6 +147,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	secretsscannerproxy "github.com/gravitational/teleport/lib/secretsscanner/proxy"
+	"github.com/gravitational/teleport/lib/selinux"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/expiry"
@@ -1029,6 +1031,23 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		}
 	}
 
+	// If SELinux support is enabled ensure we have a valid configuration,
+	// and ensure SELinux itself is configured correctly
+	if cfg.SSH.EnableSELinux {
+		if runtime.GOOS != "linux" {
+			return nil, trace.Errorf("SELinux is only supported on Linux")
+		}
+
+		if !cfg.CheckServicesForSELinux() {
+			return nil, trace.Errorf("SELinux is only supported for the SSH service")
+		}
+
+		if err := selinux.CheckConfiguration(cfg.SSH.EnsureSELinuxEnforcing, cfg.Logger); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.Logger.InfoContext(context.Background(), "SELinux support is enabled for SSH service")
+	}
+
 	// create the data directory if it's missing
 	_, err = os.Stat(cfg.DataDir)
 	if os.IsNotExist(err) {
@@ -1240,36 +1259,58 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	hello := proto.UpstreamInventoryHello{
-		ServerID: cfg.HostUUID,
-		Version:  teleport.Version,
-		Services: process.getInstanceRoles(),
-		Hostname: cfg.Hostname,
-	}
-
 	upgraderKind, externalUpgrader, upgraderVersion := process.detectUpgrader()
-	hello.ExternalUpgrader = externalUpgrader
-	if upgraderVersion != nil {
-		// The UpstreamInventoryHello message wants versions with the leading "v".
-		hello.ExternalUpgraderVersion = "v" + upgraderVersion.String()
+
+	getHello := func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+		instanceRoles := process.getInstanceRoles()
+		services := make([]string, 0, len(instanceRoles))
+		for _, r := range instanceRoles {
+			services = append(services, string(r))
+		}
+		hello := &proto.UpstreamInventoryHello{
+			ServerID:         cfg.HostUUID,
+			Version:          teleport.Version,
+			Services:         services,
+			Hostname:         cfg.Hostname,
+			ExternalUpgrader: externalUpgrader,
+		}
+
+		if upgraderVersion != nil {
+			// The UpstreamInventoryHello message wants versions with the leading "v".
+			hello.ExternalUpgraderVersion = "v" + upgraderVersion.String()
+		}
+
+		if upgraderKind == types.UpgraderKindTeleportUpdate {
+			info, err := autoupdate.ReadHelloUpdaterInfo(supervisor.ExitContext(), cfg.Logger, cfg.HostUUID)
+			if err != nil {
+				// Failing to detect teleport-update info is not fatal, we continue.
+				cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering teleport-update status, this might affect automatic update tracking and progress.", "error", err)
+				info = &types.UpdaterV2Info{UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_UNREADABLE}
+			}
+			hello.UpdaterInfo = info
+		}
+		return hello, nil
 	}
 
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
-	process.inventoryHandle = inventory.NewDownstreamHandle(
+	process.inventoryHandle, err = inventory.NewDownstreamHandle(
 		process.makeInventoryControlStreamWhenReady,
-		hello,
+		getHello,
 		inventory.WithDownstreamClock(process.Clock),
 	)
+	if err != nil {
+		return nil, trace.Wrap(err, "building inventory handle")
+	}
 
-	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
+	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping *proto.DownstreamInventoryPing) {
 		systemClock := process.Clock.Now().UTC()
 		process.logger.InfoContext(process.ExitContext(), "Handling incoming inventory ping.",
-			"id", ping.ID,
+			"id", ping.GetID(),
 			"clock", systemClock)
-		err := sender.Send(process.ExitContext(), proto.UpstreamInventoryPong{
-			ID:          ping.ID,
-			SystemClock: systemClock,
+		err := sender.Send(process.ExitContext(), &proto.UpstreamInventoryPong{
+			ID:          ping.GetID(),
+			SystemClock: timestamppb.New(systemClock),
 		})
 		if err != nil {
 			process.logger.WarnContext(process.ExitContext(), "Failed to respond to inventory ping.", "id", ping.ID, "error", err)
@@ -1554,7 +1595,7 @@ func (process *TeleportProcess) detectUpgrader() (kind, externalName string, ver
 		// If this is a teleport-update managed installation, the version
 		// managed by the timer will always match the installed version of teleport.
 		kind = types.UpgraderKindTeleportUpdate
-		version = teleport.SemVersion
+		version = teleport.SemVer()
 	}
 
 	// Instances deployed using the AWS OIDC integration are automatically updated
@@ -2134,6 +2175,9 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id))
+	// Environment variable for disabling the check major version upgrade check and overrides
+	// latest known version in backend.
+	skipVersionCheckFromEnv := os.Getenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK") != ""
 
 	// first, create the AuthServer
 	authServer, err := auth.Init(
@@ -2141,6 +2185,7 @@ func (process *TeleportProcess) initAuthService() error {
 		auth.InitConfig{
 			Backend:                 b,
 			VersionStorage:          process.storage,
+			SkipVersionCheck:        cfg.SkipVersionCheck || skipVersionCheckFromEnv,
 			Authority:               cfg.Keygen,
 			ClusterConfiguration:    cfg.ClusterConfiguration,
 			AutoUpdateService:       cfg.AutoUpdateService,
@@ -2639,7 +2684,6 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.Provisioner = services.Provisioner
 	cfg.Restrictions = services.Restrictions
 	cfg.SAMLIdPServiceProviders = services.SAMLIdPServiceProviders
-	cfg.SAMLIdPSession = services.Identity
 	cfg.SecReports = services.SecReports
 	cfg.SnowflakeSession = services.Identity
 	cfg.SPIFFEFederations = services.SPIFFEFederations
@@ -2693,7 +2737,6 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.Provisioner = client
 	cfg.Restrictions = client
 	cfg.SAMLIdPServiceProviders = client
-	cfg.SAMLIdPSession = client
 	cfg.SecReports = client.SecReportsClient()
 	cfg.SnowflakeSession = client
 	cfg.StaticHostUsers = client.StaticHostUserClient()
@@ -3121,6 +3164,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetSessionController(sessionController),
 			regular.SetPublicAddrs(cfg.SSH.PublicAddrs),
 			regular.SetStableUNIXUsers(conn.Client.StableUNIXUsersClient()),
+			regular.SetSELinuxEnabled(cfg.SSH.EnableSELinux),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -3282,7 +3326,7 @@ func (process *TeleportProcess) RegisterWithAuthServer(role types.SystemRole, ev
 	serviceName := strings.ToLower(role.String())
 
 	process.RegisterCriticalFunc(fmt.Sprintf("register.%v", serviceName), func() error {
-		if role.IsLocalService() && !(process.instanceRoleExpected(role) || process.hostedPluginRoleExpected(role)) {
+		if role.IsLocalService() && !process.instanceRoleExpected(role) && !process.hostedPluginRoleExpected(role) {
 			// if you hit this error, your probably forgot to call SetExpectedInstanceRole inside of
 			// the registerExpectedServices function, or forgot to call SetExpectedHostedPluginRole during
 			// the hosted plugin init process.
@@ -4741,6 +4785,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			LocalAccessPoint: accessPoint,
 			SiteGetter:       tsrv,
 			TracerProvider:   process.TracingProvider,
+			Logger:           process.logger.With(teleport.ComponentKey, "router"),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6125,6 +6170,7 @@ func (process *TeleportProcess) initApps() {
 				UseAnyProxyPublicAddr: app.UseAnyProxyPublicAddr,
 				CORS:                  makeApplicationCORS(app.CORS),
 				TCPPorts:              makeApplicationTCPPorts(app.TCPPorts),
+				MCP:                   app.MCP,
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -6357,13 +6403,14 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	warnOnErr(process.ExitContext(), process.closeImportedDescriptors(""), process.logger)
 	warnOnErr(process.ExitContext(), process.stopListeners(), process.logger)
 
-	if process.forkedTeleportCount.Load() == 0 {
-		if process.inventoryHandle != nil {
-			if err := process.inventoryHandle.SendGoodbye(ctx); err != nil {
-				process.logger.WarnContext(process.ExitContext(), "Failed sending inventory goodbye during shutdown", "error", err)
-			}
+	hasChildren := process.forkedTeleportCount.Load() > 0
+	if process.inventoryHandle != nil {
+		deleteResources := !hasChildren
+		if err := process.inventoryHandle.SetAndSendGoodbye(ctx, deleteResources, hasChildren); err != nil {
+			process.logger.WarnContext(process.ExitContext(), "Failed sending inventory goodbye during shutdown", "error", err)
 		}
-	} else {
+	}
+	if hasChildren {
 		ctx = services.ProcessForkedContext(ctx)
 	}
 
@@ -6636,6 +6683,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 			switch cfg.JoinMethod {
 			case types.JoinMethodToken,
 				types.JoinMethodUnspecified,
+				types.JoinMethodAzureDevops,
 				types.JoinMethodIAM,
 				types.JoinMethodCircleCI,
 				types.JoinMethodKubernetes,

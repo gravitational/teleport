@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { TdpClient, TdpClientEvent } from 'shared/libs/tdp';
+import { BrowserFileSystem, TdpClient, TdpClientEvent } from 'shared/libs/tdp';
 import { base64ToArrayBuffer } from 'shared/utils/base64';
 import { throttle } from 'shared/utils/highbar';
 
@@ -54,8 +54,10 @@ export class PlayerClient extends TdpClient {
   private timeout = null;
 
   constructor({ url, setTime, setPlayerStatus, setStatusText }) {
-    super(signal =>
-      adaptWebSocketToTdpTransport(new AuthenticatedWebSocket(url), signal)
+    super(
+      signal =>
+        adaptWebSocketToTdpTransport(new AuthenticatedWebSocket(url), signal),
+      new BrowserFileSystem()
     );
     this.setPlayerStatus = setPlayerStatus;
     this.setStatusText = setStatusText;
@@ -205,19 +207,19 @@ export class PlayerClient extends TdpClient {
   // Overrides Client implementation. This prevents the Client from sending
   // RDP response PDUs to the server during playback, which is unnecessary
   // and breaks the playback system.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line unused-imports/no-unused-vars
   sendRdpResponsePDU(responseFrame: ArrayBuffer) {
     return;
   }
 
   // Overrides Client implementation.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line unused-imports/no-unused-vars
   handleMouseButton(buffer: ArrayBuffer) {
     return;
   }
 
   // Overrides Client implementation.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line unused-imports/no-unused-vars
   handleMouseMove(buffer: ArrayBuffer) {
     return;
   }

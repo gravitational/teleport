@@ -114,8 +114,7 @@ as well as an upgrade of the previous version of Teleport.
       - [ ] Host key checking disabled allows connection
 
 - [ ] Enhanced Session Recording
-  - [ ] `disk`, `command` and `network` events are being logged.
-  - [ ] Recorded events can be enforced by the `enhanced_recording` role option.
+  - [ ] Setting the `enhanced_recording` role option determine which types of events (`disk`, `command`, `network`) are logged on nodes with `enhanced_recording.enabled: true`
   - [ ] Enhanced session recording can be enabled on CentOS 7 with kernel 5.8+.
 
 - [ ] Auditd
@@ -307,6 +306,19 @@ interactive sessions the 12 combinations are below.
   - [ ] Connect using Teleport from root cluster.
   - [ ] Connect using the Web UI from root cluster.
 
+### With SELinux module installed
+
+Install the official SELinux module for Teleport SSH service using `install-selinux.sh` included in the linux amd64 release tarball
+and test on RHEL 8 && 9. You will need to pass the `--enable-selinux` flag to `teleport start`, you can also pass
+`--ensure-selinux-enforcing` as well to ensure SELinux is configured correctly and will enforce Teleport SSH.
+
+- [ ] Verify that connecting to a node with tsh works.
+- [ ] Verify that connecting to a node with the Web UI works.
+- [ ] Verify that enhanced session recording captures commands as expected.
+- [ ] Verify that SSH agent forwarding works as expected.
+- [ ] Verify that auditd logging works as expected.
+- [ ] Verify that SSH connections succeed with PAM authentication enabled.
+
 ### Teleport with EKS/GKE
 
 * [ ] Deploy Teleport on a single EKS cluster
@@ -387,20 +399,348 @@ and cluster v1.30 (does support it by default) and to access them both through k
       * [ ] Restart the agent after token TTL expires to see if it reuses the same identity.
     * [ ] Force cluster CA rotation
 
-### Kubernetes Pod RBAC
+### Kubernetes RBAC
 
-* [ ] Verify the following scenarios for `kubernetes_resources`:
-    * [ ] `{"kind":"pod","name":"*","namespace":"*"}` - must allow access to every pod.
-    * [ ] `{"kind":"pod","name":"<somename>","namespace":"*"}` - must allow access to pod `<somename>` in every namespace.
-    * [ ] `{"kind":"pod","name":"*","namespace":"<somenamespace>"}` - must allow access to any pod in `<somenamespace>` namespace.
-    * [ ] Verify support for  `*` wildcards - `<some-name>-*` and regex for `name` and `namespace` fields.
-    * [ ] Verify support for delete pods collection - must use `go-client`.
-* [ ] Verify scenarios with multiple roles defining `kubernetes_resources`:
-    * [ ] Validate that the returned list of pods is the union of every role.
-    * [ ] Validate that access to other pods is denied by RBAC.
-    * [ ] Validate that the Kubernetes Groups/Users are correctly selected depending on the role that applies to the pod.
-        * [ ] Test with a `kubernetes_groups` that denies exec into a pod
-* [ ] Verify the following scenarios for Resource Access Requests to Pods:
+<details><summary>Kubernetes resources</summary>
+<p>
+
+Create some namespaces:
+
+ns.yaml:
+
+```yaml
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+  labels:
+    name: dev
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: foo
+  labels:
+    name: foo
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: prod
+  labels:
+    name: prod
+```
+
+Create some deployments:
+
+deployments.yaml:
+
+```yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: myapp
+  name: myapp
+  namespace: foo
+spec:
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      containers:
+      - command:
+        - sleep
+        - "3600"
+        image: busybox
+        name: busybox
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: myapp
+  name: myapp
+  namespace: dev
+spec:
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      containers:
+      - command:
+        - sleep
+        - "3600"
+        image: busybox
+        name: busybox
+```
+
+Create some pods:
+
+pods.yaml
+
+```yaml
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: somename
+  name: somename
+  namespace: foo
+spec:
+  containers:
+  - args:
+    - sleep
+    - "3600"
+    image: busybox
+    name: somename
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: somename
+  name: somename
+  namespace: prod
+spec:
+  containers:
+  - args:
+    - sleep
+    - "3600"
+    image: busybox
+    name: somename
+```
+
+Create some CRDs (namespaced and cluster-wide):
+
+crds.yaml
+
+```yaml
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: crontabs.stable.example.com
+spec:
+  group: stable.example.com
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                cronSpec:
+                  type: string
+                image:
+                  type: string
+                replicas:
+                  type: integer
+  scope: Namespaced
+  names:
+    plural: crontabs
+    singular: crontab
+    kind: CronTab
+    shortNames:
+    - ct
+    - cts
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: globals.stable.example.com
+spec:
+  group: stable.example.com
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                glSpec:
+                  type: string
+                glImage:
+                  type: string
+                glReplicas:
+                  type: integer
+  scope: Cluster
+  names:
+    plural: globals
+    singular: global
+    kind: Global
+    shortNames:
+    - gl
+    - gls
+```
+
+Create some custom resources:
+
+crs.yaml
+
+```yaml
+---
+apiVersion: "stable.example.com/v1"
+kind: CronTab
+metadata:
+  name: my-new-cron-object-dev
+  namespace: dev
+spec:
+  cronSpec: "* * * * */5"
+  image: my-awesome-cron-image
+---
+apiVersion: "stable.example.com/v1"
+kind: CronTab
+metadata:
+  name: my-new-cron-object-prod
+  namespace: prod
+spec:
+  cronSpec: "* * * * */5"
+  image: my-awesome-cron-image
+---
+apiVersion: "stable.example.com/v1"
+kind: CronTab
+metadata:
+  name: my-new-cron-object-prod-2
+  namespace: prod
+spec:
+  cronSpec: "* * * * */5"
+  image: my-awesome-cron-image
+---
+apiVersion: "stable.example.com/v1"
+kind: CronTab
+metadata:
+  name: my-new-cron-object-foo
+  namespace: foo
+spec:
+  cronSpec: "* * * * */5"
+  image: my-awesome-cron-image-foo
+---
+apiVersion: "stable.example.com/v1"
+kind: Global
+metadata:
+  name: my-new-global-object-1
+  namespace: foo
+spec:
+  glSpec: "* * * * */5"
+  glImage: my-awesome-gl-image
+  glReplicas: 1
+---
+apiVersion: "stable.example.com/v1"
+kind: Global
+metadata:
+  name: my-new-global-object-2
+  namespace: foo
+spec:
+  glSpec: "* * * * */2"
+  glImage: my-awesome-gl-image-2
+  glReplicas: 2
+```
+
+Restart the kubernetes_service after creating CRDs.
+
+</p>
+</details>
+
+NOTE: Unless specified otherwise, the `verb` field of `kubernetes_resource` schema needs to be set as `verbs: ["*"]`
+
+* [ ] Verify role v7 with multiple resources. Examples are given for `pod`, but should also be tested with `deployment` and `clusterrole`:
+  * [ ] Verify the following scenarios for `kubernetes_resources`:
+    * [ ] `{"kind":"pod","name":"*","namespace":"*"}` - must allow access to every pod
+    * [ ] `{"kind":"pod","name":"somename","namespace":"*"}` - must allow access to pod `somename` in every namespace
+    * [ ] `{"kind":"pod","name":"*","namespace":"<somenamespace>"}` - must allow access to any pod in `<somenamespace>` namespace
+    * [ ] Verify support for `*` wildcards - `myapp-*` and regex for `name` and `namespace` fields
+    * [ ] Verify support for delete pods collection (`kubectl delete --raw=/api/v1/namespaces/<namespace name>/pods`)
+  * [ ] Verify scenarios with multiple roles defining `kubernetes_resources`:
+    * [ ] Validate that the returned list of pods is the union of every role
+    * [ ] Validate that access to other pods is denied by RBAC
+    * [ ] Validate that the Kubernetes Groups/Users are correctly selected depending on the role that applies to the pod
+      * [ ] Test with a `kubernetes_groups` that denies exec into a pod
+  * [ ] Verify kind wildcard `{"kind":"*","name":"*","namespace":"foo"}`:
+    * [ ] Verify access to namespaced resources like `pods`, `deployments` in the `foo` namespace
+    * [ ] Verify access to global resources like `clusterroles`, `nodes`
+    * [ ] Verify access to namespaced CRD `crontabs` and cluster-wide CRD `globals`
+  * [ ] Verify special `namespace` kind `{"kind":"namespace","name":"foo"}` (different behavior than rolev8)
+    * [ ] Verify access to namespaced resources `pods`, `deployments` in the `foo` namespace
+    * [ ] Verify access to the namespaced CRD `crontabs` in the `foo` namespace
+    * [ ] Verify access denied to global resources like `clusterroles` and `nodes`
+* [ ] Upgrade role v7 to v8:
+  * [ ] Attempt to upgrade without looking at the docs, the errors should be descriptive enough (using the CLI and using the Web editor)
+  * [ ] Attempt to use a rolev7 value in kind with wildcard or matching api group, the following should yield a descriptive error:
+    * [ ] kind: pod, no api_group
+    * [ ] kind: deployment, api_group apps
+    * [ ] kind: jobs, api_group '*'
+* [ ] Verify role v8
+  * [ ] Namespaced CRD
+    * [ ] Restart kuberbetes_service after creating the CRDs above
+    * [ ] Verify you don't have access to the namespaced CRD `crontabs` in any namespace
+    * [ ] Grant access to it with `{"kind":"crontabs","api_group":"stable.example.com","namespace":"foo",...}`
+    * [ ] Verify you have access to the custom resources in the `foo` namespace and no acess in `dev` and `prod` namespaces.
+    * [ ] Verify wildcard api_group `{"kind":"crontabs","api_group":"*.example.com","namespace":"dev",...}`
+    * [ ] Verify you have access to the custom resources in the `dev` namespace
+  * [ ] Cluster-wide CRD
+    * [ ] Restart kuberbetes_service after creating the CRDs above
+    * [ ] Verify you don't have access to the cluster-wide CRD `globals`
+    * [ ] Grant access to a wrong api_group with:  `{"kind":"globals","namespace":"",...}` (missing api_group)
+    * [ ] Verify you still don't have access
+    * [ ] Grant access to it with `{"kind":"globals","api_group":"*","namespace":"",...}`
+    * [ ] Verify you have access to the `globals` cluster-wide resource
+  * [ ] Verify namespace kind
+    * [ ] Grant access to a namespace with `{"kind":"namespaces","namespace":"foo",...}`
+    * [ ] Verify you can access the namespace itself
+    * [ ] Verify you don't have access to any resource within the namespace nor cluster-wide resources
+  * [ ] Verify kind wildcard - global
+    * [ ] Grant a wildcard kind access with wildcard ns `{"kind":"*","name":"*","namespace":"*","api_group":"*","verbs":["*"]}`
+    * [ ] Verify access to namespaced resources like `pods`, `deployments`, including namespaced CRD `crontabs`
+    * [ ] Verify access to cluster-wide resources `clusterroles`, `nodes`, including cluster-wide CRD `globals`
+  * [ ] Verify kind wildcard - cluster-wide
+    * [ ] Grant a wildcard kind acess without namespace `{"kind":"*","name":"*","namespace":"","api_group":"*","verbs":["*"]}`
+    * [ ] Verify access to cluster-wide resources `clusterroles`, `nodes`, including cluster-wide CRDs `globals`
+    * [ ] Verify access denied to namespaced resources `pods`, `deployments`, `services`, including namespaced CRDs `globals`
+  * [ ] Verify deny access to CRDs
+    * [ ] Grant full access to everything in the allow section: `{"kind":"*","name":"*","namespace":"*","api_group":"*","verbs":["*"]}`
+    * [ ] Add a deny rule to a specific namespaced CRD `{"kind":"crontabs","name":"*","namespace":"*","api_group":"*","verbs":["*"]}`
+    * [ ] Verify access denied
+    * [ ] Add a deny rule to a specific cluster-wide CRD `{"kind":"crontabs","name":"*","namespace":"","api_group":"stable.example.com","verbs":["*"]}`
+    * [ ] Verify access denied
+* [ ] Verify support for Teleport v17
+  * [ ] Start a v17 kubernetes_service
+  * [ ] Verify happy path
+    * [ ] Create a role v8 with rbac entries that existed in v7 (pods, deployments, clusterroles)
+          ex: `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"clusterroles","name":"*"}`, `{"kind":"deplyments","name":"*","namespace":"*"}`.
+    * [ ] Verify access to pods, clusterroles and deployments on the v17 cluster
+    * [ ] Verify access denied to other namespaced and cluster-wide resources `services`, `nodes`, `crontabs`, `globals`.
+  * [ ] Verify incomptible role, CRD
+    * [ ] Create a role v8 with access to pods and a crd.
+         ex:  `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"crontabs","api_group":"*","name":"*","namespace":"*"}`
+    * [ ] Verify access denied to explicit resources `pods`, `crontabs` andother resources `services`, `globals`, `nodes`.
+  * [ ] Verify incompatible role, namespace
+    * [ ] Create a role v8 with access to a namespace `{"kind":"namespaces","name":"foo","verbs":["*"]}`
+    * [ ] Verify access denied to the namespace and any other resources
+  * [ ] Verify incompatible role, wildcard kind - cluster-wide
+    * [ ] Create a role v8 with a cluster-wide wildcard kind `{"kind":"*","api_group":"*","name":"*","namespace":"","verbs":["*"]}`
+    * [ ] Verify access denied to any resource
+* [ ] Verify Access Request
+  * [ ] Verify the following scenarios for Resource Access Requests to Pods:
     * [ ] Create a valid resource access request and validate if access to other pods is denied.
     * [ ] Validate if creating a resource access request with Kubernetes resources denied by `search_as_roles` is not allowed.
 
@@ -515,6 +855,24 @@ local browser to complete and SSO login. Run
 `tsh login --callback <remote.host>:<port> --bind-addr localhost:<port> --auth <auth>`
 on the remote host. Note that the `--callback` URL must be able to resolve to the
 `--bind-addr` over HTTPS.
+
+### SAML SSO login with different binding methods
+
+- [ ] `http-redirect`. Verify SAML authentication request is sent in a URL.
+  - [ ] Verify this is the default SAML request method.
+  - [ ] Verify this is applied with `preferred_request_binding: http-redirect` value in the SAML connector spec.
+  - [ ] Web UI SSO.
+  - [ ] Web UI SLO.
+  - [ ] tsh login SSO.
+  - [ ] Connect login SSO.
+  - [ ] SSO MFA.
+
+- [ ] `http-post`. Verify SAML authentication request is sent in an HTML form.
+  - [ ] Verify this is applied with `preferred_request_binding: http-post` value in the SSO connector spec.
+  - [ ] Web UI login SSO.
+  - [ ] tsh login SSO.
+  - [ ] Connect login SSO.
+  - [ ] SSO MFA should continue working with a default `http-redirect` request.
 
 ### Teleport Plugins
 
@@ -703,6 +1061,7 @@ tsh ssh node-that-requires-device-trust
     - [ ] GitHub user
     - [ ] OIDC user
     - [ ] SAML user
+    - [ ] SAML service provider access configured via SAML IdP
 
     Confirm that it works by failing first. Most protocols can be tested using
     device_trust.mode="required". App Access and Desktop Access require a custom
@@ -772,19 +1131,91 @@ You will need a YubiKey 4.3+ to test this feature.
 
 This feature has additional build requirements, so it should be tested with a pre-release build (eg: `https://cdn.teleport.dev/teleport-ent-v16.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
-#### Server Access
+Run all tests on Linux, MacOS, and Windows.
 
-This test should be carried out on Linux, MacOS, and Windows.
+#### `tsh`
 
-Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in your cluster auth settings and login.
+Configuration:
+
+```yaml
+### cap
+spec:
+  require_session_mfa: hardware_key_touch_and_pin
+  hardware_key:
+    pin_cache_ttl: 15s
+```
+
+In the tests below, note how touch and PIN are cached.
+
+- touch is cached on the YubiKey for 15 seconds.
+- pin is cached for 15 seconds within the `tsh` processes This will only appear to work for `tsh proxy` commands.
+- pin is cached in the YubiKey's PIV connection. The connection with intact PIN cache can be claimed within 5 seconds, meaning you can keep the PIN cached by running `tsh` commands one after the other within 5 seconds.
+
 - [ ] `tsh login`
-  - [ ] Prompts for Yubikey touch with message "Tap your YubiKey" (separate from normal MFA prompt).
+  - [ ] Prompts for PIV PIN ("Enter your PIV PIN:")
+  - [ ] Prompts for PIV touch ("Tap your Yubikey", separate from normal MFA prompt).
+- [ ] `tsh ls`
+  - [ ] Prompts for PIV PIN ("Enter your PIV PIN:")
+  - [ ] Prompts for PIV touch ("Tap your Yubikey", separate from normal MFA prompt).
 - [ ] Server Access `tsh ssh`
-  - [ ] Requires yubikey to be connected
-  - [ ] Prompts for touch (if not cached)
+  - [ ] Prompts for PIV PIN and touch
 - [ ] Database Access: `tsh proxy db --tunnel`
-  - [ ] Requires yubikey to be connected
-  - [ ] Prompts for touch (if not cached)
+  - [ ] Prompts for PIV PIN and touch on start
+  - [ ] Prompts for PIV PIN and Touch for incoming connections or queries
+- [ ] App Access: `tsh proxy app`
+  - [ ] Prompts for PIV PIN and touch on start
+  - [ ] [Prompts for MFA](https://github.com/gravitational/teleport/blob/master/rfd/0080-hardware-key-support.md#application-access) on start
+  - [ ] Prompts for PIV PIN and Touch for incoming http requests
+- [ ] Kube Access: `tsh proxy kube`
+  - [ ] Prompts for PIV PIN and touch on start
+  - [ ] Prompts for PIV PIN and Touch for incoming `kubectl` commands
+
+#### Teleport Connect and Hardware Key Agent
+
+Install Teleport Connect and open it. The hardware key agent automatically starts if you are running a
+release/dev build. If you are building Teleport Connect in development mode, you will need to set the
+config option `hardwareKeyAgent.enabled: true` and restart Connect. You can run a non-login `tsh`
+command to check if the agent is running.
+
+Before logging in to Teleport Connect:
+
+- [ ] `tsh login` prompts for PIV PIN and touch without using the Hardware Key Agent
+- [ ] All other `tsh` commands prompt for PIN and touch via the Hardware Key Agent
+  - [ ] Test a subset of the `tsh` commands from the test above
+    - [ ] The command is displayed in the PIN and touch prompts
+- [ ] Connecting with OpenSSH `ssh` prompts for PIN and touch via the hardware key agent
+- [ ] The PIN is cached for the configured duration between basic `tsh` commands (set `pin_cache_ttl` to something longer that 15s if needed)
+
+After logging in to Teleport Connect:
+
+- [ ] Login prompts for PIN and touch
+- [ ] Server Access
+  - [ ] Prompts for PIN and Touch via the Hardware Key Agent
+  - [ ] The `tsh ssh ...` command is displayed in the prompt
+- [ ] Database Access
+  - [ ] Prompts for PIN and Touch for incoming connections or queries
+- [ ] App Access (Proxy)
+  - [ ] Prompts for MFA on start
+  - [ ] Prompts for PIN and Touch for incoming http requets
+- [ ] Kube Access
+  - [ ] Prompts for PIN and Touch for incoming `kubectl` commands
+- [ ] VNet
+  - [ ] Prompts for PIN and Touch for incoming tcp connections
+
+### Local unit tests
+
+Currently, we do not have a way of testing any PIV funcionality that requires direct access
+to a YubiKey. However, we do have a test suite of local and interactive tests for realworld
+PIV funcionality.
+
+Plug in a YubiKey and run the test suite with the options below:
+
+```bash
+TELEPORT_TEST_YUBIKEY_PIV=yes go test github.com/gravitational/teleport/api/utils/keys/piv -tags=piv -v
+```
+
+Note that these tests will wipe any existing PIV data on the card (keys, certs, custom pin/puk).
+FIDO2 data is not affected.
 
 ### HSM Support
 
@@ -987,21 +1418,22 @@ manualy testing.
   - [ ] Self-hosted Cassandra/ScyllaDB.
   - [ ] Self-hosted Oracle.
   - [ ] Self-hosted ClickHouse.
-  - [ ] AWS Aurora Postgres.
-  - [ ] AWS Aurora MySQL.
+  - [ ] Amazon Aurora Postgres.
+  - [ ] Amazon Aurora MySQL.
     - [ ] MySQL server version reported by Teleport is correct.
-  - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
-  - [ ] AWS Redshift.
-  - [ ] AWS Redshift Serverless.
+  - [ ] Amazon RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
+  - [ ] Amazon Redshift.
+  - [ ] Amazon Redshift Serverless.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
-  - [ ] AWS ElastiCache.
-  - [ ] AWS MemoryDB.
-  - [ ] AWS OpenSearch.
-  - [ ] AWS Dynamodb.
+  - [ ] Amazon ElastiCache.
+  - [ ] Amazon MemoryDB.
+  - [ ] Amazon OpenSearch.
+  - [ ] Amazon Dynamodb.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
-  - [ ] AWS DocumentDB
-  - [ ] AWS Keyspaces
+  - [ ] Amazon DocumentDB
+  - [ ] Amazon Keyspaces
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
+  - [ ] Amazon RDS Oracle (with Kerberos keytab)
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] GCP Cloud Spanner.
@@ -1026,17 +1458,18 @@ manualy testing.
   - [ ] Self-hosted Cassandra/ScyllaDB.
   - [ ] Self-hosted Oracle.
   - [ ] Self-hosted ClickHouse.
-  - [ ] AWS Aurora Postgres.
-  - [ ] AWS Aurora MySQL.
-  - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
-  - [ ] AWS Redshift.
-  - [ ] AWS Redshift Serverless.
-  - [ ] AWS ElastiCache.
-  - [ ] AWS MemoryDB.
-  - [ ] AWS OpenSearch.
-  - [ ] AWS Dynamodb.
-  - [ ] AWS DocumentDB
-  - [ ] AWS Keyspaces
+  - [ ] Amazon Aurora Postgres.
+  - [ ] Amazon Aurora MySQL.
+  - [ ] Amazon RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
+  - [ ] Amazon Redshift.
+  - [ ] Amazon Redshift Serverless.
+  - [ ] Amazon ElastiCache.
+  - [ ] Amazon MemoryDB.
+  - [ ] Amazon OpenSearch.
+  - [ ] Amazon Dynamodb.
+  - [ ] Amazon DocumentDB
+  - [ ] Amazon Keyspaces
+  - [ ] Amazon RDS Oracle (with Kerberos keytab)
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] GCP Cloud Spanner.
@@ -1053,10 +1486,10 @@ manualy testing.
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
-  - [x] AWS RDS Postgres. (covered by E2E test)
-  - [x] AWS RDS MySQL. (coverved by E2E test)
-  - [ ] AWS RDS MariaDB.
-  - [x] AWS Redshift (coverved by E2E test).
+  - [x] Amazon RDS Postgres. (covered by E2E test)
+  - [x] Amazon RDS MySQL. (coverved by E2E test)
+  - [ ] Amazon RDS MariaDB.
+  - [x] Amazon Redshift (coverved by E2E test).
 - [ ] Verify Database Access Control
   - [ ] Postgres (tables)
 - [ ] Verify audit events.
@@ -1073,6 +1506,7 @@ manualy testing.
     - [ ] `db.session.query` is emitted when command fails due to permissions.
   - [ ] Can configure per-session MFA.
     - [ ] MFA tap is required on each `tsh db connect`.
+    - [ ] A single MFA tap is required on `tsh db exec --dbs db1,db2`.
 - [ ] Verify dynamic registration.
   - [ ] Can register a new database using `tctl create`.
   - [ ] Can update registered database using `tctl create -f`.
@@ -1112,6 +1546,27 @@ manualy testing.
     - [ ] Postgres
   - [ ] `tsh play`
     - [ ] Postgres
+- [ ] Verify database access via Web UI
+  - [ ] Postgres
+- [ ] Verify database health checks
+  - [ ] Dynamic `health_check_config` resource create, read, update, delete operations are supported using `tctl`
+  - [ ] Database servers (`$ tctl get db_server`) include `db_server.status.target_health` info
+  - [ ] Updating `health_check_config` resets `db_server.status.target_health.status` for matching databases (may take several minutes)
+  - [ ] Updating a `health_check_config` (or deleting it), such that a database should no longer have health checks enabled, resets that database's `db_server.status.target_health` to "unknown/disabled" (may take several minutes)
+  - [ ] Verify health check web UI indicators
+    Configure a database agent with a database that has an unreachable URI (e.g. localhost:5432).
+    - [ ] The web UI resource page shows an warning indicator for that database with error details.
+    - [ ] Without restarting the agent, make the database endpoint reachable and observe that the indicator in the web UI resources page disappears after some time.
+
+## Git Proxy
+- [ ] [GitHub proxy](https://goteleport.com/docs/admin-guides/management/guides/github-integration/)
+  (requires GitHub Enterprise account)
+  - [ ] Enroll integration via WebUI
+  - [ ] `tsh git login` for GitHub OAuth flow
+  - [ ] `tsh git clone` for cloning new repo
+  - [ ] `tsh git config` for configuring existing repo
+  - [ ] Test Git commands like `git fetch`, `git push`, in repos configured with Teleport
+  - [ ] Verify audit events for each Git command proxied through Teleport.
 
 ## TLS Routing
 
@@ -1356,6 +1811,9 @@ manualy testing.
   - [ ] Updating dynamic Windows desktop's labels so it no longer matches `windows_desktop_services` deletes
       corresponding Windows desktops
   - [ ] Deleting dynamic Windows desktop deletes corresponding Windows desktops
+- Keyboard Layout
+  - [ ] Keyboard layout is set to the same as the local machine, if "System" is chosen in preferences
+  - [ ] If "United States - International" is chosen in preferences, the keyboard layout is set to "United States - International" on the remote machine
 
 ## Binaries / OS compatibility
 
@@ -1596,6 +2054,16 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
       - [ ] For CLI.
       - [ ] For Web UI.
 
+  - [ ] [Automatic Review Rules](https://goteleport.com/docs/ver/18.x/admin-guides/access-controls/access-requests/automatic-reviews/)
+    - [ ] Create automatic review rule with `desired_state` and `automatic_review` spec.
+    - [ ] Verify that `desired_state: review` is required to enable automatic reviews.
+    - [ ] Verify that `automatic_review.integration` is required to enable automatic reviews.
+    - [ ] Verify that `user.traits` in the condition expression is evaluated as expected.
+    - [ ] Verify that automatic approvals are submitted.
+    - [ ] Verify that automatic denials are submitted.
+    - [ ] Verify that if there are conflicting rules that apply, denials take precedence.
+    - [ ] Verify that `automatic_review` and `notification` can both be configured within the same rule.
+
 - [ ] Access Lists
   - [ ] Verify Access List membership/ownership/expiration date.
   - [ ] Verify permissions granted by Access List membership.
@@ -1618,6 +2086,9 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
     - [ ] Verify the Single Sign-On (SSO) connector created by the Okta Plugin.
   - [ ] Verify Okta users/apps/groups sync.
     - [ ] Verify that users/apps/groups are synced from Okta to Teleport.
+    - [ ] Verify that when bidirectional sync is disabled:
+      - [ ] `x.manage` scopes are not required for plugin to function.
+      - [ ] Updates to synced Access Lists' members/grants are not allowed.
     - [ ] Verify the custom `okta_import_rule` rule configuration.
     - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
     - [ ] Verify that users/groups are flattened on import, and are not duplicated on sync when their membership is inherited via nested Access Lists.
@@ -1628,7 +2099,8 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
 Verify SAML IdP service provider resource management.
 
 ### Docs:
-- [ ] Verify SAML IdP guide instructions work.
+- [ ] Verify generic SAML IdP guide instructions work.
+- [ ] Verify all the screenshots are up-to-date.
 
 ### Manage Service Provider (SP)
 - [ ] `saml_idp_service_provider` resource can be created, updated and deleted with `tctl create/update/delete sp.yaml` command.
@@ -1637,6 +2109,19 @@ Verify SAML IdP service provider resource management.
     - [ ] Verify Entity descriptor is generated.
   - [ ] Verify attribute mapping configuration works.
   - [ ] Verify test attribute mapping command. `$ tctl idp saml test-attribute-mapping --users <usernames or name of file containing user spec> --sp <name of file containing user spec> --format <json/yaml/defaults to text>`
+
+### Login and RBAC
+- [ ] Verify that redirection to login page works.
+  - [ ] Check IdP initiated login.
+  - [ ] Check SP initiated login with http-redirect binding request.
+  - [ ] Check SP initiated login with http-post binding request.
+  - [ ] Check all the conditions above with device trust enabled/disabled.
+- [ ] Verify that redirection for session MFA works.
+  - [ ] Check IdP initiated login.
+  - [ ] Check SP initiated login with http-redirect binding request.
+  - [ ] Check SP initiated login with http-post binding request.
+- [ ] Verify that role version v7 and below enforces `role.options.idp.saml.enabled: true/false` and session MFA.
+- [ ] Verify that role version v8 and above enforces `app_labels` matchers, `saml_idp_service_provider` verbs, device trust and session MFA.
 
 ### SAML service provider catalog
 - [ ] GCP Workforce Identity Federation

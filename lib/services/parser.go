@@ -763,6 +763,12 @@ func NewResourceExpression(expression string) (typical.Expression[types.Resource
 
 				return r.GetName(), nil
 			}),
+			"health.status": typical.DynamicVariable(func(r types.ResourceWithLabels) (string, error) {
+				if r, ok := r.(types.TargetHealthStatusGetter); ok {
+					return string(r.GetTargetHealthStatus()), nil
+				}
+				return "", nil
+			}),
 		},
 		Functions: map[string]typical.Function{
 			"hasPrefix": typical.BinaryFunction[types.ResourceWithLabels](func(s, suffix string) (bool, error) {

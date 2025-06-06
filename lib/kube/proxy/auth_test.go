@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -131,14 +130,10 @@ func failsForCluster(clusterName string) servicecfg.ImpersonationPermissionsChec
 func TestGetKubeCreds(t *testing.T) {
 	t.Parallel()
 	// kubeMock is a Kubernetes API mock for the session tests.
-	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	kubeMock, err := testingkubemock.NewKubeAPIMock(testingkubemock.WithTeleportRoleCRD)
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
 	targetAddr := kubeMock.Address
-
-	rbacSupportedTypes := maps.Clone(defaultRBACResources)
-	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles"}] = utils.KubeCustomResource
-	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles/status"}] = utils.KubeCustomResource
 
 	ctx := context.TODO()
 	const teleClusterName = "teleport-cluster"
@@ -218,7 +213,6 @@ current-context: foo
 						Minor:      "20",
 						GitVersion: "1.20.0",
 					},
-					rbacSupportedTypes: rbacSupportedTypes,
 				},
 				"bar": {
 					kubeCreds: &staticKubeCreds{
@@ -232,8 +226,7 @@ current-context: foo
 						Minor:      "20",
 						GitVersion: "1.20.0",
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, "bar"),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeCluster: mustCreateKubernetesClusterV3(t, "bar"),
 				},
 				"baz": {
 					kubeCreds: &staticKubeCreds{
@@ -247,8 +240,7 @@ current-context: foo
 						Minor:      "20",
 						GitVersion: "1.20.0",
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, "baz"),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeCluster: mustCreateKubernetesClusterV3(t, "baz"),
 				},
 			},
 			assertErr: require.NoError,
@@ -277,8 +269,7 @@ current-context: foo
 						Minor:      "20",
 						GitVersion: "1.20.0",
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, teleClusterName),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeCluster: mustCreateKubernetesClusterV3(t, teleClusterName),
 				},
 			},
 			assertErr: require.NoError,
@@ -300,8 +291,7 @@ current-context: foo
 						Minor:      "20",
 						GitVersion: "1.20.0",
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, "foo"),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeCluster: mustCreateKubernetesClusterV3(t, "foo"),
 				},
 				"bar": {
 					kubeCreds: &staticKubeCreds{
@@ -315,8 +305,7 @@ current-context: foo
 						Minor:      "20",
 						GitVersion: "1.20.0",
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, "bar"),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeCluster: mustCreateKubernetesClusterV3(t, "bar"),
 				},
 				"baz": {
 					kubeCreds: &staticKubeCreds{
@@ -330,15 +319,13 @@ current-context: foo
 						Minor:      "20",
 						GitVersion: "1.20.0",
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, "baz"),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeCluster: mustCreateKubernetesClusterV3(t, "baz"),
 				},
 			},
 			assertErr: require.NoError,
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			fwd := &Forwarder{
@@ -366,6 +353,7 @@ current-context: foo
 				cmp.Comparer(func(a, b *kubernetes.Clientset) bool { return (a == nil) == (b == nil) }),
 				cmp.Comparer(func(a, b *rest.Config) bool { return (a == nil) == (b == nil) }),
 				cmp.Comparer(func(a, b http.RoundTripper) bool { return true }),
+				cmp.Comparer(func(a, b rbacSupportedResources) bool { return true }),
 			))
 		})
 	}

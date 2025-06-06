@@ -963,13 +963,15 @@ func TestDiscoveryServer(t *testing.T) {
 					instances := installer.GetInstalledInstances()
 					slices.Sort(instances)
 					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceCreateEventCount()
-				}, 5000*time.Millisecond, 50*time.Millisecond)
+				}, 10*time.Second, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
 					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceCreateEventCount() > 0
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
-			require.GreaterOrEqual(t, reporter.DiscoveryFetchEventCount(), 1)
+			require.Eventually(t, func() bool {
+				return reporter.DiscoveryFetchEventCount() > 0
+			}, 10*time.Second, 50*time.Millisecond)
 
 			// Discovery Config Status is updated accordingly
 			if tc.wantDiscoveryConfigStatus != nil {
@@ -1029,7 +1031,7 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 			gotResources += len(task.GetSpec().GetDiscoverRds().GetDatabases())
 		}
 		assert.GreaterOrEqual(t, gotResources, minUserTaskResources)
-	}, 5*time.Second, 50*time.Millisecond)
+	}, 10*time.Second, 50*time.Millisecond)
 
 	return existingTasks
 }

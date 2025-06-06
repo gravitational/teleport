@@ -847,6 +847,16 @@ const (
 	// AutoUpdateVersionDeleteEvent is emitted when a AutoUpdateVersion resource is deleted.
 	AutoUpdateVersionDeleteEvent = "auto_update_version.delete"
 
+	// AutoUpdateAgentRolloutTriggerEvent is emitted when one or many groups
+	// from AutoUpdateAgentRollout resource are manually triggered.
+	AutoUpdateAgentRolloutTriggerEvent = "auto_update_agent_rollout.trigger"
+	// AutoUpdateAgentRolloutForceDoneEvent is emitted when one or many groups
+	// from AutoUpdateAgentRollout resource are manually forced to a done state.
+	AutoUpdateAgentRolloutForceDoneEvent = "auto_update_agent_rollout.force_done"
+	// AutoUpdateAgentRolloutRollbackEvent is emitted when one or many groups
+	// from AutoUpdateAgentRollout resource are manually rolledback.
+	AutoUpdateAgentRolloutRollbackEvent = "auto_update_agent_rollout.rollback"
+
 	// ContactCreateEvent is emitted when a Contact resource is created.
 	ContactCreateEvent = "contact.create"
 	// ContactDeleteEvent is emitted when a Contact resource is deleted.
@@ -903,6 +913,17 @@ const (
 	// HealthCheckConfigDeleteEvent is emitted when a health check config
 	// resource is deleted.
 	HealthCheckConfigDeleteEvent = "health_check_config.delete"
+
+	// MCPSessionStartEvent is emitted when a user starts a MCP session.
+	MCPSessionStartEvent = "mcp.session.start"
+	// MCPSessionEndEvent is emitted when an MCP session ends.
+	MCPSessionEndEvent = "mcp.session.end"
+	// MCPSessionRequestEvent is emitted when a request is sent by client during
+	// a MCP session.
+	MCPSessionRequestEvent = "mcp.session.request"
+	// MCPSessionNotificationEvent is emitted when a notification is sent by
+	// client during a MCP session.
+	MCPSessionNotificationEvent = "mcp.session.notification"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

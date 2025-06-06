@@ -39,6 +39,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -927,13 +928,12 @@ func TestMakeClient(t *testing.T) {
 	conf.HomePath = t.TempDir()
 
 	// Create a empty profile so we don't ping proxy.
-	clientStore, err := initClientStore(&conf, conf.Proxy)
-	require.NoError(t, err)
 	profile := &profile.Profile{
 		SSHProxyAddr: "proxy:3023",
 		WebProxyAddr: "proxy:3080",
 	}
-	err = clientStore.SaveProfile(profile, true)
+
+	err = conf.getClientStore().SaveProfile(profile, true)
 	require.NoError(t, err)
 
 	tc, err = makeClient(&conf)
@@ -2612,7 +2612,7 @@ func TestKubeCredentialsLock(t *testing.T) {
 				KubeUsers:        []string{alice.GetName()},
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+						Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, APIGroup: types.Wildcard,
 					},
 				},
 			},
@@ -2832,8 +2832,8 @@ func TestSSHHeadlessCLIFlags(t *testing.T) {
 			assertErr: require.NoError,
 			assertConfig: func(t require.TestingT, c *client.Config) {
 				require.Equal(t, "other-proxy:3080", c.WebProxyAddr)
-				require.Equal(t, "", c.Username)
-				require.Equal(t, "", c.SiteName)
+				require.Empty(t, c.Username)
+				require.Empty(t, c.SiteName)
 			},
 		}, {
 			name: "NOK --headless with mismatched auth connector",
@@ -5113,10 +5113,10 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			roles:    services.RoleSet{roleDevStage, roleDevProd},
 			database: dbStage,
 			wantUsers: &dbUsers{
-				Allowed: []string{"*", "dev"},
+				Allowed: []string{"*"},
 				Denied:  []string{"superuser"},
 			},
-			wantText: "[* dev], except: [superuser]",
+			wantText: "[*], except: [superuser]",
 		},
 		{
 			name:     "developer allowed only specific username/database in prod database",
@@ -6046,7 +6046,13 @@ func TestFlatten(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test execution: validate that flattening succeeds if a profile already exists.
-	conf.IdentityFileIn = identityPath
+	conf = CLIConf{
+		Proxy:              proxyAddr.String(),
+		InsecureSkipVerify: true,
+		IdentityFileIn:     identityPath,
+		HomePath:           freshHome,
+		Context:            context.Background(),
+	}
 	require.NoError(t, flattenIdentity(&conf), "unexpected error when overwriting a tsh profile")
 }
 
@@ -6458,13 +6464,11 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 		}
 
 		// Create a empty profile so we don't ping proxy.
-		clientStore, err := initClientStore(conf, conf.Proxy)
-		require.NoError(t, err)
 		profile := &profile.Profile{
 			SSHProxyAddr: "proxy:3023",
 			WebProxyAddr: "proxy:3080",
 		}
-		err = clientStore.SaveProfile(profile, true)
+		err := conf.getClientStore().SaveProfile(profile, true)
 		require.NoError(t, err)
 
 		modify(conf)
@@ -7231,4 +7235,224 @@ func TestSetEnvVariables(t *testing.T) {
 			require.Equal(t, tc.expectedExtraEnvs, c.ExtraEnvs)
 		})
 	}
+}
+
+func TestLoggingOpts(t *testing.T) {
+	tmpHomePath := t.TempDir()
+
+	tests := []struct {
+		name      string
+		envDebug  *bool
+		envOSLog  *bool
+		flagDebug *bool
+		flagOSLog *bool
+		wantDebug require.BoolAssertionFunc
+		wantOSLog require.BoolAssertionFunc
+	}{
+		{
+			name:      "no flags or env vars",
+			wantDebug: require.False,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "just debug flag",
+			flagDebug: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "just os-log flag",
+			flagOSLog: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "debug and os-log flags",
+			flagDebug: boolPtr(true),
+			flagOSLog: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "just debug env var",
+			envDebug:  boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "just os-log env var",
+			envOSLog:  boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "debug and os-log flags",
+			envDebug:  boolPtr(true),
+			envOSLog:  boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "everything on",
+			envDebug:  boolPtr(true),
+			envOSLog:  boolPtr(true),
+			flagDebug: boolPtr(true),
+			flagOSLog: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "everything explicitly off",
+			envDebug:  boolPtr(false),
+			envOSLog:  boolPtr(false),
+			flagDebug: boolPtr(false),
+			flagOSLog: boolPtr(false),
+			wantDebug: require.False,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "debug enabled by env, disabled by flag",
+			envDebug:  boolPtr(true),
+			flagDebug: boolPtr(false),
+			wantDebug: require.False,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "debug disabled by env, enabled by flag",
+			envDebug:  boolPtr(false),
+			flagDebug: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "os-log enabled by env, disabled by flag",
+			envOSLog:  boolPtr(true),
+			flagOSLog: boolPtr(false),
+			wantDebug: require.False,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "os-log disabled by env, enabled by flag",
+			envOSLog:  boolPtr(false),
+			flagOSLog: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+
+		// Verify that final values are set after consulting both env and argv, e.g., disabling os-log
+		// by flag doesn't disable debug set by env.
+		{
+			name:      "os-log enabled by env, disabled by flag; debug enabled by env",
+			envOSLog:  boolPtr(true),
+			flagOSLog: boolPtr(false),
+			envDebug:  boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "os-log disabled by env, enabled by flag; debug disabled by flag",
+			envOSLog:  boolPtr(false),
+			flagOSLog: boolPtr(true),
+			flagDebug: boolPtr(false),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+
+		// Debug is always enabled together with os-log.
+		{
+			name:      "os-log enabled by flag, debug disabled by env",
+			flagOSLog: boolPtr(true),
+			envDebug:  boolPtr(false),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "os-log enabled by flag, debug disabled by flag",
+			flagOSLog: boolPtr(true),
+			flagDebug: boolPtr(false),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "os-log enabled by env, debug disabled by env",
+			envOSLog:  boolPtr(true),
+			envDebug:  boolPtr(false),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "os-log enabled by env, debug disabled by flag",
+			envOSLog:  boolPtr(true),
+			flagDebug: boolPtr(false),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envDebug != nil {
+				t.Setenv(debugEnvVar, strconv.FormatBool(*tt.envDebug))
+			}
+
+			if tt.envOSLog != nil {
+				t.Setenv(osLogEnvVar, strconv.FormatBool(*tt.envOSLog))
+			}
+
+			var flags []string
+
+			if tt.flagDebug != nil {
+				if *tt.flagDebug {
+					flags = append(flags, "--debug")
+				} else {
+					flags = append(flags, "--no-debug")
+				}
+			}
+
+			if tt.flagOSLog != nil {
+				if *tt.flagOSLog {
+					flags = append(flags, "--os-log")
+				} else {
+					flags = append(flags, "--no-os-log")
+				}
+			}
+
+			mustReadLoggingOpts, setLoggingOptsFromCLIConf := prepareCLIOptionForReadingLoggingOpts()
+			err := Run(t.Context(), append([]string{"version"}, flags...),
+				setHomePath(tmpHomePath), setLoggingOptsFromCLIConf)
+			require.NoError(t, err)
+
+			opts := mustReadLoggingOpts(t)
+			tt.wantDebug(t, opts.debug, "unexpected cf.Debug value")
+			tt.wantOSLog(t, opts.osLog, "unexpected cf.OSLog value")
+		})
+	}
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+func prepareCLIOptionForReadingLoggingOpts() (func(t *testing.T) loggingOpts, CliOption) {
+	var cf *CLIConf
+
+	setLoggingOptsFromCLIConf := func(cliConfFromRun *CLIConf) error {
+		cf = cliConfFromRun
+		return nil
+	}
+
+	mustReadLoggingOpts := func(t *testing.T) loggingOpts {
+		t.Helper()
+
+		if cf == nil {
+			t.Fatalf("mustReadLoggingOpts was called before setLoggingOptsFromCLIConf was executed")
+		}
+
+		return loggingOpts{
+			debug: cf.Debug,
+			osLog: cf.OSLog,
+		}
+	}
+
+	return mustReadLoggingOpts, setLoggingOptsFromCLIConf
 }

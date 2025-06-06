@@ -100,6 +100,22 @@ func (p *vnetClientApplication) ReissueAppCert(ctx context.Context, appInfo *vne
 	return cert, trace.Wrap(err)
 }
 
+// UserTLSCert returns the user TLS certificate for the given profile.
+func (p *vnetClientApplication) UserTLSCert(ctx context.Context, profileName string) (tls.Certificate, error) {
+	profile, err := p.clientStore.GetProfile(profileName)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "loading user profile %s", profileName)
+	}
+	tlsConfig, err := profile.TLSConfig()
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "loading TLS config for profile")
+	}
+	if len(tlsConfig.Certificates) == 0 {
+		return tls.Certificate{}, trace.Errorf("user tls config has no certificates")
+	}
+	return tlsConfig.Certificates[0], nil
+}
+
 // GetDialOptions returns ALPN dial options for the profile.
 func (p *vnetClientApplication) GetDialOptions(ctx context.Context, profileName string) (*vnetv1.DialOptions, error) {
 	profile, err := p.clientStore.GetProfile(profileName)
@@ -111,11 +127,9 @@ func (p *vnetClientApplication) GetDialOptions(ctx context.Context, profileName 
 		AlpnConnUpgradeRequired: profile.TLSRoutingConnUpgradeRequired,
 		InsecureSkipVerify:      p.cf.InsecureSkipVerify,
 	}
-	if dialOpts.AlpnConnUpgradeRequired {
-		dialOpts.RootClusterCaCertPool, err = p.getRootClusterCACertPoolPEM(ctx, profileName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	dialOpts.RootClusterCaCertPool, err = p.getRootClusterCACertPoolPEM(ctx, profileName)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return dialOpts, nil
 }
@@ -176,7 +190,7 @@ func (p *vnetClientApplication) retryWithRelogin(ctx context.Context, tc *client
 			if p.loginMu.TryLock() {
 				didLock = true
 			} else {
-				return fmt.Errorf("not attempting re-login to cluster %s, another login is current in progress.", tc.SiteName)
+				return fmt.Errorf("not attempting re-login to cluster %s, another login is current in progress", tc.SiteName)
 			}
 			fmt.Printf("Login for cluster %s expired, attempting to log in again.\n", tc.SiteName)
 			return nil
@@ -233,7 +247,7 @@ func (p *vnetClientApplication) newTeleportClient(ctx context.Context, profileNa
 	cfg := &client.Config{
 		ClientStore: p.clientStore,
 	}
-	if err := cfg.LoadProfile(p.clientStore, profileName); err != nil {
+	if err := cfg.LoadProfile(profileName); err != nil {
 		return nil, trace.Wrap(err, "loading client profile")
 	}
 	if leafClusterName != "" {

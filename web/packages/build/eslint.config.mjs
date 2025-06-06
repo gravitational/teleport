@@ -17,13 +17,14 @@
  */
 
 import eslint from '@eslint/js';
-import tseslint from 'typescript-eslint';
+import jestPlugin from 'eslint-plugin-jest';
+import jestDomPlugin from 'eslint-plugin-jest-dom';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
-import jestPlugin from 'eslint-plugin-jest';
 import testingLibraryPlugin from 'eslint-plugin-testing-library';
-import jestDomPlugin from 'eslint-plugin-jest-dom';
+import unusedImportsPlugin from 'eslint-plugin-unused-imports';
 import globals from 'globals';
+import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
@@ -62,6 +63,7 @@ export default tseslint.config(
     plugins: {
       // There is no flat config available.
       'react-hooks': reactHooksPlugin,
+      'unused-imports': unusedImportsPlugin,
     },
     rules: {
       ...reactHooksPlugin.configs.recommended.rules,
@@ -74,6 +76,13 @@ export default tseslint.config(
         // with-single-extends is needed to allow for interface extends like we have in jest.d.ts.
         { allowInterfaces: 'with-single-extends' },
       ],
+
+      // Turn on the no-unused-imports rule. As it works by wrapping
+      // @typescript-eslint/no-unused-vars, we need to turn this one off, and
+      // instead use the wrapped one.
+      '@typescript-eslint/no-unused-vars': 'off',
+      'unused-imports/no-unused-imports': 'error',
+      'unused-imports/no-unused-vars': 'error',
 
       // <TODO> Enable these recommended typescript-eslint rules after fixing existing issues.
       '@typescript-eslint/no-explicit-any': 'off',

@@ -90,8 +90,6 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 						level = "warning"
 					case slog.LevelError:
 						level = "error"
-					case slog.LevelError + 1:
-						level = "fatal"
 					default:
 						level = strings.ToLower(lvl.String())
 					}

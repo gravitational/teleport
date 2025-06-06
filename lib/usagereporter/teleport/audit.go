@@ -31,6 +31,9 @@ const (
 	// TCPSessionType is the session_type in tp.session.start for TCP
 	// Application Access.
 	TCPSessionType = "app_tcp"
+	// MCPAppSessionType is the session_type in tp.session.start for MCP
+	// Access via App access.
+	MCPAppSessionType = "app_mcp"
 	// PortSessionType is the session_type in tp.session.start for SSH or Kube
 	// port forwarding.
 	//
@@ -43,6 +46,8 @@ const (
 	// PortKubeSessionType is the session_type in tp.session.start for Kube port
 	// forwarding.
 	PortKubeSessionType = "k8s_port"
+	// SAMLIdPSessionType is the session_type tp.session.start for a SAML IdP specific web session.
+	SAMLIdPSessionType = "saml_idp_session"
 )
 
 // prehogUserKindFromEventKind converts a Teleport UserKind to a prehog
@@ -365,7 +370,13 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		}
 		return &SessionStartEvent{
 			UserName:    e.User,
-			SessionType: string(types.KindSAMLIdPSession),
+			SessionType: string(SAMLIdPSessionType),
+		}
+	case *apievents.MCPSessionStart:
+		return &SessionStartEvent{
+			UserName:    e.User,
+			SessionType: MCPAppSessionType,
+			UserKind:    prehogUserKindFromEventKind(e.UserKind),
 		}
 	}
 

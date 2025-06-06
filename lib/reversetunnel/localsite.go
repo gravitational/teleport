@@ -274,11 +274,11 @@ func (s *localSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error
 }
 
 func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, useTunnel, isAgentlessNode bool, srcAddr, dstAddr net.Addr) bool {
-	return !(signer == nil ||
-		useTunnel ||
-		isAgentlessNode ||
-		srcAddr == nil ||
-		dstAddr == nil)
+	return signer != nil &&
+		!useTunnel &&
+		!isAgentlessNode &&
+		srcAddr != nil &&
+		dstAddr != nil
 }
 
 func (s *localSite) maybeSendSignedPROXYHeader(params reversetunnelclient.DialParams, conn net.Conn, useTunnel bool) error {
@@ -302,7 +302,7 @@ func (s *localSite) maybeSendSignedPROXYHeader(params reversetunnelclient.DialPa
 func (s *localSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, error) {
 	ctx := s.srv.ctx
 	logger := s.logger.With("dial_params", logutils.StringerAttr(params))
-	logger.DebugContext(ctx, "Initiating dia request")
+	logger.DebugContext(ctx, "Initiating dial request")
 
 	conn, useTunnel, err := s.getConn(params)
 	if err != nil {

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useState, type JSX } from 'react';
 import styled from 'styled-components';
 
 import { Flex, Text, Toggle } from 'design';
@@ -291,16 +291,15 @@ const IncludedResourcesSelector = ({
         onClose={handleClose}
       >
         <AccessRequestsToggleItem>
-          <Text mr={2} mb={1}>
-            Show requestable resources
-          </Text>
           <Toggle
             isToggled={
               availabilityFilter.mode === 'requestable' ||
               availabilityFilter.mode === 'all'
             }
             onToggle={handleToggle}
-          />
+          >
+            <Text ml={2}>Show requestable resources</Text>
+          </Toggle>
         </AccessRequestsToggleItem>
       </Menu>
     </Flex>

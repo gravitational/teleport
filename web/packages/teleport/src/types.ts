@@ -58,6 +58,7 @@ export enum NavTitle {
   // Access Management
   Users = 'Users',
   Bots = 'Bots',
+  BotInstances = 'Bot Instances',
   Roles = 'Roles',
   JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
@@ -83,6 +84,8 @@ export enum NavTitle {
   // Access Graph
   AccessGraphDashboard = 'Dashboard',
   AccessGraphBrowse = 'Browse',
+  AccessGraphAlerts = 'Alerts',
+  AccessGraphInvestigate = 'Investigate',
   AccessGraphCrownJewels = 'Crown Jewels',
   AccessGraphGraphExplorer = 'Graph Explorer',
   AccessGraphSQLEditor = 'SQL Editor',
@@ -201,6 +204,7 @@ export interface FeatureFlags {
   accessGraphIntegrations: boolean;
   externalAuditStorage: boolean;
   listBots: boolean;
+  listBotInstances: boolean;
   addBots: boolean;
   editBots: boolean;
   removeBots: boolean;

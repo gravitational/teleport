@@ -26,9 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -46,16 +44,15 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
-	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
-	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	igcredentials "github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -81,9 +78,11 @@ var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component
 // VersionStorage local storage for saving the version.
 type VersionStorage interface {
 	// GetTeleportVersion reads the last known Teleport version from storage.
-	GetTeleportVersion(ctx context.Context) (*semver.Version, error)
+	GetTeleportVersion(ctx context.Context) (semver.Version, error)
 	// WriteTeleportVersion writes the last known Teleport version to the storage.
-	WriteTeleportVersion(ctx context.Context, version *semver.Version) error
+	WriteTeleportVersion(ctx context.Context, version semver.Version) error
+	// DeleteTeleportVersion removes the last known Teleport version in storage.
+	DeleteTeleportVersion(ctx context.Context) error
 }
 
 // InitConfig is auth server init config
@@ -364,6 +363,15 @@ type InitConfig struct {
 
 	// HealthCheckConfig manages health check config resources.
 	HealthCheckConfig services.HealthCheckConfig
+
+	// BackendInfo is a service of backend information.
+	BackendInfo services.BackendInfoService
+
+	// SkipVersionCheck skips version check during major version upgrade/downgrade.
+	SkipVersionCheck bool
+
+	// VnetConfigService manages the VNet config resource.
+	VnetConfigService services.VnetConfigService
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -411,8 +419,15 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, teleport.SemVersion); err != nil {
-		return trace.Wrap(err)
+
+	if cfg.SkipVersionCheck {
+		if err := upsertTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.BackendInfoService, *teleport.SemVer()); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.BackendInfoService, *teleport.SemVer()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// if bootstrap resources are supplied, use them to bootstrap backend state
@@ -504,6 +519,12 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeAccessGraphSettings")
 		defer span.End()
 		return trace.Wrap(initializeAccessGraphSettings(ctx, asrv))
+	})
+
+	g.Go(func() error {
+		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeVnetConfig")
+		defer span.End()
+		return trace.Wrap(initializeVnetConfig(ctx, asrv))
 	})
 
 	g.Go(func() error {
@@ -778,7 +799,10 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 			"key_types", []string{strings.Join(allKeyTypes[:numKeyTypes-1], ", "), allKeyTypes[numKeyTypes-1]},
 		)
 	}
-
+	ca, err = applyAuthorityConfig(ctx, asrv, ca)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	keysInUse := collectKeysInUse(ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys())
 	return usableKeysResult, keysInUse, nil
 }
@@ -796,6 +820,59 @@ func collectKeysInUse(cas ...types.CAKeySet) (keysInUse [][]byte) {
 		}
 	}
 	return keysInUse
+}
+
+// applyAuthorityConfig applies the latest keystore config to active keys updating
+// the stored CA if any changes occur.
+func applyAuthorityConfig(ctx context.Context, asrv *Server, ca types.CertAuthority) (types.CertAuthority, error) {
+	activeKeys := ca.GetActiveKeys()
+	var (
+		changed bool
+		err     error
+	)
+
+	apply := func(curr []byte) ([]byte, error) {
+		next, err := asrv.keyStore.ApplyMultiRegionConfig(ctx, curr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !slices.Equal(curr, next) {
+			changed = true
+		}
+		return next, nil
+	}
+
+	for _, key := range activeKeys.SSH {
+		key.PrivateKey, err = apply(key.PrivateKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	for _, key := range activeKeys.TLS {
+		key.Key, err = apply(key.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	for _, key := range activeKeys.JWT {
+		key.PrivateKey, err = apply(key.PrivateKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if !changed {
+		return ca, nil
+	}
+	if err := ca.SetActiveKeys(activeKeys); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// This is only executed during cluster init while holding a lock to prevent
+	// other auth servers from updating CAs simulaniously.
+	ca, err = asrv.UpdateCertAuthority(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ca, nil
 }
 
 // generateAuthority creates a new self-signed authority of the provided type
@@ -875,15 +952,14 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		}
 
 		if !shouldReplace {
-			if allowNoSecondFactor, _ := strconv.ParseBool(os.Getenv(teleport.EnvVarAllowNoSecondFactor)); allowNoSecondFactor {
-				err := modules.ValidateResource(storedAuthPref)
+			if err := modules.ValidateResource(storedAuthPref); err != nil {
 				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
 					return trace.Wrap(err, secondFactorUpgradeInstructions)
 				}
-				if err != nil {
-					return trace.Wrap(err)
-				}
+
+				return trace.Wrap(err)
 			}
+
 			return nil
 		}
 
@@ -911,6 +987,14 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 			// would unset the default suite after the first auth restart.
 			newAuthPref = newAuthPref.Clone()
 			newAuthPref.SetSignatureAlgorithmSuite(storedAuthPref.GetSignatureAlgorithmSuite())
+		}
+
+		if err := modules.ValidateResource(newAuthPref); err != nil {
+			if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
+				return trace.Wrap(err, secondFactorUpgradeInstructions)
+			}
+
+			return trace.Wrap(err)
 		}
 
 		if storedAuthPref == nil {
@@ -1035,6 +1119,29 @@ func initializeAccessGraphSettings(ctx context.Context, asrv *Server) error {
 
 	asrv.logger.InfoContext(ctx, "Creating access graph settings", "settings", stored)
 	_, err = asrv.CreateAccessGraphSettings(ctx, stored)
+	if trace.IsAlreadyExists(err) {
+		return nil
+	}
+
+	return trace.Wrap(err)
+}
+
+func initializeVnetConfig(ctx context.Context, asrv *Server) error {
+	stored, err := asrv.Services.GetVnetConfig(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if stored != nil {
+		return nil
+	}
+
+	defaultConfig, err := vnet.DefaultVnetConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	asrv.logger.InfoContext(ctx, "Creating VNet config", "vnet_config", defaultConfig)
+	_, err = asrv.CreateVnetConfig(ctx, defaultConfig)
 	if trace.IsAlreadyExists(err) {
 		return nil
 	}
@@ -1222,13 +1329,13 @@ func createPresetUsers(ctx context.Context, um PresetUsers) error {
 
 		if types.IsSystemResource(user) {
 			// System resources *always* get reset on every auth startup
-			if user, err := um.UpsertUser(ctx, user); err != nil {
+			if _, err := um.UpsertUser(ctx, user); err != nil {
 				return trace.Wrap(err, "failed upserting system user %s", user.GetName())
 			}
 			continue
 		}
 
-		if user, err := um.CreateUser(ctx, user); err != nil && !trace.IsAlreadyExists(err) {
+		if _, err := um.CreateUser(ctx, user); err != nil && !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err, "failed creating preset user %s", user.GetName())
 		}
 	}
@@ -1334,9 +1441,9 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			switch r.GetType() {
 			case types.HostCA, types.UserCA, types.OpenSSHCA:
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
-			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
+			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
-			case types.JWTSigner, types.OIDCIdPCA, types.OktaCA:
+			case types.JWTSigner, types.OIDCIdPCA, types.OktaCA, types.BoundKeypairCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
 			default:
 				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)
@@ -1528,6 +1635,15 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		return cmp.Compare(priorityA, priorityB)
 	})
 	for _, resource := range resources {
+		// DO NOT ADD EVERY RESOURCE TO THIS SWITCH
+		// Apply-on-startup should not be supported for every resource, this is a way to bootstrap a
+		// minimal cluster (bootstrap IaC user, role, bot, join token, config so you have enough
+		// trust to join core components without human intervention).
+		// Resources not required for a minimal cluster should be created via Infrastructure-as-Code
+		// (tctl, Terraform Provider, Kube Operator)
+		// You MUST also add a test case for your resource in `TestInit_ApplyOnStartup` because adding
+		// your resource to this switch in not enough for the --apply-on-startup flag to work, you also
+		// need to RegisterResourceUnmarshaler() your resource.
 		switch r := resource.(type) {
 		case types.ProvisionToken:
 			err = service.Provisioner.UpsertToken(ctx, r)
@@ -1545,8 +1661,6 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = service.ClusterConfigurationInternal.UpsertAuthPreference(ctx, r)
 		case types.Resource153UnwrapperT[*machineidv1pb.Bot]:
 			_, err = machineidv1.UpsertBot(ctx, service, r.UnwrapT(), time.Now(), "system")
-		case types.Resource153UnwrapperT[*dbobjectimportrulev1pb.DatabaseObjectImportRule]:
-			_, err = dbobjectimportrulev1.UpsertDatabaseObjectImportRule(ctx, service, r.UnwrapT())
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateConfig]:
 			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT())
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:

@@ -69,19 +69,27 @@ func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement
 
 	// If this is a hardware key agent request with command context info,
 	// include the command in the prompt.
-	if keyInfo.Command != "" {
-		msg = fmt.Sprintf("%v to continue with command %q", msg, keyInfo.Command)
+	if keyInfo.AgentKeyInfo.Command != "" {
+		msg = fmt.Sprintf("%v to continue with command %q", msg, keyInfo.AgentKeyInfo.Command)
 	}
 
-	password, err := prompt.Password(ctx, c.writer, c.reader, msg)
-	return password, trace.Wrap(err)
+	pin, err := prompt.Password(ctx, c.writer, c.reader, msg)
+	if err != nil {
+		return "", nil
+	}
+
+	if pin == "" {
+		pin = DefaultPIN
+	}
+
+	return pin, trace.Wrap(err)
 }
 
 // Touch prompts the user to touch the hardware key.
 func (c *cliPrompt) Touch(_ context.Context, keyInfo ContextualKeyInfo) error {
 	msg := "Tap your YubiKey"
-	if keyInfo.Command != "" {
-		msg = fmt.Sprintf("%v to continue with command %q", msg, keyInfo.Command)
+	if keyInfo.AgentKeyInfo.Command != "" {
+		msg = fmt.Sprintf("%v to continue with command %q", msg, keyInfo.AgentKeyInfo.Command)
 	}
 
 	_, err := fmt.Fprintln(c.writer, msg)
@@ -93,6 +101,8 @@ func (c *cliPrompt) Touch(_ context.Context, keyInfo ContextualKeyInfo) error {
 // If an invalid PIN or PUK is provided, the user will be re-prompted until a
 // valid value is provided.
 func (c *cliPrompt) ChangePIN(ctx context.Context, _ ContextualKeyInfo) (*PINAndPUK, error) {
+	fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", DefaultPIN)
+
 	var pinAndPUK = &PINAndPUK{}
 	for {
 		fmt.Fprintf(c.writer, "Please set a new 6-8 character PIN.\n")

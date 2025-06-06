@@ -92,10 +92,11 @@ type AccessChecker interface {
 	// CheckGCPServiceAccounts returns a list of GCP service accounts the user is allowed to assume.
 	CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error)
 
-	// CheckAccessToSAMLIdP checks access to the SAML IdP.
-	//
-	//nolint:revive // Because we want this to be IdP.
-	CheckAccessToSAMLIdP(readonly.AuthPreference, AccessState) error
+	// CheckAccessToSAMLIdP checks access to SAML IdP service provider resource.
+	// It checks for both the legacy RBAC (role v7 and below) that checks for IDP
+	// role option and MFA, as well as non-legacy RBAC (role v8 and above) that checks
+	// for labels, MFA and Device Trust.
+	CheckAccessToSAMLIdP(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error
 
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
@@ -230,7 +231,7 @@ type AccessChecker interface {
 
 	// HostUsers returns host user information matching a server or nil if
 	// a role disallows host user creation
-	HostUsers(types.Server) (*HostUsersInfo, error)
+	HostUsers(types.Server) (*decisionpb.HostUsersInfo, error)
 
 	// HostSudoers returns host sudoers entries matching a server
 	HostSudoers(types.Server) ([]string, error)
@@ -272,6 +273,10 @@ type AccessChecker interface {
 	// EnumerateDatabaseNames specializes EnumerateEntities to enumerate db_names.
 	EnumerateDatabaseNames(database types.Database, extraNames ...string) EnumerationResult
 
+	// EnumerateMCPTools specializes EnumerateEntities to enumerate mcp.tools.
+	// mcp.tools support regexes and blobs so those expressions are returned.
+	EnumerateMCPTools(app types.Application) EnumerationResult
+
 	// GetAllowedLoginsForResource returns all of the allowed logins for the passed resource.
 	//
 	// Supports the following resource types:
@@ -285,6 +290,9 @@ type AccessChecker interface {
 	// requested SPIFFE ID. Returns an error if the role set does not have the
 	// ability to generate the requested SVID.
 	CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs []net.IP) error
+
+	// AccessInfo returns the AccessInfo that this access checker is based on.
+	AccessInfo() *AccessInfo
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -462,6 +470,11 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 	return trace.AccessDenied("access to %v denied, not in allowed resource IDs", r.GetKind())
 }
 
+// AccessInfo returns the AccessInfo that this access checker is based on.
+func (a *accessChecker) AccessInfo() *AccessInfo {
+	return a.info
+}
+
 // CheckAccess checks if the identity for this AccessChecker has access to the
 // given resource.
 func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
@@ -479,6 +492,18 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 	return trace.Wrap(a.RoleSet.checkAccess(r, a.info.Traits, state, matchers...))
 }
 
+// CheckAccessToSAMLIdP checks access to SAML IdP service provider resource.
+// It checks for both the legacy RBAC (role v7 and below) that checks for IDP
+// role option and MFA, as well as non-legacy RBAC (role v8 and above) that checks
+// for labels, MFA and Device Trust.
+func (a *accessChecker) CheckAccessToSAMLIdP(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
+	if err := a.checkAllowedResources(r); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.RoleSet.CheckAccessToSAMLIdP(r, a.info.Traits, authPref, state, matchers...))
+}
+
 // GetKubeResources returns the allowed and denied Kubernetes Resources configured
 // for a user.
 func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, denied []types.KubernetesResource) {
@@ -487,11 +512,26 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 	}
 	var err error
 	rolesAllowed, rolesDenied := a.RoleSet.GetKubeResources(cluster, a.info.Traits)
+
+	// If we have a legacy 'namespace' in the allowedResourceIDs, we need to add the new 'namespaces' one.
+	// The old one will get mapped to wildcard later.
+	allowedResourceIDs := slices.Clone(a.info.AllowedResourceIDs)
+	for _, elem := range a.info.AllowedResourceIDs {
+		if elem.Kind == types.KindKubeNamespace {
+			allowedResourceIDs = append(allowedResourceIDs, types.ResourceID{
+				ClusterName:     elem.ClusterName,
+				Kind:            "namespaces",
+				SubResourceName: elem.SubResourceName,
+				Name:            elem.Name,
+			})
+		}
+	}
+
 	// Allways append the denied resources from the roles. This is because
 	// the denied resources from the roles take precedence over the allowed
 	// resources from the certificate.
 	denied = rolesDenied
-	for _, r := range a.info.AllowedResourceIDs {
+	for _, r := range allowedResourceIDs {
 		if r.Name != cluster.GetName() || r.ClusterName != a.localCluster {
 			continue
 		}
@@ -499,6 +539,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 		case slices.Contains(types.KubernetesResourcesKinds, r.Kind):
 			namespace := ""
 			name := ""
+			// TODO(@creack): Make sure this gets handled in the AccessRequest PR.
 			if slices.Contains(types.KubernetesClusterWideResourceKinds, r.Kind) {
 				// Cluster wide resources do not have a namespace.
 				name = r.SubResourceName
@@ -513,10 +554,28 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 				name = splitted[1]
 			}
 
+			// TODO(@creack): Find a better way. For now this only enables support for existing access requests.
+			// It doesnt support CRDs.
+			kind := types.KubernetesResourcesKindsPlurals[r.Kind]
+			if kind == "" {
+				kind = r.Kind
+			}
+			// NOTE: The 'namespace' behavior changed, to maintain backwards compatibility,
+			// map the legacy value to wildcard.
+			if r.Kind == types.KindKubeNamespace {
+				kind = types.Wildcard
+				namespace = name
+				if namespace == types.Wildcard {
+					namespace = "^" + types.Wildcard + "$"
+				}
+				name = types.Wildcard
+			}
 			r := types.KubernetesResource{
-				Kind:      r.Kind,
+				Kind:      kind,
 				Namespace: namespace,
 				Name:      name,
+				// TODO(@creack): Add support for CRDs in AccessRequests.
+				APIGroup: types.Wildcard,
 			}
 			// matchKubernetesResource checks if the Kubernetes Resource matches the tuple
 			// (kind, namespace, kame) from the allowed/denied list and does not match the resource
@@ -533,7 +592,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 			return rolesAllowed, rolesDenied
 		}
 	}
-	return
+	return allowed, denied
 }
 
 // matchKubernetesResource checks if the Kubernetes Resource does not match any
@@ -739,6 +798,26 @@ func (a *accessChecker) EnumerateDatabaseNames(database types.Database, extraNam
 	return a.EnumerateEntities(database, listFn, newMatcher, extraNames...)
 }
 
+// EnumerateMCPTools specializes EnumerateEntities to enumerate mcp.tools.
+func (a *accessChecker) EnumerateMCPTools(app types.Application) EnumerationResult {
+	listFn := func(role types.Role, condition types.RoleConditionType) []string {
+		if mcpSpec := role.GetMCPPermissions(condition); mcpSpec != nil {
+			return mcpSpec.Tools
+		}
+		return nil
+	}
+	// Do not use MCPToolMatcher. We are enumerating the expressions.
+	newMatcher := func(toolRegex string) RoleMatcher {
+		return RoleMatcherFunc(func(role types.Role, condition types.RoleConditionType) (bool, error) {
+			if mcpSpec := role.GetMCPPermissions(condition); mcpSpec != nil {
+				return slices.Contains(mcpSpec.Tools, toolRegex), nil
+			}
+			return false, nil
+		})
+	}
+	return a.EnumerateEntities(app, listFn, newMatcher)
+}
+
 // roleEntitiesListFn is used for listing a role's allowed/denied entities.
 type roleEntitiesListFn func(types.Role, types.RoleConditionType) []string
 
@@ -765,10 +844,21 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 		wildcardAllowed := false
 		wildcardDenied := false
 
+		// Only append allowed entries and update wildcardAllowed if the role
+		// allows the resource without any matcher. In the real CheckAccess,
+		// RoleMatchers(matchers).MatchAll(role, types.Allow) is only run when
+		// namespace and label matching passes on this resource. Checking
+		// if the role allows the resource without any matcher confirms
+		// namespace and label matching has passed.
+		var resourceAllowedByRole bool
+		if err := NewRoleSet(role).checkAccess(resource, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
+			resourceAllowedByRole = true
+		}
+
 		for _, e := range listFn(role, types.Allow) {
 			if e == types.Wildcard {
 				wildcardAllowed = true
-			} else {
+			} else if resourceAllowedByRole {
 				entities = append(entities, e)
 			}
 		}
@@ -783,7 +873,7 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 
 		result.wildcardDenied = result.wildcardDenied || wildcardDenied
 
-		if err := NewRoleSet(role).checkAccess(resource, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
+		if resourceAllowedByRole {
 			result.wildcardAllowed = result.wildcardAllowed || wildcardAllowed
 		}
 	}
@@ -1019,58 +1109,20 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 	return utils.StringsSliceFromSet(groups), nil
 }
 
-// HostUserMode determines how host users should be created.
-type HostUserMode int
-
-const (
-	// HostUserModeUndefined is the default mode, for when the mode couldn't be
-	// determined from a types.CreateHostUserMode.
-	HostUserModeUndefined HostUserMode = iota
-	// HostUserModeKeep creates a home directory and persists after a session ends.
-	HostUserModeKeep
-	// HostUserModeDrop does not create a home directory, and it is removed after
-	// a session ends.
-	HostUserModeDrop
-	// HostUserModeStatic creates a home directory and exists independently of a
-	// session.
-	HostUserModeStatic
-)
-
-func convertHostUserMode(mode types.CreateHostUserMode) HostUserMode {
+func convertHostUserMode(mode types.CreateHostUserMode) decisionpb.HostUserMode {
 	switch mode {
 	case types.CreateHostUserMode_HOST_USER_MODE_KEEP:
-		return HostUserModeKeep
+		return decisionpb.HostUserMode_HOST_USER_MODE_KEEP
 	case types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP:
-		return HostUserModeDrop
+		return decisionpb.HostUserMode_HOST_USER_MODE_DROP
 	default:
-		return HostUserModeUndefined
+		return decisionpb.HostUserMode_HOST_USER_MODE_UNSPECIFIED
 	}
-}
-
-// HostUsersInfo keeps information about groups and sudoers entries
-// for a particular host user
-type HostUsersInfo struct {
-	// Groups is the list of groups to include host users in
-	Groups []string
-	// Mode determines if a host user should be deleted after a session
-	// ends or not.
-	Mode HostUserMode
-	// UID is the UID that the host user will be created with
-	UID string
-	// GID is the GID that the host user will be created with
-	GID string
-	// Shell is the default login shell for a host user
-	Shell string
-	// TakeOwnership determines whether or not an existing user should be
-	// taken over by teleport. This currently only applies to 'static' mode
-	// users, 'keep' mode users still need to assign 'teleport-keep' in the
-	// Groups slice in order to take ownership.
-	TakeOwnership bool
 }
 
 // HostUsers returns host user information matching a server or nil if
 // a role disallows host user creation
-func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
+func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, error) {
 	groups := make(map[string]struct{})
 	shellToRoles := make(map[string][]string)
 	var shell string
@@ -1159,11 +1211,11 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		uid = uidL[0]
 	}
 
-	return &HostUsersInfo{
+	return &decisionpb.HostUsersInfo{
 		Groups: utils.StringsSliceFromSet(groups),
 		Mode:   convertHostUserMode(mode),
-		UID:    uid,
-		GID:    gid,
+		Uid:    uid,
+		Gid:    gid,
 		Shell:  shell,
 	}, nil
 }
@@ -1375,20 +1427,16 @@ type UserState interface {
 	// GetUserType returns the user type for the user login state.
 	GetUserType() types.UserType
 
+	// GetLabel fetches the given user label.
+	GetLabel(key string) (value string, ok bool)
+
 	// IsBot returns true if the user belongs to a bot.
 	IsBot() bool
 
 	// GetGithubIdentities returns a list of connected GitHub identities
 	GetGithubIdentities() []types.ExternalIdentity
-}
-
-// AccessInfoFromUser return a new AccessInfo populated from the roles and
-// traits held be the given user. This should only be used in cases where the
-// user does not have any active access requests (initial web login, initial
-// tbot certs, tests).
-// TODO(mdwn): Remove this once enterprise has been moved away from this function.
-func AccessInfoFromUser(user types.User) *AccessInfo {
-	return AccessInfoFromUserState(user)
+	// SetGithubIdentities sets the list of connected GitHub identities
+	SetGithubIdentities(identities []types.ExternalIdentity)
 }
 
 // AccessInfoFromUserState return a new AccessInfo populated from the roles and
