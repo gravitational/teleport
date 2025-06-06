@@ -1,4 +1,4 @@
-.version: &version "17.5.1"
+.version: &version "17.5.1-dev.ctmu.1"
 
 name: teleport-operator
 apiVersion: v2
