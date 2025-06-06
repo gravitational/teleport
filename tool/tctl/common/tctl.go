@@ -73,11 +73,7 @@ type CLICommand interface {
 //
 // distribution: name of the Teleport distribution
 func Run(ctx context.Context, commands []CLICommand) {
-	if err := tools.CheckAndUpdateLocal(ctx, os.Args[1:]); err != nil {
-		utils.FatalError(err)
-	}
-
-	err := TryRun(commands, os.Args[1:])
+	err := TryRun(ctx, commands, os.Args[1:])
 	if err != nil {
 		var exitError *common.ExitCodeError
 		if errors.As(err, &exitError) {
@@ -89,18 +85,43 @@ func Run(ctx context.Context, commands []CLICommand) {
 
 // TryRun is a helper function for Run to call - it runs a tctl command and returns an error.
 // This is useful for testing tctl, because we can capture the returned error in tests.
-func TryRun(commands []CLICommand, args []string) error {
+func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 	utils.InitLogger(utils.LoggingForCLI, slog.LevelWarn)
 
 	// app is the command line parser
+	var ccf tctlcfg.GlobalCLIFlags
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
+	app.Flag("auth-server",
+		fmt.Sprintf("Attempts to connect to specific auth/proxy address(es) instead of local auth [%v]", defaults.AuthConnectAddr().Addr)).
+		Envar(authAddrEnvVar).
+		StringsVar(&ccf.AuthServerAddr)
+
+	// We need to parse the arguments before executing managed updates to identify
+	// the profile name and the required version for the current cluster.
+	// All other commands and flags may change between versions, so full parsing
+	// should be performed only after managed updates are applied.
+	app.Parse(utils.FilterArguments(args, "proxy"))
 
 	// cfg (teleport auth server configuration) is going to be shared by all
 	// commands
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.TeleportHome = os.Getenv(types.HomeEnvVar)
+	if cfg.TeleportHome != "" {
+		cfg.TeleportHome = filepath.Clean(cfg.TeleportHome)
+	}
 
-	var ccf tctlcfg.GlobalCLIFlags
+	var name string
+	if len(ccf.AuthServerAddr) != 0 {
+		var err error
+		name, err = utils.Host(ccf.AuthServerAddr[0])
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if err := tools.CheckAndUpdateLocal(ctx, name, args); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Each command will add itself to the CLI parser.
 	for i := range commands {
@@ -129,10 +150,6 @@ func TryRun(commands []CLICommand, args []string) error {
 		ExistingFileVar(&ccf.ConfigFile)
 	app.Flag("config-string",
 		"Base64 encoded configuration string. Ignored if the config auth_service is disabled.").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
-	app.Flag("auth-server",
-		fmt.Sprintf("Attempts to connect to specific auth/proxy address(es) instead of local auth [%v]", defaults.AuthConnectAddr().Addr)).
-		Envar(authAddrEnvVar).
-		StringsVar(&ccf.AuthServerAddr)
 	app.Flag("identity",
 		"Path to an identity file. Must be provided to make remote connections to auth. An identity file can be exported with 'tctl auth sign'").
 		Short('i').
@@ -157,14 +174,8 @@ func TryRun(commands []CLICommand, args []string) error {
 		return trace.BadParameter("tctl --identity also requires --auth-server")
 	}
 
-	cfg.TeleportHome = os.Getenv(types.HomeEnvVar)
-	if cfg.TeleportHome != "" {
-		cfg.TeleportHome = filepath.Clean(cfg.TeleportHome)
-	}
-
 	cfg.Debug = ccf.Debug
 
-	ctx := context.Background()
 	clientFunc := commonclient.GetInitFunc(ccf, cfg)
 	// Execute whatever is selected.
 	for _, c := range commands {
