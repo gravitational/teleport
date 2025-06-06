@@ -1,5 +1,5 @@
 ---
-title: Discover AWS Access Patterns with Teleport Identity Security
+title: Discover AWS Access Patterns and AWS CloudTrail events with Teleport Identity Security
 description: Describes how to import and visualize AWS accounts access patterns using Identity Security and Access Graph.
 ---
 
@@ -14,6 +14,9 @@ enhancing the permission model within your AWS environment. This functionality e
 - Which resources can be reached via identities associated with EC2 instances?
 - What AWS resources can Teleport users access when connecting to EC2 nodes?
 
+Identity Security also offers CloudTrail data ingestion, analysis for threats and correlation with
+other services such as Okta and GitHub Actions.
+
 Utilizing the Access Graph to analyze IAM permissions within an AWS account necessitates the setup of the Access Graph
 service, a Discovery Service, and integration with your AWS account.
 
@@ -26,7 +29,7 @@ including IAM Policies, Groups, Users, User Groups, EC2 instances, EKS clusters,
 These resources are then visualized using the graph representation detailed in the
 [Identity Security usage page](../policy-how-to-use.mdx).
 
-The importing process involves two primary steps:
+The importing process involves three primary steps:
 
 ### Polling Cloud APIs
 
@@ -53,18 +56,36 @@ and resources retrieved from your AWS account, crafting a
 graphical representation thereof.
 
 
+### Importing AWS CloudTrail logs (optional)
+
+If CloudTrail is configured to log activity in your AWS account, it delivers log files to an S3 bucket.
+Identity Activity Center can process trail data in near real time. Enabling Amazon SNS notifications
+in the CloudTrail allows a new notification to be sent whenever a new log file is written.
+This SNS topic is subscribed to an SQS queue, which acts as a buffer for incoming notifications.
+
+Teleport subscribes to the SQS queue using its AWS integration and polls for new messages at regular
+intervals. Each message contains metadata about the new object in S3, such as the bucket name and
+object key. Teleport uses this information to fetch the corresponding CloudTrail log file directly
+from S3.
+
+Once the file is downloaded, Teleport parses the CloudTrail events and processes them for audit and
+security purposes. This allows Teleport to provide continuous visibility into activity across AWS
+services, including login attempts, API calls, and changes to infrastructure.
+
 ## Prerequisites
 
-- A running Teleport Enterprise cluster v14.3.9/v15.2.0 or later.
+- A running Teleport Enterprise cluster v18.0.0 or later.
 - Identity Security enabled for your account.
 - For self-hosted clusters:
   - Ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
-  - A running Access Graph node v1.17.0 or later.
+  - A running Access Graph node v1.28.0 or later.
 Check the [Identity Security page](../teleport-policy.mdx) for details on
 how to set up Access Graph.
   - The node running the Access Graph service must be reachable from the Teleport Auth Service.
+  - AWS CloudTrail setup with notifications being sent to a SNS topic.
+  - AWS SQS queue receiving raw messages from CloudTrail SNS notifications.
 
-## Step 1/2. Configure Discovery Service (Self-hosted only)
+## Step 1/3. Configure Discovery Service (Self-hosted only)
 
 <Admonition type="warning">
 
@@ -91,7 +112,27 @@ it's possible to reuse it as long as the following requirements are met:
 `discovery_group`.
 - Access Graph service is reachable from the machine where Discovery Service runs.
 
-## Step 2/2. Set up Access Graph AWS Sync
+## Step 2/3. Identity Activity Center CloudTrail integration (optional)
+
+To enable the Identity Activity Center CloudTrail integration, you can use an existing
+CloudTrail trail or create a new one. Trails can be scoped to a single AWS account or
+configured as an AWS Organization trail to collect events from multiple accounts.
+
+For near real-time access to CloudTrail data, Amazon SNS notifications must be enabled for
+your trail. If SNS notifications are not already configured, go to your trail settings,
+enable **SNS notification delivery**, and create a new SNS topic.
+
+After setting up the SNS topic, create a new Standard Amazon SQS queue and subscribe it
+to the SNS topic you just created. When configuring the subscription, make sure to enable
+the **Enable raw message delivery** option. This setting is required—without it, Identity
+Activity Center won't be able to parse the notifications correctly.
+
+Although optional, enabling KMS encryption for both the SQS queue and the target S3 bucket
+is strongly recommended. Be sure to configure the necessary KMS key permissions in the
+following step so that Identity Security can successfully decrypt messages from SQS
+and access CloudTrail logs in the S3 bucket.
+
+## Step 3/3. Set up Access Graph AWS Sync
 
 To initiate the setup wizard for configuring AWS Sync, access the Teleport UI,
 click the Policy sidebar button, and then click Integrations.
@@ -179,6 +220,54 @@ The IAM policy includes the following directives:
   ]
 }
 
+```
+
+If Identity Activity Center is enabled, two extra configurations are required:
+
+- <Var name="aws-sqs-queue"/>: The ARN of the Amazon SQS queue subscribed to the SNS topic that receives CloudTrail notifications.
+- <Var name="aws-s3-trail-bucket"/>: The arn of the Amazon S3 bucket where CloudTrail delivers its log files.
+- <Var name="aws-sqs-kms-queue-key"/>: The ARN of the AWS KMS key used to encrypt messages in the SQS queue.
+- <Var name="aws-s3-kms-key"/>: The ARN of the AWS KMS key used to encrypt objects in the S3 bucket that stores CloudTrail logs.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:SendMessage"
+      ],
+      "Resource": "<Var name="aws-sqs-queue"/>"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:ListBucket",
+        "s3:ListBucketVersions",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": "<Var name="aws-s3-trail-bucket"/>"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+          "kms:Decrypt",
+          "kms:DescribeKey",
+          "kms:GenerateDataKey",
+          "kms:GenerateDataKeyWithoutPlaintext",
+      ],
+      "Resources": [
+        "<Var name="aws-sqs-kms-queue-key"/>",
+        "<Var name="aws-s3-kms-key"/>",
+      ]
+    }
+  ]
+}
 ```
 </details>
 
