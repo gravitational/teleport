@@ -63,7 +63,7 @@ import (
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -338,7 +338,7 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID session.ID, 
 }
 
 // SearchEvents allows searching for audit events with pagination support.
-func (c *Client) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+func (c *Client) SearchEvents(ctx context.Context, req eventsclient.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	events, lastKey, err := c.APIClient.SearchEvents(ctx, req.From, req.To, apidefaults.Namespace, req.EventTypes, req.Limit, req.Order, req.StartKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -348,7 +348,7 @@ func (c *Client) SearchEvents(ctx context.Context, req events.SearchEventsReques
 }
 
 // SearchSessionEvents returns session related events to find completed sessions.
-func (c *Client) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
+func (c *Client) SearchSessionEvents(ctx context.Context, req eventsclient.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	events, lastKey, err := c.APIClient.SearchSessionEvents(ctx, req.From, req.To, req.Limit, req.Order, req.StartKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -1430,8 +1430,8 @@ type ClientI interface {
 	IdentityService
 	ProvisioningService
 	services.Trust
-	events.AuditLogSessionStreamer
-	events.Streamer
+	eventsclient.AuditLogSessionStreamer
+	eventsclient.Streamer
 	apievents.Emitter
 	services.Presence
 	services.Access

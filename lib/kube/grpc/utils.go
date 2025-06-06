@@ -31,12 +31,12 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/kube"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// getWebAddrAndKubeSNI returns the address of the web server that is running on this
+// getWebAddrAndKubeSNI returns the addressx of the web server that is running on this
 // proxy and the Kube SNI. They are used to dial the Kube proxy to retrieve the pods
 // available to the user.
 // Since this grpc server is only enabled if the proxy is listening with
@@ -94,7 +94,7 @@ func (s *Server) buildKubeClient() (kubernetes.Interface, error) {
 
 	cfg := &rest.Config{
 		Host:      s.proxyAddress,
-		Transport: auth.NewImpersonatorRoundTripper(transport),
+		Transport: kube.NewImpersonatorRoundTripper(transport),
 	}
 	kubeClient, err := kubernetes.NewForConfig(cfg)
 	return kubeClient, trace.Wrap(err)

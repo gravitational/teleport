@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
@@ -89,7 +89,7 @@ type accessPoint interface {
 	// Announcer adds methods used to announce presence
 	Announcer
 	// Streamer creates and manages audit streams
-	events.Streamer
+	eventsclient.Streamer
 
 	// Semaphores provides semaphore operations
 	types.Semaphores

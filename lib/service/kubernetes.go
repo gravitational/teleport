@@ -30,6 +30,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
@@ -208,6 +209,20 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		publicAddr = cfg.Kube.PublicAddrs[0].String()
 	}
 
+	// authMiddleware authenticates request assuming TLS client authentication
+	// adds authentication information to the context
+	// and passes it to the API server
+	authMiddleware := &auth.Middleware{
+		ClusterName:   teleportClusterName,
+		AcceptedUsage: []string{teleport.UsageKubeOnly},
+		// EnableCredentialsForwarding is set to true to allow the proxy to forward
+		// the client identity to the target service using headers instead of TLS
+		// certificates. This is required for the kube service and leaf cluster proxy
+		// to be able to replace the client identity with the header payload when
+		// the request is forwarded from a Teleport Proxy.
+		EnableCredentialsForwarding: true,
+	}
+
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
 			Namespace:         apidefaults.Namespace,
@@ -243,6 +258,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		Log:                  process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 		PROXYProtocolMode:    multiplexer.PROXYProtocolOff, // Kube service doesn't need to process unsigned PROXY headers.
 		InventoryHandle:      process.inventoryHandle,
+		Middleware:           authMiddleware,
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -110,6 +109,8 @@ type TLSServerConfig struct {
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
 	// InventoryHandle is used to send kube server heartbeats via the inventory control stream.
 	InventoryHandle inventory.DownstreamHandle
+
+	Middleware AuthMiddleware
 }
 
 type awsClientsGetter struct{}
@@ -206,6 +207,11 @@ type TLSServer struct {
 	log         *slog.Logger
 }
 
+type AuthMiddleware interface {
+	http.Handler
+	Wrap(h http.Handler)
+}
+
 // NewTLSServer returns new unstarted TLS server
 func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -230,27 +236,9 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.BadParameter("kube_service won't start because it has neither static clusters nor a resource watcher configured.")
 	}
 
-	clustername, err := cfg.AccessPoint.GetClusterName(cfg.Context)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// authMiddleware authenticates request assuming TLS client authentication
-	// adds authentication information to the context
-	// and passes it to the API server
-	authMiddleware := &auth.Middleware{
-		ClusterName:   clustername.GetClusterName(),
-		AcceptedUsage: []string{teleport.UsageKubeOnly},
-		// EnableCredentialsForwarding is set to true to allow the proxy to forward
-		// the client identity to the target service using headers instead of TLS
-		// certificates. This is required for the kube service and leaf cluster proxy
-		// to be able to replace the client identity with the header payload when
-		// the request is forwarded from a Teleport Proxy.
-		EnableCredentialsForwarding: true,
-	}
-	authMiddleware.Wrap(fwd)
+	cfg.Middleware.Wrap(fwd)
 	// Wrap sets the next middleware in chain to the authMiddleware
-	limiter.WrapHandle(authMiddleware)
+	limiter.WrapHandle(cfg.Middleware)
 	// force client auth if given
 	cfg.TLS.ClientAuth = tls.VerifyClientCertIfGiven
 

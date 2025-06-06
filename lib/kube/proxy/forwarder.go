@@ -68,13 +68,14 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/kube"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1324,7 +1325,7 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 
 	headers := http.Header{}
 	if impersonationHeaders {
-		if headers, err = auth.IdentityForwardingHeaders(req.Context(), headers); err != nil {
+		if headers, err = kube.IdentityForwardingHeaders(req.Context(), headers); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -1597,7 +1598,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 // is allowed to start a session without moderation.
 func (f *Forwarder) canStartSessionAlone(authCtx *authContext) (bool, error) {
 	policySets := authCtx.Checker.SessionPolicySets()
-	authorizer := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, authCtx.User.GetName())
+	authorizer := moderation.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, authCtx.User.GetName())
 	canStart, _, err := authorizer.FulfilledFor(nil)
 	if err != nil {
 		return false, trace.Wrap(err)

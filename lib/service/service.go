@@ -5376,6 +5376,20 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
+		// authMiddleware authenticates request assuming TLS client authentication
+		// adds authentication information to the context
+		// and passes it to the API server
+		authMiddleware := &auth.Middleware{
+			ClusterName:   clusterName,
+			AcceptedUsage: []string{teleport.UsageKubeOnly},
+			// EnableCredentialsForwarding is set to true to allow the proxy to forward
+			// the client identity to the target service using headers instead of TLS
+			// certificates. This is required for the kube service and leaf cluster proxy
+			// to be able to replace the client identity with the header payload when
+			// the request is forwarded from a Teleport Proxy.
+			EnableCredentialsForwarding: true,
+		}
+
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
 				Namespace:                     apidefaults.Namespace,
@@ -5415,6 +5429,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			KubernetesServersWatcher: kubeServerWatcher,
 			PROXYProtocolMode:        cfg.Proxy.PROXYProtocolMode,
 			InventoryHandle:          process.inventoryHandle,
+			Middleware:               authMiddleware,
 		})
 		if err != nil {
 			return trace.Wrap(err)

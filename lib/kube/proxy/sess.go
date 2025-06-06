@@ -48,9 +48,8 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/events/recorder"
-	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -387,7 +386,7 @@ type session struct {
 
 	tracker *srv.SessionTracker
 
-	accessEvaluator auth.SessionAccessEvaluator
+	accessEvaluator moderation.SessionAccessEvaluator
 
 	recorder eventsclient.SessionPreparerRecorder
 
@@ -452,7 +451,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	}
 
 	q := req.URL.Query()
-	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
+	accessEvaluator := moderation.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
 
 	io := srv.NewTermManager()
 	streamContext, streamContextCancel := context.WithCancel(forwarder.ctx)
@@ -488,9 +487,9 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		partiesWg:                      sync.WaitGroup{},
 		// if session ever starts, emitter and recorder will be replaced
 		// by actual emitter and recorder.
-		emitter: eventsclient.NewDiscardEmitter(),
-		recorder: eventsclient.WithNoOpPreparer(
-			eventsclient.NewDiscardRecorder(),
+		emitter: events.NewDiscardEmitter(),
+		recorder: events.WithNoOpPreparer(
+			events.NewDiscardRecorder(),
 		),
 	}
 
@@ -636,8 +635,8 @@ func (s *session) launch(ephemeralContainerStatus *corev1.ContainerStatus) (retu
 
 	sessionStartEvent, err := s.recorder.PrepareSessionEvent(&apievents.SessionStart{
 		Metadata: apievents.Metadata{
-			Type:        eventsclient.SessionStartEvent,
-			Code:        eventsclient.SessionStartCode,
+			Type:        events.SessionStartEvent,
+			Code:        events.SessionStartCode,
 			ClusterName: s.forwarder.cfg.ClusterName,
 		},
 		ServerMetadata:  s.sess.getServerMetadata(),
@@ -646,7 +645,7 @@ func (s *session) launch(ephemeralContainerStatus *corev1.ContainerStatus) (retu
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: s.req.RemoteAddr,
 			LocalAddr:  s.sess.kubeAddress,
-			Protocol:   eventsclient.EventProtocolKube,
+			Protocol:   events.EventProtocolKube,
 		},
 		TerminalSize:              termParams.Serialize(),
 		KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
@@ -791,13 +790,13 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 
 			resizeEvent, err := s.recorder.PrepareSessionEvent(&apievents.Resize{
 				Metadata: apievents.Metadata{
-					Type:        eventsclient.ResizeEvent,
-					Code:        eventsclient.TerminalResizeCode,
+					Type:        events.ResizeEvent,
+					Code:        events.TerminalResizeCode,
 					ClusterName: s.forwarder.cfg.ClusterName,
 				},
 				ConnectionMetadata: apievents.ConnectionMetadata{
 					RemoteAddr: s.req.RemoteAddr,
-					Protocol:   eventsclient.EventProtocolKube,
+					Protocol:   events.EventProtocolKube,
 				},
 				ServerMetadata:            s.sess.getServerMetadata(),
 				SessionMetadata:           s.getSessionMetadata(),
@@ -838,15 +837,15 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 		conMetadata := apievents.ConnectionMetadata{
 			RemoteAddr: s.req.RemoteAddr,
 			LocalAddr:  s.sess.kubeAddress,
-			Protocol:   eventsclient.EventProtocolKube,
+			Protocol:   events.EventProtocolKube,
 		}
 
 		execEvent := &apievents.Exec{
 			Metadata: apievents.Metadata{
-				Type:        eventsclient.ExecEvent,
+				Type:        events.ExecEvent,
 				ClusterName: s.forwarder.cfg.ClusterName,
 				// can be changed to ExecFailureCode if errExec is not nil
-				Code: eventsclient.ExecCode,
+				Code: events.ExecCode,
 			},
 			ServerMetadata:     serverMetadata,
 			SessionMetadata:    sessionMetadata,
@@ -860,7 +859,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 		}
 
 		if errExec != nil {
-			execEvent.Code = eventsclient.ExecFailureCode
+			execEvent.Code = events.ExecFailureCode
 			execEvent.Error, execEvent.ExitCode = exitCode(errExec)
 		}
 
@@ -870,8 +869,8 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 
 		sessionDataEvent := &apievents.SessionData{
 			Metadata: apievents.Metadata{
-				Type:        eventsclient.SessionDataEvent,
-				Code:        eventsclient.SessionDataCode,
+				Type:        events.SessionDataEvent,
+				Code:        events.SessionDataCode,
 				ClusterName: s.forwarder.cfg.ClusterName,
 			},
 			ServerMetadata:     serverMetadata,
@@ -890,8 +889,8 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 
 		sessionEndEvent, err := s.recorder.PrepareSessionEvent(&apievents.SessionEnd{
 			Metadata: apievents.Metadata{
-				Type:        eventsclient.SessionEndEvent,
-				Code:        eventsclient.SessionEndCode,
+				Type:        events.SessionEndEvent,
+				Code:        events.SessionEndCode,
 				ClusterName: s.forwarder.cfg.ClusterName,
 			},
 			ServerMetadata:            serverMetadata,
@@ -975,7 +974,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
 		roles := p.Ctx.Checker.Roles()
 
-		accessContext := auth.SessionAccessContext{
+		accessContext := moderation.SessionAccessContext{
 			Username: p.Ctx.User.GetName(),
 			Roles:    roles,
 		}
@@ -1186,8 +1185,8 @@ func (s *session) BroadcastMessage(format string, args ...any) {
 func (s *session) emitSessionJoinEvent(p *party) {
 	sessionJoinEvent := &apievents.SessionJoin{
 		Metadata: apievents.Metadata{
-			Type:        eventsclient.SessionJoinEvent,
-			Code:        eventsclient.SessionJoinCode,
+			Type:        events.SessionJoinEvent,
+			Code:        events.SessionJoinCode,
 			ClusterName: s.ctx.teleportCluster.name,
 		},
 		KubernetesClusterMetadata: apievents.KubernetesClusterMetadata{
@@ -1243,8 +1242,8 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 
 	sessionLeaveEvent := &apievents.SessionLeave{
 		Metadata: apievents.Metadata{
-			Type:        eventsclient.SessionLeaveEvent,
-			Code:        eventsclient.SessionLeaveCode,
+			Type:        events.SessionLeaveEvent,
+			Code:        events.SessionLeaveCode,
 			ClusterName: s.ctx.teleportCluster.name,
 		},
 		SessionMetadata: s.getSessionMetadata(),
@@ -1329,8 +1328,8 @@ func (s *session) allParticipants() []string {
 }
 
 // canStart checks if a session can start with the current set of participants.
-func (s *session) canStart() (bool, auth.PolicyOptions, error) {
-	var participants []auth.SessionAccessContext
+func (s *session) canStart() (bool, moderation.PolicyOptions, error) {
+	var participants []moderation.SessionAccessContext
 	for _, party := range s.parties {
 		if party.Ctx.User.GetName() == s.ctx.User.GetName() {
 			continue
@@ -1339,10 +1338,10 @@ func (s *session) canStart() (bool, auth.PolicyOptions, error) {
 		roleNames := party.Ctx.Identity.GetIdentity().Groups
 		roles, err := getRolesByName(s.forwarder, roleNames)
 		if err != nil {
-			return false, auth.PolicyOptions{}, trace.Wrap(err)
+			return false, moderation.PolicyOptions{}, trace.Wrap(err)
 		}
 
-		participants = append(participants, auth.SessionAccessContext{
+		participants = append(participants, moderation.SessionAccessContext{
 			Username: party.Ctx.User.GetName(),
 			Roles:    roles,
 			Mode:     party.Mode,
