@@ -35,7 +35,6 @@ import (
 
 	"github.com/ClickHouse/ch-go"
 	cqlclient "github.com/datastax/go-cassandra-native-protocol/client"
-	elastic "github.com/elastic/go-elasticsearch/v8"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	mysqllib "github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/google/uuid"
@@ -2068,7 +2067,7 @@ func (c *testContext) snowflakeClient(ctx context.Context, teleportUser, dbServi
 }
 
 // elasticsearchClient returns an Elasticsearch test DB client.
-func (c *testContext) elasticsearchClient(ctx context.Context, teleportUser, dbService, dbUser string) (*elastic.Client, *alpnproxy.LocalProxy, error) {
+func (c *testContext) elasticsearchClient(ctx context.Context, teleportUser, dbService, dbUser string) (*elasticsearch.TestClient, *alpnproxy.LocalProxy, error) {
 	route := tlsca.RouteToDatabase{
 		ServiceName: dbService,
 		Protocol:    defaults.ProtocolElasticsearch,

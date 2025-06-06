@@ -102,6 +102,14 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 				RequiresRequest: resource.RequiresRequest,
 			})
 		}
+		if resource.WindowsDesktop != nil {
+			response.Resources = append(response.Resources, &api.PaginatedResource{
+				Resource: &api.PaginatedResource_WindowsDesktop{
+					WindowsDesktop: newAPIWindowsDesktop(*resource.WindowsDesktop),
+				},
+				RequiresRequest: resource.RequiresRequest,
+			})
+		}
 	}
 
 	return &response, nil

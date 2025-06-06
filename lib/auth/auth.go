@@ -5252,8 +5252,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 
 	req.SetCreationTime(now)
 
-	// Always perform variable expansion on creation only; this ensures the
-	// access request that is reviewed is the same that is approved.
+	// Always perform variable expansion on creation.
 	expandOpts := services.WithExpandVars(true)
 	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
 		return nil, trace.Wrap(err)
@@ -5271,11 +5270,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	if req.GetDryRun() {
+		// NOTE: Some dry-run options are set in [services.ValidateAccessRequestForUser].
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
-		// update the request with additional reviewers if possible.
 		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessLists, promotions)
-		// Made it this far with no errors, return before creating the request
-		// if this is a dry run.
+		// Return before creating the request if this is a dry run.
 		return req, nil
 	}
 
