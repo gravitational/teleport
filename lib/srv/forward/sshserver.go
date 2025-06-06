@@ -48,9 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/eventsclient"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -621,16 +619,6 @@ func (s *Server) Serve() {
 			s.logger.DebugContext(s.Context(), "Dropping connection which required moderation", "user", sconn.User(), "client_addr", s.clientConn.RemoteAddr())
 			return
 		}
-
-		if s.targetServer.GetSubKind() == types.SubKindOpenSSHEICENode {
-			sshSigner, err := s.sendSSHPublicKeyToTarget(ctx)
-			if err != nil {
-				s.logger.WarnContext(s.Context(), "Unable to upload SSH Public Key to EC2 Instance", "instance", s.targetServer.GetName(), "error", err)
-				return
-			}
-
-			s.agentlessSigner = sshSigner
-		}
 	}
 
 	// Connect and authenticate to the remote node.
@@ -674,59 +662,6 @@ func (s *Server) Serve() {
 
 	go s.handleClientChannels(ctx, forwardedTCPIP)
 	go s.handleConnection(ctx, chans, reqs)
-}
-
-func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, error) {
-	awsInfo := s.targetServer.GetAWSInfo()
-	if awsInfo == nil {
-		return nil, trace.BadParameter("missing aws cloud metadata")
-	}
-
-	token, err := s.authClient.GenerateAWSOIDCToken(ctx, awsInfo.Integration)
-	if err != nil {
-		return nil, trace.BadParameter("failed to generate aws token: %v", err)
-	}
-
-	integration, err := s.authClient.GetIntegration(ctx, awsInfo.Integration)
-	if err != nil {
-		return nil, trace.BadParameter("failed to fetch integration details: %v", err)
-	}
-
-	if integration.GetAWSOIDCIntegrationSpec() == nil {
-		return nil, trace.BadParameter("integration does not have aws oidc spec fields %q", awsInfo.Integration)
-	}
-
-	sendSSHClient, err := awsoidc.NewEICESendSSHPublicKeyClient(ctx, &awsoidc.AWSClientRequest{
-		Token:   token,
-		RoleARN: integration.GetAWSOIDCIntegrationSpec().RoleARN,
-		Region:  awsInfo.Region,
-	})
-	if err != nil {
-		return nil, trace.BadParameter("failed to create an aws client to send ssh public key:  %v", err)
-	}
-
-	sshKey, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(s.GetAccessPoint()),
-		cryptosuites.EC2InstanceConnect)
-	if err != nil {
-		return nil, trace.Wrap(err, "generating SSH key")
-	}
-	sshSigner, err := ssh.NewSignerFromSigner(sshKey)
-	if err != nil {
-		return nil, trace.Wrap(err, "creating SSH signer")
-	}
-
-	if err := awsoidc.SendSSHPublicKeyToEC2(ctx, sendSSHClient, awsoidc.SendSSHPublicKeyToEC2Request{
-		InstanceID:      awsInfo.InstanceID,
-		EC2SSHLoginUser: s.identityContext.Login,
-		PublicKey:       sshSigner.PublicKey(),
-	}); err != nil {
-		return nil, trace.BadParameter("send ssh public key failed for instance %s: %v", awsInfo.InstanceID, err)
-	}
-
-	// This is the SSH Signer that the client must use to connect to the EC2.
-	// This signer is trusted because the public key was sent to the target EC2 host.
-	return sshSigner, nil
 }
 
 // Close will close all underlying connections that the forwarding server holds.
