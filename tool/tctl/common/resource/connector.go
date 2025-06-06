@@ -95,6 +95,7 @@ func (rc *ResourceCommand) deleteOIDCConnector(ctx context.Context, client *auth
 		return trace.Wrap(err)
 	}
 	fmt.Printf("OIDC connector %v has been deleted\n", rc.ref.Name)
+	return nil
 }
 
 func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {

@@ -189,6 +189,7 @@ func (rc *ResourceCommand) deleteWorkloadIdentityX509Revocation(ctx context.Cont
 		return trace.Wrap(err)
 	}
 	fmt.Printf("Workload identity X509 revocation %q has been deleted\n", rc.ref.Name)
+	return nil
 }
 
 func (rc *ResourceCommand) createWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
