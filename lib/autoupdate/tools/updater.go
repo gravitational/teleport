@@ -377,6 +377,14 @@ func (u *Updater) update(ctx context.Context, pkg packageURL, pkgName string) er
 		return trace.Wrap(err)
 	}
 
+	if timeoutEnv := os.Getenv(teleportToolsReExecTimeoutEnv); timeoutEnv != "" {
+		timeout, err := time.ParseDuration(timeoutEnv)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		time.Sleep(timeout)
+	}
+
 	return nil
 }
 
@@ -414,14 +422,6 @@ func (u *Updater) Exec(toolsVersion string, args []string) (int, error) {
 		env = append(env, teleportToolsVersionEnv+"=off")
 	}
 	env = append(env, fmt.Sprintf("%s=%s", teleportToolsVersionReExecEnv, u.localVersion))
-
-	if timeoutEnv := os.Getenv(teleportToolsVersionReExecEnv); timeoutEnv != "" {
-		timeout, err := time.ParseDuration(timeoutEnv)
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-		time.Sleep(timeout)
-	}
 
 	if runtime.GOOS == constants.WindowsOS {
 		cmd := exec.Command(path, args...)

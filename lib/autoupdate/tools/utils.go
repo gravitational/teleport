@@ -100,7 +100,7 @@ func CheckToolVersion(toolsDir string) (string, error) {
 	command.Env = []string{teleportToolsVersionEnv + "=off"}
 	output, err := command.Output()
 	if err != nil {
-		return "", trace.WrapWithMessage(err, "failed to determine version of %q tool", path)
+		return "", trace.WrapWithMessage(err, "failed to determine version of %q tool:\n%v", path, string(output))
 	}
 
 	// The output for "{tsh, tctl} version" can be multiple lines. Find the
