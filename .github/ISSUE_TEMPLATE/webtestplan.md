@@ -934,9 +934,8 @@ Add the following to enable read access to trusted clusters
   - [ ] Verify that reopening a db connection from the connections picker remembers last used port.
 - Cluster resources
   - [ ] Verify that the app shows the same resources as the Web UI.
-  - [ ] Verify that search is working for the resources list.
-  - [ ] Verify that pagination is working for the resources list.
-  - [ ] Verify that search results are paginated too.
+  - [ ] Verify that you can search resources using the search bar.
+  - [ ] Verify that infinite scroll is working for the resources (asteroid.earth cluster should have enough resources).
   - [ ] Verify that you can connect to these resources.
     - Verify that this works on:
       - [ ] macOS
