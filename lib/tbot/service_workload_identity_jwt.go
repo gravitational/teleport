@@ -26,9 +26,9 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -38,7 +38,7 @@ import (
 // WorkloadIdentityJWTService is a service that retrieves JWT workload identity
 // credentials for WorkloadIdentity resources.
 type WorkloadIdentityJWTService struct {
-	botAuthClient  *authclient.Client
+	botAuthClient  *apiclient.Client
 	botCfg         *config.BotConfig
 	cfg            *config.WorkloadIdentityJWTService
 	getBotIdentity getBotIdentityFn

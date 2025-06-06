@@ -36,7 +36,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -779,7 +779,7 @@ func clientForFacade(
 	log *slog.Logger,
 	cfg *config.BotConfig,
 	facade *identity.Facade,
-	resolver reversetunnelclient.Resolver) (_ *authclient.Client, err error) {
+	resolver reversetunnelclient.Resolver) (_ *apiclient.Client, err error) {
 	ctx, span := tracer.Start(ctx, "clientForFacade")
 	defer func() { apitracing.EndSpan(span, err) }()
 
@@ -803,7 +803,7 @@ func clientForFacade(
 		ClientConfig:          sshConfig,
 		Log:                   log,
 		InsecureSkipTLSVerify: cfg.Insecure,
-		GetClusterCAs:         client.ClusterCAsFromCertPool(tlsConfig.RootCAs),
+		GetClusterCAs:         apiclient.ClusterCAsFromCertPool(tlsConfig.RootCAs),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -826,7 +826,11 @@ func clientForFacade(
 	}
 
 	c, err := authclient.Connect(ctx, authClientConfig)
-	return c, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.HTTPClient.Close()
+	return c.APIClient, nil
 }
 
 type authPingCache struct {
@@ -1001,7 +1005,7 @@ func (a *alpnProxyConnUpgradeRequiredCache) isUpgradeRequired(ctx context.Contex
 		// Ok, now we know for sure that the work hasn't already been done or
 		// isn't in flight, we can complete it.
 		a.log.DebugContext(ctx, "Testing ALPN upgrade necessary", "addr", addr, "insecure", insecure)
-		v = client.IsALPNConnUpgradeRequired(ctx, addr, insecure)
+		v = apiclient.IsALPNConnUpgradeRequired(ctx, addr, insecure)
 		a.log.DebugContext(ctx, "Tested ALPN upgrade necessary", "addr", addr, "insecure", insecure, "result", v)
 		if err := ctx.Err(); err != nil {
 			// Check for case where false is returned because client canceled ctx.
