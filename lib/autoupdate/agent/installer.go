@@ -36,7 +36,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -61,6 +60,25 @@ const (
 	serviceName = "teleport.service"
 )
 
+// ServiceFile represents a systemd service file for a Teleport binary
+type ServiceFile struct {
+	// Path is the full path to the linked service file.
+	Path string
+	// Binary is the corresponding linked binary name.
+	Binary string
+	// ExampleName is the name of the example service file.
+	// Deprecated.
+	ExampleName string
+	// ExampleFunc can be used to create the service during linking from
+	// an archived example, instead of creating it during the setup phase.
+	// Deprecated.
+	ExampleFunc ExampleFunc
+}
+
+// A ExampleFunc generates a systemd service by replacing an example file.
+// Deprecated.
+type ExampleFunc func(cfg []byte, path string, flags autoupdate.InstallFlags) []byte
+
 // LocalInstaller manages the creation and removal of installations
 // of Teleport.
 // SetRequiredUmask must be called before any methods are executed.
@@ -68,11 +86,11 @@ type LocalInstaller struct {
 	// InstallDir contains each installation, named by version.
 	InstallDir string
 	// TargetServiceFile contains a copy of the linked installation's systemd service.
-	TargetServiceFile string
+	TargetServices []ServiceFile
 	// SystemBinDir contains binaries for the system (packaged) install of Teleport.
 	SystemBinDir string
-	// SystemServiceFile contains the systemd service file for the system (packaged) install of Teleport.
-	SystemServiceFile string
+	// SystemServiceDir contains the systemd service directory for the system (packaged) install of Teleport.
+	SystemServiceDir string
 	// HTTP is an HTTP client for downloading Teleport.
 	HTTP *http.Client
 	// Log contains a logger.
@@ -81,8 +99,6 @@ type LocalInstaller struct {
 	ReservedFreeTmpDisk uint64
 	// ReservedFreeInstallDisk is the amount of disk that must remain free in the install directory.
 	ReservedFreeInstallDisk uint64
-	// TransformService transforms the systemd service during copying.
-	TransformService func(cfg []byte, pathDir string, flags autoupdate.InstallFlags) []byte
 	// ValidateBinary returns true if a file is a linkable binary, or
 	// false if a file should not be linked.
 	ValidateBinary func(ctx context.Context, path string) (bool, error)
@@ -416,7 +432,7 @@ func (li *LocalInstaller) Link(ctx context.Context, rev Revision, pathDir string
 	}
 	revert, err = li.forceLinks(ctx,
 		filepath.Join(versionDir, "bin"),
-		filepath.Join(versionDir, serviceDir, serviceName),
+		filepath.Join(versionDir, serviceDir),
 		pathDir, force, rev.Flags,
 	)
 	if err != nil {
@@ -432,7 +448,7 @@ func (li *LocalInstaller) Link(ctx context.Context, rev Revision, pathDir string
 func (li *LocalInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {
 	// The system package service file is always removed without flags, so pass
 	// no flags here to match the behavior.
-	revert, err = li.forceLinks(ctx, li.SystemBinDir, li.SystemServiceFile, defaultPathDir, false, 0)
+	revert, err = li.forceLinks(ctx, li.SystemBinDir, li.SystemServiceDir, defaultPathDir, false, 0)
 	return revert, trace.Wrap(err)
 }
 
@@ -446,7 +462,7 @@ func (li *LocalInstaller) TryLink(ctx context.Context, revision Revision, pathDi
 	}
 	return trace.Wrap(li.tryLinks(ctx,
 		filepath.Join(versionDir, "bin"),
-		filepath.Join(versionDir, serviceDir, serviceName),
+		filepath.Join(versionDir, serviceDir),
 		pathDir, revision.Flags,
 	))
 }
@@ -457,7 +473,7 @@ func (li *LocalInstaller) TryLink(ctx context.Context, revision Revision, pathDi
 func (li *LocalInstaller) TryLinkSystem(ctx context.Context) error {
 	// The system package service file is always removed without flags, so pass
 	// no flags here to match the behavior.
-	return trace.Wrap(li.tryLinks(ctx, li.SystemBinDir, li.SystemServiceFile, defaultPathDir, 0))
+	return trace.Wrap(li.tryLinks(ctx, li.SystemBinDir, li.SystemServiceDir, defaultPathDir, 0))
 }
 
 // Unlink unlinks a version from pathDir and TargetServiceFile.
@@ -467,19 +483,13 @@ func (li *LocalInstaller) Unlink(ctx context.Context, rev Revision, pathDir stri
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(li.removeLinks(ctx,
-		filepath.Join(versionDir, "bin"),
-		filepath.Join(versionDir, serviceDir, serviceName),
-		pathDir, rev.Flags,
-	))
+	return trace.Wrap(li.removeLinks(ctx, filepath.Join(versionDir, "bin"), pathDir))
 }
 
 // UnlinkSystem unlinks the system (package) version from defaultPathDir and TargetServiceFile.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) UnlinkSystem(ctx context.Context) error {
-	// The system package service file is always linked without flags, so pass
-	// no flags here to match the behavior.
-	return trace.Wrap(li.removeLinks(ctx, li.SystemBinDir, li.SystemServiceFile, defaultPathDir, 0))
+	return trace.Wrap(li.removeLinks(ctx, li.SystemBinDir, defaultPathDir))
 }
 
 // symlink from oldname to newname
@@ -500,7 +510,7 @@ type smallFile struct {
 // If successful, forceLinks may also be reverted after it returns by calling revert.
 // The revert function returns true if reverting succeeds.
 // If force is true, non-link files will be overwritten.
-func (li *LocalInstaller) forceLinks(ctx context.Context, srcBinDir, srcSvcFile, dstBinDir string, force bool, flags autoupdate.InstallFlags) (revert func(context.Context) bool, err error) {
+func (li *LocalInstaller) forceLinks(ctx context.Context, srcBinDir, srcSvcDir, dstBinDir string, force bool, flags autoupdate.InstallFlags) (revert func(context.Context) bool, err error) {
 	// setup revert function
 	var (
 		revertLinks []symlink
@@ -552,9 +562,11 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, srcBinDir, srcSvcFile,
 	if err != nil {
 		return revert, trace.Wrap(err)
 	}
-	err = os.MkdirAll(filepath.Dir(li.TargetServiceFile), systemDirMode)
-	if err != nil {
-		return revert, trace.Wrap(err)
+	for _, s := range li.TargetServices {
+		err = os.MkdirAll(filepath.Dir(s.Path), systemDirMode)
+		if err != nil {
+			return revert, trace.Wrap(err)
+		}
 	}
 
 	// create binary links
@@ -588,27 +600,38 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, srcBinDir, srcSvcFile,
 		return revert, trace.Wrap(ErrNoBinaries)
 	}
 
-	// create systemd service file
+	// create systemd service files
 
-	orig, err := li.forceCopyService(li.TargetServiceFile, srcSvcFile, maxServiceFileSize, dstBinDir, flags)
-	if err != nil && !errors.Is(err, os.ErrExist) {
-		return revert, trace.Wrap(err, "failed to copy service")
+	for _, s := range li.TargetServices {
+		orig, err := copyService(s, srcSvcDir, dstBinDir, flags)
+		if err != nil && !errors.Is(err, os.ErrExist) {
+			return revert, trace.Wrap(err, "failed to copy service %s", filepath.Base(s.Path))
+		}
+		if orig != nil {
+			revertFiles = append(revertFiles, *orig)
+		}
 	}
-	if orig != nil {
-		revertFiles = append(revertFiles, *orig)
-	}
+
 	return revert, nil
 }
 
-// forceCopyService uses forceCopy to copy a systemd service file from src to dst.
+// copyService copies a systemd service file from src to dst.
 // The contents of both src and dst must be smaller than n.
-// See forceCopy for more details.
-func (li *LocalInstaller) forceCopyService(dst, src string, n int64, dstBinDir string, flags autoupdate.InstallFlags) (orig *smallFile, err error) {
-	srcData, err := readFileAtMost(src, n)
-	if err != nil {
-		return nil, trace.Wrap(err)
+// Copied data is processed by createFunc.
+// If createFunc nil, no data is copied, but the original file contents are still returned.
+// See prepCopy and forceCopy for more details.
+func copyService(s ServiceFile, exampleDir string, dstBinDir string, flags autoupdate.InstallFlags) (orig *smallFile, err error) {
+	const n = maxServiceFileSize
+	if s.ExampleFunc != nil {
+		srcData, err := readFileAtMost(filepath.Join(exampleDir, s.ExampleName), n)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		orig, err = forceCopy(s.Path, s.ExampleFunc(srcData, dstBinDir, flags), n)
+		return orig, trace.Wrap(err)
 	}
-	return forceCopy(dst, li.TransformService(srcData, dstBinDir, flags), n)
+	orig, err = prepCopy(s.Path, n)
+	return orig, trace.Wrap(err)
 }
 
 // forceLink attempts to create a symlink, atomically replacing an existing link if already present.
@@ -642,27 +665,36 @@ func forceLink(oldname, newname string, force bool) (orig string, err error) {
 // If an irregular file, too large file, or directory exists in dst already, forceCopy errors.
 // If the file is already present with the desired contents, forceCopy returns os.ErrExist.
 func forceCopy(dst string, srcData []byte, n int64) (orig *smallFile, err error) {
-	fi, err := os.Lstat(dst)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, trace.Wrap(err)
+	orig, err = prepCopy(dst, n)
+	if err != nil {
+		return orig, trace.Wrap(err)
 	}
-	if err == nil {
-		orig = &smallFile{
-			name: dst,
-			mode: fi.Mode(),
-		}
-		if !orig.mode.IsRegular() {
-			return nil, trace.Errorf("refusing to replace irregular file at %s", dst)
-		}
-		orig.data, err = readFileAtMost(dst, n)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if bytes.Equal(srcData, orig.data) {
-			return nil, trace.Wrap(os.ErrExist)
-		}
+	if orig != nil && bytes.Equal(srcData, orig.data) {
+		return nil, trace.Wrap(os.ErrExist)
 	}
 	err = writeFileAtomicWithinDir(dst, srcData, configFileMode)
+	if err != nil {
+		return orig, trace.Wrap(err)
+	}
+	return orig, nil
+}
+
+func prepCopy(dst string, n int64) (orig *smallFile, err error) {
+	fi, err := os.Lstat(dst)
+	if errors.Is(err, os.ErrNotExist) {
+		return orig, nil
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	orig = &smallFile{
+		name: dst,
+		mode: fi.Mode(),
+	}
+	if !orig.mode.IsRegular() {
+		return nil, trace.Errorf("refusing to replace irregular file at %s", dst)
+	}
+	orig.data, err = readFileAtMost(dst, n)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -680,8 +712,7 @@ func readFileAtMost(name string, n int64) ([]byte, error) {
 	return data, trace.Wrap(err)
 }
 
-func (li *LocalInstaller) removeLinks(ctx context.Context, srcBinDir, srcSvcFile, dstBinDir string, flags autoupdate.InstallFlags) error {
-	removeService := false
+func (li *LocalInstaller) removeLinks(ctx context.Context, srcBinDir, dstBinDir string) error {
 	entries, err := os.ReadDir(srcBinDir)
 	if err != nil {
 		return trace.Wrap(err, "failed to find Teleport binary directory")
@@ -710,33 +741,37 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, srcBinDir, srcSvcFile
 			li.Log.ErrorContext(ctx, "Unable to remove link.", "oldname", oldname, "newname", newname, errorKey, err)
 			continue
 		}
-		if filepath.Base(newname) == teleport.ComponentTeleport {
-			removeService = true
+
+		for _, s := range li.TargetServices {
+			if filepath.Base(newname) != s.Binary {
+				continue
+			}
+			// binRev is either the version or "system"
+			binRev := filepath.Base(filepath.Dir(filepath.Dir(oldname)))
+			rev, err := NewRevisionFromDir(binRev)
+			if err != nil {
+				li.Log.DebugContext(ctx, "Service not present.", "path", s.Path)
+				continue
+			}
+			revMarker := genMarker(rev)
+			diskMarker, err := readFileLimit(s.Path, int64(len(revMarker)))
+			if errors.Is(err, os.ErrNotExist) {
+				li.Log.DebugContext(ctx, "Service not present.", "path", s.Path)
+				continue
+			}
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			// FIXME: system package unlinking for old version does not work?
+			if string(diskMarker) != revMarker {
+				li.Log.WarnContext(ctx, "Removed binary link, but skipping removal of custom service that does not match the binary.",
+					"service", filepath.Base(s.Path), "binary", filepath.Base(newname))
+				continue
+			}
+			if err := os.Remove(s.Path); err != nil {
+				return trace.Wrap(err, "error removing copy of %s", filepath.Base(s.Path))
+			}
 		}
-	}
-	// only remove service if teleport was removed
-	if !removeService {
-		li.Log.DebugContext(ctx, "Teleport binary not unlinked. Skipping removal of teleport.service.")
-		return nil
-	}
-	srcBytes, err := readFileAtMost(srcSvcFile, maxServiceFileSize)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	dstBytes, err := readFileAtMost(li.TargetServiceFile, maxServiceFileSize)
-	if errors.Is(err, os.ErrNotExist) {
-		li.Log.DebugContext(ctx, "Service not present.", "path", li.TargetServiceFile)
-		return nil
-	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if !bytes.Equal(li.TransformService(srcBytes, dstBinDir, flags), dstBytes) {
-		li.Log.WarnContext(ctx, "Removed teleport binary link, but skipping removal of custom teleport.service: the service file does not match the reference file for this version. The file might have been manually edited.")
-		return nil
-	}
-	if err := os.Remove(li.TargetServiceFile); err != nil {
-		return trace.Wrap(err, "error removing copy of %s", filepath.Base(li.TargetServiceFile))
 	}
 	return nil
 }
@@ -745,7 +780,7 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, srcBinDir, srcSvcFile
 // Existing links that point to files outside binDir or svcDir, as well as existing non-link files, will error.
 // tryLinks will not attempt to create any links if linking could result in an error.
 // However, concurrent changes to links may result in an error with partially-complete linking.
-func (li *LocalInstaller) tryLinks(ctx context.Context, srcBinDir, srcSvcFile, dstBinDir string, flags autoupdate.InstallFlags) error {
+func (li *LocalInstaller) tryLinks(ctx context.Context, srcBinDir, srcSvcDir, dstBinDir string, flags autoupdate.InstallFlags) error {
 	// ensure source directory exists
 	entries, err := os.ReadDir(srcBinDir)
 	if errors.Is(err, os.ErrNotExist) {
@@ -760,9 +795,11 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, srcBinDir, srcSvcFile, d
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = os.MkdirAll(filepath.Dir(li.TargetServiceFile), systemDirMode)
-	if err != nil {
-		return trace.Wrap(err)
+	for _, s := range li.TargetServices {
+		err = os.MkdirAll(filepath.Dir(s.Path), systemDirMode)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// validate that we can link all system binaries before attempting linking
@@ -802,10 +839,11 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, srcBinDir, srcSvcFile, d
 		}
 	}
 
-	// if any binaries are linked from srcBinDir, always link the service from svcDir
-	_, err = li.forceCopyService(li.TargetServiceFile, srcSvcFile, maxServiceFileSize, dstBinDir, flags)
-	if err != nil && !errors.Is(err, os.ErrExist) {
-		return trace.Wrap(err, "failed to copy service")
+	for _, s := range li.TargetServices {
+		_, err := copyService(s, srcSvcDir, dstBinDir, flags)
+		if err != nil && !errors.Is(err, os.ErrExist) {
+			return trace.Wrap(err, "failed to copy service %s", filepath.Base(s.Path))
+		}
 	}
 
 	return nil
