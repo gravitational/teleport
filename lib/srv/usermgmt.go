@@ -503,7 +503,8 @@ func (u *HostUserManagement) UpsertUser(name string, ui *decisionpb.HostUsersInf
 		log.WarnContext(u.ctx, "Failed to retreive default shell for user", "error", err)
 	}
 
-	if groups != nil || ui.Shell != defaultShell || err != nil {
+	shouldUpdateShell := (ui.Shell != "" && ui.Shell != defaultShell) || err != nil
+	if groups != nil || shouldUpdateShell {
 		if err := u.updateUser(*hostUser, ui); err != nil {
 			return nil, trace.Wrap(err)
 		}

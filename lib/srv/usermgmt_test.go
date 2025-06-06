@@ -175,6 +175,10 @@ func (tm *testHostUserBackend) GetDefaultHomeDirectory(user string) (string, err
 	return "", nil
 }
 
+func (tm *testHostUserBackend) GetDefaultShell(user string) (string, error) {
+	return "", nil
+}
+
 // RemoveSudoersFile implements HostUsersBackend
 func (tm *testHostUserBackend) RemoveSudoersFile(user string) error {
 	delete(tm.sudoers, user)
