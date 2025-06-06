@@ -200,6 +200,11 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 				}
 			}
 
+			if len(portProtocols) == 0 {
+				f.Logger.DebugContext(ctx, "Skipping service %q. No teleport.dev/protocol annotation and no ports with supported protocols were detected.", "service", service.GetName())
+				return nil
+			}
+
 			var newApps types.Apps
 			for port, portProtocol := range portProtocols {
 				if len(portProtocols) == 1 {
