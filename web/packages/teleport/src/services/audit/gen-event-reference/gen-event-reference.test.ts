@@ -1,3 +1,4 @@
+import { Event, Formatters } from '../types';
 import {
   createEventSection,
   createReferencePage,
@@ -6,7 +7,14 @@ import {
 } from './gen-event-reference';
 
 describe('eventsWithoutExamples', () => {
-  const testCases = [
+  interface testCase {
+    description: string;
+    events: Event[];
+    formatters: Formatters;
+    expected: Event[];
+  }
+
+  const testCases: testCase[] = [
     {
       description: 'formatters with no fixture',
       events: [
