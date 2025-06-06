@@ -28,13 +28,21 @@ import {
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { makeErrorAttempt, makeProcessingAttempt } from 'shared/hooks/useAsync';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { apps, moreApps } from 'teleport/Apps/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { UrlResourcesParams } from 'teleport/config';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { databases, moreDatabases } from 'teleport/Databases/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { desktops, moreDesktops } from 'teleport/Desktops/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { gitServers } from 'teleport/GitServers/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { kubes, moreKubes } from 'teleport/Kubes/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { moreNodes, nodes } from 'teleport/Nodes/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourcesResponse } from 'teleport/services/agents';
 
 import { InfoGuidePanelProvider } from '../SlidingSidePanel/InfoGuide';
