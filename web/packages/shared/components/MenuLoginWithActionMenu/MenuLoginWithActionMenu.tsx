@@ -98,7 +98,7 @@ export const MenuLoginWithActionMenu = ({
         placeholder={placeholder}
       />
       <ButtonBorder
-        setRef={moreButtonRef}
+        ref={moreButtonRef}
         px={1}
         size={size}
         onClick={() => setIsOpen(true)}

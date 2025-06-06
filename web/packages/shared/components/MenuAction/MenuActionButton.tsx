@@ -66,7 +66,7 @@ export default class MenuActionIcon extends React.Component<
         {icon ? (
           <FilledButtonIcon
             intent="neutral"
-            setRef={e => (this.anchorEl = e)}
+            ref={e => (this.anchorEl = e)}
             onClick={this.onOpen}
             {...buttonProps}
           >
@@ -75,7 +75,9 @@ export default class MenuActionIcon extends React.Component<
         ) : (
           <ButtonBorder
             size="small"
-            setRef={e => (this.anchorEl = e)}
+            ref={e => {
+              this.anchorEl = e;
+            }}
             onClick={this.onOpen}
             {...buttonProps}
           >

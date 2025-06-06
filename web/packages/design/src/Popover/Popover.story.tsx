@@ -170,7 +170,12 @@ class SimplePopover extends Component<any, SimplePopoverState> {
     return (
       <div>
         <Box>
-          <ButtonPrimary mt={7} setRef={e => (this.btnRef = e)}>
+          <ButtonPrimary
+            mt={7}
+            ref={e => {
+              this.btnRef = e;
+            }}
+          >
             This is anchor element
           </ButtonPrimary>
           <Popover
