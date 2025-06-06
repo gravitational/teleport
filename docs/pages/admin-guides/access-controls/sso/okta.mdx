@@ -50,7 +50,7 @@ provides to Teleport. We will configure Teleport to assign the "access" role to
 members of the `okta-dev` Okta group, and the prest "editor" role to members of
 the `okta-admin` group.
 
-If you already have Okta groups you want to assign to "dev" and "editor" roles in
+If you already have Okta groups you want to assign to "access" and "editor" roles in
 Teleport, you can skip to the [next step](#step-24-configure-okta).
 
 ### Create Groups
@@ -173,7 +173,7 @@ flags for this command:
 $ tctl sso configure saml --preset=okta \
 --entity-descriptor "https://example.okta.com/app/000000/sso/saml/metadata" \
 --attributes-to-roles=groups,okta-admin,editor \
---attributes-to-roles=groups,okta-dev,dev > okta-connector.yaml
+--attributes-to-roles=groups,okta-dev,access > okta-connector.yaml
 ```
 
 The contents of `okta-connector.yaml` should resemble the following:

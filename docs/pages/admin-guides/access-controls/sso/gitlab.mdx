@@ -16,7 +16,7 @@ like:
 ## Prerequisites
 
 - At least two groups in GitLab with users assigned. In our examples below,
-  we'll assume a group named `company` with two subgroups, `admin` and `dev`.
+  we'll assume a group named `company` with two subgroups, `admin` and `access`.
 - Teleport role with access to maintaining `oidc` resources.  This is available
   in the default `editor` role.
 
@@ -71,7 +71,7 @@ $ tctl sso configure oidc --preset gitlab \
 --id <APPLICATION-ID> \
 --secret $( cat client-secret.txt) \
 --claims-to-roles groups,company/admin,admin \
---claims-to-roles groups,company/dev,dev > oidc.yaml
+--claims-to-roles groups,company/access,access > oidc.yaml
 ```
 
 </TabItem>
@@ -85,14 +85,14 @@ $ tctl sso configure oidc --preset gitlab \
 --issuer-url https://gitlab.company.com \
 --secret $( cat client-secret.txt) \
 --claims-to-roles groups,company/admin,admin \
---claims-to-roles groups,company/dev,dev > oidc.yaml
+--claims-to-roles groups,company/access,access > oidc.yaml
 ```
 
 </TabItem>
 </Tabs>
 
-This example maps the two subgroups `admin` and `dev` of the parent group
-`company` to the `admin` and `dev` roles in Teleport, and creates the `oidc.yaml` file:
+This example maps the two subgroups `admin` and `access` of the parent group
+`company` to the `admin` and `access` roles in Teleport, and creates the `oidc.yaml` file:
 
 ```yaml
 kind: oidc
@@ -106,7 +106,7 @@ spec:
     value: company/admin
   - claim: groups
     roles:
-    - dev
+    - access
     value: company/gitlab-dev
   client_id: <APPLICATION-ID>
   client_secret: <APPLICATION-SECRET>
@@ -137,7 +137,7 @@ $ tctl create -f oidc.yaml
 ## Step 3/4. Create Teleport Roles
 
 We are going to create 2 roles, privileged role admin who is able to login as
-root and is capable of administrating the cluster and non-privileged dev.
+root and is capable of administrating the cluster and non-privileged access.
 
 ```yaml
 kind: role
@@ -162,7 +162,7 @@ The developer role:
 kind: role
 version: v5
 metadata:
-  name: dev
+  name: access
 spec:
   options:
     max_session_ttl: 24h
