@@ -28,29 +28,36 @@ import (
 
 // CombinedStdio reads from standard input and writes to standard output.
 // Closing a CombinedStdio does nothing, successfully.
-type CombinedStdio struct{}
+type CombinedStdio struct {
+	stdin  io.Reader
+	stdout io.Writer
+}
+
+// NewCombinedOSStdio creates a new CombinedStdio with os.Stdin and
+// os.Stdout.
+func NewCombinedOSStdio() CombinedStdio {
+	return NewCombinedStdio(os.Stdin, os.Stdout)
+}
+
+// NewCombinedStdio creates a new CombinedStdio.
+func NewCombinedStdio(stdin io.Reader, stdout io.Writer) CombinedStdio {
+	return CombinedStdio{
+		stdin:  stdin,
+		stdout: stdout,
+	}
+}
 
 // Read reads from [os.Stdin].
-func (CombinedStdio) Read(p []byte) (int, error) {
-	return os.Stdin.Read(p)
+func (c CombinedStdio) Read(p []byte) (int, error) {
+	return c.stdin.Read(p)
 }
 
 // Write writes to [os.Stdout].
-func (CombinedStdio) Write(p []byte) (int, error) {
-	return os.Stdout.Write(p)
+func (c CombinedStdio) Write(p []byte) (int, error) {
+	return c.stdout.Write(p)
 }
 
-// ReadFrom copies data from [os.Stdout] to the provided [io.Reader].
-func (CombinedStdio) ReadFrom(r io.Reader) (n int64, err error) {
-	return os.Stdout.ReadFrom(r)
-}
-
-// WriteTo copies data from [os.Stdin] to the provided [io.Writer].
-func (CombinedStdio) WriteTo(w io.Writer) (n int64, err error) {
-	return os.Stdin.WriteTo(w)
-}
-
-func (CombinedStdio) Close() error {
+func (c CombinedStdio) Close() error {
 	return nil
 }
 

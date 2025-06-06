@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
+	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
@@ -630,7 +631,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound("%s", err)
 	}
 
-	cred, err := getCmdCredential(localUser)
+	cred, err := host.GetHostUserCredential(localUser)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -1180,7 +1181,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	// workaround this, the credentials struct is only set if the credentials
 	// are different from the process itself. If the credentials are not, simply
 	// pick up the ambient credentials of the process.
-	credential, err := getCmdCredential(localUser)
+	credential, err := host.GetHostUserCredential(localUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1378,7 +1379,7 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 
-	credential, err := getCmdCredential(localUser)
+	credential, err := host.GetHostUserCredential(localUser)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -1433,52 +1434,4 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 	go cmd.Wait()
 
 	return nil
-}
-
-// getCmdCredentials parses the uid, gid, and groups of the
-// given user into a credential object for a command to use.
-func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
-	uid, err := strconv.ParseUint(localUser.Uid, 10, 32)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	gid, err := strconv.ParseUint(localUser.Gid, 10, 32)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if runtime.GOOS == "darwin" {
-		// on macOS we should rely on the list of groups managed by the system
-		// (the use of setgroups is "highly discouraged", as per the setgroups
-		// man page in macOS 13.5)
-		return &syscall.Credential{
-			Uid:         uint32(uid),
-			Gid:         uint32(gid),
-			NoSetGroups: true,
-		}, nil
-	}
-
-	// Lookup supplementary groups for the user.
-	userGroups, err := localUser.GroupIds()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	groups := make([]uint32, 0)
-	for _, sgid := range userGroups {
-		igid, err := strconv.ParseUint(sgid, 10, 32)
-		if err != nil {
-			slog.WarnContext(context.Background(), "Cannot interpret user group", "user_group", sgid)
-		} else {
-			groups = append(groups, uint32(igid))
-		}
-	}
-	if len(groups) == 0 {
-		groups = append(groups, uint32(gid))
-	}
-
-	return &syscall.Credential{
-		Uid:    uint32(uid),
-		Gid:    uint32(gid),
-		Groups: groups,
-	}, nil
 }

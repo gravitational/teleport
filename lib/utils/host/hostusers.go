@@ -27,8 +27,11 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"runtime"
 	"slices"
+	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/gravitational/trace"
 )
@@ -302,4 +305,52 @@ func CheckSudoers(contents []byte) error {
 		return trace.WrapWithMessage(ErrInvalidSudoers, string(output))
 	}
 	return trace.Wrap(err)
+}
+
+// GetHostUserCredential parses the uid, gid, and groups of the given user intoAdd commentMore actions
+// a credential object for a command to use.
+func GetHostUserCredential(localUser *user.User) (*syscall.Credential, error) {
+	uid, err := strconv.ParseUint(localUser.Uid, 10, 32)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	gid, err := strconv.ParseUint(localUser.Gid, 10, 32)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if runtime.GOOS == "darwin" {
+		// on macOS we should rely on the list of groups managed by the system
+		// (the use of setgroups is "highly discouraged", as per the setgroups
+		// man page in macOS 13.5)
+		return &syscall.Credential{
+			Uid:         uint32(uid),
+			Gid:         uint32(gid),
+			NoSetGroups: true,
+		}, nil
+	}
+
+	// Lookup supplementary groups for the user.
+	userGroups, err := localUser.GroupIds()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	groups := make([]uint32, 0)
+	for _, sgid := range userGroups {
+		igid, err := strconv.ParseUint(sgid, 10, 32)
+		if err != nil {
+			slog.WarnContext(context.Background(), "Cannot interpret user group", "user_group", sgid)
+		} else {
+			groups = append(groups, uint32(igid))
+		}
+	}
+	if len(groups) == 0 {
+		groups = append(groups, uint32(gid))
+	}
+
+	return &syscall.Credential{
+		Uid:    uint32(uid),
+		Gid:    uint32(gid),
+		Groups: groups,
+	}, nil
 }

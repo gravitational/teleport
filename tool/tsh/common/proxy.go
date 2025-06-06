@@ -88,7 +88,7 @@ func onProxyCommandSSH(cf *CLIConf) error {
 
 		defer conn.Close()
 
-		return trace.Wrap(utils.ProxyConn(cf.Context, utils.CombinedStdio{}, conn))
+		return trace.Wrap(utils.ProxyConn(cf.Context, utils.NewCombinedOSStdio(), conn))
 	}
 	if !cf.Relogin {
 		return trace.Wrap(sshFunc())

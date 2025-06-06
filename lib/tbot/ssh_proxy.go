@@ -195,7 +195,7 @@ func ProxySSH(ctx context.Context, proxyConfig ProxySSHConfig) error {
 	}
 	defer conn.Close()
 
-	err = trace.Wrap(utils.ProxyConn(ctx, utils.CombinedStdio{}, conn))
+	err = trace.Wrap(utils.ProxyConn(ctx, utils.NewCombinedOSStdio(), conn))
 	if errors.Is(err, context.Canceled) {
 		err = nil
 	}

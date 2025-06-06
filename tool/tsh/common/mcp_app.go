@@ -21,9 +21,11 @@ package common
 import (
 	"cmp"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"iter"
+	"net"
 	"slices"
 	"strings"
 
@@ -33,12 +35,16 @@ import (
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/iterutils"
+	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -53,6 +59,16 @@ func newMCPListCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpListCommand {
 	cmd.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	cmd.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
+	return cmd
+}
+
+func newMCPConnectCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConnectCommand {
+	cmd := &mcpConnectCommand{
+		CmdClause: parent.Command("connect", "Connect to a MCP server with stdio.").Hidden(),
+		cf:        cf,
+	}
+
+	cmd.Arg("name", "Name of the MCP server").Required().StringVar(&cf.AppName)
 	return cmd
 }
 
@@ -123,6 +139,20 @@ func (c *mcpListCommand) print() error {
 }
 
 func fetchMCPServers(ctx context.Context, tc *client.TeleportClient, auth apiclient.GetResourcesClient) ([]types.Application, error) {
+	if auth == nil {
+		var clusterClient *client.ClusterClient
+		var err error
+		err = client.RetryWithRelogin(ctx, tc, func() error {
+			clusterClient, err = tc.ConnectToCluster(ctx)
+			return trace.Wrap(err)
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+		auth = clusterClient.AuthClient
+	}
+
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"fetchMCPServers",
@@ -215,4 +245,103 @@ func printMCPServersInVerboseText(w io.Writer, mcpServers iter.Seq[mcpServerWith
 	}
 	_, err := fmt.Fprintln(w, t.AsBuffer().String())
 	return trace.Wrap(err)
+}
+
+// mcpConnectCommand implements `tsh mcp connect` command.
+type mcpConnectCommand struct {
+	*kingpin.CmdClause
+	cf *CLIConf
+}
+
+func (c *mcpConnectCommand) run() error {
+	_, err := initLogger(c.cf, utils.LoggingForMCP, parseLoggingOptsFromEnvAndArgv(c.cf))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c.cf.PredicateExpression = makeNamePredicate(c.cf.AppName)
+	tc, err := makeClient(c.cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tc.NonInteractive = true
+
+	mcpServer, err := c.fetch(tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(greedy52) use a consistent connection to client and implement a
+	// resumable server conn.
+	serverConn, err := dialMCPServer(c.cf, tc, mcpServer)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer serverConn.Close()
+
+	clientConn := utils.NewCombinedStdio(c.cf.Stdin(), c.cf.Stdout())
+	return trace.Wrap(utils.ProxyConn(c.cf.Context, clientConn, serverConn))
+}
+
+func (c *mcpConnectCommand) fetch(tc *client.TeleportClient) (types.Application, error) {
+	mcpServers, err := fetchMCPServers(c.cf.Context, tc, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch len(mcpServers) {
+	case 0:
+		return nil, trace.NotFound("no MCP servers found")
+	case 1:
+	default:
+		logger.WarnContext(c.cf.Context, "multiple MCP servers found, using the first one")
+	}
+	return mcpServers[0], nil
+}
+
+func dialMCPServer(cf *CLIConf, tc *client.TeleportClient, mcpServer types.Application) (net.Conn, error) {
+	ctx := cf.Context
+
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	appCertParams := client.ReissueParams{
+		RouteToCluster: tc.SiteName,
+		RouteToApp: proto.RouteToApp{
+			Name:        mcpServer.GetName(),
+			PublicAddr:  mcpServer.GetPublicAddr(),
+			ClusterName: tc.SiteName,
+			URI:         mcpServer.GetURI(),
+		},
+		AccessRequests: profile.ActiveRequests,
+	}
+
+	// Do NOT write the keyring to avoid race condition when AI clients run
+	// multiple tsh at the same time.
+	keyRing, err := tc.IssueUserCertsWithMFA(ctx, appCertParams)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, err := keyRing.AppTLSCert(mcpServer.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	alpn := alpncommon.ProtocolWithPing(alpncommon.ProtocolMCP)
+	dialConfig := apiclient.ALPNDialerConfig{
+		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
+		TLSConfig: &tls.Config{
+			NextProtos:         []string{string(alpn)},
+			InsecureSkipVerify: tc.InsecureSkipVerify,
+			Certificates:       []tls.Certificate{cert},
+		},
+		GetClusterCAs: tc.RootClusterCACertPool,
+	}
+
+	tlsConn, err := apiclient.DialALPN(ctx, tc.WebProxyAddr, dialConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return pingconn.NewTLS(tlsConn), nil
 }

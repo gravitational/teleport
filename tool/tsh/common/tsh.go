@@ -1755,6 +1755,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = mcpCmd.dbStart.run(&cf)
 	case mcpCmd.list.FullCommand():
 		err = mcpCmd.list.run()
+	case mcpCmd.connect.FullCommand():
+		err = mcpCmd.connect.run()
 	default:
 		// Handle commands that might not be available.
 		switch {
