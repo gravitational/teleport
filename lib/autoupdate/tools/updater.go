@@ -56,6 +56,9 @@ const (
 	// teleportToolsDirsEnv overrides Teleport tools directory for saving updated
 	// versions.
 	teleportToolsDirsEnv = "TELEPORT_TOOLS_DIR"
+	// teleportToolsReExecTimeoutEnv custom timeout in seconds before updated version is going
+	// to be re-executed, should be set to prevent EDR software block re-execution.
+	teleportToolsReExecTimeoutEnv = "TELEPORT_TOOLS_REEXEC_TIMEOUT"
 	// reservedFreeDisk is the predefined amount of free disk space (in bytes) required
 	// to remain available after downloading archives.
 	reservedFreeDisk = 10 * 1024 * 1024 // 10 Mb
@@ -411,6 +414,14 @@ func (u *Updater) Exec(toolsVersion string, args []string) (int, error) {
 		env = append(env, teleportToolsVersionEnv+"=off")
 	}
 	env = append(env, fmt.Sprintf("%s=%s", teleportToolsVersionReExecEnv, u.localVersion))
+
+	if timeoutEnv := os.Getenv(teleportToolsVersionReExecEnv); timeoutEnv != "" {
+		timeout, err := time.ParseDuration(timeoutEnv)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		time.Sleep(timeout)
+	}
 
 	if runtime.GOOS == constants.WindowsOS {
 		cmd := exec.Command(path, args...)
