@@ -53,8 +53,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
@@ -631,8 +631,8 @@ func (s *SessionRegistry) NotifyWinChange(ctx context.Context, params rsession.T
 	// Build the resize event.
 	resizeEvent, err := session.Recorder().PrepareSessionEvent(&apievents.Resize{
 		Metadata: apievents.Metadata{
-			Type:        events.ResizeEvent,
-			Code:        events.TerminalResizeCode,
+			Type:        eventsclient.ResizeEvent,
+			Code:        eventsclient.TerminalResizeCode,
 			ClusterName: scx.ClusterName,
 		},
 		ServerMetadata:  session.serverMeta,
@@ -754,7 +754,7 @@ type session struct {
 	// login stores the login of the initial session creator
 	login string
 
-	recorder   events.SessionPreparerRecorder
+	recorder   eventsclient.SessionPreparerRecorder
 	recorderMu sync.RWMutex
 
 	emitter apievents.Emitter
@@ -907,13 +907,13 @@ func (s *session) PID() int {
 
 // Recorder returns a SessionRecorder which can be used to record session
 // events.
-func (s *session) Recorder() events.SessionPreparerRecorder {
+func (s *session) Recorder() eventsclient.SessionPreparerRecorder {
 	s.recorderMu.RLock()
 	defer s.recorderMu.RUnlock()
 	return s.recorder
 }
 
-func (s *session) setRecorder(rec events.SessionPreparerRecorder) {
+func (s *session) setRecorder(rec eventsclient.SessionPreparerRecorder) {
 	s.recorderMu.Lock()
 	defer s.recorderMu.Unlock()
 	s.recorder = rec
@@ -1029,8 +1029,8 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 
 	sessionStartEvent := &apievents.SessionStart{
 		Metadata: apievents.Metadata{
-			Type:        events.SessionStartEvent,
-			Code:        events.SessionStartCode,
+			Type:        eventsclient.SessionStartEvent,
+			Code:        eventsclient.SessionStartCode,
 			ClusterName: ctx.ClusterName,
 			ID:          uuid.New().String(),
 		},
@@ -1039,7 +1039,7 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 		UserMetadata:    ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
-			Protocol:   events.EventProtocolSSH,
+			Protocol:   eventsclient.EventProtocolSSH,
 		},
 		SessionRecording: s.sessionRecordingMode(),
 		InitialCommand:   initialCommand,
@@ -1081,8 +1081,8 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 	sessionJoinEvent := &apievents.SessionJoin{
 		Metadata: apievents.Metadata{
-			Type:        events.SessionJoinEvent,
-			Code:        events.SessionJoinCode,
+			Type:        eventsclient.SessionJoinEvent,
+			Code:        eventsclient.SessionJoinCode,
 			ClusterName: ctx.ClusterName,
 		},
 		ServerMetadata:  s.serverMeta,
@@ -1145,8 +1145,8 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 func (s *session) emitSessionLeaveEventUnderLock(ctx *ServerContext) {
 	sessionLeaveEvent := &apievents.SessionLeave{
 		Metadata: apievents.Metadata{
-			Type:        events.SessionLeaveEvent,
-			Code:        events.SessionLeaveCode,
+			Type:        eventsclient.SessionLeaveEvent,
+			Code:        eventsclient.SessionLeaveCode,
 			ClusterName: ctx.ClusterName,
 		},
 		ServerMetadata:  s.serverMeta,
@@ -1198,8 +1198,8 @@ func (s *session) emitSessionEndEvent() {
 	start, end := s.startTime, time.Now().UTC()
 	sessionEndEvent := &apievents.SessionEnd{
 		Metadata: apievents.Metadata{
-			Type:        events.SessionEndEvent,
-			Code:        events.SessionEndCode,
+			Type:        eventsclient.SessionEndEvent,
+			Code:        eventsclient.SessionEndCode,
 			ClusterName: ctx.ClusterName,
 		},
 		ServerMetadata:  s.serverMeta,
@@ -1207,7 +1207,7 @@ func (s *session) emitSessionEndEvent() {
 		UserMetadata:    ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
-			Protocol:   events.EventProtocolSSH,
+			Protocol:   eventsclient.EventProtocolSSH,
 		},
 		EnhancedRecording: s.hasEnhancedRecording,
 		Interactive:       s.term != nil,
@@ -1512,17 +1512,17 @@ func (s *session) startTerminal(ctx context.Context, scx *ServerContext) error {
 
 // newRecorder creates a new [events.SessionPreparerRecorder] to be used as the recorder
 // of the passed in session.
-func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder, error) {
+func newRecorder(s *session, ctx *ServerContext) (eventsclient.SessionPreparerRecorder, error) {
 	// Nodes discard events in cases when proxies are already recording them.
 	if s.registry.Srv.Component() == teleport.ComponentNode &&
 		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		s.logger.DebugContext(s.serverCtx, "Session will be recorded at proxy.")
-		return events.WithNoOpPreparer(events.NewDiscardRecorder()), nil
+		return eventsclient.WithNoOpPreparer(eventsclient.NewDiscardRecorder()), nil
 	}
 
 	// Don't record non-interactive sessions when enhanced recording is disabled.
 	if ctx.GetTerm() == nil && !ctx.srv.GetBPF().Enabled() {
-		return events.WithNoOpPreparer(events.NewDiscardRecorder()), nil
+		return eventsclient.WithNoOpPreparer(eventsclient.NewDiscardRecorder()), nil
 	}
 
 	rec, err := recorder.New(recorder.Config{
@@ -1548,7 +1548,7 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder
 			)
 
 			s.BroadcastSystemMessage(sessionRecordingWarningMessage)
-			return events.WithNoOpPreparer(events.NewDiscardRecorder()), nil
+			return eventsclient.WithNoOpPreparer(eventsclient.NewDiscardRecorder()), nil
 		}
 
 		return nil, trace.ConnectionProblem(err, sessionRecordingErrorMessage)
@@ -2396,7 +2396,7 @@ func (s *session) recordEvent(ctx context.Context, event apievents.PreparedSessi
 	rec := s.Recorder()
 	select {
 	case <-rec.Done():
-		s.setRecorder(events.WithNoOpPreparer(events.NewDiscardRecorder()))
+		s.setRecorder(eventsclient.WithNoOpPreparer(eventsclient.NewDiscardRecorder()))
 		return nil
 	default:
 		return trace.Wrap(rec.RecordEvent(ctx, event))

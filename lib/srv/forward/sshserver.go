@@ -49,7 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -123,7 +123,7 @@ type Server struct {
 	hostCertificate ssh.Signer
 
 	// StreamEmitter points to the auth service and emits audit events
-	events.StreamEmitter
+	eventsclient.StreamEmitter
 
 	// authHandlers are common authorization and authentication handlers shared
 	// by the regular and forwarding server.
@@ -235,7 +235,7 @@ type ServerConfig struct {
 	HostUUID string
 
 	// Emitter is audit events emitter
-	Emitter events.StreamEmitter
+	Emitter eventsclient.StreamEmitter
 
 	// ParentContext is a parent context, used to signal global
 	// closure
@@ -948,7 +948,7 @@ func (s *Server) handleForwardedTCPIPRequest(ctx context.Context, nch ssh.NewCha
 	go io.Copy(io.Discard, ch.Stderr())
 	ch = scx.TrackActivity(ch)
 
-	event := scx.GetPortForwardEvent(events.PortForwardEvent, events.PortForwardCode, scx.DstAddr)
+	event := scx.GetPortForwardEvent(eventsclient.PortForwardEvent, eventsclient.PortForwardCode, scx.DstAddr)
 	if err := s.EmitAuditEvent(ctx, &event); err != nil {
 		s.logger.ErrorContext(ctx, "Failed to emit audit event", "error", err)
 	}
@@ -1127,7 +1127,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	}
 	defer conn.Close()
 
-	event := scx.GetPortForwardEvent(events.PortForwardEvent, events.PortForwardCode, scx.DstAddr)
+	event := scx.GetPortForwardEvent(eventsclient.PortForwardEvent, eventsclient.PortForwardCode, scx.DstAddr)
 	if err := s.EmitAuditEvent(s.closeContext, &event); err != nil {
 		s.logger.WarnContext(ctx, "Failed to emit port forward event", "error", err)
 	}
@@ -1433,8 +1433,8 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 			Success: true,
 		},
 		Metadata: apievents.Metadata{
-			Type: events.X11ForwardEvent,
-			Code: events.X11ForwardCode,
+			Type: eventsclient.X11ForwardEvent,
+			Code: eventsclient.X11ForwardCode,
 		},
 		UserMetadata: s.identityContext.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
@@ -1445,7 +1445,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 
 	defer func() {
 		if err != nil {
-			event.Metadata.Code = events.X11ForwardFailureCode
+			event.Metadata.Code = eventsclient.X11ForwardFailureCode
 			event.Status.Success = false
 			event.Status.Error = err.Error()
 		}
@@ -1488,8 +1488,8 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 		if err != nil {
 			s.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
 				Metadata: apievents.Metadata{
-					Code: events.SFTPDisallowedCode,
-					Type: events.SFTPEvent,
+					Code: eventsclient.SFTPDisallowedCode,
+					Type: eventsclient.SFTPEvent,
 					Time: time.Now(),
 				},
 				UserMetadata:   serverContext.Identity.GetUserMetadata(),

@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -72,30 +72,30 @@ func GetOpenFileFunc() utils.OpenFileWithFlagsFunc {
 
 const (
 	// minUploadBytes is the minimum part file size required to trigger its upload.
-	minUploadBytes = events.MaxProtoMessageSizeBytes * 2
+	minUploadBytes = eventsclient.MaxProtoMessageSizeBytes * 2
 	// reservationSize is the size new reservations will preallocate.
-	reservationSize = minUploadBytes + events.MaxProtoMessageSizeBytes
+	reservationSize = minUploadBytes + eventsclient.MaxProtoMessageSizeBytes
 )
 
 // NewStreamer creates a streamer sending uploads to disk
-func NewStreamer(dir string) (*events.ProtoStreamer, error) {
+func NewStreamer(dir string) (*eventsclient.ProtoStreamer, error) {
 	handler, err := NewHandler(Config{Directory: dir, OpenFile: GetOpenFileFunc()})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return events.NewProtoStreamer(events.ProtoStreamerConfig{
+	return eventsclient.NewProtoStreamer(eventsclient.ProtoStreamerConfig{
 		Uploader:       handler,
 		MinUploadBytes: minUploadBytes,
 	})
 }
 
 // CreateUpload creates a multipart upload
-func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
+func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*eventsclient.StreamUpload, error) {
 	if err := os.MkdirAll(h.uploadsPath(), teleport.PrivateDirMode); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	upload := events.StreamUpload{
+	upload := eventsclient.StreamUpload{
 		SessionID: sessionID,
 		ID:        uuid.New().String(),
 	}
@@ -111,7 +111,7 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 }
 
 // UploadPart uploads part
-func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
+func (h *Handler) UploadPart(ctx context.Context, upload eventsclient.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*eventsclient.StreamPart, error) {
 	if err := checkUpload(upload); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -133,11 +133,11 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 		lastModified = fi.ModTime()
 	}
 
-	return &events.StreamPart{Number: partNumber, LastModified: lastModified}, nil
+	return &eventsclient.StreamPart{Number: partNumber, LastModified: lastModified}, nil
 }
 
 // CompleteUpload completes the upload
-func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
+func (h *Handler) CompleteUpload(ctx context.Context, upload eventsclient.StreamUpload, parts []eventsclient.StreamPart) error {
 	if err := checkUpload(upload); err != nil {
 		return trace.Wrap(err)
 	}
@@ -197,7 +197,7 @@ Loop:
 	}()
 
 	// Parts must be sorted in PartNumber order.
-	slices.SortFunc(parts, func(a, b events.StreamPart) int {
+	slices.SortFunc(parts, func(a, b eventsclient.StreamPart) int {
 		return cmp.Compare(a.Number, b.Number)
 	})
 
@@ -224,8 +224,8 @@ Loop:
 }
 
 // ListParts lists upload parts
-func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
-	var parts []events.StreamPart
+func (h *Handler) ListParts(ctx context.Context, upload eventsclient.StreamUpload) ([]eventsclient.StreamPart, error) {
+	var parts []eventsclient.StreamPart
 	if err := checkUpload(upload); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -246,7 +246,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 
 			return nil
 		}
-		parts = append(parts, events.StreamPart{
+		parts = append(parts, eventsclient.StreamPart{
 			Number:       part,
 			LastModified: info.ModTime(),
 		})
@@ -264,8 +264,8 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 
 // ListUploads lists uploads that have been initiated but not completed with
 // earlier uploads returned first
-func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error) {
-	var uploads []events.StreamUpload
+func (h *Handler) ListUploads(ctx context.Context) ([]eventsclient.StreamUpload, error) {
+	var uploads []eventsclient.StreamUpload
 
 	dirs, err := os.ReadDir(h.uploadsPath())
 	if err != nil {
@@ -310,7 +310,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			continue
 		}
 
-		uploads = append(uploads, events.StreamUpload{
+		uploads = append(uploads, eventsclient.StreamUpload{
 			SessionID: session.ID(filepath.Base(files[0].Name())),
 			ID:        uploadID,
 			Initiated: info.ModTime(),
@@ -325,15 +325,15 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 }
 
 // GetUploadMetadata gets the metadata for session upload
-func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
-	return events.UploadMetadata{
+func (h *Handler) GetUploadMetadata(s session.ID) eventsclient.UploadMetadata {
+	return eventsclient.UploadMetadata{
 		URL:       fmt.Sprintf("%v://%v/%v", teleport.SchemeFile, h.uploadsPath(), string(s)),
 		SessionID: s,
 	}
 }
 
 // ReserveUploadPart reserves an upload part.
-func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
+func (h *Handler) ReserveUploadPart(ctx context.Context, upload eventsclient.StreamUpload, partNumber int64) error {
 	reservationPath := h.reservationPath(upload, partNumber)
 	if err := h.fileRecorder.ReservePart(ctx, reservationPath, reservationSize); err != nil {
 		return trace.Wrap(err)
@@ -346,19 +346,19 @@ func (h *Handler) uploadsPath() string {
 	return filepath.Join(h.Directory, uploadsDir)
 }
 
-func (h *Handler) uploadRootPath(upload events.StreamUpload) string {
+func (h *Handler) uploadRootPath(upload eventsclient.StreamUpload) string {
 	return filepath.Join(h.uploadsPath(), upload.ID)
 }
 
-func (h *Handler) uploadPath(upload events.StreamUpload) string {
+func (h *Handler) uploadPath(upload eventsclient.StreamUpload) string {
 	return filepath.Join(h.uploadRootPath(upload), string(upload.SessionID))
 }
 
-func (h *Handler) partPath(upload events.StreamUpload, partNumber int64) string {
+func (h *Handler) partPath(upload eventsclient.StreamUpload, partNumber int64) string {
 	return filepath.Join(h.uploadPath(upload), partFileName(partNumber))
 }
 
-func (h *Handler) reservationPath(upload events.StreamUpload, partNumber int64) string {
+func (h *Handler) reservationPath(upload eventsclient.StreamUpload, partNumber int64) string {
 	return filepath.Join(h.uploadPath(upload), reservationFileName(partNumber))
 }
 
@@ -386,7 +386,7 @@ func partFromFileName(fileName string) (int64, error) {
 // checkUpload checks that upload IDs are valid
 // and in addition verifies that upload ID is a valid UUID
 // to avoid file scanning by passing bogus upload ID file paths
-func checkUpload(upload events.StreamUpload) error {
+func checkUpload(upload eventsclient.StreamUpload) error {
 	if err := upload.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}

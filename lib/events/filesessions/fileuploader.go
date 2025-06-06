@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -41,13 +41,13 @@ type Config struct {
 	// Directory is a directory with files
 	Directory string
 	// OnBeforeComplete can be used to inject failures during tests
-	OnBeforeComplete func(ctx context.Context, upload events.StreamUpload) error
+	OnBeforeComplete func(ctx context.Context, upload eventsclient.StreamUpload) error
 	// OpenFile is used by session recording to open OS files
 	OpenFile utils.OpenFileWithFlagsFunc
 }
 
 // nopBeforeComplete does nothing
-func nopBeforeComplete(ctx context.Context, upload events.StreamUpload) error {
+func nopBeforeComplete(ctx context.Context, upload eventsclient.StreamUpload) error {
 	return nil
 }
 

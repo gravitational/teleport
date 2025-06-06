@@ -51,7 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -676,7 +676,7 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 			case teleport.SessionEvent:
 				// Parse event and create events.EventFields that can be consumed directly
 				// by caller.
-				var e events.EventFields
+				var e eventsclient.EventFields
 				err := json.Unmarshal(r.Payload, &e)
 				if err != nil {
 					log.WarnContext(ctx, "Unable to parse event", "event", string(r.Payload), "error", err)
@@ -1007,7 +1007,7 @@ func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSiz
 		if remaining := max - len(sessions); remaining < pageSize {
 			pageSize = remaining
 		}
-		nextEvents, eventKey, err := authClient.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+		nextEvents, eventKey, err := authClient.SearchSessionEvents(ctx, eventsclient.SearchSessionEventsRequest{
 			From:     fromUTC,
 			To:       toUTC,
 			Limit:    pageSize,

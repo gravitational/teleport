@@ -42,7 +42,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -198,7 +198,7 @@ type Config struct {
 	FIPS bool
 
 	// Emitter is event emitter
-	Emitter events.StreamEmitter
+	Emitter eventsclient.StreamEmitter
 
 	// PeerClient is a client to peer proxy servers.
 	PeerClient *peer.Client

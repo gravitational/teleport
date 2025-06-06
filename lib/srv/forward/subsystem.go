@@ -30,7 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/srv"
 )
 
@@ -156,7 +156,7 @@ func (r *remoteSubsystem) Wait() error {
 func (r *remoteSubsystem) emitAuditEvent(ctx context.Context, err error) {
 	subsystemEvent := &apievents.Subsystem{
 		Metadata: apievents.Metadata{
-			Type: events.SubsystemEvent,
+			Type: eventsclient.SubsystemEvent,
 		},
 		UserMetadata: r.serverContext.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
@@ -168,10 +168,10 @@ func (r *remoteSubsystem) emitAuditEvent(ctx context.Context, err error) {
 	}
 
 	if err != nil {
-		subsystemEvent.Code = events.SubsystemFailureCode
+		subsystemEvent.Code = eventsclient.SubsystemFailureCode
 		subsystemEvent.Error = err.Error()
 	} else {
-		subsystemEvent.Code = events.SubsystemCode
+		subsystemEvent.Code = eventsclient.SubsystemCode
 	}
 
 	if err := r.serverContext.GetServer().EmitAuditEvent(ctx, subsystemEvent); err != nil {

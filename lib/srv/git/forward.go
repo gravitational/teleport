@@ -37,7 +37,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -95,7 +95,7 @@ type ForwardServerConfig struct {
 	// AccessPoint is a caching client that provides access to this local cluster.
 	AccessPoint srv.AccessPoint
 	// Emitter is audit events emitter
-	Emitter events.StreamEmitter
+	Emitter eventsclient.StreamEmitter
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 	// KeyManager manages keys for git proxies.
@@ -172,7 +172,7 @@ func (c *ForwardServerConfig) CheckAndSetDefaults() error {
 // ForwardServer is an in-memory SSH server that forwards git commands to remote
 // git-hosting services like "github.com".
 type ForwardServer struct {
-	events.StreamEmitter
+	eventsclient.StreamEmitter
 	cfg    *ForwardServerConfig
 	logger *slog.Logger
 	auth   *srv.AuthHandlers
@@ -339,8 +339,8 @@ func (s *ForwardServer) onRBACFailure(conn ssh.ConnMetadata, ident *sshca.Identi
 	rbacFailureCounter.Inc()
 	s.emitEvent(&apievents.AuthAttempt{
 		Metadata: apievents.Metadata{
-			Type: events.AuthAttemptEvent,
-			Code: events.AuthAttemptFailureCode,
+			Type: eventsclient.AuthAttemptEvent,
+			Code: eventsclient.AuthAttemptFailureCode,
 		},
 		UserMetadata: apievents.UserMetadata{
 			Login:         gitUser,
@@ -544,8 +544,8 @@ func (s *ForwardServer) emitEvent(event apievents.AuditEvent) {
 func (s *ForwardServer) makeGitCommandEvent(sctx *sessionContext, command string, err error) *apievents.GitCommand {
 	event := &apievents.GitCommand{
 		Metadata: apievents.Metadata{
-			Type: events.GitCommandEvent,
-			Code: events.GitCommandCode,
+			Type: eventsclient.GitCommandEvent,
+			Code: eventsclient.GitCommandCode,
 		},
 		UserMetadata:    sctx.Identity.GetUserMetadata(),
 		SessionMetadata: sctx.GetSessionMetadata(),
@@ -559,7 +559,7 @@ func (s *ForwardServer) makeGitCommandEvent(sctx *sessionContext, command string
 		ServerMetadata: s.TargetMetadata(),
 	}
 	if err != nil {
-		event.Metadata.Code = events.GitCommandFailureCode
+		event.Metadata.Code = eventsclient.GitCommandFailureCode
 		event.Error = err.Error()
 	}
 	return event

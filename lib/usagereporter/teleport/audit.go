@@ -23,7 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 )
 
@@ -94,14 +94,14 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		// user activity, event containing teleport.UserSystem should be filtered as
 		// it does not refer to an actual user account.
 		switch e.GetType() {
-		case events.AccessRequestCreateEvent:
+		case eventsclient.AccessRequestCreateEvent:
 			if e.User == "" || e.User == teleport.UserSystem {
 				return nil
 			}
 			return &AccessRequestCreateEvent{
 				UserName: e.User,
 			}
-		case events.AccessRequestReviewEvent:
+		case eventsclient.AccessRequestReviewEvent:
 			if e.Reviewer == "" || e.Reviewer == teleport.UserSystem {
 				return nil
 			}
@@ -126,7 +126,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		}
 	case *apievents.PortForward:
 		sessionType := PortSSHSessionType
-		if e.ConnectionMetadata.Protocol == events.EventProtocolKube {
+		if e.ConnectionMetadata.Protocol == eventsclient.EventProtocolKube {
 			sessionType = PortKubeSessionType
 		}
 		return &SessionStartEvent{
@@ -237,13 +237,13 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		}
 
 		switch e.Metadata.GetType() {
-		case events.DeviceAuthenticateEvent:
+		case eventsclient.DeviceAuthenticateEvent:
 			return &DeviceAuthenticateEvent{
 				DeviceId:     e.Device.DeviceId,
 				UserName:     e.User,
 				DeviceOsType: e.Device.OsType.String(),
 			}
-		case events.DeviceEnrollEvent:
+		case eventsclient.DeviceEnrollEvent:
 			return &DeviceEnrollEvent{
 				DeviceId:     e.Device.DeviceId,
 				UserName:     e.User,
@@ -264,7 +264,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		}
 	case *apievents.DesktopSharedDirectoryStart:
 		// only count successful share attempts
-		if e.Code != events.DesktopSharedDirectoryStartCode {
+		if e.Code != eventsclient.DesktopSharedDirectoryStartCode {
 			return nil
 		}
 

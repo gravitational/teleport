@@ -29,7 +29,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -55,7 +55,7 @@ type AuditConfig struct {
 	// Emitter is used to emit audit events.
 	Emitter apievents.Emitter
 	// Recorder is used to record session events.
-	Recorder events.SessionPreparerRecorder
+	Recorder eventsclient.SessionPreparerRecorder
 }
 
 // Check validates the config.
@@ -100,8 +100,8 @@ func getSessionMetadata(identity *tlsca.Identity) apievents.SessionMetadata {
 func (a *audit) OnSessionStart(ctx context.Context, serverID string, identity *tlsca.Identity, app types.Application) error {
 	event := &apievents.AppSessionStart{
 		Metadata: apievents.Metadata{
-			Type:        events.AppSessionStartEvent,
-			Code:        events.AppSessionStartCode,
+			Type:        eventsclient.AppSessionStartEvent,
+			Code:        eventsclient.AppSessionStartCode,
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
@@ -128,8 +128,8 @@ func (a *audit) OnSessionStart(ctx context.Context, serverID string, identity *t
 func (a *audit) OnSessionEnd(ctx context.Context, serverID string, identity *tlsca.Identity, app types.Application) error {
 	event := &apievents.AppSessionEnd{
 		Metadata: apievents.Metadata{
-			Type:        events.AppSessionEndEvent,
-			Code:        events.AppSessionEndCode,
+			Type:        eventsclient.AppSessionEndEvent,
+			Code:        eventsclient.AppSessionEndCode,
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
@@ -156,8 +156,8 @@ func (a *audit) OnSessionEnd(ctx context.Context, serverID string, identity *tls
 func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, identity *tlsca.Identity, app types.Application) error {
 	event := &apievents.AppSessionChunk{
 		Metadata: apievents.Metadata{
-			Type:        events.AppSessionChunkEvent,
-			Code:        events.AppSessionChunkCode,
+			Type:        eventsclient.AppSessionChunkEvent,
+			Code:        eventsclient.AppSessionChunkCode,
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
@@ -182,8 +182,8 @@ func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, id
 func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *AWSResolvedEndpoint) error {
 	event := &apievents.AppSessionRequest{
 		Metadata: apievents.Metadata{
-			Type: events.AppSessionRequestEvent,
-			Code: events.AppSessionRequestCode,
+			Type: eventsclient.AppSessionRequestEvent,
+			Code: eventsclient.AppSessionRequestCode,
 		},
 		AppMetadata:        *MakeAppMetadata(sessionCtx.App),
 		Method:             req.Method,
@@ -208,8 +208,8 @@ func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContex
 	target := req.Header.Get(awsutils.AmzTargetHeader)
 	event := &apievents.AppSessionDynamoDBRequest{
 		Metadata: apievents.Metadata{
-			Type: events.AppSessionDynamoDBRequestEvent,
-			Code: events.AppSessionDynamoDBRequestCode,
+			Type: eventsclient.AppSessionDynamoDBRequestEvent,
+			Code: eventsclient.AppSessionDynamoDBRequestCode,
 		},
 		UserMetadata:       sessionCtx.Identity.GetUserMetadata(),
 		AppMetadata:        *MakeAppMetadata(sessionCtx.App),
@@ -236,7 +236,7 @@ func (a *audit) EmitEvent(ctx context.Context, e apievents.AuditEvent) error {
 	event := preparedEvent.GetAuditEvent()
 	var emitErr error
 	// AppSessionRequest events should only go to session recording
-	if event.GetType() != events.AppSessionRequestEvent {
+	if event.GetType() != eventsclient.AppSessionRequestEvent {
 		emitErr = a.cfg.Emitter.EmitAuditEvent(ctx, event)
 	}
 

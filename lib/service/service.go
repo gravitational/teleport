@@ -4918,6 +4918,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AWSConfigOptions: []awsconfig.OptionsFn{
 				awsconfig.WithOIDCIntegrationClient(conn.Client),
 			},
+			MiddlewareFn: func(clusterName string) app.AuthMiddleware {
+				return &auth.Middleware{
+					ClusterName:   clusterName,
+					AcceptedUsage: []string{teleport.UsageAppsOnly},
+				}
+			},
 		})
 		if err != nil {
 			return trace.Wrap(err)

@@ -31,7 +31,7 @@ import (
 	"github.com/pkg/sftp"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 )
 
 // fileWrapper is a wrapper for *os.File that implements the WriteTo() method
@@ -155,7 +155,7 @@ func ParseFlags(req *sftp.Request) int {
 func ParseSFTPEvent(req *sftp.Request, workingDirectory string, reqErr error) (*apievents.SFTP, error) {
 	event := &apievents.SFTP{
 		Metadata: apievents.Metadata{
-			Type: events.SFTPEvent,
+			Type: eventsclient.SFTPEvent,
 			Time: time.Now(),
 		},
 	}
@@ -163,65 +163,65 @@ func ParseSFTPEvent(req *sftp.Request, workingDirectory string, reqErr error) (*
 	switch req.Method {
 	case MethodOpen, MethodGet, MethodPut:
 		if reqErr == nil {
-			event.Code = events.SFTPOpenCode
+			event.Code = eventsclient.SFTPOpenCode
 		} else {
-			event.Code = events.SFTPOpenFailureCode
+			event.Code = eventsclient.SFTPOpenFailureCode
 		}
 		event.Action = apievents.SFTPAction_OPEN
 	case MethodSetStat:
 		if reqErr == nil {
-			event.Code = events.SFTPSetstatCode
+			event.Code = eventsclient.SFTPSetstatCode
 		} else {
-			event.Code = events.SFTPSetstatFailureCode
+			event.Code = eventsclient.SFTPSetstatFailureCode
 		}
 		event.Action = apievents.SFTPAction_SETSTAT
 	case MethodList:
 		if reqErr == nil {
-			event.Code = events.SFTPReaddirCode
+			event.Code = eventsclient.SFTPReaddirCode
 		} else {
-			event.Code = events.SFTPReaddirFailureCode
+			event.Code = eventsclient.SFTPReaddirFailureCode
 		}
 		event.Action = apievents.SFTPAction_READDIR
 	case MethodRemove:
 		if reqErr == nil {
-			event.Code = events.SFTPRemoveCode
+			event.Code = eventsclient.SFTPRemoveCode
 		} else {
-			event.Code = events.SFTPRemoveFailureCode
+			event.Code = eventsclient.SFTPRemoveFailureCode
 		}
 		event.Action = apievents.SFTPAction_REMOVE
 	case MethodMkdir:
 		if reqErr == nil {
-			event.Code = events.SFTPMkdirCode
+			event.Code = eventsclient.SFTPMkdirCode
 		} else {
-			event.Code = events.SFTPMkdirFailureCode
+			event.Code = eventsclient.SFTPMkdirFailureCode
 		}
 		event.Action = apievents.SFTPAction_MKDIR
 	case MethodRmdir:
 		if reqErr == nil {
-			event.Code = events.SFTPRmdirCode
+			event.Code = eventsclient.SFTPRmdirCode
 		} else {
-			event.Code = events.SFTPRmdirFailureCode
+			event.Code = eventsclient.SFTPRmdirFailureCode
 		}
 		event.Action = apievents.SFTPAction_RMDIR
 	case MethodRename:
 		if reqErr == nil {
-			event.Code = events.SFTPRenameCode
+			event.Code = eventsclient.SFTPRenameCode
 		} else {
-			event.Code = events.SFTPRenameFailureCode
+			event.Code = eventsclient.SFTPRenameFailureCode
 		}
 		event.Action = apievents.SFTPAction_RENAME
 	case MethodSymlink:
 		if reqErr == nil {
-			event.Code = events.SFTPSymlinkCode
+			event.Code = eventsclient.SFTPSymlinkCode
 		} else {
-			event.Code = events.SFTPSymlinkFailureCode
+			event.Code = eventsclient.SFTPSymlinkFailureCode
 		}
 		event.Action = apievents.SFTPAction_SYMLINK
 	case MethodLink:
 		if reqErr == nil {
-			event.Code = events.SFTPLinkCode
+			event.Code = eventsclient.SFTPLinkCode
 		} else {
-			event.Code = events.SFTPLinkFailureCode
+			event.Code = eventsclient.SFTPLinkFailureCode
 		}
 		event.Action = apievents.SFTPAction_LINK
 	default:

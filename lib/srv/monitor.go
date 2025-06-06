@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -457,8 +457,8 @@ func (w *Monitor) disconnectClient(reason string) {
 func (w *Monitor) emitDisconnectEvent(reason string) error {
 	event := &apievents.ClientDisconnect{
 		Metadata: apievents.Metadata{
-			Type: events.ClientDisconnectEvent,
-			Code: events.ClientDisconnectCode,
+			Type: eventsclient.ClientDisconnectEvent,
+			Code: eventsclient.ClientDisconnectCode,
 		},
 		UserMetadata: apievents.UserMetadata{
 			Login: w.Login,

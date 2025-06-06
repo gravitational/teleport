@@ -16,16 +16,40 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package events
+package eventsclient
 
-import "github.com/gravitational/teleport/lib/eventsclient"
+import (
+	"context"
+	"io"
+	"time"
+
+	"github.com/gravitational/teleport/lib/session"
+)
 
 // UploadHandler is a function supplied by the user, it will upload
 // the file
-type UploadHandler = eventsclient.UploadHandler
+type UploadHandler interface {
+	// Upload uploads session tarball and returns URL with uploaded file
+	// in case of success.
+	Upload(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
+	// Download downloads session tarball and writes it to writer
+	Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error
+}
 
 // MultipartHandler handles both multipart uploads and downloads
-type MultipartHandler = eventsclient.MultipartHandler
+type MultipartHandler interface {
+	UploadHandler
+	MultipartUploader
+}
 
 // UploadEvent is emitted by uploader and is used in tests
-type UploadEvent = eventsclient.UploadEvent
+type UploadEvent struct {
+	// SessionID is a session ID
+	SessionID string
+	// UploadID specifies upload ID for a successful upload
+	UploadID string
+	// Error is set in case if event resulted in error
+	Error error
+	// Created is a time of when the event has been created
+	Created time.Time
+}

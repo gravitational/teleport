@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/decision"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
@@ -120,7 +120,7 @@ type AccessPoint interface {
 type Server interface {
 	// StreamEmitter allows server to emit audit events and create
 	// event streams for recording sessions
-	events.StreamEmitter
+	eventsclient.StreamEmitter
 
 	// ID is the unique ID of the server.
 	ID() string
@@ -876,9 +876,9 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	// client.
 	sessionDataEvent := &apievents.SessionData{
 		Metadata: apievents.Metadata{
-			Index: events.SessionDataIndex,
-			Type:  events.SessionDataEvent,
-			Code:  events.SessionDataCode,
+			Index: eventsclient.SessionDataIndex,
+			Type:  eventsclient.SessionDataEvent,
+			Code:  eventsclient.SessionDataCode,
 		},
 		ServerMetadata:  c.srv.TargetMetadata(),
 		SessionMetadata: c.GetSessionMetadata(),

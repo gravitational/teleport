@@ -41,7 +41,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -259,8 +259,8 @@ func (e *localExec) transformSecureCopy() error {
 	if err != nil {
 		e.Ctx.GetServer().EmitAuditEvent(e.Ctx.CancelContext(), &apievents.SFTP{
 			Metadata: apievents.Metadata{
-				Code: events.SCPDisallowedCode,
-				Type: events.SCPEvent,
+				Code: eventsclient.SCPDisallowedCode,
+				Type: eventsclient.SCPEvent,
 				Time: time.Now(),
 			},
 			UserMetadata:   e.Ctx.Identity.GetUserMetadata(),
@@ -364,8 +364,8 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 	if _, err := checkSCPAllowed(e.ctx, e.GetCommand()); err != nil {
 		e.ctx.GetServer().EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
 			Metadata: apievents.Metadata{
-				Code: events.SCPDisallowedCode,
-				Type: events.SCPEvent,
+				Code: eventsclient.SCPDisallowedCode,
+				Type: eventsclient.SCPEvent,
 				Time: time.Now(),
 			},
 			UserMetadata:   e.ctx.Identity.GetUserMetadata(),
@@ -470,7 +470,7 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	if isSCP {
 		scpEvent := &apievents.SCP{
 			Metadata: apievents.Metadata{
-				Type:        events.SCPEvent,
+				Type:        eventsclient.SCPEvent,
 				ClusterName: ctx.ClusterName,
 			},
 			ServerMetadata:     serverMeta,
@@ -483,17 +483,17 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 		}
 
 		switch action {
-		case events.SCPActionUpload:
+		case eventsclient.SCPActionUpload:
 			if execErr != nil {
-				scpEvent.Code = events.SCPUploadFailureCode
+				scpEvent.Code = eventsclient.SCPUploadFailureCode
 			} else {
-				scpEvent.Code = events.SCPUploadCode
+				scpEvent.Code = eventsclient.SCPUploadCode
 			}
-		case events.SCPActionDownload:
+		case eventsclient.SCPActionDownload:
 			if execErr != nil {
-				scpEvent.Code = events.SCPDownloadFailureCode
+				scpEvent.Code = eventsclient.SCPDownloadFailureCode
 			} else {
-				scpEvent.Code = events.SCPDownloadCode
+				scpEvent.Code = eventsclient.SCPDownloadCode
 			}
 		}
 		if err := ctx.session.emitAuditEvent(ctx.srv.Context(), scpEvent); err != nil {
@@ -502,7 +502,7 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	} else {
 		execEvent := &apievents.Exec{
 			Metadata: apievents.Metadata{
-				Type:        events.ExecEvent,
+				Type:        eventsclient.ExecEvent,
 				ClusterName: ctx.ClusterName,
 			},
 			ServerMetadata:     serverMeta,
@@ -512,9 +512,9 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 			CommandMetadata:    commandMeta,
 		}
 		if execErr != nil {
-			execEvent.Code = events.ExecFailureCode
+			execEvent.Code = eventsclient.ExecFailureCode
 		} else {
-			execEvent.Code = events.ExecCode
+			execEvent.Code = eventsclient.ExecCode
 		}
 		if err := ctx.session.emitAuditEvent(ctx.srv.Context(), execEvent); err != nil {
 			ctx.Logger.WarnContext(ctx.srv.Context(), "Failed to emit exec event", "error", err)
@@ -591,9 +591,9 @@ func parseSecureCopy(path string) (string, string, bool, error) {
 
 	// Look for the -t flag, it indicates that an upload occurred. The other
 	// flags do no matter for now.
-	action := events.SCPActionDownload
+	action := eventsclient.SCPActionDownload
 	if slices.Contains(parts, "-t") {
-		action = events.SCPActionUpload
+		action = eventsclient.SCPActionUpload
 	}
 
 	// Extract the name of the Teleport executable on disk.

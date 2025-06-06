@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/escape"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -443,11 +443,11 @@ func (ns *NodeSession) updateTerminalSize(ctx context.Context, s *tracessh.Sessi
 		// Extract "resize" events in the stream and store the last window size.
 		case event := <-ns.nodeClient.TC.EventsChannel():
 			// Only "resize" events are important to tsh, all others can be ignored.
-			if event.GetType() != events.ResizeEvent {
+			if event.GetType() != eventsclient.ResizeEvent {
 				continue
 			}
 
-			terminalParams, err := session.UnmarshalTerminalParams(event.GetString(events.TerminalSize))
+			terminalParams, err := session.UnmarshalTerminalParams(event.GetString(eventsclient.TerminalSize))
 			if err != nil {
 				log.WarnContext(ctx, "Unable to unmarshal terminal parameters", "error", err)
 				continue
@@ -459,7 +459,7 @@ func (ns *NodeSession) updateTerminalSize(ctx context.Context, s *tracessh.Sessi
 			log.DebugContext(ctx, "Received window size from node in session",
 				"width", lastSize.Width,
 				"height", lastSize.Height,
-				"session_id", event.GetString(events.SessionEventID),
+				"session_id", event.GetString(eventsclient.SessionEventID),
 			)
 
 		// Update size of local terminal with the last size received from remote server.

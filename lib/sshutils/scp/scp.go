@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -83,7 +83,7 @@ type Config struct {
 	// User is a user who runs SCP command
 	User string
 	// AuditLog is AuditLog log
-	AuditLog events.AuditLogSessionStreamer
+	AuditLog eventsclient.AuditLogSessionStreamer
 	// ProgressWriter is a writer for printing the progress
 	// (used only on the client)
 	ProgressWriter io.Writer

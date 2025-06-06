@@ -84,7 +84,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	dtauthntypes "github.com/gravitational/teleport/lib/devicetrust/authn/types"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -1270,7 +1270,7 @@ type TeleportClient struct {
 
 	// eventsCh is a channel used to inform clients about events have that
 	// occurred during the session.
-	eventsCh chan events.EventFields
+	eventsCh chan eventsclient.EventFields
 
 	// Note: there's no mutex guarding this or localAgent, making
 	// TeleportClient NOT safe for concurrent use.
@@ -1298,7 +1298,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	// This channel must be buffered because the SSH connection directly feeds
 	// into it. Delays in pulling messages off the global SSH request channel
 	// could lead to the connection hanging.
-	tc.eventsCh = make(chan events.EventFields, 1024)
+	tc.eventsCh = make(chan eventsclient.EventFields, 1024)
 
 	localAgentCfg := LocalAgentConfig{
 		ClientStore: tc.ClientStore,
@@ -3375,7 +3375,7 @@ func (tc *TeleportClient) WithoutJumpHosts(fn func(tcNoJump *TeleportClient) err
 		Config:         tc.Config,
 		localAgent:     tc.localAgent,
 		OnShellCreated: tc.OnShellCreated,
-		eventsCh:       make(chan events.EventFields, 1024),
+		eventsCh:       make(chan eventsclient.EventFields, 1024),
 		lastPing:       tc.lastPing,
 	}
 	tcNoJump.JumpHosts = nil
@@ -4826,7 +4826,7 @@ func (tc *TeleportClient) AddKeyRing(keyRing *KeyRing) error {
 }
 
 // SendEvent adds a events.EventFields to the channel.
-func (tc *TeleportClient) SendEvent(ctx context.Context, e events.EventFields) error {
+func (tc *TeleportClient) SendEvent(ctx context.Context, e eventsclient.EventFields) error {
 	// Try and send the event to the eventsCh. If blocking, keep blocking until
 	// the passed in context in canceled.
 	select {
@@ -4839,7 +4839,7 @@ func (tc *TeleportClient) SendEvent(ctx context.Context, e events.EventFields) e
 
 // EventsChannel returns a channel that can be used to listen for events that
 // occur for this session.
-func (tc *TeleportClient) EventsChannel() <-chan events.EventFields {
+func (tc *TeleportClient) EventsChannel() <-chan eventsclient.EventFields {
 	return tc.eventsCh
 }
 

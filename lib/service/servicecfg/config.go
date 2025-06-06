@@ -45,7 +45,7 @@ import (
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -294,7 +294,7 @@ type ConfigTesting struct {
 	ConnectFailureC chan time.Duration
 
 	// UploadEventsC is a channel for upload events used in tests
-	UploadEventsC chan events.UploadEvent `json:"-"`
+	UploadEventsC chan eventsclient.UploadEvent `json:"-"`
 
 	// ClientTimeout is set to override default client timeouts
 	// used by internal clients, used to speed up integration tests.

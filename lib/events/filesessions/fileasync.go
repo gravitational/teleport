@@ -37,7 +37,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -57,10 +57,10 @@ type UploaderConfig struct {
 	// ConcurrentUploads sets up how many parallel uploads to schedule
 	ConcurrentUploads int
 	// Streamer is upstream streamer to upload events to
-	Streamer events.Streamer
+	Streamer eventsclient.Streamer
 	// EventsC is an event channel used to signal events
 	// used in tests
-	EventsC chan events.UploadEvent
+	EventsC chan eventsclient.UploadEvent
 	// Component is used for logging purposes
 	Component string
 }
@@ -109,8 +109,8 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 		log:           slog.With(teleport.ComponentKey, cfg.Component),
 		closeC:        make(chan struct{}),
 		semaphore:     make(chan struct{}, cfg.ConcurrentUploads),
-		eventsCh:      make(chan events.UploadEvent, cfg.ConcurrentUploads),
-		eventPreparer: &events.NoOpPreparer{},
+		eventsCh:      make(chan eventsclient.UploadEvent, cfg.ConcurrentUploads),
+		eventPreparer: &eventsclient.NoOpPreparer{},
 	}
 	return uploader, nil
 }
@@ -130,13 +130,13 @@ type Uploader struct {
 	cfg UploaderConfig
 	log *slog.Logger
 
-	eventsCh  chan events.UploadEvent
+	eventsCh  chan eventsclient.UploadEvent
 	closeC    chan struct{}
 	wg        sync.WaitGroup
 	mu        sync.Mutex
 	isClosing bool
 
-	eventPreparer *events.NoOpPreparer
+	eventPreparer *eventsclient.NoOpPreparer
 }
 
 func (u *Uploader) Close() {
@@ -308,7 +308,7 @@ func (u *Uploader) sessionErrorFilePath(sid session.ID) string {
 
 type upload struct {
 	sessionID      session.ID
-	reader         *events.ProtoReader
+	reader         *eventsclient.ProtoReader
 	file           *os.File
 	fileUnlockFn   func() error
 	checkpointFile *os.File
@@ -441,7 +441,7 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 
 	upload := &upload{
 		sessionID:    sessionID,
-		reader:       events.NewProtoReader(sessionFile),
+		reader:       eventsclient.NewProtoReader(sessionFile),
 		file:         sessionFile,
 		fileUnlockFn: unlock,
 	}
@@ -458,7 +458,7 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 		defer u.wg.Done()
 		if err := u.upload(ctx, upload); err != nil {
 			log.WarnContext(ctx, "Upload failed.", "error", err)
-			u.emitEvent(events.UploadEvent{
+			u.emitEvent(eventsclient.UploadEvent{
 				SessionID: string(upload.sessionID),
 				Error:     err,
 				Created:   u.cfg.Clock.Now().UTC(),
@@ -466,7 +466,7 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 			return
 		}
 		log.DebugContext(ctx, "Session upload completed.", "duration", time.Since(start))
-		u.emitEvent(events.UploadEvent{
+		u.emitEvent(eventsclient.UploadEvent{
 			SessionID: string(upload.sessionID),
 			Created:   u.cfg.Clock.Now().UTC(),
 		})
@@ -539,7 +539,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 			// status is written to disk so that we don't create orphaned multipart uploads.
 			return trace.Errorf("failed to write initial stream status: %v", err)
 		}
-	case <-time.After(events.NetworkRetryDuration):
+	case <-time.After(eventsclient.NetworkRetryDuration):
 		return trace.ConnectionProblem(nil, "timeout waiting for stream status update")
 	case <-ctx.Done():
 		return trace.ConnectionProblem(ctx.Err(), "operation has been canceled")
@@ -639,7 +639,7 @@ func (u *Uploader) releaseSemaphore(ctx context.Context) error {
 	}
 }
 
-func (u *Uploader) emitEvent(e events.UploadEvent) {
+func (u *Uploader) emitEvent(e eventsclient.UploadEvent) {
 	// This channel is used by scanner to slow down/speed up.
 	select {
 	case u.eventsCh <- e:

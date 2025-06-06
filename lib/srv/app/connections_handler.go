@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -113,6 +112,8 @@ type ConnectionsHandlerConfig struct {
 
 	// Logger is the slog.Logger.
 	Logger *slog.Logger
+
+	MiddlewareFn func(clusterName string) AuthMiddleware
 }
 
 // CheckAndSetDefaults validates the config values and sets defaults.
@@ -192,12 +193,18 @@ type ConnectionsHandler struct {
 	gcpHandler   http.Handler
 
 	// authMiddleware allows wrapping connections with identity information.
-	authMiddleware *auth.Middleware
+	authMiddleware AuthMiddleware
 
 	proxyPort string
 
 	// getAppByPublicAddress returns a types.Application using the public address as matcher.
 	getAppByPublicAddress func(context.Context, string) (types.Application, error)
+}
+
+type AuthMiddleware interface {
+	http.Handler
+	Wrap(http.Handler)
+	GetUser(connState tls.ConnectionState) (authz.IdentityGetter, error)
 }
 
 // NewConnectionsHandler returns a new ConnectionsHandler.
@@ -647,10 +654,7 @@ func (c *ConnectionsHandler) newHTTPServer(clusterName string) *http.Server {
 	// Reuse the auth.Middleware to authorize requests but only accept
 	// certificates that were specifically generated for applications.
 
-	c.authMiddleware = &auth.Middleware{
-		ClusterName:   clusterName,
-		AcceptedUsage: []string{teleport.UsageAppsOnly},
-	}
+	c.authMiddleware = c.cfg.MiddlewareFn(clusterName)
 	c.authMiddleware.Wrap(c)
 
 	return &http.Server{

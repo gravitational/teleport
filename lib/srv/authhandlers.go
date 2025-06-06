@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/connectmycomputer"
 	"github.com/gravitational/teleport/lib/decision"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -317,8 +317,8 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 		// Emit port forward failure event
 		if err := h.c.Emitter.EmitAuditEvent(h.c.Server.Context(), &apievents.PortForward{
 			Metadata: apievents.Metadata{
-				Type: events.PortForwardEvent,
-				Code: events.PortForwardFailureCode,
+				Type: eventsclient.PortForwardEvent,
+				Code: eventsclient.PortForwardFailureCode,
 			},
 			UserMetadata: ctx.Identity.GetUserMetadata(),
 			ConnectionMetadata: apievents.ConnectionMetadata{
@@ -445,8 +445,8 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 
 		if err := h.c.Emitter.EmitAuditEvent(h.c.Server.Context(), &apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
-				Type: events.AuthAttemptEvent,
-				Code: events.AuthAttemptFailureCode,
+				Type: eventsclient.AuthAttemptEvent,
+				Code: eventsclient.AuthAttemptFailureCode,
 			},
 			UserMetadata: apievents.UserMetadata{
 				Login:         principal,

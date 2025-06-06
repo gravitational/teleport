@@ -29,7 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/eventsclient"
 	"github.com/gravitational/teleport/lib/srv"
 	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
 )
@@ -90,8 +90,8 @@ func (p *SFTPProxy) Serve() error {
 	scx := p.handlers.scx
 	summaryEvent := &apievents.SFTPSummary{
 		Metadata: apievents.Metadata{
-			Type: events.SFTPSummaryEvent,
-			Code: events.SFTPSummaryCode,
+			Type: eventsclient.SFTPSummaryEvent,
+			Code: eventsclient.SFTPSummaryCode,
 			Time: time.Now(),
 		},
 		ServerMetadata:  scx.GetServer().TargetMetadata(),
