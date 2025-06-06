@@ -501,7 +501,9 @@ func TestRootHostUsers(t *testing.T) {
 		assert.Equal(t, expectedShell, userShells[absoluteShellUser])
 		assert.NotEqual(t, expectedShell, userShells[defaultShellUser])
 
-		// User's shell should not be overwritten when updating, only when creating a new host user
+		// User's shell should be overwritten when a different shell
+		// is provided
+		expectedShell = "/usr/bin/sh"
 		_, err = users.UpsertUser(namedShellUser, &decisionpb.HostUsersInfo{
 			Mode:  decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 			Shell: "sh",

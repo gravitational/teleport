@@ -101,9 +101,9 @@ func (*HostUsersProvisioningBackend) LookupGroupByID(gid string) (*user.Group, e
 	return user.LookupGroupId(gid)
 }
 
-// SetUserGroups sets a user's groups, replacing their existing groups.
-func (*HostUsersProvisioningBackend) SetUserGroups(name string, groups []string) error {
-	_, err := host.SetUserGroups(name, groups)
+// UpdateUser sets a user's groups and default shell, replacing their existing groups.
+func (*HostUsersProvisioningBackend) UpdateUser(name string, groups []string, defaultShell string) error {
+	_, err := host.UserUpdate(name, groups, defaultShell)
 	return trace.Wrap(err)
 }
 
@@ -111,6 +111,12 @@ func (*HostUsersProvisioningBackend) SetUserGroups(name string, groups []string)
 func (*HostUsersProvisioningBackend) GetAllUsers() ([]string, error) {
 	users, _, err := host.GetAllUsers()
 	return users, err
+}
+
+// GetDefaultShell returns the default shell for the given username.
+func (*HostUsersProvisioningBackend) GetDefaultShell(username string) (string, error) {
+	shell, err := host.UserShell(username)
+	return shell, trace.Wrap(err)
 }
 
 // CreateGroup creates a group on a host
