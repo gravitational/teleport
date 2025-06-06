@@ -21,6 +21,11 @@
         },
         {
           "type": "doc",
+          "label": "Linux Demo",
+          "id": "linux-demo"
+        },
+        {
+          "type": "doc",
           "label": "Installation",
           "id": "installation"
         },
