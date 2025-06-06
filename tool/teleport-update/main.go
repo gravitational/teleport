@@ -54,6 +54,8 @@ const (
 	updateGroupEnvVar = "TELEPORT_UPDATE_GROUP"
 	// updateVersionEnvVar forces the version to specified value.
 	updateVersionEnvVar = "TELEPORT_UPDATE_VERSION"
+	// selinuxSSHEnvVar allows SELinux behavior to be specified via env var.
+	selinuxSSHEnvVar = "TELEPORT_UPDATE_SELINUX_SSH"
 	// updateLockTimeout is the duration commands will wait for update to complete before failing.
 	updateLockTimeout = 10 * time.Minute
 )
@@ -130,6 +132,8 @@ func Run(args []string) int {
 		Hidden().BoolVar(&ccfg.SelfSetup)
 	enableCmd.Flag("path", "Directory to link the active Teleport installation's binaries into.").
 		Hidden().StringVar(&ccfg.Path)
+	enableCmd.Flag("selinux-ssh", "Install an SELinux module to constrain Teleport SSH.").
+		Hidden().Envar(selinuxSSHEnvVar).IsSetByUser(&ccfg.SELinuxChanged).BoolVar(&ccfg.SELinuxSSH)
 
 	disableCmd := app.Command("disable", "Disable agent managed updates. Does not affect the active installation of Teleport.")
 
@@ -152,6 +156,8 @@ func Run(args []string) int {
 		Hidden().BoolVar(&ccfg.SelfSetup)
 	pinCmd.Flag("path", "Directory to link the active Teleport installation's binaries into.").
 		Hidden().StringVar(&ccfg.Path)
+	pinCmd.Flag("selinux-ssh", "Install an SELinux module to constrain Teleport SSH.").
+		Hidden().Envar(selinuxSSHEnvVar).IsSetByUser(&ccfg.SELinuxChanged).BoolVar(&ccfg.SELinuxSSH)
 
 	unpinCmd := app.Command("unpin", "Unpin the current version, allowing it to be updated.")
 
@@ -170,6 +176,7 @@ func Run(args []string) int {
 		BoolVar(&ccfg.Reload)
 	setupCmd.Flag("path", "Directory that the active Teleport installation's binaries are linked into.").
 		Required().StringVar(&ccfg.Path)
+	setupCmd.Flag("selinux-ssh", "Install the SELinux module for Teleport SSH.").Hidden().BoolVar(&ccfg.SELinuxSSH)
 
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
 
@@ -458,7 +465,7 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = updater.Setup(ctx, ccfg.Path, ccfg.Reload)
+	err = updater.Setup(ctx, ccfg.Path, ccfg.SELinuxSSH, ccfg.Reload)
 	if err != nil {
 		return trace.Wrap(err)
 	}
