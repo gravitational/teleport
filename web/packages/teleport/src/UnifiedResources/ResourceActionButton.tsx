@@ -415,6 +415,10 @@ function TcpAppConnect({ app }: { app: App }) {
   );
 }
 
+/**
+ * MCPAppConnect is the button on an MCP app resource that opens the MCP connect
+ * dialog.
+ */
 function MCPAppConnect({ app }: { app: App }) {
   const [open, setOpen] = useState(false);
 

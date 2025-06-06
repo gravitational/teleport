@@ -30,8 +30,11 @@ import { App } from 'teleport/services/apps';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
+/**
+ * MCPAppConnectDialog shows tsh instructions for connecting to an MCP app.
+ */
 export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
-  const { app } = props;
+  const { app, onClose } = props;
   const ctx = useTeleport();
   const { clusterId } = useStickyClusterId();
   const { username, authType } = ctx.storeUser.state;
@@ -44,7 +47,7 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
         width: '100%',
       })}
       disableEscapeKeyDown={false}
-      onClose={props.onClose}
+      onClose={onClose}
       open={true}
     >
       <DialogHeader mb={4}>
@@ -77,9 +80,7 @@ export function MCPAppConnectDialog(props: { app: App; onClose: () => void }) {
               </Text>
               {' - Log in the MCP server'}
             </Text>
-            <TextSelectCopy
-              text={`tsh mcp login ${app.name}`}
-            />
+            <TextSelectCopy text={`tsh mcp login ${app.name}`} />
           </Stack>
           <Box>
             Restart your AI client to load the updated configuration if

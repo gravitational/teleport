@@ -62,11 +62,13 @@ export interface App {
    */
   permissionSets?: PermissionSet[];
   /**
-   * SamlAppLaunchUrl contains service provider specific authentication
+   * samlAppLaunchUrl contains service provider specific authentication
    * endpoints where user should be launched to start SAML authentication.
    */
   samlAppLaunchUrls?: SamlAppLaunchUrl[];
-
+  /**
+   * mcp contains MCP server specific configurations.
+   */
   mcp?: AppMCP;
 }
 
@@ -107,8 +109,17 @@ export type SamlAppLaunchUrl = {
   friendlyName?: string;
 };
 
+/**
+ * AppMCP contains MCP server specific configurations.
+ */
 export type AppMCP = {
+  /** Command to launch stdio-based MCP servers. */
   command: string;
+  /** Args to execute with the command. */
   args?: string[];
+  /**
+   * The host user account under which the command will be
+   * executed. Required for stdio-based MCP servers.
+   */
   runAsHostUser: string;
 };
