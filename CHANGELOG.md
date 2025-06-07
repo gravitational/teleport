@@ -45,6 +45,10 @@ This vulnerability affects Okta integration users who have access lists sync ena
 
 This vulnerability affects GitHub SSO users. You can check whether you’re using GitHub SSO either on the Zero Trust Access / Auth Connectors page in Teleport web UI or by running “tctl get connectors” CLI command against your cluster.
 
+#### [Medium] Unsanitized user input affecting PKINIT (Kerberos)
+
+* Fixed users being able to overwrite host files on SQL Server database systems when using Kerberos with PKINIT flow. [#55142](https://github.com/gravitational/teleport/pull/55142)
+
 ### Other fixes and improvements
 
 * Allow the `ssh_service.listen_addr` to forcibly be enabled when operating in reverse tunnel mode to provide an optional direct access path to hosts. [#54215](https://github.com/gravitational/teleport/pull/54215)
@@ -54,7 +58,6 @@ This vulnerability affects GitHub SSO users. You can check whether you’re usin
 * UI: Access Request reason prompts configured in Role.spec.options.request_prompt are now displayed in the reason text box, if such a role is assigned to the user. [#55173](https://github.com/gravitational/teleport/pull/55173)
 * Okta: Fixed RBAC sync and Access Requests when only App and Group sync is enabled (no Access Lists sync). [#55169](https://github.com/gravitational/teleport/pull/55169)
 * Fixed `tctl` rendering of timestamps in BotInstance resource YAML. [#55163](https://github.com/gravitational/teleport/pull/55163)
-* Fix the impact of malicious `--db-user` values on PKINIT flow. [#55142](https://github.com/gravitational/teleport/pull/55142)
 * Fix an issue with Hardware Key Support on Windows where a command would fail if the PIN prompt was not answered within 5 seconds. [#55110](https://github.com/gravitational/teleport/pull/55110)
 * Fix an issue "Allowed Users" from "tsh db ls" may include irrelevant entities. [#55068](https://github.com/gravitational/teleport/pull/55068)
 * Updated Web UI, tsh and Connect SSO login to support SAML `http-post` binding authentication method. The feature can be enabled from the SSO connector configuration by adding a new field as `preferred_request_binding: http-post`. [#55065](https://github.com/gravitational/teleport/pull/55065)
