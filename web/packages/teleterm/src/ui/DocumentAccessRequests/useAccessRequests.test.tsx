@@ -89,6 +89,8 @@ test('makeUiAccessRequest', async () => {
       seconds: 1709853650n,
       nanos: 520000000,
     },
+    reasonMode: 'optional',
+    reasonPrompts: [],
   };
 
   const processedRequest: AccessRequest = {
