@@ -296,7 +296,7 @@ user:
 
 ## Requiring request reasons
 
-The `allow.request.reason.mode` field controls whether a reason is required when users submit
+The `spec.allow.request.reason.mode` field controls whether a reason is required when users submit
 Access Requests.
 
 Allowed values are:
@@ -328,6 +328,12 @@ If a user with "node-requester" role assigned makes an Access Request for "node-
 resource allowed by "root-node-access" they will be required to provide a reason. If a user's
 role set includes multiple roles governing Access Requests to the same roles and resources,
 "require" mode takes precedence.
+
+## Custom request reason prompts
+
+As of right now it's only possible specify a custom prompt for all or none of the Access Requests
+for a particular user. A custom request prompt can be specified by assigned the user a role with
+`spec.options.request_prompt` set to non-empty string.
 
 ## Review thresholds
 
