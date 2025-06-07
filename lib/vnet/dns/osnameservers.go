@@ -24,17 +24,19 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // OSUpstreamNameserverSource provides the list of upstream DNS nameservers
 // configured in the OS. The VNet DNS resolver will forward unhandles queries to
 // these nameservers.
 type OSUpstreamNameserverSource struct {
-	ttlCache *utils.FnCache
+	ttlCache  *utils.FnCache
+	localAddr netip.Addr
 }
 
 // NewOSUpstreamNameserverSource returns a new *OSUpstreamNameserverSource.
-func NewOSUpstreamNameserverSource() (*OSUpstreamNameserverSource, error) {
+func NewOSUpstreamNameserverSource(localAddr netip.Addr) (*OSUpstreamNameserverSource, error) {
 	ttlCache, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL: 10 * time.Second,
 	})
@@ -42,18 +44,28 @@ func NewOSUpstreamNameserverSource() (*OSUpstreamNameserverSource, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &OSUpstreamNameserverSource{
-		ttlCache: ttlCache,
+		ttlCache:  ttlCache,
+		localAddr: localAddr,
 	}, nil
 }
 
 // UpstreamNameservers returns a cached view of the host OS's current default
 // nameservers.
 func (s *OSUpstreamNameserverSource) UpstreamNameservers(ctx context.Context) ([]string, error) {
-	return utils.FnCacheGet(ctx, s.ttlCache, 0, loadUpstreamNameservers)
+	return utils.FnCacheGet(ctx, s.ttlCache, 0, s.loadUpstreamNameservers)
 }
 
-func loadUpstreamNameservers(ctx context.Context) ([]string, error) {
-	return platformLoadUpstreamNameservers(ctx)
+func (s *OSUpstreamNameserverSource) loadUpstreamNameservers(ctx context.Context) ([]string, error) {
+	allNameservers, err := platformLoadUpstreamNameservers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return slices.FilterMapUnique(allNameservers, func(addr netip.Addr) (string, bool) {
+		if addr.Compare(s.localAddr) == 0 {
+			return "", false
+		}
+		return withDNSPort(addr), true
+	}), nil
 }
 
 func withDNSPort(addr netip.Addr) string {

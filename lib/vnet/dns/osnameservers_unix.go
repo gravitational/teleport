@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//go:build linux || darwin
+
 package dns
 
 import (
@@ -22,13 +24,10 @@ import (
 	"log/slog"
 	"net/netip"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/gravitational/trace"
-)
-
-const (
-	confFilePath = "/etc/resolv.conf"
 )
 
 // platformLoadUpstreamNameservers reads the OS DNS nameservers found in
@@ -37,14 +36,28 @@ const (
 // with the current default nameservers as configured for the OS, and it is the
 // easiest place to read them. Eventually we should probably use a better
 // method, but for now this works.
-func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
+func platformLoadUpstreamNameservers(ctx context.Context) ([]netip.Addr, error) {
+	// TODO: this is very hacky and just happens to work on the EC2 I've been
+	// testing on, figure out a good way to find upstream nameservers on Linux
+	// or a better way of resolving queries VNet can't handle (names in custom
+	// DNS zones that don't match a teleport app may resolve to some other
+	// company internal app outside of VNet/Teleport).
+	var confFilePath string
+	switch runtime.GOOS {
+	case "darwin":
+		confFilePath = "/etc/resolv.conf"
+	case "linux":
+		confFilePath = "/run/systemd/resolve/resolv.conf"
+	default:
+		return nil, trace.NotImplemented("unsupported os %s", runtime.GOOS)
+	}
 	f, err := os.Open(confFilePath)
 	if err != nil {
 		return nil, trace.Wrap(err, "opening %s", confFilePath)
 	}
 	defer f.Close()
 
-	var nameservers []string
+	var nameservers []netip.Addr
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -63,7 +76,7 @@ func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
 			continue
 		}
 
-		nameservers = append(nameservers, withDNSPort(ip))
+		nameservers = append(nameservers, ip)
 	}
 
 	slog.DebugContext(ctx, "Loaded host upstream nameservers.", "nameservers", nameservers, "config_file", confFilePath)

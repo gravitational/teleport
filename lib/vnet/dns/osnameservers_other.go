@@ -14,12 +14,13 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin && !windows
+//go:build !darwin && !windows && !linux
 
 package dns
 
 import (
 	"context"
+	"net/netip"
 	"runtime"
 
 	"github.com/gravitational/trace"
@@ -33,6 +34,6 @@ var (
 	_ = withDNSPort
 )
 
-func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
+func platformLoadUpstreamNameservers(ctx context.Context) ([]netip.Addr, error) {
 	return nil, trace.Wrap(vnetNotImplemented)
 }

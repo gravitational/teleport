@@ -30,7 +30,7 @@ import (
 // platformLoadUpstreamNameservers attempts to find the default DNS nameservers
 // that VNet should forward unmatched queries to. To do this, it finds the
 // nameservers configured for each interface and sorts by the interface metric.
-func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
+func platformLoadUpstreamNameservers(ctx context.Context) ([]netip.Addr, error) {
 	interfaces, err := winipcfg.GetIPInterfaceTable(windows.AF_INET)
 	if err != nil {
 		return nil, trace.Wrap(err, "looking up local network interfaces")
@@ -38,7 +38,7 @@ func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
 	sort.Slice(interfaces, func(i, j int) bool {
 		return interfaces[i].Metric < interfaces[j].Metric
 	})
-	var nameservers []string
+	var nameservers []netip.Addr
 	for _, iface := range interfaces {
 		ifaceNameservers, err := iface.InterfaceLUID.DNS()
 		if err != nil {
@@ -48,7 +48,7 @@ func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
 			if ignoreUpstreamNameserver(ifaceNameserver) {
 				continue
 			}
-			nameservers = append(nameservers, withDNSPort(ifaceNameserver))
+			nameservers = append(nameservers, ifaceNameserver)
 		}
 	}
 	slog.DebugContext(ctx, "Loaded host upstream nameservers", "nameservers", nameservers)
