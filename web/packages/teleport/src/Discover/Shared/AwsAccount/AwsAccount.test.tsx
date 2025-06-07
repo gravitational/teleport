@@ -47,8 +47,6 @@ beforeEach(() => {
         kind: IntegrationKind.AwsOidc,
         spec: {
           roleArn: 'arn:aws:iam::123456789012:role/test1',
-          issuerS3Bucket: '',
-          issuerS3Prefix: '',
         },
         statusCode: IntegrationStatusCode.Running,
       },

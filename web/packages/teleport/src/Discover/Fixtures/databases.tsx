@@ -91,8 +91,6 @@ export function getSelectedAwsPostgresDbMeta(): DbMeta {
       resourceType: 'integration',
       spec: {
         roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
-        issuerS3Bucket: '',
-        issuerS3Prefix: '',
       },
       statusCode: IntegrationStatusCode.Running,
     },

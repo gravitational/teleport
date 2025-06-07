@@ -31,8 +31,7 @@ func TestIntegrationJSONMarshalCycle(t *testing.T) {
 	aws, err := NewIntegrationAWSOIDC(
 		Metadata{Name: "some-integration"},
 		&AWSOIDCIntegrationSpecV1{
-			RoleARN:     "arn:aws:iam::123456789012:role/DevTeams",
-			IssuerS3URI: "s3://my-bucket/my-prefix",
+			RoleARN: "arn:aws:iam::123456789012:role/DevTeams",
 		},
 	)
 	require.NoError(t, err)
@@ -89,8 +88,7 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 						Name: name,
 					},
 					&AWSOIDCIntegrationSpecV1{
-						RoleARN:     "some arn role",
-						IssuerS3URI: "s3://my-issuer/my-prefix",
+						RoleARN: "some arn role",
 					},
 				)
 			},
@@ -108,9 +106,8 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 					Spec: IntegrationSpecV1{
 						SubKindSpec: &IntegrationSpecV1_AWSOIDC{
 							AWSOIDC: &AWSOIDCIntegrationSpecV1{
-								RoleARN:     "some arn role",
-								IssuerS3URI: "s3://my-issuer/my-prefix",
-								Audience:    "",
+								RoleARN:  "some arn role",
+								Audience: "",
 							},
 						},
 					},
@@ -126,9 +123,8 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 						Name: name,
 					},
 					&AWSOIDCIntegrationSpecV1{
-						RoleARN:     "some arn role",
-						IssuerS3URI: "s3://my-issuer/my-prefix",
-						Audience:    IntegrationAWSOIDCAudienceAWSIdentityCenter,
+						RoleARN:  "some arn role",
+						Audience: IntegrationAWSOIDCAudienceAWSIdentityCenter,
 					},
 				)
 			},
@@ -146,9 +142,8 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 					Spec: IntegrationSpecV1{
 						SubKindSpec: &IntegrationSpecV1_AWSOIDC{
 							AWSOIDC: &AWSOIDCIntegrationSpecV1{
-								RoleARN:     "some arn role",
-								IssuerS3URI: "s3://my-issuer/my-prefix",
-								Audience:    IntegrationAWSOIDCAudienceAWSIdentityCenter,
+								RoleARN:  "some arn role",
+								Audience: IntegrationAWSOIDCAudienceAWSIdentityCenter,
 							},
 						},
 					},
@@ -164,36 +159,6 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 						Name: name,
 					},
 					nil,
-				)
-			},
-			expectedErrorIs: trace.IsBadParameter,
-		},
-		{
-			name: "aws-oidc: error when issuer is not a valid url",
-			integration: func(name string) (*IntegrationV1, error) {
-				return NewIntegrationAWSOIDC(
-					Metadata{
-						Name: name,
-					},
-					&AWSOIDCIntegrationSpecV1{
-						RoleARN:     "some-role",
-						IssuerS3URI: "not-a-url",
-					},
-				)
-			},
-			expectedErrorIs: trace.IsBadParameter,
-		},
-		{
-			name: "aws-oidc: issuer is not an s3 url",
-			integration: func(name string) (*IntegrationV1, error) {
-				return NewIntegrationAWSOIDC(
-					Metadata{
-						Name: name,
-					},
-					&AWSOIDCIntegrationSpecV1{
-						RoleARN:     "some-role",
-						IssuerS3URI: "http://localhost:8080",
-					},
 				)
 			},
 			expectedErrorIs: trace.IsBadParameter,

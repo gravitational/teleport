@@ -97,9 +97,7 @@ func TestIntegrationCRUD(t *testing.T) {
 		Name:    "my-aws-account",
 		SubKind: types.IntegrationSubKindAWSOIDC,
 		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
-			RoleARN:        "arn:aws:iam::123456789012:role/DevTeam",
-			IssuerS3Bucket: "my-bucket",
-			IssuerS3Prefix: "prefix",
+			RoleARN: "arn:aws:iam::123456789012:role/DevTeam",
 		},
 	}
 
@@ -129,18 +127,14 @@ func TestIntegrationCRUD(t *testing.T) {
 		Name:    "my-aws-account",
 		SubKind: types.IntegrationSubKindAWSOIDC,
 		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
-			RoleARN:        "arn:aws:iam::123456789012:role/DevTeam",
-			IssuerS3Bucket: "my-bucket",
-			IssuerS3Prefix: "prefix",
+			RoleARN: "arn:aws:iam::123456789012:role/DevTeam",
 		},
 	}, integrationResp, string(respBody))
 
 	// Update the integration to another RoleARN
 	respStatusCode, respBody = webPack.DoRequest(t, http.MethodPut, integrationsEndpoint+"/my-aws-account", ui.UpdateIntegrationRequest{
 		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
-			RoleARN:        "arn:aws:iam::123456789012:role/OpsTeam",
-			IssuerS3Bucket: "my-bucket",
-			IssuerS3Prefix: "my-prefix",
+			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
 		},
 	})
 	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
@@ -152,9 +146,7 @@ func TestIntegrationCRUD(t *testing.T) {
 		Name:    "my-aws-account",
 		SubKind: types.IntegrationSubKindAWSOIDC,
 		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
-			RoleARN:        "arn:aws:iam::123456789012:role/OpsTeam",
-			IssuerS3Bucket: "my-bucket",
-			IssuerS3Prefix: "my-prefix",
+			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
 		},
 	}, integrationResp, string(respBody))
 
@@ -190,9 +182,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			Name:    fmt.Sprintf("aws-integration-%d", i),
 			SubKind: types.IntegrationSubKindAWSOIDC,
 			AWSOIDC: &ui.IntegrationAWSOIDCSpec{
-				RoleARN:        "arn:aws:iam::123456789012:role/DevTeam",
-				IssuerS3Bucket: "my-bucket",
-				IssuerS3Prefix: "my-prefix",
+				RoleARN: "arn:aws:iam::123456789012:role/DevTeam",
 			},
 		}
 

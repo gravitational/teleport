@@ -64,10 +64,6 @@ test('user acknowledging script was ran when reconfiguring', async () => {
   expect(edit()).not.toBeInTheDocument();
   expect(save()).not.toBeInTheDocument();
 
-  // Check s3 related fields are not rendered.
-  expect(screen.queryByText(/not recommended/)).not.toBeInTheDocument();
-  expect(screen.queryByText('Amazon S3')).not.toBeInTheDocument();
-
   // change role arn
   fireEvent.change(screen.getByPlaceholderText(/arn:aws:iam:/i), {
     target: { value: 'arn:aws:iam::123456789011:role/other' },
@@ -147,51 +143,6 @@ test('health check is called before calling update', async () => {
   expect(pingOrder).toBeLessThan(createOrder);
 });
 
-test('render warning when s3 buckets are present', async () => {
-  const edit = jest.fn(() => Promise.resolve());
-  render(
-    <EditAwsOidcIntegrationDialog
-      close={() => null}
-      edit={edit}
-      integration={{
-        resourceType: 'integration',
-        kind: IntegrationKind.AwsOidc,
-        name: 'some-integration-name',
-        spec: {
-          roleArn: 'arn:aws:iam::123456789012:role/johndoe',
-          issuerS3Bucket: 'some-bucket',
-          issuerS3Prefix: 'some-prefix',
-        },
-        statusCode: IntegrationStatusCode.Running,
-      }}
-    />
-  );
-
-  // Initial state.
-  expect(screen.queryByTestId('scriptbox')).not.toBeInTheDocument();
-  expect(screen.queryByLabelText(/I ran the command/i)).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /reconfigure/i })).toBeEnabled();
-
-  // Check s3 related fields/warnings are rendered.
-  expect(
-    screen.getByRole('button', { name: /reconfigure/i })
-  ).toBeInTheDocument();
-  expect(screen.getByText(/not recommended/)).toBeInTheDocument();
-  expect(screen.getByText(/Amazon S3 Location/)).toBeInTheDocument();
-
-  // Clicking on reconfigure should hide s3 fields.
-  await userEvent.click(screen.getByRole('button', { name: /reconfigure/i }));
-  await screen.findByText(/AWS CloudShell/);
-  expect(screen.queryByText(/not recommended/)).not.toBeInTheDocument();
-  expect(screen.queryByText('/Amazon S3 Location/')).not.toBeInTheDocument();
-
-  // Clicking on edit, should render it back.
-  await userEvent.click(screen.getByRole('button', { name: /edit/i }));
-
-  await screen.findByText(/not recommended/);
-  await screen.findByText(/Amazon S3 Location/);
-});
-
 test('edit invalid fields', async () => {
   render(
     <EditAwsOidcIntegrationDialog
@@ -204,7 +155,6 @@ test('edit invalid fields', async () => {
   expect(
     screen.queryByRole('button', { name: /save/i })
   ).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /reconfigure/i })).toBeEnabled();
 
   // invalid role arn
   fireEvent.change(screen.getByPlaceholderText(/arn:aws:iam:/i), {
@@ -238,14 +188,6 @@ test('edit submit called with proper fields', async () => {
     target: { value: 'arn:aws:iam::123456789011:role/other' },
   });
 
-  // change s3 fields
-  fireEvent.change(screen.getByPlaceholderText(/bucket/i), {
-    target: { value: 'other-bucket' },
-  });
-  fireEvent.change(screen.getByPlaceholderText(/prefix/i), {
-    target: { value: 'other-prefix' },
-  });
-
   await waitFor(() =>
     expect(screen.getByRole('button', { name: /reconfigure/i })).toBeEnabled()
   );
@@ -272,8 +214,6 @@ const integration: IntegrationAwsOidc = {
   name: 'some-integration-name',
   spec: {
     roleArn: 'arn:aws:iam::123456789012:role/johndoe',
-    issuerS3Bucket: 's3-bucket',
-    issuerS3Prefix: 's3-prefix',
   },
   statusCode: IntegrationStatusCode.Running,
 };

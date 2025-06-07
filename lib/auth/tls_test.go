@@ -953,8 +953,6 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 
 	publicAddress := "https://localhost:8080"
 
-	issuer := "https://my-bucket.s3.amazonaws.com/prefix"
-
 	proxyServer, err := types.NewServer("proxy-hostname", types.KindProxy, types.ServerSpecV2{
 		PublicAddrs: []string{publicAddress},
 	})
@@ -968,8 +966,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	ig, err := types.NewIntegrationAWSOIDC(
 		types.Metadata{Name: integrationName},
 		&types.AWSOIDCIntegrationSpecV1{
-			RoleARN:     "arn:aws:iam::123456789012:role/OpsTeam",
-			IssuerS3URI: "s3://my-bucket/prefix",
+			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
 		},
 	)
 	require.NoError(t, err)
@@ -994,7 +991,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.Len(t, oldCA.GetTrustedJWTKeyPairs(), 1)
 
 	// Verify that the JWT token validates with the JWT authority.
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT, issuer)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT, publicAddress)
 	require.NoError(t, err, clock.Now())
 
 	// Start rotation and move to initial phase. A new CA will be added (for
@@ -1018,7 +1015,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.Len(t, oldCA.GetTrustedJWTKeyPairs(), 2)
 
 	// Verify that the JWT token validates with the JWT authority.
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT, issuer)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT, publicAddress)
 	require.NoError(t, err)
 
 	// Move rotation into the update client phase. In this phase, requests will
@@ -1045,9 +1042,9 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
 
 	// Both JWT should now validate.
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT, issuer)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT, publicAddress)
 	require.NoError(t, err)
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT, issuer)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT, publicAddress)
 	require.NoError(t, err)
 
 	// Move rotation into update servers phase.
@@ -1069,9 +1066,9 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
 
 	// Both JWT should continue to validate.
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT, issuer)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT, publicAddress)
 	require.NoError(t, err)
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT, issuer)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT, publicAddress)
 	require.NoError(t, err)
 
 	// Complete rotation. The old CA will be removed.
@@ -1093,9 +1090,9 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 1)
 
 	// Old token should no longer validate.
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT, issuer)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT, publicAddress)
 	require.Error(t, err)
-	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT, issuer)
+	_, err = verifyJWTAWSOIDC(clock, testSrv.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT, publicAddress)
 	require.NoError(t, err)
 }
 

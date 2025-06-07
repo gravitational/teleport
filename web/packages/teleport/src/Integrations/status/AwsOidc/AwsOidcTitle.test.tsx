@@ -35,8 +35,6 @@ const testIntegration: IntegrationAwsOidc = {
   resourceType: 'integration',
   spec: {
     roleArn: '',
-    issuerS3Bucket: '',
-    issuerS3Prefix: '',
   },
   statusCode: IntegrationStatusCode.Running,
 };

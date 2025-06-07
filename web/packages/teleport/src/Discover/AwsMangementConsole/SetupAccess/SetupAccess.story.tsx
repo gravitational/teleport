@@ -158,8 +158,6 @@ const Provider = ({
           statusCode: IntegrationStatusCode.Running,
           spec: {
             roleArn: 'arn:aws:iam::123456789012:role/some-iam-role-name',
-            issuerS3Bucket: '',
-            issuerS3Prefix: '',
           },
         },
       }}
