@@ -22,6 +22,8 @@ import (
 
 type mcpCommands struct {
 	dbStart *mcpDBStartCommand
+
+	connect *mcpConnectCommand
 	list    *mcpListCommand
 }
 
@@ -30,6 +32,8 @@ func newMCPCommands(app *kingpin.Application, cf *CLIConf) *mcpCommands {
 	db := mcp.Command("db", "Database access for MCP servers.")
 	return &mcpCommands{
 		dbStart: newMCPDBCommand(db),
+
+		connect: newMCPConnectCommand(mcp, cf),
 		list:    newMCPListCommand(mcp, cf),
 	}
 }

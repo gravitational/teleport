@@ -2965,6 +2965,8 @@ func TestApplyTraits(t *testing.T) {
 		outKubeResources        []types.KubernetesResource
 		inGitHubPermissions     []types.GitHubPermission
 		outGitHubPermissions    []types.GitHubPermission
+		inMCPPermissions        *types.MCPPermissions
+		outMCPPermissions       *types.MCPPermissions
 	}
 	tests := []struct {
 		comment  string
@@ -3761,6 +3763,34 @@ func TestApplyTraits(t *testing.T) {
 				}},
 			},
 		},
+		{
+			comment: "MCP permissions in allow rule",
+			inTraits: map[string][]string{
+				"mcp_tools": {"get_*", "search_files"},
+			},
+			allow: rule{
+				inMCPPermissions: &types.MCPPermissions{
+					Tools: []string{"{{internal.mcp_tools}}"},
+				},
+				outMCPPermissions: &types.MCPPermissions{
+					Tools: []string{"get_*", "search_files"},
+				},
+			},
+		},
+		{
+			comment: "MCP permissions in deny rule",
+			inTraits: map[string][]string{
+				"mcp_tools": {"get_*", "search_files"},
+			},
+			deny: rule{
+				inMCPPermissions: &types.MCPPermissions{
+					Tools: []string{"{{internal.mcp_tools}}"},
+				},
+				outMCPPermissions: &types.MCPPermissions{
+					Tools: []string{"get_*", "search_files"},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
@@ -3793,6 +3823,7 @@ func TestApplyTraits(t *testing.T) {
 						HostSudoers:          tt.allow.inSudoers,
 						KubernetesResources:  tt.allow.inKubeResources,
 						GitHubPermissions:    tt.allow.inGitHubPermissions,
+						MCP:                  tt.allow.inMCPPermissions,
 					},
 					Deny: types.RoleConditions{
 						Logins:               tt.deny.inLogins,
@@ -3815,6 +3846,7 @@ func TestApplyTraits(t *testing.T) {
 						HostSudoers:          tt.deny.outSudoers,
 						KubernetesResources:  tt.deny.inKubeResources,
 						GitHubPermissions:    tt.deny.inGitHubPermissions,
+						MCP:                  tt.deny.inMCPPermissions,
 					},
 				},
 			}
