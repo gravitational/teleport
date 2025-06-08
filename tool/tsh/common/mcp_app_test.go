@@ -307,7 +307,7 @@ deny-write description stdio env=dev test    arg  [*], except: [write_*]
 	}
 }
 
-func Test_mcpLoginCommand(t *testing.T) {
+func Test_mcpConfigCommand(t *testing.T) {
 	devLabels := map[string]string{"env": "dev"}
 	prodLabels := map[string]string{"env": "prod"}
 	devMCPApp1 := mustMakeNewAppServer(t, mustMakeMCPAppWithNameAndLabels(t, "dev1", devLabels), "host")
@@ -387,7 +387,7 @@ func Test_mcpLoginCommand(t *testing.T) {
 			disableConfigFile: true,
 			checkError:        require.NoError,
 			// Hints for config file flags.
-			wantOutputContains: "Use --format=claude",
+			wantOutputContains: "Tip:",
 			wantNamesInConfig:  []string{"local-everything"},
 		},
 	}
@@ -402,11 +402,10 @@ func Test_mcpLoginCommand(t *testing.T) {
 			tt.cf.OverrideStdout = &buf
 			mustCreateEmptyProfile(t, tt.cf)
 
-			cmd := mcpLoginCommand{
-				configFile: mcpConfigFileFlags{
-					path:       configPath,
-					jsonFormat: "pretty",
-					allowUnset: true,
+			cmd := mcpConfigCommand{
+				clientConfig: mcpClientConfigFlags{
+					clientConfig: configPath,
+					jsonFormat:   "pretty",
 				},
 				cf: tt.cf,
 				fetchFunc: func(ctx context.Context, tc *client.TeleportClient, _ apiclient.GetResourcesClient) ([]types.Application, error) {
@@ -415,90 +414,13 @@ func Test_mcpLoginCommand(t *testing.T) {
 			}
 
 			if tt.disableConfigFile {
-				cmd.configFile = mcpConfigFileFlags{
-					allowUnset: true,
-				}
+				cmd.clientConfig.clientConfig = ""
 			}
 
 			err := cmd.run()
 			tt.checkError(t, err)
 			mustHaveMCPServerNamesInConfig(t, configPath, tt.wantNamesInConfig)
 			require.Contains(t, buf.String(), tt.wantOutputContains)
-		})
-	}
-}
-
-func Test_mcpLogoutCommand(t *testing.T) {
-	tests := []struct {
-		name              string
-		appName           string
-		checkError        require.ErrorAssertionFunc
-		wantNamesInConfig []string
-	}{
-		{
-			name:       "not found",
-			appName:    "not-found",
-			checkError: require.Error,
-			wantNamesInConfig: []string{
-				"local-everything",
-				"teleport-mcp-leftover",
-				"teleport-mcp-by-app-name",
-				"teleport-mcp-by-full-name",
-			},
-		},
-		{
-			name:       "by app name",
-			appName:    "by-app-name",
-			checkError: require.NoError,
-			wantNamesInConfig: []string{
-				"local-everything",
-				"teleport-mcp-leftover",
-				"teleport-mcp-by-full-name",
-			},
-		},
-		{
-			name:       "by full name",
-			appName:    "teleport-mcp-by-full-name",
-			checkError: require.NoError,
-			wantNamesInConfig: []string{
-				"local-everything",
-				"teleport-mcp-leftover",
-				"teleport-mcp-by-app-name",
-			},
-		},
-		{
-			name:       "remove all",
-			appName:    "",
-			checkError: require.NoError,
-			wantNamesInConfig: []string{
-				"local-everything",
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			configPath := setupMockMCPConfig(t,
-				withMockTeleportMCPServerApp("leftover"),
-				withMockTeleportMCPServerApp("by-app-name"),
-				withMockTeleportMCPServerApp("by-full-name"),
-			)
-
-			var buf bytes.Buffer
-			cmd := &mcpLogoutCommand{
-				configFile: mcpConfigFileFlags{
-					path:       configPath,
-					jsonFormat: "pretty",
-				},
-				cf: &CLIConf{
-					Context:        context.Background(),
-					AppName:        tt.appName,
-					executablePath: "tsh-test",
-					OverrideStdout: &buf,
-				},
-			}
-			err := cmd.run()
-			tt.checkError(t, err)
-			mustHaveMCPServerNamesInConfig(t, configPath, tt.wantNamesInConfig)
 		})
 	}
 }

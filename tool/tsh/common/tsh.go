@@ -745,8 +745,7 @@ const (
 	proxyKubeConfigEnvVar     = "TELEPORT_KUBECONFIG"
 	noResumeEnvVar            = "TELEPORT_NO_RESUME"
 	requestModeEnvVar         = "TELEPORT_REQUEST_MODE"
-	mcpConfigFormatEnvVar     = "TELEPORT_MCP_CONFIG_FORMAT"
-	mcpConfigFileEnvVar       = "TELEPORT_MCP_CONFIG_FILE"
+	mcpClientConfigEnvVar     = "TELEPORT_MCP_CLIENT_CONFIG"
 	mcpConfigJSONFormatEnvVar = "TELEPORT_MCP_CONFIG_JSON_FORMAT"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
@@ -1758,10 +1757,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = mcpCmd.dbStart.run(&cf)
 	case mcpCmd.list.FullCommand():
 		err = mcpCmd.list.run()
-	case mcpCmd.login.FullCommand():
-		err = mcpCmd.login.run()
-	case mcpCmd.logout.FullCommand():
-		err = mcpCmd.logout.run()
+	case mcpCmd.config.FullCommand():
+		err = mcpCmd.config.run()
 	default:
 		// Handle commands that might not be available.
 		switch {
