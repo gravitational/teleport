@@ -44,7 +44,7 @@ import (
 
 func newMCPListCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpListCommand {
 	cmd := &mcpListCommand{
-		CmdClause: parent.Command("ls", "List available MCP server applications"),
+		CmdClause: parent.Command("ls", "List available MCP server applications."),
 		cf:        cf,
 	}
 
