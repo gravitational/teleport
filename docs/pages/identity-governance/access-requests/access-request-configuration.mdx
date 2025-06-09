@@ -95,7 +95,7 @@ A role matcher can include the following values:
 
 To add the values of `claims_to_roles` to the lists of role matchers, the Auth
 Service evaluates template expressions with the user's traits. See the [Role
-Templates](../guides/role-templates.mdx#templating-in-access-requests) for more
+Templates](../../admin-guides/access-controls/guides/role-templates.mdx) for more
 information on how Teleport executes template expressions with user traits in
 the `claims_to_roles` field.
 
@@ -167,7 +167,7 @@ privileges:
 1. Calculate the maximum duration of elevated privileges if the Access Request
    were granted. This is the lowest value of:
    - The `--max-duration` flag of the [`tsh request
-     create`](../../../reference/cli/tsh.mdx) command (if the
+     create`](../../reference/cli/tsh.mdx) command (if the
      user creating the request provides this flag).
    - The lowest value of the `request.max_duration` field included in one of
      the user's requested roles.
@@ -176,7 +176,7 @@ privileges:
    lowest value of:
    - The requested session expiration time, which is the value of the
      `--session-ttl` flag of [`tsh request
-     create`](../../../reference/cli/tsh.mdx).
+     create`](../../reference/cli/tsh.mdx).
    - The remaining time in the user's current Teleport session.
    - The lowest value of the `options.max_session_ttl` field in the user's
      requested roles.
@@ -190,8 +190,8 @@ privileges:
 When creating or reviewing Access Requests, you can specify the earliest time
 that a user can assume elevated privileges by using the `--assume-start-time`
 flag. This flag is available for the
-[`tsh request create`](../../../reference/cli/tsh.mdx) and [`tsh request
-review`](../../../reference/cli/tsh.mdx) commands. The format accepted
+[`tsh request create`](../../reference/cli/tsh.mdx) and [`tsh request
+review`](../../reference/cli/tsh.mdx) commands. The format accepted
 is defined in [RFC 3339](https://datatracker.ietf.org/doc/html/rfc3339), e.g, `2023-12-12T23:20:50.52Z`.
 The time specified must be in the future.
 
@@ -235,7 +235,7 @@ valid while it awaits approval:
 
 1. Begin with with the base expiration of the Access Request, which a user can
    set with the `--request-ttl` flag of the [`tsh request
-   create`](../../../reference/cli/tsh.mdx) command. If this is
+   create`](../../reference/cli/tsh.mdx) command. If this is
    unset, the request TTL is one hour.
 1. If the user's Teleport session is due to expire before the base expiration
    time, Teleport sets the Access Request expiration to the end of the Teleport
@@ -350,7 +350,7 @@ the request has met the criteria specified in one of the thresholds in
 `allow.request.thresholds` associated with that role.
 
 The value of `filter` is an expression that uses the Teleport [predicate
-language](../../../reference/predicate-language.mdx).
+language](../../reference/predicate-language.mdx).
 
 For example, the following configuration includes four thresholds, three of which
 have filters:
@@ -470,7 +470,7 @@ following role fields:
 
 The Auth Service evaluates the `claims_to_roles` field using template
 expressions with the user's traits. See the [Role
-Templates](../guides/role-templates.mdx#templating-in-access-requests) for more
+Templates](../../admin-guides/access-controls/guides/role-templates.mdx) for more
 information on how Teleport executes template expressions with user traits in
 the `claims_to_roles` field.
 
@@ -638,7 +638,7 @@ pagerduty_services:
 
 ### Reading annotations in custom plugins
 
-If you [write your own Access Request plugin](../../api/access-plugin.mdx), the
+If you [write your own Access Request plugin](../../admin-guides/api/access-plugin.mdx), the
 program can access system annotations using a function similar to the following:
 
 ```go
@@ -659,4 +659,4 @@ Requests with the key `my-annotation`.
 
 For a full description of the configuration options within a Teleport role,
 refer to the [Access Controls
-Reference](../../../reference/access-controls/roles.mdx).
+Reference](../../reference/access-controls/roles.mdx).
