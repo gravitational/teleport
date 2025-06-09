@@ -18,14 +18,14 @@
 
 import { formatSortType } from 'design/DataTable/sort';
 import { SortType } from 'design/DataTable/types';
-import { ResourceStatus } from 'shared/components/UnifiedResources';
+import { ResourceHealthStatus } from 'shared/components/UnifiedResources';
 
 export type EncodeUrlQueryParamsProps = {
   pathname: string;
   searchString?: string;
   sort?: SortType | null;
   kinds?: string[] | null;
-  statuses?: ResourceStatus[] | null;
+  statuses?: ResourceHealthStatus[] | null;
   isAdvancedSearch?: boolean;
   pinnedOnly?: boolean;
 };

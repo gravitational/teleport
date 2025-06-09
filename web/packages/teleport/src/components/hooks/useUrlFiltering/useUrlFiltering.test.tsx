@@ -34,7 +34,7 @@ test('extracting params from URL with simple search and sort params', () => {
     },
     query: null,
     kinds: null,
-    statuses: null,
+    statuses: undefined,
   };
 
   const history = createMemoryHistory({ initialEntries: [url] });
@@ -60,7 +60,7 @@ test('extracting params from URL with advanced search and sort params', () => {
     },
     search: null,
     kinds: null,
-    statuses: null,
+    statuses: undefined,
   };
 
   const history = createMemoryHistory({ initialEntries: [url] });
@@ -82,7 +82,7 @@ test('extracting params from URL with simple search param but no sort param', ()
     sort: initialSort,
     query: null,
     kinds: null,
-    statuses: null,
+    statuses: undefined,
   };
 
   const history = createMemoryHistory({ initialEntries: [url] });
@@ -103,7 +103,7 @@ test('extracting params from URL with no search param and with sort param with u
     search: null,
     query: null,
     kinds: null,
-    statuses: null,
+    statuses: undefined,
   };
 
   const history = createMemoryHistory({ initialEntries: [url] });

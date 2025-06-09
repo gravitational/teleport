@@ -16,8 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ResourceStatus } from '../types';
+import { ResourceHealthStatus } from '../types';
 import { buildPredicateExpression } from './predicateExpression';
+
+type ResourceStatus = ResourceHealthStatus | '';
 
 describe('getPredicateExpression', () => {
   const testCases: {
@@ -38,7 +40,7 @@ describe('getPredicateExpression', () => {
       expected: '',
     },
     {
-      name: 'empty value in status array',
+      name: 'empty value in status array are ignored',
       requestedStatuses: ['', ''],
       expected: '',
     },

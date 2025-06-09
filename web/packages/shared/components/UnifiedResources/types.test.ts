@@ -16,16 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { isResourceStatus, ResourceStatus } from './types';
+import { isResourceHealthStatus, ResourceHealthStatus } from './types';
 
 test('isResourceStatus', () => {
-  const validStatuses: ResourceStatus[] = [
+  const validStatuses: ResourceHealthStatus[] = [
     'healthy',
     'unhealthy',
     'unknown',
-    '',
+    'mixed',
   ];
-  const statuses = ['healthy', 'random', 'unhealthy', 'llama', 'unknown', ''];
+  const statuses = [
+    'healthy',
+    'random',
+    'unhealthy',
+    'llama',
+    'unknown',
+    '',
+    'mixed',
+  ];
 
-  expect(statuses.filter(isResourceStatus)).toEqual(validStatuses);
+  expect(statuses.filter(isResourceHealthStatus)).toEqual(validStatuses);
 });

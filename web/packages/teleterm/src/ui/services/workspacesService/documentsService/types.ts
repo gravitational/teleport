@@ -18,7 +18,7 @@
 
 import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import {
-  ResourceStatus,
+  ResourceHealthStatus,
   SharedUnifiedResource,
 } from 'shared/components/UnifiedResources';
 
@@ -176,7 +176,7 @@ export interface DocumentClusterQueryParams {
     fieldName: string;
     dir: 'ASC' | 'DESC';
   };
-  statuses: ResourceStatus[];
+  statuses: ResourceHealthStatus[];
 }
 
 // Any changes done to this type must be backwards compatible as
