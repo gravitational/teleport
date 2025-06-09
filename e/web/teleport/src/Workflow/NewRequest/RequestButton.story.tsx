@@ -1,12 +1,13 @@
 import { MemoryRouter } from 'react-router';
 
 import { Flex } from 'design';
+import { AppSubKind } from 'shared/services';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import TeleportEContext from 'e-teleport/teleportContextE';
 import { useNewRequest } from 'e-teleport/Workflow/NewRequest/useNewRequest';
 import { ContextProvider } from 'teleport';
-import { App, AppSubKind } from 'teleport/services/apps';
+import { App } from 'teleport/services/apps';
 
 import { IdentityCenterRequestButton as ICButton } from './RequestButton';
 

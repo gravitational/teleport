@@ -10,12 +10,13 @@ import {
   Option,
 } from 'shared/components/AccessRequests/NewRequest/CheckableOption';
 import Select from 'shared/components/Select';
+import { AppSubKind } from 'shared/services';
 
 import {
   requestItems,
   type RequestItem,
 } from 'e-teleport/Workflow/NewRequest/useNewRequest';
-import { App, AppSubKind, PermissionSet } from 'teleport/services/apps';
+import { App, PermissionSet } from 'teleport/services/apps';
 
 function getButtonText(addText: string, requestStarted: boolean): string {
   if (addText) {

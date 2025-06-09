@@ -12,12 +12,13 @@ import { useUnifiedResourcesFetch } from 'shared/components/UnifiedResources';
 import { SharedUnifiedResource } from 'shared/components/UnifiedResources/types';
 import { useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { AppSubKind } from 'shared/services';
 import { isAbortError } from 'shared/utils/abortError';
 
 import Ctx from 'e-teleport/teleportContextE';
 import cfg from 'teleport/config';
 import type { ResourceFilter } from 'teleport/services/agents';
-import { AppSubKind, PermissionSet } from 'teleport/services/apps';
+import { PermissionSet } from 'teleport/services/apps';
 import { KubeResource } from 'teleport/services/kube';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 

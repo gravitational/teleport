@@ -9,9 +9,10 @@ import {
 } from 'shared/components/AccessRequests/NewRequest';
 import type { UnifiedResourceApp } from 'shared/components/UnifiedResources';
 import { SelectedResource } from 'shared/components/UnifiedResources/UnifiedResources';
+import { AppSubKind } from 'shared/services';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
-import { AppSubKind, PermissionSet } from 'teleport/services/apps';
+import { PermissionSet } from 'teleport/services/apps';
 import makeUserContext from 'teleport/services/user/makeUserContext';
 
 import { parseResourceIdUri } from './kube';

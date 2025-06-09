@@ -15,6 +15,7 @@ import {
   IncludedResourceMode,
   SharedUnifiedResource,
 } from 'shared/components/UnifiedResources';
+import { AppSubKind } from 'shared/services';
 import { pluralize } from 'shared/utils/text';
 
 import { SamlAppEditAndDelete } from 'e-teleport/Discover/SamlApplication/EditAndDelete';
@@ -35,7 +36,6 @@ import { useRequestCheckout } from 'e-teleport/Workflow/NewRequest/useRequestChe
 import { FeatureBox } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
 import { UnifiedResource } from 'teleport/services/agents';
-import { AppSubKind } from 'teleport/services/apps';
 import { ResourceActionButton } from 'teleport/UnifiedResources/ResourceActionButton';
 import { ClusterResources } from 'teleport/UnifiedResources/UnifiedResources';
 import { useUser } from 'teleport/User/UserContext';
