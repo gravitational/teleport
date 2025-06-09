@@ -197,7 +197,7 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	// the CreateHandler. UpdateHandlers are preferred over CreateHandler because an update
 	// will not forcibly overwrite a resource unlike with create which requires the force
 	// flag to be set to update an existing resource.
-	resourceHandler, found := rc.resourceHandlers[ResourceKind(rc.ref.Kind)]
+	resourceHandler, found := rc.resourceHandlers[ResourceKind(raw.Kind)]
 	if !found {
 		return trace.BadParameter("resource type %q unknown, please check your tctl version", rc.ref.Kind)
 	}
