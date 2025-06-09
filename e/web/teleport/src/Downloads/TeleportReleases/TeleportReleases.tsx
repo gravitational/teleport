@@ -4,15 +4,12 @@ import { Alert } from 'design/Alert';
 import Box from 'design/Box';
 import Flex from 'design/Flex';
 import Indicator from 'design/Indicator';
-import Link from 'design/Link';
-import Text, { H2 } from 'design/Text';
+import { H2 } from 'design/Text';
 import Select, { Option } from 'shared/components/Select';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import cfg from 'e-teleport/config';
 import type { Asset, Kind, OS, Release } from 'e-teleport/services/downloads';
 
-import { GETTING_STARTED_LINK } from '../Downloads';
 import { OsToggle } from './OsToggle';
 import { ReleasesList } from './ReleasesList';
 
@@ -81,15 +78,6 @@ export const TeleportReleases = ({
     <>
       <Box>
         <H2>Download Teleport</H2>
-        {!cfg.oss.isCloud && (
-          <Text my={3}>
-            You will also need the binaries below for{' '}
-            <Link href={GETTING_STARTED_LINK} color="text.main" about="_blank">
-              Getting Started with Teleport Enterprise
-            </Link>
-            {':'}
-          </Text>
-        )}
         {canDownloadReleaseAssets && (
           <>
             {attempt.status === 'processing' && (

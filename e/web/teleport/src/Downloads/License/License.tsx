@@ -18,7 +18,7 @@ import DialogConfirmation, {
 } from 'design/DialogConfirmation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { GETTING_STARTED_LINK, LICENSE_FILE_GUIDE_LINK } from '../Downloads';
+import { LICENSE_FILE_GUIDE_LINK } from '../Downloads';
 
 type LicenseProps = {
   canGenerateLicense: boolean;
@@ -47,11 +47,7 @@ export const License = ({
       )}
       <Text mt={3}>
         You will need to add your license file to authorize your deployment and
-        update it anytime your contract updates. See{' '}
-        <Link href={GETTING_STARTED_LINK} target="_blank" color="text.main">
-          Getting Started with Teleport Enterprise
-        </Link>{' '}
-        and our{' '}
+        update it any time your contract updates. See our{' '}
         <Link href={LICENSE_FILE_GUIDE_LINK} target="_blank" color="text.main">
           Enterprise License File Guide
         </Link>{' '}

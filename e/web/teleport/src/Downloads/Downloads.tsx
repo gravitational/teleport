@@ -17,8 +17,6 @@ export function Downloads() {
   return <DownloadsView {...state} />;
 }
 
-export const GETTING_STARTED_LINK =
-  'https://goteleport.com/docs/admin-guides/deploy-a-cluster/';
 export const LICENSE_FILE_GUIDE_LINK =
   'https://goteleport.com/docs/admin-guides/deploy-a-cluster/license/';
 
