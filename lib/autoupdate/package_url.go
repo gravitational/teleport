@@ -24,8 +24,8 @@ import (
 	"runtime"
 	"text/template"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 )
 
 // InstallFlags sets flags for the Teleport installation.
@@ -120,9 +120,9 @@ func (i InstallFlags) MarshalJSON() ([]byte, error) {
 	return json.Marshal(i.Strings())
 }
 
-func (i *InstallFlags) UnmarshalYAML(n *yaml.Node) error {
+func (i *InstallFlags) UnmarshalYAML(b []byte) error {
 	var s []string
-	if err := n.Decode(&s); err != nil {
+	if err := yaml.Unmarshal(b, &s); err != nil {
 		return trace.Wrap(err)
 	}
 	if i == nil {

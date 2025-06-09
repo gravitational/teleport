@@ -27,8 +27,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/goccy/go-yaml"
+	apiyaml "github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -370,9 +371,9 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			b := bytes.NewBuffer(nil)
-			encoder := yaml.NewEncoder(b)
-			encoder.SetIndent(2)
+			encoder := apiyaml.NewEncoder(b, yaml.Indent(2))
 			require.NoError(t, encoder.Encode(&tt.in))
+			require.NoError(t, encoder.Close())
 
 			if golden.ShouldSet() {
 				golden.Set(t, b.Bytes())
@@ -385,7 +386,7 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 			)
 
 			// Now test unmarshalling to see if we get the same object back
-			decoder := yaml.NewDecoder(b)
+			decoder := apiyaml.NewDecoder(b)
 			var unmarshalled T
 			require.NoError(t, decoder.Decode(&unmarshalled))
 			require.Equal(t, tt.in, unmarshalled, "unmarshalling did not result in same object as input")
@@ -577,4 +578,19 @@ func TestBotConfig_Base64(t *testing.T) {
 			require.Equal(t, tt.expected, *cfg)
 		})
 	}
+}
+
+func TestWithTypeHeader(t *testing.T) {
+	t.Parallel()
+	myStruct := IdentityOutput{
+		Destination: &DestinationDirectory{
+			Path: "/tmp/foo",
+		},
+		Roles: []string{"foo", "bar"},
+	}
+	out, err := withTypeHeader(myStruct, "identity")
+	require.NoError(t, err)
+	unmarshaled := IdentityOutput{}
+	require.NoError(t, apiyaml.Unmarshal(out, &unmarshaled))
+	require.Equal(t, myStruct, unmarshaled)
 }

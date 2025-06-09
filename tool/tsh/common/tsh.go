@@ -46,8 +46,8 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/dustin/go-humanize"
-	"github.com/ghodss/yaml"
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/otel/attribute"

@@ -4,7 +4,7 @@ selector:
 destination:
   type: memory
 audiences:
-  - audience1
-  - audience2
+- audience1
+- audience2
 credential_ttl: 1m0s
 renewal_interval: 30s

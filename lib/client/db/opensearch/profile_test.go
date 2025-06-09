@@ -67,13 +67,13 @@ func TestWriteConfig(t *testing.T) {
 	tmp := t.TempDir()
 	fn, err := WriteConfig(tmp, ConfigNoTLS("host.example.com", 8080))
 	require.NoError(t, err)
-	require.Equal(t, filepath.Join(tmp, "opensearch-cli", "150502df.yml"), fn)
+	require.Equal(t, filepath.Join(tmp, "opensearch-cli", "585239a5.yml"), fn)
 	bytes, err := os.ReadFile(fn)
 	require.NoError(t, err)
 	require.Equal(t, `profiles:
-- endpoint: http://host.example.com:8080/
+- name: teleport
+  endpoint: http://host.example.com:8080/
   max_retry: 3
-  name: teleport
   timeout: 10
 `, string(bytes))
 }

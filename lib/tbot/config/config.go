@@ -30,9 +30,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/goccy/go-yaml"
+	"github.com/goccy/go-yaml/ast"
+	"github.com/goccy/go-yaml/parser"
+	apiyaml "github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -234,26 +237,28 @@ func (conf *BotConfig) CipherSuites() []uint16 {
 	return utils.DefaultCipherSuites()
 }
 
-func (conf *BotConfig) UnmarshalYAML(node *yaml.Node) error {
+func (conf *BotConfig) UnmarshalYAML(data []byte) error {
 	// Wrap conf in an anonymous struct to avoid having the deprecated field on
 	// the BotConfig or CredentialLifetime structs, and keep it purely a config
 	// file parsing concern.
 	//
 	// The type alias prevents infinite recursion by obscuring UnmarshalYAML.
 	type alias BotConfig
-	output := struct {
-		*alias                   `yaml:",inline"`
-		DeprecatedCertificateTTL *time.Duration `yaml:"certificate_ttl"`
-	}{alias: (*alias)(conf)}
-	if err := node.Decode(&output); err != nil {
-		return err
+	if err := apiyaml.Unmarshal(data, (*alias)(conf)); err != nil {
+		return trace.Wrap(err)
+	}
+	deprecatedCertTTL := struct {
+		TTL *time.Duration `yaml:"certificate_ttl"`
+	}{}
+	if err := apiyaml.Unmarshal(data, &deprecatedCertTTL); err != nil {
+		return trace.Wrap(err)
 	}
 
-	if output.DeprecatedCertificateTTL != nil {
+	if deprecatedCertTTL.TTL != nil {
 		log.WarnContext(context.TODO(), "Config option certificate_ttl is deprecated and will be removed in a future release. Please use credential_ttl instead.")
 
 		if conf.CredentialLifetime.TTL == 0 {
-			conf.CredentialLifetime.TTL = *output.DeprecatedCertificateTTL
+			conf.CredentialLifetime.TTL = *deprecatedCertTTL.TTL
 		} else {
 			log.WarnContext(context.TODO(), "Both certificate_ttl and credential_ttl config options were given, credential_ttl will be used.")
 		}
@@ -380,113 +385,129 @@ type ServiceConfig interface {
 // ServiceConfigs assists polymorphic unmarshaling of a slice of ServiceConfigs.
 type ServiceConfigs []ServiceConfig
 
-func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
+func (o *ServiceConfigs) UnmarshalYAML(data []byte) error {
 	var out []ServiceConfig
-	for _, node := range node.Content {
+	parsed, err := parser.ParseBytes(data, parser.ParseComments)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(parsed.Docs) != 1 {
+		return trace.BadParameter("wrong number of docs")
+	}
+	arrayNode, ok := parsed.Docs[0].Body.(ast.ArrayNode)
+	if !ok {
+		return trace.BadParameter("expected an array")
+	}
+	ar := arrayNode.ArrayRange()
+	for ar.Next() {
+		docBytes, err := io.ReadAll(ar.Value())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		header := struct {
 			Type string `yaml:"type"`
 		}{}
-		if err := node.Decode(&header); err != nil {
+		if err := apiyaml.Unmarshal(docBytes, &header); err != nil {
 			return trace.Wrap(err)
 		}
 
 		switch header.Type {
 		case ExampleServiceType:
-			v := &ExampleService{}
-			if err := node.Decode(v); err != nil {
+			v := ExampleService{}
+			if err := apiyaml.Unmarshal(docBytes, &v); err != nil {
 				return trace.Wrap(err)
 			}
-			out = append(out, v)
+			out = append(out, &v)
 		case SPIFFEWorkloadAPIServiceType:
-			v := &SPIFFEWorkloadAPIService{}
-			if err := node.Decode(v); err != nil {
+			v := SPIFFEWorkloadAPIService{}
+			if err := apiyaml.Unmarshal(docBytes, &v); err != nil {
 				return trace.Wrap(err)
 			}
-			out = append(out, v)
+			out = append(out, &v)
 		case DatabaseTunnelServiceType:
-			v := &DatabaseTunnelService{}
-			if err := node.Decode(v); err != nil {
+			v := DatabaseTunnelService{}
+			if err := apiyaml.Unmarshal(docBytes, &v); err != nil {
 				return trace.Wrap(err)
 			}
-			out = append(out, v)
+			out = append(out, &v)
 		case SSHMultiplexerServiceType:
-			v := &SSHMultiplexerService{}
-			if err := node.Decode(v); err != nil {
+			v := SSHMultiplexerService{}
+			if err := apiyaml.Unmarshal(docBytes, &v); err != nil {
 				return trace.Wrap(err)
 			}
-			out = append(out, v)
+			out = append(out, &v)
 		case KubernetesOutputType:
-			v := &KubernetesOutput{}
-			if err := node.Decode(v); err != nil {
+			v := KubernetesOutput{}
+			if err := apiyaml.Unmarshal(docBytes, &v); err != nil {
 				return trace.Wrap(err)
 			}
-			out = append(out, v)
+			out = append(out, &v)
 		case KubernetesV2OutputType:
-			v := &KubernetesV2Output{}
-			if err := node.Decode(v); err != nil {
+			v := KubernetesV2Output{}
+			if err := apiyaml.Unmarshal(docBytes, &v); err != nil {
 				return trace.Wrap(err)
 			}
-			out = append(out, v)
+			out = append(out, &v)
 		case SPIFFESVIDOutputType:
-			v := &SPIFFESVIDOutput{}
-			if err := node.Decode(v); err != nil {
+			v := SPIFFESVIDOutput{}
+			if err := apiyaml.Unmarshal(docBytes, &v); err != nil {
 				return trace.Wrap(err)
 			}
-			out = append(out, v)
+			out = append(out, &v)
 		case SSHHostOutputType:
-			v := &SSHHostOutput{}
-			if err := node.Decode(v); err != nil {
+			v := SSHHostOutput{}
+			if err := apiyaml.Unmarshal(docBytes, &v); err != nil {
 				return trace.Wrap(err)
 			}
-			out = append(out, v)
+			out = append(out, &v)
 		case ApplicationOutputType:
-			v := &ApplicationOutput{}
-			if err := node.Decode(v); err != nil {
+			v := ApplicationOutput{}
+			if err := apiyaml.Unmarshal(docBytes, &v); err != nil {
 				return trace.Wrap(err)
 			}
-			out = append(out, v)
+			out = append(out, &v)
 		case DatabaseOutputType:
-			v := &DatabaseOutput{}
-			if err := node.Decode(v); err != nil {
+			v := DatabaseOutput{}
+			if err := apiyaml.Unmarshal(docBytes, &v); err != nil {
 				return trace.Wrap(err)
 			}
-			out = append(out, v)
+			out = append(out, &v)
 		case IdentityOutputType:
-			v := &IdentityOutput{}
-			if err := node.Decode(v); err != nil {
+			v := IdentityOutput{}
+			if err := apiyaml.Unmarshal(docBytes, &v); err != nil {
 				return trace.Wrap(err)
 			}
-			out = append(out, v)
+			out = append(out, &v)
 		case ApplicationTunnelServiceType:
-			v := &ApplicationTunnelService{}
-			if err := node.Decode(v); err != nil {
+			v := ApplicationTunnelService{}
+			if err := apiyaml.Unmarshal(docBytes, &v); err != nil {
 				return trace.Wrap(err)
 			}
-			out = append(out, v)
+			out = append(out, &v)
 		case WorkloadIdentityX509OutputType:
-			v := &WorkloadIdentityX509Service{}
-			if err := node.Decode(v); err != nil {
+			v := WorkloadIdentityX509Service{}
+			if err := apiyaml.Unmarshal(docBytes, &v); err != nil {
 				return trace.Wrap(err)
 			}
-			out = append(out, v)
+			out = append(out, &v)
 		case WorkloadIdentityAPIServiceType:
-			v := &WorkloadIdentityAPIService{}
-			if err := node.Decode(v); err != nil {
+			v := WorkloadIdentityAPIService{}
+			if err := apiyaml.Unmarshal(docBytes, &v); err != nil {
 				return trace.Wrap(err)
 			}
-			out = append(out, v)
+			out = append(out, &v)
 		case WorkloadIdentityJWTOutputType:
-			v := &WorkloadIdentityJWTService{}
-			if err := node.Decode(v); err != nil {
+			v := WorkloadIdentityJWTService{}
+			if err := apiyaml.Unmarshal(docBytes, &v); err != nil {
 				return trace.Wrap(err)
 			}
-			out = append(out, v)
+			out = append(out, &v)
 		case WorkloadIdentityAWSRAType:
-			v := &WorkloadIdentityAWSRAService{}
-			if err := node.Decode(v); err != nil {
+			v := WorkloadIdentityAWSRAService{}
+			if err := apiyaml.Unmarshal(docBytes, &v); err != nil {
 				return trace.Wrap(err)
 			}
-			out = append(out, v)
+			out = append(out, &v)
 		default:
 			return trace.BadParameter("unrecognized service type (%s)", header.Type)
 		}
@@ -496,7 +517,7 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func withTypeHeader[T any](payload T, payloadType string) (interface{}, error) {
+func withTypeHeader[T any](payload T, payloadType string) ([]byte, error) {
 	header := struct {
 		Type    string `yaml:"type"`
 		Payload T      `yaml:",inline"`
@@ -504,36 +525,36 @@ func withTypeHeader[T any](payload T, payloadType string) (interface{}, error) {
 		Type:    payloadType,
 		Payload: payload,
 	}
-
-	return header, nil
+	data, err := apiyaml.Marshal(header)
+	return data, trace.Wrap(err)
 }
 
 // unmarshalDestination takes a *yaml.Node and produces a bot.Destination by
 // considering the `type` field.
-func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
+func unmarshalDestination(data []byte) (bot.Destination, error) {
 	header := struct {
 		Type string `yaml:"type"`
 	}{}
-	if err := node.Decode(&header); err != nil {
+	if err := apiyaml.Unmarshal(data, &header); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch header.Type {
 	case DestinationMemoryType:
 		v := &DestinationMemory{}
-		if err := node.Decode(v); err != nil {
+		if err := apiyaml.Unmarshal(data, v); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return v, nil
 	case DestinationDirectoryType:
 		v := &DestinationDirectory{}
-		if err := node.Decode(v); err != nil {
+		if err := apiyaml.Unmarshal(data, v); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return v, nil
 	case DestinationKubernetesSecretType:
 		v := &DestinationKubernetesSecret{}
-		if err := node.Decode(v); err != nil {
+		if err := apiyaml.Unmarshal(data, v); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return v, nil
@@ -647,7 +668,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 	var version struct {
 		Version Version `yaml:"version"`
 	}
-	decoder := yaml.NewDecoder(reader)
+	decoder := apiyaml.NewDecoder(reader)
 	if err := decoder.Decode(&version); err != nil {
 		return nil, trace.BadParameter("failed parsing config file version: %s", strings.ReplaceAll(err.Error(), "\n", ""))
 	}
@@ -656,7 +677,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 	if _, err := reader.Seek(0, io.SeekStart); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	decoder = yaml.NewDecoder(reader)
+	decoder = apiyaml.NewDecoder(reader, yaml.DisallowUnknownField())
 
 	switch version.Version {
 	case V1, "":
@@ -666,7 +687,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 		}
 		config := &configV1{}
 		if err := decoder.Decode(config); err != nil {
-			return nil, trace.BadParameter("failed parsing config file: %s", strings.ReplaceAll(err.Error(), "\n", ""))
+			return nil, trace.BadParameter("failed parsing config file: %s", err.Error())
 		}
 		latestConfig, err := config.migrate()
 		if err != nil {
@@ -680,10 +701,9 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 		if manualMigration {
 			return nil, trace.BadParameter("configuration already the latest version. nothing to migrate.")
 		}
-		decoder.KnownFields(true)
 		config := &BotConfig{}
 		if err := decoder.Decode(config); err != nil {
-			return nil, trace.BadParameter("failed parsing config file: %s", strings.ReplaceAll(err.Error(), "\n", ""))
+			return nil, trace.BadParameter("failed parsing config file: %s", err.Error())
 		}
 		return config, nil
 	default:

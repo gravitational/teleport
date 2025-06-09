@@ -35,10 +35,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/goccy/go-yaml"
+	apiyaml "github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
-	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -135,13 +136,9 @@ func ReadFromString(configString string) (*FileConfig, error) {
 // ReadConfig reads Teleport configuration from reader in YAML format
 func ReadConfig(reader io.Reader) (*FileConfig, error) {
 	// read & parse YAML config:
-	bytes, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed reading Teleport configuration")
-	}
 	var fc FileConfig
-
-	if err := yaml.UnmarshalStrict(bytes, &fc); err != nil {
+	decoder := apiyaml.NewDecoder(reader, yaml.Strict())
+	if err := decoder.Decode(&fc); err != nil && !errors.Is(err, io.EOF) {
 		// Remove all newlines in the YAML error, to avoid escaping when printing.
 		return nil, trace.BadParameter("failed parsing the config file: %s", strings.ReplaceAll(err.Error(), "\n", ""))
 	}
@@ -447,7 +444,7 @@ func roleMapFromFlags(flags SampleFlags) map[string]bool {
 
 // DebugDumpToYAML allows for quick YAML dumping of the config
 func (conf *FileConfig) DebugDumpToYAML() string {
-	bytes, err := yaml.Marshal(&conf)
+	bytes, err := apiyaml.Marshal(&conf)
 	if err != nil {
 		panic(err)
 	}
@@ -551,19 +548,19 @@ type LogFormat struct {
 	ExtraFields []string `yaml:"extra_fields,omitempty"`
 }
 
-func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (l *Log) UnmarshalYAML(data []byte) error {
 	// the next two lines are needed because of an infinite loop issue
 	// https://github.com/go-yaml/yaml/issues/107
 	type logYAML Log
 	log := (*logYAML)(l)
-	if err := unmarshal(log); err != nil {
+	if err := apiyaml.Unmarshal(data, log); err != nil {
 		var typeError *yaml.TypeError
 		if !errors.As(err, &typeError) {
 			return err
 		}
 
 		var legacyLog LegacyLog
-		if lerr := unmarshal(&legacyLog); lerr != nil {
+		if lerr := apiyaml.Unmarshal(data, &legacyLog); lerr != nil {
 			// return the original unmarshal error
 			return err
 		}

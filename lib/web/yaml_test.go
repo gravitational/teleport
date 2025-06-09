@@ -31,18 +31,18 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-const validAccessMonitoringRuleYaml = `kind: access_monitoring_rule
-metadata:
+const validAccessMonitoringRuleYaml = `metadata:
   name: foo
+kind: access_monitoring_rule
+version: v1
 spec:
+  subjects:
+  - access_request
   condition: some-condition
   notification:
     name: mattermost
     recipients:
     - apple
-  subjects:
-  - access_request
-version: v1
 `
 
 const validTokenYaml = `kind: token

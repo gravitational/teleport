@@ -17,11 +17,12 @@ limitations under the License.
 package types
 
 import (
+	"bytes"
 	"encoding/json"
 
+	"github.com/goccy/go-yaml"
+	apiyaml "github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/utils"
 )
 
 const (
@@ -57,160 +58,87 @@ type TunnelStrategy interface {
 	CheckAndSetDefaults() error
 }
 
-// tunnelStrategyConfig represents a unparsed tunnel strategy configuration.
-type tunnelStrategyConfig struct {
-	Type   TunnelStrategyType     `yaml:"type"`
-	Params map[string]interface{} `yaml:",inline"`
-}
-
-// newTunnelStrategyConfig creates a new tunnelStrategyConfig instance.
-func newTunnelStrategyConfig() *tunnelStrategyConfig {
-	return &tunnelStrategyConfig{}
-}
-
-// setFromMap sets a TunnelStrategyConfig from a map.
-func (c *tunnelStrategyConfig) setFromMap(m map[string]interface{}) error {
-	rawStrategy, ok := m[tunnelStrategyTypeParam]
-	if !ok {
-		return trace.BadParameter("missing type parameter")
-	}
-
-	// The map representation of TunnelStrategyType is expected to be a string.
-	strategyType, ok := rawStrategy.(string)
-	if !ok {
-		return trace.BadParameter("invalid type parameter")
-	}
-	c.Type = TunnelStrategyType(strategyType)
-
-	c.Params = make(map[string]interface{}, len(m)-1)
-	for k, v := range m {
-		if k == tunnelStrategyTypeParam {
-			continue
-		}
-		c.Params[k] = v
-	}
-	return nil
-}
-
-// getMapCopy returns a TunnelStrategyConfig as a map.
-func (c *tunnelStrategyConfig) getMapCopy() map[string]interface{} {
-	mCopy := make(map[string]interface{}, len(c.Params)+1)
-	for k, v := range c.Params {
-		mCopy[k] = v
-	}
-
-	// The map representation of TunnelStrategyType is expected to be a string.
-	mCopy[tunnelStrategyTypeParam] = string(c.Type)
-	return mCopy
-}
-
 // MarshalYAML converts a TunnelStrategyV1 to yaml.
-func (s *TunnelStrategyV1) MarshalYAML() (interface{}, error) {
-	var config *tunnelStrategyConfig
-	err := s.marshal(func(c *tunnelStrategyConfig) error {
-		config = c
-		return nil
-	})
+func (s *TunnelStrategyV1) MarshalYAML() ([]byte, error) {
+	jsonData, err := s.MarshalJSON()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return config.getMapCopy(), nil
+	yamlData, err := yaml.JSONToYAML(jsonData)
+	return yamlData, trace.Wrap(err)
 }
 
 // UnmarshalYAML converts yaml to a TunnelStrategyV1 using a strict policy to
 // disallow unknown fields.
-func (s *TunnelStrategyV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	err := s.unmarshal(utils.StrictObjectToStruct, func(c *tunnelStrategyConfig) error {
-		return trace.Wrap(unmarshal(c))
-	})
-	return trace.Wrap(err)
+func (s *TunnelStrategyV1) UnmarshalYAML(data []byte) error {
+	return trace.Wrap(s.unmarshal(data, true))
 }
 
 // MarshalJSON converts a TunnelStrategyV1 to json.
 func (s *TunnelStrategyV1) MarshalJSON() ([]byte, error) {
-	var data []byte
-	err := s.marshal(func(c *tunnelStrategyConfig) error {
-		var err error
-		data, err = json.Marshal(c.getMapCopy())
-		return trace.Wrap(err)
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var config any
+	switch strategy := s.Strategy.(type) {
+	case *TunnelStrategyV1_AgentMesh:
+		config = struct {
+			Type                     TunnelStrategyType `json:"type"`
+			*AgentMeshTunnelStrategy `json:",inline"`
+		}{Type: AgentMesh, AgentMeshTunnelStrategy: strategy.AgentMesh}
+	case *TunnelStrategyV1_ProxyPeering:
+		config = struct {
+			Type                        TunnelStrategyType `json:"type"`
+			*ProxyPeeringTunnelStrategy `json:",inline"`
+		}{Type: ProxyPeering, ProxyPeeringTunnelStrategy: strategy.ProxyPeering}
+	default:
+		return nil, trace.BadParameter("unknown tunnel strategy: \"%T\"", strategy)
 	}
-	return data, nil
+	data, err := json.Marshal(config)
+	return data, trace.Wrap(err)
 }
 
 // UnmarshalJSON converts json to a TunnelStrategyV1. Unknown fields are allowed
 // to prevent rollbacks causing issues decoding this data from the backend.
 func (s *TunnelStrategyV1) UnmarshalJSON(data []byte) error {
-	err := s.unmarshal(utils.ObjectToStruct, func(c *tunnelStrategyConfig) error {
-		params := make(map[string]interface{})
-		err := json.Unmarshal(data, &params)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(c.setFromMap(params))
-	})
-	return trace.Wrap(err)
+	return trace.Wrap(s.unmarshal(data, false))
 }
 
-// marshal converts a TunnelStrategyV1 to a TunnelStrategyConfig before calling
-// the given marshal function.
-func (s *TunnelStrategyV1) marshal(marshal func(*tunnelStrategyConfig) error) error {
-	config := newTunnelStrategyConfig()
-	switch strategy := s.Strategy.(type) {
-	case *TunnelStrategyV1_AgentMesh:
-		config.Type = AgentMesh
-		err := utils.ObjectToStruct(strategy.AgentMesh, &config.Params)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	case *TunnelStrategyV1_ProxyPeering:
-		config.Type = ProxyPeering
-		err := utils.ObjectToStruct(strategy.ProxyPeering, &config.Params)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	default:
-		return trace.BadParameter("unknown tunnel strategy: \"%s\"", config.Type)
-	}
-
-	return trace.Wrap(marshal(config))
-}
-
-// objectToStructFunc is a function that converts one struct to another.
-type objectToStructFunc func(interface{}, interface{}) error
-
-func (s *TunnelStrategyV1) unmarshal(ots objectToStructFunc, unmarshal func(*tunnelStrategyConfig) error) error {
-	config := newTunnelStrategyConfig()
-	err := unmarshal(config)
-	if err != nil {
+func (s *TunnelStrategyV1) unmarshal(data []byte, strict bool) error {
+	configType := struct {
+		Type TunnelStrategyType `json:"type"`
+	}{}
+	if err := apiyaml.Unmarshal(data, &configType); err != nil {
 		return trace.Wrap(err)
 	}
+	var opts []yaml.DecodeOption
+	if strict {
+		opts = append(opts, yaml.Strict())
+	}
+	decoder := apiyaml.NewDecoder(bytes.NewReader(data), opts...)
 
-	switch config.Type {
+	switch configType.Type {
 	case AgentMesh:
-		strategy := &TunnelStrategyV1_AgentMesh{
-			AgentMesh: &AgentMeshTunnelStrategy{},
-		}
-
-		err = ots(&config.Params, strategy.AgentMesh)
-		if err != nil {
+		config := struct {
+			Type                     TunnelStrategyType `json:"type"`
+			*AgentMeshTunnelStrategy `json:",inline"`
+		}{}
+		if err := decoder.Decode(&config); err != nil {
 			return trace.Wrap(err)
 		}
-		s.Strategy = strategy
+		s.Strategy = &TunnelStrategyV1_AgentMesh{
+			AgentMesh: config.AgentMeshTunnelStrategy,
+		}
 	case ProxyPeering:
-		strategy := &TunnelStrategyV1_ProxyPeering{
-			ProxyPeering: &ProxyPeeringTunnelStrategy{},
-		}
-
-		err = ots(&config.Params, strategy.ProxyPeering)
-		if err != nil {
+		config := struct {
+			Type                        TunnelStrategyType `json:"type"`
+			*ProxyPeeringTunnelStrategy `json:",inline"`
+		}{}
+		if err := decoder.Decode(&config); err != nil {
 			return trace.Wrap(err)
 		}
-		s.Strategy = strategy
+		s.Strategy = &TunnelStrategyV1_ProxyPeering{
+			ProxyPeering: config.ProxyPeeringTunnelStrategy,
+		}
 	default:
-		return trace.BadParameter("unknown tunnel strategy: \"%s\"", config.Type)
+		return trace.BadParameter("unknown tunnel strategy: \"%s\"", configType.Type)
 	}
 
 	return nil

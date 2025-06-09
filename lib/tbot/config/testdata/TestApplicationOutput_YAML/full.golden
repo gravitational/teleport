@@ -2,7 +2,7 @@ type: application
 destination:
   type: memory
 roles:
-  - access
+- access
 app_name: my-app
 specific_tls_naming: false
 credential_ttl: 1m0s

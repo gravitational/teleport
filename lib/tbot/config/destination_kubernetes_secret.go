@@ -24,6 +24,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -283,9 +284,15 @@ func (dks *DestinationKubernetesSecret) String() string {
 	return fmt.Sprintf("%s: %s", DestinationKubernetesSecretType, dks.Name)
 }
 
-func (dks *DestinationKubernetesSecret) MarshalYAML() (interface{}, error) {
+func (dks *DestinationKubernetesSecret) MarshalYAML() ([]byte, error) {
 	type raw DestinationKubernetesSecret
 	return withTypeHeader((*raw)(dks), DestinationKubernetesSecretType)
+}
+
+func (dks *DestinationKubernetesSecret) UnmarshalYAML(data []byte) error {
+	fmt.Printf("%s\n", data)
+	type alias DestinationKubernetesSecret
+	return yaml.Unmarshal(data, (*alias)(dks))
 }
 
 func (dks *DestinationKubernetesSecret) IsPersistent() bool {

@@ -29,10 +29,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/utils"
@@ -53,7 +53,7 @@ type DestinationDirectory struct {
 	aclsEnabled bool
 }
 
-func (dd *DestinationDirectory) UnmarshalYAML(node *yaml.Node) error {
+func (dd *DestinationDirectory) UnmarshalYAML(data []byte) error {
 	// Accept either a string path or a full struct (allowing for options in
 	// the future, e.g. configuring permissions, etc):
 	//   directory: /foo
@@ -63,7 +63,7 @@ func (dd *DestinationDirectory) UnmarshalYAML(node *yaml.Node) error {
 	//     some_future_option: bar
 
 	var path string
-	if err := node.Decode(&path); err == nil {
+	if err := yaml.Unmarshal(data, &path); err == nil {
 		dd.Path = path
 		return nil
 	}
@@ -72,7 +72,7 @@ func (dd *DestinationDirectory) UnmarshalYAML(node *yaml.Node) error {
 	// override (we want to use standard unmarshal behavior for the full
 	// struct)
 	type rawDirectory DestinationDirectory
-	return trace.Wrap(node.Decode((*rawDirectory)(dd)))
+	return trace.Wrap(yaml.Unmarshal(data, (*rawDirectory)(dd)))
 }
 
 func (dd *DestinationDirectory) CheckAndSetDefaults() error {
@@ -475,7 +475,7 @@ func (dd *DestinationDirectory) TryLock() (func() error, error) {
 	return unlock, trace.Wrap(err)
 }
 
-func (dm *DestinationDirectory) MarshalYAML() (interface{}, error) {
+func (dm *DestinationDirectory) MarshalYAML() ([]byte, error) {
 	type raw DestinationDirectory
 	return withTypeHeader((*raw)(dm), DestinationDirectoryType)
 }

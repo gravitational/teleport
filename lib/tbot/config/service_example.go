@@ -19,8 +19,8 @@
 package config
 
 import (
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 )
 
 const ExampleServiceType = "example"
@@ -36,15 +36,15 @@ func (s *ExampleService) Type() string {
 	return ExampleServiceType
 }
 
-func (s *ExampleService) MarshalYAML() (interface{}, error) {
+func (s *ExampleService) MarshalYAML() ([]byte, error) {
 	type raw ExampleService
 	return withTypeHeader((*raw)(s), ExampleServiceType)
 }
 
-func (s *ExampleService) UnmarshalYAML(node *yaml.Node) error {
+func (s *ExampleService) UnmarshalYAML(data []byte) error {
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw ExampleService
-	if err := node.Decode((*raw)(s)); err != nil {
+	if err := yaml.Unmarshal(data, (*raw)(s)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

@@ -34,6 +34,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -43,7 +44,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
@@ -1900,7 +1900,7 @@ func resourceFromYAML(t *testing.T, value string) types.Resource {
 	t.Helper()
 
 	ur := &services.UnknownResource{}
-	err := kyaml.NewYAMLToJSONDecoder(strings.NewReader(value)).Decode(ur)
+	err := yaml.NewDecoder(strings.NewReader(value)).Decode(ur)
 	require.NoError(t, err)
 
 	resource, err := services.UnmarshalResource(ur.Kind, ur.Raw)

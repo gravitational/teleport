@@ -20,12 +20,15 @@ package config
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net"
 	"strings"
 
+	"github.com/goccy/go-yaml/parser"
+	"github.com/gravitational/teleport/api/utils/yaml"
+
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
@@ -180,20 +183,28 @@ func (o *SPIFFESVIDOutput) Type() string {
 }
 
 // MarshalYAML marshals the SPIFFESVIDOutput into YAML.
-func (o *SPIFFESVIDOutput) MarshalYAML() (interface{}, error) {
+func (o *SPIFFESVIDOutput) MarshalYAML() ([]byte, error) {
 	type raw SPIFFESVIDOutput
 	return withTypeHeader((*raw)(o), SPIFFESVIDOutputType)
 }
 
 // UnmarshalYAML unmarshals the SPIFFESVIDOutput from YAML.
-func (o *SPIFFESVIDOutput) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *SPIFFESVIDOutput) UnmarshalYAML(data []byte) error {
+	parsed, err := parser.ParseBytes(data, parser.ParseComments)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dest, err := extractOutputDestination(parsed)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	extractedData, err := io.ReadAll(parsed)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw SPIFFESVIDOutput
-	if err := node.Decode((*raw)(o)); err != nil {
+	if err := yaml.Unmarshal(extractedData, (*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
 	o.Destination = dest

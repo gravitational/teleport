@@ -9,6 +9,7 @@ require (
 	github.com/coreos/go-semver v0.3.1
 	github.com/go-piv/piv-go v1.11.0
 	github.com/gobwas/ws v1.4.0
+	github.com/goccy/go-yaml v1.18.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
@@ -31,7 +32,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250428153025-10db94c68c34
 	google.golang.org/grpc v1.72.1
 	google.golang.org/protobuf v1.36.6
-	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (

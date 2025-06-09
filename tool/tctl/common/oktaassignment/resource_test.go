@@ -22,8 +22,8 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -75,7 +75,7 @@ func TestToResource(t *testing.T) {
 	resourceSpec, ok := resourceMap["spec"].(map[string]interface{})
 	require.True(t, ok)
 	require.Equal(t, constants.OktaAssignmentStatusPending, resourceSpec["status"])
-	resourceSpec["status"] = int(types.OktaAssignmentSpecV1_PENDING)
+	resourceSpec["status"] = uint64(types.OktaAssignmentSpecV1_PENDING)
 
 	resourceTargets, ok := resourceSpec["targets"].([]interface{})
 	require.True(t, ok)
@@ -83,12 +83,12 @@ func TestToResource(t *testing.T) {
 	resourceTarget1, ok := resourceTargets[0].(map[string]interface{})
 	require.True(t, ok)
 	require.Equal(t, constants.OktaAssignmentTargetApplication, resourceTarget1["type"])
-	resourceTarget1["type"] = int(types.OktaAssignmentTargetV1_APPLICATION)
+	resourceTarget1["type"] = uint64(types.OktaAssignmentTargetV1_APPLICATION)
 
 	resourceTarget2, ok := resourceTargets[1].(map[string]interface{})
 	require.True(t, ok)
 	require.Equal(t, constants.OktaAssignmentTargetGroup, resourceTarget2["type"])
-	resourceTarget2["type"] = int(types.OktaAssignmentTargetV1_GROUP)
+	resourceTarget2["type"] = uint64(types.OktaAssignmentTargetV1_GROUP)
 
 	require.Equal(t, assignmentMap, resourceMap)
 }

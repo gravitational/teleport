@@ -46,16 +46,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ghodss/yaml"
+	"github.com/goccy/go-yaml"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
+	apiyaml "github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
-	yamlv2 "gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -404,7 +404,7 @@ func TestAlias(t *testing.T) {
 
 			// write config to use
 			config := &client.TSHConfig{Aliases: tt.aliases}
-			configBytes, err := yamlv2.Marshal(config)
+			configBytes, err := apiyaml.Marshal(config)
 			require.NoError(t, err)
 			err = os.WriteFile(filepath.Join(tmpHomePath, "tsh_global.yaml"), configBytes, 0o777)
 			require.NoError(t, err)

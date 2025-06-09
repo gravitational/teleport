@@ -20,9 +20,12 @@ package config
 
 import (
 	"context"
+	"io"
+
+	"github.com/goccy/go-yaml/parser"
+	"github.com/gravitational/teleport/api/utils/yaml"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
@@ -36,7 +39,7 @@ const ApplicationOutputType = "application"
 
 type ApplicationOutput struct {
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination bot.Destination
 	// Roles is the list of roles to request for the generated credentials.
 	// If empty, it defaults to all the bot's roles.
 	Roles []string `yaml:"roles,omitempty"`
@@ -103,19 +106,27 @@ func (o *ApplicationOutput) Describe() []FileDescription {
 	return out
 }
 
-func (o *ApplicationOutput) MarshalYAML() (interface{}, error) {
+func (o *ApplicationOutput) MarshalYAML() ([]byte, error) {
 	type raw ApplicationOutput
 	return withTypeHeader((*raw)(o), ApplicationOutputType)
 }
 
-func (o *ApplicationOutput) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *ApplicationOutput) UnmarshalYAML(data []byte) error {
+	parsed, err := parser.ParseBytes(data, parser.ParseComments)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dest, err := extractOutputDestination(parsed)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw ApplicationOutput
-	if err := node.Decode((*raw)(o)); err != nil {
+	extractedBytes, err := io.ReadAll(parsed)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := yaml.Unmarshal(extractedBytes, (*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
 	o.Destination = dest

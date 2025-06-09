@@ -28,9 +28,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keypaths"

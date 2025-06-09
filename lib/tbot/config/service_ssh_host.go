@@ -20,9 +20,11 @@ package config
 
 import (
 	"context"
+	"io"
 
+	"github.com/goccy/go-yaml/parser"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
@@ -50,7 +52,7 @@ var (
 // can be used to allow OpenSSH server to be trusted by Teleport SSH clients.
 type SSHHostOutput struct {
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination bot.Destination
 	// Roles is the list of roles to request for the generated credentials.
 	// If empty, it defaults to all the bot's roles.
 	Roles []string `yaml:"roles,omitempty"`
@@ -96,19 +98,27 @@ func (o *SSHHostOutput) Describe() []FileDescription {
 	}
 }
 
-func (o *SSHHostOutput) MarshalYAML() (interface{}, error) {
+func (o *SSHHostOutput) MarshalYAML() ([]byte, error) {
 	type raw SSHHostOutput
 	return withTypeHeader((*raw)(o), SSHHostOutputType)
 }
 
-func (o *SSHHostOutput) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *SSHHostOutput) UnmarshalYAML(data []byte) error {
+	parsed, err := parser.ParseBytes(data, parser.ParseComments)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dest, err := extractOutputDestination(parsed)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	extractedData, err := io.ReadAll(parsed)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw SSHHostOutput
-	if err := node.Decode((*raw)(o)); err != nil {
+	if err := yaml.Unmarshal(extractedData, (*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
 	o.Destination = dest

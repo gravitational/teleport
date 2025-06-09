@@ -22,8 +22,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
@@ -82,9 +82,9 @@ type configV1DestinationConfig struct {
 	SSHHostCert *configV1DestinationConfigHostCert `yaml:"ssh_host_cert"`
 }
 
-func (c *configV1DestinationConfig) UnmarshalYAML(node *yaml.Node) error {
+func (c *configV1DestinationConfig) UnmarshalYAML(data []byte) error {
 	var simpleTemplate string
-	if err := node.Decode(&simpleTemplate); err == nil {
+	if err := yaml.Unmarshal(data, &simpleTemplate); err == nil {
 		switch simpleTemplate {
 		case TemplateSSHClientName:
 			c.SSHClient = map[string]any{}
@@ -111,7 +111,7 @@ func (c *configV1DestinationConfig) UnmarshalYAML(node *yaml.Node) error {
 	// Fall back to the full struct; alias it to get standard unmarshal
 	// behavior and avoid recursion
 	type rawTemplate configV1DestinationConfig
-	return trace.Wrap(node.Decode((*rawTemplate)(c)))
+	return trace.Wrap(yaml.Unmarshal(data, (*rawTemplate)(c)))
 }
 
 type configV1Destination struct {

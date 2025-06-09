@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -533,18 +534,19 @@ func (r *SAMLAuthRequest) Check() error {
 }
 
 // MarshalJSON marshals SAMLForceAuthn to string.
-func (s SAMLForceAuthn) MarshalYAML() (interface{}, error) {
+func (s SAMLForceAuthn) MarshalYAML() ([]byte, error) {
 	val, err := s.encode()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return val, nil
+	out, err := yaml.Marshal(val)
+	return out, trace.Wrap(err)
 }
 
 // UnmarshalYAML supports parsing SAMLForceAuthn from string.
-func (s *SAMLForceAuthn) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *SAMLForceAuthn) UnmarshalYAML(data []byte) error {
 	var val any
-	if err := unmarshal(&val); err != nil {
+	if err := yaml.Unmarshal(data, &val); err != nil {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(s.decode(val))

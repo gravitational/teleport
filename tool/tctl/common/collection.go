@@ -1980,18 +1980,18 @@ func (c *userTaskCollection) writeText(w io.Writer, verbose bool) error {
 }
 
 type autoUpdateConfigCollection struct {
-	config *autoupdatev1pb.AutoUpdateConfig
+	Config *autoupdatev1pb.AutoUpdateConfig
 }
 
 func (c *autoUpdateConfigCollection) resources() []types.Resource {
-	return []types.Resource{types.ProtoResource153ToLegacy(c.config)}
+	return []types.Resource{types.ProtoResource153ToLegacy(c.Config)}
 }
 
 func (c *autoUpdateConfigCollection) writeText(w io.Writer, verbose bool) error {
 	t := asciitable.MakeTable([]string{"Name", "Tools AutoUpdate Enabled"})
 	t.AddRow([]string{
-		c.config.GetMetadata().GetName(),
-		fmt.Sprintf("%v", c.config.GetSpec().GetTools().GetMode()),
+		c.Config.GetMetadata().GetName(),
+		fmt.Sprintf("%v", c.Config.GetSpec().GetTools().GetMode()),
 	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

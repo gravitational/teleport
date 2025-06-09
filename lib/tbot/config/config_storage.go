@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -47,14 +46,14 @@ func (sc *StorageConfig) CheckAndSetDefaults() error {
 	return trace.Wrap(sc.Destination.CheckAndSetDefaults(), "validating storage")
 }
 
-func (sc *StorageConfig) MarshalYAML() (interface{}, error) {
+func (sc *StorageConfig) MarshalYAML() ([]byte, error) {
 	// Effectively inlines the destination
 	return sc.Destination.MarshalYAML()
 }
 
-func (sc *StorageConfig) UnmarshalYAML(node *yaml.Node) error {
+func (sc *StorageConfig) UnmarshalYAML(data []byte) error {
 	// Effectively inlines the destination
-	dest, err := unmarshalDestination(node)
+	dest, err := unmarshalDestination(data)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -35,9 +35,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/autoupdate"

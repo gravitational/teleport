@@ -27,8 +27,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/config"
@@ -373,14 +373,18 @@ func TestUnversionedTeleportConfig(t *testing.T) {
 		},
 	}
 	var inB bytes.Buffer
-	err := yaml.NewEncoder(&inB).Encode(in)
+	enc := yaml.NewEncoder(&inB)
+	err := enc.Encode(in)
 	require.NoError(t, err)
+	require.NoError(t, enc.Close())
 	fc, err := config.ReadConfig(&inB)
 	require.NoError(t, err)
 
 	var outB bytes.Buffer
-	err = yaml.NewEncoder(&outB).Encode(fc)
+	enc = yaml.NewEncoder(&outB)
+	err = enc.Encode(fc)
 	require.NoError(t, err)
+	require.NoError(t, enc.Close())
 
 	var out unversionedConfig
 	err = yaml.NewDecoder(&outB).Decode(&out)

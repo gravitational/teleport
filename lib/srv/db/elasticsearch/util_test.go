@@ -22,8 +22,8 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/require"
+	"sigs.k8s.io/yaml"
 )
 
 func TestEngineGetQueryFromRequestBody(t *testing.T) {

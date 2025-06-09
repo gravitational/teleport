@@ -18,9 +18,12 @@ package config
 
 import (
 	"context"
+	"io"
+
+	"github.com/goccy/go-yaml/parser"
+	"github.com/gravitational/teleport/api/utils/yaml"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
@@ -38,7 +41,7 @@ type WorkloadIdentityJWTService struct {
 	// used to issue WICs.
 	Selector WorkloadIdentitySelector `yaml:"selector"`
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination bot.Destination
 	// Audiences is the list of audiences that the JWT should be valid for.
 	Audiences []string
 
@@ -84,20 +87,28 @@ func (o *WorkloadIdentityJWTService) Type() string {
 }
 
 // MarshalYAML marshals the WorkloadIdentityJWTService into YAML.
-func (o *WorkloadIdentityJWTService) MarshalYAML() (interface{}, error) {
+func (o *WorkloadIdentityJWTService) MarshalYAML() ([]byte, error) {
 	type raw WorkloadIdentityJWTService
 	return withTypeHeader((*raw)(o), WorkloadIdentityJWTOutputType)
 }
 
 // UnmarshalYAML unmarshals the WorkloadIdentityJWTService from YAML.
-func (o *WorkloadIdentityJWTService) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *WorkloadIdentityJWTService) UnmarshalYAML(data []byte) error {
+	parsed, err := parser.ParseBytes(data, parser.ParseComments)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dest, err := extractOutputDestination(parsed)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	extractedData, err := io.ReadAll(parsed)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw WorkloadIdentityJWTService
-	if err := node.Decode((*raw)(o)); err != nil {
+	if err := yaml.Unmarshal(extractedData, (*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
 	o.Destination = dest

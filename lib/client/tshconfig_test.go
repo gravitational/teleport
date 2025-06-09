@@ -24,8 +24,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 )
 
 func TestLoadConfigNonExistingFile(t *testing.T) {

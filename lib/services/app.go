@@ -26,10 +26,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
@@ -226,7 +226,7 @@ func getAppRewriteConfig(annotations map[string]string) (*types.Rewrite, error) 
 
 	rw := types.Rewrite{}
 	reader := strings.NewReader(rewritePayload)
-	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
+	decoder := yaml.NewDecoder(reader)
 	err := decoder.Decode(&rw)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed decoding rewrite config")

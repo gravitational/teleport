@@ -30,7 +30,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ghodss/yaml"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"

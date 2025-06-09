@@ -27,8 +27,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/autoupdate"
 )
@@ -203,7 +203,9 @@ func readConfig(path string) (*UpdateConfig, error) {
 // writeConfig writes UpdateConfig to a file atomically, ensuring the file cannot be corrupted.
 func writeConfig(filename string, cfg *UpdateConfig) error {
 	return trace.Wrap(writeAtomicWithinDir(filename, configFileMode, func(w io.Writer) error {
-		return trace.Wrap(yaml.NewEncoder(w).Encode(cfg))
+		encoder := yaml.NewEncoder(w)
+		defer encoder.Close()
+		return trace.Wrap(encoder.Encode(cfg))
 	}))
 }
 

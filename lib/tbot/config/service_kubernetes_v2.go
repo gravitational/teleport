@@ -20,9 +20,12 @@ package config
 
 import (
 	"context"
+	"io"
 
+	"github.com/goccy/go-yaml/parser"
+
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
@@ -38,7 +41,7 @@ const KubernetesV2OutputType = "kubernetes/v2"
 // Kubernetes Cluster through teleport.
 type KubernetesV2Output struct {
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination bot.Destination
 
 	// DisableExecPlugin disables the default behavior of using `tbot` as a
 	// `kubectl` credentials exec plugin. This is useful in environments where
@@ -97,19 +100,27 @@ func (o *KubernetesV2Output) Describe() []FileDescription {
 	}
 }
 
-func (o *KubernetesV2Output) MarshalYAML() (interface{}, error) {
+func (o *KubernetesV2Output) MarshalYAML() ([]byte, error) {
 	type raw KubernetesV2Output
 	return withTypeHeader((*raw)(o), KubernetesV2OutputType)
 }
 
-func (o *KubernetesV2Output) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *KubernetesV2Output) UnmarshalYAML(data []byte) error {
+	parsed, err := parser.ParseBytes(data, parser.ParseComments)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dest, err := extractOutputDestination(parsed)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	extractedData, err := io.ReadAll(parsed)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw KubernetesV2Output
-	if err := node.Decode((*raw)(o)); err != nil {
+	if err := yaml.Unmarshal(extractedData, (*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
 	o.Destination = dest
@@ -144,7 +155,7 @@ func (s *KubernetesSelector) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (s *KubernetesSelector) UnmarshalYAML(value *yaml.Node) error {
+func (s *KubernetesSelector) UnmarshalYAML(data []byte) error {
 	// A custom unmarshaler so Labels is consistently initialized to not-nil.
 	// Primarily needed for tests.
 	type temp KubernetesSelector
@@ -152,7 +163,7 @@ func (s *KubernetesSelector) UnmarshalYAML(value *yaml.Node) error {
 		Labels: make(map[string]string),
 	}
 
-	if err := value.Decode(&out); err != nil {
+	if err := yaml.Unmarshal(data, &out); err != nil {
 		return err
 	}
 

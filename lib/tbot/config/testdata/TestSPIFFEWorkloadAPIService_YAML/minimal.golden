@@ -1,7 +1,7 @@
 type: spiffe-workload-api
 listen: unix:///var/run/spiffe.sock
 svids:
-  - path: /foo
+- path: /foo
 attestors:
   kubernetes:
     enabled: false

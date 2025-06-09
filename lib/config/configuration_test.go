@@ -4379,7 +4379,7 @@ func TestDiscoveryConfig(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		desc                  string
-		mutate                func(cfgMap)
+		mutate                func(map[string]any)
 		expectError           require.ErrorAssertionFunc
 		expectEnabled         require.BoolAssertionFunc
 		expectedTotalMatchers int
@@ -4389,7 +4389,7 @@ func TestDiscoveryConfig(t *testing.T) {
 	}{
 		{
 			desc:          "default",
-			mutate:        func(cfgMap) {},
+			mutate:        func(map[string]any) {},
 			expectError:   require.NoError,
 			expectEnabled: require.False,
 		},
@@ -4397,9 +4397,9 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "GCP section without project_ids",
 			expectError:   require.Error,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["gcp"] = []map[string]any{
 					{
 						"types": []string{"gke"},
 					},
@@ -4410,9 +4410,9 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "GCP section is filled with defaults",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["gcp"] = []map[string]any{
 					{
 						"types":       []string{"gke"},
 						"project_ids": []string{"p1", "p2"},
@@ -4432,13 +4432,13 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "GCP section is filled",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["gcp"] = []map[string]any{
 					{
 						"types":     []string{"gke"},
 						"locations": []string{"eucentral1"},
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
 						"project_ids": []string{"p1", "p2"},
@@ -4461,13 +4461,13 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "GCP section is filled with wildcard project ids",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["gcp"] = []map[string]any{
 					{
 						"types":     []string{"gke"},
 						"locations": []string{"eucentral1"},
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
 						"project_ids": []string{"*"},
@@ -4490,13 +4490,13 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "GCP section mixes wildcard and specific project ids",
 			expectError:   require.Error,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["gcp"] = []map[string]any{
 					{
 						"types":     []string{"gke"},
 						"locations": []string{"eucentral1"},
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
 						"project_ids": []string{"p1", "*"},
@@ -4508,13 +4508,13 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "GCP section is filled with installer",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["gcp"] = []map[string]any{
 					{
 						"types":     []string{"gce"},
 						"locations": []string{"eucentral1"},
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
 						"project_ids":      []string{"p1", "p2"},
@@ -4522,8 +4522,8 @@ func TestDiscoveryConfig(t *testing.T) {
 					},
 				}
 				cfg["version"] = "v3"
-				cfg["teleport"].(cfgMap)["proxy_server"] = "example.com"
-				cfg["proxy_service"] = cfgMap{
+				cfg["teleport"].(map[string]any)["proxy_server"] = "example.com"
+				cfg["proxy_service"] = map[string]any{
 					"enabled": "no",
 				}
 			},
@@ -4550,9 +4550,9 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "Azure section is filled with defaults (aks)",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["azure"] = []map[string]any{
 					{
 						"types": []string{"aks"},
 					},
@@ -4572,13 +4572,13 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "Azure section is filled with values",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["azure"] = []map[string]any{
 					{
 						"types":   []string{"aks"},
 						"regions": []string{"eucentral1"},
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
 						"subscriptions":   []string{"sub1", "sub2"},
@@ -4600,13 +4600,13 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "AWS section is filled with defaults",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["aws"] = []map[string]any{
 					{
 						"types":   []string{"ec2"},
 						"regions": []string{"eu-central-1"},
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
 					},
@@ -4633,9 +4633,9 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "AWS section is filled using the example config in docs",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["aws"] = []map[string]any{
 					{
 						"types":   []string{"ec2"},
 						"regions": []string{"us-east-1", "us-west-1"},
@@ -4645,7 +4645,7 @@ func TestDiscoveryConfig(t *testing.T) {
 								"method":     "iam",
 							},
 						},
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
 					},
@@ -4672,23 +4672,23 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "AWS section is filled with custom configs",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["aws"] = []map[string]any{
 					{
 						"types":   []string{"ec2"},
 						"regions": []string{"eu-central-1"},
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
-						"install": cfgMap{
-							"join_params": cfgMap{
+						"install": map[string]any{
+							"join_params": map[string]any{
 								"token_name": "hello-iam-a-token",
 								"method":     "iam",
 							},
 							"script_name": "installer-custom",
 						},
-						"ssm": cfgMap{
+						"ssm": map[string]any{
 							"document_name": "hello_document",
 						},
 						"assume_role_arn": "arn:aws:iam::123456789012:role/DBDiscoverer",
@@ -4721,24 +4721,24 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "AWS section with eice enroll mode",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["aws"] = []map[string]any{
 					{
 						"types":   []string{"ec2"},
 						"regions": []string{"eu-central-1"},
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
-						"install": cfgMap{
-							"join_params": cfgMap{
+						"install": map[string]any{
+							"join_params": map[string]any{
 								"token_name": "hello-iam-a-token",
 								"method":     "iam",
 							},
 							"script_name": "installer-custom",
 							"enroll_mode": "eice",
 						},
-						"ssm": cfgMap{
+						"ssm": map[string]any{
 							"document_name": "hello_document",
 						},
 						"assume_role_arn": "arn:aws:iam::123456789012:role/DBDiscoverer",
@@ -4773,24 +4773,24 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "AWS cannot use EICE mode without integration",
 			expectError:   require.Error,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["aws"] = []map[string]any{
 					{
 						"types":   []string{"ec2"},
 						"regions": []string{"eu-central-1"},
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
-						"install": cfgMap{
-							"join_params": cfgMap{
+						"install": map[string]any{
+							"join_params": map[string]any{
 								"token_name": "hello-iam-a-token",
 								"method":     "iam",
 							},
 							"script_name": "installer-custom",
 							"enroll_mode": "eice",
 						},
-						"ssm": cfgMap{
+						"ssm": map[string]any{
 							"document_name": "hello_document",
 						},
 						"assume_role_arn": "arn:aws:iam::123456789012:role/DBDiscoverer",
@@ -4803,13 +4803,13 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "AWS section is filled with invalid region",
 			expectError:   require.Error,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["aws"] = []map[string]any{
 					{
 						"types":   []string{"ec2"},
 						"regions": []string{"*"},
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
 					},
@@ -4820,12 +4820,12 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "AWS section is filled with invalid join method",
 			expectError:   require.Error,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["aws"] = []map[string]any{
 					{
-						"install": cfgMap{
-							"join_params": cfgMap{
+						"install": map[string]any{
+							"join_params": map[string]any{
 								"token_name": "hello-iam-a-token",
 								"method":     "token",
 							},
@@ -4838,15 +4838,15 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "AWS section is filled with external_id but empty assume_role_arn",
 			expectError:   require.Error,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["aws"] = []map[string]any{
 					{
 						"types":           []string{"rds"},
 						"regions":         []string{"us-west-1"},
 						"assume_role_arn": "",
 						"external_id":     "externalid123",
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
 					},
@@ -4857,15 +4857,15 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "AWS section is filled with external_id but empty assume_role_arn is ok for redshift serverless",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["aws"] = []map[string]any{
 					{
 						"types":           []string{"redshift-serverless"},
 						"regions":         []string{"us-west-1"},
 						"assume_role_arn": "",
 						"external_id":     "externalid123",
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
 					},
@@ -4896,14 +4896,14 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "AWS section is filled with invalid assume_role_arn",
 			expectError:   require.Error,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["aws"] = []map[string]any{
 					{
 						"types":           []string{"rds"},
 						"regions":         []string{"us-west-1"},
 						"assume_role_arn": "foobar",
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
 					},
@@ -4914,14 +4914,14 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "AWS section is filled with assume_role_arn that is not an iam ARN",
 			expectError:   require.Error,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["aws"] = []map[string]any{
 					{
 						"types":           []string{"rds"},
 						"regions":         []string{"us-west-1"},
 						"assume_role_arn": "arn:aws:sts::123456789012:federated-user/Alice",
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
 					},
@@ -4932,14 +4932,14 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "AWS section is filled with no token",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["aws"] = []map[string]any{
 					{
 						"types":   []string{"ec2"},
 						"regions": []string{"eu-west-1"},
-						"install": cfgMap{
-							"join_params": cfgMap{
+						"install": map[string]any{
+							"join_params": map[string]any{
 								"method": "iam",
 							},
 						},
@@ -4967,22 +4967,22 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "Azure section is filled with defaults (vm)",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["azure"] = []map[string]any{
 					{
 						"types":           []string{"vm"},
 						"regions":         []string{"westcentralus"},
 						"resource_groups": []string{"rg1"},
 						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
 					},
 				}
 				cfg["version"] = "v3"
-				cfg["teleport"].(cfgMap)["proxy_server"] = "example.com"
-				cfg["proxy_service"] = cfgMap{
+				cfg["teleport"].(map[string]any)["proxy_server"] = "example.com"
+				cfg["proxy_service"] = map[string]any{
 					"enabled": "no",
 				}
 			},
@@ -5007,19 +5007,19 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "Azure section is filled with custom config",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["azure"] = []map[string]any{
 					{
 						"types":           []string{"vm"},
 						"regions":         []string{"westcentralus"},
 						"resource_groups": []string{"rg1"},
 						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
-						"install": cfgMap{
-							"join_params": cfgMap{
+						"install": map[string]any{
+							"join_params": map[string]any{
 								"token_name": "custom-azure-token",
 								"method":     "azure",
 							},
@@ -5050,19 +5050,19 @@ func TestDiscoveryConfig(t *testing.T) {
 			desc:          "Azure section is filled with invalid join method",
 			expectError:   require.Error,
 			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["discovery_service"].(map[string]any)["enabled"] = "yes"
+				cfg["discovery_service"].(map[string]any)["azure"] = []map[string]any{
 					{
 						"types":           []string{"vm"},
 						"regions":         []string{"westcentralus"},
 						"resource_groups": []string{"rg1"},
 						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},
-						"tags": cfgMap{
+						"tags": map[string]any{
 							"discover_teleport": "yes",
 						},
-						"install": cfgMap{
-							"join_params": cfgMap{
+						"install": map[string]any{
+							"join_params": map[string]any{
 								"token_name": "custom-azure-token",
 								"method":     "token",
 							},

@@ -27,15 +27,14 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
 	samlidpv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -214,7 +213,7 @@ func parseSPFile(fileName string) (types.SAMLIdPServiceProviderV1, error) {
 		r = f
 	}
 
-	decoder := kyaml.NewYAMLOrJSONDecoder(r, defaults.LookaheadBufSize)
+	decoder := yaml.NewDecoder(r)
 	if err := decoder.Decode(&u); err != nil {
 		if errors.Is(err, io.EOF) {
 			return u, trace.BadParameter("service provider not found in file: %s", fileName)
@@ -260,7 +259,7 @@ func getUsersFromAPIOrFile(ctx context.Context, usernamesOrFileNames []string, c
 
 func parseUserFromFile(r io.Reader) ([]*types.UserV2, error) {
 	var users []*types.UserV2
-	decoder := kyaml.NewYAMLOrJSONDecoder(r, defaults.LookaheadBufSize)
+	decoder := yaml.NewDecoder(r)
 	for {
 		var u *types.UserV2
 		err := decoder.Decode(&u)

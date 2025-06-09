@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 )
 
@@ -148,10 +149,10 @@ func (s *Strings) UnmarshalJSON(data []byte) error {
 
 // UnmarshalYAML is used to allow Strings to unmarshal from
 // scalar string value or from the list
-func (s *Strings) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *Strings) UnmarshalYAML(data []byte) error {
 	// try unmarshal as string
 	var val string
-	err := unmarshal(&val)
+	err := yaml.Unmarshal(data, &val)
 	if err == nil {
 		*s = []string{val}
 		return nil
@@ -159,7 +160,7 @@ func (s *Strings) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	// try unmarshal as slice
 	var slice []string
-	err = unmarshal(&slice)
+	err = yaml.Unmarshal(data, &slice)
 	if err == nil {
 		*s = slice
 		return nil
@@ -181,9 +182,11 @@ func (s Strings) MarshalJSON() ([]byte, error) {
 // MarshalYAML marshals to scalar value
 // if there is only one value in the list,
 // marshals to list otherwise
-func (s Strings) MarshalYAML() (interface{}, error) {
+func (s Strings) MarshalYAML() ([]byte, error) {
 	if len(s) == 1 {
-		return s[0], nil
+		out, err := yaml.Marshal(s[0])
+		return out, trace.Wrap(err)
 	}
-	return []string(s), nil
+	out, err := yaml.Marshal([]string(s))
+	return out, trace.Wrap(err)
 }

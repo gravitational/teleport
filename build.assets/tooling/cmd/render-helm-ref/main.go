@@ -29,8 +29,10 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/goccy/go-yaml/parser"
+
+	"github.com/goccy/go-yaml/ast"
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chart/loader"
 )
 
@@ -77,6 +79,24 @@ func main() {
 	slog.InfoContext(ctx, "File successfully written", "file_path", outputPath)
 }
 
+type yamlProcessor struct {
+	values []*Value
+}
+
+func (p *yamlProcessor) Visit(node ast.Node) ast.Visitor {
+	if node == nil {
+		return nil
+	}
+	p.values = append(p.values, processYAMLNode(node)...)
+	return p
+}
+
+func processYAMLDocument(doc *ast.DocumentNode) []*Value {
+	processor := &yamlProcessor{}
+	ast.Walk(processor, doc.Body)
+	return processor.values
+}
+
 func parseAndRender(chartPath string) ([]byte, error) {
 	chartValues := chartPath + "/" + "values.yaml"
 
@@ -94,12 +114,12 @@ func parseAndRender(chartPath string) ([]byte, error) {
 	}
 
 	// We parse the YAML and extract all the documented values form its comments
-	var n yaml.Node
-	err = yaml.Unmarshal(valuesYAML, &n)
+	parsed, err := parser.ParseBytes(valuesYAML, parser.ParseComments)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to unmarshall values")
 	}
-	values := processYAMLNode(&n)
+	yamlProcessor{}
+	values := processYAMLNode(parsed.Docs[0].Body)
 
 	// Then, we backfill the default value when possible
 	for _, value := range values {
@@ -123,22 +143,17 @@ func parseAndRender(chartPath string) ([]byte, error) {
 	return reference, trace.Wrap(err, "failed to render template")
 }
 
-func processYAMLNode(node *yaml.Node) []*Value {
+func processYAMLNode(node ast.Node) []*Value {
 	// The YAML structure does not represent the value hierarchy
 	// So we process all comments the same way and don't care about their position
 	var values []*Value
-	if value := grabValue(node.HeadComment); value != nil {
-		values = append(values, value)
+	comments := node.GetComment()
+	if comments == nil {
+		return values
 	}
-	if value := grabValue(node.LineComment); value != nil {
-		values = append(values, value)
-	}
-	if value := grabValue(node.FootComment); value != nil {
-		values = append(values, value)
-	}
-	if len(node.Content) != 0 {
-		for _, subNode := range node.Content {
-			values = append(values, processYAMLNode(subNode)...)
+	for _, comment := range comments.Comments {
+		if value := grabValue(comment.String()); value != nil {
+			values = append(values, value)
 		}
 	}
 	return values

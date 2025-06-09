@@ -24,10 +24,10 @@ import (
 	"reflect"
 	"unicode"
 
-	"github.com/ghodss/yaml"
+	"github.com/goccy/go-yaml"
+	apiyaml "github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	jsoniter "github.com/json-iterator/go"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/internalutils/stream"
 )
@@ -219,19 +219,50 @@ func isDoc(val reflect.Value) bool {
 	return val.Kind() == reflect.Struct || val.Kind() == reflect.Map
 }
 
+func requiresJSONToYAML(vType reflect.Type) bool {
+	switch vType.Kind() {
+	case reflect.Struct:
+		// continue below
+	case reflect.Pointer, reflect.Array, reflect.Chan, reflect.Slice:
+		return requiresJSONToYAML(vType.Elem())
+	case reflect.Map:
+		return requiresJSONToYAML(vType.Key()) && requiresJSONToYAML(vType.Elem())
+	default:
+		return false
+	}
+
+	for i := range vType.NumField() {
+		field := vType.Field(i)
+		if field.Anonymous && field.Tag.Get("json") == "" {
+			return true
+		}
+	}
+	return false
+}
+
 // writeYAML writes marshaled YAML to writer
 func writeYAML(w io.Writer, values interface{}) error {
-	data, err := yaml.Marshal(values)
-	if err != nil {
+	if requiresJSONToYAML(reflect.TypeOf(values)) {
+		dataJSON, err := FastMarshal(values)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		dataYAML, err := yaml.JSONToYAML(dataJSON)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = w.Write(dataYAML)
 		return trace.Wrap(err)
 	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
+
+	encoder := apiyaml.NewEncoder(w)
+	defer encoder.Close()
+	return trace.Wrap(encoder.Encode(values))
 }
 
 // ReadYAML can unmarshal a stream of documents, used in tests.
 func ReadYAML(reader io.Reader) (interface{}, error) {
-	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
+	decoder := apiyaml.NewDecoder(reader)
 	var values []interface{}
 	for {
 		var val interface{}

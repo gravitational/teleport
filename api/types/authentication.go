@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -979,18 +980,19 @@ func (r RequireMFAType) IsSessionMFARequired() bool {
 }
 
 // MarshalJSON marshals RequireMFAType to boolean or string.
-func (r *RequireMFAType) MarshalYAML() (interface{}, error) {
+func (r *RequireMFAType) MarshalYAML() ([]byte, error) {
 	val, err := r.encode()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return val, nil
+	out, err := yaml.Marshal(val)
+	return out, trace.Wrap(err)
 }
 
 // UnmarshalYAML supports parsing RequireMFAType from boolean or alias.
-func (r *RequireMFAType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (r *RequireMFAType) UnmarshalYAML(data []byte) error {
 	var val interface{}
-	err := unmarshal(&val)
+	err := yaml.Unmarshal(data, &val)
 	if err != nil {
 		return trace.Wrap(err)
 	}

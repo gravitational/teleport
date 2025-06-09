@@ -848,7 +848,7 @@ func UnmarshalResource(kind string, raw []byte, opts ...MarshalOption) (types.Re
 
 // UnknownResource is used to detect resources
 type UnknownResource struct {
-	types.ResourceHeader
+	types.ResourceHeader `json:",inline"`
 	// Raw is raw representation of the resource
 	Raw []byte
 }

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -1677,19 +1678,20 @@ func (b *Bool) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalYAML marshals bool into yaml value
-func (b Bool) MarshalYAML() (interface{}, error) {
-	return bool(b), nil
+func (b Bool) MarshalYAML() ([]byte, error) {
+	out, err := yaml.Marshal(bool(b))
+	return out, trace.Wrap(err)
 }
 
 // UnmarshalYAML unmarshals bool value from yaml
-func (b *Bool) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (b *Bool) UnmarshalYAML(data []byte) error {
 	var boolVar bool
-	if err := unmarshal(&boolVar); err == nil {
+	if err := yaml.Unmarshal(data, &boolVar); err == nil {
 		*b = Bool(boolVar)
 		return nil
 	}
 	var stringVar string
-	if err := unmarshal(&stringVar); err != nil {
+	if err := yaml.Unmarshal(data, &stringVar); err != nil {
 		return trace.Wrap(err)
 	}
 	v, err := utils.ParseBool(stringVar)
@@ -1779,14 +1781,15 @@ func (b *BoolOption) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalYAML marshals BoolOption into yaml value
-func (b *BoolOption) MarshalYAML() (interface{}, error) {
-	return b.Value, nil
+func (b *BoolOption) MarshalYAML() ([]byte, error) {
+	out, err := yaml.Marshal(b.Value)
+	return out, trace.Wrap(err)
 }
 
 // UnmarshalYAML unmarshals BoolOption to YAML
-func (b *BoolOption) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (b *BoolOption) UnmarshalYAML(data []byte) error {
 	var val Bool
-	if err := val.UnmarshalYAML(unmarshal); err != nil {
+	if err := yaml.Unmarshal(data, &val); err != nil {
 		return err
 	}
 	b.Value = val.Value()
@@ -2392,9 +2395,9 @@ func (h *CreateHostUserMode) setFromEnum(val int32) error {
 }
 
 // UnmarshalYAML supports parsing CreateHostUserMode from string.
-func (h *CreateHostUserMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (h *CreateHostUserMode) UnmarshalYAML(data []byte) error {
 	var val interface{}
-	err := unmarshal(&val)
+	err := yaml.Unmarshal(data, &val)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2404,12 +2407,13 @@ func (h *CreateHostUserMode) UnmarshalYAML(unmarshal func(interface{}) error) er
 }
 
 // MarshalYAML marshals CreateHostUserMode to yaml.
-func (h *CreateHostUserMode) MarshalYAML() (interface{}, error) {
+func (h *CreateHostUserMode) MarshalYAML() ([]byte, error) {
 	val, err := h.encode()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return val, nil
+	out, err := yaml.Marshal(val)
+	return out, trace.Wrap(err)
 }
 
 // MarshalJSON marshals CreateHostUserMode to json bytes.
@@ -2505,9 +2509,9 @@ func (h *CreateDatabaseUserMode) setFromEnum(val int32) error {
 }
 
 // UnmarshalYAML supports parsing CreateDatabaseUserMode from string.
-func (h *CreateDatabaseUserMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (h *CreateDatabaseUserMode) UnmarshalYAML(data []byte) error {
 	var val interface{}
-	err := unmarshal(&val)
+	err := yaml.Unmarshal(data, &val)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2517,12 +2521,13 @@ func (h *CreateDatabaseUserMode) UnmarshalYAML(unmarshal func(interface{}) error
 }
 
 // MarshalYAML marshals CreateDatabaseUserMode to yaml.
-func (h *CreateDatabaseUserMode) MarshalYAML() (interface{}, error) {
+func (h *CreateDatabaseUserMode) MarshalYAML() ([]byte, error) {
 	val, err := h.encode()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return val, nil
+	out, err := yaml.Marshal(val)
+	return out, trace.Wrap(err)
 }
 
 // MarshalJSON marshals CreateDatabaseUserMode to json bytes.

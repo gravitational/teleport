@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -305,6 +306,36 @@ type Config struct {
 // It is just a map of key/value pairs which gets populated by `storage` section
 // in Teleport YAML config.
 type Params map[string]interface{}
+
+func (c Config) MarshalYAML() ([]byte, error) {
+	out := make(map[string]any, len(c.Params)+1)
+	if c.Type != "" {
+		out["type"] = c.Type
+	}
+	for k, v := range c.Params {
+		out[k] = v
+	}
+	return yaml.Marshal(out)
+}
+
+func (c *Config) UnmarshalYAML(data []byte) error {
+	var out map[string]any
+	if err := yaml.Unmarshal(data, &out); err != nil {
+		return trace.Wrap(err)
+	}
+	if confType, ok := out["type"]; ok {
+		if t, ok := confType.(string); ok {
+			delete(out, "type")
+			c.Type = t
+		} else {
+			return trace.BadParameter("type is not string")
+		}
+	}
+	if len(out) != 0 {
+		c.Params = out
+	}
+	return nil
+}
 
 // GetString returns a string value stored in Params map, or an empty string
 // if nothing is found

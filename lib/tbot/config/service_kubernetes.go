@@ -20,9 +20,12 @@ package config
 
 import (
 	"context"
+	"io"
+
+	"github.com/goccy/go-yaml/parser"
+	"github.com/gravitational/teleport/api/utils/yaml"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
@@ -38,7 +41,7 @@ const KubernetesOutputType = "kubernetes"
 // Kubernetes Cluster through teleport.
 type KubernetesOutput struct {
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination bot.Destination
 	// Roles is the list of roles to request for the generated credentials.
 	// If empty, it defaults to all the bot's roles.
 	Roles []string `yaml:"roles,omitempty"`
@@ -99,19 +102,27 @@ func (o *KubernetesOutput) Describe() []FileDescription {
 	}
 }
 
-func (o *KubernetesOutput) MarshalYAML() (interface{}, error) {
+func (o *KubernetesOutput) MarshalYAML() ([]byte, error) {
 	type raw KubernetesOutput
 	return withTypeHeader((*raw)(o), KubernetesOutputType)
 }
 
-func (o *KubernetesOutput) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *KubernetesOutput) UnmarshalYAML(data []byte) error {
+	parsed, err := parser.ParseBytes(data, parser.ParseComments)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dest, err := extractOutputDestination(parsed)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	extractedData, err := io.ReadAll(parsed)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw KubernetesOutput
-	if err := node.Decode((*raw)(o)); err != nil {
+	if err := yaml.Unmarshal(extractedData, (*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
 	o.Destination = dest

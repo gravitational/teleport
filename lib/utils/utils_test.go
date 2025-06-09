@@ -474,7 +474,7 @@ func TestMarshalYAML(t *testing.T) {
 	t.Parallel()
 
 	type kv struct {
-		Key string
+		Key string `yaml:"Key"`
 	}
 	testCases := []struct {
 		comment  string

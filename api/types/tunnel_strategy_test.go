@@ -20,17 +20,20 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 )
 
 func TestTunnelStrategyMarshalling(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
+		name     string
 		json     string
 		yaml     string
 		strategy *TunnelStrategyV1
 	}{
 		{
+			name: "agent mesh",
 			json: `{"type":"agent_mesh"}`,
 			yaml: "type: agent_mesh\n",
 			strategy: &TunnelStrategyV1{Strategy: &TunnelStrategyV1_AgentMesh{
@@ -38,14 +41,16 @@ func TestTunnelStrategyMarshalling(t *testing.T) {
 			}},
 		},
 		{
+			name: "proxy peering",
 			json: `{"type":"proxy_peering"}`,
 			yaml: "type: proxy_peering\n",
 			strategy: &TunnelStrategyV1{Strategy: &TunnelStrategyV1_ProxyPeering{
 				ProxyPeering: &ProxyPeeringTunnelStrategy{},
 			}}},
 		{
-			json: `{"agent_connection_count":2,"type":"proxy_peering"}`,
-			yaml: "agent_connection_count: 2\ntype: proxy_peering\n",
+			name: "proxy peering with agent connections",
+			json: `{"type":"proxy_peering","agent_connection_count":2}`,
+			yaml: "type: proxy_peering\nagent_connection_count: 2\n",
 			strategy: &TunnelStrategyV1{Strategy: &TunnelStrategyV1_ProxyPeering{
 				ProxyPeering: &ProxyPeeringTunnelStrategy{
 					AgentConnectionCount: 2,
@@ -55,22 +60,24 @@ func TestTunnelStrategyMarshalling(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		data, err := yaml.Marshal(tc.strategy)
-		require.NoError(t, err)
-		require.Equal(t, []byte(tc.yaml), data)
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := yaml.Marshal(tc.strategy)
+			require.NoError(t, err)
+			require.Equal(t, tc.yaml, string(data))
 
-		data, err = json.Marshal(tc.strategy)
-		require.NoError(t, err)
-		require.Equal(t, []byte(tc.json), data)
+			data, err = json.Marshal(tc.strategy)
+			require.NoError(t, err)
+			require.Equal(t, tc.json, string(data))
 
-		strategy := &TunnelStrategyV1{}
-		err = json.Unmarshal([]byte(tc.json), strategy)
-		require.NoError(t, err)
-		require.Equal(t, tc.strategy, strategy)
+			strategy := &TunnelStrategyV1{}
+			err = json.Unmarshal([]byte(tc.json), strategy)
+			require.NoError(t, err)
+			require.Equal(t, tc.strategy, strategy)
 
-		strategy = &TunnelStrategyV1{}
-		err = yaml.Unmarshal([]byte(tc.yaml), strategy)
-		require.NoError(t, err)
-		require.Equal(t, tc.strategy, strategy)
+			strategy = &TunnelStrategyV1{}
+			err = yaml.Unmarshal([]byte(tc.yaml), strategy)
+			require.NoError(t, err)
+			require.Equal(t, tc.strategy, strategy)
+		})
 	}
 }

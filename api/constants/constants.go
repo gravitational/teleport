@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 )
 
@@ -224,9 +225,9 @@ const (
 )
 
 // UnmarshalYAML supports parsing off|on into string on SecondFactorType.
-func (sft *SecondFactorType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (sft *SecondFactorType) UnmarshalYAML(data []byte) error {
 	var tmp interface{}
-	if err := unmarshal(&tmp); err != nil {
+	if err := yaml.Unmarshal(data, &tmp); err != nil {
 		return err
 	}
 	switch v := tmp.(type) {

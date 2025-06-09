@@ -22,8 +22,8 @@ import (
 	"net"
 	"net/url"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 )
 
 const DatabaseTunnelServiceType = "database-tunnel"
@@ -59,15 +59,15 @@ func (s *DatabaseTunnelService) Type() string {
 	return DatabaseTunnelServiceType
 }
 
-func (s *DatabaseTunnelService) MarshalYAML() (interface{}, error) {
+func (s *DatabaseTunnelService) MarshalYAML() ([]byte, error) {
 	type raw DatabaseTunnelService
 	return withTypeHeader((*raw)(s), DatabaseTunnelServiceType)
 }
 
-func (s *DatabaseTunnelService) UnmarshalYAML(node *yaml.Node) error {
+func (s *DatabaseTunnelService) UnmarshalYAML(data []byte) error {
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw DatabaseTunnelService
-	if err := node.Decode((*raw)(s)); err != nil {
+	if err := yaml.Unmarshal(data, (*raw)(s)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

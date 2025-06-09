@@ -19,7 +19,7 @@ package ui
 import (
 	"time"
 
-	yaml "github.com/ghodss/yaml"
+	yaml "github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"

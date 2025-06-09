@@ -22,10 +22,10 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"gopkg.in/yaml.v3"
 )
 
 const DestinationMemoryType = "memory"
@@ -37,14 +37,14 @@ type DestinationMemory struct {
 	mutex sync.RWMutex
 }
 
-func (dm *DestinationMemory) UnmarshalYAML(node *yaml.Node) error {
+func (dm *DestinationMemory) UnmarshalYAML(data []byte) error {
 	// Accept either a bool or a raw (in this case empty) struct
 	//   memory: {}
 	// or:
 	//   memory: true
 
 	var boolVal bool
-	if err := node.Decode(&boolVal); err == nil {
+	if err := yaml.Unmarshal(data, &boolVal); err == nil {
 		if !boolVal {
 			return trace.BadParameter("memory must not be false (leave unset to disable)")
 		}
@@ -52,7 +52,7 @@ func (dm *DestinationMemory) UnmarshalYAML(node *yaml.Node) error {
 	}
 
 	type rawMemory DestinationMemory
-	return trace.Wrap(node.Decode((*rawMemory)(dm)))
+	return trace.Wrap(yaml.Unmarshal(data, (*rawMemory)(dm)))
 }
 
 func (dm *DestinationMemory) CheckAndSetDefaults() error {
@@ -116,7 +116,7 @@ func (dm *DestinationMemory) TryLock() (func() error, error) {
 	}, nil
 }
 
-func (dm *DestinationMemory) MarshalYAML() (interface{}, error) {
+func (dm *DestinationMemory) MarshalYAML() ([]byte, error) {
 	type raw DestinationMemory
 	return withTypeHeader((*raw)(dm), DestinationMemoryType)
 }

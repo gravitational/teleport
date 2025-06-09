@@ -27,11 +27,11 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
-	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -58,16 +58,12 @@ discovery_service:
   enabled: false
 `
 
-// cfgMap is a shorthand for a type that can hold the nested key-value
-// representation of a parsed YAML file.
-type cfgMap map[interface{}]interface{}
-
 // editConfig takes the minimal YAML configuration file, de-serializes it into a
 // nested key-value dictionary suitable for manipulation by a test case,
 // passes that dictionary to the caller-supplied mutator and then re-serializes
 // it ready to be injected into the config loader.
-func editConfig(t *testing.T, mutate func(cfg cfgMap)) []byte {
-	var cfg cfgMap
+func editConfig(t *testing.T, mutate func(cfg map[string]any)) []byte {
+	var cfg map[string]any
 	require.NoError(t, yaml.Unmarshal([]byte(minimalConfigFile), &cfg))
 	mutate(cfg)
 
@@ -91,7 +87,7 @@ func TestAuthSection(t *testing.T) {
 
 	testCases := []struct {
 		desc                    string
-		mutate                  func(cfgMap)
+		mutate                  func(map[string]any)
 		expectError             require.ErrorAssertionFunc
 		expectEnabled           require.BoolAssertionFunc
 		expectIdleMsg           require.ValueAssertionFunc
@@ -101,7 +97,7 @@ func TestAuthSection(t *testing.T) {
 	}{
 		{
 			desc:                    "Default",
-			mutate:                  func(cfg cfgMap) {},
+			mutate:                  func(cfg map[string]any) {},
 			expectError:             require.NoError,
 			expectEnabled:           require.True,
 			expectIdleMsg:           require.Empty,
@@ -110,56 +106,56 @@ func TestAuthSection(t *testing.T) {
 			expectProxyPingInterval: require.Empty,
 		}, {
 			desc: "Enabled",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["enabled"] = "yes"
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["enabled"] = "yes"
 			},
 			expectError:   require.NoError,
 			expectEnabled: require.True,
 		}, {
 			desc: "Disabled",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["enabled"] = "no"
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["enabled"] = "no"
 			},
 			expectError:   require.NoError,
 			expectEnabled: require.False,
 		}, {
 			desc: "Idle timeout message",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["client_idle_timeout_message"] = "Are you pondering what I'm pondering?"
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["client_idle_timeout_message"] = "Are you pondering what I'm pondering?"
 			},
 			expectError:   require.NoError,
 			expectIdleMsg: requireEqual("Are you pondering what I'm pondering?"),
 		}, {
 			desc: "Message of the Day",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["message_of_the_day"] = "Are you pondering what I'm pondering?"
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["message_of_the_day"] = "Are you pondering what I'm pondering?"
 			},
 			expectError: require.NoError,
 			expectMotd:  requireEqual("Are you pondering what I'm pondering?"),
 		}, {
 			desc: "Web idle timeout",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "10m"
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["web_idle_timeout"] = "10m"
 			},
 			expectError:          require.NoError,
 			expectWebIdleTimeout: requireEqual(types.Duration(10 * time.Minute)),
 		}, {
 			desc: "Web idle timeout (invalid)",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "potato"
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["web_idle_timeout"] = "potato"
 			},
 			expectError: require.Error,
 		}, {
 			desc: "Proxy ping interval",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["proxy_ping_interval"] = "10s"
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["proxy_ping_interval"] = "10s"
 			},
 			expectError:             require.NoError,
 			expectProxyPingInterval: requireEqual(types.Duration(10 * time.Second)),
 		}, {
 			desc: "Proxy ping interval (invalid)",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["proxy_ping_interval"] = "potato"
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["proxy_ping_interval"] = "potato"
 			},
 			expectError: require.Error,
 		},
@@ -200,14 +196,14 @@ func TestAuthenticationSection(t *testing.T) {
 
 	tests := []struct {
 		desc        string
-		mutate      func(cfgMap)
+		mutate      func(map[string]any)
 		expectError require.ErrorAssertionFunc
 		expected    *AuthenticationConfig
 	}{
 		{
 			desc: "Local auth with OTP",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"type":          "local",
 					"second_factor": "otp",
 				}
@@ -218,8 +214,8 @@ func TestAuthenticationSection(t *testing.T) {
 			},
 		}, {
 			desc: "Local auth without OTP",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"type":          "local",
 					"second_factor": "off",
 				}
@@ -230,11 +226,11 @@ func TestAuthenticationSection(t *testing.T) {
 			},
 		}, {
 			desc: "Local auth with u2f",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"type":          "local",
 					"second_factor": "u2f",
-					"u2f": cfgMap{
+					"u2f": map[string]any{
 						"app_id": "https://graviton:3080",
 						"facets": []interface{}{"https://graviton:3080"},
 						"device_attestation_cas": []interface{}{
@@ -260,11 +256,11 @@ func TestAuthenticationSection(t *testing.T) {
 			},
 		}, {
 			desc: "Local auth with Webauthn",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"type":          "local",
 					"second_factor": "webauthn",
-					"webauthn": cfgMap{
+					"webauthn": map[string]any{
 						"rp_id": "example.com",
 						"attestation_allowed_cas": []interface{}{
 							"testdata/u2f_attestation_ca.pam",
@@ -294,17 +290,17 @@ func TestAuthenticationSection(t *testing.T) {
 			},
 		}, {
 			desc: "Local auth with disabled Webauthn",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"type":          "local",
 					"second_factor": "on",
-					"u2f": cfgMap{
+					"u2f": map[string]any{
 						"app_id": "https://example.com",
 						"facets": []interface{}{
 							"https://example.com",
 						},
 					},
-					"webauthn": cfgMap{
+					"webauthn": map[string]any{
 						"disabled": true, // Kept for backwards compatibility, has no effect.
 					},
 				}
@@ -322,11 +318,11 @@ func TestAuthenticationSection(t *testing.T) {
 			},
 		}, {
 			desc: "Local auth with passwordless connector",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"type":          "local",
 					"second_factor": "on",
-					"webauthn": cfgMap{
+					"webauthn": map[string]any{
 						"rp_id": "example.com",
 					},
 					"passwordless":   "true",
@@ -344,11 +340,11 @@ func TestAuthenticationSection(t *testing.T) {
 			},
 		}, {
 			desc: "Local auth with headless connector",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"type":          "local",
 					"second_factor": "on",
-					"webauthn": cfgMap{
+					"webauthn": map[string]any{
 						"rp_id": "example.com",
 					},
 					"headless":       "true",
@@ -366,9 +362,9 @@ func TestAuthenticationSection(t *testing.T) {
 			},
 		}, {
 			desc: "Device Trust config",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"device_trust": cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
+					"device_trust": map[string]any{
 						"mode": "required",
 						"ekcert_allowed_cas": []string{
 							"-----BEGIN CERTIFICATE-----\nfake certificate1\n-----END CERTIFICATE-----",
@@ -386,9 +382,9 @@ func TestAuthenticationSection(t *testing.T) {
 			},
 		}, {
 			desc: "Device Trust with auto-enroll",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"device_trust": cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
+					"device_trust": map[string]any{
 						"mode":        "required",
 						"auto_enroll": "yes",
 					},
@@ -402,8 +398,8 @@ func TestAuthenticationSection(t *testing.T) {
 			},
 		}, {
 			desc: "signature suite empty",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"signature_algorithm_suite": "",
 				}
 			},
@@ -412,8 +408,8 @@ func TestAuthenticationSection(t *testing.T) {
 			},
 		}, {
 			desc: "signature suite legacy",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"signature_algorithm_suite": "legacy",
 				}
 			},
@@ -422,8 +418,8 @@ func TestAuthenticationSection(t *testing.T) {
 			},
 		}, {
 			desc: "signature suite balanced-v1",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"signature_algorithm_suite": "balanced-v1",
 				}
 			},
@@ -432,8 +428,8 @@ func TestAuthenticationSection(t *testing.T) {
 			},
 		}, {
 			desc: "signature suite fips-v1",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"signature_algorithm_suite": "fips-v1",
 				}
 			},
@@ -442,8 +438,8 @@ func TestAuthenticationSection(t *testing.T) {
 			},
 		}, {
 			desc: "signature suite hsm-v1",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"signature_algorithm_suite": "hsm-v1",
 				}
 			},
@@ -452,8 +448,8 @@ func TestAuthenticationSection(t *testing.T) {
 			},
 		}, {
 			desc: "signature suite typo",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"signature_algorithm_suite": "balanced-v0",
 				}
 			},
@@ -462,9 +458,9 @@ func TestAuthenticationSection(t *testing.T) {
 			},
 		}, {
 			desc: "stable unix users",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"stable_unix_user_config": cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
+					"stable_unix_user_config": map[string]any{
 						"enabled":   true,
 						"first_uid": 100,
 						"last_uid":  10,
@@ -605,11 +601,11 @@ func TestAuthenticationConfig_Parse_nilU2F(t *testing.T) {
 	// An absent U2F section should be reflected as a nil U2F object.
 	// The config below is a valid config without U2F, but other than that we
 	// don't care about its specifics for this test.
-	text := editConfig(t, func(cfg cfgMap) {
-		cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+	text := editConfig(t, func(cfg map[string]any) {
+		cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 			"type":          "local",
 			"second_factor": "on",
-			"webauthn": cfgMap{
+			"webauthn": map[string]any{
 				"rp_id": "localhost",
 			},
 		}
@@ -633,84 +629,84 @@ func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
 
 	tests := []struct {
 		desc                 string
-		mutate               func(cfgMap)
+		mutate               func(map[string]any)
 		expectError          bool
 		expectRequireMFAType types.RequireMFAType
 	}{
 		{
 			desc: "RequireSessionMFA invalid",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"require_session_mfa": "unknown",
 				}
 			},
 			expectError: true,
 		}, {
 			desc: "RequireSessionMFA empty",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{}
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{}
 			},
 			expectRequireMFAType: types.RequireMFAType_OFF,
 		}, {
 			desc: "RequireSessionMFA true",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"require_session_mfa": true,
 				}
 			},
 			expectRequireMFAType: types.RequireMFAType_SESSION,
 		}, {
 			desc: "RequireSessionMFA false",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"require_session_mfa": false,
 				}
 			},
 			expectRequireMFAType: types.RequireMFAType_OFF,
 		}, {
 			desc: "RequireSessionMFA true string",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"require_session_mfa": "yes",
 				}
 			},
 			expectRequireMFAType: types.RequireMFAType_SESSION,
 		}, {
 			desc: "RequireSessionMFA false string",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"require_session_mfa": "off",
 				}
 			},
 			expectRequireMFAType: types.RequireMFAType_OFF,
 		}, {
 			desc: "RequireSessionMFA hardware_key",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"require_session_mfa": types.RequireMFATypeHardwareKeyString,
 				}
 			},
 			expectRequireMFAType: types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
 		}, {
 			desc: "RequireSessionMFA hardware_key_touch",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"require_session_mfa": types.RequireMFATypeHardwareKeyTouchString,
 				}
 			},
 			expectRequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
 		}, {
 			desc: "RequireSessionMFA hardware_key_pin",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"require_session_mfa": types.RequireMFATypeHardwareKeyPINString,
 				}
 			},
 			expectRequireMFAType: types.RequireMFAType_HARDWARE_KEY_PIN,
 		}, {
 			desc: "RequireSessionMFA hardware_key_touch_and_pin",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"require_session_mfa": types.RequireMFATypeHardwareKeyTouchAndPINString,
 				}
 			},
@@ -751,11 +747,11 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 	}{
 		{
 			name: "minimal config",
-			configYAML: editConfig(t, func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			configYAML: editConfig(t, func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"type":          "local",
 					"second_factor": "otp",
-					"device_trust": cfgMap{
+					"device_trust": map[string]any{
 						"mode": "optional",
 					},
 				}
@@ -766,11 +762,11 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 		},
 		{
 			name: "all fields",
-			configYAML: editConfig(t, func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			configYAML: editConfig(t, func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"type":          "local",
 					"second_factor": "otp",
-					"device_trust": cfgMap{
+					"device_trust": map[string]any{
 						"mode":        "required",
 						"auto_enroll": "yes",
 						"ekcert_allowed_cas": []string{
@@ -789,9 +785,9 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 		},
 		{
 			name: "reads ekcert_allowed_cas from path",
-			configYAML: editConfig(t, func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"device_trust": cfgMap{
+			configYAML: editConfig(t, func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
+					"device_trust": map[string]any{
 						"ekcert_allowed_cas": []string{
 							tpmEKCertPath,
 						},
@@ -807,9 +803,9 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 		},
 		{
 			name: "invalid ekcert_allowed_cas entry",
-			configYAML: editConfig(t, func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"device_trust": cfgMap{
+			configYAML: editConfig(t, func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
+					"device_trust": map[string]any{
 						"ekcert_allowed_cas": []string{
 							"this is not a pem encoded CA",
 						},
@@ -820,11 +816,11 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 		},
 		{
 			name: "auto-enroll invalid",
-			configYAML: editConfig(t, func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			configYAML: editConfig(t, func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 					"type":          "local",
 					"second_factor": "otp",
-					"device_trust": cfgMap{
+					"device_trust": map[string]any{
 						"mode":        "required",
 						"auto_enroll": "NOT A BOOLEAN", // invalid
 					},
@@ -855,8 +851,8 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 }
 
 func TestAuthenticationConfig_Parse_StableUNIXUserConfig(t *testing.T) {
-	text := editConfig(t, func(cfg cfgMap) {
-		cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+	text := editConfig(t, func(cfg map[string]any) {
+		cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
 			"stable_unix_user_config": nil,
 		}
 	})
@@ -865,9 +861,9 @@ func TestAuthenticationConfig_Parse_StableUNIXUserConfig(t *testing.T) {
 	_, err = cfg.Auth.Authentication.Parse()
 	require.NoError(t, err)
 
-	text = editConfig(t, func(cfg cfgMap) {
-		cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-			"stable_unix_user_config": cfgMap{
+	text = editConfig(t, func(cfg map[string]any) {
+		cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
+			"stable_unix_user_config": map[string]any{
 				"enabled": true,
 			},
 		}
@@ -884,7 +880,7 @@ func TestSSHSection(t *testing.T) {
 
 	testCases := []struct {
 		desc                      string
-		mutate                    func(cfgMap)
+		mutate                    func(map[string]any)
 		expectError               require.ErrorAssertionFunc
 		expectEnabled             require.BoolAssertionFunc
 		expectAllowsTCPForwarding require.BoolAssertionFunc
@@ -892,67 +888,67 @@ func TestSSHSection(t *testing.T) {
 	}{
 		{
 			desc:                      "default",
-			mutate:                    func(cfgMap) {},
+			mutate:                    func(map[string]any) {},
 			expectError:               require.NoError,
 			expectEnabled:             require.True,
 			expectAllowsTCPForwarding: require.True,
 		}, {
 			desc: "explicitly enabled",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["enabled"] = "yes"
+			mutate: func(cfg map[string]any) {
+				cfg["ssh_service"].(map[string]any)["enabled"] = "yes"
 			},
 			expectError:               require.NoError,
 			expectEnabled:             require.True,
 			expectAllowsTCPForwarding: require.True,
 		}, {
 			desc: "disabled",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["enabled"] = "no"
+			mutate: func(cfg map[string]any) {
+				cfg["ssh_service"].(map[string]any)["enabled"] = "no"
 			},
 			expectError:               require.NoError,
 			expectEnabled:             require.False,
 			expectAllowsTCPForwarding: require.True,
 		}, {
 			desc: "Port forwarding is enabled",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["port_forwarding"] = true
+			mutate: func(cfg map[string]any) {
+				cfg["ssh_service"].(map[string]any)["port_forwarding"] = true
 			},
 			expectError:               require.NoError,
 			expectEnabled:             require.True,
 			expectAllowsTCPForwarding: require.True,
 		}, {
 			desc: "Port forwarding is disabled",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["port_forwarding"] = false
+			mutate: func(cfg map[string]any) {
+				cfg["ssh_service"].(map[string]any)["port_forwarding"] = false
 			},
 			expectError:               require.NoError,
 			expectEnabled:             require.True,
 			expectAllowsTCPForwarding: require.False,
 		}, {
 			desc: "Port forwarding invalid value",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["port_forwarding"] = "banana"
+			mutate: func(cfg map[string]any) {
+				cfg["ssh_service"].(map[string]any)["port_forwarding"] = "banana"
 			},
 			expectError: require.Error,
 		}, {
 			desc: "File copying is enabled",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["ssh_file_copy"] = true
+			mutate: func(cfg map[string]any) {
+				cfg["ssh_service"].(map[string]any)["ssh_file_copy"] = true
 			},
 			expectError:       require.NoError,
 			expectEnabled:     require.True,
 			expectFileCopying: require.True,
 		}, {
 			desc: "File copying is disabled",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["ssh_file_copy"] = false
+			mutate: func(cfg map[string]any) {
+				cfg["ssh_service"].(map[string]any)["ssh_file_copy"] = false
 			},
 			expectError:       require.NoError,
 			expectEnabled:     require.True,
 			expectFileCopying: require.False,
 		}, {
 			desc:              "File copying is enabled by default",
-			mutate:            func(cfg cfgMap) {},
+			mutate:            func(cfg map[string]any) {},
 			expectError:       require.NoError,
 			expectEnabled:     require.True,
 			expectFileCopying: require.True,
@@ -984,25 +980,25 @@ func TestSSHSection(t *testing.T) {
 func TestHardwareKeyConfig(t *testing.T) {
 	for _, tc := range []struct {
 		name                    string
-		mutate                  func(cfgMap)
+		mutate                  func(map[string]any)
 		expectReadError         require.ErrorAssertionFunc
 		expectParseError        require.ErrorAssertionFunc
 		expectHardwareKeyConfig *types.HardwareKey
 	}{
 		{
 			name: "OK empty",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"hardware_key": cfgMap{},
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
+					"hardware_key": map[string]any{},
 				}
 			},
 			expectHardwareKeyConfig: &types.HardwareKey{},
 		},
 		{
 			name: "OK piv_slot",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"hardware_key": cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
+					"hardware_key": map[string]any{
 						"piv_slot": "9a",
 					},
 				}
@@ -1013,9 +1009,9 @@ func TestHardwareKeyConfig(t *testing.T) {
 		},
 		{
 			name: "NOK piv_slot unsupported slot",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"hardware_key": cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
+					"hardware_key": map[string]any{
 						"piv_slot": "8f",
 					},
 				}
@@ -1027,10 +1023,10 @@ func TestHardwareKeyConfig(t *testing.T) {
 		},
 		{
 			name: "OK serial_number_validation",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"hardware_key": cfgMap{
-						"serial_number_validation": cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
+					"hardware_key": map[string]any{
+						"serial_number_validation": map[string]any{
 							"enabled":                  true,
 							"serial_number_trait_name": "custom_trait_name",
 						},
@@ -1046,9 +1042,9 @@ func TestHardwareKeyConfig(t *testing.T) {
 		},
 		{
 			name: "OK pin_cache_ttl",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"hardware_key": cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
+					"hardware_key": map[string]any{
 						"pin_cache_ttl": "1m",
 					},
 				}
@@ -1059,9 +1055,9 @@ func TestHardwareKeyConfig(t *testing.T) {
 		},
 		{
 			name: "NOK pin_cache_ttl not a duration",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"hardware_key": cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["auth_service"].(map[string]any)["authentication"] = map[string]any{
+					"hardware_key": map[string]any{
 						"pin_cache_ttl": "1minute",
 					},
 				}
@@ -1097,21 +1093,21 @@ func TestHardwareKeyConfig(t *testing.T) {
 func TestX11Config(t *testing.T) {
 	testCases := []struct {
 		desc              string
-		mutate            func(cfgMap)
+		mutate            func(map[string]any)
 		expectReadError   require.ErrorAssertionFunc
 		expectConfigError require.ErrorAssertionFunc
 		expectX11Config   *x11.ServerConfig
 	}{
 		{
 			desc:            "default",
-			mutate:          func(cfg cfgMap) {},
+			mutate:          func(cfg map[string]any) {},
 			expectX11Config: &x11.ServerConfig{},
 		},
 		// Test x11 enabled
 		{
 			desc: "x11 disabled",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["ssh_service"].(map[string]any)["x11"] = map[string]any{
 					"enabled": "no",
 				}
 			},
@@ -1119,8 +1115,8 @@ func TestX11Config(t *testing.T) {
 		},
 		{
 			desc: "x11 enabled",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["ssh_service"].(map[string]any)["x11"] = map[string]any{
 					"enabled": "yes",
 				}
 			},
@@ -1133,8 +1129,8 @@ func TestX11Config(t *testing.T) {
 		// Test display offset
 		{
 			desc: "display offset set",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["ssh_service"].(map[string]any)["x11"] = map[string]any{
 					"enabled":        "yes",
 					"display_offset": 100,
 				}
@@ -1147,8 +1143,8 @@ func TestX11Config(t *testing.T) {
 		},
 		{
 			desc: "display offset value capped",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["ssh_service"].(map[string]any)["x11"] = map[string]any{
 					"enabled":        "yes",
 					"display_offset": math.MaxUint32,
 				}
@@ -1162,8 +1158,8 @@ func TestX11Config(t *testing.T) {
 		// Test max display
 		{
 			desc: "max display set",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["ssh_service"].(map[string]any)["x11"] = map[string]any{
 					"enabled":     "yes",
 					"max_display": 100,
 				}
@@ -1176,8 +1172,8 @@ func TestX11Config(t *testing.T) {
 		},
 		{
 			desc: "max display value capped",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["ssh_service"].(map[string]any)["x11"] = map[string]any{
 					"enabled":     "yes",
 					"max_display": math.MaxUint32,
 				}
@@ -1190,8 +1186,8 @@ func TestX11Config(t *testing.T) {
 		},
 		{
 			desc: "max display smaller than display offset",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+			mutate: func(cfg map[string]any) {
+				cfg["ssh_service"].(map[string]any)["x11"] = map[string]any{
 					"enabled":        "maybe",
 					"display_offset": 1000,
 					"max_display":    100,

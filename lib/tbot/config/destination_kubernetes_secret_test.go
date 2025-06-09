@@ -165,10 +165,10 @@ func TestDestinationKubernetesSecret_CheckAndSetDefaults(t *testing.T) {
 }
 
 func TestDestinationKubernetesSecret_YAML(t *testing.T) {
-	tests := []testYAMLCase[*DestinationKubernetesSecret]{
+	tests := []testYAMLCase[DestinationKubernetesSecret]{
 		{
 			name: "full",
-			in: &DestinationKubernetesSecret{
+			in: DestinationKubernetesSecret{
 				Name: "my-secret",
 			},
 		},

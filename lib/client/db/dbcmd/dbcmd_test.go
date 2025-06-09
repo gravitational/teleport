@@ -907,7 +907,7 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 			databaseName: "warehouse1",
 			cmd: map[string][]string{
 				"run request with curl":           {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob-db/db.example.com/mysql.key", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql.crt"},
-				"run request with opensearch-cli": {"opensearch-cli", "--profile", "teleport", "--config", "/tmp/mysql/opensearch-cli/7e266ec0.yml", "curl", "get", "--path", "/"}},
+				"run request with opensearch-cli": {"opensearch-cli", "--profile", "teleport", "--config", "/tmp/mysql/opensearch-cli/6ac31c64.yml", "curl", "get", "--path", "/"}},
 
 			wantErr: false,
 		},
@@ -924,7 +924,7 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 			databaseName: "warehouse1",
 			cmd: map[string][]string{
 				"run request with curl":                        {"curl", "http://localhost:12345/"},
-				"run request with opensearch-cli":              {"opensearch-cli", "--profile", "teleport", "--config", "/tmp/mysql/opensearch-cli/e397f38c.yml", "curl", "get", "--path", "/"},
+				"run request with opensearch-cli":              {"opensearch-cli", "--profile", "teleport", "--config", "/tmp/mysql/opensearch-cli/21f767e4.yml", "curl", "get", "--path", "/"},
 				"start interactive session with opensearchsql": {"opensearchsql", "http://localhost:12345"},
 			},
 			wantErr: false,

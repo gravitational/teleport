@@ -82,21 +82,10 @@ func Test_formatYAML(t *testing.T) {
 			},
 			want: `my field:
 allow:
-  cluster_labels:
-    access: ops
   logins:
   - username
-deny: {}
-options:
-  cert_format: ""
-  create_db_user: null
-  create_desktop_user: null
-  desktop_clipboard: null
-  desktop_directory_sharing: null
-  forward_agent: false
-  pin_source_ip: false
-  record_session: null
-  ssh_file_copy: null
+  cluster_labels:
+    access: ops
 `,
 		},
 	}
@@ -195,6 +184,11 @@ func Test_formatUserDetails(t *testing.T) {
 				SessionTTL: 1230,
 			},
 			want: `user details:
+   username: bar
+   logins:
+   - laa
+   - lbb
+   - lcc
    kube_groups:
    - kgaa
    - kgbb
@@ -203,10 +197,6 @@ func Test_formatUserDetails(t *testing.T) {
    - kuaa
    - kubb
    - kucc
-   logins:
-   - laa
-   - lbb
-   - lcc
    roles:
    - raa
    - rbb
@@ -215,8 +205,7 @@ func Test_formatUserDetails(t *testing.T) {
      groups:
      - gfoo
      - gbar
-     - gbaz
-   username: bar`,
+     - gbaz`,
 		},
 	}
 	for _, tt := range tests {

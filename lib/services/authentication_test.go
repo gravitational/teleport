@@ -24,13 +24,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -213,7 +212,7 @@ func TestParseSignatureAlgorithmSuite(t *testing.T) {
 			t.Run("yaml", func(t *testing.T) {
 				rawYAML := fmt.Sprintf(`spec: { signature_algorithm_suite: %s }`, tc.rawValue)
 
-				decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(rawYAML), defaults.LookaheadBufSize)
+				decoder := yaml.NewDecoder(strings.NewReader(rawYAML))
 				var authPref types.AuthPreferenceV2
 				err := decoder.Decode(&authPref)
 				require.NoError(t, err)

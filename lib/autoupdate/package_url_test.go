@@ -21,8 +21,8 @@ package autoupdate
 import (
 	"testing"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 )
 
 func TestInstallFlagsYAML(t *testing.T) {

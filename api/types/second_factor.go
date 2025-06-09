@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"slices"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -65,18 +66,19 @@ func LegacySecondFactorFromSecondFactors(secondFactors []SecondFactorType) const
 }
 
 // MarshalJSON marshals SecondFactorType to string.
-func (s *SecondFactorType) MarshalYAML() (interface{}, error) {
+func (s *SecondFactorType) MarshalYAML() ([]byte, error) {
 	val, err := s.Encode()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return val, nil
+	out, err := yaml.Marshal(val)
+	return out, trace.Wrap(err)
 }
 
 // UnmarshalYAML supports parsing SecondFactorType from string.
-func (s *SecondFactorType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *SecondFactorType) UnmarshalYAML(data []byte) error {
 	var val interface{}
-	err := unmarshal(&val)
+	err := yaml.Unmarshal(data, &val)
 	if err != nil {
 		return trace.Wrap(err)
 	}

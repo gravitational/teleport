@@ -23,9 +23,8 @@ import (
 	"errors"
 	"io"
 
-	"github.com/ghodss/yaml"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -50,7 +49,7 @@ func writeResourcesYAML(w io.Writer, resources []types.Resource) error {
 
 func readResourcesYAMLOrJSON(r io.Reader) ([]types.Resource, error) {
 	var resources []types.Resource
-	decoder := kyaml.NewYAMLOrJSONDecoder(r, 32768)
+	decoder := yaml.NewDecoder(r)
 	for {
 		var res streamResource
 		err := decoder.Decode(&res)

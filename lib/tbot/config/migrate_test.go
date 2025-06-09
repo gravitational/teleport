@@ -834,7 +834,7 @@ destinations:
 		{
 			name: "real world 3",
 			input: `
-Machine ID config created at /etc/tbot.yaml:
+# Machine ID config created at /etc/tbot.yaml:
 auth_server: teleportvm.example.com:443
 onboarding:
   token: redacted

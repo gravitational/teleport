@@ -28,8 +28,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
 	common "github.com/gravitational/teleport/lib/autoupdate"
@@ -476,6 +476,7 @@ func cmdStatus(ctx context.Context, ccfg *cliConfig) error {
 		return trace.Wrap(err, "failed to get status")
 	}
 	enc := yaml.NewEncoder(os.Stdout)
+	defer enc.Close()
 	return trace.Wrap(enc.Encode(status))
 }
 

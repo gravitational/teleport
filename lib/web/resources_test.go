@@ -29,11 +29,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -167,22 +167,22 @@ func TestCheckResourceUpsert(t *testing.T) {
 
 func TestNewResourceItemGithub(t *testing.T) {
 	const contents = `kind: github
+version: v3
 metadata:
   name: githubName
 spec:
-  api_endpoint_url: ""
   client_id: ""
   client_secret: ""
-  display: ""
-  endpoint_url: ""
   redirect_url: ""
   teams_to_logins:
-  - logins:
-    - dummy
-    organization: octocats
+  - organization: octocats
     team: dummy
-  teams_to_roles: null
-version: v3
+    logins:
+    - dummy
+  display: ""
+  teams_to_roles: []
+  endpoint_url: ""
+  api_endpoint_url: ""
 `
 	githubConn, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{
 		TeamsToLogins: []types.TeamMapping{
@@ -207,43 +207,43 @@ version: v3
 
 func TestNewResourceItemRole(t *testing.T) {
 	const contents = `kind: role
+version: v8
 metadata:
   name: roleName
 spec:
-  allow:
-    app_labels:
-      '*': '*'
-    db_labels:
-      '*': '*'
-    kubernetes_labels:
-      '*': '*'
-    kubernetes_resources:
-    - api_group: '*'
-      kind: pods
-      name: '*'
-      namespace: '*'
-    logins:
-    - test
-    node_labels:
-      '*': '*'
-  deny: {}
   options:
+    forward_agent: false
+    max_session_ttl: 30h0m0s
     cert_format: standard
-    create_db_user: false
-    create_desktop_user: false
-    desktop_clipboard: true
-    desktop_directory_sharing: true
     enhanced_recording:
     - command
     - network
-    forward_agent: false
-    max_session_ttl: 30h0m0s
-    pin_source_ip: false
     record_session:
-      default: best_effort
       desktop: true
+      default: best_effort
+    desktop_clipboard: true
+    desktop_directory_sharing: true
+    pin_source_ip: false
     ssh_file_copy: true
-version: v8
+    create_desktop_user: false
+    create_db_user: false
+  allow:
+    logins:
+    - test
+    node_labels:
+      "*": "*"
+    app_labels:
+      "*": "*"
+    kubernetes_labels:
+      "*": "*"
+    db_labels:
+      "*": "*"
+    kubernetes_resources:
+    - kind: pods
+      namespace: "*"
+      name: "*"
+      api_group: "*"
+  deny: {}
 `
 	role, err := types.NewRole("roleName", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -273,14 +273,14 @@ version: v8
 
 func TestNewResourceItemTrustedCluster(t *testing.T) {
 	const contents = `kind: trusted_cluster
+version: v2
 metadata:
   name: tcName
 spec:
   enabled: false
   token: ""
-  tunnel_addr: ""
   web_proxy_addr: ""
-version: v2
+  tunnel_addr: ""
 `
 	cluster, err := types.NewTrustedCluster("tcName", types.TrustedClusterSpecV2{})
 	require.NoError(t, err)

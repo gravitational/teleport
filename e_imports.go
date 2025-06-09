@@ -70,7 +70,6 @@ import (
 	_ "github.com/crewjam/saml"
 	_ "github.com/crewjam/saml/samlsp"
 	_ "github.com/elimity-com/scim/schema"
-	_ "github.com/ghodss/yaml"
 	_ "github.com/go-jose/go-jose/v3"
 	_ "github.com/go-jose/go-jose/v3/json"
 	_ "github.com/go-piv/piv-go/piv"
@@ -88,6 +87,7 @@ import (
 	_ "github.com/gravitational/license/constants"
 	_ "github.com/gravitational/license/generate"
 	_ "github.com/gravitational/roundtrip"
+	_ "github.com/gravitational/teleport/api/utils/yaml"
 	_ "github.com/gravitational/trace"
 	_ "github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5/pgconn"
@@ -168,7 +168,6 @@ import (
 	_ "google.golang.org/protobuf/types/known/timestamppb"
 	_ "google.golang.org/protobuf/types/known/wrapperspb"
 	_ "gopkg.in/check.v1"
-	_ "k8s.io/apimachinery/pkg/util/yaml"
 
 	_ "github.com/gravitational/teleport/api"
 	_ "github.com/gravitational/teleport/api/accessrequest"

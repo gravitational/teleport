@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/compare"
@@ -1257,18 +1258,18 @@ func (d *DatabaseTLSMode) UnmarshalJSON(data []byte) error {
 }
 
 // UnmarshalYAML supports parsing DatabaseTLSMode from number or string.
-func (d *DatabaseTLSMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (d *DatabaseTLSMode) UnmarshalYAML(data []byte) error {
 	// try as number first.
 	type loopBreaker DatabaseTLSMode
 	var val loopBreaker
-	if err := unmarshal(&val); err == nil {
+	if err := yaml.Unmarshal(data, &val); err == nil {
 		*d = DatabaseTLSMode(val)
 		return nil
 	}
 
 	// fallback to string.
 	var s string
-	if err := unmarshal(&s); err != nil {
+	if err := yaml.Unmarshal(data, &s); err != nil {
 		return trace.Wrap(err)
 	}
 	return d.decodeName(s)

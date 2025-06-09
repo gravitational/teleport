@@ -1144,7 +1144,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 				require.Contains(t, script, `
     labels:
       bad label key | ; & $ > < ' !: env
-      env: bad\ label\ value\ \|\ \;\ \&\ \$\ \>\ \<\ \'\ \!
+      env: "bad\\ label\\ value\\ \\|\\ \\;\\ \\&\\ \\$\\ \\>\\ \\<\\ \\'\\ \\!"
       teleport.internal/resource-id: `+internalResourceID,
 				)
 			},
@@ -1517,9 +1517,9 @@ func TestGetDatabaseJoinScript(t *testing.T) {
     - labels:
         env: prod
         os:
-          - mac
-          - linux
-        product: '*'
+        - mac
+        - linux
+        product: "*"
 `)
 			},
 		},
@@ -1551,7 +1551,7 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
 				require.Contains(t, script, `
     - labels:
-        '*': '*'
+        "*": "*"
 `)
 			},
 		},
@@ -1589,15 +1589,15 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
 				require.Contains(t, script, `
     - labels:
-        '"EOF"': test quoted heredoc
-        '#''; <>\#': try to escape yaml
-        '&<>''"$A,./;''BCD ${ABCD}': key with special characters
-        '*': '*'
+        "\"EOF\"": test quoted heredoc
+        "#'; <>\\#": try to escape yaml
+        "&<>'\"$A,./;'BCD ${ABCD}": key with special characters
+        "*": "*"
         EOF: test heredoc
         spa ces: spa ces
         value with special characters:
-          - '&<>''"$A,./;''BCD ${ABCD}'
-          - '#&<>''"$A,./;''BCD ${ABCD}'
+        - "&<>'\"$A,./;'BCD ${ABCD}"
+        - "#&<>'\"$A,./;'BCD ${ABCD}"
 `)
 			},
 		},

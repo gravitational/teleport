@@ -26,14 +26,13 @@ import (
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -200,7 +199,7 @@ func parseLoginRuleFile(fileName string) ([]*loginrulepb.LoginRule, error) {
 
 func parseLoginRules(r io.Reader) ([]*loginrulepb.LoginRule, error) {
 	var rules []*loginrulepb.LoginRule
-	decoder := kyaml.NewYAMLOrJSONDecoder(r, defaults.LookaheadBufSize)
+	decoder := yaml.NewDecoder(r)
 	for {
 		var raw services.UnknownResource
 		err := decoder.Decode(&raw)
@@ -233,7 +232,7 @@ func parseTraitsFile(fileName string) (map[string][]string, error) {
 		r = f
 	}
 
-	decoder := kyaml.NewYAMLOrJSONDecoder(r, defaults.LookaheadBufSize)
+	decoder := yaml.NewDecoder(r)
 	var traits map[string][]string
 	err := decoder.Decode(&traits)
 	if err != nil {

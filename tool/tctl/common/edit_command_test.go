@@ -588,7 +588,7 @@ func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
 			return trace.Wrap(err, "opening file to edit")
 		}
 		expected.GetMetadata().Revision = initial.GetMetadata().GetRevision()
-		collection := &autoUpdateConfigCollection{config: expected}
+		collection := &autoUpdateConfigCollection{Config: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 

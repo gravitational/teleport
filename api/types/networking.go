@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -412,14 +413,15 @@ func (c *ClusterNetworkingConfigV2) SetSSHDialTimeout(t time.Duration) {
 }
 
 // MarshalYAML defines how a proxy listener mode should be marshaled to a string
-func (p ProxyListenerMode) MarshalYAML() (interface{}, error) {
-	return strings.ToLower(p.String()), nil
+func (p ProxyListenerMode) MarshalYAML() ([]byte, error) {
+	out, err := yaml.Marshal(strings.ToLower(p.String()))
+	return out, trace.Wrap(err)
 }
 
 // UnmarshalYAML unmarshalls proxy listener mode from YAML value.
-func (p *ProxyListenerMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (p *ProxyListenerMode) UnmarshalYAML(data []byte) error {
 	var stringVar string
-	if err := unmarshal(&stringVar); err != nil {
+	if err := yaml.Unmarshal(data, &stringVar); err != nil {
 		return trace.Wrap(err)
 	}
 	for k, v := range ProxyListenerMode_value {
@@ -438,14 +440,15 @@ func (p *ProxyListenerMode) UnmarshalYAML(unmarshal func(interface{}) error) err
 }
 
 // MarshalYAML defines how a routing strategy should be marshaled to a string
-func (s RoutingStrategy) MarshalYAML() (interface{}, error) {
-	return strings.ToLower(s.String()), nil
+func (s RoutingStrategy) MarshalYAML() ([]byte, error) {
+	out, err := yaml.Marshal(strings.ToLower(s.String()))
+	return out, trace.Wrap(err)
 }
 
 // UnmarshalYAML unmarshalls routing strategy from YAML value.
-func (s *RoutingStrategy) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *RoutingStrategy) UnmarshalYAML(data []byte) error {
 	var stringVar string
-	if err := unmarshal(&stringVar); err != nil {
+	if err := yaml.Unmarshal(data, &stringVar); err != nil {
 		return trace.Wrap(err)
 	}
 

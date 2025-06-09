@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -67,14 +68,15 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 
 // MarshalYAML marshals duration into YAML value,
 // encodes it as a string in format "1m"
-func (d Duration) MarshalYAML() (interface{}, error) {
-	return fmt.Sprintf("%v", d.Duration()), nil
+func (d Duration) MarshalYAML() ([]byte, error) {
+	data, err := yaml.Marshal(fmt.Sprintf("%v", d.Duration()))
+	return data, trace.Wrap(err)
 }
 
 // UnmarshalYAML unmarshals duration from YAML value.
-func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (d *Duration) UnmarshalYAML(data []byte) error {
 	var stringVar string
-	if err := unmarshal(&stringVar); err != nil {
+	if err := yaml.Unmarshal(data, &stringVar); err != nil {
 		return trace.Wrap(err)
 	}
 	if stringVar == constants.DurationNever {

@@ -2,4 +2,4 @@ type: ssh_host
 destination:
   type: memory
 principals:
-  - host.example.com
+- host.example.com

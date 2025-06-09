@@ -32,10 +32,9 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -156,7 +155,7 @@ func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
 }
 
 func mustTranscodeYAMLToJSON(t *testing.T, r io.Reader) []byte {
-	decoder := kyaml.NewYAMLToJSONDecoder(r)
+	decoder := yaml.NewDecoder(r)
 	var resource services.UnknownResource
 	require.NoError(t, decoder.Decode(&resource))
 	return resource.Raw

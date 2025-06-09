@@ -22,8 +22,8 @@ import (
 	"net"
 	"net/url"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -59,15 +59,15 @@ func (s *ApplicationTunnelService) Type() string {
 	return ApplicationTunnelServiceType
 }
 
-func (s *ApplicationTunnelService) MarshalYAML() (interface{}, error) {
+func (s *ApplicationTunnelService) MarshalYAML() ([]byte, error) {
 	type raw ApplicationTunnelService
 	return withTypeHeader((*raw)(s), ApplicationTunnelServiceType)
 }
 
-func (s *ApplicationTunnelService) UnmarshalYAML(node *yaml.Node) error {
+func (s *ApplicationTunnelService) UnmarshalYAML(data []byte) error {
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw ApplicationTunnelService
-	if err := node.Decode((*raw)(s)); err != nil {
+	if err := yaml.Unmarshal(data, (*raw)(s)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

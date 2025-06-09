@@ -24,11 +24,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/goccy/go-yaml"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	apiyaml "github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -38,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
@@ -447,7 +447,7 @@ type autoUpdateConfigBrokenCollection struct {
 
 func (c *autoUpdateConfigBrokenCollection) resources() []types.Resource {
 	// We use Resource153ToLegacy instead of ProtoResource153ToLegacy.
-	return []types.Resource{types.Resource153ToLegacy(c.config)}
+	return []types.Resource{types.Resource153ToLegacy(c.Config)}
 }
 
 // This test makes sure we marshal and unmarshal proto-based Resource153 properly.
@@ -474,12 +474,12 @@ func TestRoundTripProtoResource153(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test execution: dump the resource into a YAML manifest.
-	collection := &autoUpdateConfigCollection{config: initial}
+	collection := &autoUpdateConfigCollection{Config: initial}
 	buf := &bytes.Buffer{}
 	require.NoError(t, writeYAML(collection, buf))
 
 	// Test execution: load the YAML manifest back.
-	decoder := kyaml.NewYAMLOrJSONDecoder(buf, defaults.LookaheadBufSize)
+	decoder := apiyaml.NewDecoder(buf, yaml.UseJSONUnmarshaler())
 	var raw services.UnknownResource
 	require.NoError(t, decoder.Decode(&raw))
 	result, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw)
@@ -495,7 +495,7 @@ func TestRoundTripProtoResource153(t *testing.T) {
 	require.NoError(t, writeYAML(brokenCollection, buf))
 
 	// Test execution: load the YAML manifest back and see that we can't unmarshal it.
-	decoder = kyaml.NewYAMLOrJSONDecoder(buf, defaults.LookaheadBufSize)
+	decoder = apiyaml.NewDecoder(buf, yaml.UseJSONUnmarshaler())
 	require.NoError(t, decoder.Decode(&raw))
 	_, err = services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw)
 	require.Error(t, err)

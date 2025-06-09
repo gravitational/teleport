@@ -2,8 +2,8 @@ type: ssh_host
 destination:
   type: memory
 roles:
-  - access
+- access
 principals:
-  - host.example.com
+- host.example.com
 credential_ttl: 1m0s
 renewal_interval: 30s

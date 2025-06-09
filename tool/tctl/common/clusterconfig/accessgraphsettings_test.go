@@ -23,14 +23,13 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -167,7 +166,7 @@ spec:
 			// Mimic tctl resource command by using the same decoder and
 			// initially unmarshalling into services.UnknownResource
 			reader := strings.NewReader(tc.input)
-			decoder := kyaml.NewYAMLOrJSONDecoder(reader, defaults.LookaheadBufSize)
+			decoder := yaml.NewDecoder(reader)
 			var raw services.UnknownResource
 			err := decoder.Decode(&raw)
 			require.NoError(t, err)

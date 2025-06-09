@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/types/wrappers"
 )

@@ -17,11 +17,11 @@
 package web
 
 import (
+	"bytes"
 	"net/http"
 	"strconv"
 	"time"
 
-	yaml "github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/utils"
 	tslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -286,14 +287,15 @@ func (h *Handler) getBotInstance(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err, "error querying bot instance")
 	}
 
-	yaml, err := yaml.Marshal(types.ProtoResource153ToLegacy(instance))
+	buf := &bytes.Buffer{}
+	err = utils.WriteYAML(buf, types.ProtoResource153ToLegacy(instance))
 	if err != nil {
 		return nil, trace.Wrap(err, "error stringifying to yaml")
 	}
 
 	return GetBotInstanceResponse{
 		BotInstance: instance,
-		YAML:        string(yaml),
+		YAML:        buf.String(),
 	}, nil
 }
 

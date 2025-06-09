@@ -30,8 +30,8 @@ import (
 	"text/template"
 
 	"github.com/google/safetext/shsprintf"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/api/types"
@@ -124,7 +124,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 
 	var dbServiceResourceLabels []string
 	if opts.DatabaseServiceEnabled {
-		dbServiceResourceLabels, err = marshalLabelsYAML(opts.LabelMatchers, 6)
+		dbServiceResourceLabels, err = marshalLabelsYAML(opts.LabelMatchers, 8)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -140,7 +140,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 			return "", trace.BadParameter("appURI %q contains invalid characters", opts.AppURI)
 		}
 
-		appServerResourceLabels, err = marshalLabelsYAML(opts.Labels, 4)
+		appServerResourceLabels, err = marshalLabelsYAML(opts.Labels, 6)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}

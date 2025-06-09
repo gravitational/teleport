@@ -18,11 +18,13 @@ package config
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	"github.com/goccy/go-yaml/parser"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -47,7 +49,7 @@ type WorkloadIdentityAWSRAService struct {
 	// used to issue WICs.
 	Selector WorkloadIdentitySelector `yaml:"selector"`
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
+	Destination bot.Destination
 
 	// RoleARN is the ARN of the role to assume.
 	// Example: `arn:aws:iam::123456789012:role/example-role`
@@ -164,20 +166,28 @@ func (o *WorkloadIdentityAWSRAService) Type() string {
 }
 
 // MarshalYAML marshals the WorkloadIdentityJWTService into YAML.
-func (o *WorkloadIdentityAWSRAService) MarshalYAML() (interface{}, error) {
+func (o *WorkloadIdentityAWSRAService) MarshalYAML() ([]byte, error) {
 	type raw WorkloadIdentityAWSRAService
 	return withTypeHeader((*raw)(o), WorkloadIdentityAWSRAType)
 }
 
 // UnmarshalYAML unmarshals the WorkloadIdentityJWTService from YAML.
-func (o *WorkloadIdentityAWSRAService) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (o *WorkloadIdentityAWSRAService) UnmarshalYAML(data []byte) error {
+	parsed, err := parser.ParseBytes(data, parser.ParseComments)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dest, err := extractOutputDestination(parsed)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	extractedData, err := io.ReadAll(parsed)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw WorkloadIdentityAWSRAService
-	if err := node.Decode((*raw)(o)); err != nil {
+	if err := yaml.Unmarshal(extractedData, (*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
 	o.Destination = dest

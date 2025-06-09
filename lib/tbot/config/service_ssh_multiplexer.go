@@ -19,8 +19,12 @@
 package config
 
 import (
+	"io"
+
+	"github.com/goccy/go-yaml/parser"
+	"github.com/gravitational/teleport/api/utils/yaml"
+
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
@@ -32,7 +36,7 @@ const SSHMultiplexerServiceType = "ssh-multiplexer"
 type SSHMultiplexerService struct {
 	// Destination is where the config and tunnel should be written to. It
 	// should be a DestinationDirectory.
-	Destination bot.Destination `yaml:"destination"`
+	Destination bot.Destination
 	// EnableResumption controls whether to enable session resumption for the
 	// SSH proxy.
 	// Call `SessionResumptionEnabled` to get the value with defaults applied.
@@ -65,19 +69,27 @@ func (s *SSHMultiplexerService) Type() string {
 	return SSHMultiplexerServiceType
 }
 
-func (s *SSHMultiplexerService) MarshalYAML() (interface{}, error) {
+func (s *SSHMultiplexerService) MarshalYAML() ([]byte, error) {
 	type raw SSHMultiplexerService
 	return withTypeHeader((*raw)(s), SSHMultiplexerServiceType)
 }
 
-func (s *SSHMultiplexerService) UnmarshalYAML(node *yaml.Node) error {
-	dest, err := extractOutputDestination(node)
+func (s *SSHMultiplexerService) UnmarshalYAML(data []byte) error {
+	parsed, err := parser.ParseBytes(data, parser.ParseComments)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dest, err := extractOutputDestination(parsed)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	extractedData, err := io.ReadAll(parsed)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw SSHMultiplexerService
-	if err := node.Decode((*raw)(s)); err != nil {
+	if err := yaml.Unmarshal(extractedData, (*raw)(s)); err != nil {
 		return trace.Wrap(err)
 	}
 	s.Destination = dest

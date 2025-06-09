@@ -108,7 +108,6 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/fsouza/fake-gcs-server v1.52.2
 	github.com/fxamacker/cbor/v2 v2.8.0
-	github.com/ghodss/yaml v1.0.0
 	github.com/go-git/go-git/v5 v5.16.0
 	github.com/go-jose/go-jose/v3 v3.0.4
 	github.com/go-jose/go-jose/v4 v4.0.5
@@ -119,6 +118,7 @@ require (
 	github.com/go-resty/resty/v2 v2.16.5
 	github.com/go-webauthn/webauthn v0.11.2
 	github.com/gobwas/ws v1.4.0
+	github.com/goccy/go-yaml v1.18.0
 	github.com/gocql/gocql v1.7.0
 	github.com/gofrs/flock v0.12.1
 	github.com/gogo/protobuf v1.3.2 // replaced
@@ -242,8 +242,8 @@ require (
 	gopkg.in/dnaeon/go-vcr.v3 v3.2.0
 	gopkg.in/ini.v1 v1.67.0
 	gopkg.in/mail.v2 v2.3.1
-	gopkg.in/yaml.v2 v2.4.0
-	gopkg.in/yaml.v3 v3.0.1
+	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gvisor.dev/gvisor v0.0.0-20230927004350-cbd86285d259
 	helm.sh/helm/v3 v3.17.3
 	k8s.io/api v0.33.0
@@ -258,7 +258,7 @@ require (
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
 	sigs.k8s.io/controller-runtime v0.20.4
 	sigs.k8s.io/controller-tools v0.17.1
-	sigs.k8s.io/yaml v1.4.0
+	sigs.k8s.io/yaml v1.4.0 // indirect
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
 

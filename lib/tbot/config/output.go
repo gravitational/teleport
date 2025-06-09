@@ -19,8 +19,11 @@
 package config
 
 import (
+	"io"
+
+	"github.com/goccy/go-yaml/ast"
+
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
@@ -33,17 +36,30 @@ import (
 //
 // If there's no destination in the provided yaml node, then this will return
 // nil, nil.
-func extractOutputDestination(node *yaml.Node) (bot.Destination, error) {
-	for i, subNode := range node.Content {
-		if subNode.Value == "destination" {
+func extractOutputDestination(file *ast.File) (bot.Destination, error) {
+	if len(file.Docs) != 1 {
+		return nil, trace.BadParameter("multiple docs is bad")
+	}
+	mapNode, ok := file.Docs[0].Body.(*ast.MappingNode)
+	if !ok {
+		return nil, trace.BadParameter("expected map node")
+	}
+	for i, kv := range mapNode.Values {
+		key := kv.Key.String()
+		if key == "destination" {
+			destBytes, err := io.ReadAll(kv.Value)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			// Next node will be the contents
-			dest, err := unmarshalDestination(node.Content[i+1])
+			dest, err := unmarshalDestination(destBytes)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			// Remove key and contents from root node
-			node.Content = append(node.Content[:i], node.Content[i+2:]...)
+			mapNode.Values = append(mapNode.Values[:i], mapNode.Values[i+1:]...)
 			return dest, nil
+
 		}
 	}
 	return nil, nil

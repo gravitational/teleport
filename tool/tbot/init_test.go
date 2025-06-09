@@ -28,9 +28,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/goccy/go-yaml"
+	apiyaml "github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
@@ -115,10 +116,10 @@ func testConfigFromString(t *testing.T, yamlStr string) *config.BotConfig {
 
 	// Reencode as a string
 	out := &strings.Builder{}
-	enc := yaml.NewEncoder(out)
-	enc.SetIndent(2)
+	enc := apiyaml.NewEncoder(out, yaml.Indent(2))
 	err = enc.Encode(cfg)
 	require.NoError(t, err)
+	require.NoError(t, enc.Close())
 
 	// Load and return the static config
 	globalArgs := cli.NewGlobalArgsWithStaticConfig(out.String())

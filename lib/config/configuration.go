@@ -44,8 +44,8 @@ import (
 	"unicode"
 
 	"github.com/go-ldap/ldap/v3"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -449,7 +449,7 @@ func ReadResources(filePath string) ([]types.Resource, error) {
 		return nil, trace.Wrap(err)
 	}
 	defer reader.Close()
-	decoder := kyaml.NewYAMLOrJSONDecoder(reader, defaults.LookaheadBufSize)
+	decoder := yaml.NewDecoder(reader)
 	var resources []types.Resource
 	for {
 		var raw services.UnknownResource

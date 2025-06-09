@@ -17,8 +17,8 @@
 package config
 
 import (
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
@@ -66,16 +66,16 @@ func (o *WorkloadIdentityAPIService) Type() string {
 }
 
 // MarshalYAML marshals the WorkloadIdentityOutput into YAML.
-func (o *WorkloadIdentityAPIService) MarshalYAML() (interface{}, error) {
+func (o *WorkloadIdentityAPIService) MarshalYAML() ([]byte, error) {
 	type raw WorkloadIdentityAPIService
 	return withTypeHeader((*raw)(o), WorkloadIdentityAPIServiceType)
 }
 
 // UnmarshalYAML unmarshals the WorkloadIdentityOutput from YAML.
-func (o *WorkloadIdentityAPIService) UnmarshalYAML(node *yaml.Node) error {
+func (o *WorkloadIdentityAPIService) UnmarshalYAML(data []byte) error {
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw WorkloadIdentityAPIService
-	if err := node.Decode((*raw)(o)); err != nil {
+	if err := yaml.Unmarshal(data, (*raw)(o)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

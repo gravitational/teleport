@@ -24,9 +24,9 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -536,10 +536,10 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 	return &unknownRes, nil
 }
 
-func extractResource(yaml string) (services.UnknownResource, error) {
+func extractResource(yamlResource string) (services.UnknownResource, error) {
 	var unknownRes services.UnknownResource
-	reader := strings.NewReader(yaml)
-	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
+	reader := strings.NewReader(yamlResource)
+	decoder := yaml.NewDecoder(reader)
 
 	if err := decoder.Decode(&unknownRes); err != nil {
 		return services.UnknownResource{}, trace.BadParameter("not a valid resource declaration")

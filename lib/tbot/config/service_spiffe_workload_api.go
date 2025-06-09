@@ -22,8 +22,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
@@ -136,15 +136,15 @@ func (s *SPIFFEWorkloadAPIService) Type() string {
 	return SPIFFEWorkloadAPIServiceType
 }
 
-func (s *SPIFFEWorkloadAPIService) MarshalYAML() (interface{}, error) {
+func (s *SPIFFEWorkloadAPIService) MarshalYAML() ([]byte, error) {
 	type raw SPIFFEWorkloadAPIService
 	return withTypeHeader((*raw)(s), SPIFFEWorkloadAPIServiceType)
 }
 
-func (s *SPIFFEWorkloadAPIService) UnmarshalYAML(node *yaml.Node) error {
+func (s *SPIFFEWorkloadAPIService) UnmarshalYAML(data []byte) error {
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw SPIFFEWorkloadAPIService
-	if err := node.Decode((*raw)(s)); err != nil {
+	if err := yaml.Unmarshal(data, (*raw)(s)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

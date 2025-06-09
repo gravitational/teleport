@@ -39,5 +39,5 @@ func Test_parseAndRender(t *testing.T) {
 	// Test execution: we render templates, expect no error and check result
 	actual, err := parseAndRender(testChartPath)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Equal(t, string(expected), string(actual))
 }

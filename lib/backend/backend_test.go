@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,6 +40,29 @@ func TestParams(t *testing.T) {
 	if path != expectedPath {
 		t.Errorf("expected 'path' to be '%v', got '%v'", expectedPath, path)
 	}
+}
+
+func TestParamsMarshal(t *testing.T) {
+	t.Parallel()
+	type outer struct {
+		Foo     string `yaml:"foo"`
+		Storage Config `yaml:"storage"`
+	}
+	conf := outer{
+		Foo: "bar",
+		Storage: Config{
+			Type: "myType",
+			Params: Params{
+				"foo": "bar",
+				"abc": 123,
+			},
+		},
+	}
+	out, err := yaml.Marshal(conf)
+	require.NoError(t, err)
+	var unmarshaled outer
+	require.NoError(t, yaml.Unmarshal(out, &unmarshaled))
+	require.Equal(t, conf, unmarshaled)
 }
 
 func TestRangeEnd(t *testing.T) {
