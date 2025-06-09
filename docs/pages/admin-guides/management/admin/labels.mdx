@@ -310,18 +310,19 @@ corresponding `server_info` resource.
 
 To add resource-based labels first get the SSH server details.
 
-1. Retrieve the SSH server that you wish to apply labels to.
+1. Retrieve the SSH server that you wish to apply labels to. Assign <Var
+   name="node_name" /> to the name of the SSH server:
 
-```code
-$ tctl get node/<Var name="foo" />
-kind: node
-metadata:
-  expires: "2024-01-12T00:41:17.355013266Z"
-  name: 116b08d2-7167-4eab-85a8-cf93f054b217
-spec:
-  addr: 127.0.0.1:3022
-  hostname: foo
-```
+   ```code
+   $ tctl get node/<Var name="node_name" />
+   kind: node
+   metadata:
+     expires: "2024-01-12T00:41:17.355013266Z"
+     name: 116b08d2-7167-4eab-85a8-cf93f054b217
+   spec:
+     addr: 127.0.0.1:3022
+     hostname: foo
+   ```
 
 1. Create the corresponding `server_info.yaml` for the node above.
 
