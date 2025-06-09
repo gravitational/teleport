@@ -155,4 +155,74 @@ describe('ButtonToggle', () => {
     await userEvent.click(leftBtn);
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it('is accessible: can be focused and toggled with Space and Enter', async () => {
+    const onChange = jest.fn();
+    render(
+      <ButtonToggle
+        leftLabel="Left"
+        rightLabel="Right"
+        initialValue={false}
+        onChange={onChange}
+      />
+    );
+    const entireButtonToggle = screen.getByTestId('button-toggle');
+    entireButtonToggle.focus();
+    expect(entireButtonToggle).toHaveFocus();
+
+    await userEvent.keyboard(' ');
+    expect(onChange).toHaveBeenCalledWith(true);
+
+    await userEvent.keyboard('{Enter}');
+    expect(onChange).toHaveBeenCalledWith(false);
+  });
+
+  it('has correct aria attributes', () => {
+    render(
+      <ButtonToggle
+        leftLabel="Left"
+        rightLabel="Right"
+        initialValue={true}
+        onChange={() => {}}
+      />
+    );
+    const entireButtonToggle = screen.getByTestId('button-toggle');
+    expect(entireButtonToggle).toHaveAttribute('role', 'switch');
+    expect(entireButtonToggle).toBeChecked();
+    expect(entireButtonToggle).toHaveAttribute('tabindex', '0');
+  });
+
+  it('updates aria-checked when toggled', async () => {
+    render(
+      <ButtonToggle
+        leftLabel="Left"
+        rightLabel="Right"
+        initialValue={false}
+        onChange={() => {}}
+      />
+    );
+    const entireButtonToggle = screen.getByTestId('button-toggle');
+    expect(entireButtonToggle).not.toBeChecked();
+    entireButtonToggle.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(entireButtonToggle).toBeChecked();
+  });
+
+  it('updates aria-checked when toggled (with rightIsTrue)', async () => {
+    render(
+      <ButtonToggle
+        leftLabel="Left"
+        rightLabel="Right"
+        initialValue={false}
+        rightIsTrue
+        onChange={() => {}}
+      />
+    );
+    const entireButtonToggle = screen.getByTestId('button-toggle');
+    // with rightIsTrue, initialValue=false means checked
+    expect(entireButtonToggle).toBeChecked();
+    entireButtonToggle.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(entireButtonToggle).not.toBeChecked();
+  });
 });

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { useState } from 'react';
+import { KeyboardEvent, useState } from 'react';
 
 import { ButtonPrimary } from '../Button/Button';
 import Flex from '../Flex';
@@ -65,16 +65,32 @@ export const ButtonToggle = ({
   const getValueForPosition = (position: 'left' | 'right') =>
     position === (rightIsTrue ? 'right' : 'left');
 
-  const handleClick = (position: 'left' | 'right') => {
-    const newValue = getValueForPosition(position);
+  const updateValue = (newValue: boolean) => {
     if (value !== newValue) {
       setValue(newValue);
       onChange(newValue); // handle the change in the parent component
     }
   };
 
+  const handleClick = (position: 'left' | 'right') => {
+    updateValue(getValueForPosition(position));
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      updateValue(!value);
+    }
+  };
+
   return (
-    <Flex>
+    <Flex
+      role="switch"
+      aria-checked={rightIsTrue ? !value : value}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      data-testid="button-toggle"
+    >
       <ButtonPrimary
         style={{
           borderRight: 'none',
@@ -83,6 +99,8 @@ export const ButtonToggle = ({
         }}
         intent={isActive('left') ? 'primary' : 'neutral'}
         onClick={() => handleClick('left')}
+        tabIndex={-1}
+        aria-pressed={isActive('left')}
       >
         {leftLabel}
       </ButtonPrimary>
@@ -94,6 +112,8 @@ export const ButtonToggle = ({
         }}
         intent={isActive('right') ? 'primary' : 'neutral'}
         onClick={() => handleClick('right')}
+        tabIndex={-1}
+        aria-pressed={isActive('right')}
       >
         {rightLabel}
       </ButtonPrimary>
