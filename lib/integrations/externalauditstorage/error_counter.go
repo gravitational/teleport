@@ -327,6 +327,12 @@ func (c *ErrorCountingLogger) SearchEvents(ctx context.Context, req events.Searc
 	return events, key, err
 }
 
+func (c *ErrorCountingLogger) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	events, key, err := c.wrapped.SearchUnstructuredEvents(ctx, req)
+	c.searches.observe(err)
+	return events, key, err
+}
+
 func (c *ErrorCountingLogger) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
 	return stream.MapErr(c.wrapped.ExportUnstructuredEvents(ctx, req), func(err error) error {
 		c.searches.observe(err)
