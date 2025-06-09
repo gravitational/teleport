@@ -116,7 +116,7 @@ On all platforms, with the exception of production builds on macOS, the `CONNECT
 var is used to provide the path to the tsh binary that will be included in the package.
 
 See [Teleport Connect build
-process](https://gravitational.slab.com/posts/teleport-connect-build-process-fu6da5ld) on Slab for
+process](https://www.notion.so/goteleport/Teleport-Connect-build-process) on Slab for
 bulid process documentation that is specific to Gravitational.
 
 ### Native dependencies
@@ -215,7 +215,7 @@ variable.
 Signing & notarizing is required if the application is supposed to be ran on devices other than the
 one that packaged it. See [electron-builder's docs](https://www.electron.build/code-signing) for a
 general overview and [Teleport Connect build
-process](https://gravitational.slab.com/posts/teleport-connect-build-process-fu6da5ld) Slab page for
+process](https://www.notion.so/goteleport/Teleport-Connect-build-process) Slab page for
 Gravitational-specific nuances.
 
 For the most part, the device that's doing the signing & notarizing needs to have access to an Apple
@@ -229,7 +229,7 @@ be set to the account email address associated with the developer ID. `APPLE_PAS
 app-specific password](https://support.apple.com/en-us/HT204397), not the account password.
 
 The Team ID needed as an input for notarization must be provided via the `TEAMID` environment
-variable. The top-level `Makefile` exports this when `yarm package-term` is called from `make
+variable. The top-level `Makefile` exports this when `pnpm package-term` is called from `make
 release-connect` with either the developer or production Team ID depending on the `ENVIRONMENT_NAME`
 environment variable. See the top-level `darwin-signing.mk` for details.
 
