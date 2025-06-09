@@ -1,6 +1,7 @@
 ---
-title: Getting Started with Access Monitoring
+title: Access Monitoring
 description: Learn how to use Access Monitoring.
+sidebar_position: 6
 ---
 
 Access Monitoring allows users to understand and analyze the access patterns in a Teleport cluster.
@@ -23,7 +24,7 @@ Users are able to write their own custom access monitoring queries by querying t
 
 ## Prerequisites
 - Teleport v14 or later.
-- For self-hosted Teleport the [Amazon Athena Backend](../../reference/backends.mdx) is required.
+- For self-hosted Teleport the [Amazon Athena Backend](../reference/backends.mdx) is required.
 
 
 ### Configuration
@@ -241,7 +242,7 @@ WHERE
   command LIKE '%/etc/passwd%';
 ```
 
-![exec passwd](../../../img/access-monitoring/exec_passwd.png)
+![exec passwd](../../img/access-monitoring/exec_passwd.png)
 
 - Select the count of unique IP addresses associated with each user cert over different event dates:
 ```sql
@@ -310,11 +311,11 @@ WHERE
 
 The query editor also integrates with Teleport Assist, allowing you to to generate queries with a human-readable description of the data you want to retrieve.
 
-![assist query](../../../img/access-monitoring/assist_query_1.png)
+![assist query](../../img/access-monitoring/assist_query_1.png)
 
 
 Teleport Assist will generate the SQL query based on the user prompt message:
-![assist query result](../../../img/access-monitoring/assist_query_2.png)
+![assist query result](../../img/access-monitoring/assist_query_2.png)
 
 # Access Monitoring Reports
 
@@ -352,7 +353,7 @@ ORDER BY
     event_date
 ```
 
-![privileged access report](../../../img/access-monitoring/privileged_access_report.png)
+![privileged access report](../../img/access-monitoring/privileged_access_report.png)
 
 
 **Suggestion:**  Set up Access Requests, Device Trust and per-session MFA.
@@ -508,7 +509,7 @@ ORDER BY
     event_date
 ```
 
-**Suggestion:**  Use short-lived tokens to reduce risk of compromise or [delegated](../../reference/join-methods.mdx) joining when possible.
+**Suggestion:**  Use short-lived tokens to reduce risk of compromise or [delegated](../reference/join-methods.mdx) joining when possible.
 
 ### Root SSH sessions
 
