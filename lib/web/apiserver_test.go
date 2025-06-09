@@ -8228,7 +8228,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
 		TransportCredentials: credentials.NewTLS(tlscfg),
-		UserGetter: &auth.Middleware{
+		UserGetter: &authz.Middleware{
 			ClusterName: authServer.ClusterName(),
 		},
 		Authorizer: authorizer,
@@ -9476,9 +9476,11 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		ClusterName:   clusterName,
-		Limiter:       limiter,
-		AcceptedUsage: []string{teleport.UsageKubeOnly},
+		Middleware: authz.Middleware{
+			ClusterName:   clusterName,
+			AcceptedUsage: []string{teleport.UsageKubeOnly},
+		},
+		Limiter: limiter,
 	}
 
 	tlsConf := copyAndConfigureTLS(tlsConfig, proxyAuthClient, clusterName)

@@ -5195,7 +5195,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
-	authMiddleware := &auth.Middleware{
+	authMiddleware := &authz.Middleware{
 		ClusterName: clusterName,
 	}
 
@@ -6888,9 +6888,11 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		ClusterName:   clusterName,
-		Limiter:       cfg.limiter,
-		AcceptedUsage: []string{teleport.UsageKubeOnly},
+		Middleware: authz.Middleware{
+			ClusterName:   clusterName,
+			AcceptedUsage: []string{teleport.UsageKubeOnly},
+		},
+		Limiter: cfg.limiter,
 	}
 
 	tlsConf := serverTLSConfig.Clone()

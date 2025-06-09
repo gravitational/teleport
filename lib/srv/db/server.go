@@ -38,7 +38,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
@@ -372,7 +371,7 @@ type Server struct {
 	// closeFunc is the cancel function of the close context.
 	closeFunc context.CancelFunc
 	// middleware extracts identity from client certificates.
-	middleware *auth.Middleware
+	middleware *authz.Middleware
 	// dynamicLabels contains dynamic labels for databases.
 	dynamicLabels map[string]*labels.Dynamic
 	// heartbeats holds heartbeats for database servers.
@@ -495,7 +494,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 			static: config.Databases,
 		},
 		reconcileCh: make(chan struct{}),
-		middleware: &auth.Middleware{
+		middleware: &authz.Middleware{
 			ClusterName:   clustername.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
