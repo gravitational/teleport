@@ -115,9 +115,8 @@ Resulting files can be found in `sharedProcess/api/protogen`.
 On all platforms, with the exception of production builds on macOS, the `CONNECT_TSH_BIN_PATH` env
 var is used to provide the path to the tsh binary that will be included in the package.
 
-See [Teleport Connect build
-process](https://www.notion.so/goteleport/Teleport-Connect-build-process) on Slab for
-bulid process documentation that is specific to Gravitational.
+See [Teleport Connect build process](https://www.notion.so/goteleport/Teleport-Connect-build-process)
+on Notion for build process documentation that is specific to Gravitational.
 
 ### Native dependencies
 
@@ -214,9 +213,8 @@ variable.
 
 Signing & notarizing is required if the application is supposed to be ran on devices other than the
 one that packaged it. See [electron-builder's docs](https://www.electron.build/code-signing) for a
-general overview and [Teleport Connect build
-process](https://www.notion.so/goteleport/Teleport-Connect-build-process) Slab page for
-Gravitational-specific nuances.
+general overview and [Teleport Connect build process](https://www.notion.so/goteleport/Teleport-Connect-build-process)
+Notion page for Gravitational-specific nuances.
 
 For the most part, the device that's doing the signing & notarizing needs to have access to an Apple
 Developer ID (certificate + private key). electron-builder should automatically discover it if
