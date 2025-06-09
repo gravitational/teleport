@@ -342,7 +342,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		if trace.IsNotImplemented(err) {
 			return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 		}
-		err = trace.Wrap(err, "error deleting resource %q of type %q", rc.ref.Name, rc.ref.Kind)
+		return trace.Wrap(err, "error deleting resource %q of type %q", rc.ref.Name, rc.ref.Kind)
 	}
 	return nil
 }

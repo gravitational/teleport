@@ -7,7 +7,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -53,14 +52,6 @@ func (c *kubeServerCollection) WriteText(w io.Writer, verbose bool) error {
 
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
-}
-
-func (c *kubeServerCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.servers)
-}
-
-func (c *kubeServerCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSONArray(w, c.servers)
 }
 
 type kubeClusterCollection struct {

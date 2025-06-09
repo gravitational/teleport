@@ -3,11 +3,11 @@ package resource
 import (
 	"context"
 	"fmt"
-	"github.com/gravitational/teleport/api/trail"
 
 	"github.com/gravitational/trace"
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"

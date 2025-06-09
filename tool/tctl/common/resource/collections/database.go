@@ -14,7 +14,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
@@ -60,14 +59,6 @@ func (c *databaseServerCollection) WriteText(w io.Writer, verbose bool) error {
 	t.SortRowsBy([]int{0, 1}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
-}
-
-func (c *databaseServerCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSONArray(w, c.servers)
-}
-
-func (c *databaseServerCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.servers)
 }
 
 func NewDatabaseCollection(databases []types.Database) ResourceCollection {

@@ -101,19 +101,13 @@ type connectorsCollection struct {
 
 func (c *connectorsCollection) Resources() (r []types.Resource) {
 	if c.oidc != nil {
-		for _, resource := range c.oidc.Resources() {
-			r = append(r, resource)
-		}
+		r = append(r, c.oidc.Resources()...)
 	}
 	if c.saml != nil {
-		for _, resource := range c.saml.Resources() {
-			r = append(r, resource)
-		}
+		r = append(r, c.saml.Resources()...)
 	}
 	if c.github != nil {
-		for _, resource := range c.github.Resources() {
-			r = append(r, resource)
-		}
+		r = append(r, c.github.Resources()...)
 	}
 	return r
 }

@@ -7,7 +7,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -44,14 +43,6 @@ func (s *serverCollection) WriteText(w io.Writer, verbose bool) error {
 
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
-}
-
-func (s *serverCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, s.servers)
-}
-
-func (s *serverCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSONArray(w, s.servers)
 }
 
 type serverInfoCollection struct {

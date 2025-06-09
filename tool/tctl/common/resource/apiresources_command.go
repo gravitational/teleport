@@ -2,16 +2,18 @@ package resource
 
 import (
 	"context"
-	"github.com/alecthomas/kingpin/v2"
-	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
-	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
-	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/trace"
 	"io"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 type APIResourcesCommand struct {

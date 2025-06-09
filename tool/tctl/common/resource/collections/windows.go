@@ -8,7 +8,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -70,14 +69,6 @@ func (c *windowsDesktopCollection) WriteText(w io.Writer, verbose bool) error {
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
-}
-
-func (c *windowsDesktopCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.desktops)
-}
-
-func (c *windowsDesktopCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSONArray(w, c.desktops)
 }
 
 type dynamicWindowsDesktopCollection struct {

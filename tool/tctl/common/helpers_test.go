@@ -32,11 +32,6 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
-
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -44,24 +39,14 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/tctl/common/resource"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 )
-
-type options struct {
-	Editor func(string) error
-}
-
-type optionsFunc func(o *options)
-
-func withEditor(editor func(string) error) optionsFunc {
-	return func(o *options) {
-		o.Editor = editor
-	}
-}
 
 type cliCommand interface {
 	Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config)
@@ -88,19 +73,6 @@ func runResourceCommand(t *testing.T, client *authclient.Client, args []string) 
 	var stdoutBuff bytes.Buffer
 	command := resource.NewTestResourceCommand(&stdoutBuff)
 	return &stdoutBuff, runCommand(t, client, &command, args)
-}
-
-func runEditCommand(t *testing.T, client *authclient.Client, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
-	var o options
-	for _, opt := range opts {
-		opt(&o)
-	}
-
-	var stdoutBuff bytes.Buffer
-	command := &resource.EditCommand{
-		Editor: o.Editor,
-	}
-	return &stdoutBuff, runCommand(t, client, command, args)
 }
 
 func runLockCommand(t *testing.T, client *authclient.Client, args []string) error {
@@ -152,13 +124,6 @@ func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
 	err := json.NewDecoder(r).Decode(&out)
 	require.NoError(t, err)
 	return out
-}
-
-func mustTranscodeYAMLToJSON(t *testing.T, r io.Reader) []byte {
-	decoder := kyaml.NewYAMLToJSONDecoder(r)
-	var resource services.UnknownResource
-	require.NoError(t, decoder.Decode(&resource))
-	return resource.Raw
 }
 
 func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) {
