@@ -68,7 +68,16 @@ export const SERVERS: SelectResourceSpec[] = [
     id: DiscoverGuideId.ServerLinuxRhelCentos,
     name: 'RHEL 8+/CentOS Stream 9+',
     kind: ResourceKind.Server,
-    keywords: [...baseServerKeywords, 'rhel', 'redhat', 'centos', 'linux', 'rocky', 'alma', 'almalinux'],
+    keywords: [
+      ...baseServerKeywords,
+      'rhel',
+      'redhat',
+      'centos',
+      'linux',
+      'rocky',
+      'alma',
+      'almalinux'
+    ],
     icon: 'linux',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
