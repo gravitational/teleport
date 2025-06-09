@@ -20,11 +20,11 @@ package okta
 
 import (
 	"context"
-	"slices"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	oktaplugin "github.com/gravitational/teleport/lib/okta/plugin"
@@ -138,35 +138,18 @@ func CheckResourcesRequestable(ctx context.Context, ids []types.ResourceID, auth
 		return nil
 	}
 
-	hasApps := slices.ContainsFunc(ids, func(id types.ResourceID) bool {
-		return id.Kind == types.KindAppServer || id.Kind == types.KindApp
-	})
-	var oktaAppServers []types.AppServer
-	if hasApps {
-		// Unfortunately we have to pull all app_server resources here as there is no
-		// dedicated method to fetch a single app_server by name.
-		//
-		// [services.UnifiedResourceCache].GetUnifiedResourcesByIDs can't be used neither
-		// because Okta resources are keyed with [types.FriendlyName] (see
-		// [services.makeResourceSortKey]) and [types.ResourceID] does not contain labels.
-		//
-		// TODO(kopiczko): Create GetApplicationServer(ctx, name) of fix GetUnifiedResourcesByIDs and use it instead. See comments above.
-		oktaAppServers, err = auth.GetApplicationServers(ctx, apidefaults.Namespace)
-		if err != nil {
-			return trace.Wrap(err, "getting app servers")
-		}
-		oktaAppServers = slices.DeleteFunc(oktaAppServers, func(appServer types.AppServer) bool {
-			return appServer.Origin() != types.OriginOkta
-		})
-	}
-
 	var denied []types.ResourceID
+
 	for _, id := range ids {
 		switch id.Kind {
 		case types.KindAppServer, types.KindApp:
-			if slices.ContainsFunc(oktaAppServers, func(appServer types.AppServer) bool {
-				return appServer.GetName() == id.Name
-			}) {
+			_, err := getOktaAppServer(ctx, auth, id.Name)
+			switch {
+			case trace.IsNotFound(err):
+				// ok
+			case err != nil:
+				return trace.Wrap(err, "getting app_server %q", id.Name)
+			default:
 				denied = append(denied, id)
 				continue
 			}
@@ -176,7 +159,7 @@ func CheckResourcesRequestable(ctx context.Context, ids []types.ResourceID, auth
 			case trace.IsNotFound(err):
 				// ok
 			case err != nil:
-				return trace.Wrap(err, "getting user group %q", id.Name)
+				return trace.Wrap(err, "getting user_group %q", id.Name)
 			case userGroup.Origin() == types.OriginOkta:
 				denied = append(denied, id)
 				continue
@@ -194,4 +177,30 @@ func CheckResourcesRequestable(ctx context.Context, ids []types.ResourceID, auth
 	}
 
 	return trace.Wrap(OktaResourceNotRequestableError, "requested Okta resources: %s", resourcesStr)
+}
+
+func getOktaAppServer(ctx context.Context, auth AuthServer, name string) (types.AppServer, error) {
+	req := proto.ListResourcesRequest{
+		ResourceType: types.KindAppServer,
+		Limit:        1,
+		Labels: map[string]string{
+			types.OriginLabel: types.OriginOkta,
+		},
+		PredicateExpression: fmt.Sprintf(`name == %q`, name),
+	}
+
+	resp, err := auth.ListResources(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(resp.Resources) != 1 {
+		return nil, trace.NotFound("found %d resources when getting Okta-originated app_server %q", len(resp.Resources), name)
+	}
+
+	appServer, ok := resp.Resources[0].(types.AppServer)
+	if !ok {
+		return nil, trace.BadParameter("expected %T, found %T", appServer, resp.Resources[0])
+	}
+	return appServer, nil
 }

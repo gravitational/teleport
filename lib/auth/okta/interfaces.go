@@ -21,6 +21,7 @@ package okta
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -30,8 +31,8 @@ type PluginGetter interface {
 
 type AuthServer interface {
 	PluginGetter
-	// GetApplicationServers returns all registered application servers.
-	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
+	// ListResources returns paginated resources depending on the resource type.
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 	// GetUserGroup returns the specified user group resources.
 	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
 }
