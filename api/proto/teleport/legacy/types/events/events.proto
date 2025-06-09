@@ -3957,7 +3957,7 @@ message CertificateCreate {
     (gogoproto.jsontag) = ""
   ];
 
-  // CertificateAuthority holds information about creator of certificate
+  // CertificateAuthority holds information about the issuer of the certificate.
   CertificateAuthority CertificateAuthority = 5 [(gogoproto.jsontag) = "certificate_authority"];
 }
 
