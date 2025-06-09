@@ -221,6 +221,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "identity_activity_center_trans
   rule {
     status = "Enabled"
     id     = "delete_after_60_days"
+    filter {}
 
     expiration {
       days = 60
@@ -519,10 +520,6 @@ resource "aws_athena_workgroup" "identity_activity_center_workgroup" {
       }
     }
 
-    # Enable query result reuse for cost optimization
-    result_configuration_updates {
-      remove_output_location = false
-    }
   }
 
   tags = {
