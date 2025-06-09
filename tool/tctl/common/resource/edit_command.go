@@ -216,6 +216,7 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 				}
 				return trace.Wrap(err)
 			}
+			return nil
 		}
 		return trace.Wrap(err)
 	}
