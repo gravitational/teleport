@@ -32,6 +32,10 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
+
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -43,9 +47,6 @@ import (
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/tctl/common/resource"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 )
 
 type cliCommand interface {
