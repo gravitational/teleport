@@ -99,6 +99,7 @@ module.exports = {
     },
   ],
   mac: {
+    // ZIP target is used only for app updates.
     target: ['zip', 'dmg'],
     category: 'public.app-category.developer-tools',
     type: 'distribution',
