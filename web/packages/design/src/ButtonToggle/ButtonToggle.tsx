@@ -33,7 +33,7 @@ interface ButtonToggleProps {
  *
  * The `onChange` prop is called with the new value whenever the toggle changes, so you can update state or perform side effects in the parent component.
  *
- * By default, the left button represents `false` and the right button represents `true`. You can use the optional `rightIsTrue` prop to swap this behavior, making the right button represent `true`.
+ * By default, the left button represents `true` and the right button represents `false`. You can use the optional `rightIsTrue` prop to swap this behavior, making the right button represent `true`.
  *
  * @example
  * const [toggleValue, setToggleValue] = useState<boolean>(false);
