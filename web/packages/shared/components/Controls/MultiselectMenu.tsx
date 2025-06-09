@@ -54,7 +54,7 @@ type MultiselectMenuProps<T> = {
   showIndicator?: boolean;
   showSelectControls?: boolean;
   /**
-   * If true, disables clicking of the button that
+   * If true, disables the button that
    * opens the dropdown menu.
    */
   disabled?: boolean;

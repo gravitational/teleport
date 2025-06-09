@@ -32,7 +32,7 @@ import { ViewModeSwitch } from 'shared/components/Controls/ViewModeSwitch';
 
 import {
   IncludedResourceMode,
-  ResourceStatus,
+  ResourceHealthStatus,
   SharedUnifiedResource,
   UnifiedResourcesQueryParams,
 } from './types';
@@ -53,11 +53,12 @@ const sortFieldOptions = [
   { label: 'Type', value: 'kind' },
 ];
 
-const resourceStatusOptions: { label: string; value: ResourceStatus }[] = [
-  { label: 'Healthy', value: 'healthy' },
-  { label: 'Unhealthy', value: 'unhealthy' },
-  { label: 'Unknown', value: 'unknown' },
-];
+const resourceStatusOptions: { label: string; value: ResourceHealthStatus }[] =
+  [
+    { label: 'Healthy', value: 'healthy' },
+    { label: 'Unhealthy', value: 'unhealthy' },
+    { label: 'Unknown', value: 'unknown' },
+  ];
 
 interface FilterPanelProps {
   availableKinds: FilterKind[];
@@ -120,7 +121,7 @@ export function FilterPanel({
     setParams({ ...params, sort: oppositeSort(sort) });
   };
 
-  const onHealthStatusChange = (newStatuses: ResourceStatus[]) => {
+  const onHealthStatusChange = (newStatuses: ResourceHealthStatus[]) => {
     setParams({ ...params, statuses: newStatuses });
   };
 

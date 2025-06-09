@@ -22,7 +22,7 @@ import { useLocation } from 'react-router';
 import { SortType } from 'design/DataTable/types';
 import {
   IncludedResourceMode,
-  isResourceStatus,
+  isResourceHealthStatus,
 } from 'shared/components/UnifiedResources';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
@@ -134,8 +134,8 @@ export default function getResourceUrlQueryParams(
   const sort = searchParams.get('sort');
   const kinds = searchParams.has('kinds') ? searchParams.getAll('kinds') : null;
   const statuses = searchParams.has('status')
-    ? searchParams.getAll('status').filter(isResourceStatus)
-    : null;
+    ? searchParams.getAll('status').filter(isResourceHealthStatus)
+    : undefined;
 
   const sortParam = sort ? sort.split(':') : null;
 
