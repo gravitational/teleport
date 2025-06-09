@@ -774,14 +774,16 @@ release-connect: | $(RELEASE_DIR)
 	pnpm build-term
 	pnpm package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
 	# Only copy proper builds with tsh.app to $(RELEASE_DIR)
-	# Drop -universal "arch" from dmg name when copying to $(RELEASE_DIR)
+	# Drop -universal "arch" from zip and dmg name when copying to $(RELEASE_DIR)
 	if [ -n "$$CONNECT_TSH_APP_PATH" ]; then \
-		TARGET_NAME="Teleport Connect-$(VERSION)-$(ARCH).dmg"; \
-		if [ "$(ARCH)" = 'universal' ]; then \
-			TARGET_NAME="$${TARGET_NAME/-universal/}"; \
-		fi; \
-		cp web/packages/teleterm/build/release/"Teleport Connect-$(VERSION)-$(ELECTRON_BUILDER_ARCH).dmg" "$(RELEASE_DIR)/$${TARGET_NAME}"; \
-	fi
+    	for EXT in dmg zip; do \
+    		TARGET_NAME="Teleport Connect-$(VERSION)-$(ARCH).$${EXT}"; \
+    		if [ "$(ARCH)" = "universal" ]; then \
+    			TARGET_NAME="$${TARGET_NAME/-universal/}"; \
+    		fi; \
+    		cp web/packages/teleterm/build/release/"Teleport Connect-$(VERSION)-$(ELECTRON_BUILDER_ARCH).$${EXT}" "$(RELEASE_DIR)/$${TARGET_NAME}"; \
+    	done \
+    fi
 
 #
 # Remove trailing whitespace in all markdown files under docs/.

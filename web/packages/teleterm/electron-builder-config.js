@@ -99,7 +99,7 @@ module.exports = {
     },
   ],
   mac: {
-    target: 'dmg',
+    target: ['zip', 'dmg'],
     category: 'public.app-category.developer-tools',
     type: 'distribution',
     // TODO(ravicious): Migrate from custom notarize.js script to using the notarize field of the
