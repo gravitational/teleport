@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -463,8 +462,8 @@ func TestIntegrationCRUD(t *testing.T) {
 				_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, igName))
 				require.NoError(t, err)
 				// other existing plugin should not affect identity center plugin referenced integration.
-				require.NoError(t, localClient.CreatePlugin(ctx, fixtures.NewMattermostPlugin(t)))
-				require.NoError(t, localClient.CreatePlugin(ctx, fixtures.NewIdentityCenterPlugin(t, igName, igName)))
+				require.NoError(t, localClient.CreatePlugin(ctx, NewMattermostPlugin()))
+				require.NoError(t, localClient.CreatePlugin(ctx, NewIdentityCenterPlugin(igName, igName)))
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
 				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
@@ -745,6 +744,64 @@ type testClient struct {
 	services.Trust
 	services.RoleGetter
 	services.UserGetter
+}
+
+// NewIdentityCenterPlugin returns a new types.PluginV1 with PluginSpecV1_Mattermost settings.
+func NewMattermostPlugin() *types.PluginV1 {
+	return &types.PluginV1{
+		SubKind: types.PluginSubkindAccess,
+		Metadata: types.Metadata{
+			Labels: map[string]string{
+				"teleport.dev/hosted-plugin": "true",
+			},
+			Name: types.PluginTypeMattermost,
+		},
+		Spec: types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_Mattermost{
+				Mattermost: &types.PluginMattermostSettings{
+					ServerUrl:     "https://example.com",
+					Channel:       "test_channel",
+					Team:          "test_team",
+					ReportToEmail: "test@example.com",
+				},
+			},
+		},
+		Credentials: &types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+				StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+					Labels: map[string]string{
+						"plugin": "mattermost",
+					},
+				},
+			},
+		},
+	}
+}
+
+// NewIdentityCenterPlugin returns a new types.PluginV1 with PluginSpecV1_AwsIc settings.
+func NewIdentityCenterPlugin(serviceProviderName, integrationName string) *types.PluginV1 {
+	return &types.PluginV1{
+		Metadata: types.Metadata{
+			Name: types.PluginTypeAWSIdentityCenter,
+			Labels: map[string]string{
+				types.HostedPluginLabel: "true",
+			},
+		},
+		Spec: types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_AwsIc{
+				AwsIc: &types.PluginAWSICSettings{
+					IntegrationName:         integrationName,
+					Region:                  "test-region",
+					Arn:                     "test-arn",
+					AccessListDefaultOwners: []string{"user1", "user2"},
+					ProvisioningSpec: &types.AWSICProvisioningSpec{
+						BaseUrl: "https://example.com",
+					},
+					SamlIdpServiceProviderName: serviceProviderName,
+				},
+			},
+		},
+	}
 }
 
 func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPublicAddr string) (context.Context, localClient, *Service) {

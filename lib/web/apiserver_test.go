@@ -142,6 +142,7 @@ import (
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	utilsaws "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -11554,7 +11555,7 @@ func TestPingWithSAMLURL(t *testing.T) {
 			w.Write([]byte(entityDescriptor))
 		}),
 	}
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "HTTP server",
 		Task: func(ctx context.Context) error {
 			if err := httpServer.Serve(l); !errors.Is(err, http.ErrServerClosed) {
