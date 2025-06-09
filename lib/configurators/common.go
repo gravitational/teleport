@@ -107,9 +107,9 @@ type BootstrapFlags struct {
 	Proxy string
 	// ForceAssumesRoles forces the presence of additional external AWS IAM roles to assume.
 	ForceAssumesRoles string
-
-	AssumeRole string
-
+	// AssumeRoleARN is the ARN of the role to assume while bootstrapping.
+	AssumeRoleARN string
+	// ExternalID is the external ID to use when assuming a role.
 	ExternalID string
 }
 
