@@ -91,6 +91,8 @@ func (c *Conn) Close() error {
 	return err
 }
 
+// NextMessageType peaks at the next incoming message without
+// consuming it.
 func (c *Conn) NextMessageType() (MessageType, error) {
 	b, err := c.bufr.ReadByte()
 	if err != nil {
