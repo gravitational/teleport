@@ -4115,13 +4115,11 @@ func onSSH(cf *CLIConf) error {
 
 			if disownSignal != nil {
 				opts = append(opts, client.WithForkAfterAuthentication(func() error {
-					// Replace stdin with /dev/null to prevent further reads without
-					// having to actually close stdin.
-					devNull, err := os.Open(os.DevNull)
+					newStdin, err := replaceStdin()
 					if err != nil {
 						return trace.Wrap(err)
 					}
-					tc.Stdin = devNull
+					tc.Stdin = newStdin
 					forkAuthSuccessful.Store(true)
 					// Write to unblock the parent.
 					_, err = disownSignal.Write([]byte{0x00})

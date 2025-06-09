@@ -103,15 +103,10 @@ func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 		// The child process will write to the pipe when it has authenticated
 		// and is ready to be disowned.
 		_, err := cmd.signalR.Read(make([]byte, 1))
+		disownReady <- err
 		if err == nil {
 			disownReady <- nil
-		}
-		// Error was likely caused by the child process exiting. Wait for Wait() to
-		// return the exit status if possible.
-		select {
-		case <-runCtx.Done():
-		case <-time.After(3 * time.Second):
-			disownReady <- err
+			return
 		}
 	}()
 
@@ -123,23 +118,27 @@ func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 			return trace.Wrap(err)
 		}
 	}
-	childFinished := make(chan error, 1)
-	go func() {
-		childFinished <- cmd.Wait()
-	}()
-
 	select {
-	case err := <-childFinished:
-		return trace.Wrap(err)
 	case err := <-disownReady:
-		// Check if child finished at the same time.
-		if finishedErr, ok := <-childFinished; ok {
-			return trace.Wrap(finishedErr)
+		if err == nil {
+			return trace.Wrap(cmd.Process.Release())
 		}
-		if err != nil {
+
+		// Error was likely caused by the child process exiting. Wait for Wait() to
+		// return the exit status if possible.
+		childFinished := make(chan error, 1)
+		go func() {
+			childFinished <- cmd.Wait()
+		}()
+		select {
+		case waitErr := <-childFinished:
+			return trace.Wrap(waitErr)
+		case <-time.After(3 * time.Second):
+			if killErr := cmd.Process.Kill(); killErr != nil {
+				return trace.Wrap(killErr)
+			}
 			return trace.Wrap(err)
 		}
-		return trace.Wrap(cmd.Process.Release())
 	case <-runCtx.Done():
 		if err := cmd.Process.Kill(); err != nil {
 			return trace.Wrap(err)

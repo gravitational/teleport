@@ -21,6 +21,8 @@ package common
 import (
 	"os"
 	"syscall"
+
+	"github.com/gravitational/trace"
 )
 
 func isValidForkSignalFd(fd uint64) bool {
@@ -33,4 +35,17 @@ func isValidForkSignalFd(fd uint64) bool {
 func newSignalFile(fd uint64) *os.File {
 	syscall.CloseOnExec(int(fd))
 	return os.NewFile(uintptr(fd), "disown")
+}
+
+// replaceStdin returns a file for /dev/null that should be used from now
+// on instead of stdin.
+func replaceStdin() (*os.File, error) {
+	devNull, err := os.Open(os.DevNull)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := syscall.Dup2(int(devNull.Fd()), int(os.Stdin.Fd())); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return devNull, nil
 }
