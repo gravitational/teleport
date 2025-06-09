@@ -76,7 +76,7 @@ export const SERVERS: SelectResourceSpec[] = [
       'linux',
       'rocky',
       'alma',
-      'almalinux'
+      'almalinux',
     ],
     icon: 'linux',
     event: DiscoverEventResource.Server,
