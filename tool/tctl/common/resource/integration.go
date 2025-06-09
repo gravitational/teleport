@@ -12,9 +12,15 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) getIntegration(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name != "" {
-		ig, err := client.GetIntegration(ctx, rc.ref.Name)
+var integration = resource{
+	getHandler:    getIntegration,
+	createHandler: createIntegration,
+	deleteHandler: deleteIntegration,
+}
+
+func getIntegration(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name != "" {
+		ig, err := client.GetIntegration(ctx, ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -38,7 +44,7 @@ func (rc *ResourceCommand) getIntegration(ctx context.Context, client *authclien
 	return collections.NewIntegrationCollection(resources), nil
 }
 
-func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func createIntegration(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	integration, err := services.UnmarshalIntegration(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -51,7 +57,7 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 	exists := (err == nil)
 
 	if exists {
-		if !rc.force {
+		if !opts.force {
 			return trace.AlreadyExists("Integration %q already exists", integration.GetName())
 		}
 
@@ -90,10 +96,10 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 	return nil
 }
 
-func (rc *ResourceCommand) deleteIntegration(ctx context.Context, client *authclient.Client) error {
-	if err := client.DeleteIntegration(ctx, rc.ref.Name); err != nil {
+func deleteIntegration(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.DeleteIntegration(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Integration %q removed\n", rc.ref.Name)
+	fmt.Printf("Integration %q removed\n", ref.Name)
 	return nil
 }

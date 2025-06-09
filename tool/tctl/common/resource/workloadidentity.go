@@ -15,7 +15,13 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) createSPIFFEFederation(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var spiffeFederation = resource{
+	getHandler:    getSPIFFEFederation,
+	createHandler: createSPIFFEFederation,
+	deleteHandler: deleteSPIFFEFederation,
+}
+
+func createSPIFFEFederation(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	in, err := services.UnmarshalSPIFFEFederation(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -32,10 +38,10 @@ func (rc *ResourceCommand) createSPIFFEFederation(ctx context.Context, client *a
 	return nil
 }
 
-func (rc *ResourceCommand) getSPIFFEFederation(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name != "" {
+func getSPIFFEFederation(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name != "" {
 		resource, err := client.SPIFFEFederationServiceClient().GetSPIFFEFederation(ctx, &machineidv1pb.GetSPIFFEFederationRequest{
-			Name: rc.ref.Name,
+			Name: ref.Name,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -64,26 +70,32 @@ func (rc *ResourceCommand) getSPIFFEFederation(ctx context.Context, client *auth
 	return collections.NewSpiffeFederationCollection(resources), nil
 }
 
-func (rc *ResourceCommand) deleteSPIFFEFederation(ctx context.Context, client *authclient.Client) error {
+func deleteSPIFFEFederation(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	if _, err := client.SPIFFEFederationServiceClient().DeleteSPIFFEFederation(
 		ctx, &machineidv1pb.DeleteSPIFFEFederationRequest{
-			Name: rc.ref.Name,
+			Name: ref.Name,
 		},
 	); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("SPIFFE federation %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("SPIFFE federation %q has been deleted\n", ref.Name)
 	return nil
 }
 
-func (rc *ResourceCommand) createWorkloadIdentity(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var workloadIdentity = resource{
+	getHandler:    getWorkloadIdentity,
+	createHandler: createWorkloadIdentity,
+	deleteHandler: deleteWorkloadIdentity,
+}
+
+func createWorkloadIdentity(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	in, err := services.UnmarshalWorkloadIdentity(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	c := client.WorkloadIdentityResourceServiceClient()
-	if rc.force {
+	if opts.force {
 		if _, err := c.UpsertWorkloadIdentity(ctx, &workloadidentityv1pb.UpsertWorkloadIdentityRequest{
 			WorkloadIdentity: in,
 		}); err != nil {
@@ -102,10 +114,10 @@ func (rc *ResourceCommand) createWorkloadIdentity(ctx context.Context, client *a
 	return nil
 }
 
-func (rc *ResourceCommand) getWorkloadIdentity(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name != "" {
+func getWorkloadIdentity(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name != "" {
 		resource, err := client.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, &workloadidentityv1pb.GetWorkloadIdentityRequest{
-			Name: rc.ref.Name,
+			Name: ref.Name,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -134,23 +146,28 @@ func (rc *ResourceCommand) getWorkloadIdentity(ctx context.Context, client *auth
 	return collections.NewWorkloadIdentityCollection(resources), nil
 }
 
-func (rc *ResourceCommand) deleteWorkloadIdentity(ctx context.Context, client *authclient.Client) error {
+func deleteWorkloadIdentity(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	if _, err := client.WorkloadIdentityResourceServiceClient().DeleteWorkloadIdentity(
 		ctx, &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
-			Name: rc.ref.Name,
+			Name: ref.Name,
 		}); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Workload identity %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("Workload identity %q has been deleted\n", ref.Name)
 	return nil
 }
 
-func (rc *ResourceCommand) getWorkloadIdentityX509Revocation(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name != "" {
+var workloadIdentityX509Revocation = resource{
+	getHandler:    getWorkloadIdentityX509Revocation,
+	deleteHandler: deleteWorkloadIdentityX509Revocation,
+}
+
+func getWorkloadIdentityX509Revocation(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name != "" {
 		resource, err := client.
 			WorkloadIdentityRevocationServiceClient().
 			GetWorkloadIdentityX509Revocation(ctx, &workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest{
-				Name: rc.ref.Name,
+				Name: ref.Name,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -181,25 +198,32 @@ func (rc *ResourceCommand) getWorkloadIdentityX509Revocation(ctx context.Context
 	return collections.NewWorkloadIdentityX509RevocationCollection(resources), nil
 }
 
-func (rc *ResourceCommand) deleteWorkloadIdentityX509Revocation(ctx context.Context, client *authclient.Client) error {
+func deleteWorkloadIdentityX509Revocation(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	if _, err := client.WorkloadIdentityRevocationServiceClient().DeleteWorkloadIdentityX509Revocation(
 		ctx, &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
-			Name: rc.ref.Name,
+			Name: ref.Name,
 		}); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Workload identity X509 revocation %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("Workload identity X509 revocation %q has been deleted\n", ref.Name)
 	return nil
 }
 
-func (rc *ResourceCommand) createWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var workloadIdentityX509IssuerOverride = resource{
+	getHandler:    getWorkloadIdentityX509IssuerOverride,
+	createHandler: createWorkloadIdentityX509IssuerOverride,
+	updateHandler: updateWorkloadIdentityX509IssuerOverride,
+	deleteHandler: deleteWorkloadIdentityX509IssuerOverride,
+}
+
+func createWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	r, err := services.UnmarshalProtoResource[*workloadidentityv1pb.X509IssuerOverride](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	c := client.WorkloadIdentityX509OverridesClient()
-	if rc.IsForced() {
+	if opts.force {
 		if _, err := c.UpsertX509IssuerOverride(
 			ctx,
 			&workloadidentityv1pb.UpsertX509IssuerOverrideRequest{
@@ -219,21 +243,20 @@ func (rc *ResourceCommand) createWorkloadIdentityX509IssuerOverride(ctx context.
 		}
 	}
 
-	fmt.Fprintf(
-		rc.stdout,
+	fmt.Printf(
 		types.KindWorkloadIdentityX509IssuerOverride+" %q has been created\n",
 		r.GetMetadata().GetName(),
 	)
 	return nil
 }
 
-func (rc *ResourceCommand) getWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+func getWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	c := client.WorkloadIdentityX509OverridesClient()
-	if rc.ref.Name != "" {
+	if ref.Name != "" {
 		r, err := c.GetX509IssuerOverride(
 			ctx,
 			&workloadidentityv1pb.GetX509IssuerOverrideRequest{
-				Name: rc.ref.Name,
+				Name: ref.Name,
 			},
 		)
 		if err != nil {
@@ -265,7 +288,7 @@ func (rc *ResourceCommand) getWorkloadIdentityX509IssuerOverride(ctx context.Con
 	return collections.NewNamedResourceCollection(resources), nil
 }
 
-func (rc *ResourceCommand) updateWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func updateWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	r, err := services.UnmarshalProtoResource[*workloadidentityv1pb.X509IssuerOverride](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -281,40 +304,45 @@ func (rc *ResourceCommand) updateWorkloadIdentityX509IssuerOverride(ctx context.
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprintf(
-		rc.stdout,
+	fmt.Printf(
 		types.KindWorkloadIdentityX509IssuerOverride+" %q has been updated\n",
 		r.GetMetadata().GetName(),
 	)
 	return nil
 }
 
-func (rc *ResourceCommand) deleteWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client) error {
+func deleteWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	c := client.WorkloadIdentityX509OverridesClient()
 	if _, err := c.DeleteX509IssuerOverride(
 		ctx,
 		&workloadidentityv1pb.DeleteX509IssuerOverrideRequest{
-			Name: rc.ref.Name,
+			Name: ref.Name,
 		},
 	); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Fprintf(
-		rc.stdout,
+	fmt.Printf(
 		types.KindWorkloadIdentityX509IssuerOverride+" %q has been deleted\n",
-		rc.ref.Name,
+		ref.Name,
 	)
 	return nil
 }
 
-func (rc *ResourceCommand) createSigstorePolicy(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var sigstorePolicy = resource{
+	getHandler:    getSigstorePolicy,
+	createHandler: createSigstorePolicy,
+	updateHandler: updateSigstorePolicy,
+	deleteHandler: deleteSigstorePolicy,
+}
+
+func createSigstorePolicy(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	r, err := services.UnmarshalProtoResource[*workloadidentityv1pb.SigstorePolicy](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	c := client.SigstorePolicyResourceServiceClient()
-	if rc.IsForced() {
+	if opts.force {
 		if _, err := c.UpsertSigstorePolicy(
 			ctx,
 			&workloadidentityv1pb.UpsertSigstorePolicyRequest{
@@ -334,21 +362,20 @@ func (rc *ResourceCommand) createSigstorePolicy(ctx context.Context, client *aut
 		}
 	}
 
-	fmt.Fprintf(
-		rc.stdout,
+	fmt.Printf(
 		types.KindSigstorePolicy+" %q has been created\n",
 		r.GetMetadata().GetName(),
 	)
 	return nil
 }
 
-func (rc *ResourceCommand) getSigstorePolicy(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+func getSigstorePolicy(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	c := client.SigstorePolicyResourceServiceClient()
-	if rc.ref.Name != "" {
+	if ref.Name != "" {
 		r, err := c.GetSigstorePolicy(
 			ctx,
 			&workloadidentityv1pb.GetSigstorePolicyRequest{
-				Name: rc.ref.Name,
+				Name: ref.Name,
 			},
 		)
 		if err != nil {
@@ -380,7 +407,7 @@ func (rc *ResourceCommand) getSigstorePolicy(ctx context.Context, client *authcl
 	return collections.NewNamedResourceCollection(resources), nil
 }
 
-func (rc *ResourceCommand) updateSigstorePolicy(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func updateSigstorePolicy(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	r, err := services.UnmarshalProtoResource[*workloadidentityv1pb.SigstorePolicy](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -396,28 +423,26 @@ func (rc *ResourceCommand) updateSigstorePolicy(ctx context.Context, client *aut
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprintf(
-		rc.stdout,
+	fmt.Printf(
 		types.KindSigstorePolicy+" %q has been updated\n",
 		r.GetMetadata().GetName(),
 	)
 	return nil
 }
 
-func (rc *ResourceCommand) deleteSigstorePolicy(ctx context.Context, client *authclient.Client) error {
+func deleteSigstorePolicy(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	c := client.SigstorePolicyResourceServiceClient()
 	if _, err := c.DeleteSigstorePolicy(
 		ctx,
 		&workloadidentityv1pb.DeleteSigstorePolicyRequest{
-			Name: rc.ref.Name,
+			Name: ref.Name,
 		},
 	); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Fprintf(
-		rc.stdout,
+	fmt.Printf(
 		types.KindSigstorePolicy+" %q has been deleted\n",
-		rc.ref.Name,
+		ref.Name,
 	)
 	return nil
 }

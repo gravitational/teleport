@@ -12,7 +12,13 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var discoveryConfig = resource{
+	getHandler:    getDiscoveryConfig,
+	createHandler: createDiscoveryConfig,
+	deleteHandler: deleteDiscoveryConfig,
+}
+
+func createDiscoveryConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	discoveryConfig, err := services.UnmarshalDiscoveryConfig(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -20,7 +26,7 @@ func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client *au
 
 	remote := client.DiscoveryConfigClient()
 
-	if rc.force {
+	if opts.force {
 		if _, err := remote.UpsertDiscoveryConfig(ctx, discoveryConfig); err != nil {
 			return trace.Wrap(err)
 		}
@@ -37,10 +43,10 @@ func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client *au
 	return nil
 }
 
-func (rc *ResourceCommand) getDiscoveryConfig(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+func getDiscoveryConfig(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	remote := client.DiscoveryConfigClient()
-	if rc.ref.Name != "" {
-		dc, err := remote.GetDiscoveryConfig(ctx, rc.ref.Name)
+	if ref.Name != "" {
+		dc, err := remote.GetDiscoveryConfig(ctx, ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -65,11 +71,11 @@ func (rc *ResourceCommand) getDiscoveryConfig(ctx context.Context, client *authc
 	return collections.NewDiscoveryConfigCollection(resources), nil
 }
 
-func (rc *ResourceCommand) deleteDiscoveryConfig(ctx context.Context, client *authclient.Client) error {
+func deleteDiscoveryConfig(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	remote := client.DiscoveryConfigClient()
-	if err := remote.DeleteDiscoveryConfig(ctx, rc.ref.Name); err != nil {
+	if err := remote.DeleteDiscoveryConfig(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("DiscoveryConfig %q removed\n", rc.ref.Name)
+	fmt.Printf("DiscoveryConfig %q removed\n", ref.Name)
 	return nil
 }

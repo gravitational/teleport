@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
 
@@ -11,10 +12,15 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) getSemaphore(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+var semaphore = resource{
+	getHandler:    getSemaphore,
+	deleteHandler: deleteSemaphore,
+}
+
+func getSemaphore(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	sems, err := client.GetSemaphores(ctx, types.SemaphoreFilter{
-		SemaphoreKind: rc.ref.SubKind,
-		SemaphoreName: rc.ref.Name,
+		SemaphoreKind: ref.SubKind,
+		SemaphoreName: ref.Name,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -22,20 +28,20 @@ func (rc *ResourceCommand) getSemaphore(ctx context.Context, client *authclient.
 	return collections.NewSemaphoreCollection(sems), nil
 }
 
-func (rc *ResourceCommand) deleteSemaphore(ctx context.Context, client *authclient.Client) error {
-	if rc.ref.SubKind == "" || rc.ref.Name == "" {
+func deleteSemaphore(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if ref.SubKind == "" || ref.Name == "" {
 		return trace.BadParameter(
 			"full semaphore path must be specified (e.g. '%s/%s/alice@example.com')",
 			types.KindSemaphore, types.SemaphoreKindConnection,
 		)
 	}
 	err := client.DeleteSemaphore(ctx, types.SemaphoreFilter{
-		SemaphoreKind: rc.ref.SubKind,
-		SemaphoreName: rc.ref.Name,
+		SemaphoreKind: ref.SubKind,
+		SemaphoreName: ref.Name,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("semaphore '%s/%s' has been deleted\n", rc.ref.SubKind, rc.ref.Name)
+	fmt.Printf("semaphore '%s/%s' has been deleted\n", ref.SubKind, ref.Name)
 	return nil
 }

@@ -12,9 +12,15 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) getOktaImportRule(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name != "" {
-		importRule, err := client.OktaClient().GetOktaImportRule(ctx, rc.ref.Name)
+var oktaImportRule = resource{
+	getHandler:    getOktaImportRule,
+	createHandler: createOktaImportRule,
+	deleteHandler: deleteOktaImportRule,
+}
+
+func getOktaImportRule(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name != "" {
+		importRule, err := client.OktaClient().GetOktaImportRule(ctx, ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -38,9 +44,42 @@ func (rc *ResourceCommand) getOktaImportRule(ctx context.Context, client *authcl
 	return collections.NewOktaImportRuleCollection(resources), nil
 }
 
-func (rc *ResourceCommand) getOktaAssignment(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name != "" {
-		assignment, err := client.OktaClient().GetOktaAssignment(ctx, rc.ref.Name)
+func createOktaImportRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
+	importRule, err := services.UnmarshalOktaImportRule(raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	exists := false
+	if _, err = client.OktaClient().CreateOktaImportRule(ctx, importRule); err != nil {
+		if trace.IsAlreadyExists(err) {
+			exists = true
+			_, err = client.OktaClient().UpdateOktaImportRule(ctx, importRule)
+		}
+
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	fmt.Printf("Okta import rule %q has been %s\n", importRule.GetName(), UpsertVerb(exists, opts.force))
+	return nil
+}
+
+func deleteOktaImportRule(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.OktaClient().DeleteOktaImportRule(ctx, ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Okta import rule %q has been deleted\n", ref.Name)
+	return nil
+}
+
+var oktaAssignment = resource{
+	getHandler: getOktaAssignment,
+}
+
+func getOktaAssignment(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name != "" {
+		assignment, err := client.OktaClient().GetOktaAssignment(ctx, ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -64,38 +103,14 @@ func (rc *ResourceCommand) getOktaAssignment(ctx context.Context, client *authcl
 	return collections.NewOktaAssignmentCollection(resources), nil
 }
 
-func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	importRule, err := services.UnmarshalOktaImportRule(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	exists := false
-	if _, err = client.OktaClient().CreateOktaImportRule(ctx, importRule); err != nil {
-		if trace.IsAlreadyExists(err) {
-			exists = true
-			_, err = client.OktaClient().UpdateOktaImportRule(ctx, importRule)
-		}
-
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	fmt.Printf("Okta import rule %q has been %s\n", importRule.GetName(), UpsertVerb(exists, rc.IsForced()))
-	return nil
+var userGroup = resource{
+	getHandler:    getUserGroup,
+	deleteHandler: deleteUserGroup,
 }
 
-func (rc *ResourceCommand) deleteOktaImportRule(ctx context.Context, client *authclient.Client) error {
-	if err := client.OktaClient().DeleteOktaImportRule(ctx, rc.ref.Name); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("Okta import rule %q has been deleted\n", rc.ref.Name)
-	return nil
-}
-
-func (rc *ResourceCommand) getUserGroup(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name != "" {
-		userGroup, err := client.GetUserGroup(ctx, rc.ref.Name)
+func getUserGroup(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name != "" {
+		userGroup, err := client.GetUserGroup(ctx, ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -119,10 +134,10 @@ func (rc *ResourceCommand) getUserGroup(ctx context.Context, client *authclient.
 	return collections.NewUserGroupCollection(resources), nil
 }
 
-func (rc *ResourceCommand) deleteUserGroup(ctx context.Context, client *authclient.Client) error {
-	if err := client.DeleteUserGroup(ctx, rc.ref.Name); err != nil {
+func deleteUserGroup(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.DeleteUserGroup(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("User group %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("User group %q has been deleted\n", ref.Name)
 	return nil
 }

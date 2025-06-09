@@ -12,12 +12,19 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) createGitServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var gitServer = resource{
+	getHandler:    getGitServer,
+	createHandler: createGitServer,
+	updateHandler: updateGitServer,
+	deleteHandler: deleteGitServer,
+}
+
+func createGitServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	server, err := services.UnmarshalGitServer(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if rc.IsForced() {
+	if opts.force {
 		_, err = client.GitServerClient().UpsertGitServer(ctx, server)
 	} else {
 		_, err = client.GitServerClient().CreateGitServer(ctx, server)
@@ -29,12 +36,12 @@ func (rc *ResourceCommand) createGitServer(ctx context.Context, client *authclie
 	return nil
 }
 
-func (rc *ResourceCommand) getGitServer(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+func getGitServer(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	var page, servers []types.Server
 
 	// TODO(greedy52) use unified resource request once available.
-	if rc.ref.Name != "" {
-		server, err := client.GitServerClient().GetGitServer(ctx, rc.ref.Name)
+	if ref.Name != "" {
+		server, err := client.GitServerClient().GetGitServer(ctx, ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -56,7 +63,7 @@ func (rc *ResourceCommand) getGitServer(ctx context.Context, client *authclient.
 	return collections.NewServerCollection(servers), nil
 }
 
-func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func updateGitServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	server, err := services.UnmarshalGitServer(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -69,10 +76,10 @@ func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclie
 	return nil
 }
 
-func (rc *ResourceCommand) deleteGitServer(ctx context.Context, client *authclient.Client) error {
-	if err := client.GitServerClient().DeleteGitServer(ctx, rc.ref.Name); err != nil {
+func deleteGitServer(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.GitServerClient().DeleteGitServer(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("git_server %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("git_server %q has been deleted\n", ref.Name)
 	return nil
 }

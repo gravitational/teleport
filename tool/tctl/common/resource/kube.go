@@ -12,32 +12,37 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) getKubeServer(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+var kubeServer = resource{
+	getHandler:    getKubeServer,
+	deleteHandler: deleteKubeServer,
+}
+
+func getKubeServer(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	servers, err := client.GetKubernetesServers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if rc.ref.Name == "" {
+	if ref.Name == "" {
 		return collections.NewKubeServerCollection(servers), nil
 	}
 	altNameFn := func(r types.KubeServer) string {
 		return r.GetHostname()
 	}
-	servers = filterByNameOrDiscoveredName(servers, rc.ref.Name, altNameFn)
+	servers = filterByNameOrDiscoveredName(servers, ref.Name, altNameFn)
 	if len(servers) == 0 {
-		return nil, trace.NotFound("Kubernetes server %q not found", rc.ref.Name)
+		return nil, trace.NotFound("Kubernetes server %q not found", ref.Name)
 	}
 	return collections.NewKubeServerCollection(servers), nil
 }
 
-func (rc *ResourceCommand) deleteKubeServer(ctx context.Context, client *authclient.Client) error {
+func deleteKubeServer(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	servers, err := client.GetKubernetesServers(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	resDesc := "Kubernetes server"
-	servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
-	name, err := getOneResourceNameToDelete(servers, rc.ref, resDesc)
+	servers = filterByNameOrDiscoveredName(servers, ref.Name)
+	name, err := getOneResourceNameToDelete(servers, ref, resDesc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -51,29 +56,35 @@ func (rc *ResourceCommand) deleteKubeServer(ctx context.Context, client *authcli
 	return nil
 }
 
-func (rc *ResourceCommand) getKubeCluster(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+var kubeCluster = resource{
+	getHandler:    getKubeCluster,
+	createHandler: createKubeCluster,
+	deleteHandler: deleteKubeCluster,
+}
+
+func getKubeCluster(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	clusters, err := client.GetKubernetesClusters(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if rc.ref.Name == "" {
+	if ref.Name == "" {
 		return collections.NewKubeClusterCollection(clusters), nil
 	}
-	clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
+	clusters = filterByNameOrDiscoveredName(clusters, ref.Name)
 	if len(clusters) == 0 {
-		return nil, trace.NotFound("Kubernetes cluster %q not found", rc.ref.Name)
+		return nil, trace.NotFound("Kubernetes cluster %q not found", ref.Name)
 	}
 	return collections.NewKubeClusterCollection(clusters), nil
 }
 
-func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func createKubeCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	cluster, err := services.UnmarshalKubeCluster(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if err := client.CreateKubernetesCluster(ctx, cluster); err != nil {
 		if trace.IsAlreadyExists(err) {
-			if !rc.force {
+			if !opts.force {
 				return trace.AlreadyExists("Kubernetes cluster %q already exists", cluster.GetName())
 			}
 			if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
@@ -88,14 +99,14 @@ func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authcl
 	return nil
 }
 
-func (rc *ResourceCommand) deleteKubeCluster(ctx context.Context, client *authclient.Client) error {
+func deleteKubeCluster(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	clusters, err := client.GetKubernetesClusters(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	resDesc := "Kubernetes cluster"
-	clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
-	name, err := getOneResourceNameToDelete(clusters, rc.ref, resDesc)
+	clusters = filterByNameOrDiscoveredName(clusters, ref.Name)
+	name, err := getOneResourceNameToDelete(clusters, ref, resDesc)
 	if err != nil {
 		return trace.Wrap(err)
 	}

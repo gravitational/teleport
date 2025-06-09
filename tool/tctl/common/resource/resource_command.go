@@ -48,6 +48,131 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
+var resourceHandlers = map[ResourceKind]resource{
+	types.KindAccessGraphSettings:                accessGraphSettings,
+	types.KindCrownJewel:                         crownJewel,
+	types.KindAccessList:                         accessList,
+	types.KindAccessMonitoringRule:               accessMonitoringRule,
+	types.KindAccessRequest:                      accessRequest,
+	types.KindAppServer:                          appServer,
+	types.KindApp:                                app,
+	types.KindCertAuthority:                      certAuthority,
+	types.KindAutoUpdateConfig:                   autoUpdateConfig,
+	types.KindAutoUpdateVersion:                  autoUpdateVersion,
+	types.KindAutoUpdateAgentReport:              autoUpdateAgentReport,
+	types.KindAutoUpdateAgentRollout:             autoUpdateAgentRollout,
+	types.KindBot:                                bot,
+	types.KindBotInstance:                        botInstance,
+	types.KindUIConfig:                           uiConfig,
+	types.KindClusterAuthPreference:              clusterAuthPreference,
+	types.KindClusterNetworkingConfig:            clusterNetworkingConfig,
+	types.KindSessionRecordingConfig:             sessionRecordingConfig,
+	types.KindNetworkRestrictions:                networkRestrictions,
+	types.KindClusterMaintenanceConfig:           clusterMaintenanceConfig,
+	types.KindConnectors:                         connector,
+	types.KindOIDC:                               oidcConnector,
+	types.KindSAML:                               samlConnector,
+	types.KindGithub:                             githubConnector,
+	types.KindDatabaseServer:                     databaseServer,
+	types.KindDatabase:                           database,
+	types.KindDatabaseService:                    databaseService,
+	types.KindDatabaseObjectImportRule:           databaseObjectImportRule,
+	types.KindDatabaseObject:                     databaseObject,
+	types.KindHealthCheckConfig:                  healthCheckConfig,
+	types.KindDevice:                             device,
+	types.KindDiscoveryConfig:                    discoveryConfig,
+	types.KindExternalAuditStorage:               externalAuditStorage,
+	types.KindGitServer:                          gitServer,
+	types.KindSAMLIdPServiceProvider:             samlIdPServiceProvider,
+	types.KindInstaller:                          installer,
+	types.KindIntegration:                        integration,
+	types.KindKubeServer:                         kubeServer,
+	types.KindKubernetesCluster:                  kubeCluster,
+	types.KindLock:                               lock,
+	types.KindLoginRule:                          loginRule,
+	types.KindNamespace:                          namespace,
+	types.KindOktaImportRule:                     oktaImportRule,
+	types.KindOktaAssignment:                     oktaAssignment,
+	types.KindUserGroup:                          userGroup,
+	types.KindPlugin:                             plugin,
+	types.KindReverseTunnel:                      reverseTunnel,
+	types.KindRole:                               role,
+	types.KindAuditQuery:                         auditQuery,
+	types.KindSecurityReport:                     securityReport,
+	types.KindSemaphore:                          semaphore,
+	types.KindNode:                               node,
+	types.KindAuthServer:                         authServer,
+	types.KindProxy:                              proxy,
+	types.KindServerInfo:                         serverInfo,
+	types.KindStaticHostUser:                     staticHostUser,
+	types.KindToken:                              token,
+	types.KindTrustedCluster:                     trustedCluster,
+	types.KindRemoteCluster:                      remoteCluster,
+	types.KindUser:                               user,
+	types.KindUserTask:                           userTask,
+	types.KindVnetConfig:                         vnetConfig,
+	types.KindWindowsDesktopService:              windowsDesktopService,
+	types.KindWindowsDesktop:                     windowsDesktop,
+	types.KindDynamicWindowsDesktop:              dynamicWindowsDesktop,
+	types.KindSPIFFEFederation:                   spiffeFederation,
+	types.KindWorkloadIdentity:                   workloadIdentity,
+	types.KindWorkloadIdentityX509Revocation:     workloadIdentityX509Revocation,
+	types.KindWorkloadIdentityX509IssuerOverride: workloadIdentityX509IssuerOverride,
+	types.KindSigstorePolicy:                     sigstorePolicy,
+}
+
+type resource struct {
+	getHandler    func(context.Context, *authclient.Client, services.Ref, getOpts) (collections.ResourceCollection, error)
+	createHandler func(context.Context, *authclient.Client, services.UnknownResource, createOpts) error
+	updateHandler func(context.Context, *authclient.Client, services.UnknownResource, createOpts) error
+	deleteHandler func(context.Context, *authclient.Client, services.Ref) error
+	singleton     bool
+	description   string
+}
+
+type getOpts struct {
+	// withSecrets is true if the user set --with-secrets
+	withSecrets bool
+}
+
+type createOpts struct {
+	// force is true if the user set --force
+	force bool
+	// confirm is true if the user set --confirm
+	confirm bool
+}
+
+func (r *resource) get(ctx context.Context, clt *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if r.getHandler == nil {
+		return nil, trace.NotImplemented("resource does not support 'tctl get'")
+	}
+	return r.getHandler(ctx, clt, ref, opts)
+}
+
+func (r *resource) create(ctx context.Context, clt *authclient.Client, raw services.UnknownResource, opts createOpts) error {
+	if r.createHandler == nil {
+		return trace.NotImplemented("resource does not support 'tctl create'")
+	}
+	return r.createHandler(ctx, clt, raw, opts)
+}
+
+func (r *resource) update(ctx context.Context, clt *authclient.Client, raw services.UnknownResource, opts createOpts) error {
+	if r.updateHandler == nil {
+		return trace.NotImplemented("resource does not have an update handler")
+	}
+	return r.updateHandler(ctx, clt, raw, opts)
+}
+
+func (r *resource) delete(ctx context.Context, clt *authclient.Client, ref services.Ref) error {
+	if ref.Name == "" && !r.singleton {
+		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
+	}
+	if r.deleteHandler == nil {
+		return trace.NotImplemented("resource does not support 'tctl delete'")
+	}
+	return r.deleteHandler(ctx, clt, ref)
+}
+
 // ResourceGetHandler is the generic implementation of a resource get handler.
 type ResourceGetHandler func(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error)
 
@@ -69,16 +194,17 @@ func NewTestResourceCommand(writer io.Writer) ResourceCommand {
 // ResourceCommand implements `tctl get/create/list` commands for manipulating
 // Teleport resources
 type ResourceCommand struct {
-	config      *servicecfg.Config
-	ref         services.Ref
-	refs        services.Refs
-	format      string
-	namespace   string
-	withSecrets bool
-	force       bool
-	confirm     bool
-	ttl         string
-	labels      string
+	resourceHandlers map[ResourceKind]resource
+	config           *servicecfg.Config
+	ref              services.Ref
+	refs             services.Refs
+	format           string
+	namespace        string
+	withSecrets      bool
+	force            bool
+	confirm          bool
+	ttl              string
+	labels           string
 
 	// filename is the name of the resource, used for 'create'
 	filename string
@@ -90,12 +216,6 @@ type ResourceCommand struct {
 	updateCmd *kingpin.CmdClause
 
 	verbose bool
-
-	GetHandlers             map[ResourceKind]ResourceGetHandler
-	CreateHandlers          map[ResourceKind]ResourceCreateHandler
-	UpdateHandlers          map[ResourceKind]ResourceCreateHandler
-	DeleteSingletonHandlers map[ResourceKind]ResourceDeleteHandler
-	DeleteHandlers          map[ResourceKind]ResourceDeleteHandler
 
 	// stdout allows to switch standard output source for resource command. Used in tests.
 	stdout io.Writer
@@ -114,224 +234,7 @@ Same as above, but using JSON output:
 
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
-	rc.GetHandlers = map[ResourceKind]ResourceGetHandler{
-		types.KindUser:                               rc.getUser,
-		types.KindConnectors:                         rc.getConnectors,
-		types.KindSAMLConnector:                      rc.getSAMLConnectors,
-		types.KindOIDCConnector:                      rc.getOIDCConnectors,
-		types.KindGithubConnector:                    rc.getGithubConnectors,
-		types.KindReverseTunnel:                      rc.getReverseTunnel,
-		types.KindCertAuthority:                      rc.getCertAuthority,
-		types.KindNode:                               rc.getNode,
-		types.KindAuthServer:                         rc.getAuthServer,
-		types.KindProxy:                              rc.getProxy,
-		types.KindRole:                               rc.getRole,
-		types.KindNamespace:                          rc.getNamespace,
-		types.KindTrustedCluster:                     rc.getTrustedCluster,
-		types.KindRemoteCluster:                      rc.getRemoteCluster,
-		types.KindSemaphore:                          rc.getSemaphore,
-		types.KindClusterAuthPreference:              rc.getAuthPreference,
-		types.KindClusterNetworkingConfig:            rc.getClusterNetworkingConfig,
-		types.KindClusterMaintenanceConfig:           rc.getClusterMaintenanceConfig,
-		types.KindSessionRecordingConfig:             rc.getSessionRecordingConfig,
-		types.KindLock:                               rc.getLock,
-		types.KindDatabaseServer:                     rc.getDatabaseServer,
-		types.KindKubeServer:                         rc.getKubeServer,
-		types.KindAppServer:                          rc.getAppServer,
-		types.KindNetworkRestrictions:                rc.getNetworkRestrictions,
-		types.KindApp:                                rc.getApp,
-		types.KindDatabase:                           rc.getDatabase,
-		types.KindKubernetesCluster:                  rc.getKubeCluster,
-		types.KindCrownJewel:                         rc.getCrownJewel,
-		types.KindWindowsDesktopService:              rc.getWindowsDesktopService,
-		types.KindWindowsDesktop:                     rc.getWindowsDesktop,
-		types.KindDynamicWindowsDesktop:              rc.getDynamicWindowsDesktop,
-		types.KindToken:                              rc.getToken,
-		types.KindInstaller:                          rc.getInstaller,
-		types.KindUIConfig:                           rc.getUIConfig,
-		types.KindDatabaseService:                    rc.getDatabaseService,
-		types.KindLoginRule:                          rc.getLoginRule,
-		types.KindSAMLIdPServiceProvider:             rc.getSAMLIdPServiceProvider,
-		types.KindDevice:                             rc.getDevice,
-		types.KindBot:                                rc.getBot,
-		types.KindDatabaseObjectImportRule:           rc.getDatabaseObjectImportRule,
-		types.KindDatabaseObject:                     rc.getDatabaseObject,
-		types.KindOktaImportRule:                     rc.getOktaImportRule,
-		types.KindOktaAssignment:                     rc.getOktaAssignment,
-		types.KindUserGroup:                          rc.getUserGroup,
-		types.KindExternalAuditStorage:               rc.getExternalAuditStorage,
-		types.KindIntegration:                        rc.getIntegration,
-		types.KindUserTask:                           rc.getUserTask,
-		types.KindDiscoveryConfig:                    rc.getDiscoveryConfig,
-		types.KindAuditQuery:                         rc.getAuditQuery,
-		types.KindSecurityReport:                     rc.getSecurityReport,
-		types.KindServerInfo:                         rc.getServerInfo,
-		types.KindAccessList:                         rc.getAccessList,
-		types.KindVnetConfig:                         rc.getVnetConfig,
-		types.KindAccessRequest:                      rc.getAccessRequest,
-		types.KindPlugin:                             rc.getPlugin,
-		types.KindAccessGraphSettings:                rc.getAccessGraphSettings,
-		types.KindSPIFFEFederation:                   rc.getSPIFFEFederation,
-		types.KindWorkloadIdentity:                   rc.getWorkloadIdentity,
-		types.KindWorkloadIdentityX509Revocation:     rc.getWorkloadIdentityX509Revocation,
-		types.KindBotInstance:                        rc.getBotInstance,
-		types.KindStaticHostUser:                     rc.getStaticHostUser,
-		types.KindAutoUpdateConfig:                   rc.getAutoUpdateConfig,
-		types.KindAutoUpdateVersion:                  rc.getAutoUpdateVersion,
-		types.KindAutoUpdateAgentRollout:             rc.getAutoUpdateAgentRollout,
-		types.KindAutoUpdateAgentReport:              rc.getAutoUpdateAgentReport,
-		types.KindAccessMonitoringRule:               rc.getAccessMonitoringRule,
-		types.KindGitServer:                          rc.getGitServer,
-		types.KindWorkloadIdentityX509IssuerOverride: rc.getWorkloadIdentityX509IssuerOverride,
-		types.KindSigstorePolicy:                     rc.getSigstorePolicy,
-		types.KindHealthCheckConfig:                  rc.getHealthCheckConfig,
-	}
-	rc.CreateHandlers = map[ResourceKind]ResourceCreateHandler{
-		types.KindUser:                               rc.createUser,
-		types.KindRole:                               rc.createRole,
-		types.KindTrustedCluster:                     rc.createTrustedCluster,
-		types.KindGithubConnector:                    rc.createGithubConnector,
-		types.KindCertAuthority:                      rc.createCertAuthority,
-		types.KindClusterAuthPreference:              rc.createAuthPreference,
-		types.KindClusterNetworkingConfig:            rc.createClusterNetworkingConfig,
-		types.KindClusterMaintenanceConfig:           rc.createClusterMaintenanceConfig,
-		types.KindSessionRecordingConfig:             rc.createSessionRecordingConfig,
-		types.KindExternalAuditStorage:               rc.createExternalAuditStorage,
-		types.KindUIConfig:                           rc.createUIConfig,
-		types.KindLock:                               rc.createLock,
-		types.KindNetworkRestrictions:                rc.createNetworkRestrictions,
-		types.KindApp:                                rc.createApp,
-		types.KindAppServer:                          rc.createAppServer,
-		types.KindDatabase:                           rc.createDatabase,
-		types.KindKubernetesCluster:                  rc.createKubeCluster,
-		types.KindToken:                              rc.createToken,
-		types.KindInstaller:                          rc.createInstaller,
-		types.KindNode:                               rc.createNode,
-		types.KindOIDCConnector:                      rc.createOIDCConnector,
-		types.KindSAMLConnector:                      rc.createSAMLConnector,
-		types.KindLoginRule:                          rc.createLoginRule,
-		types.KindSAMLIdPServiceProvider:             rc.createSAMLIdPServiceProvider,
-		types.KindDevice:                             rc.createDevice,
-		types.KindOktaImportRule:                     rc.createOktaImportRule,
-		types.KindIntegration:                        rc.createIntegration,
-		types.KindWindowsDesktop:                     rc.createWindowsDesktop,
-		types.KindDynamicWindowsDesktop:              rc.createDynamicWindowsDesktop,
-		types.KindAccessList:                         rc.createAccessList,
-		types.KindDiscoveryConfig:                    rc.createDiscoveryConfig,
-		types.KindAuditQuery:                         rc.createAuditQuery,
-		types.KindSecurityReport:                     rc.createSecurityReport,
-		types.KindServerInfo:                         rc.createServerInfo,
-		types.KindBot:                                rc.createBot,
-		types.KindDatabaseObjectImportRule:           rc.createDatabaseObjectImportRule,
-		types.KindDatabaseObject:                     rc.createDatabaseObject,
-		types.KindAccessMonitoringRule:               rc.createAccessMonitoringRule,
-		types.KindCrownJewel:                         rc.createCrownJewel,
-		types.KindVnetConfig:                         rc.createVnetConfig,
-		types.KindAccessGraphSettings:                rc.upsertAccessGraphSettings,
-		types.KindPlugin:                             rc.createPlugin,
-		types.KindSPIFFEFederation:                   rc.createSPIFFEFederation,
-		types.KindWorkloadIdentity:                   rc.createWorkloadIdentity,
-		types.KindStaticHostUser:                     rc.createStaticHostUser,
-		types.KindUserTask:                           rc.createUserTask,
-		types.KindAutoUpdateConfig:                   rc.createAutoUpdateConfig,
-		types.KindAutoUpdateVersion:                  rc.createAutoUpdateVersion,
-		types.KindGitServer:                          rc.createGitServer,
-		types.KindAutoUpdateAgentRollout:             rc.createAutoUpdateAgentRollout,
-		types.KindAutoUpdateAgentReport:              rc.upsertAutoUpdateAgentReport,
-		types.KindWorkloadIdentityX509IssuerOverride: rc.createWorkloadIdentityX509IssuerOverride,
-		types.KindSigstorePolicy:                     rc.createSigstorePolicy,
-		types.KindHealthCheckConfig:                  rc.createHealthCheckConfig,
-	}
-	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
-		types.KindUser:                               rc.updateUser,
-		types.KindGithubConnector:                    rc.updateGithubConnector,
-		types.KindOIDCConnector:                      rc.updateOIDCConnector,
-		types.KindSAMLConnector:                      rc.updateSAMLConnector,
-		types.KindRole:                               rc.updateRole,
-		types.KindClusterNetworkingConfig:            rc.updateClusterNetworkingConfig,
-		types.KindClusterAuthPreference:              rc.updateAuthPreference,
-		types.KindSessionRecordingConfig:             rc.updateSessionRecordingConfig,
-		types.KindAccessMonitoringRule:               rc.updateAccessMonitoringRule,
-		types.KindCrownJewel:                         rc.updateCrownJewel,
-		types.KindVnetConfig:                         rc.updateVnetConfig,
-		types.KindAccessGraphSettings:                rc.updateAccessGraphSettings,
-		types.KindPlugin:                             rc.updatePlugin,
-		types.KindStaticHostUser:                     rc.updateStaticHostUser,
-		types.KindUserTask:                           rc.updateUserTask,
-		types.KindAutoUpdateConfig:                   rc.updateAutoUpdateConfig,
-		types.KindAutoUpdateVersion:                  rc.updateAutoUpdateVersion,
-		types.KindDynamicWindowsDesktop:              rc.updateDynamicWindowsDesktop,
-		types.KindGitServer:                          rc.updateGitServer,
-		types.KindAutoUpdateAgentRollout:             rc.updateAutoUpdateAgentRollout,
-		types.KindAutoUpdateAgentReport:              rc.upsertAutoUpdateAgentReport,
-		types.KindWorkloadIdentityX509IssuerOverride: rc.updateWorkloadIdentityX509IssuerOverride,
-		types.KindSigstorePolicy:                     rc.updateSigstorePolicy,
-		types.KindHealthCheckConfig:                  rc.updateHealthCheckConfig,
-	}
-	rc.DeleteSingletonHandlers = map[ResourceKind]ResourceDeleteHandler{
-		types.KindClusterAuthPreference:    rc.resetAuthPreference,
-		types.KindClusterMaintenanceConfig: rc.resetClusterNetworkingConfig,
-		types.KindClusterNetworkingConfig:  rc.resetClusterNetworkingConfig,
-		types.KindSessionRecordingConfig:   rc.resetSessionRecordingConfig,
-		types.KindUIConfig:                 rc.deleteUIConfig,
-		types.KindNetworkRestrictions:      rc.resetNetworkRestrictions,
-		types.KindAutoUpdateConfig:         rc.deleteAutoUpdateConfig,
-		types.KindAutoUpdateVersion:        rc.deleteAutoUpdateVersion,
-		types.KindAutoUpdateAgentRollout:   rc.deleteAutoUpdateAgentRollout,
-	}
-	rc.DeleteHandlers = map[ResourceKind]ResourceDeleteHandler{
-		types.KindNode:                  rc.deleteNode,
-		types.KindUser:                  rc.deleteUser,
-		types.KindRole:                  rc.deleteRole,
-		types.KindToken:                 rc.deleteToken,
-		types.KindSAMLConnector:         rc.deleteSAMLConnector,
-		types.KindOIDCConnector:         rc.deleteOIDCConnector,
-		types.KindGithubConnector:       rc.deleteGithubConnector,
-		types.KindReverseTunnel:         rc.deleteReverseTunnel,
-		types.KindTrustedCluster:        rc.deleteTrustedCluster,
-		types.KindRemoteCluster:         rc.deleteRemoteCluster,
-		types.KindSemaphore:             rc.deleteSemaphore,
-		types.KindExternalAuditStorage:  rc.deleteExternalAuditStorage,
-		types.KindLock:                  rc.deleteLock,
-		types.KindDatabaseServer:        rc.deleteDatabaseServer,
-		types.KindApp:                   rc.deleteApp,
-		types.KindDatabase:              rc.deleteDatabase,
-		types.KindKubernetesCluster:     rc.deleteKubeCluster,
-		types.KindCrownJewel:            rc.deleteCrownJewel,
-		types.KindWindowsDesktopService: rc.deleteWindowsDesktopService,
-		types.KindDynamicWindowsDesktop: rc.deleteDynamicWindowsDesktop,
-		types.KindWindowsDesktop:        rc.deleteWindowsDesktop,
-		types.KindCertAuthority:         rc.deleteCertAuthority,
-		types.KindKubeServer:            rc.deleteKubeServer,
-		// Was previously in the singleton rule, but I don't think this is a singleton
-		types.KindInstaller:                          rc.deleteInstaller,
-		types.KindLoginRule:                          rc.deleteLoginRule,
-		types.KindSAMLIdPServiceProvider:             rc.deleteSAMLIdPServiceProvider,
-		types.KindDevice:                             rc.deleteDevice,
-		types.KindIntegration:                        rc.deleteIntegration,
-		types.KindUserTask:                           rc.deleteUserTask,
-		types.KindDiscoveryConfig:                    rc.deleteDiscoveryConfig,
-		types.KindAppServer:                          rc.deleteAppServer,
-		types.KindOktaImportRule:                     rc.deleteOktaImportRule,
-		types.KindUserGroup:                          rc.deleteUserGroup,
-		types.KindProxy:                              rc.deleteProxy,
-		types.KindAccessList:                         rc.deleteAccessList,
-		types.KindAuditQuery:                         rc.deleteAuditQuery,
-		types.KindSecurityReport:                     rc.deleteSecurityReport,
-		types.KindServerInfo:                         rc.deleteServerInfo,
-		types.KindBot:                                rc.deleteBot,
-		types.KindDatabaseObjectImportRule:           rc.deleteDatabaseObjectImportRule,
-		types.KindDatabaseObject:                     rc.deleteDatabaseObject,
-		types.KindAccessMonitoringRule:               rc.deleteAccessMonitoringRule,
-		types.KindSPIFFEFederation:                   rc.deleteSPIFFEFederation,
-		types.KindWorkloadIdentity:                   rc.deleteWorkloadIdentity,
-		types.KindWorkloadIdentityX509Revocation:     rc.deleteWorkloadIdentityX509Revocation,
-		types.KindWorkloadIdentityX509IssuerOverride: rc.deleteWorkloadIdentityX509IssuerOverride,
-		types.KindSigstorePolicy:                     rc.deleteSigstorePolicy,
-		types.KindStaticHostUser:                     rc.deleteStaticHostUser,
-		types.KindGitServer:                          rc.deleteGitServer,
-		types.KindHealthCheckConfig:                  rc.deleteHealthCheckConfig,
-	}
+	rc.resourceHandlers = resourceHandlers
 	rc.config = config
 
 	rc.createCmd = app.Command("create", "Create or update a Teleport resource from a YAML file.")
@@ -540,16 +443,22 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 
 		count++
 
-		// locate the creator function for a given resource kind:
-		creator, found := rc.CreateHandlers[ResourceKind(raw.Kind)]
+		resourceHandler, found := rc.resourceHandlers[ResourceKind(raw.Kind)]
 		if !found {
-			return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
+			return trace.BadParameter("resource type %q unknown, please check your tctl version", raw.Kind)
 		}
 		// only return in case of error, to create multiple resources
 		// in case if yaml spec is a list
-		if err := creator(ctx, client, raw); err != nil {
+		opts := createOpts{
+			force:   rc.force,
+			confirm: rc.confirm,
+		}
+		if err := resourceHandler.create(ctx, client, raw, opts); err != nil {
 			if trace.IsAlreadyExists(err) {
 				return trace.Wrap(err, "use -f or --force flag to overwrite")
+			}
+			if trace.IsNotImplemented(err) {
+				return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
 			}
 			return trace.Wrap(err)
 		}
@@ -558,19 +467,18 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client) (err error) {
-	if deleteHandler, ok := rc.DeleteSingletonHandlers[ResourceKind(rc.ref.Kind)]; ok {
-		return trace.Wrap(deleteHandler(ctx, client))
+	resourceHandler, found := rc.resourceHandlers[ResourceKind(rc.ref.Kind)]
+	if !found {
+		return trace.BadParameter("resource type %q unknown, please check your tctl version", rc.ref.Kind)
 	}
 
-	if rc.ref.Name == "" {
-		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
+	if err := resourceHandler.delete(ctx, client, rc.ref); err != nil {
+		if trace.IsNotImplemented(err) {
+			return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
+		}
+		err = trace.Wrap(err, "error deleting resource %q of type %q", rc.ref.Name, rc.ref.Kind)
 	}
-
-	if deleteHandler, ok := rc.DeleteHandlers[ResourceKind(rc.ref.Kind)]; ok {
-		return trace.Wrap(deleteHandler(ctx, client))
-	}
-
-	return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
+	return nil
 }
 
 // UpdateFields updates select resource fields: expiry and labels
@@ -636,10 +544,19 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	}
 
-	if getter, found := rc.GetHandlers[ResourceKind(rc.ref.Kind)]; found {
-		return getter(ctx, client)
+	resourceHandler, found := rc.resourceHandlers[ResourceKind(rc.ref.Kind)]
+	if !found {
+		return nil, trace.BadParameter("resource type %q unknown, please check your tctl version", rc.ref.Kind)
 	}
-	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
+
+	coll, err := resourceHandler.get(ctx, client, rc.ref, getOpts{withSecrets: rc.withSecrets})
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
+		}
+		return nil, trace.Wrap(err, "getting resource %q of type %q", rc.ref.Name, rc.ref.Kind)
+	}
+	return coll, nil
 }
 
 // UpsertVerb generates the correct string form of a verb based on the action taken

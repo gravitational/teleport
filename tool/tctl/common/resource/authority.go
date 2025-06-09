@@ -13,12 +13,18 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) getCertAuthority(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	getAll := rc.ref.SubKind == "" && rc.ref.Name == ""
+var certAuthority = resource{
+	getHandler:    getCertAuthority,
+	createHandler: createCertAuthority,
+	deleteHandler: deleteCertAuthority,
+}
+
+func getCertAuthority(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	getAll := ref.SubKind == "" && ref.Name == ""
 	if getAll {
 		var allAuthorities []types.CertAuthority
 		for _, caType := range types.CertAuthTypes {
-			authorities, err := client.GetCertAuthorities(ctx, caType, rc.withSecrets)
+			authorities, err := client.GetCertAuthorities(ctx, caType, opts.withSecrets)
 			if err != nil {
 				if trace.IsBadParameter(err) {
 					slog.WarnContext(ctx, "failed to get certificate authority; skipping", "error", err)
@@ -31,8 +37,8 @@ func (rc *ResourceCommand) getCertAuthority(ctx context.Context, client *authcli
 		return collections.NewAuthorityCollection(allAuthorities), nil
 	}
 
-	id := types.CertAuthID{Type: types.CertAuthType(rc.ref.SubKind), DomainName: rc.ref.Name}
-	authority, err := client.GetCertAuthority(ctx, id, rc.withSecrets)
+	id := types.CertAuthID{Type: types.CertAuthType(ref.SubKind), DomainName: ref.Name}
+	authority, err := client.GetCertAuthority(ctx, id, opts.withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -40,7 +46,7 @@ func (rc *ResourceCommand) getCertAuthority(ctx context.Context, client *authcli
 }
 
 // createCertAuthority creates certificate authority
-func (rc *ResourceCommand) createCertAuthority(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func createCertAuthority(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	certAuthority, err := services.UnmarshalCertAuthority(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -52,20 +58,20 @@ func (rc *ResourceCommand) createCertAuthority(ctx context.Context, client *auth
 	return nil
 }
 
-func (rc *ResourceCommand) deleteCertAuthority(ctx context.Context, client *authclient.Client) error {
-	if rc.ref.SubKind == "" || rc.ref.Name == "" {
+func deleteCertAuthority(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if ref.SubKind == "" || ref.Name == "" {
 		return trace.BadParameter(
 			"full %s path must be specified (e.g. '%s/%s/clustername')",
 			types.KindCertAuthority, types.KindCertAuthority, types.HostCA,
 		)
 	}
 	err := client.DeleteCertAuthority(ctx, types.CertAuthID{
-		Type:       types.CertAuthType(rc.ref.SubKind),
-		DomainName: rc.ref.Name,
+		Type:       types.CertAuthType(ref.SubKind),
+		DomainName: ref.Name,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("%s '%s/%s' has been deleted\n", types.KindCertAuthority, rc.ref.SubKind, rc.ref.Name)
+	fmt.Printf("%s '%s/%s' has been deleted\n", types.KindCertAuthority, ref.SubKind, ref.Name)
 	return nil
 }

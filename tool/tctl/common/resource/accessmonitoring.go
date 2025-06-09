@@ -12,13 +12,20 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) createAccessMonitoringRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var accessMonitoringRule = resource{
+	getHandler:    getAccessMonitoringRule,
+	createHandler: createAccessMonitoringRule,
+	updateHandler: updateAccessMonitoringRule,
+	deleteHandler: deleteAccessMonitoringRule,
+}
+
+func createAccessMonitoringRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if rc.IsForced() {
+	if opts.force {
 		if _, err = client.AccessMonitoringRuleClient().UpsertAccessMonitoringRule(ctx, in); err != nil {
 			return trace.Wrap(err)
 		}
@@ -34,9 +41,9 @@ func (rc *ResourceCommand) createAccessMonitoringRule(ctx context.Context, clien
 	return nil
 }
 
-func (rc *ResourceCommand) getAccessMonitoringRule(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name != "" {
-		rule, err := client.AccessMonitoringRuleClient().GetAccessMonitoringRule(ctx, rc.ref.Name)
+func getAccessMonitoringRule(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name != "" {
+		rule, err := client.AccessMonitoringRuleClient().GetAccessMonitoringRule(ctx, ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -59,7 +66,7 @@ func (rc *ResourceCommand) getAccessMonitoringRule(ctx context.Context, client *
 	return collections.NewAccessMonitoringRuleCollection(rules), nil
 }
 
-func (rc *ResourceCommand) updateAccessMonitoringRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func updateAccessMonitoringRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -71,11 +78,11 @@ func (rc *ResourceCommand) updateAccessMonitoringRule(ctx context.Context, clien
 	return nil
 }
 
-func (rc *ResourceCommand) deleteAccessMonitoringRule(ctx context.Context, client *authclient.Client) error {
-	if err := client.AccessMonitoringRuleClient().DeleteAccessMonitoringRule(ctx, rc.ref.Name); err != nil {
+func deleteAccessMonitoringRule(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.AccessMonitoringRuleClient().DeleteAccessMonitoringRule(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Access monitoring rule %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("Access monitoring rule %q has been deleted\n", ref.Name)
 	return nil
 
 }

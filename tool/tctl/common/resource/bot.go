@@ -13,12 +13,18 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) createBot(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var bot = resource{
+	getHandler:    getBot,
+	createHandler: createBot,
+	deleteHandler: deleteBot,
+}
+
+func createBot(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	bot := &machineidv1pb.Bot{}
 	if err := (protojson.UnmarshalOptions{}).Unmarshal(raw.Raw, bot); err != nil {
 		return trace.Wrap(err)
 	}
-	if rc.IsForced() {
+	if opts.force {
 		_, err := client.BotServiceClient().UpsertBot(ctx, &machineidv1pb.UpsertBotRequest{
 			Bot: bot,
 		})
@@ -39,11 +45,11 @@ func (rc *ResourceCommand) createBot(ctx context.Context, client *authclient.Cli
 	return nil
 }
 
-func (rc *ResourceCommand) getBot(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+func getBot(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	remote := client.BotServiceClient()
-	if rc.ref.Name != "" {
+	if ref.Name != "" {
 		bot, err := remote.GetBot(ctx, &machineidv1pb.GetBotRequest{
-			BotName: rc.ref.Name,
+			BotName: ref.Name,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -70,20 +76,24 @@ func (rc *ResourceCommand) getBot(ctx context.Context, client *authclient.Client
 	return collections.NewBotCollection(bots), nil
 }
 
-func (rc *ResourceCommand) deleteBot(ctx context.Context, client *authclient.Client) error {
-	if _, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{BotName: rc.ref.Name}); err != nil {
+func deleteBot(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if _, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{BotName: ref.Name}); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Bot %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("Bot %q has been deleted\n", ref.Name)
 	return nil
 }
 
-func (rc *ResourceCommand) getBotInstance(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name != "" && rc.ref.SubKind != "" {
+var botInstance = resource{
+	getHandler: getBotInstance,
+}
+
+func getBotInstance(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name != "" && ref.SubKind != "" {
 		// Gets a specific bot instance, e.g. bot_instance/<bot name>/<instance id>
 		bi, err := client.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
-			BotName:    rc.ref.SubKind,
-			InstanceId: rc.ref.Name,
+			BotName:    ref.SubKind,
+			InstanceId: ref.Name,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -101,7 +111,7 @@ func (rc *ResourceCommand) getBotInstance(ctx context.Context, client *authclien
 			PageToken: startKey,
 
 			// Note: empty filter lists all bot instances
-			FilterBotName: rc.ref.Name,
+			FilterBotName: ref.Name,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

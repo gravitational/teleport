@@ -20,30 +20,35 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) getDatabaseServer(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	servers, err := client.GetDatabaseServers(ctx, rc.namespace)
+var databaseServer = resource{
+	getHandler:    getDatabaseServer,
+	deleteHandler: deleteDatabaseServer,
+}
+
+func getDatabaseServer(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	servers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if rc.ref.Name == "" {
+	if ref.Name == "" {
 		return collections.NewDatabaseServerCollection(servers), nil
 	}
 
-	servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
+	servers = filterByNameOrDiscoveredName(servers, ref.Name)
 	if len(servers) == 0 {
-		return nil, trace.NotFound("database server %q not found", rc.ref.Name)
+		return nil, trace.NotFound("database server %q not found", ref.Name)
 	}
 	return collections.NewDatabaseServerCollection(servers), nil
 }
 
-func (rc *ResourceCommand) deleteDatabaseServer(ctx context.Context, client *authclient.Client) error {
+func deleteDatabaseServer(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	servers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	resDesc := "database server"
-	servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
-	name, err := getOneResourceNameToDelete(servers, rc.ref, resDesc)
+	servers = filterByNameOrDiscoveredName(servers, ref.Name)
+	name, err := getOneResourceNameToDelete(servers, ref, resDesc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -57,22 +62,28 @@ func (rc *ResourceCommand) deleteDatabaseServer(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) getDatabase(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+var database = resource{
+	getHandler:    getDatabase,
+	createHandler: createDatabase,
+	deleteHandler: deleteDatabase,
+}
+
+func getDatabase(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	databases, err := client.GetDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if rc.ref.Name == "" {
+	if ref.Name == "" {
 		return collections.NewDatabaseCollection(databases), nil
 	}
-	databases = filterByNameOrDiscoveredName(databases, rc.ref.Name)
+	databases = filterByNameOrDiscoveredName(databases, ref.Name)
 	if len(databases) == 0 {
-		return nil, trace.NotFound("database %q not found", rc.ref.Name)
+		return nil, trace.NotFound("database %q not found", ref.Name)
 	}
 	return collections.NewDatabaseCollection(databases), nil
 }
 
-func (rc *ResourceCommand) createDatabase(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func createDatabase(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	database, err := services.UnmarshalDatabase(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -80,7 +91,7 @@ func (rc *ResourceCommand) createDatabase(ctx context.Context, client *authclien
 	database.SetOrigin(types.OriginDynamic)
 	if err := client.CreateDatabase(ctx, database); err != nil {
 		if trace.IsAlreadyExists(err) {
-			if !rc.force {
+			if !opts.force {
 				return trace.AlreadyExists("database %q already exists", database.GetName())
 			}
 			if err := client.UpdateDatabase(ctx, database); err != nil {
@@ -95,14 +106,14 @@ func (rc *ResourceCommand) createDatabase(ctx context.Context, client *authclien
 	return nil
 }
 
-func (rc *ResourceCommand) deleteDatabase(ctx context.Context, client *authclient.Client) error {
+func deleteDatabase(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	databases, err := client.GetDatabases(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	resDesc := "database"
-	databases = filterByNameOrDiscoveredName(databases, rc.ref.Name)
-	name, err := getOneResourceNameToDelete(databases, rc.ref, resDesc)
+	databases = filterByNameOrDiscoveredName(databases, ref.Name)
+	name, err := getOneResourceNameToDelete(databases, ref, resDesc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -113,8 +124,12 @@ func (rc *ResourceCommand) deleteDatabase(ctx context.Context, client *authclien
 	return nil
 }
 
-func (rc *ResourceCommand) getDatabaseService(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	resourceName := rc.ref.Name
+var databaseService = resource{
+	getHandler: getDatabaseService,
+}
+
+func getDatabaseService(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	resourceName := ref.Name
 	listReq := proto.ListResourcesRequest{
 		ResourceType: types.KindDatabaseService,
 	}
@@ -138,12 +153,19 @@ func (rc *ResourceCommand) getDatabaseService(ctx context.Context, client *authc
 
 	return collections.NewDatabaseServiceCollection(databaseServices), nil
 }
-func (rc *ResourceCommand) createDatabaseObjectImportRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+
+var databaseObjectImportRule = resource{
+	getHandler:    getDatabaseObjectImportRule,
+	createHandler: createDatabaseObjectImportRule,
+	deleteHandler: deleteDatabaseObjectImportRule,
+}
+
+func createDatabaseObjectImportRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	rule, err := databaseobjectimportrule.UnmarshalJSON(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if rc.IsForced() {
+	if opts.force {
 		_, err = client.DatabaseObjectImportRuleClient().UpsertDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.UpsertDatabaseObjectImportRuleRequest{
 			Rule: rule,
 		})
@@ -162,10 +184,10 @@ func (rc *ResourceCommand) createDatabaseObjectImportRule(ctx context.Context, c
 	fmt.Printf("rule %q has been created\n", rule.GetMetadata().GetName())
 	return nil
 }
-func (rc *ResourceCommand) getDatabaseObjectImportRule(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+func getDatabaseObjectImportRule(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	remote := client.DatabaseObjectImportRuleClient()
-	if rc.ref.Name != "" {
-		rule, err := remote.GetDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.GetDatabaseObjectImportRuleRequest{Name: rc.ref.Name})
+	if ref.Name != "" {
+		rule, err := remote.GetDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.GetDatabaseObjectImportRuleRequest{Name: ref.Name})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -190,20 +212,26 @@ func (rc *ResourceCommand) getDatabaseObjectImportRule(ctx context.Context, clie
 	return collections.NewDatabaseObjectImportRuleCollection(rules), nil
 }
 
-func (rc *ResourceCommand) deleteDatabaseObjectImportRule(ctx context.Context, client *authclient.Client) error {
-	if _, err := client.DatabaseObjectImportRuleClient().DeleteDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.DeleteDatabaseObjectImportRuleRequest{Name: rc.ref.Name}); err != nil {
+func deleteDatabaseObjectImportRule(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if _, err := client.DatabaseObjectImportRuleClient().DeleteDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.DeleteDatabaseObjectImportRuleRequest{Name: ref.Name}); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Rule %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("Rule %q has been deleted\n", ref.Name)
 	return nil
 }
 
-func (rc *ResourceCommand) createDatabaseObject(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var databaseObject = resource{
+	getHandler:    getDatabaseObject,
+	createHandler: createDatabaseObject,
+	deleteHandler: deleteDatabaseObject,
+}
+
+func createDatabaseObject(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	object, err := databaseobject.UnmarshalJSON(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if rc.IsForced() {
+	if opts.force {
 		_, err = client.DatabaseObjectsClient().UpsertDatabaseObject(ctx, object)
 		if err != nil {
 			return trace.Wrap(err)
@@ -219,10 +247,10 @@ func (rc *ResourceCommand) createDatabaseObject(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) getDatabaseObject(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+func getDatabaseObject(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	remote := client.DatabaseObjectsClient()
-	if rc.ref.Name != "" {
-		object, err := remote.GetDatabaseObject(ctx, rc.ref.Name)
+	if ref.Name != "" {
+		object, err := remote.GetDatabaseObject(ctx, ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -247,21 +275,28 @@ func (rc *ResourceCommand) getDatabaseObject(ctx context.Context, client *authcl
 	return collections.NewDatabaseObjectCollection(objects), nil
 }
 
-func (rc *ResourceCommand) deleteDatabaseObject(ctx context.Context, client *authclient.Client) error {
-	if err := client.DatabaseObjectsClient().DeleteDatabaseObject(ctx, rc.ref.Name); err != nil {
+func deleteDatabaseObject(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.DatabaseObjectsClient().DeleteDatabaseObject(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Object %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("Object %q has been deleted\n", ref.Name)
 	return nil
 }
 
-func (rc *ResourceCommand) createHealthCheckConfig(ctx context.Context, clt *authclient.Client, raw services.UnknownResource) error {
+var healthCheckConfig = resource{
+	getHandler:    getHealthCheckConfig,
+	createHandler: createHealthCheckConfig,
+	updateHandler: updateHealthCheckConfig,
+	deleteHandler: deleteHealthCheckConfig,
+}
+
+func createHealthCheckConfig(ctx context.Context, clt *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	in, err := services.UnmarshalHealthCheckConfig(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	createFn := clt.CreateHealthCheckConfig
-	if rc.IsForced() {
+	if opts.force {
 		createFn = clt.UpsertHealthCheckConfig
 	}
 	if _, err := createFn(ctx, in); err != nil {
@@ -271,7 +306,7 @@ func (rc *ResourceCommand) createHealthCheckConfig(ctx context.Context, clt *aut
 	return nil
 }
 
-func (rc *ResourceCommand) updateHealthCheckConfig(ctx context.Context, clt *authclient.Client, raw services.UnknownResource) error {
+func updateHealthCheckConfig(ctx context.Context, clt *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	in, err := services.UnmarshalHealthCheckConfig(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -283,17 +318,17 @@ func (rc *ResourceCommand) updateHealthCheckConfig(ctx context.Context, clt *aut
 	return nil
 }
 
-func (rc *ResourceCommand) deleteHealthCheckConfig(ctx context.Context, clt *authclient.Client) error {
-	if err := clt.DeleteHealthCheckConfig(ctx, rc.ref.Name); err != nil {
+func deleteHealthCheckConfig(ctx context.Context, clt *authclient.Client, ref services.Ref) error {
+	if err := clt.DeleteHealthCheckConfig(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("health_check_config %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("health_check_config %q has been deleted\n", ref.Name)
 	return nil
 }
 
-func (rc *ResourceCommand) getHealthCheckConfig(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name != "" {
-		cfg, err := client.GetHealthCheckConfig(ctx, rc.ref.Name)
+func getHealthCheckConfig(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name != "" {
+		cfg, err := client.GetHealthCheckConfig(ctx, ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

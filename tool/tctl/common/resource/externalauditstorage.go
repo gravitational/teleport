@@ -13,14 +13,20 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
+var externalAuditStorage = resource{
+	getHandler:    getExternalAuditStorage,
+	createHandler: createExternalAuditStorage,
+	deleteHandler: deleteExternalAuditStorage,
+}
+
 // createExternalAuditStorage implements `tctl create external_audit_storage` command.
-func (rc *ResourceCommand) createExternalAuditStorage(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func createExternalAuditStorage(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	draft, err := services.UnmarshalExternalAuditStorage(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	externalAuditClient := client.ExternalAuditStorageClient()
-	if rc.force {
+	if opts.force {
 		if _, err := externalAuditClient.UpsertDraftExternalAuditStorage(ctx, draft); err != nil {
 			return trace.Wrap(err)
 		}
@@ -34,9 +40,9 @@ func (rc *ResourceCommand) createExternalAuditStorage(ctx context.Context, clien
 	return nil
 }
 
-func (rc *ResourceCommand) getExternalAuditStorage(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+func getExternalAuditStorage(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	out := []*externalauditstorage.ExternalAuditStorage{}
-	name := rc.ref.Name
+	name := ref.Name
 	switch name {
 	case "":
 		cluster, err := client.ExternalAuditStorageClient().GetClusterExternalAuditStorage(ctx)
@@ -73,8 +79,8 @@ func (rc *ResourceCommand) getExternalAuditStorage(ctx context.Context, client *
 	}
 }
 
-func (rc *ResourceCommand) deleteExternalAuditStorage(ctx context.Context, client *authclient.Client) error {
-	if rc.ref.Name == types.MetaNameExternalAuditStorageCluster {
+func deleteExternalAuditStorage(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if ref.Name == types.MetaNameExternalAuditStorageCluster {
 		if err := client.ExternalAuditStorageClient().DisableClusterExternalAuditStorage(ctx); err != nil {
 			return trace.Wrap(err)
 		}

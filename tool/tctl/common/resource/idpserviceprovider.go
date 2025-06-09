@@ -14,7 +14,13 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var samlIdPServiceProvider = resource{
+	getHandler:    getSAMLIdPServiceProvider,
+	createHandler: createSAMLIdPServiceProvider,
+	deleteHandler: deleteSAMLIdPServiceProvider,
+}
+
+func createSAMLIdPServiceProvider(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	// Create services.SAMLIdPServiceProvider from raw YAML to extract the service provider name.
 	sp, err := services.UnmarshalSAMLIdPServiceProvider(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -50,13 +56,13 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 			return trace.Wrap(err)
 		}
 	}
-	fmt.Printf("SAML IdP service provider %q has been %s\n", serviceProviderName, UpsertVerb(exists, rc.IsForced()))
+	fmt.Printf("SAML IdP service provider %q has been %s\n", serviceProviderName, UpsertVerb(exists, opts.force))
 	return nil
 }
 
-func (rc *ResourceCommand) getSAMLIdPServiceProvider(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name != "" {
-		serviceProvider, err := client.GetSAMLIdPServiceProvider(ctx, rc.ref.Name)
+func getSAMLIdPServiceProvider(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name != "" {
+		serviceProvider, err := client.GetSAMLIdPServiceProvider(ctx, ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -80,10 +86,10 @@ func (rc *ResourceCommand) getSAMLIdPServiceProvider(ctx context.Context, client
 	return collections.NewSAMLIdPServiceProviderCollection(resources), nil
 }
 
-func (rc *ResourceCommand) deleteSAMLIdPServiceProvider(ctx context.Context, client *authclient.Client) error {
-	if err := client.DeleteSAMLIdPServiceProvider(ctx, rc.ref.Name); err != nil {
+func deleteSAMLIdPServiceProvider(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.DeleteSAMLIdPServiceProvider(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("SAML IdP service provider %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("SAML IdP service provider %q has been deleted\n", ref.Name)
 	return nil
 }

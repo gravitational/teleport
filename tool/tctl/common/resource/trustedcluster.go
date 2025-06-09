@@ -12,15 +12,21 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) getTrustedCluster(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name == "" {
+var trustedCluster = resource{
+	getHandler:    getTrustedCluster,
+	createHandler: createTrustedCluster,
+	deleteHandler: deleteTrustedCluster,
+}
+
+func getTrustedCluster(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name == "" {
 		trustedClusters, err := client.GetTrustedClusters(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return collections.NewTrustedClusterCollection(trustedClusters), nil
 	}
-	trustedCluster, err := client.GetTrustedCluster(ctx, rc.ref.Name)
+	trustedCluster, err := client.GetTrustedCluster(ctx, ref.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -28,7 +34,7 @@ func (rc *ResourceCommand) getTrustedCluster(ctx context.Context, client *authcl
 }
 
 // createTrustedCluster implements `tctl create cluster.yaml` command
-func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func createTrustedCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	tc, err := services.UnmarshalTrustedCluster(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -42,7 +48,7 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 	}
 
 	exists := (err == nil)
-	if !rc.force && exists {
+	if !opts.force && exists {
 		return trace.AlreadyExists("trusted cluster %q already exists", name)
 	}
 
@@ -55,7 +61,7 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 		// this means the user tried to upsert a cluster whose exact match already
 		// exists in the backend, nothing needs to occur other than happy message
 		// that the trusted cluster has been created.
-		if rc.force && trace.IsAlreadyExists(err) {
+		if opts.force && trace.IsAlreadyExists(err) {
 			out = tc
 		} else {
 			return trace.Wrap(err)
@@ -64,37 +70,42 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 	if out.GetName() != tc.GetName() {
 		fmt.Printf("WARNING: trusted cluster %q resource has been renamed to match remote cluster name %q\n", name, out.GetName())
 	}
-	fmt.Printf("trusted cluster %q has been %v\n", out.GetName(), UpsertVerb(exists, rc.force))
+	fmt.Printf("trusted cluster %q has been %v\n", out.GetName(), UpsertVerb(exists, opts.force))
 	return nil
 }
 
-func (rc *ResourceCommand) deleteTrustedCluster(ctx context.Context, client *authclient.Client) error {
-	if err := client.DeleteTrustedCluster(ctx, rc.ref.Name); err != nil {
+func deleteTrustedCluster(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.DeleteTrustedCluster(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("trusted cluster %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("trusted cluster %q has been deleted\n", ref.Name)
 	return nil
 }
 
-func (rc *ResourceCommand) getRemoteCluster(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name == "" {
+var remoteCluster = resource{
+	getHandler:    getRemoteCluster,
+	deleteHandler: deleteRemoteCluster,
+}
+
+func getRemoteCluster(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name == "" {
 		remoteClusters, err := client.GetRemoteClusters(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return collections.NewRemoteClusterCollection(remoteClusters), nil
 	}
-	remoteCluster, err := client.GetRemoteCluster(ctx, rc.ref.Name)
+	remoteCluster, err := client.GetRemoteCluster(ctx, ref.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return collections.NewRemoteClusterCollection([]types.RemoteCluster{remoteCluster}), nil
 }
 
-func (rc *ResourceCommand) deleteRemoteCluster(ctx context.Context, client *authclient.Client) error {
-	if err := client.DeleteRemoteCluster(ctx, rc.ref.Name); err != nil {
+func deleteRemoteCluster(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.DeleteRemoteCluster(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("remote cluster %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("remote cluster %q has been deleted\n", ref.Name)
 	return nil
 }

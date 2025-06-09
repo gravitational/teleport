@@ -13,24 +13,31 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) getRole(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name == "" {
+var role = resource{
+	getHandler:    getRole,
+	createHandler: createRole,
+	updateHandler: updateRole,
+	deleteHandler: deleteRole,
+}
+
+func getRole(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name == "" {
 		roles, err := client.GetRoles(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return collections.NewRoleCollection(roles), nil
 	}
-	role, err := client.GetRole(ctx, rc.ref.Name)
+	role, err := client.GetRole(ctx, ref.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	warnAboutDynamicLabelsInDenyRule(ctx, rc.config.Logger, role)
+	warnAboutDynamicLabelsInDenyRule(ctx, slog.Default(), role)
 	return collections.NewRoleCollection([]types.Role{role}), nil
 }
 
 // createRole implements `tctl create role.yaml` command.
-func (rc *ResourceCommand) createRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func createRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	role, err := services.UnmarshalRole(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -47,7 +54,7 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client *authclient.Cl
 		return trace.Wrap(err)
 	}
 
-	warnAboutKubernetesResources(ctx, rc.config.Logger, role)
+	warnAboutKubernetesResources(ctx, slog.Default(), role)
 
 	roleName := role.GetName()
 	_, err = client.GetRole(ctx, roleName)
@@ -55,17 +62,17 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client *authclient.Cl
 		return trace.Wrap(err)
 	}
 	roleExists := (err == nil)
-	if roleExists && !rc.IsForced() {
+	if roleExists && !opts.force {
 		return trace.AlreadyExists("role %q already exists", roleName)
 	}
 	if _, err := client.UpsertRole(ctx, role); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("role %q has been %s\n", roleName, UpsertVerb(roleExists, rc.IsForced()))
+	fmt.Printf("role %q has been %s\n", roleName, UpsertVerb(roleExists, opts.force))
 	return nil
 }
 
-func (rc *ResourceCommand) updateRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func updateRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	role, err := services.UnmarshalRole(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -76,8 +83,8 @@ func (rc *ResourceCommand) updateRole(ctx context.Context, client *authclient.Cl
 		return trace.Wrap(err)
 	}
 
-	warnAboutKubernetesResources(ctx, rc.config.Logger, role)
-	warnAboutDynamicLabelsInDenyRule(ctx, rc.config.Logger, role)
+	warnAboutKubernetesResources(ctx, slog.Default(), role)
+	warnAboutDynamicLabelsInDenyRule(ctx, slog.Default(), role)
 
 	if _, err := client.UpdateRole(ctx, role); err != nil {
 		return trace.Wrap(err)
@@ -86,11 +93,11 @@ func (rc *ResourceCommand) updateRole(ctx context.Context, client *authclient.Cl
 	return nil
 }
 
-func (rc *ResourceCommand) deleteRole(ctx context.Context, client *authclient.Client) error {
-	if err := client.DeleteRole(ctx, rc.ref.Name); err != nil {
+func deleteRole(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.DeleteRole(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("role %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("role %q has been deleted\n", ref.Name)
 	return nil
 }
 

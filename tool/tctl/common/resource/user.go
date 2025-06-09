@@ -11,15 +11,22 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) getUser(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name == "" {
-		users, err := client.GetUsers(ctx, rc.withSecrets)
+var user = resource{
+	getHandler:    getUser,
+	createHandler: createUser,
+	updateHandler: updateUser,
+	deleteHandler: deleteUser,
+}
+
+func getUser(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name == "" {
+		users, err := client.GetUsers(ctx, opts.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return collections.NewUserCollection(users), nil
 	}
-	user, err := client.GetUser(ctx, rc.ref.Name, rc.withSecrets)
+	user, err := client.GetUser(ctx, ref.Name, opts.withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -27,7 +34,7 @@ func (rc *ResourceCommand) getUser(ctx context.Context, client *authclient.Clien
 }
 
 // createUser implements `tctl create user.yaml` command.
-func (rc *ResourceCommand) createUser(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func createUser(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	user, err := services.UnmarshalUser(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -41,7 +48,7 @@ func (rc *ResourceCommand) createUser(ctx context.Context, client *authclient.Cl
 	exists := (err == nil)
 
 	if exists {
-		if !rc.force {
+		if !opts.force {
 			return trace.AlreadyExists("user %q already exists", userName)
 		}
 
@@ -65,7 +72,7 @@ func (rc *ResourceCommand) createUser(ctx context.Context, client *authclient.Cl
 }
 
 // updateUser implements `tctl create user.yaml` command.
-func (rc *ResourceCommand) updateUser(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func updateUser(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	user, err := services.UnmarshalUser(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -79,10 +86,10 @@ func (rc *ResourceCommand) updateUser(ctx context.Context, client *authclient.Cl
 	return nil
 }
 
-func (rc *ResourceCommand) deleteUser(ctx context.Context, client *authclient.Client) error {
-	if err := client.DeleteUser(ctx, rc.ref.Name); err != nil {
+func deleteUser(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.DeleteUser(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("user %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("user %q has been deleted\n", ref.Name)
 	return nil
 }

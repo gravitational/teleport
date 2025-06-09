@@ -197,18 +197,29 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	// the CreateHandler. UpdateHandlers are preferred over CreateHandler because an update
 	// will not forcibly overwrite a resource unlike with create which requires the force
 	// flag to be set to update an existing resource.
-	updator, found := rc.UpdateHandlers[ResourceKind(raw.Kind)]
-	if found {
-		return trace.Wrap(updator(ctx, client, raw))
+	resourceHandler, found := rc.resourceHandlers[ResourceKind(rc.ref.Kind)]
+	if !found {
+		return trace.BadParameter("resource type %q unknown, please check your tctl version", rc.ref.Kind)
 	}
 
-	// TODO(tross) remove the fallback to CreateHandlers once all the resources
-	// have been updated to implement an UpdateHandler.
-	if creator, found := rc.CreateHandlers[ResourceKind(raw.Kind)]; found {
-		return trace.Wrap(creator(ctx, client, raw))
+	opts := createOpts{
+		force:   rc.force,
+		confirm: rc.confirm,
 	}
-
-	return trace.BadParameter("updating resources of type %q is not supported", raw.Kind)
+	if err := resourceHandler.update(ctx, client, raw, opts); err != nil {
+		// TODO(tross) remove the fallback to CreateHandlers once all the resources
+		// have been updated to implement an UpdateHandler.
+		if trace.IsNotImplemented(err) {
+			if err := resourceHandler.create(ctx, client, raw, opts); err != nil {
+				if trace.IsNotImplemented(err) {
+					return trace.BadParameter("updating resources of type %q is not supported", raw.Kind)
+				}
+				return trace.Wrap(err)
+			}
+		}
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // getTextEditor returns the text editor to be used for editing the resource.

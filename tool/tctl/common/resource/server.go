@@ -18,10 +18,16 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) getNode(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+var node = resource{
+	getHandler:    getNode,
+	createHandler: createNode,
+	deleteHandler: deleteNode,
+}
+
+func getNode(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	var search []string
-	if rc.ref.Name != "" {
-		search = []string{rc.ref.Name}
+	if ref.Name != "" {
+		search = []string{ref.Name}
 	}
 
 	req := proto.ListUnifiedResourcesRequest{
@@ -44,12 +50,12 @@ func (rc *ResourceCommand) getNode(ctx context.Context, client *authclient.Clien
 				continue
 			}
 
-			if rc.ref.Name == "" {
+			if ref.Name == "" {
 				servers = append(servers, srv)
 				continue
 			}
 
-			if srv.GetName() == rc.ref.Name || srv.GetHostname() == rc.ref.Name {
+			if srv.GetName() == ref.Name || srv.GetHostname() == ref.Name {
 				servers = []types.Server{srv}
 				return collections.NewServerCollection(servers), nil
 			}
@@ -61,22 +67,22 @@ func (rc *ResourceCommand) getNode(ctx context.Context, client *authclient.Clien
 		}
 	}
 
-	if len(servers) == 0 && rc.ref.Name != "" {
-		return nil, trace.NotFound("node with ID %q not found", rc.ref.Name)
+	if len(servers) == 0 && ref.Name != "" {
+		return nil, trace.NotFound("node with ID %q not found", ref.Name)
 	}
 
 	return collections.NewServerCollection(servers), nil
 }
 
-func (rc *ResourceCommand) deleteNode(ctx context.Context, client *authclient.Client) error {
-	if err := client.DeleteNode(ctx, apidefaults.Namespace, rc.ref.Name); err != nil {
+func deleteNode(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.DeleteNode(ctx, apidefaults.Namespace, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("node %v has been deleted\n", rc.ref.Name)
+	fmt.Printf("node %v has been deleted\n", ref.Name)
 	return nil
 }
 
-func (rc *ResourceCommand) createNode(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func createNode(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	server, err := services.UnmarshalServer(raw.Raw, types.KindNode, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -88,7 +94,7 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client *authclient.Cl
 		return trace.Wrap(err)
 	}
 	exists := (err == nil)
-	if !rc.IsForced() && exists {
+	if !opts.force && exists {
 		return trace.AlreadyExists("node %q with Hostname %q and Addr %q already exists, use --force flag to override",
 			name,
 			server.GetHostname(),
@@ -100,51 +106,66 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client *authclient.Cl
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("node %q has been %s\n", name, UpsertVerb(exists, rc.IsForced()))
+	fmt.Printf("node %q has been %s\n", name, UpsertVerb(exists, opts.force))
 	return nil
 }
 
-func (rc *ResourceCommand) getAuthServer(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+var authServer = resource{
+	getHandler: getAuthServer,
+}
+
+func getAuthServer(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	servers, err := client.GetAuthServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if rc.ref.Name == "" {
+	if ref.Name == "" {
 		return collections.NewServerCollection(servers), nil
 	}
 	for _, server := range servers {
-		if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
+		if server.GetName() == ref.Name || server.GetHostname() == ref.Name {
 			return collections.NewServerCollection([]types.Server{server}), nil
 		}
 	}
-	return nil, trace.NotFound("auth server with ID %q not found", rc.ref.Name)
+	return nil, trace.NotFound("auth server with ID %q not found", ref.Name)
 }
 
-func (rc *ResourceCommand) getProxy(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+var proxy = resource{
+	getHandler:    getProxy,
+	deleteHandler: deleteProxy,
+}
+
+func getProxy(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	servers, err := client.GetProxies()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if rc.ref.Name == "" {
+	if ref.Name == "" {
 		return collections.NewServerCollection(servers), nil
 	}
 	for _, server := range servers {
-		if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
+		if server.GetName() == ref.Name || server.GetHostname() == ref.Name {
 			return collections.NewServerCollection([]types.Server{server}), nil
 		}
 	}
-	return nil, trace.NotFound("proxy with ID %q not found", rc.ref.Name)
+	return nil, trace.NotFound("proxy with ID %q not found", ref.Name)
 }
 
-func (rc *ResourceCommand) deleteProxy(ctx context.Context, client *authclient.Client) error {
-	if err := client.DeleteProxy(ctx, rc.ref.Name); err != nil {
+func deleteProxy(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.DeleteProxy(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Proxy %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("Proxy %q has been deleted\n", ref.Name)
 	return nil
 }
 
-func (rc *ResourceCommand) createServerInfo(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var serverInfo = resource{
+	getHandler:    getServerInfo,
+	createHandler: createServerInfo,
+	deleteHandler: deleteServerInfo,
+}
+
+func createServerInfo(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	si, err := services.UnmarshalServerInfo(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -158,7 +179,7 @@ func (rc *ResourceCommand) createServerInfo(ctx context.Context, client *authcli
 	}
 
 	exists := (err == nil)
-	if !rc.force && exists {
+	if !opts.force && exists {
 		return trace.AlreadyExists("server info %q already exists", name)
 	}
 
@@ -167,14 +188,14 @@ func (rc *ResourceCommand) createServerInfo(ctx context.Context, client *authcli
 		return trace.Wrap(err)
 	}
 	fmt.Printf("Server info %q has been %s\n",
-		name, UpsertVerb(exists, rc.force),
+		name, UpsertVerb(exists, opts.force),
 	)
 	return nil
 }
 
-func (rc *ResourceCommand) getServerInfo(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name != "" {
-		si, err := client.GetServerInfo(ctx, rc.ref.Name)
+func getServerInfo(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name != "" {
+		si, err := client.GetServerInfo(ctx, ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -187,10 +208,10 @@ func (rc *ResourceCommand) getServerInfo(ctx context.Context, client *authclient
 	return collections.NewServerInfoCollection(serverInfos), nil
 }
 
-func (rc *ResourceCommand) deleteServerInfo(ctx context.Context, client *authclient.Client) error {
-	if err := client.DeleteServerInfo(ctx, rc.ref.Name); err != nil {
+func deleteServerInfo(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.DeleteServerInfo(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Server info %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("Server info %q has been deleted\n", ref.Name)
 	return nil
 }

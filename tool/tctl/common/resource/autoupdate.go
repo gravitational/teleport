@@ -14,7 +14,15 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) createAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var autoUpdateConfig = resource{
+	getHandler:    getAutoUpdateConfig,
+	createHandler: createAutoUpdateConfig,
+	updateHandler: updateAutoUpdateConfig,
+	deleteHandler: deleteAutoUpdateConfig,
+	singleton:     true,
+}
+
+func createAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -27,7 +35,7 @@ func (rc *ResourceCommand) createAutoUpdateConfig(ctx context.Context, client *a
 		config.Metadata.Name = types.MetaNameAutoUpdateConfig
 	}
 
-	if rc.IsForced() {
+	if opts.force {
 		_, err = client.UpsertAutoUpdateConfig(ctx, config)
 	} else {
 		_, err = client.CreateAutoUpdateConfig(ctx, config)
@@ -40,7 +48,7 @@ func (rc *ResourceCommand) createAutoUpdateConfig(ctx context.Context, client *a
 	return nil
 }
 
-func (rc *ResourceCommand) updateAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func updateAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -60,7 +68,7 @@ func (rc *ResourceCommand) updateAutoUpdateConfig(ctx context.Context, client *a
 	return nil
 }
 
-func (rc *ResourceCommand) deleteAutoUpdateConfig(ctx context.Context, client *authclient.Client) error {
+func deleteAutoUpdateConfig(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	if err := client.DeleteAutoUpdateConfig(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -68,7 +76,7 @@ func (rc *ResourceCommand) deleteAutoUpdateConfig(ctx context.Context, client *a
 	return nil
 }
 
-func (rc *ResourceCommand) getAutoUpdateConfig(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+func getAutoUpdateConfig(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	config, err := client.GetAutoUpdateConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -76,7 +84,15 @@ func (rc *ResourceCommand) getAutoUpdateConfig(ctx context.Context, client *auth
 	return collections.NewAutoUpdateConfigCollection(config), nil
 }
 
-func (rc *ResourceCommand) createAutoUpdateVersion(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var autoUpdateVersion = resource{
+	getHandler:    getAutoUpdateVersion,
+	createHandler: createAutoUpdateVersion,
+	updateHandler: updateAutoUpdateVersion,
+	deleteHandler: deleteAutoUpdateVersion,
+	singleton:     true,
+}
+
+func createAutoUpdateVersion(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateVersion](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -89,7 +105,7 @@ func (rc *ResourceCommand) createAutoUpdateVersion(ctx context.Context, client *
 		version.Metadata.Name = types.MetaNameAutoUpdateVersion
 	}
 
-	if rc.IsForced() {
+	if opts.force {
 		_, err = client.UpsertAutoUpdateVersion(ctx, version)
 	} else {
 		_, err = client.CreateAutoUpdateVersion(ctx, version)
@@ -102,7 +118,7 @@ func (rc *ResourceCommand) createAutoUpdateVersion(ctx context.Context, client *
 	return nil
 }
 
-func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func updateAutoUpdateVersion(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateVersion](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -122,7 +138,7 @@ func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *
 	return nil
 }
 
-func (rc *ResourceCommand) getAutoUpdateVersion(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+func getAutoUpdateVersion(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	version, err := client.GetAutoUpdateVersion(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -130,7 +146,7 @@ func (rc *ResourceCommand) getAutoUpdateVersion(ctx context.Context, client *aut
 	return collections.NewAutoUpdateVersionCollection(version), nil
 }
 
-func (rc *ResourceCommand) deleteAutoUpdateVersion(ctx context.Context, client *authclient.Client) error {
+func deleteAutoUpdateVersion(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	if err := client.DeleteAutoUpdateVersion(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -138,7 +154,15 @@ func (rc *ResourceCommand) deleteAutoUpdateVersion(ctx context.Context, client *
 	return nil
 }
 
-func (rc *ResourceCommand) createAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var autoUpdateAgentRollout = resource{
+	getHandler:    getAutoUpdateAgentRollout,
+	createHandler: createAutoUpdateAgentRollout,
+	updateHandler: updateAutoUpdateAgentRollout,
+	deleteHandler: deleteAutoUpdateAgentRollout,
+	singleton:     true,
+}
+
+func createAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	rollout, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -151,7 +175,7 @@ func (rc *ResourceCommand) createAutoUpdateAgentRollout(ctx context.Context, cli
 		rollout.Metadata.Name = types.MetaNameAutoUpdateAgentRollout
 	}
 
-	if rc.IsForced() {
+	if opts.force {
 		_, err = client.UpsertAutoUpdateAgentRollout(ctx, rollout)
 	} else {
 		_, err = client.CreateAutoUpdateAgentRollout(ctx, rollout)
@@ -164,7 +188,7 @@ func (rc *ResourceCommand) createAutoUpdateAgentRollout(ctx context.Context, cli
 	return nil
 }
 
-func (rc *ResourceCommand) getAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+func getAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	version, err := client.GetAutoUpdateAgentRollout(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -172,7 +196,27 @@ func (rc *ResourceCommand) getAutoUpdateAgentRollout(ctx context.Context, client
 	return collections.NewAutoUpdateAgentRolloutCollection(version), nil
 }
 
-func (rc *ResourceCommand) deleteAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client) error {
+func updateAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
+	rollout, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rollout.GetMetadata() == nil {
+		rollout.Metadata = &headerv1.Metadata{}
+	}
+	if rollout.GetMetadata().GetName() == "" {
+		rollout.Metadata.Name = types.MetaNameAutoUpdateAgentRollout
+	}
+
+	if _, err := client.UpdateAutoUpdateAgentRollout(ctx, rollout); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("autoupdate_version has been updated")
+	return nil
+}
+
+func deleteAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	if err := client.DeleteAutoUpdateAgentRollout(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -180,7 +224,12 @@ func (rc *ResourceCommand) deleteAutoUpdateAgentRollout(ctx context.Context, cli
 	return nil
 }
 
-func (rc *ResourceCommand) upsertAutoUpdateAgentReport(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var autoUpdateAgentReport = resource{
+	getHandler:    getAutoUpdateAgentReport,
+	createHandler: upsertAutoUpdateAgentReport,
+}
+
+func upsertAutoUpdateAgentReport(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	report, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentReport](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -195,9 +244,9 @@ func (rc *ResourceCommand) upsertAutoUpdateAgentReport(ctx context.Context, clie
 	return nil
 }
 
-func (rc *ResourceCommand) getAutoUpdateAgentReport(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name != "" {
-		report, err := client.GetAutoUpdateAgentReport(ctx, rc.ref.Name)
+func getAutoUpdateAgentReport(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name != "" {
+		report, err := client.GetAutoUpdateAgentReport(ctx, ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -218,24 +267,4 @@ func (rc *ResourceCommand) getAutoUpdateAgentReport(ctx context.Context, client 
 		nextToken = token
 	}
 	return collections.NewAutoUpdateAgentReportCollection(reports), nil
-}
-
-func (rc *ResourceCommand) updateAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	rollout, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if rollout.GetMetadata() == nil {
-		rollout.Metadata = &headerv1.Metadata{}
-	}
-	if rollout.GetMetadata().GetName() == "" {
-		rollout.Metadata.Name = types.MetaNameAutoUpdateAgentRollout
-	}
-
-	if _, err := client.UpdateAutoUpdateAgentRollout(ctx, rollout); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Println("autoupdate_version has been updated")
-	return nil
 }

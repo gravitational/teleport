@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"github.com/gravitational/teleport/api/defaults"
 
 	"github.com/gravitational/trace"
 
@@ -12,28 +13,34 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) getAppServer(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	servers, err := client.GetApplicationServers(ctx, rc.namespace)
+var appServer = resource{
+	getHandler:    getAppServer,
+	createHandler: createAppServer,
+	deleteHandler: deleteAppServer,
+}
+
+func getAppServer(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	servers, err := client.GetApplicationServers(ctx, defaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if rc.ref.Name == "" {
+	if ref.Name == "" {
 		return collections.NewAppServerCollection(servers), nil
 	}
 
 	var out []types.AppServer
 	for _, server := range servers {
-		if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
+		if server.GetName() == ref.Name || server.GetHostname() == ref.Name {
 			out = append(out, server)
 		}
 	}
 	if len(out) == 0 {
-		return nil, trace.NotFound("application server %q not found", rc.ref.Name)
+		return nil, trace.NotFound("application server %q not found", ref.Name)
 	}
 	return collections.NewAppServerCollection(out), err
 }
 
-func (rc *ResourceCommand) createAppServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func createAppServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	appServer, err := services.UnmarshalAppServer(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -48,14 +55,14 @@ func (rc *ResourceCommand) createAppServer(ctx context.Context, client *authclie
 	return nil
 }
 
-func (rc *ResourceCommand) deleteAppServer(ctx context.Context, client *authclient.Client) error {
-	appServers, err := client.GetApplicationServers(ctx, rc.namespace)
+func deleteAppServer(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	appServers, err := client.GetApplicationServers(ctx, defaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	deleted := false
 	for _, server := range appServers {
-		if server.GetName() == rc.ref.Name {
+		if server.GetName() == ref.Name {
 			if err := client.DeleteApplicationServer(ctx, server.GetNamespace(), server.GetHostID(), server.GetName()); err != nil {
 				return trace.Wrap(err)
 			}
@@ -63,35 +70,41 @@ func (rc *ResourceCommand) deleteAppServer(ctx context.Context, client *authclie
 		}
 	}
 	if !deleted {
-		return trace.NotFound("application server %q not found", rc.ref.Name)
+		return trace.NotFound("application server %q not found", ref.Name)
 	}
-	fmt.Printf("application server %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("application server %q has been deleted\n", ref.Name)
 	return nil
 }
 
-func (rc *ResourceCommand) getApp(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name == "" {
+var app = resource{
+	getHandler:    getApp,
+	createHandler: createApp,
+	deleteHandler: deleteApp,
+}
+
+func getApp(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name == "" {
 		apps, err := client.GetApps(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return collections.NewAppCollection(apps), nil
 	}
-	app, err := client.GetApp(ctx, rc.ref.Name)
+	app, err := client.GetApp(ctx, ref.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return collections.NewAppCollection([]types.Application{app}), nil
 }
 
-func (rc *ResourceCommand) createApp(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func createApp(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	app, err := services.UnmarshalApp(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if err := client.CreateApp(ctx, app); err != nil {
 		if trace.IsAlreadyExists(err) {
-			if !rc.force {
+			if opts.force {
 				return trace.AlreadyExists("application %q already exists", app.GetName())
 			}
 			if err := client.UpdateApp(ctx, app); err != nil {
@@ -106,10 +119,10 @@ func (rc *ResourceCommand) createApp(ctx context.Context, client *authclient.Cli
 	return nil
 }
 
-func (rc *ResourceCommand) deleteApp(ctx context.Context, client *authclient.Client) error {
-	if err := client.DeleteApp(ctx, rc.ref.Name); err != nil {
+func deleteApp(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.DeleteApp(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("application %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("application %q has been deleted\n", ref.Name)
 	return nil
 }

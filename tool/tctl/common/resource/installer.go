@@ -13,22 +13,28 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) getInstaller(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name == "" {
+var installer = resource{
+	getHandler:    getInstaller,
+	createHandler: createInstaller,
+	deleteHandler: deleteInstaller,
+}
+
+func getInstaller(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name == "" {
 		installers, err := client.GetInstallers(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return collections.NewInstallerCollection(installers), nil
 	}
-	inst, err := client.GetInstaller(ctx, rc.ref.Name)
+	inst, err := client.GetInstaller(ctx, ref.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return collections.NewInstallerCollection([]types.Installer{inst}), nil
 }
 
-func (rc *ResourceCommand) createInstaller(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func createInstaller(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	inst, err := services.UnmarshalInstaller(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -42,15 +48,15 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client *authclie
 	return nil
 }
 
-func (rc *ResourceCommand) deleteInstaller(ctx context.Context, client *authclient.Client) error {
-	err := client.DeleteInstaller(ctx, rc.ref.Name)
+func deleteInstaller(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	err := client.DeleteInstaller(ctx, ref.Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if rc.ref.Name == installers.InstallerScriptName {
-		fmt.Printf("%s has been reset to a default value\n", rc.ref.Name)
+	if ref.Name == installers.InstallerScriptName {
+		fmt.Printf("%s has been reset to a default value\n", ref.Name)
 	} else {
-		fmt.Printf("%s has been deleted\n", rc.ref.Name)
+		fmt.Printf("%s has been deleted\n", ref.Name)
 	}
 	return nil
 }

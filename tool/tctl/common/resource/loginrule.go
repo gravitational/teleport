@@ -14,14 +14,20 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) createLoginRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var loginRule = resource{
+	getHandler:    getLoginRule,
+	createHandler: createLoginRule,
+	deleteHandler: deleteLoginRule,
+}
+
+func createLoginRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	rule, err := loginrule.UnmarshalLoginRule(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	loginRuleClient := client.LoginRuleClient()
-	if rc.IsForced() {
+	if opts.force {
 		_, err := loginRuleClient.UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
 			LoginRule: rule,
 		})
@@ -36,14 +42,14 @@ func (rc *ResourceCommand) createLoginRule(ctx context.Context, client *authclie
 			return trail.FromGRPC(err)
 		}
 	}
-	verb := UpsertVerb(false /* we don't know if it existed before */, rc.IsForced() /* force update */)
+	verb := UpsertVerb(false /* we don't know if it existed before */, opts.force /* force update */)
 	fmt.Printf("login_rule %q has been %s\n", rule.GetMetadata().GetName(), verb)
 	return nil
 }
 
-func (rc *ResourceCommand) getLoginRule(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+func getLoginRule(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	loginRuleClient := client.LoginRuleClient()
-	if rc.ref.Name == "" {
+	if ref.Name == "" {
 		fetch := func(token string) (*loginrulepb.ListLoginRulesResponse, error) {
 			resp, err := loginRuleClient.ListLoginRules(ctx, &loginrulepb.ListLoginRulesRequest{
 				PageToken: token,
@@ -61,20 +67,20 @@ func (rc *ResourceCommand) getLoginRule(ctx context.Context, client *authclient.
 		return collections.NewLoginRuleCollection(rules), nil
 	}
 	rule, err := loginRuleClient.GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{
-		Name: rc.ref.Name,
+		Name: ref.Name,
 	})
 	return collections.NewLoginRuleCollection([]*loginrulepb.LoginRule{rule}), trail.FromGRPC(err)
 }
 
-func (rc *ResourceCommand) deleteLoginRule(ctx context.Context, client *authclient.Client) error {
+func deleteLoginRule(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	loginRuleClient := client.LoginRuleClient()
 	_, err := loginRuleClient.DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
-		Name: rc.ref.Name,
+		Name: ref.Name,
 	})
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
-	fmt.Printf("login rule %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("login rule %q has been deleted\n", ref.Name)
 	return nil
 
 }

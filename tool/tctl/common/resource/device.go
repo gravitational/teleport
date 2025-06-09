@@ -16,7 +16,13 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) createDevice(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var device = resource{
+	getHandler:    getDevice,
+	createHandler: createDevice,
+	deleteHandler: deleteDevice,
+}
+
+func createDevice(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	res, err := services.UnmarshalDevice(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -26,7 +32,7 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client *authclient.
 		return trace.Wrap(err)
 	}
 
-	if rc.IsForced() {
+	if opts.force {
 		_, err = client.DevicesClient().UpsertDevice(ctx, &devicepb.UpsertDeviceRequest{
 			Device:           dev,
 			CreateAsResource: true,
@@ -44,7 +50,7 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client *authclient.
 	}
 
 	verb := "created"
-	if rc.IsForced() {
+	if opts.force {
 		verb = "updated"
 	}
 
@@ -56,11 +62,11 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client *authclient.
 	return nil
 }
 
-func (rc *ResourceCommand) getDevice(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+func getDevice(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	remote := client.DevicesClient()
-	if rc.ref.Name != "" {
+	if ref.Name != "" {
 		resp, err := remote.FindDevices(ctx, &devicepb.FindDevicesRequest{
-			IdOrTag: rc.ref.Name,
+			IdOrTag: ref.Name,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -101,9 +107,9 @@ func (rc *ResourceCommand) getDevice(ctx context.Context, client *authclient.Cli
 	return collections.NewDeviceCollection(devs), nil
 }
 
-func (rc *ResourceCommand) deleteDevice(ctx context.Context, client *authclient.Client) error {
+func deleteDevice(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	remote := client.DevicesClient()
-	device, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name)
+	device, err := findDeviceByIDOrTag(ctx, remote, ref.Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -113,7 +119,7 @@ func (rc *ResourceCommand) deleteDevice(ctx context.Context, client *authclient.
 	}); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Device %q removed\n", rc.ref.Name)
+	fmt.Printf("Device %q removed\n", ref.Name)
 	return nil
 }
 

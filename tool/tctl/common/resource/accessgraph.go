@@ -14,7 +14,14 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) getAccessGraphSettings(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+var accessGraphSettings = resource{
+	getHandler:    getAccessGraphSettings,
+	createHandler: upsertAccessGraphSettings,
+	updateHandler: updateAccessGraphSettings,
+	singleton:     true,
+}
+
+func getAccessGraphSettings(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	settings, err := client.ClusterConfigClient().GetAccessGraphSettings(ctx, &clusterconfigpb.GetAccessGraphSettingsRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -26,7 +33,7 @@ func (rc *ResourceCommand) getAccessGraphSettings(ctx context.Context, client *a
 	return collections.NewAccessGraphSettingsCollection(rec), nil
 }
 
-func (rc *ResourceCommand) upsertAccessGraphSettings(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func upsertAccessGraphSettings(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	settings, err := clusterconfigrec.UnmarshalAccessGraphSettings(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -40,7 +47,7 @@ func (rc *ResourceCommand) upsertAccessGraphSettings(ctx context.Context, client
 	return nil
 }
 
-func (rc *ResourceCommand) updateAccessGraphSettings(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func updateAccessGraphSettings(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	settings, err := clusterconfigrec.UnmarshalAccessGraphSettings(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -53,7 +60,18 @@ func (rc *ResourceCommand) updateAccessGraphSettings(ctx context.Context, client
 	return nil
 }
 
-func (rc *ResourceCommand) getCrownJewel(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+var crownJewel = resource{
+	getHandler:    getCrownJewel,
+	createHandler: createCrownJewel,
+	updateHandler: updateCrownJewel,
+	deleteHandler: deleteCrownJewel,
+	singleton:     false,
+	description:   "",
+}
+
+// Note(hugoShaka): This getter does not seem to support fetching a single resource,
+// but the resource does not look like a singleton. This is sketchy, is this intentional?
+func getCrownJewel(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	cjClient := client.CrownJewelsClient()
 	var rules []*crownjewelv1.CrownJewel
 	nextToken := ""
@@ -73,14 +91,14 @@ func (rc *ResourceCommand) getCrownJewel(ctx context.Context, client *authclient
 	return collections.NewCrownJewelCollection(rules), nil
 }
 
-func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func createCrownJewel(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	crownJewel, err := services.UnmarshalCrownJewel(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	c := client.CrownJewelsClient()
-	if rc.force {
+	if opts.force {
 		if _, err := c.UpsertCrownJewel(ctx, crownJewel); err != nil {
 			return trace.Wrap(err)
 		}
@@ -95,7 +113,7 @@ func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authcli
 	return nil
 }
 
-func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
+func updateCrownJewel(ctx context.Context, client *authclient.Client, resource services.UnknownResource, opts createOpts) error {
 	in, err := services.UnmarshalCrownJewel(resource.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -107,10 +125,10 @@ func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authcli
 	return nil
 }
 
-func (rc *ResourceCommand) deleteCrownJewel(ctx context.Context, client *authclient.Client) error {
-	if err := client.CrownJewelsClient().DeleteCrownJewel(ctx, rc.ref.Name); err != nil {
+func deleteCrownJewel(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.CrownJewelsClient().DeleteCrownJewel(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("crown_jewel %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("crown_jewel %q has been deleted\n", ref.Name)
 	return nil
 }

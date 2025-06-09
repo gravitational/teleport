@@ -12,22 +12,28 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) getToken(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name == "" {
+var token = resource{
+	getHandler:    getToken,
+	createHandler: createToken,
+	deleteHandler: deleteToken,
+}
+
+func getToken(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name == "" {
 		tokens, err := client.GetTokens(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return collections.NewTokenCollection(tokens), nil
 	}
-	token, err := client.GetToken(ctx, rc.ref.Name)
+	token, err := client.GetToken(ctx, ref.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return collections.NewTokenCollection([]types.ProvisionToken{token}), nil
 }
 
-func (rc *ResourceCommand) createToken(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func createToken(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	token, err := services.UnmarshalProvisionToken(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -41,10 +47,10 @@ func (rc *ResourceCommand) createToken(ctx context.Context, client *authclient.C
 	return nil
 }
 
-func (rc *ResourceCommand) deleteToken(ctx context.Context, client *authclient.Client) error {
-	if err := client.DeleteToken(ctx, rc.ref.Name); err != nil {
+func deleteToken(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.DeleteToken(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("token %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("token %q has been deleted\n", ref.Name)
 	return nil
 }

@@ -15,6 +15,12 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
+var plugin = resource{
+	getHandler:    getPlugin,
+	createHandler: createPlugin,
+	updateHandler: updatePlugin,
+}
+
 // pluginResourceWrapper provides custom JSON unmarshaling for Plugin resource
 // types. The Plugin resource uses structures generated from a protobuf `oneof`
 // directive, which the stdlib JSON unmarshaller can't handle, so we use this
@@ -140,7 +146,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 	}
 	return nil
 }
-func (rc *ResourceCommand) updatePlugin(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func updatePlugin(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	item := pluginResourceWrapper{PluginV1: types.PluginV1{}}
 	if err := utils.FastUnmarshal(raw.Raw, &item); err != nil {
 		return trace.Wrap(err)
@@ -151,14 +157,14 @@ func (rc *ResourceCommand) updatePlugin(ctx context.Context, client *authclient.
 	return nil
 }
 
-func (rc *ResourceCommand) createPlugin(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func createPlugin(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	item := pluginResourceWrapper{
 		PluginV1: types.PluginV1{},
 	}
 	if err := utils.FastUnmarshal(raw.Raw, &item); err != nil {
 		return trace.Wrap(err)
 	}
-	if !rc.IsForced() {
+	if !opts.force {
 		// Plugin needs to be installed before it can be updated.
 		return trace.BadParameter("Only plugin update operation is supported. Please use 'tctl plugins install' instead\n")
 	}
@@ -169,9 +175,9 @@ func (rc *ResourceCommand) createPlugin(ctx context.Context, client *authclient.
 	return nil
 }
 
-func (rc *ResourceCommand) getPlugin(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name != "" {
-		plugin, err := client.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: rc.ref.Name})
+func getPlugin(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name != "" {
+		plugin, err := client.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: ref.Name})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -183,7 +189,7 @@ func (rc *ResourceCommand) getPlugin(ctx context.Context, client *authclient.Cli
 		resp, err := client.PluginsClient().ListPlugins(ctx, &pluginsv1.ListPluginsRequest{
 			PageSize:    100,
 			StartKey:    startKey,
-			WithSecrets: rc.withSecrets,
+			WithSecrets: opts.withSecrets,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

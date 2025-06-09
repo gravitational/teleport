@@ -12,7 +12,14 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) createAccessList(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+var accessList = resource{
+	getHandler:    getAccessList,
+	createHandler: createAccessList,
+	deleteHandler: deleteAccessList,
+	description:   "",
+}
+
+func createAccessList(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	accessList, err := services.UnmarshalAccessList(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -24,21 +31,21 @@ func (rc *ResourceCommand) createAccessList(ctx context.Context, client *authcli
 	}
 	exists := (err == nil)
 
-	if exists && !rc.IsForced() {
+	if exists && opts.force {
 		return trace.AlreadyExists("Access list %q already exists", accessList.GetName())
 	}
 
 	if _, err := client.AccessListClient().UpsertAccessList(ctx, accessList); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Access list %q has been %s\n", accessList.GetName(), UpsertVerb(exists, rc.IsForced()))
+	fmt.Printf("Access list %q has been %s\n", accessList.GetName(), UpsertVerb(exists, opts.force))
 
 	return nil
 }
 
-func (rc *ResourceCommand) getAccessList(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name != "" {
-		resource, err := client.AccessListClient().GetAccessList(ctx, rc.ref.Name)
+func getAccessList(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name != "" {
+		resource, err := client.AccessListClient().GetAccessList(ctx, ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -49,10 +56,10 @@ func (rc *ResourceCommand) getAccessList(ctx context.Context, client *authclient
 	return collections.NewAccessListCollection(accessLists), trace.Wrap(err)
 }
 
-func (rc *ResourceCommand) deleteAccessList(ctx context.Context, client *authclient.Client) error {
-	if err := client.AccessListClient().DeleteAccessList(ctx, rc.ref.Name); err != nil {
+func deleteAccessList(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.AccessListClient().DeleteAccessList(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Access list %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("Access list %q has been deleted\n", ref.Name)
 	return nil
 }

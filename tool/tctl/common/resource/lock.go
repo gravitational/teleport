@@ -12,17 +12,23 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) getLock(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name == "" {
+var lock = resource{
+	getHandler:    getLock,
+	createHandler: createLock,
+	deleteHandler: deleteLock,
+}
+
+func getLock(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name == "" {
 		locks, err := client.GetLocks(ctx, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return collections.NewLockCollection(locks), nil
 	}
-	name := rc.ref.Name
-	if rc.ref.SubKind != "" {
-		name = rc.ref.SubKind + "/" + name
+	name := ref.Name
+	if ref.SubKind != "" {
+		name = ref.SubKind + "/" + name
 	}
 	lock, err := client.GetLock(ctx, name)
 	if err != nil {
@@ -32,7 +38,7 @@ func (rc *ResourceCommand) getLock(ctx context.Context, client *authclient.Clien
 }
 
 // createLock implements `tctl create lock.yaml` command.
-func (rc *ResourceCommand) createLock(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+func createLock(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts createOpts) error {
 	lock, err := services.UnmarshalLock(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -46,21 +52,21 @@ func (rc *ResourceCommand) createLock(ctx context.Context, client *authclient.Cl
 	}
 
 	exists := (err == nil)
-	if !rc.force && exists {
+	if !opts.force && exists {
 		return trace.AlreadyExists("lock %q already exists", name)
 	}
 
 	if err := client.UpsertLock(ctx, lock); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("lock %q has been %s\n", name, UpsertVerb(exists, rc.force))
+	fmt.Printf("lock %q has been %s\n", name, UpsertVerb(exists, opts.force))
 	return nil
 }
 
-func (rc *ResourceCommand) deleteLock(ctx context.Context, client *authclient.Client) error {
-	name := rc.ref.Name
-	if rc.ref.SubKind != "" {
-		name = rc.ref.SubKind + "/" + name
+func deleteLock(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	name := ref.Name
+	if ref.SubKind != "" {
+		name = ref.SubKind + "/" + name
 	}
 	if err := client.DeleteLock(ctx, name); err != nil {
 		return trace.Wrap(err)

@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
 
@@ -11,8 +12,13 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) getReverseTunnel(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
-	if rc.ref.Name != "" {
+var reverseTunnel = resource{
+	getHandler:    getReverseTunnel,
+	deleteHandler: deleteReverseTunnel,
+}
+
+func getReverseTunnel(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
+	if ref.Name != "" {
 		return nil, trace.BadParameter("reverse tunnel cannot be searched by name")
 	}
 	var tunnels []types.ReverseTunnel
@@ -34,10 +40,10 @@ func (rc *ResourceCommand) getReverseTunnel(ctx context.Context, client *authcli
 	return collections.NewReverseTunnelCollection(tunnels), nil
 }
 
-func (rc *ResourceCommand) deleteReverseTunnel(ctx context.Context, client *authclient.Client) error {
-	if err := client.DeleteTrustedCluster(ctx, rc.ref.Name); err != nil {
+func deleteReverseTunnel(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.DeleteTrustedCluster(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("trusted cluster %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("trusted cluster %q has been deleted\n", ref.Name)
 	return nil
 }

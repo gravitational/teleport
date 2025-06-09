@@ -12,13 +12,20 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
-func (rc *ResourceCommand) createStaticHostUser(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
+var staticHostUser = resource{
+	getHandler:    getStaticHostUser,
+	createHandler: createStaticHostUser,
+	updateHandler: updateStaticHostUser,
+	deleteHandler: deleteStaticHostUser,
+}
+
+func createStaticHostUser(ctx context.Context, client *authclient.Client, resource services.UnknownResource, opts createOpts) error {
 	hostUser, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](resource.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	c := client.StaticHostUserClient()
-	if rc.force {
+	if opts.force {
 		if _, err := c.UpsertStaticHostUser(ctx, hostUser); err != nil {
 			return trace.Wrap(err)
 		}
@@ -33,10 +40,10 @@ func (rc *ResourceCommand) createStaticHostUser(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) getStaticHostUser(ctx context.Context, client *authclient.Client) (collections.ResourceCollection, error) {
+func getStaticHostUser(ctx context.Context, client *authclient.Client, ref services.Ref, opts getOpts) (collections.ResourceCollection, error) {
 	hostUserClient := client.StaticHostUserClient()
-	if rc.ref.Name != "" {
-		hostUser, err := hostUserClient.GetStaticHostUser(ctx, rc.ref.Name)
+	if ref.Name != "" {
+		hostUser, err := hostUserClient.GetStaticHostUser(ctx, ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -60,7 +67,7 @@ func (rc *ResourceCommand) getStaticHostUser(ctx context.Context, client *authcl
 	return collections.NewStaticHostUserCollection(hostUsers), nil
 }
 
-func (rc *ResourceCommand) updateStaticHostUser(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
+func updateStaticHostUser(ctx context.Context, client *authclient.Client, resource services.UnknownResource, opts createOpts) error {
 	hostUser, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](resource.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -72,10 +79,10 @@ func (rc *ResourceCommand) updateStaticHostUser(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) deleteStaticHostUser(ctx context.Context, client *authclient.Client) error {
-	if err := client.StaticHostUserClient().DeleteStaticHostUser(ctx, rc.ref.Name); err != nil {
+func deleteStaticHostUser(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.StaticHostUserClient().DeleteStaticHostUser(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("static host user %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("static host user %q has been deleted\n", ref.Name)
 	return nil
 }
