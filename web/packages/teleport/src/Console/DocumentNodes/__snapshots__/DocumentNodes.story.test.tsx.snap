@@ -376,6 +376,11 @@ exports[`render DocumentNodes 1`] = `
   background: rgba(0,191,166,0.25);
 }
 
+.c22:focus-visible + .c23 {
+  outline: 1px solid #9F85FF;
+  outline-offset: 1px;
+}
+
 .c28 {
   height: 18px;
   width: 18px;
