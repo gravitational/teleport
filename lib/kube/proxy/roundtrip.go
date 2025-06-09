@@ -43,6 +43,7 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/kube"
+	"github.com/gravitational/teleport/lib/kube/internal/creds"
 )
 
 // SpdyRoundTripper knows how to upgrade an HTTP request to one that supports
@@ -73,7 +74,7 @@ type roundTripperConfig struct {
 	// sess is the cluster session
 	sess *clusterSession
 	// dialWithContext is the function used connect to remote address
-	dialWithContext dialContextFunc
+	dialWithContext creds.DialContextFunc
 	// tlsConfig holds the TLS configuration settings to use when connecting
 	// to the remote server.
 	tlsConfig *tls.Config

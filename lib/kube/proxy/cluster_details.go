@@ -20,29 +20,21 @@ package proxy
 
 import (
 	"context"
-	"encoding/base64"
 	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/version"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/cloud/awsconfig"
-	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/cloud/gcp"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/kube/internal/creds"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -50,7 +42,7 @@ import (
 
 // kubeDetails contain the cluster-related details including authentication.
 type kubeDetails struct {
-	kubeCreds
+	creds.KubeCreds
 
 	// dynamicLabels is the dynamic labels executor for this cluster.
 	dynamicLabels *labels.Dynamic
@@ -84,14 +76,14 @@ type kubeDetails struct {
 	wg         sync.WaitGroup
 }
 
+type clusterCredentialsGetter interface {
+	GetKubeClusterCredentials(ctx context.Context, cluster types.KubeCluster) (creds.KubeCreds, error)
+}
+
 // clusterDetailsConfig contains the configuration for creating a proxied cluster.
 type clusterDetailsConfig struct {
-	// cloudClients is the cloud clients to use for dynamic clusters.
-	cloudClients cloud.Clients
-	// awsCloudClients provides AWS SDK clients.
-	awsCloudClients AWSClientGetter
 	// kubeCreds is the credentials to use for the cluster.
-	kubeCreds kubeCreds
+	kubeCreds creds.KubeCreds
 	// cluster is the cluster to create a proxied cluster for.
 	cluster types.KubeCluster
 	// log is the logger to use.
@@ -104,7 +96,8 @@ type clusterDetailsConfig struct {
 	// clock is the clock to use.
 	clock clockwork.Clock
 	// component is the Kubernetes component that serves this cluster.
-	component KubeServiceType
+	component         KubeServiceType
+	credentialsGetter clusterCredentialsGetter
 }
 
 const (
@@ -116,7 +109,7 @@ const (
 func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDetails, err error) {
 	creds := cfg.kubeCreds
 	if creds == nil {
-		creds, err = getKubeClusterCredentials(ctx, cfg)
+		creds, err = cfg.credentialsGetter.GetKubeClusterCredentials(ctx, cfg.cluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -139,7 +132,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 
 	var isClusterOffline bool
 	// Create the codec factory and the list of supported types for RBAC.
-	codecFactory, rbacSupportedTypes, gvkSupportedRes, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
+	codecFactory, rbacSupportedTypes, gvkSupportedRes, err := newClusterSchemaBuilder(cfg.log, creds.GetKubeClient())
 	if err != nil {
 		cfg.log.WarnContext(ctx, "Failed to create cluster schema, the cluster may be offline", "error", err)
 		// If the cluster is offline, we will not be able to create the codec factory
@@ -149,14 +142,14 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		isClusterOffline = true
 	}
 
-	kubeVersion, err := creds.getKubeClient().Discovery().ServerVersion()
+	kubeVersion, err := creds.GetKubeClient().Discovery().ServerVersion()
 	if err != nil {
 		cfg.log.WarnContext(ctx, "Failed to get Kubernetes cluster version, the cluster may be offline", "error", err)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	k := &kubeDetails{
-		kubeCreds:             creds,
+		KubeCreds:             creds,
 		dynamicLabels:         dynLabels,
 		kubeCluster:           cfg.cluster,
 		kubeClusterVersion:    kubeVersion,
@@ -195,7 +188,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 			case <-ctx.Done():
 				return
 			case <-refreshDelay.After():
-				codecFactory, rbacSupportedTypes, gvkSupportedResources, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
+				codecFactory, rbacSupportedTypes, gvkSupportedResources, err := newClusterSchemaBuilder(cfg.log, creds.GetKubeClient())
 				if err != nil {
 					// If this is first time we get an error, we reset retry mechanism so it will start trying to refresh details quicker, with linear backoff.
 					if refreshDelay.First == defaultRefreshPeriod {
@@ -208,7 +201,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 					continue
 				}
 
-				kubeVersion, err := creds.getKubeClient().Discovery().ServerVersion()
+				kubeVersion, err := creds.GetKubeClient().Discovery().ServerVersion()
 				if err != nil {
 					cfg.log.WarnContext(ctx, "Failed to get Kubernetes cluster version, the cluster may be offline", "error", err)
 				}
@@ -237,7 +230,7 @@ func (k *kubeDetails) Close() {
 		k.dynamicLabels.Close()
 	}
 	// it is safe to call close even for static creds.
-	k.kubeCreds.close()
+	k.KubeCreds.Close()
 }
 
 // getClusterSupportedResources returns the codec factory and the list of supported types for RBAC.
@@ -263,156 +256,9 @@ func (k *kubeDetails) getObjectGVK(resource apiResource) *schema.GroupVersionKin
 	}]
 }
 
-// getKubeClusterCredentials generates kube credentials for dynamic clusters.
-func getKubeClusterCredentials(ctx context.Context, cfg clusterDetailsConfig) (kubeCreds, error) {
-	switch dynCredsCfg := (dynamicCredsConfig{
-		kubeCluster:      cfg.cluster,
-		log:              cfg.log,
-		checker:          cfg.checker,
-		resourceMatchers: cfg.resourceMatchers,
-		clock:            cfg.clock,
-		component:        cfg.component,
-	}); {
-	case cfg.cluster.IsKubeconfig():
-		return getStaticCredentialsFromKubeconfig(ctx, cfg.component, cfg.cluster, cfg.log, cfg.checker)
-	case cfg.cluster.IsAzure():
-		return getAzureCredentials(ctx, cfg.cloudClients, dynCredsCfg)
-	case cfg.cluster.IsAWS():
-		return getAWSCredentials(ctx, cfg.awsCloudClients, dynCredsCfg)
-	case cfg.cluster.IsGCP():
-		return getGCPCredentials(ctx, cfg.cloudClients, dynCredsCfg)
-	default:
-		return nil, trace.BadParameter("authentication method provided for cluster %q not supported", cfg.cluster.GetName())
-	}
-}
-
-// getAzureCredentials creates a dynamicCreds that generates and updates the access credentials to a AKS Kubernetes cluster.
-func getAzureCredentials(ctx context.Context, cloudClients cloud.Clients, cfg dynamicCredsConfig) (*dynamicKubeCreds, error) {
-	// create a client that returns the credentials for kubeCluster
-	cfg.client = azureRestConfigClient(cloudClients)
-
-	creds, err := newDynamicKubeCreds(
-		ctx,
-		cfg,
-	)
-	return creds, trace.Wrap(err)
-}
-
-// azureRestConfigClient creates a dynamicCredsClient that returns credentials to a AKS cluster.
-func azureRestConfigClient(cloudClients cloud.Clients) dynamicCredsClient {
-	return func(ctx context.Context, cluster types.KubeCluster) (*rest.Config, time.Time, error) {
-		aksClient, err := cloudClients.GetAzureKubernetesClient(cluster.GetAzureConfig().SubscriptionID)
-		if err != nil {
-			return nil, time.Time{}, trace.Wrap(err)
-		}
-		cfg, exp, err := aksClient.ClusterCredentials(ctx, azure.ClusterCredentialsConfig{
-			ResourceGroup:                   cluster.GetAzureConfig().ResourceGroup,
-			ResourceName:                    cluster.GetAzureConfig().ResourceName,
-			TenantID:                        cluster.GetAzureConfig().TenantID,
-			ImpersonationPermissionsChecker: checkImpersonationPermissions,
-		})
-		return cfg, exp, trace.Wrap(err)
-	}
-}
-
-// getAWSCredentials creates a dynamicKubeCreds that generates and updates the access credentials to a EKS kubernetes cluster.
-func getAWSCredentials(ctx context.Context, cloudClients AWSClientGetter, cfg dynamicCredsConfig) (*dynamicKubeCreds, error) {
-	// create a client that returns the credentials for kubeCluster
-	cfg.client = getAWSClientRestConfig(cloudClients, cfg.clock, cfg.resourceMatchers)
-	creds, err := newDynamicKubeCreds(ctx, cfg)
-	return creds, trace.Wrap(err)
-}
-
-// getAWSResourceMatcherToCluster returns the AWS assume role ARN and external ID for the cluster that matches the kubeCluster.
-// If no match is found, nil is returned, which means that we should not attempt to assume a role.
-func getAWSResourceMatcherToCluster(kubeCluster types.KubeCluster, resourceMatchers []services.ResourceMatcher) *services.ResourceMatcherAWS {
-	if !kubeCluster.IsAWS() {
-		return nil
-	}
-	for _, matcher := range resourceMatchers {
-		if len(matcher.Labels) == 0 || matcher.AWS.AssumeRoleARN == "" {
-			continue
-		}
-		if match, _, _ := services.MatchLabels(matcher.Labels, kubeCluster.GetAllLabels()); !match {
-			continue
-		}
-		return &matcher.AWS
-	}
-	return nil
-}
-
-// STSPresignClient is the subset of the STS presign interface we use in fetchers.
-type STSPresignClient = kubeutils.STSPresignClient
-
-// EKSClient is the subset of the EKS Client interface we use.
-type EKSClient interface {
-	eks.DescribeClusterAPIClient
-}
-
-// AWSClientGetter is an interface for getting an EKS client and an STS client.
-type AWSClientGetter interface {
-	awsconfig.Provider
-	// GetAWSEKSClient returns AWS EKS client for the specified config.
-	GetAWSEKSClient(aws.Config) EKSClient
-	// GetAWSSTSPresignClient returns AWS STS presign client for the specified config.
-	GetAWSSTSPresignClient(aws.Config) STSPresignClient
-}
-
-// getAWSClientRestConfig creates a dynamicCredsClient that generates returns credentials to EKS clusters.
-func getAWSClientRestConfig(cloudClients AWSClientGetter, clock clockwork.Clock, resourceMatchers []services.ResourceMatcher) dynamicCredsClient {
-	return func(ctx context.Context, cluster types.KubeCluster) (*rest.Config, time.Time, error) {
-		region := cluster.GetAWSConfig().Region
-		opts := []awsconfig.OptionsFn{
-			awsconfig.WithAmbientCredentials(),
-		}
-		if awsAssume := getAWSResourceMatcherToCluster(cluster, resourceMatchers); awsAssume != nil {
-			opts = append(opts, awsconfig.WithAssumeRole(awsAssume.AssumeRoleARN, awsAssume.ExternalID))
-		}
-
-		cfg, err := cloudClients.GetConfig(ctx, region, opts...)
-		if err != nil {
-			return nil, time.Time{}, trace.Wrap(err)
-		}
-
-		regionalClient := cloudClients.GetAWSEKSClient(cfg)
-
-		eksCfg, err := regionalClient.DescribeCluster(ctx, &eks.DescribeClusterInput{
-			Name: aws.String(cluster.GetAWSConfig().Name),
-		})
-		if err != nil {
-			return nil, time.Time{}, trace.Wrap(err)
-		}
-
-		ca, err := base64.StdEncoding.DecodeString(aws.ToString(eksCfg.Cluster.CertificateAuthority.Data))
-		if err != nil {
-			return nil, time.Time{}, trace.Wrap(err)
-		}
-
-		apiEndpoint := aws.ToString(eksCfg.Cluster.Endpoint)
-		if len(apiEndpoint) == 0 {
-			return nil, time.Time{}, trace.BadParameter("invalid api endpoint for cluster %q", cluster.GetAWSConfig().Name)
-		}
-
-		stsPresignClient := cloudClients.GetAWSSTSPresignClient(cfg)
-
-		token, exp, err := kubeutils.GenAWSEKSToken(ctx, stsPresignClient, cluster.GetAWSConfig().Name, clock)
-		if err != nil {
-			return nil, time.Time{}, trace.Wrap(err)
-		}
-
-		return &rest.Config{
-			Host:        apiEndpoint,
-			BearerToken: token,
-			TLSClientConfig: rest.TLSClientConfig{
-				CAData: ca,
-			},
-		}, exp, nil
-	}
-}
-
 // getStaticCredentialsFromKubeconfig loads a kubeconfig from the cluster and returns the access credentials for the cluster.
 // If the config defines multiple contexts, it will pick one (the order is not guaranteed).
-func getStaticCredentialsFromKubeconfig(ctx context.Context, component KubeServiceType, cluster types.KubeCluster, log *slog.Logger, checker servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
+func getStaticCredentialsFromKubeconfig(ctx context.Context, component KubeServiceType, cluster types.KubeCluster, log *slog.Logger, checker servicecfg.ImpersonationPermissionsChecker) (*creds.StaticKubeCreds, error) {
 	config, err := clientcmd.Load(cluster.GetKubeconfig())
 	if err != nil {
 		return nil, trace.WrapWithMessage(err, "unable to parse kubeconfig for cluster %q", cluster.GetName())
@@ -429,32 +275,6 @@ func getStaticCredentialsFromKubeconfig(ctx context.Context, component KubeServi
 		return nil, trace.WrapWithMessage(err, "unable to create client from kubeconfig for cluster %q", cluster.GetName())
 	}
 
-	creds, err := extractKubeCreds(ctx, component, cluster.GetName(), restConfig, log, checker)
-	return creds, trace.Wrap(err)
-}
-
-// getGCPCredentials creates a dynamicKubeCreds that generates and updates the access credentials to a GKE kubernetes cluster.
-func getGCPCredentials(ctx context.Context, cloudClients cloud.Clients, cfg dynamicCredsConfig) (*dynamicKubeCreds, error) {
-	// create a client that returns the credentials for kubeCluster
-	cfg.client = gcpRestConfigClient(cloudClients)
-	creds, err := newDynamicKubeCreds(ctx, cfg)
-	return creds, trace.Wrap(err)
-}
-
-// gcpRestConfigClient creates a dynamicCredsClient that returns credentials to a GKE cluster.
-func gcpRestConfigClient(cloudClients cloud.Clients) dynamicCredsClient {
-	return func(ctx context.Context, cluster types.KubeCluster) (*rest.Config, time.Time, error) {
-		gkeClient, err := cloudClients.GetGCPGKEClient(ctx)
-		if err != nil {
-			return nil, time.Time{}, trace.Wrap(err)
-		}
-		cfg, exp, err := gkeClient.GetClusterRestConfig(ctx,
-			gcp.ClusterDetails{
-				ProjectID: cluster.GetGCPConfig().ProjectID,
-				Location:  cluster.GetGCPConfig().Location,
-				Name:      cluster.GetGCPConfig().Name,
-			},
-		)
-		return cfg, exp, trace.Wrap(err)
-	}
+	out, err := creds.ExtractKubeCreds(ctx, component, cluster.GetName(), restConfig, log, checker)
+	return out, trace.Wrap(err)
 }

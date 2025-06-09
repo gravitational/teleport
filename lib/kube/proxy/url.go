@@ -20,6 +20,7 @@ package proxy
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"path"
@@ -47,6 +48,7 @@ func (mr *metaResource) isClusterWideResource() bool {
 	if mr == nil {
 		return false
 	}
+	fmt.Println("1212431234")
 	return mr.isClusterWide || (mr.resourceDefinition != nil && !mr.resourceDefinition.Namespaced)
 }
 

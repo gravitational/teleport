@@ -201,7 +201,7 @@ func (f *Forwarder) mergeEphemeralPatchWithCurrentPod(
 		return nil, "", trace.NotFound("kubernetes cluster %q not found", cfg.kubeCluster)
 	}
 
-	pod, err := details.getKubeClient().CoreV1().
+	pod, err := details.GetKubeClient().CoreV1().
 		Pods(cfg.kubeNamespace).
 		Get(ctx, cfg.podName, metav1.GetOptions{})
 	if err != nil {
@@ -247,7 +247,7 @@ func (f *Forwarder) impersonatedKubeClient(authCtx *authContext, headers http.He
 	if err != nil {
 		return nil, nil, trace.NotFound("kubernetes cluster %q not found", authCtx.kubeClusterName)
 	}
-	restConfig := details.getKubeRestConfig()
+	restConfig := details.GetKubeRestConfig()
 	kubeUser, kubeGroups, err := computeImpersonatedPrincipals(authCtx.kubeUsers, authCtx.kubeGroups, headers)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

@@ -31,13 +31,12 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http2"
-	"k8s.io/client-go/transport"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube"
+	"github.com/gravitational/teleport/lib/kube/internal/creds"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -48,9 +47,6 @@ func (f *Forwarder) transportForRequest(sess *clusterSession) (http.RoundTripper
 	transport, _, err := f.transportForRequestWithImpersonation(sess)
 	return transport, trace.Wrap(err)
 }
-
-// dialContextFunc is a context network dialer function that returns a network connection
-type dialContextFunc func(context.Context, string, string) (net.Conn, error)
 
 // transportForRequestWithImpersonation returns a transport that supports
 // impersonation. This allows the client to reuse the same transport for all
@@ -64,7 +60,7 @@ func (f *Forwarder) transportForRequestWithImpersonation(sess *clusterSession) (
 	if sess.kubeAPICreds != nil {
 		// If agent is running in agent mode, get the transport from the configured cluster
 		// credentials.
-		return sess.kubeAPICreds.getTransport(), sess.kubeAPICreds.getTLSConfig(), nil
+		return sess.kubeAPICreds.GetTransport(), sess.kubeAPICreds.GetTLSConfig(), nil
 	}
 
 	// If the cluster is remote, the key is the teleport cluster name.
@@ -119,41 +115,6 @@ func transportCacheKey(sess *clusterSession) string {
 	return fmt.Sprintf("%x/%x", sess.teleportCluster.name, sess.kubeClusterName)
 }
 
-// wrapTransport wraps the provided transport with the Kubernetes transport config
-// if it is not nil.
-func wrapTransport(rt http.RoundTripper, transportConfig *transport.Config) (http.RoundTripper, error) {
-	if transportConfig == nil {
-		return rt, nil
-	}
-
-	wrapped, err := transport.HTTPWrappersForConfig(transportConfig, rt)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return enforceCloseIdleConnections(wrapped, rt), nil
-}
-
-// newTransport creates a new [http.Transport] with the provided dialer and TLS
-// config.
-// The transport is configured to use a connection pool and to close idle
-// connections after a timeout.
-func newTransport(dial dialContextFunc, tlsConfig *tls.Config) *http.Transport {
-	return &http.Transport{
-		DialContext:     dial,
-		TLSClientConfig: tlsConfig,
-		// Increase the size of the connection pool. This substantially improves the
-		// performance of Teleport under load as it reduces the number of TLS
-		// handshakes performed.
-		MaxIdleConns:        defaults.HTTPMaxIdleConns,
-		MaxIdleConnsPerHost: defaults.HTTPMaxIdleConnsPerHost,
-		// IdleConnTimeout defines the maximum amount of time before idle connections
-		// are closed. Leaving this unset will lead to connections open forever and
-		// will cause memory leaks in a long running process.
-		IdleConnTimeout: defaults.HTTPIdleTimeout,
-	}
-}
-
 // newRemoteClusterTransport returns a new [http.Transport] (https://golang.org/pkg/net/http/#Transport)
 // that can be used to dial Kubernetes Proxy in a remote Teleport cluster.
 // The transport is configured to use a connection pool and to close idle
@@ -176,7 +137,7 @@ func (f *Forwarder) newRemoteClusterTransport(clusterName string) (http.RoundTri
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return instrumentedRoundtripper(
+	return creds.InstrumentedRoundtripper(
 		f.cfg.KubeServiceType,
 		kube.NewImpersonatorRoundTripper(h2Transport),
 	), tlsConfig.Clone(), nil
@@ -220,7 +181,7 @@ func (f *Forwarder) getTLSConfigForLeafCluster(clusterName string) (*tls.Config,
 
 // remoteClusterDialer returns a dialer that can be used to dial Kubernetes Proxy
 // in a remote Teleport cluster via the reverse tunnel.
-func (f *Forwarder) remoteClusterDialer(clusterName string) dialContextFunc {
+func (f *Forwarder) remoteClusterDialer(clusterName string) creds.DialContextFunc {
 	return func(ctx context.Context, _, _ string) (net.Conn, error) {
 		_, span := f.cfg.tracer.Start(
 			ctx,
@@ -277,7 +238,7 @@ func (f *Forwarder) newLocalClusterTransport(kubeClusterName string) (http.Round
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return instrumentedRoundtripper(
+	return creds.InstrumentedRoundtripper(
 		f.cfg.KubeServiceType,
 		kube.NewImpersonatorRoundTripper(h2Transport),
 	), tlsConfig.Clone(), nil
@@ -287,7 +248,7 @@ func (f *Forwarder) newLocalClusterTransport(kubeClusterName string) (http.Round
 // in a local Teleport cluster using the reverse tunnel.
 // The endpoints are fetched from the cached auth client and are shuffled
 // to avoid hotspots.
-func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDialerOption) dialContextFunc {
+func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDialerOption) creds.DialContextFunc {
 	opt := contextDialerOptions{}
 	for _, o := range opts {
 		o(&opt)
@@ -360,13 +321,13 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDi
 }
 
 // newH2Transport creates a new HTTP/2 transport with ALPN support.
-func newH2Transport(tlsConfig *tls.Config, dial dialContextFunc) (*http.Transport, error) {
+func newH2Transport(tlsConfig *tls.Config, dial creds.DialContextFunc) (*http.Transport, error) {
 	tlsConfig = tlsConfig.Clone()
 	if tlsConfig == nil {
 		tlsConfig = &tls.Config{}
 	}
 	tlsConfig.NextProtos = []string{http2.NextProtoTLS, teleport.HTTPNextProtoTLS}
-	h2HTTPTransport := newTransport(dial, tlsConfig)
+	h2HTTPTransport := creds.NewTransport(dial, tlsConfig)
 	// Upgrade transport to h2 where HTTP_PROXY and HTTPS_PROXY
 	// envs are not take into account purposely.
 	if err := http2.ConfigureTransport(h2HTTPTransport); err != nil {
@@ -386,7 +347,7 @@ func newH2Transport(tlsConfig *tls.Config, dial dialContextFunc) (*http.Transpor
 // impersonation.
 func (f *Forwarder) getTLSConfig(sess *clusterSession) (*tls.Config, bool, error) {
 	if sess.kubeAPICreds != nil {
-		return sess.kubeAPICreds.getTLSConfig(), false, nil
+		return sess.kubeAPICreds.GetTLSConfig(), false, nil
 	}
 
 	_, tlsConfig, err := f.transportForRequestWithImpersonation(sess)
@@ -401,7 +362,7 @@ func (f *Forwarder) getTLSConfig(sess *clusterSession) (*tls.Config, bool, error
 // to the first available kubernetes service.
 // If the next hop is a local cluster, it returns a dialer that directly dials
 // to the next hop.
-func (f *Forwarder) getContextDialerFunc(s *clusterSession, opts ...contextDialerOption) dialContextFunc {
+func (f *Forwarder) getContextDialerFunc(s *clusterSession, opts ...contextDialerOption) creds.DialContextFunc {
 	if s.kubeAPICreds != nil {
 		// If this is a kubernetes service, we need to connect to the kubernetes
 		// API server using a direct dialer.

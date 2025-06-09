@@ -38,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/kube/internal/creds"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -293,10 +294,10 @@ func setItemsUsingReflection(itemsR reflect.Value, underlyingType reflect.Type, 
 
 // newImpersonatedKubeClient creates a new Kubernetes Client that impersonates
 // a username and the groups.
-func newImpersonatedKubeClient(creds kubeCreds, username string, groups []string) (*dynamic.DynamicClient, error) {
+func newImpersonatedKubeClient(creds creds.KubeCreds, username string, groups []string) (*dynamic.DynamicClient, error) {
 	c := &rest.Config{}
 	// clone cluster's rest config.
-	*c = *creds.getKubeRestConfig()
+	*c = *creds.GetKubeRestConfig()
 	// change the impersonated headers.
 	c.Impersonate = rest.ImpersonationConfig{
 		UserName: username,
@@ -368,7 +369,7 @@ func deleteResources[T kubeObjectInterface](
 
 		// create a new kubernetes.Client using the impersonated users and groups
 		// that matched the current pod.
-		client, err := newImpersonatedKubeClient(params.kubeDetails.kubeCreds, impersonatedUsers, impersonatedGroups)
+		client, err := newImpersonatedKubeClient(params.kubeDetails.KubeCreds, impersonatedUsers, impersonatedGroups)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

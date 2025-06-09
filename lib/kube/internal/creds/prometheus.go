@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package proxy
+package creds
 
 import (
 	"net/http"
@@ -26,7 +26,6 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
-	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
@@ -126,44 +125,6 @@ var (
 		[]string{"component"},
 	)
 )
-
-// instrumentedRoundtripper instruments the provided RoundTripper with
-// Prometheus metrics and OpenTelemetry tracing.
-func instrumentedRoundtripper(component string, tr http.RoundTripper) http.RoundTripper {
-	// Define functions for the available httptrace.ClientTrace hook
-	// functions that we want to instrument.
-	httpTrace := &promhttp.InstrumentTrace{
-		GotConn: func(t float64) {
-			clietGotConnLatencyVec.WithLabelValues(component).Observe(t)
-		},
-		GotFirstResponseByte: func(t float64) {
-			clientFirstByteLatencyVec.WithLabelValues(component).Observe(t)
-		},
-		TLSHandshakeStart: func(t float64) {
-			clientTLSLatencyVec.WithLabelValues(component, "tls_handshake_start").Observe(t)
-		},
-		TLSHandshakeDone: func(t float64) {
-			clientTLSLatencyVec.WithLabelValues(component, "tls_handshake_done").Observe(t)
-		},
-	}
-	curryWith := prometheus.Labels{"component": component}
-	return tracehttp.NewTransportWithInner(
-		promhttp.InstrumentRoundTripperInFlight(
-			clientInFlightGauge.WithLabelValues(component),
-			promhttp.InstrumentRoundTripperCounter(
-				clientRequestCounter.MustCurryWith(curryWith),
-				promhttp.InstrumentRoundTripperTrace(
-					httpTrace,
-					promhttp.InstrumentRoundTripperDuration(clientRequestDurationHistVec.MustCurryWith(curryWith), tr),
-				),
-			),
-		),
-		// Pass the original RoundTripper to the inner transport so that it can
-		// be used to close idle connections because promhttp roundtrippers don't
-		// implement CloseIdleConnections.
-		tr,
-	)
-}
 
 // The following section defines Prometheus metrics for the HTTP server used by
 // the Teleport Kubernetes Proxy and the Teleport Kubernetes service.
@@ -275,7 +236,7 @@ var (
 
 // instrumentHTTPHandler instruments the HTTP handler with OpenTelemetry and
 // Prometheus metrics.
-func instrumentHTTPHandler(component string, handler http.Handler) http.Handler {
+func InstrumentHTTPHandler(component string, handler http.Handler) http.Handler {
 	return otelhttp.NewHandler(
 		instrumentHTTPHandlerWithPrometheus(component, handler),
 		component,

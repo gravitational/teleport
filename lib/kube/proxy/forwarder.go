@@ -76,6 +76,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/kube"
+	"github.com/gravitational/teleport/lib/kube/internal/creds"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/modules"
@@ -245,7 +246,7 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 
 	if f.CheckImpersonationPermissions == nil {
-		f.CheckImpersonationPermissions = checkImpersonationPermissions
+		f.CheckImpersonationPermissions = creds.CheckImpersonationPermissions
 	}
 
 	if f.TracerProvider == nil {
@@ -349,7 +350,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 
 	router.NotFound = fwd.withAuthStd(fwd.catchAll)
 
-	fwd.router = instrumentHTTPHandler(fwd.cfg.KubeServiceType, router)
+	fwd.router = creds.InstrumentHTTPHandler(fwd.cfg.KubeServiceType, router)
 
 	if cfg.ClusterOverride != "" {
 		fwd.log.DebugContext(closeCtx, "Cluster override is set, forwarder will send all requests to remote cluster", "cluster_override", cfg.ClusterOverride)
@@ -1185,9 +1186,9 @@ func matchKubernetesResource(resource types.KubernetesResource, isClusterWideRes
 // join joins an existing session over a websocket connection
 func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
 	// Increment the request counter and the in-flight gauge.
-	joinSessionsRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	joinSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	defer joinSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
+	// joinSessionsRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	// joinSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	// defer joinSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
 
 	f.log.DebugContext(req.Context(), "Joining session", "join_url", logutils.StringerAttr(req.URL))
 
@@ -1638,9 +1639,9 @@ func exitCode(err error) (errMsg, code string) {
 // all output from the session
 func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
 	// Increment the request counter and the in-flight gauge.
-	execSessionsRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	execSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	defer execSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
+	// execSessionsRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	// execSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	// defer execSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
 
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
@@ -1760,9 +1761,9 @@ func (f *Forwarder) remoteExec(req *http.Request, sess *clusterSession, proxy *r
 // portForward starts port forwarding to the remote cluster
 func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	// Increment the request counter and the in-flight gauge.
-	portforwardRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	portforwardSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	defer portforwardSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
+	// portforwardRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	// portforwardSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	// defer portforwardSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
 
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
@@ -1931,7 +1932,7 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 	// Otherwise, use kube-teleport-proxy-alpn.teleport.cluster.local to pass TLS handshake and leverage TLS Routing.
 	req.URL.Host = fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, constants.APIDomain)
 	if sess.kubeAPICreds != nil {
-		req.URL.Host = sess.kubeAPICreds.getTargetAddr()
+		req.URL.Host = sess.kubeAPICreds.GetTargetAddr()
 	}
 
 	// add origin headers so the service consuming the request on the other site
@@ -2161,7 +2162,7 @@ func (f *Forwarder) getWebsocketRestConfig(sess *clusterSession, req *http.Reque
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.kubeAPICreds != nil {
 		var err error
-		rt, err = sess.kubeAPICreds.wrapTransport(rt)
+		rt, err = sess.kubeAPICreds.WrapTransport(rt)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2250,7 +2251,7 @@ func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (re
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.kubeAPICreds != nil {
 		var err error
-		rt, err = sess.kubeAPICreds.wrapTransport(rt)
+		rt, err = sess.kubeAPICreds.WrapTransport(rt)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2305,7 +2306,7 @@ func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (http
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.kubeAPICreds != nil {
 		var err error
-		rt, err = sess.kubeAPICreds.wrapTransport(rt)
+		rt, err = sess.kubeAPICreds.WrapTransport(rt)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2355,7 +2356,7 @@ type clusterSession struct {
 	// kubeAPICreds are the credentials used to authenticate to the Kubernetes API server.
 	// It is non-nil if the kubernetes cluster is served by this teleport service,
 	// nil otherwise.
-	kubeAPICreds kubeCreds
+	kubeAPICreds creds.KubeCreds
 	forwarder    *reverseproxy.Forwarder
 	// targetAddr is the address of the target cluster.
 	targetAddr string
@@ -2557,8 +2558,8 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 	return &clusterSession{
 		parent:                 f,
 		authContext:            authCtx,
-		kubeAPICreds:           details.kubeCreds,
-		targetAddr:             details.getTargetAddr(),
+		kubeAPICreds:           details.KubeCreds,
+		targetAddr:             details.GetTargetAddr(),
 		requestContext:         ctx,
 		codecFactory:           codecFactory,
 		rbacSupportedResources: rbacSupportedResources,

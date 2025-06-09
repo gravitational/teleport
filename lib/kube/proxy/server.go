@@ -28,9 +28,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/eks"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"golang.org/x/net/http2"
 
@@ -39,8 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
@@ -51,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/ingress"
-	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 // TLSServerConfig is a configuration for TLS server
@@ -76,9 +70,6 @@ type TLSServerConfig struct {
 	ResourceMatchers []services.ResourceMatcher
 	// OnReconcile is called after each kube_cluster resource reconciliation.
 	OnReconcile func(types.KubeClusters)
-	// CloudClients is a set of cloud clients that Teleport supports.
-	CloudClients cloud.Clients
-	awsClients   *awsClientsGetter
 	// StaticLabels is a map of static labels associated with this service.
 	// Each cluster advertised by this kubernetes_service will include these static labels.
 	// If the service and a cluster define labels with the same key,
@@ -113,21 +104,6 @@ type TLSServerConfig struct {
 	Middleware AuthMiddleware
 }
 
-type awsClientsGetter struct{}
-
-func (f *awsClientsGetter) GetConfig(ctx context.Context, region string, optFns ...awsconfig.OptionsFn) (aws.Config, error) {
-	return awsconfig.GetConfig(ctx, region, optFns...)
-}
-
-func (f *awsClientsGetter) GetAWSEKSClient(cfg aws.Config) EKSClient {
-	return eks.NewFromConfig(cfg)
-}
-
-func (f *awsClientsGetter) GetAWSSTSPresignClient(cfg aws.Config) STSPresignClient {
-	stsClient := stsutils.NewFromConfig(cfg)
-	return sts.NewPresignClient(stsClient)
-}
-
 // CheckAndSetDefaults checks and sets default values
 func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if err := c.ForwarderConfig.CheckAndSetDefaults(); err != nil {
@@ -157,16 +133,7 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.Log == nil {
 		c.Log = slog.Default()
 	}
-	if c.CloudClients == nil {
-		cloudClients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.CloudClients = cloudClients
-	}
-	if c.awsClients == nil {
-		c.awsClients = &awsClientsGetter{}
-	}
+
 	if c.ConnectedProxyGetter == nil {
 		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
