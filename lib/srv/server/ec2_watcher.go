@@ -67,9 +67,9 @@ type EC2Instances struct {
 	// Integration is the integration used to fetch the Instance and should be used to access it.
 	// Might be empty for instances that didn't use an Integration.
 	Integration string
-
+	// AssumeRoleARN is the ARN of the role to assume while installing.
 	AssumeRoleARN string
-
+	// ExternalID is the external ID to use when assuming a role.
 	ExternalID string
 
 	// DiscoveryConfigName is the DiscoveryConfig name which originated this Run Request.
@@ -249,9 +249,8 @@ type ec2InstanceFetcher struct {
 	Integration         string
 	DiscoveryConfigName string
 	EnrollMode          types.InstallParamEnrollMode
-
-	AssumeRoleARN string
-	ExternalID    string
+	AssumeRoleARN       string
+	ExternalID          string
 
 	// cachedInstances keeps all of the ec2 instances that were matched
 	// in the last run of GetInstances for use as a cache with

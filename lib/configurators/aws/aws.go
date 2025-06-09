@@ -376,16 +376,15 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		var err error
 
 		if c.awsCfg == nil {
-			opts := []awsconfig.OptionsFn{
+			cfg, err := awsconfig.GetConfig(
+				ctx,
+				getFallbackRegion(ctx, os.Stdout, nil),
 				awsconfig.WithAmbientCredentials(),
 				awsconfig.WithSTSClientProvider(func(cfg aws.Config) awsconfig.STSClient {
 					return getSTSClient(cfg)
 				}),
-			}
-			if c.Flags.AssumeRole != "" {
-				opts = append(opts, awsconfig.WithAssumeRole(c.Flags.AssumeRole, c.Flags.ExternalID))
-			}
-			cfg, err := awsconfig.GetConfig(ctx, getFallbackRegion(ctx, os.Stdout, nil), opts...)
+				awsconfig.WithAssumeRole(c.Flags.AssumeRoleARN, c.Flags.ExternalID),
+			)
 			if err != nil {
 				return trace.Wrap(err)
 			}

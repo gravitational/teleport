@@ -372,7 +372,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	discoveryBootstrapCmd.Flag("manual", "When executed in \"manual\" mode, it will print the instructions to complete the configuration instead of applying them directly.").BoolVar(&configureDiscoveryBootstrapFlags.config.Manual)
 	discoveryBootstrapCmd.Flag("database-service-role", "Role name to attach database access policies to. If specified, bootstrap for the database service that accesses the databases discovered by this discovery service.").StringVar(&configureDiscoveryBootstrapFlags.databaseServiceRole)
 	discoveryBootstrapCmd.Flag("database-service-policy-name", "Name of the policy for bootstrapping database service when database-service-role is provided. ").Default(awsconfigurators.DatabaseAccessPolicyName).StringVar(&configureDiscoveryBootstrapFlags.databaseServicePolicyName)
-	discoveryBootstrapCmd.Flag("assume-role-arn", "Optional AWS IAM role to assume.").StringVar(&configureDiscoveryBootstrapFlags.config.AssumeRole)
+	discoveryBootstrapCmd.Flag("assume-role-arn", "Optional AWS IAM role to assume while bootstrapping.").StringVar(&configureDiscoveryBootstrapFlags.config.AssumeRoleARN)
 	discoveryBootstrapCmd.Flag("external-id", "Optional AWS external ID used when assuming an AWS role.").StringVar(&configureDiscoveryBootstrapFlags.config.ExternalID)
 
 	// "teleport install" command and its subcommands
