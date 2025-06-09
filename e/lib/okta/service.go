@@ -432,19 +432,18 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 
 	defer func() {
 		if err != nil {
-			//statusCode = types.PluginStatusCode_OTHER_ERROR
-			errorCode, errorMsg := getPluginStartError(err)
+			errorCode, startErr := getPluginStartError(err)
 			if userSyncEnabled {
-				serviceStatus.UpdateUserSync(ctx, config.Clock.Now(), 0, err)
+				serviceStatus.UpdateUserSync(ctx, config.Clock.Now(), 0, startErr)
 			}
 			if appGroupSyncEnabled {
-				serviceStatus.UpdateAppGroupSync(ctx, config.Clock.Now(), 0, 0, err)
+				serviceStatus.UpdateAppGroupSync(ctx, config.Clock.Now(), 0, 0, startErr)
 			}
 			if accessListSyncEnabled {
-				serviceStatus.UpdateAccessListSync(ctx, config.Clock.Now(), 0, 0, err)
+				serviceStatus.UpdateAccessListSync(ctx, config.Clock.Now(), 0, 0, startErr)
 			}
 
-			ReportPluginStatusError(ctx, config.Logger, config.PluginStatusSink, errorCode, oktaStatus, errorMsg)
+			ReportPluginStatusError(ctx, config.Logger, config.PluginStatusSink, errorCode, oktaStatus, startErr.Error())
 		} else {
 			ReportPluginStatus(ctx, config.Logger, config.PluginStatusSink, types.PluginStatusCode_RUNNING, oktaStatus)
 		}
@@ -589,17 +588,21 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 	return s, nil
 }
 
-func getPluginStartError(err error) (types.PluginStatusCode, string) {
-	if errors.Is(err, ErrMissingAppId) {
-		return types.PluginStatusCode_OKTA_CONFIG_ERROR, "Okta SAML app ID is missing: Verify your API Services application in Okta can access your SAML application as part of the defined resource set and has all necessary scopes granted, or try setting up User Sync again."
+func getPluginStartError(err error) (types.PluginStatusCode, error) {
+	msg := ""
+	switch {
+	case errors.Is(err, ErrMissingAppId):
+		msg = "Okta SAML app ID is missing: Verify your API Services application in Okta can access your SAML application as part of the defined resource set and has all necessary scopes granted, or try setting up User Sync again."
+	case errors.Is(err, ErrMissingSsoConnectorId):
+		msg = "SSO Connector ID is missing: Verify your SSO Connector is configured correctly, or try setting up the integration again."
+	case errors.Is(err, ErrMissingDefaultOwners):
+		msg = "Default Owners are missing: Verify you have provided Default Access List Owners, or try setting up App and Group Sync again."
 	}
-	if errors.Is(err, ErrMissingSsoConnectorId) {
-		return types.PluginStatusCode_OKTA_CONFIG_ERROR, "SSO Connector ID is missing: Verify your SSO Connector is configured correctly, or try setting up the integration again."
+
+	if msg != "" {
+		return types.PluginStatusCode_OKTA_CONFIG_ERROR, errors.New(msg)
 	}
-	if errors.Is(err, ErrMissingDefaultOwners) {
-		return types.PluginStatusCode_OKTA_CONFIG_ERROR, "Default Owners are missing: Verify you have provided Default Access List Owners, or try setting up App and Group Sync again."
-	}
-	return types.PluginStatusCode_OTHER_ERROR, ""
+	return types.PluginStatusCode_OTHER_ERROR, err
 }
 
 // Start will start the Okta service. This service will not make any calls the Okta API while it is
