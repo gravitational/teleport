@@ -773,6 +773,8 @@ spec:
 )
 
 func TestCreateClusterAuthPreference_WithSupportForSecondFactorWithoutQuotes(t *testing.T) {
+	// Disabling MFA in impossible unless we set the insecure test mode.
+	modules.SetInsecureTestMode(true)
 	dynAddr := helpers.NewDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
