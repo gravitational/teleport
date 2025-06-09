@@ -22,8 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/hex"
-	"encoding/json"
-	"io"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os/exec"
@@ -31,6 +30,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -79,136 +79,136 @@ func TestAzure(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// set MSI_ENDPOINT along with secret
-	t.Setenv("MSI_ENDPOINT", "https://azure-msi.teleport.dev/very-secret")
-
-	// Log into Teleport cluster.
-	run([]string{"login", "--insecure", "--debug", "--proxy", proxyAddr.String()})
-
-	// Log into the "azure-api" app.
-	// Verify `tsh az login ...` gets called.
-	run([]string{"app", "login", "--insecure", "--azure-identity", "dummy_azure_identity", "azure-api"},
-		setCmdRunner(func(cmd *exec.Cmd) error {
-			require.Equal(t, []string{"az", "login", "--identity", "-u", "dummy_azure_identity"}, cmd.Args[1:])
-			return nil
-		}))
-
-	// Log into the "azure-api" app -- now with --debug flag.
-	run([]string{"app", "login", "--insecure", "azure-api", "--debug"},
-		setCmdRunner(func(cmd *exec.Cmd) error {
-			require.Equal(t, []string{"--debug", "az", "login", "--identity", "-u", "dummy_azure_identity"}, cmd.Args[1:])
-			return nil
-		}))
-
-	// basic requests to verify we can dial proxy as expected
-	// more comprehensive tests cover AzureMSIMiddleware directly
-	requests := []struct {
-		name         string
-		url          string
-		headers      map[string]string
-		expectedCode int
-		expectedBody []byte
-		verifyBody   func(t *testing.T, body []byte)
-	}{
-		{
-			name:         "incomplete request",
-			url:          "https://azure-msi.teleport.dev/very-secret",
-			headers:      nil,
-			expectedCode: 400,
-			expectedBody: []byte("{\n    \"error\": {\n        \"message\": \"expected Metadata header with value 'true'\"\n    }\n}"),
-		},
-		{
-			name:         "well-formatted request",
-			url:          "https://azure-msi.teleport.dev/very-secret?resource=myresource&msi_res_id=dummy_azure_identity",
-			headers:      map[string]string{"Metadata": "true"},
-			expectedCode: 200,
-			verifyBody: func(t *testing.T, body []byte) {
-				var req struct {
-					AccessToken  string `json:"access_token"`
-					ClientID     string `json:"client_id"`
-					Resource     string `json:"resource"`
-					TokenType    string `json:"token_type"`
-					ExpiresIn    int    `json:"expires_in"`
-					ExpiresOn    int    `json:"expires_on"`
-					ExtExpiresIn int    `json:"ext_expires_in"`
-					NotBefore    int    `json:"not_before"`
-				}
-
-				require.NoError(t, json.Unmarshal(body, &req))
-
-				require.NotEmpty(t, req.AccessToken)
-				require.NotEmpty(t, req.ClientID)
-				require.Equal(t, "myresource", req.Resource)
-				require.NotZero(t, req.ExpiresIn)
-				require.NotZero(t, req.ExpiresOn)
-				require.NotZero(t, req.ExtExpiresIn)
-				require.NotZero(t, req.NotBefore)
-			},
-		},
+	getEnvValue := func(cmdEnv []string, key string) string {
+		for _, env := range cmdEnv {
+			if strings.HasPrefix(env, key+"=") {
+				return strings.TrimPrefix(env, key+"=")
+			}
+		}
+		return ""
 	}
 
-	// Run `tsh az vm ls`. Verify executed command and environment.
-	run([]string{"az", "vm", "ls", "-g", "my-group"},
-		setCmdRunner(func(cmd *exec.Cmd) error {
-			require.Equal(t, []string{"az", "vm", "ls", "-g", "my-group"}, cmd.Args)
+	versionWithoutMSAL := semver.New(azureCLIVersionMSALRequirement.String())
+	versionWithoutMSAL.Minor -= 1
 
-			getEnvValue := func(key string) string {
-				for _, env := range cmd.Env {
-					if strings.HasPrefix(env, key+"=") {
-						return strings.TrimPrefix(env, key+"=")
-					}
+	for name, tc := range map[string]struct {
+		setEnvironment       func(t *testing.T)
+		cliVersion           *semver.Version
+		tokenEndpointURL     string
+		expectedLoginCommand []string
+		assertCommandEnv     require.ValueAssertionFunc
+	}{
+		"MSI": {
+			setEnvironment: func(t *testing.T) {
+				// This is required to avoid having a random generated secret.
+				t.Setenv(msiEndpointEnvVarName, "https://azure-msi.teleport.dev/very-secret")
+			},
+			cliVersion:           versionWithoutMSAL,
+			tokenEndpointURL:     "https://azure-msi.teleport.dev/very-secret",
+			expectedLoginCommand: []string{"az", "login", "--identity", "--username", "dummy_azure_identity"},
+			assertCommandEnv: func(t require.TestingT, val any, msgAndArgs ...any) {
+				env := val.([]string)
+				require.Equal(t, "https://azure-msi.teleport.dev/very-secret", getEnvValue(env, msiEndpointEnvVarName))
+			},
+		},
+		"Identity": {
+			setEnvironment: func(t *testing.T) {
+				// This is required to avoid having a random generated secret.
+				t.Setenv(identityEndpointEnvVarName, "https://azure-identity.teleport.dev")
+				t.Setenv(identityHeaderEnvVarName, "very-secret")
+			},
+			cliVersion:           azureCLIVersionMSALRequirement,
+			tokenEndpointURL:     "https://azure-identity.teleport.dev",
+			expectedLoginCommand: []string{"az", "login", "--identity", "--resource-id", "dummy_azure_identity"},
+			assertCommandEnv: func(t require.TestingT, val any, msgAndArgs ...any) {
+				env := val.([]string)
+				require.Equal(t, "https://azure-identity.teleport.dev", getEnvValue(env, identityEndpointEnvVarName))
+				require.Equal(t, "very-secret", getEnvValue(env, identityHeaderEnvVarName))
+			},
+		},
+	} {
+		t.Run("With"+name, func(t *testing.T) {
+			handleAzVersion := func(cmd *exec.Cmd) bool {
+				if len(cmd.Args) > 0 && cmd.Args[1] == "version" {
+					fmt.Fprintf(cmd.Stdout, `{ "azure-cli": "%s", "azure-cli-core": "%s", "azure-cli-telemetry": "1.1.0", "extensions": {} }`, tc.cliVersion.String(), tc.cliVersion.String())
+					return true
 				}
-				return ""
+				return false
 			}
 
-			require.Equal(t, filepath.Join(tmpHomePath, "azure/localhost/azure-api"), getEnvValue("AZURE_CONFIG_DIR"))
-			require.Equal(t, "https://azure-msi.teleport.dev/very-secret", getEnvValue("MSI_ENDPOINT"))
-			require.Equal(t, filepath.Join(tmpHomePath, "keys/127.0.0.1/alice@example.com-app/localhost/azure-api-localca.pem"), getEnvValue("REQUESTS_CA_BUNDLE"))
-			require.True(t, strings.HasPrefix(getEnvValue("HTTPS_PROXY"), "http://127.0.0.1:"))
+			tc.setEnvironment(t)
 
-			// Validate MSI endpoint can be reached
-			caPool, err := utils.NewCertPoolFromPath(getEnvValue("REQUESTS_CA_BUNDLE"))
-			require.NoError(t, err)
+			// Log into Teleport cluster.
+			run([]string{"login", "--insecure", "--debug", "--proxy", proxyAddr.String()})
 
-			httpsProxy, err := url.Parse(getEnvValue("HTTPS_PROXY"))
-			require.NoError(t, err)
+			// Log into the "azure-api" app.
+			// Verify `tsh az login ...` gets called.
+			run([]string{"app", "login", "--insecure", "--azure-identity", "dummy_azure_identity", "azure-api"},
+				setCmdRunner(func(cmd *exec.Cmd) error {
+					if handleAzVersion(cmd) {
+						return nil
+					}
 
-			client := &http.Client{
-				Transport: &http.Transport{
-					Proxy: http.ProxyURL(httpsProxy),
-					TLSClientConfig: &tls.Config{
-						RootCAs: caPool,
-					},
-				},
-			}
+					require.Equal(t, tc.expectedLoginCommand, cmd.Args[1:])
+					return nil
+				}))
 
-			for _, tc := range requests {
-				t.Run(tc.name, func(t *testing.T) {
-					req, err := http.NewRequest("GET", tc.url, nil)
+			// Log into the "azure-api" app -- now with --debug flag.
+			run([]string{"app", "login", "--insecure", "azure-api", "--debug"},
+				setCmdRunner(func(cmd *exec.Cmd) error {
+					if handleAzVersion(cmd) {
+						return nil
+					}
+
+					require.Equal(t, append(tc.expectedLoginCommand, "--debug"), cmd.Args[1:])
+					return nil
+				}))
+
+			// Run `tsh az vm ls`. Verify executed command and environment.
+			run([]string{"az", "vm", "ls", "-g", "my-group"},
+				setCmdRunner(func(cmd *exec.Cmd) error {
+					if handleAzVersion(cmd) {
+						return nil
+					}
+
+					require.Equal(t, []string{"az", "vm", "ls", "-g", "my-group"}, cmd.Args)
+
+					require.Equal(t, filepath.Join(tmpHomePath, "azure/localhost/azure-api"), getEnvValue(cmd.Env, "AZURE_CONFIG_DIR"))
+					require.Equal(t, filepath.Join(tmpHomePath, "keys/127.0.0.1/alice@example.com-app/localhost/azure-api-localca.pem"), getEnvValue(cmd.Env, "REQUESTS_CA_BUNDLE"))
+					require.True(t, strings.HasPrefix(getEnvValue(cmd.Env, "HTTPS_PROXY"), "http://127.0.0.1:"))
+
+					tc.assertCommandEnv(t, cmd.Env)
+
+					// Validate MSI endpoint can be reached
+					caPool, err := utils.NewCertPoolFromPath(getEnvValue(cmd.Env, "REQUESTS_CA_BUNDLE"))
 					require.NoError(t, err)
 
-					for k, v := range tc.headers {
-						req.Header.Set(k, v)
+					httpsProxy, err := url.Parse(getEnvValue(cmd.Env, "HTTPS_PROXY"))
+					require.NoError(t, err)
+
+					// Dial using the Azure token service to ensure it will be
+					// reachable and handled when requested by the Azure CLI.
+					client := &http.Client{
+						Transport: &http.Transport{
+							Proxy:           http.ProxyURL(httpsProxy),
+							TLSClientConfig: &tls.Config{RootCAs: caPool},
+						},
 					}
 
+					req, err := http.NewRequest("GET", tc.tokenEndpointURL, nil)
+					require.NoError(t, err)
+
+					// Given the missing params, the request should return error.
 					resp, err := client.Do(req)
 					require.NoError(t, err)
+					defer resp.Body.Close()
+					require.NotNil(t, resp)
+					require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
-					require.Equal(t, tc.expectedCode, resp.StatusCode)
-					body, err := io.ReadAll(resp.Body)
-					require.NoError(t, err)
-					require.NoError(t, resp.Body.Close())
-
-					if tc.verifyBody != nil {
-						tc.verifyBody(t, body)
-					} else {
-						require.Equal(t, tc.expectedBody, body)
-					}
-				})
-			}
-
-			return nil
-		}))
+					return nil
+				}))
+		})
+	}
 }
 
 func makeUserWithAzureRole(t *testing.T) (types.User, types.Role) {
@@ -401,17 +401,19 @@ func Test_getAzureIdentityFromFlags(t *testing.T) {
 	}
 }
 
-func Test_getMSISecret(t *testing.T) {
+func Test_getAzureTokenSecret(t *testing.T) {
 	tests := []struct {
-		name     string
-		env      string
-		want     string
-		wantFunc func(t require.TestingT, result string)
-		wantErr  require.ErrorAssertionFunc
+		name             string
+		msiEndpoint      string
+		identityHeader   string
+		identityEndpoint string
+		want             string
+		wantFunc         func(t require.TestingT, result string)
+		wantErr          require.ErrorAssertionFunc
 	}{
 		{
-			name: "no env",
-			env:  "",
+			name:        "no env",
+			msiEndpoint: "",
 			wantFunc: func(t require.TestingT, result string) {
 				bytes, err := hex.DecodeString(result)
 				require.NoError(t, err)
@@ -421,31 +423,55 @@ func Test_getMSISecret(t *testing.T) {
 			wantErr: require.NoError,
 		},
 		{
-			name:    "MSI_ENDPOINT with secret",
-			env:     "https://azure-msi.teleport.dev/mysecret",
-			want:    "mysecret",
-			wantErr: require.NoError,
+			name:        "MSI_ENDPOINT with secret",
+			msiEndpoint: "https://" + types.TeleportAzureMSIEndpoint + "/mysecret",
+			want:        "mysecret",
+			wantErr:     require.NoError,
 		},
 		{
-			name: "MSI_ENDPOINT with invalid prefix",
-			env:  "dummy",
+			name:        "MSI_ENDPOINT with invalid prefix",
+			msiEndpoint: "dummy",
 			wantErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, `MSI_ENDPOINT not empty, but doesn't start with "https://azure-msi.teleport.dev/" as expected`)
+				require.ErrorContains(t, err, `"MSI_ENDPOINT" environment variable not empty, but doesn't start with "https://azure-msi.teleport.dev/" as expected`)
 			},
 		},
 		{
-			name: "MSI_ENDPOINT without secret",
-			env:  "https://azure-msi.teleport.dev/",
+			name:        "MSI_ENDPOINT without secret",
+			msiEndpoint: "https://" + types.TeleportAzureMSIEndpoint + "/",
 			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "MSI secret cannot be empty")
 			},
+		},
+		{
+			name:             "IDENTITY_HEADER and IDENTITY_ENDPOINT present",
+			identityHeader:   "secret",
+			identityEndpoint: "https://" + types.TeleportAzureIdentityEndpoint,
+			want:             "secret",
+			wantErr:          require.NoError,
+		},
+		{
+			name:           "IDENTITY_HEADER present without endpoint",
+			identityHeader: "secret",
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, `IDENTITY_HEADER`)
+			},
+		},
+		{
+			name:             "Identity and MSI present, identity takes precedence",
+			identityHeader:   "secret",
+			identityEndpoint: "https://" + types.TeleportAzureIdentityEndpoint,
+			msiEndpoint:      "https://azure-msi.teleport.dev/different-secret",
+			want:             "secret",
+			wantErr:          require.NoError,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("MSI_ENDPOINT", tt.env)
-			result, err := getMSISecret()
+			t.Setenv(msiEndpointEnvVarName, tt.msiEndpoint)
+			t.Setenv(identityHeaderEnvVarName, tt.identityHeader)
+			t.Setenv(identityEndpointEnvVarName, tt.identityEndpoint)
+			result, err := getAzureTokenSecret()
 			tt.wantErr(t, err)
 			if tt.wantFunc != nil {
 				tt.wantFunc(t, result)

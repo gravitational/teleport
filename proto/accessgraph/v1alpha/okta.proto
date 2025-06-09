@@ -100,6 +100,8 @@ message OktaAuditLogV1 {
 message OktaConfigV1 {
   // The desired start date from which to begin exporting Okta audit logs.
   google.protobuf.Timestamp start_date = 1;
+  // organization is the Okta organization name.
+  string organization = 2;
 }
 
 // OktaTokenV1 holds information about an Okta token (ex.: an API token),

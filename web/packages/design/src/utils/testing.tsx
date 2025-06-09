@@ -28,7 +28,7 @@ import {
   within,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ReactNode } from 'react';
+import { PropsWithChildren, ReactNode } from 'react';
 import { MemoryRouter as Router } from 'react-router-dom';
 
 import { darkTheme } from 'design/theme';
@@ -47,7 +47,7 @@ export const testQueryClient = new QueryClient({
   },
 });
 
-function Providers({ children }: { children: ReactNode }) {
+export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={testQueryClient}>
       <ConfiguredThemeProvider theme={darkTheme}>
@@ -79,7 +79,7 @@ screen.debug = () => {
 };
 
 type RenderOptions = {
-  wrapper?: React.FC;
+  wrapper?: React.FC<PropsWithChildren>;
   container?: HTMLElement;
 };
 

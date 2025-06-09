@@ -1,0 +1,353 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  creationTimestamp: null
+  name: teleportappsv3.resources.teleport.dev
+spec:
+  group: resources.teleport.dev
+  names:
+    kind: TeleportAppV3
+    listKind: TeleportAppV3List
+    plural: teleportappsv3
+    shortNames:
+    - appv3
+    - appsv3
+    singular: teleportappv3
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: AppV3 is the Schema for the appsv3 API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: App resource definition v3 from Teleport
+            properties:
+              UserGroups:
+                description: UserGroups are a list of user group IDs that this app
+                  is associated with.
+                items:
+                  type: string
+                nullable: true
+                type: array
+              aws:
+                description: AWS contains additional options for AWS applications.
+                nullable: true
+                properties:
+                  external_id:
+                    description: ExternalID is the AWS External ID used when assuming
+                      roles in this app.
+                    type: string
+                  roles_anywhere_profile:
+                    description: RolesAnywhereProfile contains the IAM Roles Anywhere
+                      fields associated with this Application. These fields are set
+                      when performing the synchronization of AWS IAM Roles Anywhere
+                      Profiles into Teleport Apps.
+                    nullable: true
+                    properties:
+                      accept_role_session_name:
+                        description: 'Whether this Roles Anywhere Profile accepts
+                          a custom role session name. When not supported, the AWS
+                          Session Name will be the X.509 certificate''s serial number.
+                          When supported, the AWS Session Name will be the identity''s
+                          username. This values comes from: https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ProfileDetail.html
+                          / acceptRoleSessionName'
+                        type: boolean
+                      profile_arn:
+                        description: ProfileARN is the AWS IAM Roles Anywhere Profile
+                          ARN that originated this Teleport App.
+                        type: string
+                    type: object
+                type: object
+              cloud:
+                description: Cloud identifies the cloud instance the app represents.
+                type: string
+              cors:
+                description: CORSPolicy defines the Cross-Origin Resource Sharing
+                  settings for the app.
+                nullable: true
+                properties:
+                  allow_credentials:
+                    description: allow_credentials indicates whether credentials are
+                      allowed.
+                    type: boolean
+                  allowed_headers:
+                    description: allowed_headers specifies which headers can be used
+                      when accessing the app.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  allowed_methods:
+                    description: allowed_methods specifies which methods are allowed
+                      when accessing the app.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  allowed_origins:
+                    description: allowed_origins specifies which origins are allowed
+                      to access the app.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  exposed_headers:
+                    description: exposed_headers indicates which headers are made
+                      available to scripts via the browser.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  max_age:
+                    description: max_age indicates how long (in seconds) the results
+                      of a preflight request can be cached.
+                    format: int32
+                    type: integer
+                type: object
+              dynamic_labels:
+                description: DynamicLabels are the app's command labels.
+                properties:
+                  key:
+                    type: string
+                  value:
+                    nullable: true
+                    properties:
+                      command:
+                        description: Command is a command to run
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                      period:
+                        description: Period is a time between command runs
+                        format: duration
+                        type: string
+                      result:
+                        description: Result captures standard output
+                        type: string
+                    type: object
+                type: object
+              identity_center:
+                description: IdentityCenter encasulates AWS identity-center specific
+                  information. Only valid for Identity Center account apps.
+                nullable: true
+                properties:
+                  account_id:
+                    description: Account ID is the AWS-assigned ID of the account
+                    type: string
+                  permission_sets:
+                    description: PermissionSets lists the available permission sets
+                      on the given account
+                    items:
+                      properties:
+                        arn:
+                          description: ARN is the fully-formed ARN of the Permission
+                            Set.
+                          type: string
+                        assignment_name:
+                          description: AssignmentID is the ID of the Teleport Account
+                            Assignment resource that represents this permission being
+                            assigned on the enclosing Account.
+                          type: string
+                        name:
+                          description: Name is the human-readable name of the Permission
+                            Set.
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                type: object
+              insecure_skip_verify:
+                description: InsecureSkipVerify disables app's TLS certificate verification.
+                type: boolean
+              integration:
+                description: Integration is the integration name that must be used
+                  to access this Application. Only applicable to AWS App Access. If
+                  present, the Application must use the Integration's credentials
+                  instead of ambient credentials to access Cloud APIs.
+                type: string
+              mcp:
+                description: MCP contains MCP server related configurations.
+                nullable: true
+                properties:
+                  args:
+                    description: Args to execute with the command.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  command:
+                    description: Command to launch stdio-based MCP servers.
+                    type: string
+                  run_as_host_user:
+                    description: RunAsHostUser is the host user account under which
+                      the command will be executed. Required for stdio-based MCP servers.
+                    type: string
+                type: object
+              public_addr:
+                description: PublicAddr is the public address the application is accessible
+                  at.
+                type: string
+              required_app_names:
+                description: RequiredAppNames is a list of app names that are required
+                  for this app to function. Any app listed here will be part of the
+                  authentication redirect flow and authenticate along side this app.
+                items:
+                  type: string
+                nullable: true
+                type: array
+              rewrite:
+                description: Rewrite is a list of rewriting rules to apply to requests
+                  and responses.
+                nullable: true
+                properties:
+                  headers:
+                    description: Headers is a list of headers to inject when passing
+                      the request over to the application.
+                    items:
+                      properties:
+                        name:
+                          description: Name is the http header name.
+                          type: string
+                        value:
+                          description: Value is the http header value.
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  jwt_claims:
+                    description: JWTClaims configures whether roles/traits are included
+                      in the JWT token.
+                    type: string
+                  redirect:
+                    description: Redirect defines a list of hosts which will be rewritten
+                      to the public address of the application if they occur in the
+                      "Location" header.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                type: object
+              tcp_ports:
+                description: TCPPorts is a list of ports and port ranges that an app
+                  agent can forward connections to. Only applicable to TCP App Access.
+                  If this field is not empty, URI is expected to contain no port number
+                  and start with the tcp protocol.
+                items:
+                  properties:
+                    end_port:
+                      description: EndPort describes the end of the range, inclusive.
+                        If set, it must be between 2 and 65535 and be greater than
+                        Port when describing a port range. When omitted or set to
+                        zero, it signifies that the port range defines a single port.
+                      format: int32
+                      type: integer
+                    port:
+                      description: Port describes the start of the range. It must
+                        be between 1 and 65535.
+                      format: int32
+                      type: integer
+                  type: object
+                nullable: true
+                type: array
+              uri:
+                description: URI is the web app endpoint.
+                type: string
+              use_any_proxy_public_addr:
+                description: UseAnyProxyPublicAddr will rebuild this app's fqdn based
+                  on the proxy public addr that the request originated from. This
+                  should be true if your proxy has multiple proxy public addrs and
+                  you want the app to be accessible from any of them. If `public_addr`
+                  is explicitly set in the app spec, setting this value to true will
+                  overwrite that public address in the web UI.
+                type: boolean
+            type: object
+          status:
+            description: Status defines the observed state of the Teleport resource
+            properties:
+              conditions:
+                description: Conditions represent the latest available observations
+                  of an object's state
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              teleportResourceID:
+                format: int64
+                type: integer
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null

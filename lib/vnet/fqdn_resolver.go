@@ -275,6 +275,9 @@ func (r *fqdnResolver) tryResolveSSH(ctx context.Context, profileNames []string,
 					MatchedCluster: &vnetv1.MatchedCluster{
 						WebProxyAddr:  rootDialOpts.GetWebProxyAddr(),
 						Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
+						Profile:       profileName,
+						RootCluster:   rootClusterName,
+						LeafCluster:   leafClusterName,
 					},
 				},
 			}, nil
@@ -292,6 +295,8 @@ func (r *fqdnResolver) tryResolveSSH(ctx context.Context, profileNames []string,
 				MatchedCluster: &vnetv1.MatchedCluster{
 					WebProxyAddr:  rootDialOpts.GetWebProxyAddr(),
 					Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
+					Profile:       profileName,
+					RootCluster:   rootClusterName,
 				},
 			},
 		}, nil

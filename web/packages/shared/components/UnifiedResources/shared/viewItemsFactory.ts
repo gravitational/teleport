@@ -22,10 +22,11 @@ import {
   Desktop as DesktopIcon,
   GitHub as GitHubIcon,
   Kubernetes as KubernetesIcon,
+  ModelContextProtocol as MCPIcon,
   Server as ServerIcon,
 } from 'design/Icon';
 import { ResourceIconName } from 'design/ResourceIcon';
-import { NodeSubKind } from 'shared/services';
+import { AppSubKind, NodeSubKind } from 'shared/services';
 import { DbProtocol } from 'shared/services/databases';
 
 import {
@@ -114,6 +115,24 @@ export function makeUnifiedResourceViewItemApp(
   resource: UnifiedResourceApp,
   ui: UnifiedResourceUi
 ): UnifiedResourceViewItem {
+  if (resource.subKind === AppSubKind.MCP) {
+    // TODO(greedy52) add address for non-stdio based MCP servers.
+    return {
+      name: resource.friendlyName || resource.name,
+      SecondaryIcon: MCPIcon,
+      primaryIconName: guessAppIcon(resource),
+      ActionButton: ui.ActionButton,
+      labels: resource.labels,
+      cardViewProps: {
+        primaryDesc: resource.description || 'MCP server',
+      },
+      listViewProps: {
+        resourceType: 'MCP Server',
+        description: resource.description || 'MCP server',
+      },
+      requiresRequest: resource.requiresRequest,
+    };
+  }
   return {
     name: resource.friendlyName || resource.name,
     SecondaryIcon: ApplicationIcon,

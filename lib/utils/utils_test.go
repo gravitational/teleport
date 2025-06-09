@@ -31,7 +31,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
@@ -113,7 +112,7 @@ func TestMinVersions(t *testing.T) {
 	}
 	for _, testCase := range failTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
-			fixtures.AssertBadParameter(t, CheckMinVersion(testCase.client, testCase.minClient))
+			require.True(t, trace.IsBadParameter(CheckMinVersion(testCase.client, testCase.minClient)))
 			assert.False(t, MeetsMinVersion(testCase.client, testCase.minClient), "MeetsMinVersion expected to fail")
 		})
 	}
@@ -146,7 +145,7 @@ func TestMaxVersions(t *testing.T) {
 	}
 	for _, testCase := range failTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
-			fixtures.AssertBadParameter(t, CheckMaxVersion(testCase.client, testCase.maxClient))
+			require.True(t, trace.IsBadParameter(CheckMaxVersion(testCase.client, testCase.maxClient)))
 			assert.False(t, MeetsMaxVersion(testCase.client, testCase.maxClient), "MeetsMinVersion expected to fail")
 		})
 	}
@@ -214,7 +213,7 @@ func TestParseAdvertiseAddr(t *testing.T) {
 	for _, testCase := range failTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
 			_, _, err := ParseAdvertiseAddr(testCase.in)
-			fixtures.AssertBadParameter(t, err)
+			require.True(t, trace.IsBadParameter(err))
 		})
 	}
 }
@@ -536,7 +535,7 @@ func TestTryReadValueAsFile(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = TryReadValueAsFile("/tmp/non-existent-token-for-teleport-tests-not-found")
-	fixtures.AssertNotFound(t, err)
+	require.True(t, trace.IsNotFound(err))
 
 	dir := t.TempDir()
 	tokenPath := filepath.Join(dir, "token")

@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	preset "github.com/gravitational/teleport/api/types/samlsp"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -592,6 +591,64 @@ func TestCreateSAMLIdPServiceProvider_GetTeleportSPSSODescriptor(t *testing.T) {
 	require.Equal(t, 3, index)
 }
 
+// NewIdentityCenterPlugin returns a new types.PluginV1 with PluginSpecV1_AwsIc settings.
+func NewIdentityCenterPlugin(serviceProviderName, integrationName string) *types.PluginV1 {
+	return &types.PluginV1{
+		Metadata: types.Metadata{
+			Name: types.PluginTypeAWSIdentityCenter,
+			Labels: map[string]string{
+				types.HostedPluginLabel: "true",
+			},
+		},
+		Spec: types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_AwsIc{
+				AwsIc: &types.PluginAWSICSettings{
+					IntegrationName:         integrationName,
+					Region:                  "test-region",
+					Arn:                     "test-arn",
+					AccessListDefaultOwners: []string{"user1", "user2"},
+					ProvisioningSpec: &types.AWSICProvisioningSpec{
+						BaseUrl: "https://example.com",
+					},
+					SamlIdpServiceProviderName: serviceProviderName,
+				},
+			},
+		},
+	}
+}
+
+// NewIdentityCenterPlugin returns a new types.PluginV1 with PluginSpecV1_Mattermost settings.
+func NewMattermostPlugin() *types.PluginV1 {
+	return &types.PluginV1{
+		SubKind: types.PluginSubkindAccess,
+		Metadata: types.Metadata{
+			Labels: map[string]string{
+				"teleport.dev/hosted-plugin": "true",
+			},
+			Name: types.PluginTypeMattermost,
+		},
+		Spec: types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_Mattermost{
+				Mattermost: &types.PluginMattermostSettings{
+					ServerUrl:     "https://example.com",
+					Channel:       "test_channel",
+					Team:          "test_team",
+					ReportToEmail: "test@example.com",
+				},
+			},
+		},
+		Credentials: &types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+				StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+					Labels: map[string]string{
+						"plugin": "mattermost",
+					},
+				},
+			},
+		},
+	}
+}
+
 func TestDeleteSAMLServiceProviderWhenReferencedByPlugin(t *testing.T) {
 	ctx := context.Background()
 	backend, err := memory.New(memory.Config{
@@ -615,13 +672,13 @@ func TestDeleteSAMLServiceProviderWhenReferencedByPlugin(t *testing.T) {
 	require.NoError(t, samlService.CreateSAMLIdPServiceProvider(ctx, sp))
 
 	// service provider should not be deleted when referenced by the plugin.
-	require.NoError(t, pluginService.CreatePlugin(ctx, fixtures.NewIdentityCenterPlugin(t, sp.GetName(), sp.GetName())))
+	require.NoError(t, pluginService.CreatePlugin(ctx, NewIdentityCenterPlugin(sp.GetName(), sp.GetName())))
 	err = samlService.DeleteSAMLIdPServiceProvider(ctx, sp.GetName())
 	require.ErrorContains(t, err, "referenced by AWS Identity Center integration")
 
 	// service provider should be deleted once the referenced plugin itself is deleted.
 	// other existing plugin should not prevent SAML service provider from deletion.
-	require.NoError(t, pluginService.CreatePlugin(ctx, fixtures.NewMattermostPlugin(t)))
+	require.NoError(t, pluginService.CreatePlugin(ctx, NewMattermostPlugin()))
 	require.NoError(t, pluginService.DeletePlugin(ctx, types.PluginTypeAWSIdentityCenter))
 	require.NoError(t, samlService.DeleteSAMLIdPServiceProvider(ctx, sp.GetName()))
 }

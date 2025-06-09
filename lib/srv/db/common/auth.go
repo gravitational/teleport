@@ -1328,8 +1328,9 @@ func (r *awsRedisIAMTokenRequest) toSignedRequestURI(ctx context.Context) (strin
 // getSignableRequest creates a new request suitable for pre-signing with SigV4.
 func (r *awsRedisIAMTokenRequest) getSignableRequest() (*http.Request, error) {
 	query := url.Values{
-		"Action": {"connect"},
-		"User":   {r.userID},
+		"Action":        {"connect"},
+		"User":          {r.userID},
+		"X-Amz-Expires": {"900"},
 	}
 	reqURI := url.URL{
 		Scheme:   "http",

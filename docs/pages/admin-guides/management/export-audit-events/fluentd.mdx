@@ -11,8 +11,14 @@ guide, we will:
 - Forward events with Fluentd.
 
 This guide also serves as an explanation for the Teleport Event Handler plugin,
-using Fluentd as the target service. We'll create a local Docker container as a
-destination for the Event Handler:
+using Fluentd as the target service. 
+
+## How it works
+
+The Teleport event handler runs alongside the Fluentd forwarder, receives events
+from Teleport's events API, and forwards them to Fluentd.
+
+We'll create a local Docker container as a destination for the Event Handler:
 
 ![The Teleport Fluentd plugin](../../../../img/enterprise/plugins/fluentd-diagram.png)
 
@@ -40,9 +46,6 @@ to integrate with your infrastructure.
   ```
 
 ## Step 1/6. Install the event handler plugin
-
-The Teleport event handler runs alongside the Fluentd forwarder, receives events
-from Teleport's events API, and forwards them to Fluentd.
 
 (!docs/pages/includes/install-event-handler.mdx!)
 

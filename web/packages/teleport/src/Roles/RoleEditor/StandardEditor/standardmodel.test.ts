@@ -23,6 +23,7 @@ import {
   GitHubPermission,
   KubernetesResource,
   Labels,
+  MCPPermissions,
   RequireMFAType,
   ResourceKind,
   Role,
@@ -51,6 +52,7 @@ import {
   kubernetesVerbOptionsMap,
   labelsModelToLabels,
   labelsToModel,
+  mcpToolsToModel,
   portForwardingOptionsToModel,
   requireMFATypeOptionsMap,
   resourceKindOptionsMap,
@@ -226,6 +228,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             'account1@some-project.iam.gserviceaccount.com',
             'account2@some-project.iam.gserviceaccount.com',
           ],
+          mcpTools: [],
           hideValidationErrors: false,
         },
       ],
@@ -614,6 +617,44 @@ test.each<{
   expect(
     gitHubOrganizationsToModel(permissions, 'spec.allow.github_permissions')
   ).toEqual(expected);
+});
+
+test.each<{
+  name: string;
+  permissions: MCPPermissions;
+  expected: ReturnType<typeof mcpToolsToModel>;
+}>([
+  {
+    name: 'empty permissions',
+    permissions: {},
+    expected: { model: [], conversionErrors: [] },
+  },
+  {
+    name: 'empty tools',
+    permissions: { tools: [] },
+    expected: { model: [], conversionErrors: [] },
+  },
+  {
+    name: 'some tools',
+    permissions: { tools: ['foo1', 'foo2'] },
+    expected: {
+      model: ['foo1', 'foo2'],
+      conversionErrors: [],
+    },
+  },
+  {
+    name: 'invalid fields',
+    permissions: { tools: ['foo'], unknownField: 123 } as MCPPermissions,
+    expected: {
+      model: ['foo'],
+      conversionErrors: simpleConversionErrors(
+        ConversionErrorType.UnsupportedField,
+        ['spec.allow.mcp.unknownField']
+      ),
+    },
+  },
+])('mcpToolsToModel(): $name', ({ permissions, expected }) => {
+  expect(mcpToolsToModel(permissions, 'spec.allow.mcp')).toEqual(expected);
 });
 
 describe('roleToRoleEditorModel', () => {
@@ -1082,6 +1123,7 @@ describe('roleToRoleEditorModel', () => {
           awsRoleARNs: [],
           azureIdentities: [],
           gcpServiceAccounts: [],
+          mcpTools: [],
           hideValidationErrors: false,
         },
       ],

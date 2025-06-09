@@ -82,7 +82,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport18
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
 
     steps:
       - name: Checkout
@@ -194,7 +194,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport18
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
 
     steps:
       - name: Checkout
@@ -248,7 +248,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
 
     steps:
       - name: Checkout

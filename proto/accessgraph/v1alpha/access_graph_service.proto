@@ -338,6 +338,8 @@ message AuditLogStreamRequest {
 // AuditLogConfig is the configuration for exporting audit logs.
 message AuditLogConfig {
   google.protobuf.Timestamp start_date = 1; // Start date for exporting audit logs.
+  // teleport_cluster is the teleport cluster name this audit log config refers to.
+  string teleport_cluster = 2;
 }
 
 // AuditLogEvents bundles a batch of unstructured audit log events with the

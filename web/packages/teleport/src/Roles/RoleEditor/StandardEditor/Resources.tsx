@@ -575,6 +575,13 @@ export function AppAccessSection({
         onChange={accts => onChange?.({ ...value, gcpServiceAccounts: accts })}
         rule={precomputed(validation.fields.gcpServiceAccounts)}
       />
+      <FieldMultiInput
+        label="MCP Tools"
+        disabled={isProcessing}
+        value={value.mcpTools}
+        onChange={mcpTools => onChange?.({ ...value, mcpTools: mcpTools })}
+        rule={precomputed(validation.fields.mcpTools)}
+      />
     </Flex>
   );
 }

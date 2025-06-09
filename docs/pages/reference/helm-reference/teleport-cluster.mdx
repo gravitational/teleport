@@ -1,5 +1,6 @@
 ---
 title: teleport-cluster Chart Reference
+sidebar_label: teleport-cluster
 description: Values that can be set using the teleport-cluster Helm chart
 ---
 
@@ -285,7 +286,7 @@ When disabled, users can only log in through authentication connectors like `sam
 | `string` | `""`          | No        | `auth_service.authentication.locking_mode` |
 
 `authentication.lockingMode` controls the locking mode cluster-wide. Possible values are `best_effort` and `strict`.
-See [the locking modes documentation](../../admin-guides/access-controls/guides/locking.mdx) for more
+See [the locking modes documentation](../../identity-governance/locking.mdx) for more
 details.
 
 Defaults to Teleport's binary default when empty: `best_effort`.
@@ -668,27 +669,6 @@ By using this value you will update the Kubernetes volume specification to mount
   licenseSecretName: enterprise-license
   ```
 
-## `installCRDs`
-
-| Type   | Default value |
-|--------|---------------|
-| `bool` | `false`       |
-
-CRDs are not namespace-scoped resources - they can be installed only once in a cluster.
-
-CRDs are required by the Teleport Kubernetes Operator and are installed by default when `operator.enabled` is true.
-`installCRDs` overrides this behavior and allows users to indicate whether to deploy Teleport CRDs.
-
-If several releases of the `teleport-cluster` chart are deployed in the same Kubernetes cluster, only one
-release should have `installCRDs` enabled. Unless you are deploying multiple `teleport-cluster` Helm releases in
-the same Kubernetes cluster or installing the CRDs on your own you should not have to set this value.
-
-`values.yaml` example:
-
-  ```yaml
-  installCRDs: true
-  ```
-
 ## `operator`
 
 ### `operator.annotations.deployment`
@@ -758,7 +738,7 @@ Kubernetes annotations which should be applied to the `ServiceAccount` created b
 
 Enabling the operator will also deploy the Teleport CRDs in the Kubernetes cluster.
 If you are deploying multiple releases of the Helm chart in the same cluster you can override this behavior with
-[`installCRDs`](#installCRDs).
+[`installCRDs`](#operatorinstallcrds).
 
 `values.yaml` example:
 
@@ -766,6 +746,22 @@ If you are deploying multiple releases of the Helm chart in the same cluster you
   operator:
     enabled: true
   ```
+### `operator.installCRDs`
+
+| Type | Default |
+|------|---------|
+| `string` | `"dynamic"` |
+
+`operator.installCRDs` controls if the chart should install the CRDs.
+There are 3 possible values: dynamic, always, never.
+
+- "dynamic" means the CRDs are installed if the operator is enabled or if
+the CRDs are already present in the cluster. The presence check is here to
+avoid all CRDs to be removed if you temporarily disable the operator.
+Removing CRDs triggers a cascading deletion, which removes CRs, and all the
+related resources in Teleport.
+- "always" means the CRDs are always installed
+- "never" means the CRDs are never installed
 
 ### `operator.image`
 
@@ -1225,11 +1221,11 @@ Whether Teleport should configure DynamoDB's autoscaling. Defaults to `false`.
 
 ### `aws.accessMonitoring`
 
-`aws.accessMonitoring` configures the [Access Monitoring](../../admin-guides/access-controls/access-monitoring.mdx)
+`aws.accessMonitoring` configures the [Access Monitoring](../../identity-governance/access-monitoring.mdx)
 feature of the Auth Service.
 
 Using this features requires setting up specific AWS infrastructure as described
-in [the AccessMonitoring configuration section](../../admin-guides/access-controls/access-monitoring.mdx).
+in [the AccessMonitoring configuration section](../../identity-governance/access-monitoring.mdx).
 The [Terraform example](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/examples/athena)
 code will output the chart values for this section.
 

@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 	"sort"
 	"strconv"
@@ -2032,6 +2033,54 @@ func (c *autoUpdateAgentRolloutCollection) writeText(w io.Writer, verbose bool) 
 		fmt.Sprintf("%v", c.rollout.GetSpec().GetSchedule()),
 		fmt.Sprintf("%v", c.rollout.GetSpec().GetStrategy()),
 	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type autoUpdateAgentReportCollection struct {
+	reports []*autoupdatev1pb.AutoUpdateAgentReport
+}
+
+func (c *autoUpdateAgentReportCollection) resources() []types.Resource {
+	resources := make([]types.Resource, len(c.reports))
+	for i, report := range c.reports {
+		resources[i] = types.ProtoResource153ToLegacy(report)
+	}
+	return resources
+}
+
+func (c *autoUpdateAgentReportCollection) writeText(w io.Writer, verbose bool) error {
+	groupSet := make(map[string]any)
+	versionsSet := make(map[string]any)
+	for _, report := range c.reports {
+		for groupName, group := range report.GetSpec().GetGroups() {
+			groupSet[groupName] = struct{}{}
+			for versionName := range group.GetVersions() {
+				versionsSet[versionName] = struct{}{}
+			}
+		}
+	}
+
+	groupNames := slices.Collect(maps.Keys(groupSet))
+	versionNames := slices.Collect(maps.Keys(versionsSet))
+	slices.Sort(groupNames)
+	slices.Sort(versionNames)
+
+	t := asciitable.MakeTable(append([]string{"Auth Server ID", "Agent Version"}, groupNames...))
+	for _, report := range c.reports {
+		for i, versionName := range versionNames {
+			row := make([]string, len(groupNames)+2)
+			if i == 0 {
+				row[0] = report.GetMetadata().GetName()
+			}
+			row[1] = versionName
+			for j, groupName := range groupNames {
+				row[j+2] = strconv.Itoa(int(report.GetSpec().GetGroups()[groupName].GetVersions()[versionName].GetCount()))
+			}
+			t.AddRow(row)
+		}
+		t.AddRow(make([]string, len(versionNames)+2))
+	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

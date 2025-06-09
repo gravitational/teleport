@@ -65,7 +65,7 @@ type UnifiedResourceCache struct {
 	typeTree *btree.BTreeG[*item]
 	// resources is a map of all resources currently tracked in the tree
 	// the key is always name/type
-	resources       map[string]resource
+	resources       map[string]resourceCollection
 	initializationC chan struct{}
 	stale           bool
 	once            sync.Once
@@ -97,7 +97,7 @@ func NewUnifiedResourceCache(ctx context.Context, cfg UnifiedResourceCacheConfig
 		typeTree: btree.NewG(cfg.BTreeDegree, func(a, b *item) bool {
 			return a.Less(b)
 		}),
-		resources:       make(map[string]resource),
+		resources:       make(map[string]resourceCollection),
 		initializationC: make(chan struct{}),
 		ResourceGetter:  cfg.ResourceGetter,
 		cache:           lazyCache,
@@ -127,31 +127,26 @@ func (cfg *UnifiedResourceCacheConfig) CheckAndSetDefaults() error {
 func (c *UnifiedResourceCache) putLocked(resource resource) {
 	key := resourceKey(resource)
 	sortKey := makeResourceSortKey(resource)
-	oldResource, exists := c.resources[key]
-	if exists {
+	if collection, exists := c.resources[key]; exists {
 		// If the resource has changed in such a way that the sort keys
 		// for the nameTree or typeTree change, remove the old entries
 		// from those trees before adding a new one. This can happen
 		// when a node's hostname changes
-		oldSortKey := makeResourceSortKey(oldResource)
+		oldSortKey := makeResourceSortKey(collection.get())
 		if oldSortKey.byName.Compare(sortKey.byName) != 0 {
 			c.deleteSortKey(oldSortKey)
 		}
+		collection.put(resource)
+	} else {
+		c.resources[key] = newResourceCollection(resource)
 	}
-	c.resources[key] = resource
 	c.nameTree.ReplaceOrInsert(&item{Key: sortKey.byName, Value: key})
 	c.typeTree.ReplaceOrInsert(&item{Key: sortKey.byType, Value: key})
 }
 
 func putResources[T resource](cache *UnifiedResourceCache, resources []T) {
 	for _, resource := range resources {
-		// generate the unique resource key and add the resource to the resources map
-		key := resourceKey(resource)
-		cache.resources[key] = resource
-
-		sortKey := makeResourceSortKey(resource)
-		cache.nameTree.ReplaceOrInsert(&item{Key: sortKey.byName, Value: key})
-		cache.typeTree.ReplaceOrInsert(&item{Key: sortKey.byType, Value: key})
+		cache.putLocked(resource)
 	}
 }
 
@@ -167,14 +162,16 @@ func (c *UnifiedResourceCache) deleteSortKey(sortKey resourceSortKey) error {
 
 func (c *UnifiedResourceCache) deleteLocked(res types.Resource) error {
 	key := resourceKey(res)
-	resource, exists := c.resources[key]
+	collection, exists := c.resources[key]
 	if !exists {
 		return trace.NotFound("cannot delete resource: key %s not found in unified resource cache", key)
 	}
 
-	sortKey := makeResourceSortKey(resource)
-	c.deleteSortKey(sortKey)
-	delete(c.resources, key)
+	if empty := collection.remove(res); empty {
+		sortKey := makeResourceSortKey(collection.get())
+		c.deleteSortKey(sortKey)
+		delete(c.resources, key)
+	}
 	return nil
 }
 
@@ -243,13 +240,13 @@ func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, s
 						}
 					}
 
-					r, ok := cache.resources[item.Value]
+					collection, ok := cache.resources[item.Value]
 					if !ok {
 						return true
 					}
 
-					if len(kinds) == 0 || c.itemKindMatches(r, kindsMap) {
-						items = append(items, iteratedItem{key: item.Key, resource: r})
+					if len(kinds) == 0 || c.itemKindMatches(collection.get(), kindsMap) {
+						items = append(items, iteratedItem{key: item.Key, resource: collection.get()})
 					}
 
 					if len(items) >= defaultPageSize {
@@ -329,7 +326,7 @@ func (c *UnifiedResourceCache) KubernetesServers(ctx context.Context, params Uni
 
 // WindowsDesktops iterates over all cached windows desktops starting from the provided key.
 func (c *UnifiedResourceCache) WindowsDesktops(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[types.WindowsDesktop, error] {
-	return iterateUnifiedResourceCache(ctx, c, params, types.KindWindowsDesktop, func(desktop types.WindowsDesktop) types.WindowsDesktop { return desktop.Copy() })
+	return iterateUnifiedResourceCache(ctx, c, params, types.KindWindowsDesktop, types.WindowsDesktop.Copy)
 }
 
 // GitServers iterates over all cached git servers starting from the provided key.
@@ -342,7 +339,7 @@ func (c *UnifiedResourceCache) SAMLIdPServiceProviders(ctx context.Context, para
 	return iterateUnifiedResourceCache(ctx, c, params, types.KindSAMLIdPServiceProvider, types.SAMLIdPServiceProvider.Copy)
 }
 
-func iterateUnifiedResourceCache[T any](ctx context.Context, c *UnifiedResourceCache, params UnifiedResourcesIterateParams, kind string, cloneFn func(T) T) iter.Seq2[T, error] {
+func iterateUnifiedResourceCache[T resource](ctx context.Context, c *UnifiedResourceCache, params UnifiedResourcesIterateParams, kind string, cloneFn func(T) T) iter.Seq2[T, error] {
 	return func(yield func(T, error) bool) {
 		sortBy := types.SortBy{IsDesc: params.Descending, Field: SortByName}
 		for i, err := range c.iterateItems(ctx, params.Start, sortBy, kind) {
@@ -352,9 +349,17 @@ func iterateUnifiedResourceCache[T any](ctx context.Context, c *UnifiedResourceC
 				return
 			}
 
-			if !yield(cloneFn(i.resource.(T)), nil) {
+			switch r := i.resource.(type) {
+			case T:
+				if !yield(cloneFn(r), nil) {
+					return
+				}
+			default:
+				var t T
+				yield(t, trace.BadParameter("expected type %T, got %T", t, r))
 				return
 			}
+
 		}
 	}
 }
@@ -473,7 +478,11 @@ func (c *UnifiedResourceCache) GetUnifiedResourcesByIDs(ctx context.Context, ids
 			if !found || res == nil {
 				continue
 			}
-			resource := cache.resources[res.Value]
+			collection, ok := cache.resources[res.Value]
+			if !ok {
+				continue
+			}
+			resource := collection.get()
 			match, err := matchFn(resource)
 			if err != nil {
 				return trace.Wrap(err)
@@ -660,20 +669,7 @@ func (c *UnifiedResourceCache) getDatabaseServers(ctx context.Context) ([]types.
 	if err != nil {
 		return nil, trace.Wrap(err, "getting database servers for unified resource watcher")
 	}
-	// because it's possible to have multiple replicas of a database server serving the same database
-	// we only want to store one based on its internal database resource
-	unique := map[string]struct{}{}
-	resources := make([]types.DatabaseServer, 0, len(newDbs))
-	for _, dbServer := range newDbs {
-		db := dbServer.GetDatabase()
-		if _, ok := unique[db.GetName()]; ok {
-			continue
-		}
-		unique[db.GetName()] = struct{}{}
-		resources = append(resources, dbServer)
-	}
-
-	return resources, nil
+	return newDbs, nil
 }
 
 // getKubeServers will get all kube servers
@@ -682,18 +678,7 @@ func (c *UnifiedResourceCache) getKubeServers(ctx context.Context) ([]types.Kube
 	if err != nil {
 		return nil, trace.Wrap(err, "getting kube servers for unified resource watcher")
 	}
-	unique := map[string]struct{}{}
-	resources := make([]types.KubeServer, 0, len(newKubes))
-	for _, kubeServer := range newKubes {
-		cluster := kubeServer.GetCluster()
-		if _, ok := unique[cluster.GetName()]; ok {
-			continue
-		}
-		unique[cluster.GetName()] = struct{}{}
-		resources = append(resources, kubeServer)
-	}
-
-	return resources, nil
+	return newKubes, nil
 }
 
 // getAppServers will get all application servers
@@ -702,18 +687,7 @@ func (c *UnifiedResourceCache) getAppServers(ctx context.Context) ([]types.AppSe
 	if err != nil {
 		return nil, trace.Wrap(err, "getting app servers for unified resource watcher")
 	}
-	unique := map[string]struct{}{}
-	resources := make([]types.AppServer, 0, len(newApps))
-	for _, appServer := range newApps {
-		app := appServer.GetApp()
-		if _, ok := unique[app.GetName()]; ok {
-			continue
-		}
-		unique[app.GetName()] = struct{}{}
-		resources = append(resources, appServer)
-	}
-
-	return resources, nil
+	return newApps, nil
 }
 
 // getDesktops will get all windows desktops
@@ -807,7 +781,7 @@ func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedR
 			typeTree: btree.NewG(c.cfg.BTreeDegree, func(a, b *item) bool {
 				return a.Less(b)
 			}),
-			resources:       make(map[string]resource),
+			resources:       make(map[string]resourceCollection),
 			ResourceGetter:  c.ResourceGetter,
 			initializationC: make(chan struct{}),
 		}
@@ -940,6 +914,147 @@ type resource interface {
 	CloneResource() types.ResourceWithLabels
 }
 
+type resourceCollection interface {
+	get() resource
+	put(r resource)
+	// remove removes a resource from the collection and returns true if the
+	// collection itself should be removed.
+	remove(r types.Resource) bool
+}
+
+func newResourceCollection(r resource) resourceCollection {
+	switch r := r.(type) {
+	case types.DatabaseServer:
+		return newServerResourceCollection(r,
+			func(srv types.DatabaseServer, servers map[string]types.DatabaseServer) types.DatabaseServer {
+				return &aggregatedDatabase{
+					DatabaseServer: srv,
+					status:         aggregateHealthStatuses(servers),
+				}
+			})
+	case serverResource:
+		return newServerResourceCollection(r, nil)
+	default:
+		return &singularResourceCollection{latest: r}
+	}
+}
+
+func aggregateHealthStatuses[T types.TargetHealthStatusGetter](hgs map[string]T) types.TargetHealthStatus {
+	return types.AggregateHealthStatus(func(yield func(types.TargetHealthStatus) bool) {
+		for _, hg := range hgs {
+			if !yield(hg.GetTargetHealthStatus()) {
+				return
+			}
+		}
+	})
+}
+
+type singularResourceCollection struct {
+	latest resource
+}
+
+func (c *singularResourceCollection) get() resource { return c.latest }
+
+func (c *singularResourceCollection) put(r resource) { c.latest = r }
+
+func (c *singularResourceCollection) remove(types.Resource) bool { return true }
+
+// serverResource is a type of resource that may have multiple agents
+// heartbeating it.
+type serverResource interface {
+	resource
+	GetHostID() string
+}
+
+type serverResourceCollection[R serverResource] struct {
+	aggregate     R
+	aggregationFn func(latest R, servers map[string]R) R
+	servers       map[string]R
+}
+
+func newServerResourceCollection[R serverResource](r R, aggFn func(latest R, servers map[string]R) R) *serverResourceCollection[R] {
+	if aggFn == nil {
+		aggFn = func(r R, _ map[string]R) R {
+			return r
+		}
+	}
+	collection := &serverResourceCollection[R]{
+		servers:       make(map[string]R),
+		aggregationFn: aggFn,
+	}
+	collection.put(r)
+	return collection
+}
+
+func (c *serverResourceCollection[R]) get() resource {
+	return c.aggregate
+}
+
+func (c *serverResourceCollection[R]) put(r resource) {
+	if r, ok := r.(R); ok {
+		c.servers[r.GetHostID()] = r
+		c.aggregate = c.aggregationFn(r, c.servers)
+	}
+}
+
+func (c *serverResourceCollection[R]) remove(r types.Resource) bool {
+	// This looks insane, but we only get a [types.ResourceHeader] in
+	// [types.OpDelete] events.
+	// The types that actually implement [resourceServer] all store the host ID
+	// in the description of the resource header metadata on deletion.
+	// If a new type is added that implements [resourceServer] and the
+	// unified resource watchers starts watching it, then please:
+	// - add it to the isResourceServer helper func
+	// - ensure host ID is stored in the metadata description in its event parser
+	// - add test coverage for it in TestUnifiedResourceWatcher_DeleteEvent
+	delete(c.servers, r.GetMetadata().Description)
+	for _, s := range c.servers {
+		c.aggregate = c.aggregationFn(s, c.servers)
+		return false
+	}
+	return true
+}
+
+// aggregatedDatabase wraps a database server with aggregated health status.
+// It is assumed that multiple heartbeats with the same resource name but
+// different host IDs may be received and they may report different health
+// statuses.
+// This type provides the following properties:
+//   - avoid cloning the resource *before* filtering.
+//   - when the resource is cloned *after* filtering, set the clone's health
+//     status to the aggregate health status.
+//
+// Go generics do not support embedding a generic type, otherwise this type
+// would be made generic.
+type aggregatedDatabase struct {
+	types.DatabaseServer
+	status types.TargetHealthStatus
+}
+
+// This type MUST implement [types.DatabaseServer] to act as a facade type,
+// otherwise dynamic assertions elsewhere will fail.
+var _ types.DatabaseServer = (*aggregatedDatabase)(nil)
+
+// GetTargetHealthStatus gets the aggregate health status for filtering by
+// health status.
+func (d *aggregatedDatabase) GetTargetHealthStatus() types.TargetHealthStatus {
+	return d.status
+}
+
+// Copy returns a copy of the underlying database server with aggregated health
+// status.
+func (d *aggregatedDatabase) Copy() types.DatabaseServer {
+	out := d.DatabaseServer.Copy()
+	out.SetTargetHealthStatus(d.status)
+	return out
+}
+
+// CloneResource returns a copy of the underlying database server with
+// aggregated health status.
+func (d *aggregatedDatabase) CloneResource() types.ResourceWithLabels {
+	return d.Copy()
+}
+
 type item struct {
 	// Key is a key of the key value item. This will be different based on which sorting tree
 	// the item is in
@@ -1043,6 +1158,27 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 			Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{
 				SAMLIdPServiceProvider: serviceProvider,
 			},
+			RequiresRequest: requiresRequest,
+		}
+	case types.KindIdentityCenterAccount:
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[IdentityCenterAccount])
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_AppServer{
+				AppServer: IdentityCenterAccountToAppServer(unwrapper.UnwrapT().Account),
+			},
+			RequiresRequest: requiresRequest,
+		}
+	case types.KindIdentityCenterAccountAssignment:
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[IdentityCenterAccountAssignment])
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+		protoResource = &proto.PaginatedResource{
+			Resource:        proto.PackICAccountAssignment(unwrapper.UnwrapT().AccountAssignment),
 			RequiresRequest: requiresRequest,
 		}
 	case types.KindGitServer:

@@ -469,6 +469,11 @@ func TestFirestoreMigration(t *testing.T) {
 	uut, err := New(context.Background(), cfg, Options{Clock: clock})
 	require.NoError(t, err)
 
+	// Empty the collection to make sure previous tests don't interfere
+	snapshot, err := uut.svc.Collection(uut.CollectionName).Documents(context.Background()).GetAll()
+	require.NoError(t, err)
+	require.NoError(t, uut.deleteDocuments(snapshot))
+
 	type byteAlias []byte
 	type badRecord struct {
 		Key        byteAlias `firestore:"key,omitempty"`

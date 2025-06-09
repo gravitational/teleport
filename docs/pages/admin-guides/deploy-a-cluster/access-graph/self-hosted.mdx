@@ -12,7 +12,7 @@ This guide will help you set up the service and enable Access Graph in your Tele
 ## Prerequisites
 
 - A running Teleport Enterprise cluster v14.3.6 or later.
-- An updated `license.pem` with Identity Security enabled.
+- An updated Teleport Enterprise license file with Teleport Identity Security enabled.
 - Docker version v(=docker.version=) or later.
 - A PostgreSQL database server v14 or later.
   - Access Graph needs a dedicated [database](https://www.postgresql.org/docs/current/sql-createdatabase.html) to store its data.
@@ -136,3 +136,7 @@ spec:
 ```
 
 The preset `editor` role has the required permissions by default.
+
+## Next steps
+
+- Configure [Identity Activity Center](./identity-activity-center.mdx)

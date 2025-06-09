@@ -2329,18 +2329,19 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Extract secret out of the request.
-	secretKey := u.Query().Get("secret_key")
-
-	// We don't use a secret key for WebUI SSO MFA redirects. The request ID itself is
-	// kept a secret on the front end to minimize the risk of a phishing attack.
-	if secretKey == "" && u.Path == sso.WebMFARedirect && response.MFAToken != "" {
+	if u.Path == sso.WebMFARedirect {
+		// Transform the web sso mfa redirectURL into a relative redirect, preserving
+		// query parameters while ignoring scheme, hostname, and other url parts.
 		q := u.Query()
 		q.Add("response", string(out))
-		u.RawQuery = q.Encode()
-		return u, nil
+		return &url.URL{
+			Path:     sso.WebMFARedirect,
+			RawQuery: q.Encode(),
+		}, nil
 	}
 
+	// Extract secret out of the request.
+	secretKey := u.Query().Get("secret_key")
 	if secretKey == "" {
 		return nil, trace.BadParameter("missing secret_key")
 	}
@@ -3917,7 +3918,6 @@ func (h *Handler) generateSession(ctx context.Context, req *TerminalRequest, clu
 		ServerHostname: host,
 		ServerHostPort: port,
 		Moderated:      accessEvaluator.IsModerated(),
-		ID:             session.NewID(),
 		Created:        time.Now().UTC(),
 		LastActive:     time.Now().UTC(),
 		Namespace:      apidefaults.Namespace,

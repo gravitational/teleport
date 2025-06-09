@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -1091,4 +1092,27 @@ func (f fakeAWSClients) getRedshiftServerlessClient(cfg aws.Config, optFns ...fu
 
 func (f fakeAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
 	return f.stsClient
+}
+
+func Test_awsRedisIAMTokenRequest(t *testing.T) {
+	ctx := context.Background()
+	at := time.Date(2022, time.December, 22, 22, 22, 0, 0, time.UTC)
+	clock := clockwork.NewFakeClockAt(at)
+	cred := credentials.NewStaticCredentialsProvider("FAKEACCESSKEYID", "secret", "token")
+
+	tokenReq := awsRedisIAMTokenRequest{
+		userID:       "test-user",
+		targetID:     "test-target-id",
+		serviceName:  "elasticache",
+		region:       "us-east-1",
+		credProvider: cred,
+		clock:        clock,
+	}
+	token, err := tokenReq.toSignedRequestURI(ctx)
+	require.NoError(t, err)
+
+	require.Equal(t,
+		"test-target-id/?Action=connect&User=test-user&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=FAKEACCESSKEYID%2F20221222%2Fus-east-1%2Felasticache%2Faws4_request&X-Amz-Date=20221222T222200Z&X-Amz-Expires=900&X-Amz-Security-Token=token&X-Amz-SignedHeaders=host&X-Amz-Signature=bfccda7e654c97d44179402051403c94b9ffe84d436cb373813dfbf3ffbf1643",
+		token,
+	)
 }

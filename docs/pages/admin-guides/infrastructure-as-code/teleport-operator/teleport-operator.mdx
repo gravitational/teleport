@@ -25,22 +25,7 @@ Only one operator deployment should run against a Teleport cluster. Else, differ
 could cause instability and non-deterministic behaviour.
 </Admonition>
 
-Currently supported Teleport resources are:
-- Users (`TeleportUser`)
-- Roles
-  - `TeleportRole` creates role v5
-  - `TeleportRoleV6` creates role v6
-  - `TeleportRoleV7` creates role v7
-- OIDC Connectors (`TeleportOIDCConnector`)
-- SAML Connectors (`TeleportSAMLConnector`)
-- GitHub Connectors (`TeleportGithubConnector`)
-- Provision Tokens (`TeleportProvisionToken`)
-- Login Rules (`TeleportLoginRule`)
-- Access Lists (`TeleportAccessList`)
-- Okta Import Rules (`TeleportOktaImportRule`)
-- OpenSSHEICE Servers (`TeleportOpenSSHEICEServerV2`)
-- OpenSSH Servers (`TeleportOpenSSHServerV2`)
-- Trusted Clusters (`TeleportTrustedClusterV2`)
+Supported Teleport resources are listed in [the Operator Reference Page](../../../reference/operator-resources/operator-resources.mdx).
 
 ### Setting up the operator
 

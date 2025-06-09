@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Flex } from 'design';
 import * as Icons from 'design/Icon';
 import { MenuIcon, MenuItem, MenuItemIcon } from 'shared/components/MenuAction';
 
@@ -25,32 +24,30 @@ export default function ActionMenu(props: Props) {
     props;
 
   return (
-    <Flex alignItems="center">
-      <MenuIcon
-        buttonIconProps={{
-          ml: 4,
-          size: 0,
-          color: 'text.slightlyMuted',
-          style: { fontSize: '20px' },
-        }}
-        menuProps={menuProps}
-      >
-        {showShareDirectory && (
-          <MenuItem onClick={onShareDirectory}>
-            <MenuItemIcon as={Icons.FolderPlus} mr="2" />
-            Share Directory
-          </MenuItem>
-        )}
-        <MenuItem onClick={onCtrlAltDel}>
-          <MenuItemIcon as={Icons.Keyboard} mr="2" />
-          Send Ctrl+Alt+Del
+    <MenuIcon
+      buttonIconProps={{
+        size: 0,
+        color: 'text.slightlyMuted',
+        style: { fontSize: '20px' },
+        title: 'More actions',
+      }}
+      menuProps={menuProps}
+    >
+      {showShareDirectory && (
+        <MenuItem onClick={onShareDirectory}>
+          <MenuItemIcon as={Icons.FolderPlus} mr="2" />
+          Share Directory
         </MenuItem>
-        <MenuItem onClick={onDisconnect}>
-          <MenuItemIcon as={Icons.PowerSwitch} mr="2" />
-          Disconnect
-        </MenuItem>
-      </MenuIcon>
-    </Flex>
+      )}
+      <MenuItem onClick={onCtrlAltDel}>
+        <MenuItemIcon as={Icons.Keyboard} mr="2" />
+        Send Ctrl+Alt+Del
+      </MenuItem>
+      <MenuItem onClick={onDisconnect}>
+        <MenuItemIcon as={Icons.PowerSwitch} mr="2" />
+        Disconnect
+      </MenuItem>
+    </MenuIcon>
   );
 }
 

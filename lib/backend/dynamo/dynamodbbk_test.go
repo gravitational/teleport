@@ -20,6 +20,7 @@ package dynamo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -40,6 +41,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
@@ -241,8 +243,7 @@ func TestCreateTable(t *testing.T) {
 func TestContinuousBackups(t *testing.T) {
 	ensureTestsEnabled(t)
 
-	// Create new backend with continuous backups enabled.
-	b, err := New(context.Background(), map[string]interface{}{
+	b, err := New(t.Context(), map[string]interface{}{
 		"table_name":         uuid.NewString() + "-test",
 		"continuous_backups": true,
 	})
@@ -250,7 +251,19 @@ func TestContinuousBackups(t *testing.T) {
 
 	// Remove table after tests are done.
 	t.Cleanup(func() {
-		require.NoError(t, deleteTable(context.Background(), b.svc, b.Config.TableName))
+		back := backoff.NewDecorr(500*time.Millisecond, 20*time.Second, clockwork.NewRealClock())
+		for {
+			err := deleteTable(context.Background(), b.svc, b.Config.TableName)
+			if err == nil {
+				return
+			}
+			inUse := &types.ResourceInUseException{}
+			if errors.As(err, &inUse) {
+				back.Do(context.Background())
+			} else {
+				assert.FailNow(t, "error deleting table", err)
+			}
+		}
 	})
 
 	// Check status of continuous backups.
@@ -295,6 +308,7 @@ func TestAutoScaling(t *testing.T) {
 		WriteMaxCapacity: 20,
 		WriteTargetValue: 50.0,
 	}
+
 	// Check auto scaling values match.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		resp, err := getAutoScaling(context.Background(), applicationautoscaling.NewFromConfig(awsConfig), b.Config.TableName)
@@ -341,10 +355,12 @@ type AutoScalingParams struct {
 // getAutoScaling gets the state of auto scaling.
 func getAutoScaling(ctx context.Context, svc *applicationautoscaling.Client, tableName string) (*AutoScalingParams, error) {
 	var resp AutoScalingParams
+	tableResourceID := "table/" + tableName
 
 	// Get scaling targets.
 	targetResponse, err := svc.DescribeScalableTargets(ctx, &applicationautoscaling.DescribeScalableTargetsInput{
 		ServiceNamespace: autoscalingtypes.ServiceNamespaceDynamodb,
+		ResourceIds:      []string{tableResourceID},
 	})
 	if err != nil {
 		return nil, convertError(err)
@@ -363,6 +379,7 @@ func getAutoScaling(ctx context.Context, svc *applicationautoscaling.Client, tab
 	// Get scaling policies.
 	policyResponse, err := svc.DescribeScalingPolicies(ctx, &applicationautoscaling.DescribeScalingPoliciesInput{
 		ServiceNamespace: autoscalingtypes.ServiceNamespaceDynamodb,
+		ResourceId:       aws.String(tableResourceID),
 	})
 	if err != nil {
 		return nil, convertError(err)

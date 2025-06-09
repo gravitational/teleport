@@ -875,10 +875,12 @@ func (*AuditLogStreamRequest_BulkSync) isAuditLogStreamRequest_Action() {}
 
 // AuditLogConfig is the configuration for exporting audit logs.
 type AuditLogConfig struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	StartDate     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"` // Start date for exporting audit logs.
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	StartDate *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"` // Start date for exporting audit logs.
+	// teleport_cluster is the teleport cluster name this audit log config refers to.
+	TeleportCluster string `protobuf:"bytes,2,opt,name=teleport_cluster,json=teleportCluster,proto3" json:"teleport_cluster,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *AuditLogConfig) Reset() {
@@ -916,6 +918,13 @@ func (x *AuditLogConfig) GetStartDate() *timestamppb.Timestamp {
 		return x.StartDate
 	}
 	return nil
+}
+
+func (x *AuditLogConfig) GetTeleportCluster() string {
+	if x != nil {
+		return x.TeleportCluster
+	}
+	return ""
 }
 
 // AuditLogEvents bundles a batch of unstructured audit log events with the
@@ -3471,10 +3480,11 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"\x06config\x18\x01 \x01(\v2#.accessgraph.v1alpha.AuditLogConfigH\x00R\x06config\x12=\n" +
 	"\x06events\x18\x02 \x01(\v2#.accessgraph.v1alpha.AuditLogEventsH\x00R\x06events\x12G\n" +
 	"\tbulk_sync\x18\x03 \x01(\v2(.accessgraph.v1alpha.BulkResumeStateSyncH\x00R\bbulkSyncB\b\n" +
-	"\x06action\"K\n" +
+	"\x06action\"v\n" +
 	"\x0eAuditLogConfig\x129\n" +
 	"\n" +
-	"start_date\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\"\xa2\x02\n" +
+	"start_date\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\x12)\n" +
+	"\x10teleport_cluster\x18\x02 \x01(\tR\x0fteleportCluster\"\xa2\x02\n" +
 	"\x0eAuditLogEvents\x12?\n" +
 	"\x06events\x18\x01 \x03(\v2'.teleport.auditlog.v1.EventUnstructuredR\x06events\x12X\n" +
 	"\x13search_resume_state\x18\x02 \x01(\v2&.accessgraph.v1alpha.SearchResumeStateH\x00R\x11searchResumeState\x12e\n" +

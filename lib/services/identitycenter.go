@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/emptypb"
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -92,7 +91,7 @@ type IdentityCenterAccounts interface {
 	DeleteIdentityCenterAccount(context.Context, IdentityCenterAccountID) error
 
 	// DeleteAllIdentityCenterAccounts deletes all Identity Center Account records
-	DeleteAllIdentityCenterAccounts(context.Context, *identitycenterv1.DeleteAllIdentityCenterAccountsRequest) (*emptypb.Empty, error)
+	DeleteAllIdentityCenterAccounts(context.Context) error
 }
 
 // PrincipalAssignmentID is a strongly-typed ID for Identity Center Principal
@@ -126,7 +125,7 @@ type IdentityCenterPrincipalAssignments interface {
 	DeletePrincipalAssignment(context.Context, PrincipalAssignmentID) error
 
 	// DeleteAllPrincipalAssignments deletes all assignment record
-	DeleteAllPrincipalAssignments(context.Context, *identitycenterv1.DeleteAllPrincipalAssignmentsRequest) (*emptypb.Empty, error)
+	DeleteAllPrincipalAssignments(context.Context) error
 }
 
 // PermissionSetID is a strongly typed ID for an identitycenterv1.PermissionSet
@@ -154,7 +153,7 @@ type IdentityCenterPermissionSets interface {
 	DeletePermissionSet(context.Context, PermissionSetID) error
 
 	// DeleteAllPermissionSets deletes all Identity Center PermissionSets.
-	DeleteAllPermissionSets(context.Context, *identitycenterv1.DeleteAllPermissionSetsRequest) (*emptypb.Empty, error)
+	DeleteAllPermissionSets(context.Context) error
 }
 
 // IdentityCenterAccountAssignment wraps a raw identitycenterv1.AccountAssignment
@@ -216,7 +215,7 @@ type IdentityCenterAccountAssignments interface {
 	DeleteAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) error
 
 	// DeleteAllAccountAssignments deletes all known account assignments
-	DeleteAllAccountAssignments(context.Context, *identitycenterv1.DeleteAllAccountAssignmentsRequest) (*emptypb.Empty, error)
+	DeleteAllAccountAssignments(context.Context) error
 }
 
 // IdentityCenter combines all the resource managers used by the Identity Center plugin

@@ -1,0 +1,245 @@
+---
+title: "Self-Hosting Identity Activity Center"
+description: Explains how to enable Identity Activity Center.
+---
+
+In this guide, you will set up the infrastructure required
+to enable the Identity Activity Center in Teleport's Identity Security product.
+Identity Activity Center allows you to centralize audit logs and access paths from various sources
+for enhanced visibility and management.
+
+(!docs/pages/includes/policy/identity-activity-center.mdx!)
+
+Identity Activity Center is a feature of [Teleport Identity Security](https://goteleport.com/platform/identity-security/)
+product that is only available to Teleport Enterprise customers.
+
+## How it works
+
+Teleport Identity Security uses an AWS SQS queue to publish and consume audit logs.
+When deployed in high-availability mode, Teleport Identity Security elects a leader
+that's responsible for consuming messages from the queue, converting and enhancing
+them with metadata such as location, and writing them as Parquet files in the
+long-term S3 bucket.
+
+Amazon Athena powers a query engine in the Identity Activity Center. To specify
+the schema and retrieve data from Parquet files kept in the long-term S3 bucket,
+Amazon Athena makes use of an AWS Glue Table. With this configuration, audit
+logs can be efficiently queried and analyzed, leading to improved insights and
+simplified data management for identity security.
+
+## Prerequisites
+- A running Teleport Enterprise cluster v18.0.0 or later.
+- An updated Teleport Enterprise license file with Teleport Identity Security enabled.
+- A PostgreSQL database server v14 or later.
+  - Access Graph needs a dedicated [database](https://www.postgresql.org/docs/current/sql-createdatabase.html) to store its data.
+    The user that Teleport connects to the database with needs to be the owner of this database, or have similar broad permissions:
+    at least the `CREATE TABLE` privilege on the `public` schema, and the `CREATE SCHEMA` privilege.
+  - Amazon RDS for PostgreSQL is supported.
+- A TLS certificate for the Access Graph service
+- A running Access Graph node v1.28.0 or later.
+  Check the [Identity Security page](../../teleport-policy/teleport-policy.mdx) for details on
+  how to set up Access Graph.
+
+
+<Admonition type="note">
+
+The Identity Activity Center is currently supported only for self-hosted clusters.
+Teleport Enterprise Cloud support is planned for release later this year.
+
+</Admonition>
+
+## Step 1/4. Infrastructure setup
+
+You can set up the required infrastructure to support the Identity Activity Center with the
+following Terraform script.
+
+<details>
+<summary>Terraform script</summary>
+
+Below is a list of the required variables along with their descriptions,
+which are necessary for the Terraform script to execute.
+
+- <Var name="eu-central-1"/> is the name of the region where infrastructure should be created.
+- <Var name="example-sqs-queue"/> is the name of the AWS SQS queue.
+- <Var name="example-sqs-dlq"/> is the name of the AWS SQS dead-letter queue.
+- <Var name="example-kms-key"/> is the name of the AWS KMS encryption key used to encrypt S3 bucket files and SQS messages.
+- <Var name="example-long-term-bucket"/> is the long-term S3 bucket used to store the events.
+- <Var name="example-transient-bucket"/> is the transient S3 bucket used to store temporary files such as query results and large files.
+- <Var name="example-db"/> is the name of the AWS Glue database.
+- <Var name="example-table"/> is the name of the AWS Glue table.
+- <Var name="example-workgroup"/> is the name of the Amazon Athena Workgroup.
+- <Var name="aws-account-id"/> is the AWS account id.
+
+Define the variables using the script below or configure them in your
+Teleport IaC script.
+
+```bash
+cat > variables.auto.tfvars << EOF
+aws_region            = <Var name="eu-central-1"/>
+iac_sqs_queue_name        = <Var name="example-sqs-queue"/>
+iac_sqs_dlq_name          = <Var name="example-sqs-dlq"/>
+iac_kms_key_alias         = <Var name="example-kms-key"/>
+iac_long_term_bucket_name = <Var name="example-long-term-bucket"/>
+iac_transient_bucket_name = <Var name="example-transient-bucket"/>
+iac_database_name         = <Var name="example-db"/>
+iac_table_name            = <Var name="example-table"/>
+iac_workgroup             = <Var name="example-workgroup"/>
+EOF
+```
+
+Execute the following Terraform script to create the required infrastructure.
+
+### `variables.tf`
+
+`variables.tf` file includes the description of the required Terraform variables.
+
+```terraform
+(!examples/identity-activity-center/variables.tf!)
+```
+
+### `identity_activity_center.tf`
+
+`identity_activity_center.tf` file includes the declaration of every resource
+that Terraform will create and manage. This includes AWS KMS keys, AWS S3 Buckets
+for transient and long-term storage, and AWS Glue table and database.
+
+```
+(!examples/identity-activity-center/identity_activity_center.tf!)
+```
+
+### `policy.tf`
+
+`policy.tf` includes the declaration of the AWS IAM policy that must
+be attached to the AWS identity that the Identity Security service runs as,
+enabling it to access the resources and execute queries.
+
+```
+(!examples/identity-activity-center/policy.tf!)
+```
+
+The Terraform script will output two variables:
+
+- `identity_activity_center_iam_policy`: AWS IAM policy required for Identity Security to connect to AWS resources. Attach the policy to the Identity Security AWS IAM role.
+- `identity_activity_center_yaml`: YAML configuration to append to the Identity Security configuration or Helm chart values.
+
+</details>
+
+## Step 2/4. Configure MaxMind GeoIP City database (optional)
+
+<Admonition type="note">
+
+MaxMind GeoIP database configuration is optional, but we do recommend it for geolocation tracking.
+
+</Admonition>
+
+
+To enrich audit events with GeoIP details such as country, city, region, latitude,
+and longitude based on IP addresses, we strongly recommend using the
+[MaxMind GeoIP City database](https://www.maxmind.com/en/geoip-databases).
+
+MaxMind provides both free and paid versions of its GeoIP City database. 
+The free version is less accurate and updated less frequently compared to
+the paid version. You can find instructions for downloading the free
+version or purchasing the paid version on the
+[MaxMind Developer website](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data/).
+
+<Tabs>
+<TabItem label="Self-hosted cluster" >
+
+To configure enhanced location details for self-hosted clusters, upload the database file to the machine where
+Identity Security runs. You will specify its location in the config file below.
+
+</TabItem>
+
+<TabItem label="Self-hosted cluster using Helm Chart">
+
+To configure enhanced location details for self-hosted clusters installed using the Helm Chart, first create
+the secret that contains the IP database:
+
+```bash
+$ kubectl create secret generic maxmind-geoip-city-db --from-file=GeoLite2-City.mmdb
+
+```
+</TabItem>
+</Tabs>
+
+
+## Step 3/4. Modify Identity Security configuration
+
+<Tabs>
+<TabItem label="Self-hosted cluster" >
+
+To configure it for self-hosted clusters, update the Identity Security configuration and
+append the following section:
+
+```yaml
+
+identity_activity_center:
+  region: <Var name="eu-central-1"/>
+  database: <Var name="example-db"/>
+  table: <Var name="example-table"/>
+  s3: s3://<Var name="example-long-term-bucket"/>/data/
+  s3_results: s3://<Var name="example-transient-bucket"/>/results/
+  s3_large_files: s3://<Var name="example-transient-bucket"/>/large_files
+  sqs_queue_url: https://sqs.<Var name="eu-central-1"/>.amazonaws.com/<Var name="aws-account-id"/>/<Var name="example-sqs-queue"/>
+  maxmind_geoip_city_db_path: /path/to/geoIp-city.mmdb # optional
+
+```
+
+</TabItem>
+
+<TabItem label="Self-hosted cluster using Helm Chart">
+
+To configure it for self-hosted clusters installed using the Helm Chart, update your
+Helm chart values with the following details:
+
+```yaml
+
+# optional
+ volumes:
+ - name: maxmind-geoip-city-db
+   secret:
+     secretName: maxmind-geoip-city-db
+     optional: false
+
+# optional
+ volumeMounts:
+ - name: maxmind-geoip-city-db
+   mountPath: "/etc/maxmindGeoIP/"
+   readOnly: true
+
+identity_activity_center:
+  enabled: true
+  region: <Var name="eu-central-1"/>
+  database: <Var name="example-db"/>
+  table: <Var name="example-table"/>
+  s3: s3://<Var name="example-long-term-bucket"/>/data/
+  s3_results: s3://<Var name="example-transient-bucket"/>/results/
+  s3_large_files: s3://<Var name="example-transient-bucket"/>/large_files
+  sqs_queue_url: https://sqs.<Var name="eu-central-1"/>.amazonaws.com/<Var name="aws-account-id"/>/<Var name="example-sqs-queue"/>
+  maxmind_geoip_city_db_path: "/etc/maxmindGeoIP/GeoLite2-City.mmdb" # optional
+```
+
+Run `helm upgrade` to re-deploy Identity Security.
+
+</TabItem>
+</Tabs>
+
+
+## Step 4/4. Restart Identity Security
+
+<Tabs>
+<TabItem label="Self-hosted cluster" >
+
+The final step is to restart the Identity Security docker process or restart the process
+so it can reload the latest configuration.
+
+</TabItem>
+
+<TabItem label="Self-hosted cluster using Helm Chart">
+
+The final step is to wait for the Identity Security Deployment to complete the rollout
+of the new replicas.
+
+</TabItem>
+</Tabs>

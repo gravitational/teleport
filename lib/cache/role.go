@@ -156,6 +156,9 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 			if role, err := c.Config.Access.GetRole(ctx, name); err == nil {
 				return role, nil
 			}
+
+			// This error message format should be kept in sync with web/packages/teleport/src/services/api/api.isRoleNotFoundError
+			return nil, trace.NotFound("role %v is not found", name)
 		}
 		return nil, trace.Wrap(err)
 	}
