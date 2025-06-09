@@ -369,6 +369,36 @@
       "source": "/enroll-resources/agents/introduction/",
       "destination": "/enroll-resources/agents/",
       "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/",
+      "destination": "/enroll-resources/application-access/idps/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-attribute-mapping/",
+      "destination": "/enroll-resources/application-access/idps/saml-attribute-mapping/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-gcp-workforce-identity-federation/",
+      "destination": "/enroll-resources/application-access/idps/saml-gcp-workforce-identity-federation/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-grafana/",
+      "destination": "/enroll-resources/application-access/idps/saml-grafana/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-guide/",
+      "destination": "/enroll-resources/application-access/idps/saml-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/idps/saml-microsoft-entra-external-id/",
+      "destination": "/enroll-resources/application-access/idps/saml-microsoft-entra-external-id/",
+      "permanent": true
     }
   ]
 }
