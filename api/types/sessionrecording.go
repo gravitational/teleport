@@ -205,8 +205,10 @@ func (c *SessionRecordingConfigV2) SetEncryptionKeys(keys iter.Seq[*AgeEncryptio
 	var newKeys []*AgeEncryptionKey
 	addedKeys := make(map[string]struct{})
 	for key := range keys {
-		if _, exists := existingKeys[string(key.PublicKey)]; !exists {
-			keysChanged = true
+		if !keysChanged {
+			if _, exists := existingKeys[string(key.PublicKey)]; !exists {
+				keysChanged = true
+			}
 		}
 
 		if _, added := addedKeys[string(key.PublicKey)]; !added {
