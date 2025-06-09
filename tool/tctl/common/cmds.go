@@ -54,6 +54,7 @@ func Commands() []CLICommand {
 		&ProxyCommand{},
 		&resource.ResourceCommand{},
 		&resource.EditCommand{},
+		&resource.APIResourcesCommand{},
 		&ExternalAuditStorageCommand{},
 		&LoadtestCommand{},
 		&DevicesCommand{},
