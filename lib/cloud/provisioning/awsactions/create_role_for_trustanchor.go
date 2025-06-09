@@ -77,7 +77,7 @@ func createRoleInputForTrustAnchor(req CreateRoleForTrustAnchorRequest, region, 
 	return input, trustPolicy, nil
 }
 
-// CreateRole returns a [provisioning.Action] that creates or updates an IAM
+// CreateRoleForTrustAnchor returns a [provisioning.Action] that creates or updates an IAM
 // role when invoked.
 func CreateRoleForTrustAnchor(
 	clt interface {
