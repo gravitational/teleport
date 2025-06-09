@@ -53,6 +53,10 @@ func (d *DiscardAuditLog) SearchSessionEvents(ctx context.Context, req SearchSes
 	return make([]apievents.AuditEvent, 0), "", nil
 }
 
+func (d *DiscardAuditLog) SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	return make([]*auditlogpb.EventUnstructured, 0), "", nil
+}
+
 func (d *DiscardAuditLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
 	return stream.Empty[*auditlogpb.ExportEventUnstructured]()
 }

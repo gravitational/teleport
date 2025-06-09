@@ -5894,6 +5894,16 @@ func (a *ServerWithRoles) SearchEvents(ctx context.Context, req events.SearchEve
 	return outEvents, lastKey, nil
 }
 
+// SearchUnstructuredEvents allows searching for unstructured audit events with pagination support.
+func (a *ServerWithRoles) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) (outEvents []*auditlogpb.EventUnstructured, lastKey string, err error) {
+	if err := a.action(types.KindEvent, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	outEvents, lastKey, err = a.alog.SearchUnstructuredEvents(ctx, req)
+	return outEvents, lastKey, trace.Wrap(err)
+}
+
 // ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
 // performance over ordering and filtering, and is intended for bulk export of events.
 func (a *ServerWithRoles) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
