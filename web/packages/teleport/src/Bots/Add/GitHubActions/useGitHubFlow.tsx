@@ -82,6 +82,10 @@ export function GitHubFlowProvider({
     }
   }
 
+  // setting attempt to "success" is skipped because
+  // it saves a re-render caused by it since
+  // after the fetch is successful, we render the
+  // finish step.
   async function createBot(): Promise<boolean> {
     setAttempt({ status: 'processing' });
 

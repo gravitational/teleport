@@ -39,7 +39,7 @@ import {
 
 export function createBot(
   config: CreateBotRequest,
-  mfaResponse: MfaChallengeResponse
+  mfaResponse?: MfaChallengeResponse
 ): Promise<void> {
   return api.post(
     cfg.getBotsUrl(),
