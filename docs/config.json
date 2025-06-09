@@ -1137,7 +1137,7 @@
     },
     {
       "source": "/access-controls/guides/device-trust/",
-      "destination": "/admin-guides/access-controls/device-trust/",
+      "destination": "/identity-governance/device-trust/",
       "permanent": true
     },
     {
@@ -1322,12 +1322,12 @@
     },
     {
       "source": "/access-controls/access-lists/",
-      "destination": "/admin-guides/access-controls/access-lists/",
+      "destination": "/identity-governance/access-lists/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-lists/guide/",
-      "destination": "/admin-guides/access-controls/access-lists/guide/",
+      "destination": "/identity-governance/access-lists/guide/",
       "permanent": true
     },
     {
@@ -1337,92 +1337,92 @@
     },
     {
       "source": "/access-controls/access-monitoring/",
-      "destination": "/admin-guides/access-controls/access-monitoring/",
+      "destination": "/identity-governance/access-monitoring/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-request-plugins/",
-      "destination": "/admin-guides/access-controls/access-request-plugins/",
+      "destination": "/identity-governance/access-request-plugins/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-request-plugins/notification-routing-rules/",
-      "destination": "/admin-guides/access-controls/access-request-plugins/notification-routing-rules/",
+      "destination": "/identity-governance/access-request-plugins/notification-routing-rules/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-request-plugins/opsgenie/",
-      "destination": "/admin-guides/access-controls/access-request-plugins/opsgenie/",
+      "destination": "/identity-governance/access-request-plugins/opsgenie/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-request-plugins/servicenow/",
-      "destination": "/admin-guides/access-controls/access-request-plugins/servicenow/",
+      "destination": "/identity-governance/access-request-plugins/servicenow/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-request-plugins/ssh-approval-discord/",
-      "destination": "/admin-guides/access-controls/access-request-plugins/ssh-approval-discord/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-discord/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-request-plugins/ssh-approval-email/",
-      "destination": "/admin-guides/access-controls/access-request-plugins/ssh-approval-email/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-email/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-request-plugins/ssh-approval-jira/",
-      "destination": "/admin-guides/access-controls/access-request-plugins/ssh-approval-jira/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-jira/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-request-plugins/ssh-approval-mattermost/",
-      "destination": "/admin-guides/access-controls/access-request-plugins/ssh-approval-mattermost/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-mattermost/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-request-plugins/ssh-approval-msteams/",
-      "destination": "/admin-guides/access-controls/access-request-plugins/ssh-approval-msteams/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-msteams/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
-      "destination": "/admin-guides/access-controls/access-request-plugins/ssh-approval-pagerduty/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-pagerduty/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-request-plugins/ssh-approval-slack/",
-      "destination": "/admin-guides/access-controls/access-request-plugins/ssh-approval-slack/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-slack/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-request-plugins/datadog-hosted/",
-      "destination": "/admin-guides/access-controls/access-request-plugins/datadog-hosted/",
+      "destination": "/identity-governance/access-request-plugins/datadog-hosted/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-requests/",
-      "destination": "/admin-guides/access-controls/access-requests/",
+      "destination": "/identity-governance/access-requests/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-requests/access-request-configuration/",
-      "destination": "/admin-guides/access-controls/access-requests/access-request-configuration/",
+      "destination": "/identity-governance/access-requests/access-request-configuration/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-requests/oss-role-requests/",
-      "destination": "/admin-guides/access-controls/access-requests/oss-role-requests/",
+      "destination": "/identity-governance/access-requests/oss-role-requests/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-requests/resource-requests/",
-      "destination": "/admin-guides/access-controls/access-requests/resource-requests/",
+      "destination": "/identity-governance/access-requests/resource-requests/",
       "permanent": true
     },
     {
       "source": "/access-controls/access-requests/role-requests/",
-      "destination": "/admin-guides/access-controls/access-requests/role-requests/",
+      "destination": "/identity-governance/access-requests/role-requests/",
       "permanent": true
     },
     {
@@ -1442,27 +1442,27 @@
     },
     {
       "source": "/access-controls/device-trust/",
-      "destination": "/admin-guides/access-controls/device-trust/",
+      "destination": "/identity-governance/device-trust/",
       "permanent": true
     },
     {
       "source": "/access-controls/device-trust/device-management/",
-      "destination": "/admin-guides/access-controls/device-trust/device-management/",
+      "destination": "/identity-governance/device-trust/device-management/",
       "permanent": true
     },
     {
       "source": "/access-controls/device-trust/enforcing-device-trust/",
-      "destination": "/admin-guides/access-controls/device-trust/enforcing-device-trust/",
+      "destination": "/identity-governance/device-trust/enforcing-device-trust/",
       "permanent": true
     },
     {
       "source": "/access-controls/device-trust/guide/",
-      "destination": "/admin-guides/access-controls/device-trust/guide/",
+      "destination": "/identity-governance/device-trust/guide/",
       "permanent": true
     },
     {
       "source": "/access-controls/device-trust/jamf-integration/",
-      "destination": "/admin-guides/access-controls/device-trust/jamf-integration/",
+      "destination": "/identity-governance/device-trust/jamf-integration/",
       "permanent": true
     },
     {
@@ -1502,7 +1502,7 @@
     },
     {
       "source": "/access-controls/guides/locking/",
-      "destination": "/admin-guides/access-controls/guides/locking/",
+      "destination": "/identity-governance/locking/",
       "permanent": true
     },
     {
@@ -2623,6 +2623,136 @@
     {
       "source": "/admin-guides/teleport-policy/",
       "destination": "/identity-security/teleport-policy/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-lists/",
+      "destination": "/identity-governance/access-lists/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-lists/guide/",
+      "destination": "/identity-governance/access-lists/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-monitoring/",
+      "destination": "/identity-governance/access-monitoring/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/",
+      "destination": "/identity-governance/access-request-plugins/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/datadog-hosted/",
+      "destination": "/identity-governance/access-request-plugins/datadog-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/notification-routing-rules/",
+      "destination": "/identity-governance/access-request-plugins/notification-routing-rules/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/opsgenie/",
+      "destination": "/identity-governance/access-request-plugins/opsgenie/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/servicenow/",
+      "destination": "/identity-governance/access-request-plugins/servicenow/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-discord/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-discord/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-email/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-email/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-jira/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-jira/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-mattermost/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-mattermost/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-msteams/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-msteams/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-pagerduty/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-pagerduty/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-slack/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-slack/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/access-request-configuration/",
+      "destination": "/identity-governance/access-requests/access-request-configuration/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/",
+      "destination": "/identity-governance/access-requests/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/oss-role-requests/",
+      "destination": "/identity-governance/access-requests/oss-role-requests/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/resource-requests/",
+      "destination": "/identity-governance/access-requests/resource-requests/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/role-requests/",
+      "destination": "/identity-governance/access-requests/role-requests/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/device-trust/device-management/",
+      "destination": "/identity-governance/device-trust/device-management/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/device-trust/",
+      "destination": "/identity-governance/device-trust/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/device-trust/enforcing-device-trust/",
+      "destination": "/identity-governance/device-trust/enforcing-device-trust/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/device-trust/guide/",
+      "destination": "/identity-governance/device-trust/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/device-trust/jamf-integration/",
+      "destination": "/identity-governance/device-trust/jamf-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/locking/",
+      "destination": "/identity-governance/locking/",
       "permanent": true
     }
   ]
