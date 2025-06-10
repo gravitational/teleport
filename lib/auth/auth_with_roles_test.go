@@ -5461,13 +5461,14 @@ func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
 		}
 	})
 
-	t.Run("requesting okta resources and okta bidirectional sync enabled", func(t *testing.T) {
+	t.Run("requesting okta resources and okta bidirectional sync enabled for access list sync", func(t *testing.T) {
 		oktatest.UpsertPlugin(t, srv.Auth().Plugins,
 			oktatest.NewPlugin(t,
 				oktatest.WithSyncSettings(&types.PluginOktaSyncSettings{
 					SsoConnectorId:           "test-okta-conn-id",
 					SyncUsers:                true,
 					DisableSyncAppGroups:     false,
+					SyncAccessLists:          true,
 					DefaultOwners:            []string{"the-owner"},
 					DisableBidirectionalSync: false,
 				}),
@@ -5480,13 +5481,56 @@ func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
 		}
 	})
 
-	t.Run("requesting okta resources and okta bidirectional sync disabled", func(t *testing.T) {
+	t.Run("requesting okta resources and okta bidirectional sync enabled for app and group only sync", func(t *testing.T) {
 		oktatest.UpsertPlugin(t, srv.Auth().Plugins,
 			oktatest.NewPlugin(t,
 				oktatest.WithSyncSettings(&types.PluginOktaSyncSettings{
 					SsoConnectorId:           "test-okta-conn-id",
 					SyncUsers:                true,
-					DisableSyncAppGroups:     true,
+					DisableSyncAppGroups:     false,
+					SyncAccessLists:          false,
+					DefaultOwners:            []string{"the-owner"},
+					DisableBidirectionalSync: false,
+				}),
+			),
+		)
+
+		for _, accessRequest := range testAccessRequests {
+			_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
+			require.NoError(t, err)
+		}
+	})
+
+	t.Run("requesting okta resources and okta bidirectional sync disabled for access list sync", func(t *testing.T) {
+		oktatest.UpsertPlugin(t, srv.Auth().Plugins,
+			oktatest.NewPlugin(t,
+				oktatest.WithSyncSettings(&types.PluginOktaSyncSettings{
+					SsoConnectorId:           "test-okta-conn-id",
+					SyncUsers:                true,
+					DisableSyncAppGroups:     false,
+					SyncAccessLists:          true,
+					DefaultOwners:            []string{"the-owner"},
+					DisableBidirectionalSync: true,
+				}),
+			),
+		)
+
+		for _, accessRequest := range testAccessRequests {
+			_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
+			require.Error(t, err)
+			require.True(t, trace.IsBadParameter(err))
+			require.ErrorContains(t, err, okta.OktaResourceNotRequestableError.Error())
+		}
+	})
+
+	t.Run("requesting okta resources and okta bidirectional sync disabled for app and group only sync", func(t *testing.T) {
+		oktatest.UpsertPlugin(t, srv.Auth().Plugins,
+			oktatest.NewPlugin(t,
+				oktatest.WithSyncSettings(&types.PluginOktaSyncSettings{
+					SsoConnectorId:           "test-okta-conn-id",
+					SyncUsers:                true,
+					DisableSyncAppGroups:     false,
+					SyncAccessLists:          false,
 					DefaultOwners:            []string{"the-owner"},
 					DisableBidirectionalSync: true,
 				}),
