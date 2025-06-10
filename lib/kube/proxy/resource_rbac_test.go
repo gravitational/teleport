@@ -1483,10 +1483,11 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 
 	// create a user with full access to all namespaces.
 	// (kubernetes_user and kubernetes_groups specified)
-	userWithFullAccess, _ := testCtx.CreateUserAndRole(
+	userWithFullAccess, _ := testCtx.CreateUserAndRoleVersion(
 		testCtx.Context,
 		t,
 		usernameWithFullAccess,
+		types.V8,
 		RoleSpec{
 			Name:       usernameWithFullAccess,
 			KubeUsers:  roleKubeUsers,
@@ -1507,10 +1508,11 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 	)
 
 	// create a user with limited access to kubernetes namespaces.
-	userWithLimitedAccess, _ := testCtx.CreateUserAndRole(
+	userWithLimitedAccess, _ := testCtx.CreateUserAndRoleVersion(
 		testCtx.Context,
 		t,
 		usernameWithLimitedAccess,
+		types.V8,
 		RoleSpec{
 			Name:       usernameWithLimitedAccess,
 			KubeUsers:  roleKubeUsers,
@@ -1537,10 +1539,11 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 	)
 
 	// create a user with limited access to kubernetes namespaces.
-	userWithSpecificAccess, _ := testCtx.CreateUserAndRole(
+	userWithSpecificAccess, _ := testCtx.CreateUserAndRoleVersion(
 		testCtx.Context,
 		t,
 		usernameWithSpecificAccess,
+		types.V8,
 		RoleSpec{
 			Name:       usernameWithSpecificAccess,
 			KubeUsers:  roleKubeUsers,
@@ -1680,9 +1683,9 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 					WithResourceAccessRequests(
 						types.ResourceID{
 							ClusterName:     testCtx.ClusterName,
-							Kind:            types.KindKubeNamespace,
+							Kind:            "kube:ns:*.*",
 							Name:            kubeCluster,
-							SubResourceName: "dev",
+							SubResourceName: "dev/*",
 						},
 					),
 				},
