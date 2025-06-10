@@ -95,6 +95,16 @@ func (s *identityService) Ready() <-chan struct{} {
 	return s.initialized
 }
 
+// IsReady returns whether the initial identity renewal process has completed.
+func (s *identityService) IsReady() bool {
+	select {
+	case <-s.Ready():
+		return true
+	default:
+		return false
+	}
+}
+
 // String returns a human-readable name of the service.
 func (s *identityService) String() string {
 	return "identity"
@@ -321,13 +331,6 @@ func (s *identityService) Run(ctx context.Context) error {
 		"interval", s.cfg.CredentialLifetime.RenewalInterval,
 	)
 
-	var initialized bool
-	select {
-	case <-s.Ready():
-		initialized = true
-	default:
-	}
-
 	err := runOnInterval(ctx, runOnIntervalConfig{
 		service: s.String(),
 		name:    "bot-identity-renewal",
@@ -346,7 +349,7 @@ func (s *identityService) Run(ctx context.Context) error {
 		// If initialization succeeded, wait for the next interval to renew the
 		// identity (because we've just done it). Otherwise, try again right
 		// away.
-		waitBeforeFirstRun: initialized,
+		waitBeforeFirstRun: s.IsReady(),
 	})
 	return trace.Wrap(err)
 }

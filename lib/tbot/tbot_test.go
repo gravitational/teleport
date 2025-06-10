@@ -157,8 +157,9 @@ func defaultBotConfig(
 	}
 
 	cfg := &config.BotConfig{
-		AuthServer: authServer,
-		Onboarding: *onboarding,
+		AuthServer:            authServer,
+		AuthServerAddressMode: config.WarnIfAuthServerIsProxy,
+		Onboarding:            *onboarding,
 		Storage: &config.StorageConfig{
 			Destination: &config.DestinationMemory{},
 		},
