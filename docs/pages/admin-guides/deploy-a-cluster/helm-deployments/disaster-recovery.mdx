@@ -120,25 +120,24 @@ cluster may continue successfully. After the outage has concluded, services that
 remained functional or come back online can cause the cluster to behave in
 unexpected ways.
 
-1. If it is possible to do so, stop any Teleport Auth Service and Proxy Service
-   pods in your cluster. This command assumes that the name of your release is
-   `teleport-cluster` and that it runs in the `teleport` namespace:
+For example, Teleport Agents can remain connected to a Teleport cluster even
+after an outage has caused it to become unavailable. This is because agents
+establish long-lived gRPC connections through the Proxy Service, and maintain
+these even when the target Proxy Service instances have become unresponsive. You
+can force-close the connections between agents and the Proxy Service by stopping
+and restarting the Proxy Service.
 
-   ```code
-   $ helm --namespace teleport uninstall teleport-cluster
-   ```
+If it is possible to do so, stop any Teleport Auth Service and Proxy Service
+pods in your cluster. This command assumes that the name of your release is
+`teleport-cluster` and that it runs in the `teleport` namespace:
 
-   Note that, in the case of a full regional outage, your existing cluster may
-   already be unavailable.
+```code
+$ helm --namespace teleport uninstall teleport-cluster
+```
 
-1. Teleport Agents can remain connected to a Teleport cluster even after an
-   outage has caused it to become unavailable. For any Agents running outside
-   the region affected by the disaster, plan to restart them once you have
-   changed the DNS record for your Teleport cluster to terminate any lingering
-   connections. If you have deployed agents in the affected region, you will
-   need to redeploy them to the new region after relaunching the Auth Service
-   and Proxy Service.
- 
+Note that, in the case of a full regional outage, your existing cluster may
+already be unavailable.
+
 ## Step 3/4. Relaunch the Auth Service and Proxy Service
 
 Now that there is a backup of the Auth Service backend, you are safe to deploy
