@@ -64,8 +64,10 @@ const (
 	reservedFreeDisk = 10 * 1024 * 1024 // 10 Mb
 	// lockFileName is file used for locking update process in parallel.
 	lockFileName = ".lock"
-	// updatePackageSuffix is directory suffix used for package extraction in tools directory.
-	updatePackageSuffix = "-update-pkg-v2"
+	// updatePackageSuffix is directory suffix used for package extraction in tools directory for v1.
+	updatePackageSuffix = "-update-pkg"
+	// updatePackageSuffix is directory suffix used for package extraction in tools directory for v2.
+	updatePackageSuffixV2 = "-update-pkg-v2"
 )
 
 var (
@@ -253,12 +255,12 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		updateResp = &UpdateResponse{Version: resp.AutoUpdate.ToolsVersion, ReExec: true}
 	}
 
-	profileName, err := utils.Host(proxyAddr)
+	proxyHost, err := utils.Host(proxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	config, err := u.loadConfig(profileName)
+	config, err := u.loadConfig(proxyHost)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -269,7 +271,7 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 
 	config.Version = updateResp.Version
 	config.Disabled = updateResp.Disabled
-	if err := u.SaveConfig(profileName, config); err != nil {
+	if err := u.saveConfig(proxyHost, config); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -299,15 +301,20 @@ func (u *Updater) UpdateWithLock(ctx context.Context, updateToolsVersion string)
 // Update downloads requested version and replace it with existing one and cleanups the previous downloads
 // with defined updater directory suffix.
 func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
-	toolsMap, err := u.loadToolsMap(toolsVersion)
+	tools, err := u.loadTools()
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
-	// If the version of the running binary or the version downloaded to
-	// tools directory is the same as the requested version of client tools,
-	// nothing to be done, exit early.
-	if len(toolsMap) > 0 {
-		return nil
+
+	var ignoreTools []string
+	for _, tool := range tools {
+		// If the version of the running binary or the version downloaded to
+		// tools directory is the same as the requested version of client tools,
+		// nothing to be done, exit early.
+		if tool.Version == toolsVersion {
+			return nil
+		}
+		ignoreTools = append(ignoreTools, tool.Package)
 	}
 
 	// Get platform specific download URLs.
@@ -316,11 +323,18 @@ func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 		return trace.Wrap(err)
 	}
 
+	var pkgNames []string
 	for _, pkg := range packages {
-		pkgName := fmt.Sprint(uuid.New().String(), updatePackageSuffix)
+		pkgName := fmt.Sprint(uuid.New().String(), updatePackageSuffixV2)
 		if err := u.update(ctx, pkg, pkgName); err != nil {
 			return trace.Wrap(err)
 		}
+		pkgNames = append(pkgNames, pkgName)
+	}
+
+	// Cleanup the tools directory with previously downloaded and un-archived versions.
+	if err := packaging.RemoveWithSuffix(u.toolsDir, updatePackageSuffixV2, append(ignoreTools, pkgNames...)); err != nil {
+		slog.WarnContext(ctx, "failed to clean up tools directory", "error", err)
 	}
 
 	return nil
@@ -373,7 +387,7 @@ func (u *Updater) update(ctx context.Context, pkg packageURL, pkgName string) er
 		return trace.Wrap(err)
 	}
 
-	if err := u.SaveToolsMap(pkg.Version, toolsMap); err != nil {
+	if err := u.saveTool(Tool{Version: pkg.Version, PathMap: toolsMap, Package: pkgName}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -390,18 +404,22 @@ func (u *Updater) update(ctx context.Context, pkg packageURL, pkgName string) er
 
 // Exec re-executes tool command with same arguments and environ variables.
 func (u *Updater) Exec(toolsVersion string, args []string) (int, error) {
+	tools, err := u.loadTools()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	tool := tools.PickVersion(toolsVersion)
+	if tool == nil {
+		return 0, trace.NotFound("tool version %q not found", version)
+	}
+
 	executablePath, err := os.Executable()
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
-	toolsMap, err := u.loadToolsMap(toolsVersion)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	path, ok := toolsMap[filepath.Base(executablePath)]
+	path, ok := tool.PathMap[filepath.Base(executablePath)]
 	if !ok {
-		return 0, trace.NotFound("tools version %q not found", toolsVersion)
+		return 0, trace.NotFound("tool %q not found", filepath.Base(executablePath))
 	}
 
 	for _, unset := range []string{
