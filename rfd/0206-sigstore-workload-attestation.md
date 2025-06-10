@@ -1,6 +1,6 @@
 ---
 authors: Dan Upton (daniel.upton@goteleport.com)
-state: draft
+state: implemented (17.5)
 ---
 
 # RFD 206 - Sigstore Workload Attestation
