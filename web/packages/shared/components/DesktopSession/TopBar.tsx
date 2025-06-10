@@ -54,35 +54,28 @@ export default function TopBar(props: Props) {
     <TopNav
       height="40px"
       bg="levels.deep"
-      style={{
-        justifyContent: 'space-between',
-      }}
+      justifyContent="space-between"
+      gap={3}
+      px={3}
     >
-      <Text px={3} style={{ color: theme.colors.text.slightlyMuted }}>
-        {userHost}
-      </Text>
+      <Text style={{ color: theme.colors.text.slightlyMuted }}>{userHost}</Text>
 
       {isConnected && (
-        <Flex px={3}>
-          <Flex alignItems="center" gap={3}>
-            {latency && <LatencyDiagnostic latency={latency} />}
-            <HoverTooltip
-              tipContent={directorySharingToolTip(
-                canShareDirectory,
-                isSharingDirectory
-              )}
-              placement="bottom"
-            >
-              <FolderShared style={primaryOnTrue(isSharingDirectory)} />
-            </HoverTooltip>
-            <HoverTooltip
-              tipContent={clipboardSharingMessage}
-              placement="bottom"
-            >
-              <Clipboard style={primaryOnTrue(isSharingClipboard)} />
-            </HoverTooltip>
-            <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
-          </Flex>
+        <Flex gap={3} alignItems="center">
+          {latency && <LatencyDiagnostic latency={latency} />}
+          <HoverTooltip
+            tipContent={directorySharingToolTip(
+              canShareDirectory,
+              isSharingDirectory
+            )}
+            placement="bottom"
+          >
+            <FolderShared style={primaryOnTrue(isSharingDirectory)} />
+          </HoverTooltip>
+          <HoverTooltip tipContent={clipboardSharingMessage} placement="bottom">
+            <Clipboard style={primaryOnTrue(isSharingClipboard)} />
+          </HoverTooltip>
+          <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
           <ActionMenu
             onDisconnect={onDisconnect}
             showShareDirectory={canShareDirectory && !isSharingDirectory}

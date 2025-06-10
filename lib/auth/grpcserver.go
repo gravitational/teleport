@@ -60,7 +60,6 @@ import (
 	dynamicwindowsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	gitserverv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	healthcheckconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -68,7 +67,8 @@ import (
 	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
@@ -105,6 +105,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
+	scopedaccess "github.com/gravitational/teleport/lib/auth/scopes/access"
+	scopedjoining "github.com/gravitational/teleport/lib/auth/scopes/joining"
 	"github.com/gravitational/teleport/lib/auth/secreports/secreportsv1"
 	"github.com/gravitational/teleport/lib/auth/stableunixusers"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
@@ -5440,6 +5442,22 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		stableUNIXUsersServiceServer,
 	)
 
+	scopedAccessControl, err := scopedaccess.New(scopedaccess.Config{
+		Authorizer: cfg.Authorizer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating scoped access control service")
+	}
+	scopedaccessv1.RegisterScopedAccessServiceServer(server, scopedAccessControl)
+
+	scopedJoining, err := scopedjoining.New(scopedjoining.Config{
+		Authorizer: cfg.Authorizer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating scoped provisioning service")
+	}
+	scopedjoiningv1.RegisterScopedJoiningServiceServer(server, scopedJoining)
+
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		logger:    logger,
@@ -5664,20 +5682,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	autoupdatev1pb.RegisterAutoUpdateServiceServer(server, autoUpdateServiceServer)
-
-	identityCenterService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
-		Backend: cfg.AuthServer.bk,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	identitycenterv1.RegisterIdentityCenterServiceServer(server, identityCenterService)
-
-	provisioningStateService, err := local.NewProvisioningStateService(cfg.AuthServer.bk)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	provisioningv1.RegisterProvisioningServiceServer(server, provisioningStateService)
 
 	gitServerService, err := gitserverv1.NewService(gitserverv1.Config{
 		Authorizer:               cfg.Authorizer,
