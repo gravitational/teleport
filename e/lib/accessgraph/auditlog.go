@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	auditlogv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -35,7 +34,6 @@ func initiateAndProcessAuditLogStream(ctx context.Context, log *slog.Logger, ser
 		log:                 log,
 		client:              authServer,
 		stream:              auditLogStream,
-		clock:               clockwork.NewRealClock(),
 		teleportClusterName: clusterName.GetClusterName(),
 	}
 	if err := exporter.start(ctx, config); err != nil {
@@ -49,12 +47,10 @@ type auditLogExporter struct {
 	log                 *slog.Logger
 	client              events.AuditLogSessionStreamer
 	stream              auditLogStream
-	clock               clockwork.Clock
 	teleportClusterName string
 
 	// used by bulk exporter
 	idleCh chan struct{}
-
 	// batchRecvCh is used to receive event batches from the bulk exporter.
 	// It ensures stream.Send() is not called concurrently, as the stream is not thread-safe
 	// and may deadlock if multiple goroutines attempt to call Send() simultaneously.
@@ -99,7 +95,7 @@ func (a *auditLogExporter) isBulkExporter(ctx context.Context) (bool, error) {
 	chunks := a.client.GetEventExportChunks(ctx, &auditlogv1.GetEventExportChunksRequest{
 		// target a date 2 days in the future to be confident that we're querying a valid but
 		// empty date range, even in the context of reasonable clock drift.
-		Date: timestamppb.New(a.clock.Now().AddDate(0, 0, 2)),
+		Date: timestamppb.New(time.Now().AddDate(0, 0, 2)),
 	})
 
 	if err := stream.Drain(chunks); err != nil {
@@ -200,7 +196,7 @@ func (a *auditLogExporter) exportBulk(ctx context.Context, startDate time.Time, 
 	defer exporter.Close()
 
 	// pruneTicker start quickly while backfilling and slows down once idle
-	pruneTicker := a.clock.NewTicker(5 * time.Second)
+	pruneTicker := time.NewTicker(time.Minute)
 	defer pruneTicker.Stop()
 	firstIdleCall := true
 
@@ -210,7 +206,7 @@ func (a *auditLogExporter) exportBulk(ctx context.Context, startDate time.Time, 
 			if err := a.sendBatch(ctx, batch.events, batch.resumeState); err != nil {
 				return trace.Wrap(err, "Failed to send batch of events on audit log stream")
 			}
-		case <-pruneTicker.Chan():
+		case <-pruneTicker.C:
 			err := a.syncActiveDates(ctx, exporter.GetState())
 			if err != nil {
 				return trace.Wrap(err)
@@ -219,6 +215,10 @@ func (a *auditLogExporter) exportBulk(ctx context.Context, startDate time.Time, 
 			return trace.Wrap(ctx.Err(), "Context done for audit log bulk exporting")
 		case <-a.idleCh:
 			if firstIdleCall {
+				err := a.syncActiveDates(ctx, exporter.GetState())
+				if err != nil {
+					return trace.Wrap(err)
+				}
 				a.log.DebugContext(ctx, "Switching to real-time audit log bulk exporting")
 				pruneTicker.Reset(12 * time.Hour)
 				firstIdleCall = false
@@ -346,7 +346,7 @@ func (a *auditLogExporter) exportSearch(ctx context.Context, startDate time.Time
 			select {
 			case <-ctx.Done():
 				return trace.Wrap(ctx.Err(), "Context done for search event audit log exporting")
-			case <-a.clock.After(time.Minute):
+			case <-time.After(time.Minute):
 				continue
 			}
 		}
@@ -373,7 +373,7 @@ func (a *auditLogExporter) exportSearch(ctx context.Context, startDate time.Time
 			select {
 			case <-ctx.Done():
 				return trace.Wrap(ctx.Err(), "Context done for search event audit log exporting")
-			case <-a.clock.After(time.Minute):
+			case <-time.After(time.Minute):
 				continue
 			}
 		}
@@ -383,7 +383,7 @@ func (a *auditLogExporter) exportSearch(ctx context.Context, startDate time.Time
 func (a *auditLogExporter) searchUnstructuredEvents(ctx context.Context, startDate time.Time) ([]*auditlogv1.EventUnstructured, error) {
 	req := events.SearchEventsRequest{
 		From:     startDate,
-		To:       a.clock.Now(),
+		To:       time.Now().UTC(),
 		Limit:    0,
 		StartKey: a.startKey,
 	}
