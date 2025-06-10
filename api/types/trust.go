@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -72,7 +73,8 @@ const (
 )
 
 // CertAuthTypes lists all certificate authority types.
-var CertAuthTypes = []CertAuthType{HostCA,
+var CertAuthTypes = []CertAuthType{
+	HostCA,
 	UserCA,
 	DatabaseCA,
 	DatabaseClientCA,
@@ -127,10 +129,8 @@ const authTypeNotSupported string = "authority type is not supported"
 
 // Check checks if certificate authority type value is correct
 func (c CertAuthType) Check() error {
-	for _, caType := range CertAuthTypes {
-		if c == caType {
-			return nil
-		}
+	if slices.Contains(CertAuthTypes, c) {
+		return nil
 	}
 
 	return trace.BadParameter("%q %s", c, authTypeNotSupported)
