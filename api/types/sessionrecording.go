@@ -218,12 +218,16 @@ func (c *SessionRecordingConfigV2) SetEncryptionKeys(keys iter.Seq[*AgeEncryptio
 
 	}
 
+	if !keysChanged || len(newKeys) == 0 || len(existingKeys) == len(addedKeys) {
+		return false
+	}
+
 	if c.Status == nil {
 		c.Status = &SessionRecordingConfigStatus{}
 	}
 	c.Status.EncryptionKeys = newKeys
 
-	return keysChanged || len(existingKeys) != len(addedKeys)
+	return true
 }
 
 // Clone returns a copy of the resource.
