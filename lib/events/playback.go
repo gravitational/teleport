@@ -53,7 +53,7 @@ func DetectFormat(r io.ReadSeeker) (*Header, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 	protocolVersion := binary.BigEndian.Uint64(version)
-	if protocolVersion == ProtoStreamV1 {
+	if protocolVersion >= ProtoStreamV1 && protocolVersion <= ProtoStreamV2 {
 		return &Header{
 			Proto:        true,
 			ProtoVersion: int64(protocolVersion),
@@ -83,11 +83,7 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 	}
 	switch {
 	case format.Proto:
-		protoReader, err := NewProtoReader(rs, nil)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
+		protoReader := NewProtoReader(rs, nil)
 		for {
 			event, err := protoReader.Read(ctx)
 			if err != nil {

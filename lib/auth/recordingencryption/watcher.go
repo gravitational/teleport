@@ -66,7 +66,7 @@ func NewWatcher(cfg WatchConfig) (*Watcher, error) {
 		return nil, trace.BadParameter("cluster config backend is required")
 	}
 	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, "encryption-watcher")
+		cfg.Logger = slog.With(teleport.ComponentKey, "recording-encryption-watcher")
 	}
 
 	return &Watcher{

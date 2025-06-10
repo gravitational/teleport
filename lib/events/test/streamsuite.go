@@ -255,8 +255,7 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 	_, err = f.Seek(0, 0)
 	require.NoError(t, err)
 
-	reader, err := events.NewProtoReader(f, nil)
-	require.NoError(t, err)
+	reader := events.NewProtoReader(f, nil)
 
 	out, err := reader.ReadAll(ctx)
 	require.NoError(t, err)
@@ -328,8 +327,7 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 	_, err = f.Seek(0, 0)
 	require.NoError(t, err)
 
-	reader, err := events.NewProtoReader(f, nil)
-	require.NoError(t, err)
+	reader := events.NewProtoReader(f, nil)
 
 	out, err := reader.ReadAll(ctx)
 	require.NoError(t, err)

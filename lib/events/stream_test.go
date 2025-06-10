@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -217,8 +218,7 @@ func TestReadCorruptedRecording(t *testing.T) {
 	require.NoError(t, err)
 	defer f.Close()
 
-	reader, err := events.NewProtoReader(f, nil)
-	require.NoError(t, err)
+	reader := events.NewProtoReader(f, nil)
 	defer reader.Close()
 
 	events, err := reader.ReadAll(ctx)
@@ -252,6 +252,7 @@ func TestEncryptedRecordingIO(t *testing.T) {
 		Namespace:   apidefaults.Namespace,
 		ClusterName: "cluster",
 	})
+	require.NoError(t, err)
 
 	for _, evt := range evts {
 		preparedEvent, err := preparer.PrepareSessionEvent(evt)
@@ -283,8 +284,7 @@ func TestEncryptedRecordingIO(t *testing.T) {
 	err = uploader.Download(ctx, sid, out)
 	require.NoError(t, err)
 
-	reader, err := events.NewProtoReader(out.buf, encryptedIO)
-	require.NoError(t, err)
+	reader := events.NewProtoReader(out.buf, encryptedIO)
 
 	decryptedEvents, err := reader.ReadAll(ctx)
 	require.NoError(t, err)
@@ -331,13 +331,27 @@ func (f *fakeEncrypter) Close() error {
 
 func (f *fakeEncryptedIO) WithEncryption(ctx context.Context, writer io.WriteCloser) (io.WriteCloser, error) {
 	hexWriter := hex.NewEncoder(writer)
-	return &fakeEncrypter{
+	encrypter := &fakeEncrypter{
 		inner:  writer,
 		writer: hexWriter,
-	}, f.err
+	}
+
+	_, err := writer.Write([]byte(events.AgeHeader))
+	if err != nil {
+		return nil, fmt.Errorf("writing age header: %w", err)
+	}
+	return encrypter, f.err
 }
 
 func (f *fakeEncryptedIO) WithDecryption(reader io.Reader) (io.Reader, error) {
+	header := make([]byte, len(events.AgeHeader))
+	if _, err := reader.Read(header); err != nil {
+		return nil, fmt.Errorf("reading age header: %w", err)
+	}
+
+	if string(header) != events.AgeHeader {
+		return nil, errors.New("missing age header")
+	}
 	return hex.NewDecoder(reader), f.err
 }
 

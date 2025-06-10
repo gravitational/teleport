@@ -91,12 +91,12 @@ const (
 	// of the record header, it consists of the record length
 	ProtoStreamV1RecordHeaderSize = Int32Size
 
+	// AgeHeader prefixes all encrypted recording parts
+	AgeHeader = "age-encryption.org/"
+
 	// uploaderReservePartErrorMessage error message present when
 	// `ReserveUploadPart` fails.
 	uploaderReservePartErrorMessage = "uploader failed to reserve upload part"
-
-	// ageHeader prefixes all encrypted recording parts
-	ageHeader = "age-encryption.org/"
 )
 
 // An EncryptionWrapper wraps a given io.WriteCloser with encryption.
@@ -930,7 +930,7 @@ func (s *slice) reader() (io.ReadSeeker, error) {
 		s.buffer.Write(padding)
 	}
 	data := s.buffer.Bytes()
-	encrypted := slices.Equal(data[ProtoStreamV2PartHeaderSize:ProtoStreamV2PartHeaderSize+len(ageHeader)], []byte(ageHeader))
+	encrypted := slices.Equal(data[ProtoStreamV2PartHeaderSize:ProtoStreamV2PartHeaderSize+len(AgeHeader)], []byte(AgeHeader))
 	// when the slice was created, the first bytes were reserved
 	// for the protocol version number and size of the slice in bytes
 	binary.BigEndian.PutUint64(data[0:], ProtoStreamV2)
@@ -998,12 +998,12 @@ func (s *slice) recordEvent(event protoEvent) error {
 }
 
 // NewProtoReader returns a new proto reader with slice pool
-func NewProtoReader(r io.Reader, decrypter DecryptionWrapper) (*ProtoReader, error) {
+func NewProtoReader(r io.Reader, decrypter DecryptionWrapper) *ProtoReader {
 	return &ProtoReader{
 		reader:    r,
 		lastIndex: -1,
 		decrypter: decrypter,
-	}, nil
+	}
 }
 
 // SessionReader provides method to read
@@ -1156,6 +1156,9 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 			var encrypted bool
 			if protocolVersion > 1 {
 				_, err = io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
+				if err != nil {
+					return nil, r.setError(trace.ConvertSystemError(err))
+				}
 				flags := r.sizeBytes[0]
 				encrypted = flags&ProtoStreamFlagEncrypted != 0
 			}
