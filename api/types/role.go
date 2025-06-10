@@ -702,6 +702,8 @@ func (r *RoleV6) convertRequestKubernetesResourcesBetweenRoleVersions(resources 
 			if k, ok := KubernetesResourcesKindsPlurals[r.Kind]; ok { // Can be empty if the kind is a wildcard.
 				r.APIGroup = KubernetesResourcesV7KindGroups[r.Kind]
 				r.Kind = k
+			} else if r.Kind == KindKubeNamespace {
+				r.Kind = "namespaces"
 			} else {
 				r.APIGroup = Wildcard
 			}

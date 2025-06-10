@@ -2427,7 +2427,7 @@ func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName
 			}
 			gk := schema.ParseGroupKind(kind)
 			if gk.Group == "" {
-				gk.Group = types.KubernetesResourcesV7KindGroups[gk.Kind]
+				gk.Group = types.KubernetesResourcesV7KindGroups[resourceID.Kind]
 			}
 			switch {
 			// TODO(@creack): Make sure this is handled in the AccessRequest PR.
