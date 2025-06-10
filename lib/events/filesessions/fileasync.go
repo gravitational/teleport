@@ -19,6 +19,7 @@
 package filesessions
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -34,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -63,6 +65,8 @@ type UploaderConfig struct {
 	EventsC chan events.UploadEvent
 	// Component is used for logging purposes
 	Component string
+	// EncryptedRecordingUploader uploads encrypted session recordings
+	EncryptedRecordingUploader events.EncryptedRecordingUploader
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
@@ -375,6 +379,62 @@ func (u *upload) removeFiles() error {
 	return trace.NewAggregate(errs...)
 }
 
+var errNotEncrypted = errors.New("recording is not encrypted")
+
+func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID session.ID, in io.ReadCloser) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	pipe, errCh := u.cfg.EncryptedRecordingUploader.UploadEncryptedRecording(ctx)
+	buf := bytes.NewBuffer(nil)
+	for i := 0; ; i++ {
+		buf.Reset()
+		header, err := events.ParsePartHeader(in)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				close(pipe)
+				break
+			}
+
+			return trace.Wrap(err)
+		}
+
+		if header.Flags&events.ProtoStreamFlagEncrypted == 0 {
+			return trace.Wrap(errNotEncrypted)
+		}
+
+		if _, err = buf.Write(header.Bytes()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		totalPartSize := int64(header.PartSize + header.PaddingSize)
+		reader := io.LimitReader(in, totalPartSize)
+		copied, err := io.Copy(buf, reader)
+		if err != nil && err != io.EOF {
+			return trace.Wrap(err)
+		}
+
+		if copied != totalPartSize {
+			return trace.Errorf("copied %d bytes of recording part instead of expected %d", copied, totalPartSize)
+		}
+
+		select {
+		case err := <-errCh:
+			return trace.Wrap(err)
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		default:
+			pipe <- &recordingencryptionv1.UploadEncryptedRecordingRequest{
+				Part:      buf.Bytes(),
+				PartIndex: int64(i),
+				SessionId: sessionID.String(),
+			}
+		}
+	}
+
+	return trace.Wrap(<-errCh)
+}
+
 func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error) {
 	sessionID, err := sessionIDFromPath(fileName)
 	if err != nil {
@@ -437,6 +497,22 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 			log.WarnContext(ctx, "Failed to close", "error", err, "upload", fileName)
 		}
 		return trace.Wrap(err, "uploader could not acquire file lock for %q", sessionFilePath)
+	}
+
+	if u.cfg.EncryptedRecordingUploader != nil {
+		if err := u.uploadEncryptedRecording(ctx, sessionID, sessionFile); err != nil {
+			if !errors.Is(err, errNotEncrypted) {
+				return trace.Wrap(err)
+			}
+
+			// if the file isn't encrypted, seek to the beginning and proceed
+			// with per-event upload
+			if _, err := sessionFile.Seek(0, io.SeekStart); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			return trace.ConvertSystemError(os.Remove(sessionFile.Name()))
+		}
 	}
 
 	protoReader, err := events.NewProtoReader(sessionFile, nil)
