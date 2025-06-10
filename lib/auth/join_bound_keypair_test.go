@@ -757,10 +757,10 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			assertSolverState: func(t *testing.T, s *wrappedSolver) {
 				require.EqualValues(t, 0, s.challengeCount)
 				require.EqualValues(t, 0, s.rotationCount)
-				require.Equal(t, []string{}, s.solutions)
+				require.Empty(t, s.solutions)
 			},
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
-				require.Equal(t, "", v2.Status.BoundKeypair.BoundPublicKey)
+				require.Empty(t, v2.Status.BoundKeypair.BoundPublicKey)
 				require.Nil(t, res)
 			},
 		},
@@ -788,7 +788,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 				require.Equal(t, []string{}, s.solutions)
 			},
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
-				require.Equal(t, "", v2.Status.BoundKeypair.BoundPublicKey)
+				require.Empty(t, v2.Status.BoundKeypair.BoundPublicKey)
 				require.Nil(t, res)
 			},
 		},
@@ -815,7 +815,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 				require.Equal(t, []string{}, s.solutions)
 			},
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
-				require.Equal(t, "", v2.Status.BoundKeypair.BoundPublicKey)
+				require.Empty(t, v2.Status.BoundKeypair.BoundPublicKey)
 				require.Nil(t, res)
 			},
 		},
@@ -838,10 +838,10 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 			assertSolverState: func(t *testing.T, s *wrappedSolver) {
 				require.EqualValues(t, 0, s.challengeCount)
 				require.EqualValues(t, 0, s.rotationCount)
-				require.Equal(t, []string{}, s.solutions)
+				require.Empty(t, s.solutions)
 			},
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *client.BoundKeypairRegistrationResponse) {
-				require.Equal(t, "", v2.Status.BoundKeypair.BoundPublicKey)
+				require.Empty(t, v2.Status.BoundKeypair.BoundPublicKey)
 				require.Nil(t, res)
 			},
 		},
