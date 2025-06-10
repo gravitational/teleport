@@ -1,17 +1,36 @@
-import { Event, Formatters } from '../types';
+/**
+ * Teleport
+ * Copyright (C) 2025 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 import {
   createEventSection,
   createReferencePage,
   eventsWithoutExamples,
+  referencePageEventData,
   removeUnknowns,
 } from './gen-event-reference';
+import { Event, Formatters } from './types';
 
 describe('eventsWithoutExamples', () => {
   interface testCase {
     description: string;
     events: Event[];
     formatters: Formatters;
-    expected: Event[];
+    expected: referencePageEventData[];
   }
 
   const testCases: testCase[] = [
@@ -19,10 +38,17 @@ describe('eventsWithoutExamples', () => {
       description: 'formatters with no fixture',
       events: [
         {
+          id: '056517e0-f7e1-4286-b437-c75f3a865af4',
           codeDesc: 'App created',
           code: 'ABC123',
+          time: new Date('2021-03-18T16:28:51.219Z'),
+          message: 'User [root] has created an app',
+          user: 'root',
           raw: {
             event: 'app.create',
+            code: 'ABC123',
+            time: '2020-06-05T16:24:05Z',
+            uid: '00000000-0000-0000-0000-000000000000',
           },
         },
       ],
@@ -30,6 +56,7 @@ describe('eventsWithoutExamples', () => {
         ABC456: {
           type: 'billing.create_card',
           desc: 'Card created',
+          format: (json): string => JSON.stringify(json),
         },
       },
       expected: [
@@ -38,6 +65,43 @@ describe('eventsWithoutExamples', () => {
           code: 'ABC456',
           raw: {
             event: 'billing.create_card',
+            code: 'ABC456',
+            time: '2020-06-05T16:24:05Z',
+            uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
+          },
+        },
+      ],
+    },
+    {
+      description: 'formatter desc is a function, no event',
+      formatters: {
+        ABC123: {
+          type: 'port',
+          desc: ({ code }) => {
+            const eventName = 'Port Forwarding';
+
+            switch (code) {
+              case 'ABC123':
+                return `${eventName} Start`;
+              case 'DEF123':
+                return `${eventName} Stop`;
+              case 'GHI123':
+                return `${eventName} Failure`;
+            }
+          },
+          format: (json): string => JSON.stringify(json),
+        },
+      },
+      events: [],
+      expected: [
+        {
+          codeDesc: 'Port Forwarding Start',
+          code: 'ABC123',
+          raw: {
+            event: 'port',
+            code: 'ABC123',
+            time: '2020-06-05T16:24:05Z',
+            uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
           },
         },
       ],
@@ -57,10 +121,17 @@ describe('removeUnknowns', () => {
       description: 'event code not present in the formatters array',
       events: [
         {
+          id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+          time: new Date('2021-03-18T16:28:51.219Z'),
+          user: 'root',
+          message: 'User [root] has deleted a card',
           codeDesc: 'Unknown',
           code: 'ABC123',
           raw: {
             event: 'billing.delete_card',
+            time: '2020-06-05T16:24:05Z',
+            uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
+            code: 'ABC123',
           },
         },
       ],
@@ -68,6 +139,9 @@ describe('removeUnknowns', () => {
         ABC456: {
           type: 'billing.create_card',
           desc: 'Card created',
+          format: () => {
+            return 'Card created';
+          },
         },
       },
       expected: [],
@@ -117,59 +191,6 @@ Example:
   "time": "2021-03-18T16:28:51.219Z",
   "uid": "056517e0-f7e1-4286-b437-c75f3a865af4",
   "user": "root"
-}
-\`\`\`
-`,
-    },
-    {
-      description: 'Event with only the raw.event field',
-      event: {
-        codeDesc: 'Credit Card Deleted',
-        code: 'TBL01I',
-        raw: {
-          event: 'billing.delete_card',
-        },
-      },
-      expected: `## billing.delete_card
-
-Credit Card Deleted
-
-Code: \`TBL01I\`
-
-Event: \`billing.delete_card\`
-`,
-    },
-    {
-      description: 'description is a function',
-      event: {
-        codeDesc: ({ code, event }) => {
-          const eventName = 'Port forwarding';
-
-          switch (code) {
-            case 'ABC123':
-              return `${eventName} Start`;
-            case 'DEF123':
-              return `${eventName} Stop`;
-            case 'GHI123':
-              return `${eventName} Failure`;
-          }
-        },
-        code: 'ABC123',
-        raw: {
-          event: 'port',
-          user: 'myuser',
-        },
-      },
-      expected: `## port
-
-Port forwarding Start
-
-Example:
-
-\`\`\`json
-{
-  "event": "port",
-  "user": "myuser"
 }
 \`\`\`
 `,
@@ -293,6 +314,10 @@ Example:
     const events = [
       {
         codeDesc: 'Event C',
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+        time: new Date('2025-01-01'),
+        user: 'root',
+        message: '123abc',
         code: 'GHI123',
         raw: {
           event: 'event.c',
@@ -301,6 +326,10 @@ Example:
       },
       {
         codeDesc: 'Event A',
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+        time: new Date('2025-01-01'),
+        user: 'root',
+        message: '123abc',
         code: 'ABC123',
         raw: {
           event: 'event.a',
@@ -309,6 +338,10 @@ Example:
       },
       {
         codeDesc: 'Event B',
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+        time: new Date('2025-01-01'),
+        user: 'root',
+        message: '123abc',
         code: 'DEF123',
         raw: {
           event: 'event.b',
@@ -436,6 +469,7 @@ Example:
     const events = [
       {
         codeDesc: 'Event A',
+        code: 'ABC123',
         raw: {
           event: 'event.a',
           code: 'ABC123',
@@ -443,6 +477,7 @@ Example:
       },
       {
         codeDesc: 'Event A',
+        code: 'ABC123',
         raw: {
           event: 'event.a',
           code: 'ABC123',
@@ -481,11 +516,19 @@ Example:
       {
         codeDesc: 'Access Request Reviewed',
         code: 'T5002I',
+        message: 'User [root] has deleted a credit card',
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+        user: 'root',
+        time: new Date('2021-03-18T16:28:51.219Z'),
         raw: { event: 'access_request.review' },
       },
       {
         codeDesc: 'Stable UNIX user created',
         code: 'TSUU001I',
+        message: 'User [root] has deleted a credit card',
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+        user: 'root',
+        time: new Date('2021-03-18T16:28:51.219Z'),
         raw: { event: 'stable_unix_user.create' },
       },
     ];
@@ -524,6 +567,10 @@ Event: \`stable_unix_user.create\`
       {
         codeDesc: 'Event A',
         code: 'ABC123',
+        message: 'User [root] has deleted a credit card',
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+        user: 'root',
+        time: new Date('2021-03-18T16:28:51.219Z'),
         raw: {
           event: 'event.a',
         },
@@ -531,6 +578,10 @@ Event: \`stable_unix_user.create\`
       {
         codeDesc: 'Event A failed',
         code: 'ABC456',
+        message: 'User [root] has deleted a credit card',
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+        user: 'root',
+        time: new Date('2021-03-18T16:28:51.219Z'),
         raw: {
           event: 'event.a',
           code: 'ABC456',
@@ -540,6 +591,10 @@ Event: \`stable_unix_user.create\`
       {
         codeDesc: 'Event A starting',
         code: 'ABC789',
+        message: 'User [root] has deleted a credit card',
+        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+        user: 'root',
+        time: new Date('2021-03-18T16:28:51.219Z'),
         raw: {
           event: 'event.a',
         },

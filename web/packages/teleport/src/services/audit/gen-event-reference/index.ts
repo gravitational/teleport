@@ -1,3 +1,21 @@
+/**
+ * Teleport
+ * Copyright (C) 2025 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 import fs from 'node:fs';
 
 import { events } from 'teleport/Audit/fixtures';
@@ -10,6 +28,10 @@ import {
 } from './gen-event-reference.js';
 
 const introParagraph = `{/*cSpell:disable*/}
+
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
 
 Teleport components emit audit events to record activity within the cluster. 
 
@@ -31,7 +53,7 @@ type describes only the success or failure state.
 You can set up Teleport to export audit events to third-party services for
 storage, visualization, and analysis. For more information, read [Exporting
 Teleport Audit Events](
-../admin-guides/management/export-audit-events/export-audit-events.mdx).`;
+../zero-trust-access/export-audit-events/export-audit-events.mdx).`;
 
 if (process.argv.length !== 3) {
   console.error(
