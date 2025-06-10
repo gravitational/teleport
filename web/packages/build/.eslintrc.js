@@ -42,7 +42,7 @@ module.exports = {
     'plugin:import/warnings',
     'plugin:import/typescript',
   ],
-  plugins: ['react', 'babel', 'import', 'react-hooks'],
+  plugins: ['react', 'babel', 'import', 'react-hooks', 'unused-imports'],
   overrides: [
     {
       files: ['**/*.test.{ts,tsx,js,jsx}'],
@@ -67,8 +67,18 @@ module.exports = {
     },
   ],
   rules: {
-    'no-unused-vars': 'off', // disabled to allow the typescript one to take over and avoid errors in reporting
-    '@typescript-eslint/no-unused-vars': ['error'],
+    // Turn on the no-unused-imports rule. As it works by wrapping
+    // @typescript-eslint/no-unused-vars, we need to turn this one off, and
+    // instead use the wrapped one.
+    '@typescript-eslint/no-unused-vars': 'off',
+    'no-unused-vars': 'off',
+    'unused-imports/no-unused-imports': 'error',
+    'unused-imports/no-unused-vars': [
+      'error',
+      {
+        ignoreRestSiblings: true,
+      },
+    ],
 
     // Severity should be one of the following:
     // "off" or 0 - turn the rule off

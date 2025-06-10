@@ -1169,6 +1169,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Delete Machine ID bot
 	h.DELETE("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.deleteBot))
 
+	// GET Machine ID instance for a bot by id
+	h.GET("/webapi/sites/:site/machine-id/bot/:name/bot-instance/:id", h.WithClusterAuth(h.getBotInstance))
+	// GET Machine ID bot instances (paged)
+	h.GET("/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstances))
+
 	// GET a paginated list of notifications for a user
 	h.GET("/webapi/sites/:site/notifications", h.WithClusterAuth(h.notificationsGet))
 	// Upsert the timestamp of the latest notification that the user has seen.
@@ -2346,18 +2351,19 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Extract secret out of the request.
-	secretKey := u.Query().Get("secret_key")
-
-	// We don't use a secret key for WebUI SSO MFA redirects. The request ID itself is
-	// kept a secret on the front end to minimize the risk of a phishing attack.
-	if secretKey == "" && u.Path == sso.WebMFARedirect && response.MFAToken != "" {
+	if u.Path == sso.WebMFARedirect {
+		// Transform the web sso mfa redirectURL into a relative redirect, preserving
+		// query parameters while ignoring scheme, hostname, and other url parts.
 		q := u.Query()
 		q.Add("response", string(out))
-		u.RawQuery = q.Encode()
-		return u, nil
+		return &url.URL{
+			Path:     sso.WebMFARedirect,
+			RawQuery: q.Encode(),
+		}, nil
 	}
 
+	// Extract secret out of the request.
+	secretKey := u.Query().Get("secret_key")
 	if secretKey == "" {
 		return nil, trace.BadParameter("missing secret_key")
 	}

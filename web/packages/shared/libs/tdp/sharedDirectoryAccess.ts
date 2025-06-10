@@ -18,16 +18,56 @@
 
 import { FileType } from './codec';
 
-// SharedDirectoryManager manages a FileSystemDirectoryHandle for use
-// by the TDP client. Most of its methods can potentially throw errors
-// and so should be wrapped in try/catch blocks.
-export class SharedDirectoryManager {
+export interface SharedDirectoryAccess {
+  /** Prompts the user to select a directory to share. */
+  selectDirectory(): Promise<void>;
+  /** Returns the name of the currently shared directory. */
+  getDirectoryName(): string;
+  /** Retrieves metadata about a file or directory at the given path. */
+  stat(path: string): Promise<FileOrDirInfo>;
+  /** Lists files and directories within the given directory path. */
+  readDir(path: string): Promise<FileOrDirInfo[]>;
+  /** Reads a slice of a file. */
+  read(path: string, offset: bigint, length: number): Promise<Uint8Array>;
+  /** Writes data to a file at a given offset. */
+  write(path: string, offset: bigint, data: Uint8Array): Promise<number>;
+  /** Truncates a file to the specified size. */
+  truncate(path: string, size: number): Promise<void>;
+  /** Creates a new file or directory at the given path. */
+  create(path: string, fileType: FileType): Promise<void>;
+  /** Deletes a file or directory at the given path. */
+  delete(path: string): Promise<void>;
+}
+
+/**
+ * Enables directory sharing using FileSystem API.
+ * Most of the methods can potentially throw errors and so should be wrapped in try/catch blocks.
+ * Should be kept in sync with lib/teleterm/services/desktop/directorysharing.go
+ * where file system events are handled for Connect.
+ */
+export class BrowserFileSystem implements SharedDirectoryAccess {
   private dir: FileSystemDirectoryHandle | undefined;
 
   /**
+   * Opens a directory.
    * @throws Will throw an error if a directory is already being shared.
    */
-  add(sharedDirectory: FileSystemDirectoryHandle) {
+  async selectDirectory() {
+    if (typeof window.showDirectoryPicker !== 'function') {
+      // This is a gross error message, but should be infrequent enough that its worth just telling
+      // the user the likely problem, while also displaying the error message just in case that's not it.
+      // In a perfect world, we could check for which error message this is and display
+      // context appropriate directions.
+      throw new Error(
+        'Your user role supports directory sharing over desktop access, \
+  however this feature is only available by default on some Chromium \
+  based browsers like Google Chrome or Microsoft Edge. Brave users can \
+  use the feature by navigating to brave://flags/#file-system-access-api \
+  and selecting "Enable". If you\'re not already, please switch to a supported browser.'
+      );
+    }
+
+    const sharedDirectory = await window.showDirectoryPicker();
     if (this.dir) {
       throw new Error(
         'SharedDirectoryManager currently only supports sharing a single directory'
@@ -37,19 +77,19 @@ export class SharedDirectoryManager {
   }
 
   /**
-   * @throws Will throw an error if a directory has not already been initialized via add().
+   * @throws Will throw an error if a directory has not already been initialized.
    */
-  getName(): string {
+  getDirectoryName(): string {
     this.checkReady();
     return this.dir.name;
   }
 
   /**
    * Gets the information for the file or directory at path where path is the relative path from the root directory.
-   * @throws Will throw an error if a directory has not already been initialized via add().
+   * @throws Will throw an error if a directory has not already been initialized.
    * @throws {PathDoesNotExistError} if the pathstr isn't a valid path in the shared directory
    */
-  async getInfo(path: string): Promise<FileOrDirInfo> {
+  async stat(path: string): Promise<FileOrDirInfo> {
     this.checkReady();
 
     const fileOrDir = await this.walkPath(path);
@@ -60,7 +100,7 @@ export class SharedDirectoryManager {
       // If dir contains any files or directories, it will
       // enter the loop below and we can register it as not
       // empty. If it doesn't, it will skip over the loop.
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // eslint-disable-next-line unused-imports/no-unused-vars
       for await (const _ of dir.keys()) {
         isEmpty = false;
         break;
@@ -89,10 +129,10 @@ export class SharedDirectoryManager {
 
   /**
    * Gets the FileOrDirInfo for all the children of the directory at path.
-   * @throws Will throw an error if a directory has not already been initialized via add().
+   * @throws Will throw an error if a directory has not already been initialized.
    * @throws {PathDoesNotExistError} if the pathstr isn't a valid path in the shared directory
    */
-  async listContents(path: string): Promise<FileOrDirInfo[]> {
+  async readDir(path: string): Promise<FileOrDirInfo[]> {
     this.checkReady();
 
     // Get the directory whose contents we want to list.
@@ -110,7 +150,7 @@ export class SharedDirectoryManager {
       } else {
         entryPath = entry.name;
       }
-      infos.push(await this.getInfo(entryPath));
+      infos.push(await this.stat(entryPath));
     }
 
     return infos;
@@ -118,10 +158,10 @@ export class SharedDirectoryManager {
 
   /**
    * Reads length bytes starting at offset from a file at path.
-   * @throws Will throw an error if a directory has not already been initialized via add().
+   * @throws Will throw an error if a directory has not already been initialized.
    * @throws {PathDoesNotExistError} if the pathstr isn't a valid path in the shared directory
    */
-  async readFile(
+  async read(
     path: string,
     offset: bigint,
     length: number
@@ -136,14 +176,10 @@ export class SharedDirectoryManager {
 
   /**
    * Writes the bytes in writeData to the file at path starting at offset.
-   * @throws Will throw an error if a directory has not already been initialized via add().
+   * @throws Will throw an error if a directory has not already been initialized.
    * @throws {PathDoesNotExistError} if the pathstr isn't a valid path in the shared directory
    */
-  async writeFile(
-    path: string,
-    offset: bigint,
-    data: Uint8Array
-  ): Promise<number> {
+  async write(path: string, offset: bigint, data: Uint8Array): Promise<number> {
     this.checkReady();
 
     const fileHandle = await this.getFileHandle(path);
@@ -156,10 +192,10 @@ export class SharedDirectoryManager {
 
   /**
    * Truncates the file at path to size bytes.
-   * @throws Will throw an error if a directory has not already been initialized via add().
+   * @throws Will throw an error if a directory has not already been initialized.
    * @throws {PathDoesNotExistError} if the pathstr isn't a valid path in the shared directory
    */
-  async truncateFile(path: string, size: number): Promise<void> {
+  async truncate(path: string, size: number): Promise<void> {
     this.checkReady();
     const fileHandle = await this.getFileHandle(path);
     const file = await fileHandle.createWritable({ keepExistingData: true });
@@ -276,7 +312,7 @@ export class SharedDirectoryManager {
   }
 
   /**
-   * @throws Will throw an error if a directory has not already been initialized via add().
+   * @throws Will throw an error if a directory has not already been initialized.
    */
   private checkReady() {
     if (!this.dir) {
