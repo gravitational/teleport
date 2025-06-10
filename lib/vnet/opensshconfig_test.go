@@ -20,10 +20,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/utils/keypaths"
@@ -115,4 +118,86 @@ func TestSSHConfigurator(t *testing.T) {
 	require.ErrorIs(t, <-errC, context.Canceled)
 	_, err = os.Stat(keypaths.VNetSSHConfigPath(homePath))
 	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestAutoConfigureOpenSSH(t *testing.T) {
+	d := t.TempDir()
+	profilePath := filepath.Join(d, ".tsh")
+	vnetSSHConfigPath := keypaths.VNetSSHConfigPath(profilePath)
+	userOpenSSHConfigPath := filepath.Join(d, ".ssh", "config")
+	expectedInclude := fmt.Sprintf(`# Include Teleport VNet generated configuration
+Include "%s"
+
+`, vnetSSHConfigPath)
+	for _, tc := range []struct {
+		desc                            string
+		userOpenSSHConfigExists         bool
+		userOpenSSHConfigContents       string
+		expectAlreadyIncludedError      bool
+		expectUserOpenSSHConfigContents string
+	}{
+		{
+			// When the user OpenSSH config file doesn't exist, it should be
+			// created with the include.
+			desc:                            "no file",
+			expectUserOpenSSHConfigContents: expectedInclude,
+		},
+		{
+			// When the user OpenSSH config file already exists but it's empty,
+			// the include should be added.
+			desc:                            "empty file",
+			userOpenSSHConfigExists:         true,
+			expectUserOpenSSHConfigContents: expectedInclude,
+		},
+		{
+			// When the user OpenSSH config file already exists with some
+			// content, the include should be added at the top.
+			desc:                            "not empty",
+			userOpenSSHConfigExists:         true,
+			userOpenSSHConfigContents:       "something\nsomethingelse\n",
+			expectUserOpenSSHConfigContents: expectedInclude + "something\nsomethingelse\n",
+		},
+		{
+			// When the user OpenSSH config file already includes VNet's config
+			// file, it should return an AlreadyExists error and the file
+			// should not be modified.
+			desc:                            "already included",
+			userOpenSSHConfigExists:         true,
+			userOpenSSHConfigContents:       expectedInclude,
+			expectAlreadyIncludedError:      true,
+			expectUserOpenSSHConfigContents: expectedInclude,
+		},
+		{
+			// When the user OpenSSH config file already includes VNet's config
+			// file along with existing content, it should return an
+			// AlreadyExists error and the file should not be modified.
+			desc:                            "already included with extra content",
+			userOpenSSHConfigExists:         true,
+			userOpenSSHConfigContents:       "something\n" + expectedInclude + "somethingelse",
+			expectAlreadyIncludedError:      true,
+			expectUserOpenSSHConfigContents: "something\n" + expectedInclude + "somethingelse",
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			if tc.userOpenSSHConfigExists {
+				// Write the existing user OpenSSH config file if it's supposed
+				// to exist for this test case.
+				require.NoError(t, os.WriteFile(userOpenSSHConfigPath,
+					[]byte(tc.userOpenSSHConfigContents), filePerms))
+			}
+
+			err := AutoConfigureOpenSSH(t.Context(), profilePath, userOpenSSHConfigPath)
+
+			if tc.expectAlreadyIncludedError {
+				assert.ErrorIs(t, err, trace.AlreadyExists("%s is already included in %s",
+					vnetSSHConfigPath, userOpenSSHConfigPath))
+			} else {
+				assert.NoError(t, err)
+			}
+
+			contents, err := os.ReadFile(userOpenSSHConfigPath)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectUserOpenSSHConfigContents, string(contents))
+		})
+	}
 }

@@ -200,9 +200,9 @@ Include /Users/user/.tsh/vnet_ssh_config
 			userOpenSSHConfigPath := filepath.Join(t.TempDir(), "test_ssh_config")
 
 			// Override isWindows and paths for the purpose of the test.
-			diag.isWindows = tc.isWindows
-			diag.userHome = tc.userHome
-			diag.userOpenSSHConfigPath = userOpenSSHConfigPath
+			diag.sshConfigChecker.isWindows = tc.isWindows
+			diag.sshConfigChecker.userHome = tc.userHome
+			diag.sshConfigChecker.UserOpenSSHConfigPath = userOpenSSHConfigPath
 
 			if len(tc.input) > 0 {
 				require.NoError(t, os.WriteFile(userOpenSSHConfigPath, []byte(tc.input), 0o600))
