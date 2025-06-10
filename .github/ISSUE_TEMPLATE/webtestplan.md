@@ -1145,7 +1145,7 @@ Add the following to enable read access to trusted clusters
   - [ ] Connect to a database. Verify you were prompted for touch (a PIN prompt can appear too).
   - [ ] Change the default PIN and PUK (leave the PIV PIN field empty during login to access this flow)
     - To change the default PIN and PUK, you need to reset them to the default values. Open YubiKey
-      Manager, then Applications -> PIV, then "Reset PIV". Make sure you're picking _"Reset PIV"_
+      Manager, then **Applications → PIV, then "Reset PIV"**. Make sure you're picking **"Reset PIV"**
       and not "Reset FIDO", as "Reset FIDO" will wipe all passkeys from your YubiKey!
   - [ ] Close the app, disconnect the YubiKey, then reopen the app. Verify the app shows an error about the missing key.
   - Verify that all items from this section work on:
