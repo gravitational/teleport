@@ -59,10 +59,11 @@ type identityService struct {
 	cfg               *config.BotConfig
 	resolver          reversetunnelclient.Resolver
 
-	mu          sync.Mutex
-	initialized bool
-	client      *apiclient.Client
-	facade      *identity.Facade
+	mu              sync.Mutex
+	client          *apiclient.Client
+	facade          *identity.Facade
+	initialized     chan struct{}
+	initializedOnce sync.Once
 }
 
 // GetIdentity returns the current Bot identity.
@@ -78,6 +79,20 @@ func (s *identityService) GetClient() *apiclient.Client {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.client
+}
+
+// Ready returns a channel that will be closed when the initial identity renewal
+// process has completed. It provides a way to "block" startup of services that
+// cannot gracefully handle the API client being unavailable.
+func (s *identityService) Ready() <-chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.initialized == nil {
+		s.initialized = make(chan struct{})
+	}
+
+	return s.initialized
 }
 
 // String returns a human-readable name of the service.
@@ -266,8 +281,9 @@ func (s *identityService) Initialize(ctx context.Context) error {
 	s.mu.Lock()
 	s.client = c
 	s.facade = facade
-	s.initialized = true
 	s.mu.Unlock()
+
+	s.unblockWaiters()
 
 	s.log.InfoContext(ctx, "Identity initialized successfully")
 	return nil
@@ -305,15 +321,22 @@ func (s *identityService) Run(ctx context.Context) error {
 		"interval", s.cfg.CredentialLifetime.RenewalInterval,
 	)
 
-	s.mu.Lock()
-	initialized := s.initialized
-	s.mu.Unlock()
+	var initialized bool
+	select {
+	case <-s.Ready():
+		initialized = true
+	default:
+	}
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
 		service: s.String(),
 		name:    "bot-identity-renewal",
 		f: func(ctx context.Context) error {
-			return s.renew(ctx, storageDestination)
+			if err := s.renew(ctx, storageDestination); err != nil {
+				return err
+			}
+			s.unblockWaiters()
+			return nil
 		},
 		interval:   s.cfg.CredentialLifetime.RenewalInterval,
 		retryLimit: botIdentityRenewalRetryLimit,
@@ -355,6 +378,17 @@ func (s *identityService) renew(
 	s.log.DebugContext(ctx, "Bot identity persisted", "identity", describeTLSIdentity(ctx, s.log, newIdentity))
 
 	return nil
+}
+
+func (s *identityService) unblockWaiters() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.initialized == nil {
+		s.initialized = make(chan struct{})
+	}
+
+	s.initializedOnce.Do(func() { close(s.initialized) })
 }
 
 func renewIdentity(
