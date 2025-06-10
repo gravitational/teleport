@@ -366,6 +366,8 @@ export const makeAccessRequest = (
   maxDuration: { seconds: 1729026573n, nanos: 0 },
   requestTtl: { seconds: 1729026573n, nanos: 0 },
   sessionTtl: { seconds: 1729026573n, nanos: 0 },
+  reasonMode: 'optional',
+  reasonPrompts: [],
   ...props,
 });
 

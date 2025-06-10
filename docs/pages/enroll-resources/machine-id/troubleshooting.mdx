@@ -48,7 +48,7 @@ backend, and embeds a copy of the counter in the certificate.
 
 If the counter embedded in your bot certificate doesn't match the counter
 stored in Teleport's Auth Service, the renewal will fail and the bot user will
-be automatically [locked](../../admin-guides/access-controls/guides/locking.mdx).
+be automatically [locked](../../identity-governance/locking.mdx).
 
 Renewable certificates are exclusively stored in the bot's internal data
 directory, by default `/var/lib/teleport/bot`. It's possible to trigger this by
