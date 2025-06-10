@@ -26,7 +26,7 @@ to define policies like:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/3. Create Teleport application in OneLogin
+## Step 1/2. Create Teleport application in OneLogin
 
 1. In the OneLogin control panel's main menu navigate to **Applications** ->
    **Add App**. Using the search box, select "SAML Custom Connector (SP
@@ -89,7 +89,7 @@ to define policies like:
    SAML metadata. We recommend copying the address so the Auth Service can use
    the most up-to-date information.
 
-## Step 2/3. Create a SAML connector
+## Step 2/2. Create a SAML connector
 
 Create a SAML connector using `tctl`. Update <Var name="xml-path"/> to the URL
 of the XML document that you copied in the previous step. If you downloaded the
