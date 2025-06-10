@@ -576,11 +576,6 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 	}
 
 	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "headless", "login"), req)
-	if trace.IsNotFound(err) {
-		// fallback to deprecated headless login endpoint
-		// TODO(Joerger): DELETE IN v18.0.0
-		re, err = clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), req)
-	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

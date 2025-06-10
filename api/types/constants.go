@@ -141,9 +141,6 @@ const (
 	// KindSnowflakeSession represents a Snowflake specific web session.
 	KindSnowflakeSession = "snowflake_session"
 
-	// KindSAMLIdPSession represents a SAML IdP session.
-	KindSAMLIdPSession = "saml_idp_session"
-
 	// KindEvent is structured audit logging event
 	KindEvent = "event"
 
@@ -182,6 +179,14 @@ const (
 
 	// KindApp is a web app resource.
 	KindApp = "app"
+
+	// SubKindMCP represents an MCP server as a subkind of app.
+	SubKindMCP = KindMCP
+
+	// KindMCP is an MCP server resource.
+	// Currently, MCP servers are accessed through apps.
+	// In the future, they may become a standalone resource kind.
+	KindMCP = "mcp"
 
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
@@ -306,9 +311,16 @@ const (
 	// KindSessionRecordingConfig is the resource for session recording configuration.
 	KindSessionRecordingConfig = "session_recording_config"
 
+	// KindRecordingEncryption is the collection of active session recording encryption keys.
+	KindRecordingEncryption = "recording_encryption"
+
 	// MetaNameSessionRecordingConfig is the exact name of the singleton resource for
 	// session recording configuration.
 	MetaNameSessionRecordingConfig = "session-recording-config"
+
+	// MetaNameRecordingEncryption is the exact name of the singleton resource for
+	// session recording configuration.
+	MetaNameRecordingEncryption = "recording-encryption"
 
 	// KindExternalAuditStorage the resource kind for External Audit Storage
 	// configuration.
@@ -676,7 +688,7 @@ const (
 var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt, PackageNameEntFIPS}
 
 // WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.
@@ -899,6 +911,11 @@ const (
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
 
+	// SchemaMCPStdio is a URI schema for MCP servers using stdio transport.
+	SchemaMCPStdio = "mcp+stdio://"
+	// MCPTransportStdio indicates the MCP server uses stdio transport.
+	MCPTransportStdio = "stdio"
+
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"
 	// DiscoveredResourceDatabase identifies a discovered database.
@@ -914,6 +931,8 @@ const (
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
+	// TeleportAzureIdentityEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
+	TeleportAzureIdentityEndpoint = "azure-identity." + TeleportNamespace
 
 	// ConnectMyComputerNodeOwnerLabel is a label used to control access to the node managed by
 	// Teleport Connect as part of Connect My Computer. See [teleterm.connectmycomputer.RoleSetup].
@@ -1450,12 +1469,11 @@ var KubernetesResourcesV7KindGroups = map[string]string{
 // to their kubernetes name.
 // Used to upgrade roles <=v7 as well as to support existing access request
 // format.
-// TODO(@creack): Remove this, find a better way to handle the mapping.
+// NOTE: Namespace having a different behavior between versions, it is omitted from this map.
 var KubernetesResourcesKindsPlurals = map[string]string{
 	KindKubePod:                       "pods",
 	KindKubeSecret:                    "secrets",
 	KindKubeConfigmap:                 "configmaps",
-	KindKubeNamespace:                 "namespaces",
 	KindKubeService:                   "services",
 	KindKubeServiceAccount:            "serviceaccounts",
 	KindKubeNode:                      "nodes",
@@ -1521,7 +1539,7 @@ var KubernetesVerbs = []string{
 
 // KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
 // that are not namespaced.
-// TODO(@creack): Remove in favor of proper lookup.
+// Needed to maintain backward compatibility.
 var KubernetesClusterWideResourceKinds = []string{
 	KindKubeNamespace,
 	KindKubeNode,

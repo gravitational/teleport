@@ -115,6 +115,7 @@ export type RoleConditions = {
   windows_desktop_logins?: string[];
 
   github_permissions?: GitHubPermission[];
+  mcp?: MCPPermissions;
 
   rules?: Rule[];
 };
@@ -323,7 +324,6 @@ export enum ResourceKind {
   // refer to resource subkind names that are not used for access control.
   //
   // KindAppSession = "app_session"
-  // KindSAMLIdPSession = "saml_idp_session"
   // KindSnowflakeSession = "snowflake_session"
 }
 
@@ -342,6 +342,10 @@ export type Verb =
 
 export type GitHubPermission = {
   orgs?: string[];
+};
+
+export type MCPPermissions = {
+  tools?: string[];
 };
 
 /**

@@ -579,6 +579,9 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
                 ...defaultParams.sort,
                 ...d.queryParams?.sort,
               },
+              statuses: d.queryParams?.statuses
+                ? [...d.queryParams.statuses] // makes the array mutable
+                : defaultParams.statuses,
               resourceKinds: d.queryParams?.resourceKinds
                 ? [...d.queryParams.resourceKinds] // makes the array mutable
                 : defaultParams.resourceKinds,

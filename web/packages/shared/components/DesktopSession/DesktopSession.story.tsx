@@ -57,8 +57,8 @@ export default meta;
 const fakeClient = () => {
   const client = new TdpClient(() => null, new BrowserFileSystem());
   // Don't try to connect to a websocket.
-  client.connect = async spec => {
-    emitFrame(client, spec);
+  client.connect = async options => {
+    emitFrame(client, options.screenSpec);
   };
   return client;
 };
@@ -71,6 +71,7 @@ const props: DesktopSessionProps = {
   client: fakeClient(),
   username: 'user',
   desktop: 'windows-11',
+  browserSupportsSharing: true,
   hasAnotherSession: () => Promise.resolve(false),
 };
 
@@ -171,8 +172,8 @@ export const SharingDisabledRbac = () => (
 
 export const Alerts = () => {
   const client = fakeClient();
-  client.connect = async spec => {
-    emitFrame(client, spec);
+  client.connect = async options => {
+    emitFrame(client, options.screenSpec);
     client.emit(
       TdpClientEvent.TDP_WARNING,
       'Potential performance issues detected. Expect possible lag or instability.'

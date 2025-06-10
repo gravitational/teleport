@@ -358,6 +358,182 @@ func TestRole_GetKubeResources(t *testing.T) {
 			},
 		},
 		{
+			name: "v7 with allow wildcard kind",
+			args: args{
+				version: V7,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						// rolev7 ignored the namespace field for global resources.
+						Kind:      Wildcard,
+						Namespace: "default",
+						Name:      Wildcard,
+						Verbs:     []string{Wildcard},
+					},
+				},
+			},
+			assertErrorCreation: require.NoError,
+			wantAllow: []KubernetesResource{
+				// Expect the main resource to match namespaced resources.
+				{
+					Kind:      Wildcard,
+					Namespace: "default",
+					Name:      Wildcard,
+					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
+				},
+				// Expect injected global resources to maintain v7 behavior.
+				{
+					Kind:     "nodes",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+				{
+					Kind:     "persistentvolumes",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+				{
+					Kind:     "clusterroles",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+				{
+					Kind:     "clusterrolebindings",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+				{
+					Kind:     "certificatesigningrequests",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+			},
+		},
+		{
+			name: "v7 with deny wildcard kind",
+			args: args{
+				version: V7,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						// rolev7 ignored the namespace field for global resources.
+						Kind:      Wildcard,
+						Namespace: "default",
+						Name:      Wildcard,
+						Verbs:     []string{Wildcard},
+					},
+				},
+			},
+			assertErrorCreation: require.NoError,
+			wantDeny: []KubernetesResource{
+				// Expect the main resource to match namespaced resources.
+				{
+					Kind:      Wildcard,
+					Namespace: "default",
+					Name:      Wildcard,
+					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
+				},
+				// Expect injected global resources to maintain v7 behavior.
+				{
+					Kind:     "nodes",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+				{
+					Kind:     "persistentvolumes",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+				{
+					Kind:     "clusterroles",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+				{
+					Kind:     "clusterrolebindings",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+				{
+					Kind:     "certificatesigningrequests",
+					Name:     Wildcard,
+					Verbs:    []string{Wildcard},
+					APIGroup: Wildcard,
+				},
+			},
+		},
+		{
+			name: "v7 with allow namespace",
+			args: args{
+				version: V7,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						Kind:  KindKubeNamespace,
+						Name:  "default",
+						Verbs: []string{Wildcard},
+					},
+				},
+			},
+			assertErrorCreation: require.NoError,
+			wantAllow: []KubernetesResource{
+				{
+					Kind:      Wildcard,
+					Namespace: "default",
+					Name:      Wildcard,
+					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
+				},
+				{
+					Kind:  "namespaces",
+					Name:  "default",
+					Verbs: []string{Wildcard},
+				},
+			},
+		},
+
+		{
+			name: "v7 with deny namespace",
+			args: args{
+				version: V7,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						Kind:  KindKubeNamespace,
+						Name:  "default",
+						Verbs: []string{Wildcard},
+					},
+				},
+			},
+			assertErrorCreation: require.NoError,
+			wantDeny: []KubernetesResource{
+				{
+					Kind:      Wildcard,
+					Namespace: "default",
+					Name:      Wildcard,
+					Verbs:     []string{Wildcard},
+					APIGroup:  Wildcard,
+				},
+				{
+					Kind:  "namespaces",
+					Name:  "default",
+					Verbs: []string{Wildcard},
+				},
+			},
+		},
+
+		{
 			name: "v6 without wildcard; labels expression",
 			args: args{
 				version:          V6,

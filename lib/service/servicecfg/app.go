@@ -108,6 +108,9 @@ type App struct {
 	// If this field is not empty, URI is expected to contain no port number and start with the tcp
 	// protocol.
 	TCPPorts []PortRange
+
+	// MCP contains MCP server-related configurations.
+	MCP *types.MCP
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -156,9 +159,12 @@ func (a *App) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing application name")
 	}
 	if a.URI == "" {
-		if a.Cloud != "" {
+		switch {
+		case a.Cloud != "":
 			a.URI = fmt.Sprintf("cloud://%v", a.Cloud)
-		} else {
+		case a.MCP != nil && a.MCP.Command != "":
+			a.URI = types.SchemaMCPStdio
+		default:
 			return trace.BadParameter("missing application %q URI", a.Name)
 		}
 	}

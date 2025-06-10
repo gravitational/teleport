@@ -149,15 +149,23 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.codec = new Codec();
   }
 
-  /**
-   * Connects to the transport and registers event handlers.
-   * Include a screen spec in cases where the client should determine the screen size
-   * (e.g. in a desktop session). Leave the screen spec undefined in cases where the server determines
-   * the screen size (e.g. in a recording playback session). In that case, the client will
-   * set the internal screen size when it receives the screen spec from the server
-   * (see PlayerClient.handleClientScreenSpec).
-   */
-  async connect(spec?: ClientScreenSpec) {
+  /** Connects to the transport and registers event handlers. */
+  async connect(
+    options: {
+      /**
+       * Client keyboard layout.
+       * This should be provided only for a desktop session
+       * (desktop player doesn't allow this parameter).
+       */
+      keyboardLayout?: number;
+      /**
+       * Client screen size.
+       * This should be provided only for a desktop session
+       * (desktop player doesn't allow this parameter).
+       */
+      screenSpec?: ClientScreenSpec;
+    } = {}
+  ) {
     this.transportAbortController = new AbortController();
     if (!wasmReady) {
       wasmReady = this.initWasm();
@@ -174,8 +182,12 @@ export class TdpClient extends EventEmitter<EventMap> {
     }
 
     this.emit(TdpClientEvent.TRANSPORT_OPEN);
-    if (spec) {
-      this.sendClientScreenSpec(spec);
+    if (options.screenSpec) {
+      this.sendClientScreenSpec(options.screenSpec);
+    }
+
+    if (options.keyboardLayout !== undefined) {
+      this.sendClientKeyboardLayout(options.keyboardLayout);
     }
 
     let processingError: Error | undefined;
@@ -695,6 +707,10 @@ export class TdpClient extends EventEmitter<EventMap> {
       `requesting screen spec from client ${spec.width} x ${spec.height}`
     );
     this.send(this.codec.encodeClientScreenSpec(spec));
+  }
+
+  sendClientKeyboardLayout(keyboardLayout: number) {
+    this.send(this.codec.encodeClientKeyboardLayout(keyboardLayout));
   }
 
   sendMouseMove(x: number, y: number) {

@@ -1546,8 +1546,8 @@ func (a *Server) runPeriodicOperations() {
 		})
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           autoUpdateAgentReportKey,
-			Duration:      time.Minute,
-			FirstDuration: retryutils.FullJitter(time.Minute),
+			Duration:      constants.AutoUpdateAgentReportPeriod,
+			FirstDuration: retryutils.FullJitter(constants.AutoUpdateAgentReportPeriod),
 			// No jitter here, this is intentional and required for accurate tracking across auths.
 		})
 	}
@@ -5508,10 +5508,7 @@ func (a *Server) checkResourcesRequestable(ctx context.Context, resourceIDs []ty
 		return nil
 	}
 
-	err := okta.CheckResourcesRequestable(ctx, resourceIDs, okta.AccessPoint{
-		Plugins:              a.Plugins,
-		UnifiedResourceCache: a.UnifiedResourceCache,
-	})
+	err := okta.CheckResourcesRequestable(ctx, resourceIDs, a)
 	if errors.Is(err, okta.OktaResourceNotRequestableError) {
 		return trace.Wrap(err)
 	} else if err != nil {

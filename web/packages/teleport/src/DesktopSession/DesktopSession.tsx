@@ -34,9 +34,11 @@ import { adaptWebSocketToTdpTransport } from 'teleport/lib/tdp';
 import { shouldShowMfaPrompt, useMfaEmitter } from 'teleport/lib/useMfa';
 import { getHostName } from 'teleport/services/api';
 import auth from 'teleport/services/auth';
+import { useUser } from 'teleport/User/UserContext';
 
 export function DesktopSession() {
   const ctx = useTeleport();
+  const { preferences } = useUser();
   const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
   useEffect(() => {
     document.title = `${username} on ${desktopName} • ${clusterId}`;
@@ -129,7 +131,9 @@ export function DesktopSession() {
         }
       }}
       aclAttempt={aclAttempt}
+      browserSupportsSharing={navigator.userAgent.includes('Chrome')}
       hasAnotherSession={hasAnotherSession}
+      keyboardLayout={preferences.keyboardLayout}
     />
   );
 }

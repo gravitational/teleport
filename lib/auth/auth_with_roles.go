@@ -1289,7 +1289,9 @@ var (
 
 func (a *ServerWithRoles) checkKindAccess(kind string) error {
 	if _, ok := supportedUnifiedResourceKinds[kind]; !ok {
-		return trace.BadParameter("unsupported kind %q requested", kind)
+		// Treat unknown kinds as an access denied error instead of a bad parameter
+		// to prevent rejecting the request if users have access to other kinds requested.
+		return trace.AccessDenied("unsupported kind %q requested", kind)
 	}
 	switch kind {
 	case types.KindNode:
@@ -1831,6 +1833,8 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindWindowsDesktopService,
 		types.KindUserGroup,
 		types.KindSAMLIdPServiceProvider,
+		types.KindIdentityCenterAccount,
+		types.KindIdentityCenterAccountAssignment,
 		types.KindGitServer:
 
 	default:
@@ -5548,23 +5552,6 @@ func (a *ServerWithRoles) GetSnowflakeSession(ctx context.Context, req types.Get
 	return session, nil
 }
 
-// GetSAMLIdPSession gets a SAML IdP session.
-// TODO(Joerger): DELETE IN v18.0.0
-func (a *ServerWithRoles) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
-	if err := a.action(types.KindWebSession, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	session, err := a.authServer.GetSAMLIdPSession(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if session.GetSubKind() != types.KindSAMLIdPSession {
-		return nil, trace.AccessDenied("GetSAMLIdPSession only allows reading sessions with SubKind SAMLIdpSession")
-	}
-	return session, nil
-}
-
 // ListAppSessions gets a paginated list of application web sessions.
 func (a *ServerWithRoles) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
 	if err := a.action(types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
@@ -5589,17 +5576,6 @@ func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 		return nil, trace.Wrap(err)
 	}
 	return sessions, nil
-}
-
-// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
-// TODO(Joerger): DELETE IN v18.0.0
-func (a *ServerWithRoles) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
-	if err := a.action(types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	sessions, nextKey, err := a.authServer.ListSAMLIdPSessions(ctx, pageSize, pageToken, user)
-	return sessions, nextKey, trace.Wrap(err)
 }
 
 // CreateAppSession creates an application web session. Application web
@@ -5633,21 +5609,6 @@ func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.
 	return snowflakeSession, nil
 }
 
-// CreateSAMLIdPSession creates a SAML IdP session.
-// TODO(Joerger): DELETE IN v18.0.0
-func (a *ServerWithRoles) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
-	// Check if this a proxy service.
-	if !a.hasBuiltinRole(types.RoleProxy) {
-		return nil, trace.AccessDenied("this request can be only executed by a proxy")
-	}
-
-	samlSession, err := a.authServer.CreateSAMLIdPSession(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return samlSession, nil
-}
-
 // DeleteAppSession removes an application web session.
 func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.DeleteAppSessionRequest) error {
 	session, err := a.authServer.GetAppSession(ctx, types.GetAppSessionRequest(req))
@@ -5677,23 +5638,6 @@ func (a *ServerWithRoles) DeleteSnowflakeSession(ctx context.Context, req types.
 		}
 	}
 	if err := a.authServer.DeleteSnowflakeSession(ctx, req); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// DeleteSAMLIdPSession removes a SAML IdP session.
-// TODO(Joerger): DELETE IN v18.0.0
-func (a *ServerWithRoles) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
-	samlSession, err := a.authServer.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest(req))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Check if user can delete this web session.
-	if err := a.canDeleteWebSession(samlSession.GetUser()); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.authServer.DeleteSAMLIdPSession(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -5733,34 +5677,6 @@ func (a *ServerWithRoles) DeleteUserAppSessions(ctx context.Context, req *proto.
 	}
 
 	if err := a.authServer.DeleteUserAppSessions(ctx, req); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
-// TODO(Joerger): DELETE IN v18.0.0
-func (a *ServerWithRoles) DeleteAllSAMLIdPSessions(ctx context.Context) error {
-	if err := a.action(types.KindWebSession, types.VerbList, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.authServer.DeleteAllSAMLIdPSessions(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// DeleteUserSAMLIdPSessions deletes all of a user's SAML IdP sessions.
-// TODO(Joerger): DELETE IN v18.0.0
-func (a *ServerWithRoles) DeleteUserSAMLIdPSessions(ctx context.Context, username string) error {
-	// First, check if the current user can delete the request user sessions.
-	if err := a.canDeleteWebSession(username); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.authServer.DeleteUserSAMLIdPSessions(ctx, username); err != nil {
 		return trace.Wrap(err)
 	}
 

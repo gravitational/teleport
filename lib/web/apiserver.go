@@ -825,10 +825,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
 	h.POST("/webapi/users/privilege/token", h.WithAuth(h.createPrivilegeTokenHandle))
 
-	// Issues SSH temp certificates based on 2FA access creds
-	// TODO(Joerger): DELETE IN v18.0.0, deprecated in favor of mfa login endpoints.
-	h.POST("/webapi/ssh/certs", h.WithUnauthenticatedLimiter(h.createSSHCert))
-
 	h.POST("/webapi/headless/login", h.WithUnauthenticatedLimiter(h.headlessLogin))
 
 	// list available sites
@@ -957,9 +953,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/mfa/registerchallenge", h.WithAuth(h.createRegisterChallengeHandle))
 
 	h.POST("/webapi/mfa/devices", h.WithAuth(h.addMFADeviceHandle))
-	// DEPRECATED in favor of mfa/authenticatechallenge.
-	// TODO(bl-nero): DELETE IN 17.0.0
-	h.POST("/webapi/mfa/authenticatechallenge/password", h.WithAuth(h.createAuthenticateChallengeWithPassword))
 
 	// Device Trust.
 	// Do not enforce bearer token for /webconfirm, it is called from outside the
@@ -1064,6 +1057,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind/aws-app-access/:name", h.WithClusterAuth(h.awsOIDCDeleteAWSAppAccess))
 	h.GET("/webapi/scripts/integrations/configure/ec2-ssm-iam.sh", h.WithLimiter(h.awsOIDCConfigureEC2SSMIAM))
 
+	// AWS IAM Roles Anywhere Integration Actions
+	h.GET("/webapi/scripts/integrations/configure/awsra-trust-anchor.sh", h.WithLimiter(h.awsRolesAnywhereConfigureTrustAnchor))
+
 	// SAML IDP integration endpoints
 	h.GET("/webapi/scripts/integrations/configure/gcp-workforce-saml.sh", h.WithLimiter(h.gcpWorkforceConfigScript))
 
@@ -1142,6 +1138,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBot))
 	// Delete Machine ID bot
 	h.DELETE("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.deleteBot))
+
+	// GET Machine ID instance for a bot by id
+	h.GET("/webapi/sites/:site/machine-id/bot/:name/bot-instance/:id", h.WithClusterAuth(h.getBotInstance))
+	// GET Machine ID bot instances (paged)
+	h.GET("/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstances))
 
 	// GET a paginated list of notifications for a user
 	h.GET("/webapi/sites/:site/notifications", h.WithClusterAuth(h.notificationsGet))
@@ -2328,18 +2329,19 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Extract secret out of the request.
-	secretKey := u.Query().Get("secret_key")
-
-	// We don't use a secret key for WebUI SSO MFA redirects. The request ID itself is
-	// kept a secret on the front end to minimize the risk of a phishing attack.
-	if secretKey == "" && u.Path == sso.WebMFARedirect && response.MFAToken != "" {
+	if u.Path == sso.WebMFARedirect {
+		// Transform the web sso mfa redirectURL into a relative redirect, preserving
+		// query parameters while ignoring scheme, hostname, and other url parts.
 		q := u.Query()
 		q.Add("response", string(out))
-		u.RawQuery = q.Encode()
-		return u, nil
+		return &url.URL{
+			Path:     sso.WebMFARedirect,
+			RawQuery: q.Encode(),
+		}, nil
 	}
 
+	// Extract secret out of the request.
+	secretKey := u.Query().Get("secret_key")
 	if secretKey == "" {
 		return nil, trace.BadParameter("missing secret_key")
 	}
@@ -3916,7 +3918,6 @@ func (h *Handler) generateSession(ctx context.Context, req *TerminalRequest, clu
 		ServerHostname: host,
 		ServerHostPort: port,
 		Moderated:      accessEvaluator.IsModerated(),
-		ID:             session.NewID(),
 		Created:        time.Now().UTC(),
 		LastActive:     time.Now().UTC(),
 		Namespace:      apidefaults.Namespace,
@@ -4255,98 +4256,6 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	return certs, nil
-}
-
-// createSSHCert is a web call that generates new SSH certificate based
-// on user's name, password, 2nd factor token and public key user wishes to sign
-//
-// POST /v1/webapi/ssh/certs
-//
-// { "user": "bob", "password": "pass", "otp_token": "tok", "pub_key": "key to sign", "ttl": 1000000000 }
-//
-// # Success response
-//
-// { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
-//
-// TODO(Joerger): DELETE IN v18.0.0, deprecated in favor of mfa login endpoints.
-func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req client.CreateSSHCertReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authClient := h.cfg.ProxyClient
-
-	cap, err := authClient.GetAuthPreference(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authSSHUserReq := authclient.AuthenticateSSHRequest{
-		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-			Username:       req.User,
-			SSHPublicKey:   req.SSHPubKey,
-			TLSPublicKey:   req.TLSPubKey,
-			ClientMetadata: clientMetaFromReq(r),
-		},
-		CompatibilityMode:       req.Compatibility,
-		TTL:                     req.TTL,
-		RouteToCluster:          req.RouteToCluster,
-		KubernetesCluster:       req.KubernetesCluster,
-		SSHAttestationStatement: req.SSHAttestationStatement,
-		TLSAttestationStatement: req.TLSAttestationStatement,
-	}
-
-	if req.HeadlessAuthenticationID != "" {
-		// We need to use the default callback timeout rather than the standard client timeout.
-		// However, authClient is shared across all Proxy->Auth requests, so we need to create
-		// a new client to avoid applying the callback timeout to other concurrent requests. To
-		// this end, we create a clone of the HTTP Client with the desired timeout instead.
-		httpClient, err := authClient.CloneHTTPClient(
-			authclient.ClientParamTimeout(defaults.HeadlessLoginTimeout),
-			authclient.ClientParamResponseHeaderTimeout(defaults.HeadlessLoginTimeout),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// HTTP server has shorter WriteTimeout than is needed, so we override WriteDeadline of the connection.
-		if conn, err := authz.ConnFromContext(r.Context()); err == nil {
-			if err := conn.SetWriteDeadline(h.clock.Now().Add(defaults.HeadlessLoginTimeout)); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-
-		authSSHUserReq.AuthenticateUserRequest.HeadlessAuthenticationID = req.HeadlessAuthenticationID
-		loginResp, err := httpClient.AuthenticateSSHUser(r.Context(), authSSHUserReq)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return loginResp, nil
-	}
-
-	switch {
-	case !cap.IsSecondFactorEnforced():
-		authSSHUserReq.AuthenticateUserRequest.Pass = &authclient.PassCreds{
-			Password: []byte(req.Password),
-		}
-	case cap.IsSecondFactorTOTPAllowed():
-		authSSHUserReq.AuthenticateUserRequest.OTP = &authclient.OTPCreds{
-			Password: []byte(req.Password),
-			Token:    req.OTPToken,
-		}
-	default:
-		return nil, trace.AccessDenied("direct login with password+otp not supported by this cluster")
-	}
-
-	loginResp, err := authClient.AuthenticateSSHUser(r.Context(), authSSHUserReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return loginResp, nil
 }
 
 // headlessLogin is a web call that perform headless login based on a user's

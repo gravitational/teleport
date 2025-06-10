@@ -1,5 +1,6 @@
 ---
 title: teleport-kube-agent Chart Reference
+sidebar_label: teleport-kube-agent
 description: Values that can be set using the teleport-kube-agent Helm chart
 ---
 
@@ -26,7 +27,7 @@ The `teleport-kube-agent` chart can run any or all of three Teleport services:
 | [`application_service`](../../enroll-resources/application-access/guides/guides.mdx)              | `app`                                  | Uses Teleport to handle authentication<br/> with and proxy access to web-based applications  |
 | [`database_service`](../../enroll-resources/database-access/guides/guides.mdx)                    | `db`                                   | Uses Teleport to handle authentication<br/> with and proxy access to databases               |
 | [`discovery_service`](../../enroll-resources/auto-discovery/auto-discovery.mdx)              | `discovery`                            | Uses Teleport to discover new resources<br/> and dynamically add them to the cluster         |
-| [`jamf_service`](../../admin-guides/access-controls/device-trust/jamf-integration.mdx) | `jamf`                                 | Uses Teleport to integrate with Jamf Pro<br/> and sync devices with Device Trust inventory   |
+| [`jamf_service`](../../identity-governance/device-trust/jamf-integration.mdx) | `jamf`                                 | Uses Teleport to integrate with Jamf Pro<br/> and sync devices with Device Trust inventory   |
 
 ### Legacy releases
 
