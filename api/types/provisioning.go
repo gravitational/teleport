@@ -441,15 +441,11 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			return trace.Wrap(err, "spec.azure_devops: failed validation")
 		}
 	case JoinMethodBoundKeypair:
-		providerCfg := p.Spec.BoundKeypair
-		if providerCfg == nil {
-			return trace.BadParameter(
-				"spec.bound_keypair: must be configured for the join method %q",
-				JoinMethodBoundKeypair,
-			)
+		if p.Spec.BoundKeypair == nil {
+			p.Spec.BoundKeypair = &ProvisionTokenSpecV2BoundKeypair{}
 		}
 
-		if err := providerCfg.checkAndSetDefaults(); err != nil {
+		if err := p.Spec.BoundKeypair.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.bound_keypair: failed validation")
 		}
 	default:
