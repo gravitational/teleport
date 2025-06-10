@@ -1156,6 +1156,9 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 			var encrypted bool
 			if protocolVersion > 1 {
 				_, err = io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
+				if err != nil {
+					return nil, r.setError(trace.ConvertSystemError(err))
+				}
 				flags := r.sizeBytes[0]
 				encrypted = flags&ProtoStreamFlagEncrypted != 0
 			}

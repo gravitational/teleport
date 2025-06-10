@@ -4,9 +4,8 @@ import (
 	"context"
 	"io"
 
-	"github.com/gravitational/trace"
-
 	"filippo.io/age"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 )
