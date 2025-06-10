@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 )
 
 var apiCredentials = &oktav1.OktaAPICredentials{
@@ -33,4 +34,25 @@ func mustCreateOktaEveryoneGroupAndAssignOktaUsers(t *testing.T, oktaClient *moc
 		_, err := oktaClient.AddUserToGroup(context.Background(), everyoneGroup.Id, user.Id)
 		require.NoError(t, err)
 	}
+}
+
+func requireGroupAssignments(t require.TestingT, oktaAPIClient oktaapi.APIClient, groupID string, expectedUserIDs ...string) {
+	if t, ok := t.(*testing.T); ok {
+		t.Helper()
+	}
+	ctx := context.Background()
+	oktaClient := oktaapi.NewForAPIClient(oktaAPIClient)
+	userIDs, err := oktaClient.GetGroupAssignments(ctx, oktaapi.OktaGroupID(groupID))
+	require.NoError(t, err, "oktaClient.GetGroupAssignments")
+	require.Len(t, userIDs, len(expectedUserIDs))
+	for _, userID := range expectedUserIDs {
+		require.Contains(t, userIDs, oktaapi.OktaUserID(userID))
+	}
+}
+
+func requireNoGroupAssignments(t require.TestingT, oktaAPIClient oktaapi.APIClient, groupID string) {
+	if t, ok := t.(*testing.T); ok {
+		t.Helper()
+	}
+	requireGroupAssignments(t, oktaAPIClient, groupID)
 }

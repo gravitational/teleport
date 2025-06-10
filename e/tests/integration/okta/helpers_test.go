@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
@@ -292,4 +293,45 @@ func waitForOktaSync(t *testing.T, sut *common.SUT, opts ...waitOption) {
 	t.Helper()
 	mustWaitForEvent(t, sut, events.OktaUserSyncEvent, opts...)
 	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, opts...)
+}
+
+type integrationSettings struct {
+	enableUserSync          bool
+	enableAppGroupSync      bool
+	enableAccessListSync    bool
+	enableBidirectionalSync bool
+}
+
+type createIntegrationSettings struct {
+	integrationSettings
+	apiCredentials *oktav1.OktaAPICredentials
+	reuseConnector string
+}
+
+func mustCreateIntegration(t *testing.T, oktaAuthClient oktav1.OktaServiceClient, settings createIntegrationSettings) {
+	t.Helper()
+	ctx := t.Context()
+
+	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		ApiCredentials:          settings.apiCredentials,
+		ReuseConnector:          settings.reuseConnector,
+		EnableUserSync:          settings.enableUserSync,
+		EnableAppGroupSync:      settings.enableAppGroupSync,
+		EnableAccessListSync:    settings.enableAccessListSync,
+		EnableBidirectionalSync: settings.enableBidirectionalSync,
+	})
+	require.NoError(t, err)
+}
+
+func mustUpdateIntegration(t *testing.T, oktaAuthClient oktav1.OktaServiceClient, settings integrationSettings) {
+	t.Helper()
+	ctx := t.Context()
+
+	_, err := oktaAuthClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+		EnableUserSync:          settings.enableUserSync,
+		EnableAppGroupSync:      settings.enableAppGroupSync,
+		EnableAccessListSync:    settings.enableAccessListSync,
+		EnableBidirectionalSync: settings.enableBidirectionalSync,
+	})
+	require.NoError(t, err)
 }
