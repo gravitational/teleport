@@ -64,6 +64,32 @@ Settings with default values may be left unset.
 | spec.healthy_threshold | The number of consecutive passing health checks for an "unhealthy" resource to become "healthy" | 2 |
 | spec.unhealthy_threshold | The number of consecutive failing health checks for a "healthy" resource to become "unhealthy" | 1 |
 
+At least one label selector (`spec.db_labels` or `spec.db_labels_expression`) must be set.
+
+You can also have multiple `health_check_config` in your cluster, each providing different settings for different sets of resources.
+If more than one `health_check_config` matches the same resource, then the matching health check configs are sorted by name and only the first config applies, e.g "00-config" has higher precedence than "10-config".
+
+For example, you can override the health check settings for a subset of your databases by creating a `health_check_config` named such that it takes precedence over the "default" `health_check_config`:
+
+```code
+$ tctl create -f <<EOF
+kind: health_check_config
+metadata:
+  name: 00-prod-env-health-checks
+spec:
+  # use a longer interval to reduce the rate of health check connections to each database
+  interval: 120s
+  # use a large "healthy" threshold to reduce the chances of a false positive "healthy" 
+  healthy_threshold: 5
+  # use a small "unhealthy" threshold to detect unhealthy connectivity faster
+  unhealthy_threshold: 1
+  match:
+    # match any database with an env label that starts with "prod-" 
+    db_labels_expression: 'regexp.match(labels["env"], "^prod-.*$")'
+version: v1
+EOF
+```
+
 ## View health status
 
 The Teleport web UI will highlight unhealthy resources and provide details about health check failures:
