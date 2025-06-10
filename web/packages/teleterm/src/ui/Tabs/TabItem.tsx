@@ -89,10 +89,6 @@ export function TabItem(props: TabItemProps) {
             size={0}
             className="close"
             title={closeTabTooltip}
-            css={`
-              transition: none;
-              display: ${props => (props.active ? 'flex' : 'none')};
-            `}
             onClick={handleClose}
           >
             <Icons.Cross size="small" />

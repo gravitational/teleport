@@ -40,7 +40,7 @@ export function FileTransferActionBar({
     <HoverTooltip
       placement="bottom"
       tipContent={
-        hasAccess ? (
+        !hasAccess ? (
           <Text>
             You are missing the{' '}
             <Text bold as="span">
