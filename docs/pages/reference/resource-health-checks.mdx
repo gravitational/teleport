@@ -9,7 +9,7 @@ Currently only TCP health checks are supported and only for enrolled databases.
 
 ## How it works
 
-Teleport's `health_check_config` API resource determines which resources will have health checks enabled and what settings will be used for those checks.
+Teleport's `health_check_config` cluster resource determines which resources will have health checks enabled and what settings will be used for those checks.
 Starting in Teleport 18, a preset default `health_check_config` will be created that enables TCP health checks for all enrolled databases.
 When health checks are enabled for a resource, Teleport services that proxy access to that resource will perform regular health checks against that resource's endpoint(s).
 The interval between health checks and timeout duration of each health check is configurable.
@@ -66,7 +66,9 @@ Settings with default values may be left unset.
 
 ## View health status
 
-The Teleport web UI will highlight unhealthy resources and provide details about health check failures.
+The Teleport web UI will highlight unhealthy resources and provide details about health check failures:
+
+![Health warning indicator in web UI](../../img/resource-health-check/health-warning-indicator.png)
 
 Teleport services report the health status of each health checked resource that they proxy.
 The health status is contained in the resource heartbeat object.
