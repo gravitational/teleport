@@ -121,6 +121,7 @@ func newManagerConfig(backend services.RecordingEncryption, keyType types.Privat
 		Backend:  backend,
 		KeyStore: &fakeEncryptionKeyStore{keyType: keyType},
 		Logger:   utils.NewSlogLoggerForTests(),
+		Cache:    backend,
 	}
 }
 
