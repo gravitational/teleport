@@ -587,8 +587,6 @@ function makeIntegration(json: any): Integration {
         'Enroll EC2, RDS and EKS resources or enable Web/CLI access to your AWS Account.',
       spec: {
         roleArn: awsoidc?.roleArn,
-        issuerS3Bucket: awsoidc?.issuerS3Bucket,
-        issuerS3Prefix: awsoidc?.issuerS3Prefix,
         audience: awsoidc?.audience,
       },
     };

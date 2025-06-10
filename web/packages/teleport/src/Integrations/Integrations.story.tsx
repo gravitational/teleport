@@ -79,8 +79,6 @@ export function EditDialogWithS3() {
         name: 'some-integration-name',
         spec: {
           roleArn: 'arn:aws:iam::123456789012:role/johndoe',
-          issuerS3Bucket: 'named-bucket',
-          issuerS3Prefix: 'named-prefix',
         },
         statusCode: IntegrationStatusCode.Running,
       }}

@@ -40,8 +40,6 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 	integrationNameWithIssuer := "my-integration-with-issuer"
 
 	publicURL := "https://example.com"
-	s3BucketURI := "s3://mybucket/my-idp"
-	s3IssuerURL := "https://mybucket.s3.amazonaws.com/my-idp"
 
 	ca := newCertAuthority(t, types.HostCA, clusterName)
 	ctx, localClient, resourceSvc := initSvc(t, ca, clusterName, publicURL)
@@ -59,8 +57,7 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 	ig, err = types.NewIntegrationAWSOIDC(
 		types.Metadata{Name: integrationNameWithIssuer},
 		&types.AWSOIDCIntegrationSpecV1{
-			RoleARN:     "arn:aws:iam::123456789012:role/OpsTeam",
-			IssuerS3URI: s3BucketURI,
+			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
 		},
 	)
 	require.NoError(t, err)
@@ -150,13 +147,13 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 
 		_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
 			RawToken: resp.GetToken(),
-			Issuer:   s3IssuerURL,
+			Issuer:   publicURL,
 		})
 		require.NoError(t, err)
 		// Fails if the issuer is different
 		_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
 			RawToken: resp.GetToken(),
-			Issuer:   publicURL,
+			Issuer:   "https://example2.com",
 		})
 		require.Error(t, err)
 	})

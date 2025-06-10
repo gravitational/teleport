@@ -19,8 +19,6 @@
 package ui
 
 import (
-	"net/url"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -34,11 +32,6 @@ import (
 type IntegrationAWSOIDCSpec struct {
 	// RoleARN is the role associated with the integration when SubKind is `aws-oidc`
 	RoleARN string `json:"roleArn,omitempty"`
-
-	// IssuerS3Bucket is the Issuer configured in AWS using an S3 Bucket.
-	IssuerS3Bucket string `json:"issuerS3Bucket,omitempty"`
-	// IssuerS3Prefix is the prefix for the bucket above.
-	IssuerS3Prefix string `json:"issuerS3Prefix,omitempty"`
 
 	// Audience is used to record a name of a plugin or a discover service in Teleport
 	// that depends on this integration.
@@ -84,15 +77,10 @@ type IntegrationGitHub struct {
 	Organization string `json:"organization"`
 }
 
-// CheckAndSetDefaults for the aws oidc integration spec.
+// CheckAndSetDefaults for the AWS OIDC integration spec.
 func (r *IntegrationAWSOIDCSpec) CheckAndSetDefaults() error {
 	if r.RoleARN == "" {
 		return trace.BadParameter("missing awsoidc.roleArn field")
-	}
-
-	// Either both empty or both are filled.
-	if (r.IssuerS3Bucket == "") != (r.IssuerS3Prefix == "") {
-		return trace.BadParameter("missing awsoidc s3 fields")
 	}
 
 	return nil
@@ -320,23 +308,9 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 
 	switch ig.GetSubKind() {
 	case types.IntegrationSubKindAWSOIDC:
-		var s3Bucket string
-		var s3Prefix string
-
-		if s3Location := ig.GetAWSOIDCIntegrationSpec().IssuerS3URI; s3Location != "" {
-			issuerS3BucketURL, err := url.Parse(s3Location)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			s3Bucket = issuerS3BucketURL.Host
-			s3Prefix = strings.TrimLeft(issuerS3BucketURL.Path, "/")
-		}
-
 		ret.AWSOIDC = &IntegrationAWSOIDCSpec{
-			RoleARN:        ig.GetAWSOIDCIntegrationSpec().RoleARN,
-			IssuerS3Bucket: s3Bucket,
-			IssuerS3Prefix: s3Prefix,
-			Audience:       ig.GetAWSOIDCIntegrationSpec().Audience,
+			RoleARN:  ig.GetAWSOIDCIntegrationSpec().RoleARN,
+			Audience: ig.GetAWSOIDCIntegrationSpec().Audience,
 		}
 	case types.IntegrationSubKindGitHub:
 		spec := ig.GetGitHubIntegrationSpec()

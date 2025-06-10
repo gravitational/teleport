@@ -177,7 +177,7 @@ export const integrations: Integration[] = [
     name: 'aws',
     kind: IntegrationKind.AwsOidc,
     statusCode: IntegrationStatusCode.Running,
-    spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
+    spec: { roleArn: '' },
   },
   {
     resourceType: 'integration',
