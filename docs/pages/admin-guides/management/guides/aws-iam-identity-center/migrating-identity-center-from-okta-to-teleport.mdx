@@ -6,7 +6,7 @@ tocDepth: 3
 
 In an existing Okta-managed AWS IAM Identity Center instance, you can introduce Teleport in one
 of the following two ways:
-- **Partial hand-off (Hybrid setup)**: Keep Okta as the primary SSO provider for AWS IAM Identity Center 
+- **Partial hand-off (Hybrid setup)**: Keep Okta as the primary SSO provider for the AWS IAM Identity Center 
 instance but delegate user, group and account assignment provisioning to Teleport. In this case, Okta 
 remains configured as the identity source but the SCIM provisioning credential needs to be shared with Teleport. 
 - **Full hand-off**: Fully transfer the control of AWS IAM Identity Center from Okta to Teleport. In this case,
@@ -33,10 +33,10 @@ configured as the identity source and you may decide to fully switch the control
 
 ## Prerequisites
 
-- A working Teleport cluster.
+- A Teleport cluster.
 - An AWS role configured as per the [AWS IAM Identity Center guide](./guide.mdx#step-16-configure-aws-integration)
   for the integration to use.
-- AWS credentials configured for the Teleport auth process to pick up and use
+- AWS credentials configured for the Teleport Auth Service to pick up and use
   (e.g. as environment vars, system profiles, etc).
 - An Okta API token, with the following privileges:
   - View users and their details.
@@ -324,13 +324,13 @@ Identity Center integration.
 ## Full hand-off
 
 In the previous steps, we ensured that the users and groups that were originally 
-provisioned to the AWS IAM Identity Center instance by Okta have now been synced to Teleport.
-And Teleport is now responsible for provisioning users and groups to AWS IAM Identity 
+provisioned to the AWS IAM Identity Center instance by Okta have now been synced to Teleport, 
+and Teleport is now responsible for provisioning users and groups to the AWS IAM Identity 
 Center instance. We also retired group provisioning in Okta.
 
-At this point, it is safe to fully transfer the ownership of AWS IAM Identity Center instance
-from Okta to Teleport. If you wish to proceed with full transfer, head over to [Getting Started with AWS IAM Identity Center integration](./guide.mdx)
-that guides you through configuring Teleport as an identity source in AWS IAM Identity Center.
+At this point, it is safe to fully transfer the ownership of the AWS IAM Identity Center instance
+from Okta to Teleport. If you wish to proceed with a full migration, read [Getting Started with AWS IAM Identity Center integration](./guide.mdx),
+which guides you through configuring Teleport as an identity source in AWS IAM Identity Center.
 
 ## Deleting the AWS IAM Identity Center integration
 
