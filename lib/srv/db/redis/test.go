@@ -20,13 +20,11 @@ package redis
 
 import (
 	"context"
-	"testing"
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gravitational/trace"
 	"github.com/redis/go-redis/v9"
-	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
@@ -117,7 +115,7 @@ func TestServerPassword(password string) TestServerOption {
 }
 
 // NewTestServer returns a new instance of a test Redis server.
-func NewTestServer(t testing.TB, config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
+func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
 	tlsConfig, err := common.MakeTestServerTLSConfig(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -138,9 +136,9 @@ func NewTestServer(t testing.TB, config common.TestServerConfig, opts ...TestSer
 	}
 
 	err = s.StartTLS(tlsConfig)
-	require.NoError(t, err)
-
-	t.Cleanup(s.Close)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	server.server = s
 
@@ -150,4 +148,9 @@ func NewTestServer(t testing.TB, config common.TestServerConfig, opts ...TestSer
 // Port returns a port that test Redis instance is listening on.
 func (s *TestServer) Port() string {
 	return s.server.Port()
+}
+
+func (s *TestServer) Close() error {
+	s.server.Close()
+	return nil
 }
