@@ -23,6 +23,7 @@ package recordingencryptionv1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -35,34 +36,33 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// UploadEncryptedRecordingRequest is an individual part of an encrypted session
-// recording .tar file.
-type UploadEncryptedRecordingRequest struct {
+// An Upload represents a multipart upload for an encrypted session.
+type Upload struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// SessionID the recording relates to.
-	SessionId string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	// PartIndex is the ordered index applied to the chunk.
-	PartIndex int64 `protobuf:"varint,2,opt,name=part_index,json=partIndex,proto3" json:"part_index,omitempty"`
-	// Part is the encrypted part of session recording data being uploaded.
-	Part          []byte `protobuf:"bytes,3,opt,name=part,proto3" json:"part,omitempty"`
+	// UploadID identifies an upload for a given encrypted session.
+	UploadId string `protobuf:"bytes,1,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
+	// SessionID of the associated session.
+	SessionId string `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	// InitiatedAt captures the time that the multipart upload was initiated.
+	InitiatedAt   *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=initiated_at,json=initiatedAt,proto3" json:"initiated_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UploadEncryptedRecordingRequest) Reset() {
-	*x = UploadEncryptedRecordingRequest{}
+func (x *Upload) Reset() {
+	*x = Upload{}
 	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UploadEncryptedRecordingRequest) String() string {
+func (x *Upload) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UploadEncryptedRecordingRequest) ProtoMessage() {}
+func (*Upload) ProtoMessage() {}
 
-func (x *UploadEncryptedRecordingRequest) ProtoReflect() protoreflect.Message {
+func (x *Upload) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -74,53 +74,55 @@ func (x *UploadEncryptedRecordingRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UploadEncryptedRecordingRequest.ProtoReflect.Descriptor instead.
-func (*UploadEncryptedRecordingRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use Upload.ProtoReflect.Descriptor instead.
+func (*Upload) Descriptor() ([]byte, []int) {
 	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *UploadEncryptedRecordingRequest) GetSessionId() string {
+func (x *Upload) GetUploadId() string {
+	if x != nil {
+		return x.UploadId
+	}
+	return ""
+}
+
+func (x *Upload) GetSessionId() string {
 	if x != nil {
 		return x.SessionId
 	}
 	return ""
 }
 
-func (x *UploadEncryptedRecordingRequest) GetPartIndex() int64 {
+func (x *Upload) GetInitiatedAt() *timestamppb.Timestamp {
 	if x != nil {
-		return x.PartIndex
-	}
-	return 0
-}
-
-func (x *UploadEncryptedRecordingRequest) GetPart() []byte {
-	if x != nil {
-		return x.Part
+		return x.InitiatedAt
 	}
 	return nil
 }
 
-// UploadEncryptedRecordingResponse
-type UploadEncryptedRecordingResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+// CreateUploadRequest contains the session ID to be used while initializing the upload.
+type CreateUploadRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// SessionID associated with the recording being uploaded.
+	SessionId     string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UploadEncryptedRecordingResponse) Reset() {
-	*x = UploadEncryptedRecordingResponse{}
+func (x *CreateUploadRequest) Reset() {
+	*x = CreateUploadRequest{}
 	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UploadEncryptedRecordingResponse) String() string {
+func (x *CreateUploadRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UploadEncryptedRecordingResponse) ProtoMessage() {}
+func (*CreateUploadRequest) ProtoMessage() {}
 
-func (x *UploadEncryptedRecordingResponse) ProtoReflect() protoreflect.Message {
+func (x *CreateUploadRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -132,25 +134,319 @@ func (x *UploadEncryptedRecordingResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UploadEncryptedRecordingResponse.ProtoReflect.Descriptor instead.
-func (*UploadEncryptedRecordingResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use CreateUploadRequest.ProtoReflect.Descriptor instead.
+func (*CreateUploadRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *CreateUploadRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+// CreateUploadResponse contains the upload ID to be used when uploading parts.
+type CreateUploadResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Upload represents an encrypted session upload.
+	Upload        *Upload `protobuf:"bytes,1,opt,name=upload,proto3" json:"upload,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateUploadResponse) Reset() {
+	*x = CreateUploadResponse{}
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateUploadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateUploadResponse) ProtoMessage() {}
+
+func (x *CreateUploadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateUploadResponse.ProtoReflect.Descriptor instead.
+func (*CreateUploadResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *CreateUploadResponse) GetUpload() *Upload {
+	if x != nil {
+		return x.Upload
+	}
+	return nil
+}
+
+// UploadPartRequest is an indivdual part to be uploaded.
+type UploadPartRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Upload represents the encrypted session to upload the part to.
+	Upload *Upload `protobuf:"bytes,1,opt,name=upload,proto3" json:"upload,omitempty"`
+	// PartNumber is the ordered index applied to the part.
+	PartNumber int64 `protobuf:"varint,2,opt,name=part_number,json=partNumber,proto3" json:"part_number,omitempty"`
+	// Part is the encrypted part of session recording data being uploaded.
+	Part          []byte `protobuf:"bytes,3,opt,name=part,proto3" json:"part,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UploadPartRequest) Reset() {
+	*x = UploadPartRequest{}
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UploadPartRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UploadPartRequest) ProtoMessage() {}
+
+func (x *UploadPartRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UploadPartRequest.ProtoReflect.Descriptor instead.
+func (*UploadPartRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *UploadPartRequest) GetUpload() *Upload {
+	if x != nil {
+		return x.Upload
+	}
+	return nil
+}
+
+func (x *UploadPartRequest) GetPartNumber() int64 {
+	if x != nil {
+		return x.PartNumber
+	}
+	return 0
+}
+
+func (x *UploadPartRequest) GetPart() []byte {
+	if x != nil {
+		return x.Part
+	}
+	return nil
+}
+
+// UploadPartResponse contains the part index that was uploaded with its
+// associated e-tag.
+type UploadPartResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// PartIndex is the ordered index applied to the part.
+	PartNumber int64 `protobuf:"varint,1,opt,name=part_number,json=partNumber,proto3" json:"part_number,omitempty"`
+	// ETag is a part e-tag.
+	ETag string `protobuf:"bytes,2,opt,name=e_tag,json=eTag,proto3" json:"e_tag,omitempty"`
+	// LastModified captures the timestamp of the most recent modification of this part (if available)
+	LastModified  *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_modified,json=lastModified,proto3" json:"last_modified,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UploadPartResponse) Reset() {
+	*x = UploadPartResponse{}
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UploadPartResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UploadPartResponse) ProtoMessage() {}
+
+func (x *UploadPartResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UploadPartResponse.ProtoReflect.Descriptor instead.
+func (*UploadPartResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *UploadPartResponse) GetPartNumber() int64 {
+	if x != nil {
+		return x.PartNumber
+	}
+	return 0
+}
+
+func (x *UploadPartResponse) GetETag() string {
+	if x != nil {
+		return x.ETag
+	}
+	return ""
+}
+
+func (x *UploadPartResponse) GetLastModified() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastModified
+	}
+	return nil
+}
+
+// CompleteUploadRequest marks a multipart upload as complete.
+type CompleteUploadRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Upload identifies the upload that should be completed.
+	Upload *Upload `protobuf:"bytes,1,opt,name=upload,proto3" json:"upload,omitempty"`
+	// Parts are the part indices and resulting e-tags of uploaded parts.
+	Parts         []*UploadPartResponse `protobuf:"bytes,3,rep,name=parts,proto3" json:"parts,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CompleteUploadRequest) Reset() {
+	*x = CompleteUploadRequest{}
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteUploadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteUploadRequest) ProtoMessage() {}
+
+func (x *CompleteUploadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompleteUploadRequest.ProtoReflect.Descriptor instead.
+func (*CompleteUploadRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *CompleteUploadRequest) GetUpload() *Upload {
+	if x != nil {
+		return x.Upload
+	}
+	return nil
+}
+
+func (x *CompleteUploadRequest) GetParts() []*UploadPartResponse {
+	if x != nil {
+		return x.Parts
+	}
+	return nil
+}
+
+// CompleteUploadResponse
+type CompleteUploadResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CompleteUploadResponse) Reset() {
+	*x = CompleteUploadResponse{}
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteUploadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteUploadResponse) ProtoMessage() {}
+
+func (x *CompleteUploadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompleteUploadResponse.ProtoReflect.Descriptor instead.
+func (*CompleteUploadResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{6}
 }
 
 var File_teleport_recordingencryption_v1_recording_encryption_service_proto protoreflect.FileDescriptor
 
 const file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDesc = "" +
 	"\n" +
-	"Bteleport/recordingencryption/v1/recording_encryption_service.proto\x12\x1fteleport.recordingencryption.v1\"s\n" +
-	"\x1fUploadEncryptedRecordingRequest\x12\x1d\n" +
+	"Bteleport/recordingencryption/v1/recording_encryption_service.proto\x12\x1fteleport.recordingencryption.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x83\x01\n" +
+	"\x06Upload\x12\x1b\n" +
+	"\tupload_id\x18\x01 \x01(\tR\buploadId\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1d\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\x12=\n" +
+	"\finitiated_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\vinitiatedAt\"4\n" +
+	"\x13CreateUploadRequest\x12\x1d\n" +
 	"\n" +
-	"part_index\x18\x02 \x01(\x03R\tpartIndex\x12\x12\n" +
-	"\x04part\x18\x03 \x01(\fR\x04part\"\"\n" +
-	" UploadEncryptedRecordingResponse2\xc0\x01\n" +
-	"\x1aRecordingEncryptionService\x12\xa1\x01\n" +
-	"\x18UploadEncryptedRecording\x12@.teleport.recordingencryption.v1.UploadEncryptedRecordingRequest\x1aA.teleport.recordingencryption.v1.UploadEncryptedRecordingResponse(\x01BjZhgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1;recordingencryptionv1b\x06proto3"
+	"session_id\x18\x01 \x01(\tR\tsessionId\"W\n" +
+	"\x14CreateUploadResponse\x12?\n" +
+	"\x06upload\x18\x01 \x01(\v2'.teleport.recordingencryption.v1.UploadR\x06upload\"\x89\x01\n" +
+	"\x11UploadPartRequest\x12?\n" +
+	"\x06upload\x18\x01 \x01(\v2'.teleport.recordingencryption.v1.UploadR\x06upload\x12\x1f\n" +
+	"\vpart_number\x18\x02 \x01(\x03R\n" +
+	"partNumber\x12\x12\n" +
+	"\x04part\x18\x03 \x01(\fR\x04part\"\x8b\x01\n" +
+	"\x12UploadPartResponse\x12\x1f\n" +
+	"\vpart_number\x18\x01 \x01(\x03R\n" +
+	"partNumber\x12\x13\n" +
+	"\x05e_tag\x18\x02 \x01(\tR\x04eTag\x12?\n" +
+	"\rlast_modified\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\flastModified\"\xa3\x01\n" +
+	"\x15CompleteUploadRequest\x12?\n" +
+	"\x06upload\x18\x01 \x01(\v2'.teleport.recordingencryption.v1.UploadR\x06upload\x12I\n" +
+	"\x05parts\x18\x03 \x03(\v23.teleport.recordingencryption.v1.UploadPartResponseR\x05parts\"\x18\n" +
+	"\x16CompleteUploadResponse2\x94\x03\n" +
+	"\x1aRecordingEncryptionService\x12{\n" +
+	"\fCreateUpload\x124.teleport.recordingencryption.v1.CreateUploadRequest\x1a5.teleport.recordingencryption.v1.CreateUploadResponse\x12u\n" +
+	"\n" +
+	"UploadPart\x122.teleport.recordingencryption.v1.UploadPartRequest\x1a3.teleport.recordingencryption.v1.UploadPartResponse\x12\x81\x01\n" +
+	"\x0eCompleteUpload\x126.teleport.recordingencryption.v1.CompleteUploadRequest\x1a7.teleport.recordingencryption.v1.CompleteUploadResponseBjZhgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1;recordingencryptionv1b\x06proto3"
 
 var (
 	file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescOnce sync.Once
@@ -164,19 +460,35 @@ func file_teleport_recordingencryption_v1_recording_encryption_service_proto_raw
 	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescData
 }
 
-var file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_recordingencryption_v1_recording_encryption_service_proto_goTypes = []any{
-	(*UploadEncryptedRecordingRequest)(nil),  // 0: teleport.recordingencryption.v1.UploadEncryptedRecordingRequest
-	(*UploadEncryptedRecordingResponse)(nil), // 1: teleport.recordingencryption.v1.UploadEncryptedRecordingResponse
+	(*Upload)(nil),                 // 0: teleport.recordingencryption.v1.Upload
+	(*CreateUploadRequest)(nil),    // 1: teleport.recordingencryption.v1.CreateUploadRequest
+	(*CreateUploadResponse)(nil),   // 2: teleport.recordingencryption.v1.CreateUploadResponse
+	(*UploadPartRequest)(nil),      // 3: teleport.recordingencryption.v1.UploadPartRequest
+	(*UploadPartResponse)(nil),     // 4: teleport.recordingencryption.v1.UploadPartResponse
+	(*CompleteUploadRequest)(nil),  // 5: teleport.recordingencryption.v1.CompleteUploadRequest
+	(*CompleteUploadResponse)(nil), // 6: teleport.recordingencryption.v1.CompleteUploadResponse
+	(*timestamppb.Timestamp)(nil),  // 7: google.protobuf.Timestamp
 }
 var file_teleport_recordingencryption_v1_recording_encryption_service_proto_depIdxs = []int32{
-	0, // 0: teleport.recordingencryption.v1.RecordingEncryptionService.UploadEncryptedRecording:input_type -> teleport.recordingencryption.v1.UploadEncryptedRecordingRequest
-	1, // 1: teleport.recordingencryption.v1.RecordingEncryptionService.UploadEncryptedRecording:output_type -> teleport.recordingencryption.v1.UploadEncryptedRecordingResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	7, // 0: teleport.recordingencryption.v1.Upload.initiated_at:type_name -> google.protobuf.Timestamp
+	0, // 1: teleport.recordingencryption.v1.CreateUploadResponse.upload:type_name -> teleport.recordingencryption.v1.Upload
+	0, // 2: teleport.recordingencryption.v1.UploadPartRequest.upload:type_name -> teleport.recordingencryption.v1.Upload
+	7, // 3: teleport.recordingencryption.v1.UploadPartResponse.last_modified:type_name -> google.protobuf.Timestamp
+	0, // 4: teleport.recordingencryption.v1.CompleteUploadRequest.upload:type_name -> teleport.recordingencryption.v1.Upload
+	4, // 5: teleport.recordingencryption.v1.CompleteUploadRequest.parts:type_name -> teleport.recordingencryption.v1.UploadPartResponse
+	1, // 6: teleport.recordingencryption.v1.RecordingEncryptionService.CreateUpload:input_type -> teleport.recordingencryption.v1.CreateUploadRequest
+	3, // 7: teleport.recordingencryption.v1.RecordingEncryptionService.UploadPart:input_type -> teleport.recordingencryption.v1.UploadPartRequest
+	5, // 8: teleport.recordingencryption.v1.RecordingEncryptionService.CompleteUpload:input_type -> teleport.recordingencryption.v1.CompleteUploadRequest
+	2, // 9: teleport.recordingencryption.v1.RecordingEncryptionService.CreateUpload:output_type -> teleport.recordingencryption.v1.CreateUploadResponse
+	4, // 10: teleport.recordingencryption.v1.RecordingEncryptionService.UploadPart:output_type -> teleport.recordingencryption.v1.UploadPartResponse
+	6, // 11: teleport.recordingencryption.v1.RecordingEncryptionService.CompleteUpload:output_type -> teleport.recordingencryption.v1.CompleteUploadResponse
+	9, // [9:12] is the sub-list for method output_type
+	6, // [6:9] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_teleport_recordingencryption_v1_recording_encryption_service_proto_init() }
@@ -190,7 +502,7 @@ func file_teleport_recordingencryption_v1_recording_encryption_service_proto_ini
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDesc), len(file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

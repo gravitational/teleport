@@ -33,7 +33,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	RecordingEncryptionService_UploadEncryptedRecording_FullMethodName = "/teleport.recordingencryption.v1.RecordingEncryptionService/UploadEncryptedRecording"
+	RecordingEncryptionService_CreateUpload_FullMethodName   = "/teleport.recordingencryption.v1.RecordingEncryptionService/CreateUpload"
+	RecordingEncryptionService_UploadPart_FullMethodName     = "/teleport.recordingencryption.v1.RecordingEncryptionService/UploadPart"
+	RecordingEncryptionService_CompleteUpload_FullMethodName = "/teleport.recordingencryption.v1.RecordingEncryptionService/CompleteUpload"
 )
 
 // RecordingEncryptionServiceClient is the client API for RecordingEncryptionService service.
@@ -42,9 +44,13 @@ const (
 //
 // RecordingEncryption provides methods to manage cluster encryption configuration resources.
 type RecordingEncryptionServiceClient interface {
-	// UploadEncryptedRecording is used to upload encrypted .tar files containing session recording
-	// events into long term storage.
-	UploadEncryptedRecording(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[UploadEncryptedRecordingRequest, UploadEncryptedRecordingResponse], error)
+	// CreateUpload begins a multipart upload for an encrypted recording. The
+	// returned upload ID should be used while uploading parts.
+	CreateUpload(ctx context.Context, in *CreateUploadRequest, opts ...grpc.CallOption) (*CreateUploadResponse, error)
+	// UploadPart uploads a part to the given upload ID.
+	UploadPart(ctx context.Context, in *UploadPartRequest, opts ...grpc.CallOption) (*UploadPartResponse, error)
+	// CompleteUploadRequest marks a multipart upload as complete.
+	CompleteUpload(ctx context.Context, in *CompleteUploadRequest, opts ...grpc.CallOption) (*CompleteUploadResponse, error)
 }
 
 type recordingEncryptionServiceClient struct {
@@ -55,18 +61,35 @@ func NewRecordingEncryptionServiceClient(cc grpc.ClientConnInterface) RecordingE
 	return &recordingEncryptionServiceClient{cc}
 }
 
-func (c *recordingEncryptionServiceClient) UploadEncryptedRecording(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[UploadEncryptedRecordingRequest, UploadEncryptedRecordingResponse], error) {
+func (c *recordingEncryptionServiceClient) CreateUpload(ctx context.Context, in *CreateUploadRequest, opts ...grpc.CallOption) (*CreateUploadResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &RecordingEncryptionService_ServiceDesc.Streams[0], RecordingEncryptionService_UploadEncryptedRecording_FullMethodName, cOpts...)
+	out := new(CreateUploadResponse)
+	err := c.cc.Invoke(ctx, RecordingEncryptionService_CreateUpload_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[UploadEncryptedRecordingRequest, UploadEncryptedRecordingResponse]{ClientStream: stream}
-	return x, nil
+	return out, nil
 }
 
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type RecordingEncryptionService_UploadEncryptedRecordingClient = grpc.ClientStreamingClient[UploadEncryptedRecordingRequest, UploadEncryptedRecordingResponse]
+func (c *recordingEncryptionServiceClient) UploadPart(ctx context.Context, in *UploadPartRequest, opts ...grpc.CallOption) (*UploadPartResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UploadPartResponse)
+	err := c.cc.Invoke(ctx, RecordingEncryptionService_UploadPart_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *recordingEncryptionServiceClient) CompleteUpload(ctx context.Context, in *CompleteUploadRequest, opts ...grpc.CallOption) (*CompleteUploadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CompleteUploadResponse)
+	err := c.cc.Invoke(ctx, RecordingEncryptionService_CompleteUpload_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
 
 // RecordingEncryptionServiceServer is the server API for RecordingEncryptionService service.
 // All implementations must embed UnimplementedRecordingEncryptionServiceServer
@@ -74,9 +97,13 @@ type RecordingEncryptionService_UploadEncryptedRecordingClient = grpc.ClientStre
 //
 // RecordingEncryption provides methods to manage cluster encryption configuration resources.
 type RecordingEncryptionServiceServer interface {
-	// UploadEncryptedRecording is used to upload encrypted .tar files containing session recording
-	// events into long term storage.
-	UploadEncryptedRecording(grpc.ClientStreamingServer[UploadEncryptedRecordingRequest, UploadEncryptedRecordingResponse]) error
+	// CreateUpload begins a multipart upload for an encrypted recording. The
+	// returned upload ID should be used while uploading parts.
+	CreateUpload(context.Context, *CreateUploadRequest) (*CreateUploadResponse, error)
+	// UploadPart uploads a part to the given upload ID.
+	UploadPart(context.Context, *UploadPartRequest) (*UploadPartResponse, error)
+	// CompleteUploadRequest marks a multipart upload as complete.
+	CompleteUpload(context.Context, *CompleteUploadRequest) (*CompleteUploadResponse, error)
 	mustEmbedUnimplementedRecordingEncryptionServiceServer()
 }
 
@@ -87,8 +114,14 @@ type RecordingEncryptionServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedRecordingEncryptionServiceServer struct{}
 
-func (UnimplementedRecordingEncryptionServiceServer) UploadEncryptedRecording(grpc.ClientStreamingServer[UploadEncryptedRecordingRequest, UploadEncryptedRecordingResponse]) error {
-	return status.Errorf(codes.Unimplemented, "method UploadEncryptedRecording not implemented")
+func (UnimplementedRecordingEncryptionServiceServer) CreateUpload(context.Context, *CreateUploadRequest) (*CreateUploadResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateUpload not implemented")
+}
+func (UnimplementedRecordingEncryptionServiceServer) UploadPart(context.Context, *UploadPartRequest) (*UploadPartResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UploadPart not implemented")
+}
+func (UnimplementedRecordingEncryptionServiceServer) CompleteUpload(context.Context, *CompleteUploadRequest) (*CompleteUploadResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CompleteUpload not implemented")
 }
 func (UnimplementedRecordingEncryptionServiceServer) mustEmbedUnimplementedRecordingEncryptionServiceServer() {
 }
@@ -112,12 +145,59 @@ func RegisterRecordingEncryptionServiceServer(s grpc.ServiceRegistrar, srv Recor
 	s.RegisterService(&RecordingEncryptionService_ServiceDesc, srv)
 }
 
-func _RecordingEncryptionService_UploadEncryptedRecording_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(RecordingEncryptionServiceServer).UploadEncryptedRecording(&grpc.GenericServerStream[UploadEncryptedRecordingRequest, UploadEncryptedRecordingResponse]{ServerStream: stream})
+func _RecordingEncryptionService_CreateUpload_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateUploadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RecordingEncryptionServiceServer).CreateUpload(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RecordingEncryptionService_CreateUpload_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RecordingEncryptionServiceServer).CreateUpload(ctx, req.(*CreateUploadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type RecordingEncryptionService_UploadEncryptedRecordingServer = grpc.ClientStreamingServer[UploadEncryptedRecordingRequest, UploadEncryptedRecordingResponse]
+func _RecordingEncryptionService_UploadPart_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UploadPartRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RecordingEncryptionServiceServer).UploadPart(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RecordingEncryptionService_UploadPart_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RecordingEncryptionServiceServer).UploadPart(ctx, req.(*UploadPartRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RecordingEncryptionService_CompleteUpload_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompleteUploadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RecordingEncryptionServiceServer).CompleteUpload(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RecordingEncryptionService_CompleteUpload_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RecordingEncryptionServiceServer).CompleteUpload(ctx, req.(*CompleteUploadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
 
 // RecordingEncryptionService_ServiceDesc is the grpc.ServiceDesc for RecordingEncryptionService service.
 // It's only intended for direct use with grpc.RegisterService,
@@ -125,13 +205,20 @@ type RecordingEncryptionService_UploadEncryptedRecordingServer = grpc.ClientStre
 var RecordingEncryptionService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "teleport.recordingencryption.v1.RecordingEncryptionService",
 	HandlerType: (*RecordingEncryptionServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
-	Streams: []grpc.StreamDesc{
+	Methods: []grpc.MethodDesc{
 		{
-			StreamName:    "UploadEncryptedRecording",
-			Handler:       _RecordingEncryptionService_UploadEncryptedRecording_Handler,
-			ClientStreams: true,
+			MethodName: "CreateUpload",
+			Handler:    _RecordingEncryptionService_CreateUpload_Handler,
+		},
+		{
+			MethodName: "UploadPart",
+			Handler:    _RecordingEncryptionService_UploadPart_Handler,
+		},
+		{
+			MethodName: "CompleteUpload",
+			Handler:    _RecordingEncryptionService_CompleteUpload_Handler,
 		},
 	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "teleport/recordingencryption/v1/recording_encryption_service.proto",
 }

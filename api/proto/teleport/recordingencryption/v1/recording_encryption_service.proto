@@ -16,25 +16,71 @@ syntax = "proto3";
 
 package teleport.recordingencryption.v1;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1;recordingencryptionv1";
 
 // RecordingEncryption provides methods to manage cluster encryption configuration resources.
 service RecordingEncryptionService {
-  // UploadEncryptedRecording is used to upload encrypted .tar files containing session recording
-  // events into long term storage.
-  rpc UploadEncryptedRecording(stream UploadEncryptedRecordingRequest) returns (UploadEncryptedRecordingResponse);
+  // CreateUpload begins a multipart upload for an encrypted recording. The
+  // returned upload ID should be used while uploading parts.
+  rpc CreateUpload(CreateUploadRequest) returns (CreateUploadResponse);
+  // UploadPart uploads a part to the given upload ID.
+  rpc UploadPart(UploadPartRequest) returns (UploadPartResponse);
+  // CompleteUploadRequest marks a multipart upload as complete.
+  rpc CompleteUpload(CompleteUploadRequest) returns (CompleteUploadResponse);
 }
 
-// UploadEncryptedRecordingRequest is an individual part of an encrypted session
-// recording .tar file.
-message UploadEncryptedRecordingRequest {
-  // SessionID the recording relates to.
+// An Upload represents a multipart upload for an encrypted session.
+message Upload {
+  // UploadID identifies an upload for a given encrypted session.
+  string upload_id = 1;
+  // SessionID of the associated session.
+  string session_id = 2;
+  // InitiatedAt captures the time that the multipart upload was initiated.
+  google.protobuf.Timestamp initiated_at = 3;
+}
+
+// CreateUploadRequest contains the session ID to be used while initializing the upload.
+message CreateUploadRequest {
+  // SessionID associated with the recording being uploaded.
   string session_id = 1;
-  // PartIndex is the ordered index applied to the chunk.
-  int64 part_index = 2;
+}
+
+// CreateUploadResponse contains the upload ID to be used when uploading parts.
+message CreateUploadResponse {
+  // Upload represents an encrypted session upload.
+  Upload upload = 1;
+}
+
+// UploadPartRequest is an indivdual part to be uploaded.
+message UploadPartRequest {
+  // Upload represents the encrypted session to upload the part to.
+  Upload upload = 1;
+  // PartNumber is the ordered index applied to the part.
+  int64 part_number = 2;
   // Part is the encrypted part of session recording data being uploaded.
   bytes part = 3;
 }
 
-// UploadEncryptedRecordingResponse
-message UploadEncryptedRecordingResponse {}
+// UploadPartResponse contains the part index that was uploaded with its
+// associated e-tag.
+message UploadPartResponse {
+  // PartIndex is the ordered index applied to the part.
+  int64 part_number = 1;
+  // ETag is a part e-tag.
+  string e_tag = 2;
+  // LastModified captures the timestamp of the most recent modification of this part (if available)
+  google.protobuf.Timestamp last_modified = 3;
+}
+
+// CompleteUploadRequest marks a multipart upload as complete.
+message CompleteUploadRequest {
+  // Upload identifies the upload that should be completed.
+  Upload upload = 1;
+  // Parts are the part indices and resulting e-tags of uploaded parts.
+  repeated UploadPartResponse parts = 3;
+}
+
+// CompleteUploadResponse
+message CompleteUploadResponse {}
