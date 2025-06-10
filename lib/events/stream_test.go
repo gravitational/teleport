@@ -217,8 +217,7 @@ func TestReadCorruptedRecording(t *testing.T) {
 	require.NoError(t, err)
 	defer f.Close()
 
-	reader, err := events.NewProtoReader(f, nil)
-	require.NoError(t, err)
+	reader := events.NewProtoReader(f, nil)
 	defer reader.Close()
 
 	events, err := reader.ReadAll(ctx)
@@ -283,8 +282,7 @@ func TestEncryptedRecordingIO(t *testing.T) {
 	err = uploader.Download(ctx, sid, out)
 	require.NoError(t, err)
 
-	reader, err := events.NewProtoReader(out.buf, encryptedIO)
-	require.NoError(t, err)
+	reader := events.NewProtoReader(out.buf, encryptedIO)
 
 	decryptedEvents, err := reader.ReadAll(ctx)
 	require.NoError(t, err)

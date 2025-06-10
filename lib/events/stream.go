@@ -998,12 +998,12 @@ func (s *slice) recordEvent(event protoEvent) error {
 }
 
 // NewProtoReader returns a new proto reader with slice pool
-func NewProtoReader(r io.Reader, decrypter DecryptionWrapper) (*ProtoReader, error) {
+func NewProtoReader(r io.Reader, decrypter DecryptionWrapper) *ProtoReader {
 	return &ProtoReader{
 		reader:    r,
 		lastIndex: -1,
 		decrypter: decrypter,
-	}, nil
+	}
 }
 
 // SessionReader provides method to read
