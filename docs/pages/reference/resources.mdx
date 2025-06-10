@@ -146,6 +146,10 @@ are required.*/}
 | <pre>kubernetes_groups: <br/>  - "system:masters" <br/>kubernetes_labels: <br/>  env: ["dev"] <br/>kubernetes_resources: <br/>  - name: "&ast;" <br/>    kind: pods <br/>    namespace: "foo" <br/>  - name: "&ast;" <br/>    kind: deployments <br/>    api_group: apps<br/>    namespace: "foo"</pre> | ⚠️ not supported                                                                                                     | ⚠️ not supported                                                                                                     | ⚠️ not supported                                                                                                                                                                                           | ✅ can exec in pods in `foo` <br/>✅ can access `deployments` in `foo` <br/>❌ cannot exec in other namespaces <br/>❌ cannot access `deployments` in other namespaces <br/>❌ cannot access `configmaps` in `foo`  |
 
 
+SAML IdP role option `spec.idp.saml.enabled: true/false` is only supported in role version 7 and below.
+See [SAML IdP reference](./access-controls/saml-idp.mdx#RBAC) to learn how the RBAC is applied to 
+the `saml_idp_service_provider` resource starting role version 8.
+
 ## Windows desktops
 
 In most cases, Teleport will register `windows_desktop` resources automatically
