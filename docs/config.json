@@ -728,6 +728,11 @@
       "source": "/admin-guides/access-controls/okta/user-sync/",
       "destination": "/identity-governance/okta/user-sync/",
       "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/linux-demo/",
+      "destination": "/linux-demo/",
+      "permanent": true
     }
   ]
 }
