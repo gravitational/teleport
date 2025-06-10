@@ -21,6 +21,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -40,6 +41,8 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	libutils "github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/vnet/diag"
 )
 
 const (
@@ -260,4 +263,65 @@ type configFileTemplateInput struct {
 	Hosts          string
 	PrivateKeyPath string
 	KnownHostsPath string
+}
+
+// AutoConfigureOpenSSH adds an Include directive to the default user OpenSSH
+// config file (~/.ssh/config) to include the vnet_ssh_config file found under
+// profilePath.
+func AutoConfigureOpenSSH(ctx context.Context, profilePath string, overrideUserSSHConfigPath ...string) (err error) {
+	sshConfigChecker, err := diag.NewSSHConfigChecker(profilePath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(overrideUserSSHConfigPath) > 0 {
+		// For tests.
+		sshConfigChecker.UserOpenSSHConfigPath = overrideUserSSHConfigPath[0]
+	}
+
+	// Create ~/.ssh if it does not exist yet.
+	err = trace.ConvertSystemError(os.Mkdir(
+		filepath.Dir(sshConfigChecker.UserOpenSSHConfigPath), os.FileMode(0o700)))
+	switch {
+	case trace.IsAlreadyExists(err):
+		// This is fine/expected.
+	case err != nil:
+		return trace.Wrap(err, "creating directory for %s", sshConfigChecker.UserOpenSSHConfigPath)
+	}
+
+	// There should not be much lock contention on this file and it's okay if
+	// this fails so just try once to grab the lock.
+	unlock, err := libutils.FSTryWriteLock(sshConfigChecker.UserOpenSSHConfigPath)
+	if err != nil {
+		return trace.Wrap(err, "getting write lock for %s", sshConfigChecker.UserOpenSSHConfigPath)
+	}
+	defer func() {
+		unlockErr := unlock()
+		err = trace.NewAggregate(err, trace.Wrap(unlockErr, "unlocking %s", sshConfigChecker.UserOpenSSHConfigPath))
+	}()
+
+	currentContents, alreadyIncluded, err := sshConfigChecker.OpenSSHConfigIncludesVNetSSHConfig()
+	switch {
+	case trace.IsNotFound(err):
+		// This is fine, the file will be created with a single include.
+	case err != nil:
+		return trace.Wrap(err)
+	case alreadyIncluded:
+		return trace.AlreadyExists("%s is already included in %s",
+			sshConfigChecker.VNetSSHConfigPath, sshConfigChecker.UserOpenSSHConfigPath)
+	}
+
+	// Add the include at the top of the file for 2 reasons:
+	// - options set first take precedence over options set later in the file
+	// - if the include line is added after an existing Host block it will only
+	//   be included if the host block matches
+	var newContents bytes.Buffer
+	fmt.Fprintf(&newContents, `# Include Teleport VNet generated configuration
+Include "%s"
+
+`, sshConfigChecker.VNetSSHConfigPath)
+	newContents.Write(currentContents)
+
+	err = renameio.WriteFile(sshConfigChecker.UserOpenSSHConfigPath, newContents.Bytes(), filePerms)
+	return trace.Wrap(trace.ConvertSystemError(err), "writing to %s", sshConfigChecker.UserOpenSSHConfigPath)
 }
