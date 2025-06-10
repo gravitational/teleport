@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auditd"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/connectmycomputer"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/events"
@@ -904,7 +904,7 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 	var isModeratedSessionJoin bool
 	// custom moderated session join permissions allow bypass of the standard node access checks
 	if osUser == teleport.SSHSessionJoinPrincipal &&
-		auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
+		moderation.RoleSupportsModeratedSessions(accessChecker.Roles()) {
 
 		// bypass of standard node access checks can only proceed if MFA is not required and/or
 		// the MFA ceremony was already completed.
