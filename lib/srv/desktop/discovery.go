@@ -386,6 +386,7 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.
 			Client:    s.cfg.AccessPoint,
 		},
 	})
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -398,6 +399,14 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.
 			return services.MatchResourceLabels(s.cfg.ResourceMatchers, desktop.GetAllLabels())
 		},
 		GetCurrentResources: func() map[string]types.WindowsDesktop {
+			for k, v := range currentResources {
+				if d, err := s.cfg.AuthClient.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{
+					HostID: v.GetHostID(),
+					Name:   v.GetName(),
+				}); err != nil || len(d) == 0 {
+					delete(currentResources, k)
+				}
+			}
 			return currentResources
 		},
 		GetNewResources: func() map[string]types.WindowsDesktop {
@@ -410,6 +419,9 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	tickDuration := 5 * time.Minute
+	expiryDuration := tickDuration + 10*time.Second
+	tick := s.cfg.Clock.NewTicker(tickDuration)
 	go func() {
 		defer s.cfg.Logger.DebugContext(ctx, "DynamicWindowsDesktop resource watcher done.")
 		defer watcher.Close()
@@ -419,11 +431,23 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.
 				newResources = make(map[string]types.WindowsDesktop)
 				for _, dynamicDesktop := range desktops {
 					desktop, err := s.toWindowsDesktop(dynamicDesktop)
+					desktop.SetExpiry(s.cfg.Clock.Now().Add(expiryDuration))
 					if err != nil {
 						s.cfg.Logger.WarnContext(ctx, "Can't create desktop resource", "error", err)
 						continue
 					}
 					newResources[dynamicDesktop.GetName()] = desktop
+				}
+				if err := reconciler.Reconcile(ctx); err != nil {
+					s.cfg.Logger.WarnContext(ctx, "Reconciliation failed, will retry", "error", err)
+					continue
+				}
+				currentResources = newResources
+			case <-tick.Chan():
+				newResources = make(map[string]types.WindowsDesktop)
+				for k, v := range currentResources {
+					newResources[k] = v.Copy()
+					newResources[k].SetExpiry(s.cfg.Clock.Now().Add(expiryDuration))
 				}
 				if err := reconciler.Reconcile(ctx); err != nil {
 					s.cfg.Logger.WarnContext(ctx, "Reconciliation failed, will retry", "error", err)
