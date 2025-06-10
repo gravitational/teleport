@@ -784,11 +784,12 @@ func clientForFacade(
 			Addr: addr,
 			Kind: kind,
 		},
-		Identity: facade,
-		Resolver: resolver,
-		Logger:   log,
-		Insecure: cfg.Insecure,
-		Metrics:  clientMetrics,
+		AuthServerAddressMode: cfg.AuthServerAddressMode,
+		Identity:              facade,
+		Resolver:              resolver,
+		Logger:                log,
+		Insecure:              cfg.Insecure,
+		Metrics:               clientMetrics,
 	})
 }
 

@@ -48,6 +48,10 @@
 // in major versions earlier than v19, client.New will test the connection and
 // return an error if the proxy or auth server is unavailable. So in order for
 // tbot to run in degraded mode, you must use `proxy_server` or `--proxy-server`.
+//
+// As tbot is also embedded in our Kubernetes operator and `tctl terraform env`
+// which both support providing an auth server or proxy address using the same
+// field, this package allows you to opt-in to the previous behavior by setting
 package client
 
 import (
@@ -113,6 +117,10 @@ type Config struct {
 	// Address that will be dialed to create the client connection.
 	Address Address
 
+	// AuthServerAddressMode controls the behavior when a proxy address is
+	// given as an auth server address.
+	AuthServerAddressMode config.AuthServerAddressMode
+
 	// Identity that will provide the TLS and SSH credentials.
 	Identity Identity
 
@@ -159,6 +167,12 @@ func New(ctx context.Context, cfg Config) (*client.Client, error) {
 		return dialViaProxy(ctx, cfg)
 	}
 
+	// If it is known to be an auth server (i.e. we do not support falling back
+	// to treating it as a proxy), dial without testing the connection.
+	if cfg.AuthServerAddressMode == config.AuthServerMustBeAuthServer {
+		return dialDirectly(ctx, cfg)
+	}
+
 	// If the address is thought to be an auth server, try to dial it directly.
 	clt, directErr := dialDirectly(ctx, cfg)
 	if directErr == nil {
@@ -175,9 +189,11 @@ func New(ctx context.Context, cfg Config) (*client.Client, error) {
 	if proxyErr == nil {
 		// Send a ping to test the connection.
 		if _, proxyErr = clt.Ping(ctx); proxyErr == nil {
-			cfg.Logger.WarnContext(ctx,
-				"Support for providing a proxy address via the 'auth_server' configuration option or '--auth-server' flag is deprecated and will be removed in v19. Use 'proxy_server' or '--proxy-server' instead.",
-			)
+			if cfg.AuthServerAddressMode == config.WarnIfAuthServerIsProxy {
+				cfg.Logger.WarnContext(ctx,
+					"Support for providing a proxy address via the 'auth_server' configuration option or '--auth-server' flag is deprecated and will be removed in v19. Use 'proxy_server' or '--proxy-server' instead.",
+				)
+			}
 			return clt, nil
 		} else {
 			_ = clt.Close()
