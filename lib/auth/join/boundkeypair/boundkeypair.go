@@ -360,13 +360,11 @@ func LoadClientState(ctx context.Context, fs FS) (*ClientState, error) {
 		return nil, trace.Wrap(err, "reading private key")
 	}
 
-	// The private key may be empty if this is an initial join attempt usign a
-	// configured registration secret, which is allowed.
+	// The private key may be empty if this is an initial join attempt using a
+	// configured registration secret. This is allowed, but callers should
+	// handle this via `NewEmptyClientState()`
 	if len(privateKeyBytes) == 0 {
-		// TODO: this or return not found?
-		return &ClientState{
-			fs: fs,
-		}, nil
+		return nil, trace.NotFound("no active private key found")
 	}
 
 	joinStateBytes, err := fs.Read(ctx, JoinStatePath)
@@ -456,7 +454,8 @@ func (c *ClientState) Store(ctx context.Context) error {
 
 // NewUnboundClientState creates a new client state that has not yet been bound,
 // i.e. a new keypair that has not been registered with Auth, and no prior join
-// state.
+// state. Join attempts using registration secrets should instead use
+// `NewEmptyClientState`, which does not immediately generate a keypair.
 func NewUnboundClientState(ctx context.Context, fs FS, getSuite cryptosuites.GetSuiteFunc) (*ClientState, error) {
 	key, err := cryptosuites.GenerateKey(ctx, getSuite, cryptosuites.BoundKeypairJoining)
 	if err != nil {
@@ -495,4 +494,13 @@ func NewUnboundClientState(ctx context.Context, fs FS, getSuite cryptosuites.Get
 		PrivateKey:      pk,
 		KeyHistory:      history,
 	}, nil
+}
+
+// NewEmptyClientState creates a new ClientState with no existing active private
+// key or key history. This is only appropriate when a registration secret
+// should be used.
+func NewEmptyClientState(fs FS) *ClientState {
+	return &ClientState{
+		fs: fs,
+	}
 }
