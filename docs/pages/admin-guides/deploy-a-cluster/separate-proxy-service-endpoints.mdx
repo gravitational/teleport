@@ -11,8 +11,10 @@ configure your cluster to handle traffic to the Proxy Service differently
 depending on whether it originates from the public internet or from your
 internal networks.
 
-This guide explains three methods for separating Proxy Service HTTPS traffic by
-origin:
+This guide explains how to set up a self-hosted Teleport cluster to separate
+Proxy Service HTTPS traffic for internal and external clients.
+
+(!docs/pages/includes/cloud/call-to-action.mdx!)
 
 ## Architecture
 
@@ -82,14 +84,23 @@ its SSH host certificate. This enables you to instruct internal clients (e.g.,
 Teleport Agents) to connect to the Proxy Service on the internal address while
 external clients connect on the external address. 
 
+1. Create two DNS records for, respectively, your internal and external Teleport
+   Proxy Service load balancers. This section assumes you have created the
+   following records:
+
+   | Domain Name                | IP Address             |
+   |----------------------------|------------------------|
+   | external_proxy.example.com | External load balancer |
+   | internal_proxy.example.com | Internal load balancer |
+
 1. Configure the Teleport Proxy Service to use multiple public address values:
 
    ```yaml
    proxy_service:
      enabled: true
      public_addr: 
-       - external_proxy.example.com:3080
-       - internal_proxy.example.com:3024
+       - external_proxy.example.com:443
+       - internal_proxy.example.com:443
    ```
 
 1. On Teleport Agent hosts, start the `teleport` process with the
@@ -101,21 +112,22 @@ external clients connect on the external address.
    address listed, to use the value of the environment variable instead.
 
    The step differs according to whether you installed Teleport on Linux servers
-   using a package manager or using the `teleport-kube-agent` Helm chart:
+   using [Manage Updates v2](../../upgrading/agent-managed-updates.mdx) or
+   using the `teleport-kube-agent` Helm chart:
 
    <Tabs>
    <TabItem label="Linux Server">
 
-   By default, Teleport installations based on package managers (such as `apt` and
-   `yum`) configure the `teleport` systemd unit to read environment variables from
-   the file `/etc/default/teleport`.
+   By default, Teleport installations based on Managed Updates v2 configure the
+   `teleport` systemd unit to read environment variables from the file
+   `/etc/default/teleport`.
    
    Edit the environment file to specify a tunnel public address with the
    following line, updating the value to include the address of your internal
    Proxy Service load balancer:
 
    ```text
-   TELEPORT_TUNNEL_PUBLIC_ADDR=internal_proxy.example.com:3024
+   TELEPORT_TUNNEL_PUBLIC_ADDR=internal_proxy.example.com:443
    ```
    </TabItem>
    <TabItem label="Kubernetes">
@@ -126,7 +138,7 @@ external clients connect on the external address.
    ```yaml
    extraEnv:
      - name: TELEPORT_TUNNEL_PUBLIC_ADDR
-       value: "internal_proxy.example.com:3024"
+       value: "internal_proxy.example.com:443"
    ```
 
    Upgrade your `teleport-kube-agent` Helm release, assigning 
@@ -141,7 +153,7 @@ external clients connect on the external address.
    </Tabs>
 
 In this setup, end users would connect to the external address,
-`external_proxy.example.com:3080`, when using client tools such as `tsh`.
+`external_proxy.example.com:443`, when using client tools such as `tsh`.
 
 ### Tunnel public address
 
