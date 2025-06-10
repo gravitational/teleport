@@ -36,7 +36,8 @@ import (
 )
 
 func TestPodmanAttestor(t *testing.T) {
-	server := podman.NewTestServer(t,
+	server, err := podman.NewFakeServer(
+		t.TempDir(),
 		podman.WithContainer(podman.Container{
 			ID:   "d54768c18894b931db6f6876f6be2178d8a8b34fc3485659fda78fe86af3e08b",
 			Name: "web-server",
@@ -52,6 +53,14 @@ func TestPodmanAttestor(t *testing.T) {
 			Labels: map[string]string{"department": "marketing"},
 		}),
 	)
+	require.NoError(t, err)
+
+	server.Start()
+	t.Cleanup(func() {
+		if err := server.Close(); err != nil {
+			t.Logf("failed to close http server: %v", err)
+		}
+	})
 
 	attestor := NewPodmanAttestor(
 		PodmanAttestorConfig{

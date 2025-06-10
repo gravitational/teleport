@@ -439,7 +439,11 @@ func (y *YubiKey) setPINAndPUKFromDefault(ctx context.Context, prompt hardwareke
 	y.pinCache.mu.Lock()
 	defer y.pinCache.mu.Unlock()
 
-	ctx, cancel := context.WithTimeout(ctx, pinPromptTimeout)
+	// Use a longer timeout than pinPromptTimeout since this specific prompt requires the user to
+	// re-type both PIN and PUK. The user might also want to save the values somewhere.
+	// pinPromptTimeout just doesn't give enough time for that.
+	const newPinPromptTimeout = 3 * time.Minute
+	ctx, cancel := context.WithTimeout(ctx, newPinPromptTimeout)
 	defer cancel()
 
 	pinAndPUK, err := prompt.ChangePIN(ctx, keyInfo)

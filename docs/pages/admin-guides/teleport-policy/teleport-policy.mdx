@@ -4,7 +4,9 @@ description: A reference for Access Graph with Identity Security.
 ---
 
 Teleport Identity Security unifies management of access policies across your infrastructure.
-It hardens your access controls and visually shows up-to-date relationships and policies of all users, groups, and computing resources
+It hardens your access controls and visually shows up-to-date relationships and policies of all
+users, groups, and computing resources.
+
 It can help you answer questions like:
 
 - What resources can a specific user access?
@@ -24,6 +26,20 @@ Note: For managed Enterprise customers, Identity Security is enabled by default.
 If you are a self-hosted Teleport customer, you will need to [deploy the Access Graph Service](../deploy-a-cluster/access-graph/access-graph.mdx) and ensure you have an updated
 `license.pem` with Identity Security enabled to use it.
 </Admonition>
+
+
+## Identity Activity Center
+
+(!docs/pages/includes/policy/identity-activity-center.mdx!)
+
+### Identity Activity Center guides and supported integrations
+
+- [Enable Identity Activity Center](../deploy-a-cluster/access-graph/identity-activity-center.mdx) guide.
+- [Discover AWS Access Patterns and CloudTrail events with Teleport Identity Security](./integrations/aws-sync.mdx) guide.
+- [Analyze and correlate Teleport Audit Logs](./integrations/teleport.mdx) guide.
+- [Analyze and correlate GitHub Audit Logs and Access Paths](./integrations/github.mdx) guide.
+- [Analyze and correlate Okta Audit Logs and Access Paths](../../identity-governance/okta/okta.mdx#syncing-system-logs-and-api-keys-with-teleport-identity-security-activity-center) guide.
+
 
 ## Identity Security guides
 

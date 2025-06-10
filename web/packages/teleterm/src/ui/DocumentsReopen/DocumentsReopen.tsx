@@ -60,12 +60,8 @@ export function DocumentsReopen(props: {
           props.onConfirm();
         }}
       >
-        <DialogHeader
-          justifyContent="space-between"
-          mb={0}
-          alignItems="baseline"
-        >
-          <H2 mb={4}>Reopen previous session</H2>
+        <DialogHeader justifyContent="space-between" alignItems="baseline">
+          <H2>Reopen previous session</H2>
           <ButtonIcon
             type="button"
             onClick={props.onDiscard}
@@ -76,16 +72,14 @@ export function DocumentsReopen(props: {
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>
-          <P color="text.slightlyMuted">
-            Do you want to reopen tabs from the previous session?
-          </P>
           <P
-            color="text.slightlyMuted"
             // Split long continuous cluster names into separate lines.
             css={`
               word-wrap: break-word;
             `}
           >
+            Do you want to reopen tabs from the previous session?
+            <br />
             {/*
               We show this mostly because we needed to show the cluster name somewhere during UI
               initialization. When you open the app and have some tabs to restore, the UI will show

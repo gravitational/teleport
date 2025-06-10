@@ -107,17 +107,17 @@ export function HeadlessPrompt({
         </Alerts.Danger>
       )}
       <DialogContent>
-        <P color="text.slightlyMuted">
+        <P>
           Someone initiated a headless command from <b>{clientIp}</b>.
         </P>
         <P>If it was not you, click Reject and contact your administrator.</P>
-        <P3 color="text.muted">Request ID: {headlessAuthenticationId}</P3>
+        <P3 color="text.slightlyMuted">
+          Request ID: {headlessAuthenticationId}
+        </P3>
       </DialogContent>
       {waitForMfa && (
         <DialogContent mb={2}>
-          <Text color="text.slightlyMuted">
-            Complete MFA verification to approve the Headless Login.
-          </Text>
+          <P>Complete MFA verification to approve the Headless Login.</P>
 
           <Image mt={4} mb={4} width="200px" src={svgHardwareKey} mx="auto" />
           <Box textAlign="center" style={{ position: 'relative' }}>

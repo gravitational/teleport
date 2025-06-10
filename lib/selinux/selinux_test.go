@@ -35,7 +35,7 @@ func TestFileContextTemplate(t *testing.T) {
 	fcTempl, err := template.New("selinux file contexts").Parse(string(fileConTmpl))
 	require.NoError(t, err)
 	err = fcTempl.Execute(io.Discard, &filePaths{
-		InstallDir:     "/dir",
+		BinaryPath:     "/dir",
 		DataDir:        "/dir",
 		ConfigPath:     "/dir",
 		UpgradeUnitDir: "/dir",
