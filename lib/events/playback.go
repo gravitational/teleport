@@ -53,7 +53,7 @@ func DetectFormat(r io.ReadSeeker) (*Header, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 	protocolVersion := binary.BigEndian.Uint64(version)
-	if protocolVersion == ProtoStreamV1 {
+	if protocolVersion >= ProtoStreamV1 && protocolVersion <= ProtoStreamV2 {
 		return &Header{
 			Proto:        true,
 			ProtoVersion: int64(protocolVersion),
