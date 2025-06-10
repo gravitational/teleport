@@ -419,12 +419,13 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tickDuration := 5 * time.Minute
-	expiryDuration := tickDuration + 10*time.Second
-	tick := s.cfg.Clock.NewTicker(tickDuration)
 	go func() {
 		defer s.cfg.Logger.DebugContext(ctx, "DynamicWindowsDesktop resource watcher done.")
 		defer watcher.Close()
+		tickDuration := 5 * time.Minute
+		expiryDuration := tickDuration + 10*time.Second
+		tick := s.cfg.Clock.NewTicker(tickDuration)
+		defer tick.Stop()
 		for {
 			select {
 			case desktops := <-watcher.ResourcesC:
