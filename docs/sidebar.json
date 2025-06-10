@@ -96,6 +96,11 @@
           "type": "doc",
           "label": "Changelog",
           "id": "changelog"
+        },
+        {
+          "type": "doc",
+          "label": "Business & Security Contacts",
+          "id": "business-and-security-contacts"
         }
       ]
     },
