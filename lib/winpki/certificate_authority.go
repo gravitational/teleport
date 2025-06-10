@@ -20,6 +20,8 @@ package winpki
 
 import (
 	"context"
+	"encoding/base32"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -43,6 +45,8 @@ type CertificateStoreClient struct {
 type CRLGenerator interface {
 	// GenerateCertAuthorityCRL returns an empty CRL for a CA.
 	GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error)
+	// GetCertAuthorities returns a list of cert authorities
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 }
 
 // CertificateStoreConfig is a config structure for a Windows Certificate Authority
@@ -64,11 +68,6 @@ type CertificateStoreConfig struct {
 func (c *CertificateStoreClient) Update(ctx context.Context) error {
 	caType := types.UserCA
 
-	crlDER, err := c.cfg.AccessPoint.GenerateCertAuthorityCRL(ctx, caType)
-	if err != nil {
-		return trace.Wrap(err, "generating CRL")
-	}
-
 	// TODO(zmb3): check for the presence of Teleport's CA in the NTAuth store
 
 	// To make the CA trusted, we need 3 things:
@@ -78,13 +77,43 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 	//
 	// #1 and #2 are done manually as part of the set up process (see public docs).
 	// Below we do #3.
-	if err := c.updateCRL(ctx, crlDER, caType); err != nil {
-		return trace.Wrap(err, "updating CRL over LDAP")
+
+	hasCRL := false
+	certAuthorities, err := c.cfg.AccessPoint.GetCertAuthorities(ctx, caType, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, ca := range certAuthorities {
+		for _, keyPair := range ca.GetActiveKeys().TLS {
+			if keyPair.CRL != nil {
+				hasCRL = true
+				cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				subjectId := base32.HexEncoding.EncodeToString(cert.SubjectKeyId)
+				if err := c.updateCRL(ctx, subjectId, keyPair.CRL, caType); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+		}
+	}
+
+	// All authorities are missing CRL, let's fall back to legacy behavior
+	if !hasCRL {
+		crlDER, err := c.cfg.AccessPoint.GenerateCertAuthorityCRL(ctx, caType)
+		if err != nil {
+			return trace.Wrap(err, "generating CRL")
+		}
+
+		if err := c.updateCRL(ctx, c.cfg.ClusterName, crlDER, caType); err != nil {
+			return trace.Wrap(err, "updating CRL over LDAP")
+		}
 	}
 	return nil
 }
 
-func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte, caType types.CertAuthType) error {
+func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuer string, crlDER []byte, caType types.CertAuthType) error {
 	// Publish the CRL for current cluster CA. For trusted clusters, their
 	// respective windows_desktop_services will publish CRLs of their CAs so we
 	// don't have to do it here.
@@ -99,7 +128,7 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte, c
 	// CA will be placed at:
 	// ... > CDP > Teleport > prod
 	containerDN := crlContainerDN(c.cfg.Domain, caType)
-	crlDN := crlDN(c.cfg.ClusterName, c.cfg.Domain, caType)
+	crlDN := crlDN(issuer, c.cfg.Domain, caType)
 
 	// Create the parent container.
 	if err := c.cfg.LC.CreateContainer(containerDN); err != nil {
