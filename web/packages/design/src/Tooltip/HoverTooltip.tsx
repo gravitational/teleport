@@ -36,7 +36,6 @@ import {
 import React, {
   Children,
   cloneElement,
-  isValidElement,
   ReactElement,
   Ref,
   useRef,
@@ -44,6 +43,7 @@ import React, {
 } from 'react';
 import styled, { useTheme } from 'styled-components';
 
+import { Logger } from 'design/logger';
 import Text from 'design/Text';
 
 type HoverTooltipProps = {
@@ -82,8 +82,10 @@ type HoverTooltipProps = {
   /**
    * Child to render. The type allows only a single child.
    */
-  children?: ReactElement;
+  children?: ReactElement<{ ref: Ref<HTMLElement> }>;
 };
+
+const logger = new Logger('HoverTooltip');
 
 /**
  * Renders a tooltip on hover.
@@ -184,20 +186,22 @@ export const HoverTooltip = ({
     return <>{children}</>;
   }
 
-  // The type of `children` is `ReactElement` which allows only one child.
-  let child = Children.only(children);
-  if (isValidElement(child)) {
-    const originalRef = (child.props as { ref?: Ref<HTMLElement> }).ref;
-
-    child = cloneElement(child, {
-      // @ts-expect-error we don't know the child type.
-      ref: mergeRefs([refs.setReference, originalRef]),
+  let childWithRef: ReactElement<{ ref: React.Ref<HTMLElement> }> | undefined;
+  try {
+    // The type of `children` is `ReactElement` which allows only one child.
+    childWithRef = Children.only(children);
+  } catch (e) {
+    logger.error('Provided invalid child', e);
+  }
+  if (childWithRef) {
+    childWithRef = cloneElement(childWithRef, {
+      ref: mergeRefs([refs.setReference, childWithRef.props.ref]),
     });
   }
 
   return (
     <>
-      {child}
+      {childWithRef || children}
       {isMounted && (
         <FloatingPortal>
           <StyledTooltip
