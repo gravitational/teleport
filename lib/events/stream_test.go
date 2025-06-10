@@ -251,6 +251,7 @@ func TestEncryptedRecordingIO(t *testing.T) {
 		Namespace:   apidefaults.Namespace,
 		ClusterName: "cluster",
 	})
+	require.NoError(t, err)
 
 	for _, evt := range evts {
 		preparedEvent, err := preparer.PrepareSessionEvent(evt)

@@ -34,6 +34,7 @@ func TestEncryptedIO(t *testing.T) {
 
 	msg := []byte("testing encrypted IO")
 	_, err = writer.Write(msg)
+	require.NoError(t, err)
 
 	// writer must be closed to ensure data is flushed
 	err = writer.Close()
