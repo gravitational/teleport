@@ -47,7 +47,7 @@ func TestUploadOK(t *testing.T) {
 	// wait until uploader blocks on the clock
 	p.clock.BlockUntil(1)
 
-	fileStreamer, err := NewStreamer(p.scanDir)
+	fileStreamer, err := NewStreamer(p.scanDir, nil)
 	require.NoError(t, err)
 
 	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
@@ -85,7 +85,7 @@ func TestUploadParallel(t *testing.T) {
 	sessions := make(map[string][]apievents.AuditEvent)
 
 	for i := 0; i < 5; i++ {
-		fileStreamer, err := NewStreamer(p.scanDir)
+		fileStreamer, err := NewStreamer(p.scanDir, nil)
 		require.NoError(t, err)
 
 		sessionEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
@@ -382,7 +382,7 @@ func TestUploadBackoff(t *testing.T) {
 	// wait until uploader blocks on the clock before creating the stream
 	p.clock.BlockUntil(1)
 
-	fileStreamer, err := NewStreamer(p.scanDir)
+	fileStreamer, err := NewStreamer(p.scanDir, nil)
 	require.NoError(t, err)
 
 	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 4096})
@@ -589,7 +589,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 
 	defer uploader.Close()
 
-	fileStreamer, err := NewStreamer(scanDir)
+	fileStreamer, err := NewStreamer(scanDir, nil)
 	require.NoError(t, err)
 
 	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})

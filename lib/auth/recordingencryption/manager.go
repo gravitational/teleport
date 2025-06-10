@@ -444,6 +444,10 @@ func (w *Watcher) Run(ctx context.Context) (err error) {
 			},
 		})
 		if err != nil {
+			if errors.Is(err, backend.ErrBufferClosed) {
+				return trace.Wrap(err)
+			}
+
 			w.logger.ErrorContext(ctx, "failed to create watcher, retrying", "error", err)
 			if !shouldRetryAfterJitterFn() {
 				return nil
@@ -461,7 +465,6 @@ func (w *Watcher) Run(ctx context.Context) (err error) {
 					return nil
 				}
 				continue
-
 			}
 
 			select {

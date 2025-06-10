@@ -237,7 +237,7 @@ func TestEncryptedRecordingIO(t *testing.T) {
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader: uploader,
 
-		EncryptedIO: encryptedIO,
+		Encrypter: encryptedIO,
 	})
 	require.NoError(t, err)
 
@@ -329,7 +329,7 @@ func (f *fakeEncrypter) Close() error {
 	return f.inner.Close()
 }
 
-func (f *fakeEncryptedIO) WithEncryption(writer io.WriteCloser) (io.WriteCloser, error) {
+func (f *fakeEncryptedIO) WithEncryption(ctx context.Context, writer io.WriteCloser) (io.WriteCloser, error) {
 	hexWriter := hex.NewEncoder(writer)
 	return &fakeEncrypter{
 		inner:  writer,
