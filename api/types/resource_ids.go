@@ -109,6 +109,10 @@ func ResourceIDFromString(raw string) (ResourceID, error) {
 		Kind:        parts[1],
 		Name:        parts[2],
 	}
+	if resourceID.Kind == KindKubeNamespace {
+		resourceID.Kind = PrefixKindKubeClusterWide + "namespaces"
+	}
+
 	switch {
 	case slices.Contains(KubernetesResourcesKinds, resourceID.Kind) || strings.HasPrefix(resourceID.Kind, PrefixKindKube):
 		isResourceClusterWide := slices.Contains(KubernetesClusterWideResourceKinds, resourceID.Kind) || strings.HasPrefix(resourceID.Kind, PrefixKindKubeClusterWide)
