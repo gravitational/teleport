@@ -379,14 +379,14 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 		desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 		require.NoError(t, err)
 		require.Len(t, desktops, 1)
-		require.Equal(t, desktops[0].GetName(), "test")
+		require.Equal(t, "test", desktops[0].GetName())
 	}, 5*time.Second, 50*time.Millisecond)
 
 	err = client.DeleteWindowsDesktop(ctx, s.cfg.Heartbeat.HostUUID, "test")
 	require.NoError(t, err)
 	desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
-	require.Len(t, desktops, 0)
+	require.Empty(t, desktops)
 
 	clock.Advance(5 * time.Minute)
 
@@ -394,6 +394,6 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 		desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 		require.NoError(t, err)
 		require.Len(t, desktops, 1)
-		require.Equal(t, desktops[0].GetName(), "test")
+		require.Equal(t, "test", desktops[0].GetName())
 	}, 5*time.Second, 50*time.Millisecond)
 }
