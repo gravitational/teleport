@@ -1,12 +1,12 @@
 ---
 title: Business & Security Contacts
-description: Configure business and security contact emails to receive important updates from SoftwareX.
+description: Configure business and security contact emails to receive important updates from Teleport.
 tocDepth: 3
 ---
 
 The **Business & Security Contacts** feature allows administrators to
 configure email addresses that will receive important operational,
-billing, and security-related notifications from SoftwareX.
+billing, and security-related notifications from Teleport.
 
 This helps ensure that the right teams in your organization stay
 informed about critical updates, such as license renewals,
@@ -32,27 +32,33 @@ Up to 3 email addresses can be added for each contact type.
 
 <Admonition type="note">
 
-Users will need permission to list contact resource.
+Users will need permission to list the `contact` resource.
 
 </Admonition>
 
-### SoftwareX Cloud
+### Teleport Cloud
 
-1. Go to https://SoftwareX.sh and enter your tenant name.
+1. Go to https://teleport.sh and enter your tenant name.
 1. Sign in using your credentials.
 1. Hover over Zero Trust Access on the side menu and access Manage Clusters.
 1. Select your cluster on the list and click Options to expand the dropdown menu.
 
-### SoftwareX Self-Hosted
+### Teleport Self-Hosted
 
 Self-hosted users must go to their **dashboard cluster** in order to add contacts.
 
-1. Go to https://SoftwareX.sh and enter your tenant name.
+1. Go to https://teleport.sh and enter your tenant name.
 1. Sign in using your credentials.
 1. Click Clusters on the side menu.
 1. Select your cluster on the list and click Options to expand the dropdown menu.
 
 ## Adding Contacts
+
+<Admonition type="note">
+
+Users will need permission to edit the `contact` resource.
+
+</Admonition>
 
 1. Go to the contacts lists following the instructions on the section below.
 1. Click `Add New` under the category you want to add a contact.
@@ -66,9 +72,9 @@ Self-hosted users must go to their **dashboard cluster** in order to add contact
 Contacts are initially pending. An email will be sent to the address
 with a link that they must click to activate the contact.
 
+![Confirmation Email](../img/contact-confirmation-email.png)
+
 Once the link is accessed, the contact will be active, and will receive
 communications according to their category in the future.
 
 Contacts added in both categories only have to be validated once.
-
-![Confirmation Email](../img/contact-confirmation-email.png)
