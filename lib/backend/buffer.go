@@ -20,6 +20,7 @@ package backend
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -240,13 +241,15 @@ func RemoveRedundantPrefixes(prefixes []Key) []Key {
 	return prefixes[:j+1]
 }
 
+var ErrBufferClosed = errors.New("cannot register watcher, buffer is closed")
+
 // NewWatcher adds a new watcher to the events buffer
 func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, error) {
 	c.Lock()
 	defer c.Unlock()
 
 	if c.closed {
-		return nil, trace.Errorf("cannot register watcher, buffer is closed")
+		return nil, trace.Wrap(ErrBufferClosed)
 	}
 
 	if watch.QueueSize == 0 {

@@ -216,6 +216,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.DynamicAccessExt == nil {
 		cfg.DynamicAccessExt = local.NewDynamicAccessService(cfg.Backend)
 	}
+	if cfg.ClusterConfiguration == nil {
+		clusterConfig, err := local.NewClusterConfigurationService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.ClusterConfiguration = recordingencryption.NewClusterConfigService(clusterConfig, cfg.RecordingEncryption)
+	}
 	if cfg.KeyStore == nil {
 		keystoreOpts := &keystore.Options{
 			HostUUID:             cfg.HostUUID,
@@ -257,13 +264,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 
 		cfg.RecordingEncryption = recordingEncryptionManager
-	}
-	if cfg.ClusterConfiguration == nil {
-		clusterConfig, err := local.NewClusterConfigurationService(cfg.Backend)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		cfg.ClusterConfiguration = recordingencryption.NewClusterConfigService(clusterConfig, cfg.RecordingEncryption)
+		cfg.ClusterConfiguration = recordingencryption.NewClusterConfigService(cfg.ClusterConfiguration, recordingEncryptionManager)
 	}
 	if cfg.AutoUpdateService == nil {
 		cfg.AutoUpdateService, err = local.NewAutoUpdateService(cfg.Backend)

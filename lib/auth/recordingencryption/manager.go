@@ -421,6 +421,10 @@ func (w *Watcher) Run(ctx context.Context) (err error) {
 			},
 		})
 		if err != nil {
+			if errors.Is(err, backend.ErrBufferClosed) {
+				return trace.Wrap(err)
+			}
+
 			w.logger.ErrorContext(ctx, "failed to create watcher, retrying", "error", err)
 			jitter()
 			continue
@@ -433,7 +437,6 @@ func (w *Watcher) Run(ctx context.Context) (err error) {
 				w.logger.ErrorContext(ctx, "failed to handle session recording config change", "error", err)
 				jitter()
 				continue
-
 			}
 
 			select {
@@ -451,7 +454,7 @@ func (w *Watcher) Run(ctx context.Context) (err error) {
 				break HandleEvents
 			case <-ctx.Done():
 				watch.Close()
-				return ctx.Err()
+				return trace.Wrap(ctx.Err())
 			}
 		}
 	}
