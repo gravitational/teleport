@@ -51,7 +51,6 @@ interface ButtonSelectProps {
  *   />
  * );
  */
-
 export const ButtonSelect = ({
   options,
   activeOption,
