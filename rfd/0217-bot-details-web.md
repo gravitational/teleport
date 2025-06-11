@@ -146,9 +146,9 @@ Lists the most recent (max 10) instances for the bot, ordered most recent first.
 ![](assets/0217-feature-active-instances.png)
 
 #### Edit roles, traits and max session duration (`max_session_ttl`)
-Shows a dialog where the user can add and/or remove assigned roles, add and/or remove traits (well-known or custom), and edit the configured max session duration in the form `43200s`, `30m` or `3h`. Allow all changes to be made in a single atomic transaction.
+Shows a dialog where the user can add and/or remove assigned roles, add and/or remove traits (well-known or custom), and edit the configured max session duration in the form `43200s`, `30m` or `3h`. Allows all changes to be made in a single atomic transaction.
 
-TODO: wireframe for edit form
+![](assets/0217-feature-edit.png)
 
 #### Delete bot
 Deletes the bot after confirmation. Shows a loading indicator during the call to the api. On success, navigates to the bots list (`/web/bots`). On error, shows a message within the confirmation dialog.
