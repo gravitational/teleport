@@ -103,12 +103,12 @@ type AssumeRole struct {
 	Duration time.Duration `json:"duration,omitempty"`
 }
 
-// options is a struct of additional options for assuming an AWS role
+// Options is a struct of additional Options for assuming an AWS role
 // when construction an underlying AWS config.
-type options struct {
-	// assumeRoles are AWS IAM roles that should be assumed one by one in order,
+type Options struct {
+	// AssumeRoles are AWS IAM roles that should be assumed one by one in order,
 	// as a chain of assumed roles.
-	assumeRoles []AssumeRole
+	AssumeRoles []AssumeRole
 	// credentialsSource describes which source to use to fetch credentials.
 	credentialsSource credentialsSource
 	// integration is the name of the integration to be used to fetch the credentials.
@@ -138,8 +138,8 @@ type options struct {
 	baseCredentials aws.CredentialsProvider
 }
 
-func buildOptions(optFns ...OptionsFn) (*options, error) {
-	var opts options
+func buildOptions(optFns ...OptionsFn) (*Options, error) {
+	var opts Options
 	for _, optFn := range optFns {
 		optFn(&opts)
 	}
@@ -149,7 +149,7 @@ func buildOptions(optFns ...OptionsFn) (*options, error) {
 	return &opts, nil
 }
 
-func (o *options) checkAndSetDefaults() error {
+func (o *Options) checkAndSetDefaults() error {
 	if o.baseCredentials == nil {
 		switch o.credentialsSource {
 		case credentialsSourceAmbient:
@@ -164,7 +164,7 @@ func (o *options) checkAndSetDefaults() error {
 			return trace.BadParameter("missing credentials source (ambient or integration)")
 		}
 	}
-	if len(o.assumeRoles) > 2 {
+	if len(o.AssumeRoles) > 2 {
 		return trace.BadParameter("role chain contains more than 2 roles")
 	}
 
@@ -197,16 +197,16 @@ func (o *options) checkIntegrationCredentials() error {
 
 // OptionsFn is an option function for setting additional options
 // when getting an AWS config.
-type OptionsFn func(*options)
+type OptionsFn func(*Options)
 
 // WithAssumeRole configures options needed for assuming an AWS role.
 func WithAssumeRole(roleARN, externalID string) OptionsFn {
-	return func(options *options) {
+	return func(options *Options) {
 		if roleARN == "" {
 			// ignore empty role ARN for caller convenience.
 			return
 		}
-		options.assumeRoles = append(options.assumeRoles, AssumeRole{
+		options.AssumeRoles = append(options.AssumeRoles, AssumeRole{
 			RoleARN:    roleARN,
 			ExternalID: externalID,
 		})
@@ -216,25 +216,25 @@ func WithAssumeRole(roleARN, externalID string) OptionsFn {
 // WithDetailedAssumeRole configures options needed for assuming an AWS role,
 // including optional details like session name, duration, and tags.
 func WithDetailedAssumeRole(ar AssumeRole) OptionsFn {
-	return func(options *options) {
+	return func(options *Options) {
 		if ar.RoleARN == "" {
 			// ignore empty role ARN for caller convenience.
 			return
 		}
-		options.assumeRoles = append(options.assumeRoles, ar)
+		options.AssumeRoles = append(options.AssumeRoles, ar)
 	}
 }
 
 // WithRetryer sets a custom retryer for the config.
 func WithRetryer(retryer func() aws.Retryer) OptionsFn {
-	return func(options *options) {
+	return func(options *Options) {
 		options.customRetryer = retryer
 	}
 }
 
 // WithMaxRetries sets the maximum allowed value for the sdk to keep retrying.
 func WithMaxRetries(maxRetries int) OptionsFn {
-	return func(options *options) {
+	return func(options *Options) {
 		options.maxRetries = &maxRetries
 	}
 }
@@ -296,21 +296,21 @@ func WithRolesAnywhereIntegrationClient(c RolesAnywhereIntegrationClient) Option
 
 // WithAmbientCredentials configures options to use the ambient credentials.
 func WithAmbientCredentials() OptionsFn {
-	return func(options *options) {
+	return func(options *Options) {
 		options.credentialsSource = credentialsSourceAmbient
 	}
 }
 
 // WithSTSClientProvider sets the STS API client factory func.
 func WithSTSClientProvider(fn STSClientProviderFunc) OptionsFn {
-	return func(options *options) {
+	return func(options *Options) {
 		options.stsClientProvider = fn
 	}
 }
 
 // WithOIDCIntegrationClient sets the OIDC integration client.
 func WithOIDCIntegrationClient(c OIDCIntegrationClient) OptionsFn {
-	return func(options *options) {
+	return func(options *Options) {
 		options.oidcIntegrationClient = c
 		options.integrationGetter = c
 	}
@@ -319,7 +319,7 @@ func WithOIDCIntegrationClient(c OIDCIntegrationClient) OptionsFn {
 // WithBaseCredentialsProvider sets the base provider credentials used for the
 // assumed roles.
 func WithBaseCredentialsProvider(baseCredentialsProvider aws.CredentialsProvider) OptionsFn {
-	return func(o *options) {
+	return func(o *Options) {
 		o.baseCredentials = baseCredentialsProvider
 	}
 }
@@ -336,17 +336,17 @@ func GetConfig(ctx context.Context, region string, optFns ...OptionsFn) (aws.Con
 	if err != nil {
 		return aws.Config{}, trace.Wrap(err)
 	}
-	return getConfigForRoleChain(ctx, cfg, opts.assumeRoles, opts.stsClientProvider)
+	return getConfigForRoleChain(ctx, cfg, opts.AssumeRoles, opts.stsClientProvider)
 }
 
 // loadDefaultConfig loads a new config.
-func loadDefaultConfig(ctx context.Context, region string, cred aws.CredentialsProvider, opts *options) (aws.Config, error) {
+func loadDefaultConfig(ctx context.Context, region string, cred aws.CredentialsProvider, opts *Options) (aws.Config, error) {
 	configOpts := buildConfigOptions(region, cred, opts)
 	cfg, err := config.LoadDefaultConfig(ctx, configOpts...)
 	return cfg, trace.Wrap(err)
 }
 
-func buildConfigOptions(region string, cred aws.CredentialsProvider, opts *options) []func(*config.LoadOptions) error {
+func buildConfigOptions(region string, cred aws.CredentialsProvider, opts *Options) []func(*config.LoadOptions) error {
 	configOpts := []func(*config.LoadOptions) error{
 		config.WithDefaultRegion(defaultRegion),
 		config.WithRegion(region),
@@ -366,7 +366,7 @@ func buildConfigOptions(region string, cred aws.CredentialsProvider, opts *optio
 }
 
 // getBaseConfig returns an AWS config without assuming any roles.
-func getBaseConfig(ctx context.Context, region string, opts *options) (aws.Config, error) {
+func getBaseConfig(ctx context.Context, region string, opts *Options) (aws.Config, error) {
 	if opts.baseCredentials != nil {
 		return loadDefaultConfig(ctx, region, opts.baseCredentials, opts)
 	}
