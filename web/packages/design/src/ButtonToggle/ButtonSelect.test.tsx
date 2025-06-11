@@ -58,8 +58,8 @@ describe('ButtonToggle', () => {
         options={options}
         activeOption={activeOption}
         onChange={key => {
-          onChangeMock(index);
-          activeOption = index;
+          onChangeMock(key);
+          activeOption = key;
           rerender(
             <ButtonSelect
               options={options}
@@ -91,9 +91,9 @@ describe('ButtonToggle', () => {
       <ButtonSelect
         options={options}
         activeOption={activeOption}
-        onChange={index => {
-          onChangeMock(index);
-          activeOption = index;
+        onChange={key => {
+          onChangeMock(key);
+          activeOption = key;
           rerender(
             <ButtonSelect
               options={options}
@@ -106,6 +106,7 @@ describe('ButtonToggle', () => {
     );
 
     const buttons = getButtons();
+    expect(buttons[0]).toHaveAttribute('data-active', 'true');
     buttons[0].click();
     expect(onChangeMock).not.toHaveBeenCalled();
     expect(buttons[0]).toHaveAttribute('data-active', 'true');
