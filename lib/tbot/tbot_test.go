@@ -619,7 +619,6 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	// the connection to that HTTP endpoint, we'd need to wait for the cache to
 	// expire.
 	proxy := newFailureProxy(t)
-	go proxy.run(t)
 
 	// Make a new auth server.
 	process := testenv.MakeTestServer(t,
@@ -653,6 +652,7 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	tunnelAddr, err := process.ProxyTunnelAddr()
 	require.NoError(t, err)
 	proxy.dst = tunnelAddr.String()
+	go proxy.run(t)
 
 	botConfig.ProxyServer = tunnelAddr.String()
 	botConfig.AuthServer = ""
