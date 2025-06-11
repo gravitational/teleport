@@ -21,7 +21,7 @@ import styled from 'styled-components';
 
 import { Button, Alert as DesignAlert, Flex, H1, Link, Stack } from 'design';
 import { AlertProps } from 'design/Alert/Alert';
-import Table, { TextCell } from 'design/DataTable';
+import Table, { Cell, TextCell } from 'design/DataTable';
 import { displayDateTime } from 'design/datetime';
 import {
   Copy,
@@ -35,6 +35,7 @@ import { HoverTooltip } from 'design/Tooltip';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
+import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import { CanceledError, useAsync } from 'shared/hooks/useAsync';
 import { pluralize } from 'shared/utils/text';
 
@@ -402,38 +403,49 @@ function CheckReportSSHConfiguration({
       ]}
       columns={[
         { key: 'desc', headerText: 'File description' },
-        { key: 'path', headerText: 'Path' },
+        {
+          key: 'path',
+          headerText: 'Path',
+          render: row => (
+            <Cell>
+              <code>{row.path}</code>
+            </Cell>
+          ),
+        },
       ]}
     />
   );
   if (userOpensshConfigIncludesVnetSshConfig) {
     return (
       <>
-        <P1>
-          <Success /> VNet SSH is configured correctly.
-        </P1>
-        <P2>
-          The user's default SSH configuration file correctly includes VNet's
-          generated configuration file.
-        </P2>
+        <Stack>
+          <P1>
+            <Success /> VNet SSH is configured correctly.
+          </P1>
+          <P2>
+            The user's default SSH configuration file correctly includes VNet's
+            generated configuration file.
+          </P2>
+        </Stack>
         {pathsTable}
       </>
     );
   }
   return (
     <>
-      <P1>
-        <Warning /> VNet SSH is not configured.
-      </P1>
-      <P2>
-        The user's default SSH configuration file does not include VNet's
-        generated SSH configuration file. SSH clients will not be able to make
-        connections to VNet SSH addresses by default. Add the following line to{' '}
-        {userOpensshConfigPath} to configure OpenSSH-compatible clients for
-        VNet:
-      </P2>
-      <P2>Include "{vnetSshConfigPath}"</P2>
-      <br />
+      <Stack>
+        <P1>
+          <Warning /> VNet SSH is not configured.
+        </P1>
+        <P2 m={0}>
+          The user's default SSH configuration file does not include VNet's
+          generated SSH configuration file. SSH clients will not be able to make
+          connections to VNet SSH addresses by default. Add the following line
+          to {userOpensshConfigPath} to configure OpenSSH-compatible clients for
+          VNet:
+        </P2>
+        <TextSelectCopy text={`Include "${vnetSshConfigPath}"`} bash={false} />
+      </Stack>
       {pathsTable}
     </>
   );
