@@ -157,10 +157,7 @@ function routeConflictReportToText({
 ${tableRows}`;
 }
 
-function sshConfigurationReportToText({
-  report,
-  status,
-}: diag.CheckReport): string {
+function sshConfigurationReportToText({ report }: diag.CheckReport): string {
   if (!reportOneOfIsSSHConfigurationReport(report)) {
     return null;
   }

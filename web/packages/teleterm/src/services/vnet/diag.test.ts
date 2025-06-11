@@ -74,8 +74,7 @@ describe('reportToText', () => {
           commands: [
             makeCommandAttempt({
               command: 'cat ~/.ssh/config',
-              output:
-                'Include ~/.ssh/includes/*',
+              output: 'Include ~/.ssh/includes/*',
             }),
           ],
         }),
