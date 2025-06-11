@@ -16,4 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { ButtonToggle } from './ButtonToggle';
+export { ButtonSelect as ButtonToggle } from './ButtonSelect';
