@@ -27,44 +27,44 @@ export default {
   title: 'Design/ButtonSelect',
 };
 
-const twoOptions = [
-  { key: '1', label: 'Option 1' },
-  { key: '2', label: 'Option 2' },
-];
+export const TwoOptions = () => {
+  const options = [
+    { key: '1', label: 'Option 1' },
+    { key: '2', label: 'Option 2' },
+  ];
 
-const fourOptions = [
-  { key: '1', label: 'Option 1' },
-  { key: '2', label: 'Option 2' },
-  { key: '3', label: 'Option 3' },
-  { key: '4', label: 'Option 4' },
-];
-
-export const Toggle = () => {
-  const [twoOptionsIndex, setTwoOptionsIndex] = useState(0);
-  const [fourOptionsIndex, setFourOptionsIndex] = useState(0);
+  const [activeOption, setActiveOption] = useState('1');
 
   return (
-    <Flex flexDirection="column" gap={4}>
-      <Flex alignItems="center" gap={3}>
-        <ButtonSelect
-          options={twoOptions}
-          activeIndex={twoOptionsIndex}
-          onChange={selectedIndex => {
-            setTwoOptionsIndex(selectedIndex);
-          }}
-        />
-        <H2>{twoOptionsIndex + 1}</H2>
-      </Flex>
-      <Flex alignItems="center" gap={3}>
-        <ButtonSelect
-          options={fourOptions}
-          activeIndex={fourOptionsIndex}
-          onChange={selectedIndex => {
-            setFourOptionsIndex(selectedIndex);
-          }}
-        />
-        <H2>{fourOptionsIndex + 1}</H2>
-      </Flex>
+    <Flex flexDirection="column" gap={3}>
+      <ButtonSelect
+        options={options}
+        activeOption={activeOption}
+        onChange={setActiveOption}
+      />
+      <H2>{`Active Option: ${activeOption}`}</H2>
+    </Flex>
+  );
+};
+
+export const FourOptions = () => {
+  const options = [
+    { key: '1', label: 'Option 1' },
+    { key: '2', label: 'Option 2' },
+    { key: '3', label: 'Option 3' },
+    { key: '4', label: 'Option 4' },
+  ];
+
+  const [activeOption, setActiveOption] = useState('1');
+
+  return (
+    <Flex flexDirection="column" gap={3}>
+      <ButtonSelect
+        options={options}
+        activeOption={activeOption}
+        onChange={setActiveOption}
+      />
+      <H2>{`Active Option: ${activeOption}`}</H2>
     </Flex>
   );
 };

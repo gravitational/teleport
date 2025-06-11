@@ -33,7 +33,7 @@ describe('ButtonToggle', () => {
           { key: '2', label: 'Option 2' },
           { key: '3', label: 'Option 3' },
         ]}
-        activeIndex={0}
+        activeOption="1"
         onChange={() => {}}
       />
     );
@@ -51,19 +51,19 @@ describe('ButtonToggle', () => {
       { key: '1', label: 'Option 1' },
       { key: '2', label: 'Option 2' },
     ];
-    let activeIndex = 0;
+    let activeOption = '1';
 
     const { rerender } = render(
       <ButtonSelect
         options={options}
-        activeIndex={activeIndex}
+        activeOption={activeOption}
         onChange={index => {
           onChangeMock(index);
-          activeIndex = index;
+          activeOption = index;
           rerender(
             <ButtonSelect
               options={options}
-              activeIndex={activeIndex}
+              activeOption={activeOption}
               onChange={onChangeMock}
             />
           );
@@ -73,7 +73,7 @@ describe('ButtonToggle', () => {
 
     const buttons = getButtons();
     buttons[1].click();
-    expect(onChangeMock).toHaveBeenCalledWith(1);
+    expect(onChangeMock).toHaveBeenCalledWith('2');
     expect(buttons[0]).toHaveAttribute('data-active', 'false');
     expect(buttons[1]).toHaveAttribute('data-active', 'true');
   });
@@ -84,19 +84,19 @@ describe('ButtonToggle', () => {
       { key: '1', label: 'Option 1' },
       { key: '2', label: 'Option 2' },
     ];
-    let activeIndex = 0;
+    let activeOption = '1';
 
     const { rerender } = render(
       <ButtonSelect
         options={options}
-        activeIndex={activeIndex}
+        activeOption={activeOption}
         onChange={index => {
           onChangeMock(index);
-          activeIndex = index;
+          activeOption = index;
           rerender(
             <ButtonSelect
               options={options}
-              activeIndex={activeIndex}
+              activeOption={activeOption}
               onChange={onChangeMock}
             />
           );

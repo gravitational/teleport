@@ -1,21 +1,3 @@
-/**
- * Teleport
- * Copyright (C) 2025 Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import styled from 'styled-components';
 
 import { ButtonPrimary } from '../Button/Button';
@@ -23,10 +5,10 @@ import { ButtonPrimary } from '../Button/Button';
 interface ButtonSelectProps {
   // The options to display in the button select. Each option should have a unique `key` and a `label` to display on the button.
   options: { key: string; label: string }[];
-  // The index of the currently active button
-  activeIndex: number;
-  // Callback function that is called when the active button changes. It receives the index of the newly selected button.
-  onChange: (selectedIndex: number) => void;
+  // The key of the active option
+  activeOption: string;
+  // Callback function that is called when the active button changes. It receives the key of the newly selected button.
+  onChange: (selectedKey: string) => void;
 }
 
 /**
@@ -36,37 +18,39 @@ interface ButtonSelectProps {
  *
  * @example
  * const options = [
- *   { key: 'customer', label: 'All Clusters (4)' },
- *   { key: 'cluster', label: 'Current Cluster' },
+ *   { key: '1', label: 'Option 1' },
+ *   { key: '2', label: 'Option 2' },
  * ];
- *
- * const [activeIndex, setActiveIndex] = useState(0);
+ * const [activeOption, setActiveOption] = useState('1');
  * return (
  *   <ButtonSelect
  *     options={options}
- *     activeIndex={activeIndex}
- *     onChange={(selectedIndex) => setActiveIndex(selectedIndex)}
+ *     activeOption={activeOption}
+ *     onChange={setActiveOption}
  *   />
  * );
  */
 
 export const ButtonSelect = ({
   options,
-  activeIndex = 0,
+  activeOption,
   onChange,
 }: ButtonSelectProps) => {
-  const updateValue = (newValue: number) => {
-    if (activeIndex !== newValue) {
-      onChange(newValue);
+  const activeIndex = options.findIndex(option => option.key === activeOption);
+
+  const updateValue = (newOption: string) => {
+    if (activeOption !== newOption) {
+      onChange(newOption);
     }
   };
 
   function handleKeyDown(e: React.KeyboardEvent) {
+    if (activeIndex === -1) return;
     if (e.key === 'ArrowRight' && activeIndex < options.length - 1) {
-      onChange(activeIndex + 1);
+      onChange(options[activeIndex + 1].key);
     }
     if (e.key === 'ArrowLeft' && activeIndex > 0) {
-      onChange(activeIndex - 1);
+      onChange(options[activeIndex - 1].key);
     }
   }
 
@@ -77,11 +61,11 @@ export const ButtonSelect = ({
       data-testid="button-select"
     >
       {options.map((option, index) => {
-        const isActive = activeIndex === index;
+        const isActive = activeOption === option.key;
         return (
           <ButtonSelectButton
             key={option.key}
-            onClick={() => updateValue(index)}
+            onClick={() => updateValue(option.key)}
             data-testid={`button-toggle-option-${index}`}
             tabIndex={-1}
             isActive={isActive}
