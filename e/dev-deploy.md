@@ -105,14 +105,25 @@ make TENANT=yourtenant deploy-cloud
 This make target will build the `teleport` binary and copy it into an base release image. The tag for the base image is derived from `version.go`. If you've branched from `master` and no base image is available yet for a new major version, override by providing `BASE_IMAGE_TAG`. The default docker repo is `public.ecr.aws/teleport-ent` (override with `BASE_IMAGE_REPO`).
 
 ```
+make TENANT=yourtenant BASE_IMAGE_TAG=10.1.4 deploy-cloud
+```
+
+Deploys the provided release to the tenant. The default docker repo is `public.ecr.aws/teleport-ent` (override with `BASE_IMAGE_REPO`).
+
+```
 make TENANT=yourtenant RELEASE=14.0.0 deploy-cloud
 ```
 
-This make target deploys the provided release to the tenant. The default docker repo is `public.ecr.aws/teleport-ent` (override with `BASE_IMAGE_REPO`).
-
+Uses the staging repo for non-prod releases by overriding `BASE_IMAGE_REPO`.
 
 ```
-make TENANT=yourtenant BASE_IMAGE_TAG=10.1.4 deploy-cloud
+make BASE_IMAGE_REPO=public.ecr.aws/gravitational-staging/teleport-ent-distroless RELEASE=18.0.0-alpha.1 TENANT=yourtenant deploy-cloud
+```
+
+If your tenant's auth region is not `us-west-2`, you'll also need to override `KUBE_AUTH_CLUSTER`. For example, if the auth region was `eu-central-1`:
+
+```
+make KUBE_AUTH_CLUSTER=tc-staging-cs-01-euc1 TENANT=yourtenant deploy-cloud
 ```
 
 Linux workstations having a recent `glibc` version will produce binaries incompatible with our release images (script will warn & fail). Generate binaries using dockerized build then include the flag `CLOUD_SKIP_BUILD` to use the existing binary.
