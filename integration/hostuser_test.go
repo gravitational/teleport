@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 const testuser = "teleport-testuser"
@@ -79,7 +80,7 @@ func getUserShells(path string) (map[string]string, error) {
 }
 
 func TestRootHostUsersBackend(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 	sudoersTestDir := t.TempDir()
 	usersbk := srv.HostUsersProvisioningBackend{}
 	sudoersbk := srv.HostSudoersProvisioningBackend{
@@ -239,7 +240,7 @@ func sudoersPath(username, uuid string) string {
 }
 
 func TestRootHostUsers(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 	ctx := context.Background()
 	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
 	require.NoError(t, err)
@@ -626,7 +627,7 @@ func (u *hostUsersBackendWithExp) CreateUser(name string, groups []string, opts 
 }
 
 func TestRootLoginAsHostUser(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 	// Create test instance.
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
@@ -642,7 +643,7 @@ func TestRootLoginAsHostUser(t *testing.T) {
 
 	// Create a user that can create a host user.
 	username := "test-user"
-	login := utils.GenerateLocalUsername(t)
+	login := testutils.GenerateLocalUsername(t)
 	groups := []string{"foo", "bar"}
 	role, err := types.NewRole("ssh-host-user", types.RoleSpecV6{
 		Options: types.RoleOptions{
@@ -726,7 +727,7 @@ func TestRootLoginAsHostUser(t *testing.T) {
 }
 
 func TestRootStaticHostUsers(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 	// Create test instance.
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
@@ -756,7 +757,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 
 	// Create host user resources.
 	groups := []string{"foo", "bar"}
-	goodLogin := utils.GenerateLocalUsername(t)
+	goodLogin := testutils.GenerateLocalUsername(t)
 	goodUser := userprovisioning.NewStaticHostUser(goodLogin, &userprovisioningpb.StaticHostUserSpec{
 		Matchers: []*userprovisioningpb.Matcher{
 			{
@@ -771,7 +772,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 			},
 		},
 	})
-	goodLoginWithShell := utils.GenerateLocalUsername(t)
+	goodLoginWithShell := testutils.GenerateLocalUsername(t)
 	goodUserWithShell := userprovisioning.NewStaticHostUser(goodLoginWithShell, &userprovisioningpb.StaticHostUserSpec{
 		Matchers: []*userprovisioningpb.Matcher{
 			{
@@ -786,7 +787,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 			},
 		},
 	})
-	nonMatchingLogin := utils.GenerateLocalUsername(t)
+	nonMatchingLogin := testutils.GenerateLocalUsername(t)
 	nonMatchingUser := userprovisioning.NewStaticHostUser(nonMatchingLogin, &userprovisioningpb.StaticHostUserSpec{
 		Matchers: []*userprovisioningpb.Matcher{
 			{
@@ -800,7 +801,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 			},
 		},
 	})
-	conflictingLogin := utils.GenerateLocalUsername(t)
+	conflictingLogin := testutils.GenerateLocalUsername(t)
 	conflictingUser := userprovisioning.NewStaticHostUser(conflictingLogin, &userprovisioningpb.StaticHostUserSpec{
 		Matchers: []*userprovisioningpb.Matcher{
 			{
