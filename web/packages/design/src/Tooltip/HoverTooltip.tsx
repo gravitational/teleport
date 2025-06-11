@@ -45,6 +45,7 @@ import React, {
 import styled, { useTheme } from 'styled-components';
 
 import Text from 'design/Text';
+import { mergeRefs } from 'design/utils/mergeRefs';
 
 type HoverTooltipProps = {
   /**
@@ -240,27 +241,3 @@ const StyledContent = styled(Text)`
   max-width: 350px;
   word-wrap: break-word;
 `;
-
-/**
- * Combines multiple refs into one that can be passed to a component.
- *
- * https://github.com/gregberge/react-merge-refs/tree/v2.1.1
- * @example
- * const Example = React.forwardRef(function Example(props, ref) {
- *   const localRef = React.useRef();
- *   return <div ref={mergeRefs([localRef, ref])} />;
- * });
- */
-function mergeRefs<T = any>(
-  refs: Array<React.RefObject<T> | React.Ref<T> | undefined | null>
-): React.RefCallback<T> {
-  return value => {
-    refs.forEach(ref => {
-      if (typeof ref === 'function') {
-        ref(value);
-      } else if (ref != null) {
-        (ref as React.RefObject<T | null>).current = value;
-      }
-    });
-  };
-}
