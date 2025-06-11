@@ -10,6 +10,25 @@ desktops, and web apps.
 We will start with local users and preset roles, assign roles to SSO users, and
 wrap up with creating your own role.
 
+## How it works
+
+Teleport roles specify the permissions of a user for interacting with a Teleport
+cluster, with rules including the Teleport-protected infrastructure resources a
+user can access and the Teleport API resources a user can manage.  When a user
+authenticates to Teleport, the TLS and SSH certificates they receive encode
+their roles. 
+
+Teleport components can then inspect the user's roles for the required
+permissions before completing an action. For example, the Teleport Auth Service
+authorizes a user before reading or writing API resources, and Teleport Agents
+authorize a user before routing traffic to an infrastructure resource.
+
+When a user authenticates to Teleport with a single sign-on authentication
+connector, the user still receives TLS and SSH certificates that encode their
+roles. In this case, the Teleport Auth Service maps the user on the SSO identity
+provider to one or more Teleport roles using the configuration in the
+authentication connector.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
