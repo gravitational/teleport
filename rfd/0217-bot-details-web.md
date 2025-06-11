@@ -2,12 +2,12 @@
 authors: Nick Marais (nicholas.marais@goteleport.com)
 state: draft
 ---
-# RFD0215 - Bot Details (web)
+# RFD0217 - Bot Details (web)
 
 ## Required Approvers
 
 * Engineering: @strideynet
-* Product: @thedevelopnik && (samrat || kenny) <-- TODO: find GitHub names
+* Product: @thedevelopnik && @samratambadekar
 
 ## What
 
@@ -61,13 +61,13 @@ So that I can assess the usage of the bot by scanning over the results to build 
 
 ### UX
 
-![](assets/0215-iteration-1.png)
+![](assets/0217-iteration-1.png)
 
 #### Bot info and config
 
 Shows basic details and configuration. All items are readonly. Date/time items have a hover state which shows a tooltip with the full date and time.
 
-![](assets/0215-feature-info.png)
+![](assets/0217-feature-info.png)
 
 **Data source**
 ``` yaml
@@ -108,7 +108,7 @@ metadata:
 #### Join tokens
 Lists Join Tokens with a role of "Bot" and `bot_name` matching the bot being viewed. An overflow menu allow navigating to Zero Trust Access > Join Tokens. Clicking an item navigates to to the view/edit page for that token.
 
-![](assets/0215-feature-join-tokens.png)
+![](assets/0217-feature-join-tokens.png)
 **Data source**
 ``` yaml
 # Token resource
@@ -124,7 +124,7 @@ spec:
 #### Roles and traits
 Provides full lists of roles and traits (well-known and custom). Edit operations are provided for each for convenience, which open the page-wise edit modal with all editable fields available.
 
-![](assets/0215-feature-roles-traits.png)
+![](assets/0217-feature-roles-traits.png)
 **Data source**
 ``` yaml
 # Bot resource
@@ -143,7 +143,7 @@ spec:
 #### Active instances
 Lists the most recent (max 10) instances for the bot, ordered most recent first. A "see more" action navigates to the bot instances page with a pre-populated search filter on the bot's name - this is an imperfect filter as it's a contains-text filter across all fields
 
-![](assets/0215-feature-active-instances.png)
+![](assets/0217-feature-active-instances.png)
 
 #### Edit roles, traits and max session duration (`max_session_ttl`)
 Shows a dialog where the user can add and/or remove assigned roles, add and/or remove traits (well-known or custom), and edit the configured max session duration in the form `43200s`, `30m` or `3h`. Allow all changes to be made in a single atomic transaction.
@@ -153,11 +153,11 @@ TODO: wireframe for edit form
 #### Delete bot
 Deletes the bot after confirmation. Shows a loading indicator during the call to the api. On success, navigates to the bots list (`/web/bots`). On error, shows a message within the confirmation dialog.
 
-![](assets/0215-feature-delete-bot.png)
+![](assets/0217-feature-delete-bot.png)
 #### Lock bot
 Locks the bot after confirmation. Shows a loading indicator during the call to the api. On success, removes the dialog but remains on the bot detail page. On error, shows a message within the confirmation dialog.
 
-![](assets/0215-feature-lock-bot.png)
+![](assets/0217-feature-lock-bot.png)
 ### Implementation
 
 #### Data fetching and caching
@@ -202,18 +202,18 @@ A rough breakdown of tasks with the goal of delivering implementation items in m
 
 #### Recent instances (historic)
 Similar to the active instance list, except show instances whose credentials have recently expired (in the last 24 hours).
-![](assets/0215-feature-recent-intances.png)
+![](assets/0217-feature-recent-intances.png)
 #### Audit log
 Filtered to show only the bot being viewed. Needs to filter the log in a performant way, and likely only available to customers using Athena.
-![](assets/0215-feature-audit-log.png)
+![](assets/0217-feature-audit-log.png)
 #### Access Graph
 Likely a simplified version of the Access Graph focused on the bot and without the ability to explore other parts of the graph.
-![](assets/0215-feature-access-graph.png)
+![](assets/0217-feature-access-graph.png)
 
 #### Session recordings
 Bot sessions are non-interactive, so recordings are not possible in many cases. Session in this list may show command input and output, but aren't re-playable.
-![](assets/0215-feature-session-recordings.png)
+![](assets/0217-feature-session-recordings.png)
 
 #### Activity visualisation
 A minimalist representation of a bot activity over various time frames. Authentication records as well as heartbeats could be used to provide the data. Otherwise, data from the Audit Log could be used where that data is retrievable in a performant way (i.e. customers using Athena).
-![](assets/0215-feature-activity-timeseries.png)
+![](assets/0217-feature-activity-timeseries.png)
