@@ -91,12 +91,13 @@ func buildForkAuthenticateCommand(params ForkAuthenticateParams) (*forkAuthCmd, 
 }
 
 func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
-	runCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	defer cmd.signalR.Close()
-	defer cmd.killW.Close()
-	defer cmd.killW.Write([]byte{0x00})
+	defer func() {
+		// If the child is still listening, kill it. If the child successfully
+		// disowned, this will do nothing.
+		cmd.killW.Write([]byte{0x00})
+		cmd.killW.Close()
+		cmd.signalR.Close()
+	}()
 
 	disownReady := make(chan error, 1)
 	go func() {
@@ -104,10 +105,6 @@ func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 		// and is ready to be disowned.
 		_, err := cmd.signalR.Read(make([]byte, 1))
 		disownReady <- err
-		if err == nil {
-			disownReady <- nil
-			return
-		}
 	}()
 
 	if err := cmd.Start(); err != nil {
@@ -139,10 +136,10 @@ func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 			}
 			return trace.Wrap(err)
 		}
-	case <-runCtx.Done():
+	case <-ctx.Done():
 		if err := cmd.Process.Kill(); err != nil {
 			return trace.Wrap(err)
 		}
-		return trace.Wrap(runCtx.Err())
+		return trace.Wrap(ctx.Err())
 	}
 }

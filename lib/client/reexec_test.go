@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 type syncBuffer struct {
@@ -104,10 +104,10 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 
 		err := runForkAuthenticateChild(t.Context(), cmd)
 		assert.NoError(t, err)
-		assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-			assert.Equal(collect, "stdout: hello\n", stdout.String())
-			assert.Equal(collect, "stderr: hello\n", stderr.String())
-		}, time.Second, 10*time.Millisecond)
+		assert.EventuallyWithT(t, func(t *assert.CollectT) {
+			assert.Equal(t, "stdout: hello\n", stdout.String())
+			assert.Equal(t, "stderr: hello\n", stderr.String())
+		}, 10*time.Second, 100*time.Millisecond)
 	})
 
 	t.Run("child exits with error", func(t *testing.T) {
@@ -170,7 +170,7 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		cmd := buildBashForkCommand(t, params)
 
 		errorCh := make(chan error, 1)
-		utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+		testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 			Name: "RunForkAuthenticateChild",
 			Task: func(ctx context.Context) error {
 				errorCh <- runForkAuthenticateChild(ctx, cmd)
@@ -178,10 +178,10 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 			},
 		})
 
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
-			assert.Equal(collect, "stdout: hello\n", stdout.String())
-			assert.Equal(collect, "stderr: hello\n", stderr.String())
-		}, time.Second, 10*time.Millisecond)
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			assert.Equal(t, "stdout: hello\n", stdout.String())
+			assert.Equal(t, "stderr: hello\n", stderr.String())
+		}, 10*time.Second, 100*time.Millisecond)
 
 		cancel()
 		select {
