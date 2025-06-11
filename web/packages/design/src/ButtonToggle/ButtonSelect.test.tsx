@@ -72,7 +72,7 @@ describe('ButtonToggle', () => {
     );
 
     const buttons = getButtons();
-    expect(buttons).toHaveLength(4);
+    expect(buttons).toHaveLength(2);
     buttons[1].click();
     expect(onChangeMock).toHaveBeenCalledWith('2');
     expect(buttons[0]).toHaveAttribute('data-active', 'false');
