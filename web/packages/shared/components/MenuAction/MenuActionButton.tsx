@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren } from 'react';
+import React, { PropsWithChildren, Ref } from 'react';
 import styled from 'styled-components';
 
 import { Button, ButtonBorder } from 'design';
@@ -35,8 +35,16 @@ type Props = MenuProps & {
   icon?: React.ReactNode;
 };
 
-export default class MenuActionIcon extends React.Component<
-  PropsWithChildren<Props>
+export default function MenuActionIcon({
+  ref,
+  ...otherProps
+}: PropsWithChildren<Props> & { ref?: Ref<HTMLButtonElement> }) {
+  // We need to forward ref with a function component.
+  return <InnerMenuActionIcon {...otherProps} forwardedRef={ref} />;
+}
+
+class InnerMenuActionIcon extends React.Component<
+  PropsWithChildren<Props & { forwardedRef?: Ref<HTMLButtonElement> }>
 > {
   anchorEl = null;
 
@@ -58,6 +66,16 @@ export default class MenuActionIcon extends React.Component<
     this.setState({ open: false });
   };
 
+  private assignRef(e: HTMLButtonElement) {
+    this.anchorEl = e;
+    const { forwardedRef } = this.props;
+    if (typeof forwardedRef === 'function') {
+      forwardedRef(e);
+    } else if (forwardedRef && typeof forwardedRef === 'object') {
+      forwardedRef.current = e;
+    }
+  }
+
   render() {
     const { open } = this.state;
     const { children, menuProps, buttonProps, icon } = this.props;
@@ -66,7 +84,9 @@ export default class MenuActionIcon extends React.Component<
         {icon ? (
           <FilledButtonIcon
             intent="neutral"
-            ref={e => (this.anchorEl = e)}
+            ref={e => {
+              this.assignRef(e);
+            }}
             onClick={this.onOpen}
             {...buttonProps}
           >
@@ -76,7 +96,7 @@ export default class MenuActionIcon extends React.Component<
           <ButtonBorder
             size="small"
             ref={e => {
-              this.anchorEl = e;
+              this.assignRef(e);
             }}
             onClick={this.onOpen}
             {...buttonProps}

@@ -82,7 +82,6 @@ export function PinButton({
       ) : (
         $content
       )}
-      <HoverTooltip tipContent={tipContent}></HoverTooltip>
     </ButtonIcon>
   );
 }
