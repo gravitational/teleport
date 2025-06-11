@@ -59,4 +59,6 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
+require github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80 // indirect
+
 replace github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
