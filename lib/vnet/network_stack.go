@@ -280,12 +280,12 @@ func createStack() (*stack.Stack, *channel.Endpoint, error) {
 	if err := netStack.CreateNIC(nicID, linkEndpoint); err != nil {
 		return nil, nil, trace.Errorf("creating VNet NIC: %s", err)
 	}
-	// Put the NIC into promiscous mode so that VNet can handle incoming IP packets
+	// Put the NIC into promiscuous mode so that VNet can handle incoming IP packets
 	// on addresses that have not been explicitly assigned to any handler yet.
 	// This is so the DNS server can handle UDP requests to port 53 on any IP
 	// address.
 	if err := netStack.SetPromiscuousMode(nicID, true); err != nil {
-		return nil, nil, trace.Errorf("putting VNet NIC into promiscous mode: %s", err)
+		return nil, nil, trace.Errorf("putting VNet NIC into promiscuous mode: %s", err)
 	}
 
 	return netStack, linkEndpoint, nil
