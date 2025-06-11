@@ -11,14 +11,16 @@ In this guide, you will:
 1. Deploy the Teleport Application Service with an Azure app in your Teleport cluster.
 1. Assume the managed identity and run `az` commands via `tsh`.
 
-If you have enabled the Teleport SAML IdP, you can use it instead of the
-Teleport Application Service to manage access to Azure CLI applications. For
-instructions, read [Access Azure Portal and
-CLI](../../../admin-guides/access-controls/idps/saml-microsoft-entra-external-id.mdx).
-
 ## How it works
 
 (!docs/pages/includes/application-access/azure-how-it-works.mdx deployment="on an Azure VM" credential="managed identities"!)
+
+You can use the Teleport SAML IdP instead of the Teleport Application Service to
+manage access to Azure CLI applications. For instructions, read [Access Azure
+Portal and
+CLI](../../../admin-guides/access-controls/idps/saml-microsoft-entra-external-id.mdx).
+In this approach, Azure tags audit logs with Teleport user accounts, providing
+more visibility into how Teleport users are interacting with Azure. 
 
 ## Prerequisites
 
