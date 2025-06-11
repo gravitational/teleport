@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -162,7 +161,7 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 		Cert:               *dbCert,
 		InsecureSkipVerify: s.botCfg.Insecure,
 	}
-	if client.IsALPNConnUpgradeRequired(
+	if apiclient.IsALPNConnUpgradeRequired(
 		ctx,
 		proxyAddr,
 		s.botCfg.Insecure,
