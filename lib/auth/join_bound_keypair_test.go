@@ -803,7 +803,6 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 	_, correctPublicKey := testBoundKeypair(t)
 
 	clock := clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
-	//startTime := clock.Now()
 
 	srv := newTestTLSServer(t, withClock(clock))
 	auth := srv.Auth()
