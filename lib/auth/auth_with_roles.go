@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	"github.com/gravitational/teleport/lib/authz"
@@ -325,8 +326,8 @@ func (a *ServerWithRoles) filterSessionTracker(joinerRoles []types.Role, tracker
 		return true
 	}
 
-	evaluator := NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind(), tracker.GetHostUser())
-	modes := evaluator.CanJoin(SessionAccessContext{Username: a.context.User.GetName(), Roles: joinerRoles})
+	evaluator := moderation.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind(), tracker.GetHostUser())
+	modes := evaluator.CanJoin(moderation.SessionAccessContext{Username: a.context.User.GetName(), Roles: joinerRoles})
 	return len(modes) != 0
 }
 

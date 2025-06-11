@@ -224,11 +224,15 @@ func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName strin
 		return count, listCount, trace.Wrap(err)
 	}
 
-	startKey := accessListName + "/" + accesslist.MembershipKindList + "/"
-	endKey := sortcache.NextKey(startKey)
-	listCount := uint32(rg.store.count(accessListMemberKindIndex, startKey, endKey))
+	startUserKey := accessListName + "/" + accesslist.MembershipKindUser + "/"
+	endUserKey := sortcache.NextKey(startUserKey)
+	userCount := uint32(rg.store.count(accessListMemberKindIndex, startUserKey, endUserKey))
 
-	return uint32(rg.store.len()) - listCount, listCount, trace.Wrap(err)
+	startListKey := accessListName + "/" + accesslist.MembershipKindList + "/"
+	endListKey := sortcache.NextKey(startListKey)
+	listCount := uint32(rg.store.count(accessListMemberKindIndex, startListKey, endListKey))
+
+	return userCount, listCount, nil
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.
