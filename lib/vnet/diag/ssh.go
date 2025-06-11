@@ -10,10 +10,11 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
-	"github.com/gravitational/trace"
 )
 
 // SSHConfig includes everything that [SSHDiag] needs to run.
@@ -179,10 +180,6 @@ func (d *SSHDiag) normalizePath(path string) string {
 		path = strings.ToLower(path)
 	}
 	return filepath.Clean(path)
-}
-
-func userSSHConfigPath(userHome string) string {
-	return filepath.Join(userHome, ".ssh", "config")
 }
 
 func isSpace(r rune) bool {

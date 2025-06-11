@@ -24,7 +24,6 @@ import { AlertProps } from 'design/Alert/Alert';
 import Table, { TextCell } from 'design/DataTable';
 import { displayDateTime } from 'design/datetime';
 import {
-  Check,
   Copy,
   Download,
   Refresh,
@@ -376,7 +375,7 @@ function CheckReportRouteConflict({
 }
 
 function CheckReportSSHConfiguration({
-  checkReport: { report, status },
+  checkReport: { report },
 }: {
   checkReport: diag.CheckReport;
 }) {
