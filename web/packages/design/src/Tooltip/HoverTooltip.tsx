@@ -38,12 +38,12 @@ import React, {
   cloneElement,
   ReactElement,
   Ref,
+  useMemo,
   useRef,
   useState,
 } from 'react';
 import styled, { useTheme } from 'styled-components';
 
-import { Logger } from 'design/logger';
 import Text from 'design/Text';
 
 type HoverTooltipProps = {
@@ -82,10 +82,8 @@ type HoverTooltipProps = {
   /**
    * Child to render. The type allows only a single child.
    */
-  children?: ReactElement<{ ref: Ref<HTMLElement> }>;
+  children: ReactElement<{ ref: Ref<HTMLElement> }>;
 };
-
-const logger = new Logger('HoverTooltip');
 
 /**
  * Renders a tooltip on hover.
@@ -182,27 +180,20 @@ export const HoverTooltip = ({
     useRole(context, { role: 'tooltip' }),
   ]);
 
-  if (!tipContent || !children) {
-    return <>{children}</>;
-  }
-
-  let childWithRef: ReactElement<{ ref: React.Ref<HTMLElement> }> | undefined;
-  try {
-    // The type of `children` is `ReactElement` which allows only one child.
-    childWithRef = Children.only(children);
-  } catch (e) {
-    logger.error('Provided invalid child', e);
-  }
-  if (childWithRef) {
-    childWithRef = cloneElement(childWithRef, {
-      ref: mergeRefs([refs.setReference, childWithRef.props.ref]),
-    });
-  }
+  // `children` is a single valid React element, as enforced by the ReactElement type.
+  const child = Children.only(children);
+  const mergedRef = useMemo(
+    () => mergeRefs([refs.setReference, child.props.ref]),
+    [refs.setReference, child.props.ref]
+  );
+  const childWithRef = cloneElement(child, {
+    ref: mergedRef,
+  });
 
   return (
     <>
-      {childWithRef || children}
-      {isMounted && (
+      {childWithRef}
+      {isMounted && tipContent && (
         <FloatingPortal>
           <StyledTooltip
             ref={refs.setFloating}
