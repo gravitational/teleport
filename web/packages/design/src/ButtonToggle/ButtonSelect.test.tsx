@@ -57,7 +57,7 @@ describe('ButtonToggle', () => {
       <ButtonSelect
         options={options}
         activeOption={activeOption}
-        onChange={index => {
+        onChange={key => {
           onChangeMock(index);
           activeOption = index;
           rerender(
@@ -72,6 +72,7 @@ describe('ButtonToggle', () => {
     );
 
     const buttons = getButtons();
+    expect(buttons).toHaveLength(4);
     buttons[1].click();
     expect(onChangeMock).toHaveBeenCalledWith('2');
     expect(buttons[0]).toHaveAttribute('data-active', 'false');
