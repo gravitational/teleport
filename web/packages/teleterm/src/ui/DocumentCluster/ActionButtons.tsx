@@ -35,6 +35,7 @@ import {
   MenuLogin,
   MenuLoginProps,
 } from 'shared/components/MenuLogin';
+import { MenuLoginWithActionMenu } from 'shared/components/MenuLoginWithActionMenu';
 
 import {
   formatPortRange,
@@ -57,12 +58,32 @@ import {
 import { IAppContext } from 'teleterm/ui/types';
 import { DatabaseUri, routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-import { useVnetAppLauncher, useVnetContext } from 'teleterm/ui/Vnet';
+import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
 
 export function ConnectServerActionButton(props: {
   server: Server;
 }): React.JSX.Element {
   const ctx = useAppContext();
+  const { isSupported: isVnetSupported } = useVnetContext();
+  const { launchVnet } = useVnetLauncher();
+
+  function connectWithVnet(): void {
+    const hostname = props.server.hostname;
+    const cluster = ctx.clustersService.findClusterByResource(props.server.uri);
+    const clusterName = cluster?.name || '<cluster>';
+    let addr = `${hostname}.${clusterName}`;
+    if (cluster.leaf) {
+      const rootCluster = ctx.clustersService.findRootClusterByResource(
+        props.server.uri
+      );
+      const rootClusterName = rootCluster?.name || '<root-cluster>';
+      addr = `${hostname}.${clusterName}.${rootClusterName}`;
+    }
+    launchVnet({
+      addrToCopy: addr,
+      resourceUri: props.server.uri,
+    });
+  }
 
   function getSshLogins(): string[] {
     const cluster = ctx.clustersService.findClusterByResource(props.server.uri);
@@ -80,21 +101,28 @@ export function ConnectServerActionButton(props: {
     );
   }
 
+  const commonProps = {
+    inputType: MenuInputType.FILTER,
+    textTransform: 'none',
+    getLoginItems: () => getSshLogins().map(login => ({ login, url: '' })),
+    onSelect: (e, login) => connect(login),
+    transformOrigin: {
+      vertical: 'top',
+      horizontal: 'right',
+    },
+    anchorOrigin: {
+      vertical: 'bottom',
+      horizontal: 'right',
+    },
+  };
+
+  if (!isVnetSupported) {
+    return <MenuLogin {...commonProps} />;
+  }
   return (
-    <MenuLogin
-      inputType={MenuInputType.FILTER}
-      textTransform="none"
-      getLoginItems={() => getSshLogins().map(login => ({ login, url: '' }))}
-      onSelect={(e, login) => connect(login)}
-      transformOrigin={{
-        vertical: 'top',
-        horizontal: 'right',
-      }}
-      anchorOrigin={{
-        vertical: 'bottom',
-        horizontal: 'right',
-      }}
-    />
+    <MenuLoginWithActionMenu size="small" {...commonProps}>
+      <MenuItem onClick={connectWithVnet}>Connect with VNet</MenuItem>
+    </MenuLoginWithActionMenu>
   );
 }
 
@@ -121,13 +149,13 @@ export function ConnectKubeActionButton(props: {
 export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
   const appContext = useAppContext();
   const { isSupported: isVnetSupported } = useVnetContext();
-  const { launchVnet } = useVnetAppLauncher();
+  const { launchVnet } = useVnetLauncher();
 
   function connectWithVnet(targetPort?: number): void {
     void launchVnet({
       addrToCopy: appToAddrToCopy(props.app, targetPort),
       resourceUri: props.app.uri,
-      isMultiPort: !!props.app.tcpPorts.length,
+      isMultiPortApp: !!props.app.tcpPorts.length,
     });
   }
 
