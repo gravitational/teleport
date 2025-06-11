@@ -18,10 +18,13 @@
 
 import styled from 'styled-components';
 
-import { ButtonPrimary } from '../Button/Button';
+import Flex from 'design/Flex';
+
+import { Button } from '../Button/Button';
 
 interface ButtonSelectProps {
-  // The options to display in the button select. Each option should have a unique `key` and a `label` to display on the button.
+  // The options to display in the button select.
+  // Each option should have a unique `key` and a `label` to display on the button.
   options: { key: string; label: string }[];
   // The key of the active option
   activeOption: string;
@@ -54,75 +57,48 @@ export const ButtonSelect = ({
   activeOption,
   onChange,
 }: ButtonSelectProps) => {
-  const activeIndex = options.findIndex(option => option.key === activeOption);
-
   const updateValue = (newOption: string) => {
     if (activeOption !== newOption) {
       onChange(newOption);
     }
   };
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (activeIndex === -1) return;
-    if (e.key === 'ArrowRight' && activeIndex < options.length - 1) {
-      onChange(options[activeIndex + 1].key);
-    }
-    if (e.key === 'ArrowLeft' && activeIndex > 0) {
-      onChange(options[activeIndex - 1].key);
-    }
-  }
-
   return (
-    <ButtonSelectWrapper
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
-      data-testid="button-select"
-    >
-      {options.map((option, index) => {
+    <Flex>
+      {options.map(option => {
         const isActive = activeOption === option.key;
         return (
           <ButtonSelectButton
             key={option.key}
             onClick={() => updateValue(option.key)}
-            data-testid={`button-toggle-option-${index}`}
-            tabIndex={-1}
-            isActive={isActive}
             data-active={isActive}
+            isActive={isActive}
             intent={isActive ? 'primary' : 'neutral'}
           >
             {option.label}
           </ButtonSelectButton>
         );
       })}
-    </ButtonSelectWrapper>
+    </Flex>
   );
 };
 
-const ButtonSelectButton = styled(ButtonPrimary)<{ isActive: boolean }>`
-  // middle button(s) style
+const ButtonSelectButton = styled(Button)`
   border-radius: 0px;
 
-  // left button style
-  &:first-child {
+  &:focus-visible {
+    border-radius: 0px;
+  }
+
+  &:first-child,
+  &:first-child:focus-visible {
     border-top-left-radius: 4px;
     border-bottom-left-radius: 4px;
   }
 
-  // right button style
-  &:last-child {
+  &:last-child,
+  &:last-child:focus-visible {
     border-top-right-radius: 4px;
     border-bottom-right-radius: 4px;
-  }
-`;
-
-const ButtonSelectWrapper = styled.div`
-  display: flex;
-  width: fit-content;
-  border-radius: 4px;
-
-  &:focus-visible {
-    outline: 2px solid
-      ${({ theme }) => theme.colors.interactive.solid.primary.default};
-    outline-offset: 2px;
   }
 `;
