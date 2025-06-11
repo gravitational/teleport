@@ -118,6 +118,8 @@ type Recipient struct {
 	Kind string
 	// Data allows MessagingBot to store required data for the recipient
 	Data any
+	// CanReview indicates whether the recipients can review the access request.
+	CanReview bool
 }
 
 // RecipientSet is a Set of Recipient. Recipient items are deduplicated based on Recipient.ID

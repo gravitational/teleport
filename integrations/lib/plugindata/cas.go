@@ -42,6 +42,12 @@ type Client interface {
 	UpdatePluginData(context.Context, types.PluginDataUpdateParams) error
 }
 
+// EncodeFn is a function that encodes the provided object.
+type EncodeFn[T any] func(T) (map[string]string, error)
+
+// DecodeFn decodes the data and returns the object.
+type DecodeFn[T any] func(map[string]string) (T, error)
+
 // CompareAndSwap represents modifier struct
 type CompareAndSwap[T any] struct {
 	client      Client
@@ -49,16 +55,16 @@ type CompareAndSwap[T any] struct {
 	kind        string
 	backoffBase time.Duration
 	backoffMax  time.Duration
-	encode      func(T) (map[string]string, error)
-	decode      func(map[string]string) (T, error)
+	encode      EncodeFn[T]
+	decode      DecodeFn[T]
 }
 
 // NewCAS returns modifier struct
 func NewCAS[T any](
 	client Client, name,
 	kind string,
-	encode func(T) (map[string]string, error),
-	decode func(map[string]string) (T, error),
+	encode EncodeFn[T],
+	decode DecodeFn[T],
 ) *CompareAndSwap[T] {
 	return &CompareAndSwap[T]{
 		client,

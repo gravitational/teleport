@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // ResolutionTag represents enum type of access request resolution constant
@@ -51,6 +53,9 @@ type AccessRequestData struct {
 	SuggestedReviewers []string
 	LoginsByRole       map[string][]string
 	MaxDuration        *time.Time
+
+	// TODO: Restructure AccessRequestData...
+	Reviews []types.AccessReview
 }
 
 // DecodeAccessRequestData deserializes a string map to PluginData struct.
@@ -115,6 +120,18 @@ func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData,
 			data.LoginsByRole = nil
 		}
 	}
+
+	if str, ok := dataMap["reviews"]; ok {
+		err = json.Unmarshal([]byte(str), &data.Reviews)
+		if err != nil {
+			err = trace.Wrap(err)
+			return
+		}
+		if len(data.Reviews) == 0 {
+			data.Reviews = nil
+		}
+	}
+
 	return
 }
 
@@ -168,6 +185,14 @@ func EncodeAccessRequestData(data AccessRequestData) (map[string]string, error) 
 			return nil, trace.Wrap(err)
 		}
 		result["logins_by_role"] = string(logins)
+	}
+
+	if len(data.Reviews) != 0 {
+		reviews, err := json.Marshal(data.Reviews)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result["reviews"] = string(reviews)
 	}
 	return result, nil
 }
