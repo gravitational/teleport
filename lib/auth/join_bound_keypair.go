@@ -752,6 +752,9 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		nil, // TODO: extended claims for this type?
 		nil, // TODO: workload id claims
 	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	if expectNewBotInstance {
 		mutators = append(
