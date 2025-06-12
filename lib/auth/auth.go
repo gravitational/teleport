@@ -470,6 +470,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		ClusterName:          cfg.ClusterName,
 		AuthPreferenceGetter: cfg.ClusterConfiguration,
 		FIPS:                 cfg.FIPS,
+		HealthCallback:       cfg.KeystoreHealthCallback,
 	}
 	if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {

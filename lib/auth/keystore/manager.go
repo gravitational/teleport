@@ -131,6 +131,8 @@ type Manager struct {
 
 	currentSuiteGetter cryptosuites.GetSuiteFunc
 	logger             *slog.Logger
+
+	health *passiveHealthChecker
 }
 
 // backend is an interface that holds private keys and provides signing and decryption
@@ -190,6 +192,10 @@ type Options struct {
 	FIPS bool
 	// OAEPHash function to use with keystores that support OAEP with a configurable hash.
 	OAEPHash crypto.Hash
+	// HealthCallback is a callback used to report the health of the keystore
+	// Errors impacting the avaiability of the keystore should be reported here
+	// to update auth readiness and allow for failover.
+	HealthCallback func(err error)
 
 	awsKMSClient kmsClient
 	mrkClient    mrkClient
@@ -259,12 +265,32 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		backendForNewKeys = awsBackend
 		usableBackends = []backend{awsBackend, softwareBackend}
 	}
+	callback := opts.HealthCallback
+	if callback == nil {
+		callback = func(_ error) {}
+	}
+	clock := opts.clockworkOverride
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
 
 	return &Manager{
 		backendForNewKeys:  backendForNewKeys,
 		usableBackends:     usableBackends,
 		currentSuiteGetter: cryptosuites.GetCurrentSuiteFromAuthPreference(opts.AuthPreferenceGetter),
 		logger:             opts.Logger,
+		health: &passiveHealthChecker{
+			callback: func(err error) {
+				callback(err)
+				// Call the callback twice on nil error in-order for the
+				// component state to return to OK.
+				if err == nil {
+					callback(err)
+				}
+			},
+			log:   opts.Logger,
+			clock: clock,
+		},
 	}, nil
 }
 

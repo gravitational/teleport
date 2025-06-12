@@ -302,6 +302,11 @@ const (
 	TeleportOKEvent = "TeleportOKEvent"
 )
 
+type servicePayload struct {
+	component      string
+	recoveryPeriod time.Duration
+}
+
 func newConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, error) {
 	clientState, err := newConnectorState(clientIdentity)
 	if err != nil {
@@ -696,11 +701,21 @@ func (process *TeleportProcess) GetBackend() backend.Backend {
 
 // OnHeartbeat generates the default OnHeartbeat callback for the specified component.
 func (process *TeleportProcess) OnHeartbeat(component string) func(err error) {
+	return process.onHeartbeatWithRecovery(component, defaults.HeartbeatCheckPeriod*2)
+}
+
+func (process *TeleportProcess) onHeartbeatWithRecovery(component string, recoveryPeriod time.Duration) func(err error) {
 	return func(err error) {
 		if err != nil {
-			process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: component})
+			process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: servicePayload{
+				component:      component,
+				recoveryPeriod: recoveryPeriod,
+			}})
 		} else {
-			process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: component})
+			process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: servicePayload{
+				component:      component,
+				recoveryPeriod: recoveryPeriod,
+			}})
 		}
 	}
 }
@@ -2225,6 +2240,7 @@ func (process *TeleportProcess) initAuthService() error {
 			HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
 			Tracer:                  process.TracingProvider.Tracer(teleport.ComponentAuth),
 			Logger:                  logger,
+			KeystoreHealthCallback:  process.onHeartbeatWithRecovery(teleport.ComponentKeyStore, 0),
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil

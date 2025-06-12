@@ -19,8 +19,12 @@
 package service
 
 import (
+	"log/slog"
 	"testing"
+	"time"
 
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 )
 
@@ -87,6 +91,169 @@ func TestProcessStateGetState(t *testing.T) {
 			ps := &processState{states: tt.states}
 			got := ps.getState()
 			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestProcessStateProgress(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	startTime := clock.Now()
+
+	testComponent := "test"
+
+	type stateProgression struct {
+		event   Event
+		advance time.Duration
+		expect  componentState
+	}
+	for _, tc := range []struct {
+		desc     string
+		progress []stateProgression
+	}{
+		{
+			desc: "recover from degraded state after recovery period",
+			progress: []stateProgression{
+				{
+					event: Event{
+						Name: TeleportOKEvent,
+						Payload: servicePayload{
+							component:      testComponent,
+							recoveryPeriod: defaults.HeartbeatCheckPeriod * 2,
+						},
+					},
+					expect: componentState{
+						state:        stateOK,
+						recoveryTime: clock.Now(),
+					},
+				},
+				{
+					event: Event{
+						Name: TeleportDegradedEvent,
+						Payload: servicePayload{
+							component:      testComponent,
+							recoveryPeriod: defaults.HeartbeatCheckPeriod * 2,
+						},
+					},
+					expect: componentState{
+						state:        stateDegraded,
+						recoveryTime: clock.Now(),
+					},
+				},
+				{
+					event: Event{
+						Name: TeleportOKEvent,
+						Payload: servicePayload{
+							component:      testComponent,
+							recoveryPeriod: defaults.HeartbeatCheckPeriod * 2,
+						},
+					},
+					expect: componentState{
+						state:        stateRecovering,
+						recoveryTime: clock.Now(),
+					},
+				},
+				{
+					advance: defaults.HeartbeatCheckPeriod,
+					event: Event{
+						Name: TeleportOKEvent,
+						Payload: servicePayload{
+							component:      testComponent,
+							recoveryPeriod: defaults.HeartbeatCheckPeriod * 2,
+						},
+					},
+					expect: componentState{
+						state:        stateRecovering,
+						recoveryTime: clock.Now(),
+					},
+				},
+				{
+					advance: defaults.HeartbeatCheckPeriod + time.Second,
+					event: Event{
+						Name: TeleportOKEvent,
+						Payload: servicePayload{
+							component:      testComponent,
+							recoveryPeriod: defaults.HeartbeatCheckPeriod * 2,
+						},
+					},
+					expect: componentState{
+						state:        stateOK,
+						recoveryTime: clock.Now(),
+					},
+				},
+			},
+		},
+		{
+			desc: "recover from degraded state with no recovery period",
+			progress: []stateProgression{
+				{
+					event: Event{
+						Name: TeleportOKEvent,
+						Payload: servicePayload{
+							component: testComponent,
+						},
+					},
+					expect: componentState{
+						state:        stateOK,
+						recoveryTime: clock.Now(),
+					},
+				},
+				{
+					event: Event{
+						Name: TeleportDegradedEvent,
+						Payload: servicePayload{
+							component: testComponent,
+						},
+					},
+					expect: componentState{
+						state:        stateDegraded,
+						recoveryTime: clock.Now(),
+					},
+				},
+				{
+					event: Event{
+						Name: TeleportOKEvent,
+						Payload: servicePayload{
+							component: testComponent,
+						},
+					},
+					expect: componentState{
+						state:        stateRecovering,
+						recoveryTime: clock.Now(),
+					},
+				},
+				{
+					event: Event{
+						Name: TeleportOKEvent,
+						Payload: servicePayload{
+							component: testComponent,
+						},
+					},
+					expect: componentState{
+						state:        stateOK,
+						recoveryTime: clock.Now(),
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			clock := clockwork.NewFakeClockAt(startTime)
+			superviser := NewSupervisor("1", slog.Default())
+			process := &TeleportProcess{
+				Supervisor: superviser,
+				logger:     slog.Default(),
+				Clock:      clock,
+			}
+			ps, err := newProcessState(process)
+			require.NoError(t, err)
+
+			for i, p := range tc.progress {
+				clock.Advance(p.advance)
+				ps.update(p.event)
+				got := ps.states[testComponent]
+				require.Equal(t, p.expect.recoveryTime.String(), got.recoveryTime.String(), "unexpected recovery time at step %d", i)
+				require.Equal(t, p.expect.state, got.state, "unexpected state at step %d", i)
+			}
 		})
 	}
 }
