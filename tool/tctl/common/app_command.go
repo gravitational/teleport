@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/resource/collections"
 )
 
 // AppsCommand implements "tctl apps" group of commands.
@@ -116,15 +117,15 @@ func (c *AppsCommand) ListApps(ctx context.Context, clt *authclient.Client) erro
 		}
 	}
 
-	coll := &appServerCollection{servers: servers}
+	coll := collections.NewAppServerCollection(servers)
 
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))
+		return trace.Wrap(coll.WriteText(os.Stdout, c.verbose))
 	case teleport.JSON:
-		return trace.Wrap(coll.writeJSON(os.Stdout))
+		return trace.Wrap(collections.WriteJSON(coll, os.Stdout))
 	case teleport.YAML:
-		return trace.Wrap(coll.writeYAML(os.Stdout))
+		return trace.Wrap(collections.WriteYAML(coll, os.Stdout))
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}

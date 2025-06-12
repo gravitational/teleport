@@ -16,25 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package resource
 
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"io"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -43,11 +38,23 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/teleport/tool/tctl/common/resource"
 )
+
+type options struct {
+	Editor func(string) error
+}
+
+type optionsFunc func(o *options)
+
+func withEditor(editor func(string) error) optionsFunc {
+	return func(o *options) {
+		o.Editor = editor
+	}
+}
 
 type cliCommand interface {
 	Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config)
@@ -58,7 +65,7 @@ func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
-	app := utils.InitCLIParser("tctl", GlobalHelpString)
+	app := utils.InitCLIParser("tctl", "test CLI")
 	cmd.Initialize(app, &tctlcfg.GlobalCLIFlags{}, cfg)
 
 	selectedCmd, err := app.Parse(args)
@@ -72,51 +79,22 @@ func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []
 
 func runResourceCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
-	command := resource.NewTestResourceCommand(&stdoutBuff)
-	return &stdoutBuff, runCommand(t, client, &command, args)
-}
-
-func runLockCommand(t *testing.T, client *authclient.Client, args []string) error {
-	command := &LockCommand{}
-	args = append([]string{"lock"}, args...)
-	return runCommand(t, client, command, args)
-}
-
-func runTokensCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
-	var stdoutBuff bytes.Buffer
-	command := &TokensCommand{
+	command := &ResourceCommand{
 		stdout: &stdoutBuff,
 	}
-
-	args = append([]string{"tokens"}, args...)
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
 
-func runUserCommand(t *testing.T, client *authclient.Client, args []string) error {
-	command := &UserCommand{}
-	args = append([]string{"users"}, args...)
-	return runCommand(t, client, command, args)
-}
-
-func runAuthCommand(t *testing.T, client *authclient.Client, args []string) error {
-	command := &AuthCommand{}
-	args = append([]string{"auth"}, args...)
-	return runCommand(t, client, command, args)
-}
-
-func runIdPSAMLCommand(t *testing.T, client *authclient.Client, args []string) error {
-	command := &IdPCommand{}
-	args = append([]string{"idp"}, args...)
-	return runCommand(t, client, command, args)
-}
-
-func runNotificationsCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
-	var stdoutBuff bytes.Buffer
-	command := &NotificationCommand{
-		stdout: &stdoutBuff,
+func runEditCommand(t *testing.T, client *authclient.Client, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
 	}
 
-	args = append([]string{"notifications"}, args...)
+	var stdoutBuff bytes.Buffer
+	command := &EditCommand{
+		Editor: o.Editor,
+	}
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
 
@@ -127,56 +105,14 @@ func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
 	return out
 }
 
-func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) {
-	t.Helper()
-	decoder := yaml.NewDecoder(r)
-	for {
-		var entry T
-		if err := decoder.Decode(&entry); err != nil {
-			// Break when there are no more documents to decode
-			if !errors.Is(err, io.EOF) {
-				require.FailNow(t, "error decoding YAML: %v", err)
-			}
-			break
-		}
-		*out = append(*out, entry)
-	}
+func mustTranscodeYAMLToJSON(t *testing.T, r io.Reader) []byte {
+	decoder := kyaml.NewYAMLToJSONDecoder(r)
+	var resource services.UnknownResource
+	require.NoError(t, decoder.Decode(&resource))
+	return resource.Raw
 }
 
-func mustDecodeYAML[T any](t *testing.T, r io.Reader) T {
-	t.Helper()
-	var out T
-	err := yaml.NewDecoder(r).Decode(&out)
-	require.NoError(t, err)
-	return out
-}
-
-func mustGetBase64EncFileConfig(t *testing.T, fc *config.FileConfig) string {
-	configYamlContent, err := yaml.Marshal(fc)
-	require.NoError(t, err)
-	return base64.StdEncoding.EncodeToString(configYamlContent)
-}
-
-func mustWriteFileConfig(t *testing.T, fc *config.FileConfig) string {
-	fileConfPath := filepath.Join(t.TempDir(), "teleport.yaml")
-	fileConfYAML, err := yaml.Marshal(fc)
-	require.NoError(t, err)
-	err = os.WriteFile(fileConfPath, fileConfYAML, 0o600)
-	require.NoError(t, err)
-	return fileConfPath
-}
-
-func mustAddUser(t *testing.T, client *authclient.Client, username string, roles ...string) {
-	err := runUserCommand(t, client, []string{"add", username, "--roles", strings.Join(roles, ",")})
-	require.NoError(t, err)
-}
-
-func mustWriteIdentityFile(t *testing.T, client *authclient.Client, username string) string {
-	identityFilePath := filepath.Join(t.TempDir(), "identity")
-	err := runAuthCommand(t, client, []string{"sign", "--user", username, "--out", identityFilePath})
-	require.NoError(t, err)
-	return identityFilePath
-}
+// Copied from `common`
 
 type testServerOptions struct {
 	fileConfig      *config.FileConfig
