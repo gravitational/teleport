@@ -21,10 +21,23 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
+
+func TestRoleNotFound(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForNode)
+	t.Cleanup(p.Close)
+
+	_, err := p.cache.GetRole(t.Context(), "test-role")
+	assert.Error(t, err)
+	assert.True(t, trace.IsNotFound(err))
+	assert.Equal(t, "role test-role is not found", err.Error())
+}
 
 // TestRoles tests caching of roles
 func TestRoles(t *testing.T) {

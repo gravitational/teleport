@@ -79,7 +79,6 @@ import (
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -89,7 +88,6 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
@@ -504,15 +502,14 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithChainUnaryInterceptor(
-			otelUnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			interceptors.GRPCClientUnaryErrorInterceptor,
 			interceptors.WithMFAUnaryInterceptor(c.PerformMFACeremony),
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
-			otelStreamClientInterceptor(),
 			metadata.StreamClientInterceptor,
 			interceptors.GRPCClientStreamErrorInterceptor,
 			breaker.StreamClientInterceptor(cb),
@@ -543,25 +540,6 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 
 	return nil
 }
-
-// We wrap the creation of the otelgrpc interceptors in a sync.Once - this is
-// because each time this is called, they create a new underlying metric. If
-// something (e.g tbot) is repeatedly creating new clients and closing them,
-// then this leads to a memory leak since the underlying metric is not cleaned
-// up.
-// See https://github.com/gravitational/teleport/issues/30759
-// See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4226
-var otelStreamClientInterceptor = sync.OnceValue(func() grpc.StreamClientInterceptor {
-	//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-	// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-	return otelgrpc.StreamClientInterceptor()
-})
-
-var otelUnaryClientInterceptor = sync.OnceValue(func() grpc.UnaryClientInterceptor {
-	//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-	// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-	return otelgrpc.UnaryClientInterceptor()
-})
 
 // ConfigureALPN configures ALPN SNI cluster routing information in TLS settings allowing for
 // allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
@@ -5202,18 +5180,6 @@ func (c *Client) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, 
 		}
 		pageToken = nextToken
 	}
-}
-
-// IdentityCenterClient returns Identity Center service client using an underlying
-// gRPC connection.
-func (c *Client) IdentityCenterClient() identitycenterv1.IdentityCenterServiceClient {
-	return identitycenterv1.NewIdentityCenterServiceClient(c.conn)
-}
-
-// ProvisioningServiceClient returns provisioning service client using
-// an underlying gRPC connection.
-func (c *Client) ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient {
-	return provisioningv1.NewProvisioningServiceClient(c.conn)
 }
 
 // IntegrationsClient returns integrations client.

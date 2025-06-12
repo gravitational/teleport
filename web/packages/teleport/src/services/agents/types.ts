@@ -19,7 +19,10 @@
 import { GitServer } from 'web/packages/teleport/src/services/gitServers';
 
 import type { Platform } from 'design/platform';
-import { IncludedResourceMode } from 'shared/components/UnifiedResources';
+import {
+  IncludedResourceMode,
+  ResourceHealthStatus,
+} from 'shared/components/UnifiedResources';
 
 import { App } from 'teleport/services/apps';
 import { Database } from 'teleport/services/databases';
@@ -64,6 +67,7 @@ export type ResourceFilter = {
   pinnedOnly?: boolean;
   searchAsRoles?: '' | 'yes';
   includedResourceMode?: IncludedResourceMode;
+  statuses?: ResourceHealthStatus[];
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
 };

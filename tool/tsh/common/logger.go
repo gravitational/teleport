@@ -38,7 +38,7 @@ const (
 // It is called twice, first soon after launching tsh before argv is parsed and then again after
 // kingpin parses argv. This makes it possible to debug early startup functionality, particularly
 // command aliases.
-func initLogger(cf *CLIConf, opts loggingOpts) error {
+func initLogger(cf *CLIConf, purpose utils.LoggingPurpose, opts loggingOpts) (*slog.Logger, error) {
 	cf.OSLog = opts.osLog
 	cf.Debug = opts.debug || opts.osLog
 
@@ -49,7 +49,8 @@ func initLogger(cf *CLIConf, opts loggingOpts) error {
 		level = slog.LevelDebug
 	}
 
-	return trace.Wrap(utils.InitLogger(utils.LoggingForCLI, level, initLoggerOpts...))
+	logger, err := utils.InitLogger(purpose, level, initLoggerOpts...)
+	return logger, trace.Wrap(err)
 }
 
 type loggingOpts struct {

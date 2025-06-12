@@ -18,7 +18,7 @@ Teleport administrators to define policies like:
 
 In Teleport Enterprise Cloud and Self-Hosted Teleport Enterprise, Teleport can
 automatically configure an SSO connector for you when as part of [enrolling the
-hosted Okta integration](../okta/okta.mdx).
+hosted Okta integration](../../../identity-governance/okta/okta.mdx).
 
 You can enroll the Okta integration from the Teleport Web UI.
 
@@ -37,11 +37,10 @@ guide you through configuring the Okta integration.
   least two groups. If you don't already have Okta groups you want to assign to
   Teleport roles don't worry, we'll create example groups below.
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 
 - A Teleport role with access to edit and maintain `saml` resources. This is
   available in the default `editor` role.
-- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 
 ## Step 1/4. Create & assign groups
 
