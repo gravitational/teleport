@@ -28,11 +28,10 @@ import (
 // UnifiedClusterConfig is a unified VNet configuration for all clusters
 // the user is logged in to.
 type UnifiedClusterConfig struct {
-	// RootClusterNames contains the cluster name of each root cluster the user
-	// is logged in to. SSH hosts are reachable via VNet SSH at subdomains of
-	// these cluster names. Hosts in leaf clusters are reachable at
-	// <host>.<leaf>.<root> which is always a subdomain of a root cluster name.
-	RootClusterNames []string
+	// ClusterNames contains the name of each root or leaf cluster the user is
+	// logged in to. SSH hosts are reachable via VNet SSH at subdomains of
+	// these cluster names.
+	ClusterNames []string
 	// ProxyPublicAddrs contains the proxy public address of root and leaf
 	// cluster the user is logged in to. These are always valid DNS suffixes for
 	// TCP apps.
@@ -51,7 +50,7 @@ func (c *UnifiedClusterConfig) AppDNSZones() []string {
 
 // AllDNSZones return all DNS suffixes VNet handles.
 func (c *UnifiedClusterConfig) AllDNSZones() []string {
-	return utils.Deduplicate(slices.Concat(c.CustomDNSZones, c.ProxyPublicAddrs, c.RootClusterNames))
+	return utils.Deduplicate(slices.Concat(c.CustomDNSZones, c.ProxyPublicAddrs, c.ClusterNames))
 }
 
 // UnifiedClusterConfigProvider fetches the [UnifiedClusterConfig].
@@ -89,7 +88,7 @@ func (p *UnifiedClusterConfigProvider) GetUnifiedClusterConfig(ctx context.Conte
 				"profile", profileName, "error", err)
 		}
 	}
-	unifiedClusterConfig.RootClusterNames = utils.Deduplicate(unifiedClusterConfig.RootClusterNames)
+	unifiedClusterConfig.ClusterNames = utils.Deduplicate(unifiedClusterConfig.ClusterNames)
 	unifiedClusterConfig.ProxyPublicAddrs = utils.Deduplicate(unifiedClusterConfig.ProxyPublicAddrs)
 	unifiedClusterConfig.CustomDNSZones = utils.Deduplicate(unifiedClusterConfig.CustomDNSZones)
 	unifiedClusterConfig.IPv4CidrRanges = utils.Deduplicate(unifiedClusterConfig.IPv4CidrRanges)
@@ -109,7 +108,7 @@ func (p *UnifiedClusterConfigProvider) fetchForProfile(
 	if err != nil {
 		return trace.Wrap(err, "fetching root cluster VNet config")
 	}
-	unifiedClusterConfig.RootClusterNames = append(unifiedClusterConfig.RootClusterNames, rootClusterClient.ClusterName())
+	unifiedClusterConfig.ClusterNames = append(unifiedClusterConfig.ClusterNames, rootClusterClient.ClusterName())
 	unifiedClusterConfig.ProxyPublicAddrs = append(unifiedClusterConfig.ProxyPublicAddrs, rootClusterConfig.ProxyPublicAddr)
 	unifiedClusterConfig.CustomDNSZones = append(unifiedClusterConfig.CustomDNSZones, rootClusterConfig.CustomDNSZones...)
 	unifiedClusterConfig.IPv4CidrRanges = append(unifiedClusterConfig.IPv4CidrRanges, rootClusterConfig.IPv4CIDRRange)
@@ -145,6 +144,7 @@ func (p *UnifiedClusterConfigProvider) fetchForLeafCluster(
 	if err != nil {
 		return trace.Wrap(err, "fetching leaf cluster VNet config from cache")
 	}
+	unifiedClusterConfig.ClusterNames = append(unifiedClusterConfig.ClusterNames, leafClusterName)
 	unifiedClusterConfig.ProxyPublicAddrs = append(unifiedClusterConfig.ProxyPublicAddrs, leafClusterConfig.ProxyPublicAddr)
 	unifiedClusterConfig.CustomDNSZones = append(unifiedClusterConfig.CustomDNSZones, leafClusterConfig.CustomDNSZones...)
 	unifiedClusterConfig.IPv4CidrRanges = append(unifiedClusterConfig.IPv4CidrRanges, leafClusterConfig.IPv4CIDRRange)
