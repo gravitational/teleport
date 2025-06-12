@@ -33,20 +33,21 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
+	authproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	scopedrole "github.com/gravitational/teleport/lib/scopes/roles"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
@@ -145,6 +146,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindToken},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
+		{Kind: scopedrole.KindScopedRole},
+		{Kind: scopedrole.KindScopedRoleAssignment},
 		{Kind: types.KindNode},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
@@ -1563,7 +1566,7 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 }
 
 // ListResources is a part of auth.Cache implementation
-func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+func (c *Cache) ListResources(ctx context.Context, req authproto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListResources")
 	defer span.End()
 
@@ -1588,7 +1591,7 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 	return resp, trace.Wrap(err)
 }
 
-func (c *Cache) listResourcesFallback(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+func (c *Cache) listResourcesFallback(ctx context.Context, req authproto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/listResourcesFallback")
 	defer span.End()
 
@@ -1629,7 +1632,7 @@ func (c *Cache) listResourcesFallback(ctx context.Context, req proto.ListResourc
 	return resp, trace.Wrap(err)
 }
 
-func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+func (c *Cache) listResources(ctx context.Context, req authproto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	_, span := c.Tracer.Start(ctx, "cache/listResources")
 	defer span.End()
 
@@ -1730,7 +1733,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 			func(r types.ResourceWithLabels) types.ResourceWithLabels {
 				unwrapper := r.(types.Resource153UnwrapperT[*identitycenterv1.Account])
 				return types.Resource153ToResourceWithLabels(services.IdentityCenterAccount{
-					Account: apiutils.CloneProtoMsg(unwrapper.UnwrapT()),
+					Account: proto.CloneOf(unwrapper.UnwrapT()),
 				})
 			},
 		)
@@ -1749,7 +1752,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 			func(r types.ResourceWithLabels) types.ResourceWithLabels {
 				unwrapper := r.(types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment])
 				return types.Resource153ToResourceWithLabels(services.IdentityCenterAccountAssignment{
-					AccountAssignment: apiutils.CloneProtoMsg(unwrapper.UnwrapT()),
+					AccountAssignment: proto.CloneOf(unwrapper.UnwrapT()),
 				})
 			},
 		)

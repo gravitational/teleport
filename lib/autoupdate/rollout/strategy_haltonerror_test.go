@@ -752,3 +752,74 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 		})
 	}
 }
+
+func TestCountCatchAll(t *testing.T) {
+	countByGroup := map[string]int{
+		"dev":   10,
+		"stage": 25,
+		"prod":  33,
+	}
+	upToDateByGroup := map[string]int{
+		"dev":   5,
+		"stage": 12,
+		"prod":  1,
+	}
+
+	tests := []struct {
+		name             string
+		rolloutStatus    *autoupdate.AutoUpdateAgentRolloutStatus
+		expectedCount    int
+		expectedUpToDate int
+	}{
+		{
+			name: "all group hit",
+			rolloutStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+				Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+					{Name: "dev"},
+					{Name: "stage"},
+					{Name: "prod"},
+				},
+			},
+			expectedCount:    countByGroup["prod"],
+			expectedUpToDate: upToDateByGroup["prod"],
+		},
+		{
+			name: "one group miss",
+			rolloutStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+				Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+					{Name: "dev"},
+					{Name: "prod"},
+				},
+			},
+			expectedCount:    countByGroup["stage"] + countByGroup["prod"],
+			expectedUpToDate: upToDateByGroup["stage"] + upToDateByGroup["prod"],
+		},
+		{
+			name: "only catch-all group hit",
+			rolloutStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+				Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+					{Name: "prod"},
+				},
+			},
+			expectedCount:    countByGroup["dev"] + countByGroup["stage"] + countByGroup["prod"],
+			expectedUpToDate: upToDateByGroup["dev"] + upToDateByGroup["stage"] + upToDateByGroup["prod"],
+		},
+		{
+			name: "no common group",
+			rolloutStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+				Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+					{Name: "foobar"},
+				},
+			},
+			expectedCount:    countByGroup["dev"] + countByGroup["stage"] + countByGroup["prod"],
+			expectedUpToDate: upToDateByGroup["dev"] + upToDateByGroup["stage"] + upToDateByGroup["prod"],
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			count, upToDate := countCatchAll(tt.rolloutStatus, countByGroup, upToDateByGroup)
+			require.Equal(t, tt.expectedCount, count)
+			require.Equal(t, tt.expectedUpToDate, upToDate)
+		})
+	}
+}

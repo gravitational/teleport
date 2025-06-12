@@ -59,7 +59,7 @@ func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
 	}
 	defer tun.Close()
 
-	networkStackConfig, err := newNetworkStackConfig(tun, clt)
+	networkStackConfig, err := newNetworkStackConfig(ctx, tun, clt)
 	if err != nil {
 		return trace.Wrap(err, "creating network stack config")
 	}

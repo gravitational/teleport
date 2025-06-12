@@ -18,16 +18,18 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // TestAccessList tests that CRUD operations on access list resources are
@@ -70,7 +72,9 @@ func TestAccessList(t *testing.T) {
 func TestAccessListMembers(t *testing.T) {
 	t.Parallel()
 
-	p := newTestPack(t, ForAuth)
+	const numMembers = 32
+
+	p := newTestPack(t, ForAuth, memoryBackend(true))
 	t.Cleanup(p.Close)
 
 	clock := clockwork.NewFakeClock()
@@ -106,23 +110,30 @@ func TestAccessListMembers(t *testing.T) {
 
 	// Verify counting.
 	ctx := context.Background()
-	for i := 0; i < 40; i++ {
+	for i := 0; i < numMembers; i++ {
 		_, err = p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, al.GetName(), strconv.Itoa(i)))
 		require.NoError(t, err)
 	}
 
 	count, listCount, err := p.accessLists.CountAccessListMembers(ctx, al.GetName())
 	require.NoError(t, err)
-	require.Equal(t, uint32(40), count)
+	require.Equal(t, uint32(numMembers), count)
 	require.Equal(t, uint32(0), listCount)
 
 	// Eventually, this should be reflected in the cache.
-	require.Eventually(t, func() bool {
-		// Make sure the cache has a single resource in it.
+	timeout := time.After(5 * time.Second)
+	for {
 		count, listCount, err := p.cache.CountAccessListMembers(ctx, al.GetName())
-		assert.NoError(t, err)
-		return count == uint32(40) && listCount == uint32(0)
-	}, time.Second*2, time.Millisecond*250)
+		require.NoError(t, err)
+		if count == numMembers && listCount == 0 {
+			break
+		}
+		select {
+		case <-timeout:
+			require.Fail(t, "timed out waiting for correct member counts")
+		case <-p.eventsC:
+		}
+	}
 }
 
 // TestAccessListReviews tests that CRUD operations on access list review resources are
@@ -174,4 +185,80 @@ func TestAccessListReviews(t *testing.T) {
 		},
 		deleteAll: p.accessLists.DeleteAllAccessListReviews,
 	})
+}
+
+func TestCountAccessListMembersScoping(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
+	p := newTestPack(t, ForAuth, memoryBackend(true))
+	t.Cleanup(p.Close)
+
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	listA, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, "list-a", clock))
+	require.NoError(t, err)
+	listB, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, "list-b", clock))
+	require.NoError(t, err)
+
+	const (
+		listAUsers = 4
+		listBUsers = 3
+		listALists = 2
+		listBLists = 1
+	)
+
+	for i := range listAUsers {
+		member := newAccessListMember(t, listA.GetName(), fmt.Sprintf("user-%d", i))
+		member.Spec.MembershipKind = accesslist.MembershipKindUser
+		_, err := p.accessLists.UpsertAccessListMember(ctx, member)
+		require.NoError(t, err)
+	}
+	for i := range listBUsers {
+		member := newAccessListMember(t, listB.GetName(), fmt.Sprintf("b-user-%d", i))
+		member.Spec.MembershipKind = accesslist.MembershipKindUser
+		_, err := p.accessLists.UpsertAccessListMember(ctx, member)
+		require.NoError(t, err)
+	}
+
+	for i := range listALists {
+		nestedList, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, fmt.Sprintf("nested-list-a-%d", i), clock))
+		require.NoError(t, err)
+		member := newAccessListMember(t, listA.GetName(), nestedList.GetName())
+		member.Spec.MembershipKind = accesslist.MembershipKindList
+		_, err = p.accessLists.UpsertAccessListMember(ctx, member)
+		require.NoError(t, err)
+	}
+	for i := range listBLists {
+		nestedList, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, fmt.Sprintf("nested-list-b-%d", i), clock))
+		require.NoError(t, err)
+		member := newAccessListMember(t, listB.GetName(), nestedList.GetName())
+		member.Spec.MembershipKind = accesslist.MembershipKindList
+		_, err = p.accessLists.UpsertAccessListMember(ctx, member)
+		require.NoError(t, err)
+	}
+
+	// wait for cache to reflect updates
+	timeout := time.After(5 * time.Second)
+	for {
+		aUsers, aLists, err := p.cache.CountAccessListMembers(ctx, listA.GetName())
+		require.NoError(t, err)
+		bUsers, bLists, err := p.cache.CountAccessListMembers(ctx, listB.GetName())
+		require.NoError(t, err)
+		if aUsers == listAUsers && aLists == listALists && bUsers == listBUsers && bLists == listBLists {
+			break
+		}
+		select {
+		case <-timeout:
+			require.Fail(t, "timed out waiting for correct member counts")
+		case <-p.eventsC:
+		}
+	}
 }
