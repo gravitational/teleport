@@ -16,28 +16,50 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
+import { ComponentProps, ElementType } from 'react';
+import styled, { CSSObject } from 'styled-components';
 
-import { alignSelf, color, space } from 'design/system';
+import {
+  alignSelf,
+  AlignSelfProps,
+  color,
+  ColorProps,
+  space,
+  SpaceProps,
+} from 'design/system';
 
 import { buttonSizes } from './constants';
 
-const defaultSize = buttonSizes[1];
+type Size = 0 | 1 | 2;
 
-const size = props => {
-  return buttonSizes[props.size] || defaultSize;
+const size = (props: { size: Size }): CSSObject => {
+  return buttonSizes[props.size];
 };
 
-const ButtonIcon = props => {
-  const { children, setRef, css, ...rest } = props;
+type ButtonIconProps<E extends ElementType> = ComponentProps<E> &
+  SpaceProps &
+  ColorProps &
+  AlignSelfProps & {
+    size?: Size;
+    /** If defined, changes the underlying component type. */
+    as?: E;
+  };
+
+const ButtonIcon = <E extends ElementType = 'button'>({
+  children,
+  ref,
+  css,
+  size = 1,
+  ...rest
+}: ButtonIconProps<E>) => {
   return (
-    <StyledButtonIcon ref={setRef} css={css} {...rest}>
+    <StyledButtonIcon ref={ref} css={css} size={size} {...rest}>
       {children}
     </StyledButtonIcon>
   );
 };
 
-const StyledButtonIcon = styled.button`
+const StyledButtonIcon = styled.button<{ size: Size }>`
   align-items: center;
   border: none;
   cursor: pointer;
