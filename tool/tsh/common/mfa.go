@@ -100,7 +100,7 @@ func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
 	c := &mfaLSCommand{
 		CmdClause: parent.Command("ls", "Get a list of registered MFA devices."),
 	}
-	c.Flag("verbose", "Print more information about MFA devices").Short('v').BoolVar(&c.verbose)
+	c.Flag("verbose", "Print more information about MFA devices.").Short('v').BoolVar(&c.verbose)
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
 	return c
 }
@@ -211,11 +211,11 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 	c := &mfaAddCommand{
 		CmdClause: parent.Command("add", "Add a new MFA device."),
 	}
-	c.Flag("name", "Name of the new MFA device").StringVar(&c.devName)
-	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s)", strings.Join(defaultDeviceTypes, ", "))).
+	c.Flag("name", "Name of the new MFA device.").StringVar(&c.devName)
+	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s).", strings.Join(defaultDeviceTypes, ", "))).
 		EnumVar(&c.devType, defaultDeviceTypes...)
 	if wancli.IsFIDO2Available() {
-		c.Flag("allow-passwordless", "Allow passwordless logins").
+		c.Flag("allow-passwordless", "Allow passwordless logins.").
 			IsSetByUser(&c.allowPasswordlessSet).
 			BoolVar(&c.allowPasswordless)
 	}
@@ -555,7 +555,7 @@ func newMFARemoveCommand(parent *kingpin.CmdClause) *mfaRemoveCommand {
 	c := &mfaRemoveCommand{
 		CmdClause: parent.Command("rm", "Remove a MFA device."),
 	}
-	c.Arg("name", "Name or ID of the MFA device to remove").Required().StringVar(&c.name)
+	c.Arg("name", "Name or ID of the MFA device to remove.").Required().StringVar(&c.name)
 	return c
 }
 
