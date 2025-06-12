@@ -103,7 +103,10 @@ test('allows adding a new contact', async () => {
   expect(await screen.findByText('Business Contacts')).toBeInTheDocument();
 
   // create business contact
-  let addButtons = screen.getAllByText('Add New');
+  const addButtons = await screen.findAllByText('Add New');
+  await waitFor(() => {
+    expect(addButtons[0]).toBeEnabled();
+  });
   fireEvent.click(addButtons[0]);
 
   let emailInputs = screen.getAllByPlaceholderText('mail@example.com');

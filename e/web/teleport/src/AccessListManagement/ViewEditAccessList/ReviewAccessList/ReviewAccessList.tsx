@@ -169,7 +169,6 @@ export function ReviewAccessList({
         <FeatureBox>
           <Flex alignItems="center" mb={2} mt={4}>
             <ButtonIcon
-              alignItems="center"
               title={'Cancel Review'}
               onClick={cancelReview}
               mr={2}

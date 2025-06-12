@@ -161,7 +161,7 @@ export const StatusAndOptions = ({
           <HoverTooltip tipContent="Options">
             <ButtonIcon
               onClick={() => setOpen(!open)}
-              setRef={anchorRef}
+              ref={anchorRef}
               style={{
                 padding: '8px',
                 margin: '-8px',

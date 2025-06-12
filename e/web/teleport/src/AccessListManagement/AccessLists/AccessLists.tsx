@@ -802,9 +802,6 @@ const RefreshButton = ({ onRefresh }: { onRefresh: () => void }) => (
     <ButtonBorder
       onClick={onRefresh}
       textTransform="none"
-      css={`
-        padding: 0 4.5px;
-      `}
       size="small"
       aria-label="Refresh"
     >

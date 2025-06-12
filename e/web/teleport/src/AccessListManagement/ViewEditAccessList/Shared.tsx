@@ -336,7 +336,6 @@ export function ButtonPencil({
 }) {
   return (
     <ButtonIcon
-      alignItems="center"
       onClick={onClick}
       disabled={disabled}
       title={title}

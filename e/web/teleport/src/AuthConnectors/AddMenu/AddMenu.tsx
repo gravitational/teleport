@@ -57,7 +57,7 @@ class AddMenu extends Component<Props> {
           fill="border"
           block
           disabled={disabled}
-          setRef={this.setRef}
+          ref={this.setRef}
           onClick={this.onOpen}
         >
           New Auth Connector

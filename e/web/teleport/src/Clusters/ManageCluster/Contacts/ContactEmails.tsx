@@ -113,12 +113,7 @@ export function ContactEmails({
         />
       ))}
       {writePermissions && (
-        <HoverTooltip
-          tipContent={maxReached ? MAX_LIMIT_TOOLTIP : ''}
-          css={`
-            width: fit-content;
-          `}
-        >
+        <HoverTooltip tipContent={maxReached ? MAX_LIMIT_TOOLTIP : ''}>
           <Button
             width="fit-content"
             px="3"
