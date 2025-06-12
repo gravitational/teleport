@@ -30,17 +30,15 @@ func TestGetLatest(t *testing.T) {
 	tests := []struct {
 		desc     string
 		spec     string
-		releases []string
+		releases map[string][]string
 		wantErr  require.ErrorAssertionFunc
 		latest   string
 	}{
 		{
 			desc: "pass",
 			spec: "v8",
-			releases: []string{
-				"v8.1.9",
-				"v8.1.10",
-				"v8.0.11",
+			releases: map[string][]string{
+				"teleport": {"v8.1.9", "v8.1.10", "v8.0.11"},
 			},
 			wantErr: require.NoError,
 			latest:  "v8.1.10",
@@ -48,10 +46,8 @@ func TestGetLatest(t *testing.T) {
 		{
 			desc: "fail-bad-spec",
 			spec: "v9",
-			releases: []string{
-				"v8.1.9",
-				"v8.1.10",
-				"v8.0.11",
+			releases: map[string][]string{
+				"teleport": {"v8.1.9", "v8.1.10", "v8.0.11"},
 			},
 			wantErr: require.Error,
 			latest:  "",
@@ -59,10 +55,8 @@ func TestGetLatest(t *testing.T) {
 		{
 			desc: "pass-prerelease",
 			spec: "v8",
-			releases: []string{
-				"v8.1.10-rc.1",
-				"v8.1.10",
-				"v8.1.10-alpha.1",
+			releases: map[string][]string{
+				"teleport": {"v8.1.10-rc.1", "v8.1.10", "v8.1.10-alpha.1"},
 			},
 			wantErr: require.NoError,
 			latest:  "v8.1.10",
@@ -70,14 +64,31 @@ func TestGetLatest(t *testing.T) {
 		{
 			desc: "pass-major-minor",
 			spec: "v8.1",
-			releases: []string{
-				"v8.1.9",
-				"v8.2.1",
-				"v8.1.10",
-				"v8.0.11",
+			releases: map[string][]string{
+				"teleport": {"v8.1.9", "v8.2.1", "v8.1.10", "v8.0.11"},
 			},
 			wantErr: require.NoError,
 			latest:  "v8.1.10",
+		},
+		{
+			desc: "latest-private",
+			spec: "v8",
+			releases: map[string][]string{
+				"teleport":         {"v8.1.9", "v8.2.1", "v8.1.10", "v8.0.11"},
+				"teleport-private": {"v8.2.2"},
+			},
+			wantErr: require.NoError,
+			latest:  "private-v8.2.2",
+		},
+		{
+			desc: "latest-not-private",
+			spec: "v8",
+			releases: map[string][]string{
+				"teleport":         {"v8.1.9", "v8.2.3", "v8.1.10", "v8.0.11"},
+				"teleport-private": {"v8.2.2"},
+			},
+			wantErr: require.NoError,
+			latest:  "v8.2.3",
 		},
 	}
 	for _, test := range tests {
@@ -94,12 +105,12 @@ func TestGetLatest(t *testing.T) {
 }
 
 type fakeGitHub struct {
-	releases []string
+	releases map[string][]string
 }
 
 func (f *fakeGitHub) ListReleases(ctx context.Context, organization, repository string) ([]github.RepositoryRelease, error) {
 	ghReleases := make([]github.RepositoryRelease, 0)
-	for _, r := range f.releases {
+	for _, r := range f.releases[repository] {
 		tag := r
 		ghReleases = append(ghReleases, github.RepositoryRelease{TagName: &tag})
 	}

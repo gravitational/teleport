@@ -17,7 +17,9 @@
  */
 
 // Command query-latest returns the highest semver release for a versionSpec
-// query-latest ignores drafts and pre-releases.
+// query-latest ignores drafts and pre-releases. If the latest release for
+// a version is in teleport-private, the version tag will be prefixed with
+// "private-".
 //
 // For example:
 //
@@ -26,6 +28,7 @@
 //	query-latest v8.0.0-rc3 -> error, no matching release (this is a pre-release, in github and in semver)
 //	query-latest v7.0       -> v7.0.2
 //	query-latest v5         -> v5.2.4
+//	query-latest v17        -> private-v17.5.2 (latest v17 release is in teleport-private)
 package main
 
 import (
@@ -33,6 +36,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -48,9 +52,17 @@ func main() {
 		log.Fatalf("Failed to parse flags: %v.", err)
 	}
 
+	var gh github.GitHub
+	token := os.Getenv("GITHUB_TOKEN")
+	if token != "" {
+		gh = github.NewGitHubWithToken(context.Background(), token)
+	} else {
+		gh = github.NewGitHub()
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	tag, err := getLatest(ctx, versionSpec, github.NewGitHub())
+	tag, err := getLatest(ctx, versionSpec, gh)
 	if err != nil {
 		log.Fatalf("Query failed: %v.", err)
 	}
@@ -72,9 +84,25 @@ func parseFlags() (string, error) {
 }
 
 func getLatest(ctx context.Context, versionSpec string, gh github.GitHub) (string, error) {
-	releases, err := gh.ListReleases(ctx, "gravitational", "teleport")
+	publicTag, err := getLatestForRepo(ctx, versionSpec, gh, "teleport")
 	if err != nil {
 		return "", trace.Wrap(err)
+	}
+
+	privateTag, err := getLatestForRepo(ctx, versionSpec, gh, "teleport-private")
+	// Ignore errors on teleport-private - it has sparse releases and may not return any
+	// tags. That's not an error.
+	if err == nil && semver.Compare(publicTag, privateTag) < 0 {
+		return "private-" + privateTag, nil
+	}
+
+	return publicTag, nil
+}
+
+func getLatestForRepo(ctx context.Context, versionSpec string, gh github.GitHub, repo string) (string, error) {
+	releases, err := gh.ListReleases(ctx, "gravitational", repo)
+	if err != nil {
+		return "", trace.Wrap(err, "couldn't list releases")
 	}
 	if len(releases) == 0 {
 		return "", trace.NotFound("failed to find any releases on GitHub")
