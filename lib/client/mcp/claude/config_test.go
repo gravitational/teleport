@@ -86,6 +86,7 @@ func TestFileConfig_sampleFile(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, config)
 	require.True(t, config.Exists())
+	require.Equal(t, configPath, config.Path())
 	require.Equal(t, sampleMCPServers, config.GetMCPServers())
 
 	// remove
@@ -135,13 +136,15 @@ func TestFileConfig_sampleFile(t *testing.T) {
 func TestConfig_Write(t *testing.T) {
 	config := NewConfig()
 
-	require.NoError(t, config.PutMCPServer("test", MCPServer{
+	mcpServer := MCPServer{
 		Command: "command",
-	}))
+	}
+	mcpServer.AddEnv("foo", "bar")
+	require.NoError(t, config.PutMCPServer("test", mcpServer))
 	var buf bytes.Buffer
 
 	require.NoError(t, config.Write(&buf, FormatJSONCompact))
-	require.Equal(t, `{"mcpServers":{"test":{"command":"command"}}}`, buf.String())
+	require.Equal(t, `{"mcpServers":{"test":{"command":"command","env":{"foo":"bar"}}}}`, buf.String())
 }
 
 func Test_isJSONCompact(t *testing.T) {
