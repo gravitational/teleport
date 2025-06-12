@@ -45,7 +45,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: gravitational/teleport
-          ref: ${{ github.base_ref }}
+          # base_ref is only available for pull_request triggers
+          # for merge_group triggers we need to pull from the event payload
+          ref: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
 
       - name: Checkout Enterprise Teleport
         uses: actions/checkout@v4
