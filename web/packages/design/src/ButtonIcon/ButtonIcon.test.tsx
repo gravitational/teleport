@@ -23,7 +23,7 @@ import ButtonIcon from './index';
 describe('design/ButtonIcon', () => {
   it('renders a <button> and respects default "size" to 1', () => {
     const { container } = render(<ButtonIcon />);
-    expect(container.firstChild.nodeName).toBe('BUTTON');
+    expect(container.firstChild?.nodeName).toBe('BUTTON');
     expect(container.firstChild).toHaveStyle('font-size: 16px');
   });
 
