@@ -104,6 +104,14 @@ func TestLogRotation(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, found, 1)
+
+		foundUnstructured, _, err := alog.SearchUnstructuredEvents(ctx, events.SearchEventsRequest{
+			From:  now.Add(-time.Hour),
+			To:    now.Add(time.Hour),
+			Order: types.EventOrderAscending,
+		})
+		require.NoError(t, err)
+		require.Len(t, foundUnstructured, 1)
 	}
 }
 

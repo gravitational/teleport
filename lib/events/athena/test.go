@@ -185,6 +185,17 @@ func (e *EventuallyConsistentAuditLogger) SearchSessionEvents(ctx context.Contex
 	return e.Inner.SearchSessionEvents(ctx, req)
 }
 
+func (e *EventuallyConsistentAuditLogger) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.emitWasAfterLastDelay {
+		time.Sleep(e.QueryDelay)
+		// clear emit delay
+		e.emitWasAfterLastDelay = false
+	}
+	return e.Inner.SearchUnstructuredEvents(ctx, req)
+}
+
 func (e *EventuallyConsistentAuditLogger) Close() error {
 	return e.Inner.Close()
 }

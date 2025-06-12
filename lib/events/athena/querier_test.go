@@ -858,7 +858,15 @@ func Test_querier_fetchResults(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(tt.wantEvents, gotEvents, cmpopts.EquateEmpty(),
+
+			want := make([]events.EventFields, 0, len(tt.wantEvents))
+			for _, event := range tt.wantEvents {
+				fields, err := events.ToEventFields(event)
+				require.NoError(t, err)
+				want = append(want, fields)
+			}
+
+			require.Empty(t, cmp.Diff(want, gotEvents, cmpopts.EquateEmpty(),
 				// Expect the database query to be trimmed
 				cmpopts.IgnoreFields(apievents.DatabaseSessionQuery{}, "DatabaseQuery")))
 			require.Equal(t, tt.wantKeyset, gotKeyset)
@@ -867,7 +875,9 @@ func Test_querier_fetchResults(t *testing.T) {
 }
 
 func mustEventToKey(t *testing.T, in apievents.AuditEvent) string {
-	ks, err := eventToKeyset(in)
+	fields, err := events.ToEventFields(in)
+	require.NoError(t, err)
+	ks, err := eventToKeyset(fields)
 	if err != nil {
 		t.Fatal(err)
 	}
