@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -104,9 +103,9 @@ func (m *mcpClientConfigFlags) jsonFormatOptions() []string {
 }
 
 func (m *mcpClientConfigFlags) printHint(w io.Writer) error {
-	_, err := fmt.Fprintln(w, `Tip: use --client-config=claude to automatically update your Claude Desktop
-configuration. Or specify --client-config=<path> for any client configuration
-file that supports the "mcpServer" mapping.`)
+	_, err := fmt.Fprintln(w, `Tip: use --client-config=claude to update your Claude Desktop configuration.
+You can also specify a custom config path with --client-config=<path> to update
+a config file compatible with the "mcpServer" mapping.`)
 	return trace.Wrap(err)
 }
 
@@ -126,12 +125,22 @@ func makeLocalMCPServer(cf *CLIConf, args []string) claude.MCPServer {
 		s.AddEnv(types.HomeEnvVar, homeDir)
 	}
 
-	// Enable debug through env var if debug is on.
-	debugByEnvVar, _ := strconv.ParseBool(os.Getenv(debugEnvVar))
-	if cf.Debug || debugByEnvVar {
-		s.AddEnv(debugEnvVar, "true")
+	// Disable debug through env var. MCP server commands should enable debug by
+	// default.
+	opts := getLoggingOptsForMCPServer(cf)
+	if !opts.debug {
+		s.AddEnv(debugEnvVar, "false")
+	}
+	if opts.osLog {
+		s.AddEnv(osLogEnvVar, "true")
 	}
 
 	// TODO(greedy52) anything else? maybe cluster, login-related, etc?
 	return s
+}
+
+func getLoggingOptsForMCPServer(cf *CLIConf) loggingOpts {
+	return getLoggingOptsWithDefault(cf, loggingOpts{
+		debug: true,
+	})
 }
