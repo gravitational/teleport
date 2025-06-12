@@ -102,7 +102,7 @@ func getLatest(ctx context.Context, versionSpec string, gh github.GitHub) (strin
 func getLatestForRepo(ctx context.Context, versionSpec string, gh github.GitHub, repo string) (string, error) {
 	releases, err := gh.ListReleases(ctx, "gravitational", repo)
 	if err != nil {
-		return "", trace.Wrap(err, "couldn't list releases")
+		return "", trace.Wrap(err, "couldn't list releases for repo %q", repo)
 	}
 	if len(releases) == 0 {
 		return "", trace.NotFound("failed to find any releases on GitHub")
