@@ -39,7 +39,8 @@ export default function MenuActionIcon({
   ref,
   ...otherProps
 }: PropsWithChildren<Props> & { ref?: Ref<HTMLButtonElement> }) {
-  // We need to forward ref with a function component.
+  // Since React class components can't forward refs, we wrap it in a function component.
+  // This lets HoverTooltip access the ref to attach the tooltip to it.
   return <InnerMenuActionIcon {...otherProps} forwardedRef={ref} />;
 }
 
