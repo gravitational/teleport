@@ -175,7 +175,7 @@ func (e *PolicyEvaluator) evaluatePolicy(
 	return nil
 }
 
-func (e *PolicyEvaluator) buildVerifier(policy *workloadidentityv1.SigstorePolicy) (*verify.SignedEntityVerifier, []verify.PolicyOption, error) {
+func (e *PolicyEvaluator) buildVerifier(policy *workloadidentityv1.SigstorePolicy) (*verify.Verifier, []verify.PolicyOption, error) {
 	// TODO(boxofrad): Maybe we should cache these, keyed by a hash of the policy spec.
 	var (
 		trustedMaterial root.TrustedMaterial
@@ -232,7 +232,7 @@ func (e *PolicyEvaluator) buildVerifier(policy *workloadidentityv1.SigstorePolic
 		return nil, nil, trace.BadParameter("key or keyless authority is required")
 	}
 
-	verifier, err := verify.NewSignedEntityVerifier(trustedMaterial, verifierOpts...)
+	verifier, err := verify.NewVerifier(trustedMaterial, verifierOpts...)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "creating signed entity verifier")
 	}
