@@ -21,11 +21,11 @@ that's responsible for consuming messages from the queue, converting and enhanci
 them with metadata such as location, and writing them as Parquet files in the
 long-term S3 bucket.
 
-AWS Athena powers a query engine in the Identity Activity Center.
-To specify the schema and retrieve data from Parquet files kept in the
-long-term S3 bucket, AWS Athena makes use of an AWS Glue Table. With this
-configuration, audit logs can be efficiently queried and analyzed, leading
-to improved insights and simplified data management for identity security.
+Amazon Athena powers a query engine in the Identity Activity Center. To specify
+the schema and retrieve data from Parquet files kept in the long-term S3 bucket,
+Amazon Athena makes use of an AWS Glue Table. With this configuration, audit
+logs can be efficiently queried and analyzed, leading to improved insights and
+simplified data management for identity security.
 
 ## Prerequisites
 - A running Teleport Enterprise cluster v18.0.0 or later.
@@ -67,7 +67,7 @@ which are necessary for the Terraform script to execute.
 - <Var name="example-transient-bucket"/> is the transient S3 bucket used to store temporary files such as query results and large files.
 - <Var name="example-db"/> is the name of the AWS Glue database.
 - <Var name="example-table"/> is the name of the AWS Glue table.
-- <Var name="example-workgroup"/> is the name of the AWS Athena Workgroup.
+- <Var name="example-workgroup"/> is the name of the Amazon Athena Workgroup.
 - <Var name="aws-account-id"/> is the AWS account id.
 
 Define the variables using the script below or configure them in your
@@ -75,15 +75,15 @@ Teleport IaC script.
 
 ```bash
 cat > variables.auto.tfvars << EOF
-aws_region            = <Var name="eu-central-1"/>
-iac_sqs_queue_name        = <Var name="example-sqs-queue"/>
-iac_sqs_dlq_name          = <Var name="example-sqs-dlq"/>
-iac_kms_key_alias         = <Var name="example-kms-key"/>
-iac_long_term_bucket_name = <Var name="example-long-term-bucket"/>
-iac_transient_bucket_name = <Var name="example-transient-bucket"/>
-iac_database_name         = <Var name="example-db"/>
-iac_table_name            = <Var name="example-table"/>
-iac_workgroup             = <Var name="example-workgroup"/>
+aws_region                = "<Var name="eu-central-1"/>"
+iac_sqs_queue_name        = "<Var name="example-sqs-queue"/>"
+iac_sqs_dlq_name          = "<Var name="example-sqs-dlq"/>"
+iac_kms_key_alias         = "<Var name="example-kms-key"/>"
+iac_long_term_bucket_name = "<Var name="example-long-term-bucket"/>"
+iac_transient_bucket_name = "<Var name="example-transient-bucket"/>"
+iac_database_name         = "<Var name="example-db"/>"
+iac_table_name            = "<Var name="example-table"/>"
+iac_workgroup             = "<Var name="example-workgroup"/>"
 EOF
 ```
 
@@ -124,7 +124,7 @@ The Terraform script will output two variables:
 
 </details>
 
-##  Step 2/4. Configure MaxMind GeoIP City database (optional)
+## Step 2/4. Configure MaxMind GeoIP City database (optional)
 
 <Admonition type="note">
 
@@ -137,7 +137,7 @@ To enrich audit events with GeoIP details such as country, city, region, latitud
 and longitude based on IP addresses, we strongly recommend using the
 [MaxMind GeoIP City database](https://www.maxmind.com/en/geoip-databases).
 
-MaxMind provides both free and paid versions of its GeoIP City database. 
+MaxMind provides both free and paid versions of its GeoIP City database.
 The free version is less accurate and updated less frequently compared to
 the paid version. You can find instructions for downloading the free
 version or purchasing the paid version on the

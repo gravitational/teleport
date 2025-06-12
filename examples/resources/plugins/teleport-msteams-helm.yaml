@@ -15,9 +15,11 @@ msTeams:
   tenantID: "TENANT_ID"
   teamsAppID: "TEAMS_APP_ID"
 
-roleToRecipients:
-  "*": "TELEPORT_USERNAME"
-  "editor": "TELEPORT_USERNAME"
+roleToRecipients: {}
+  # "*": "admin@example.com"
+  # dev:
+  #  - "https://teams.microsoft.com/l/channel/19%3ae06a7383ed98468f90217a35fa1980d7%40thread.tacv2/Approval%2520Channel%25202?groupId=f2b3c8ed-5502-4449-b76f-dc3acea81f1c&tenantId=ff882432-09b0-437b-bd22-ca13c0037ded"
+  #  - "devops@example.com"
 
 log:
   output: stdout
