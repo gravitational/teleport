@@ -122,7 +122,7 @@ func (c *selinuxContext) String() string {
 // CheckConfiguration returns an error if SELinux is not configured to
 // enforce the SSH service correctly.
 func CheckConfiguration(ensureEnforced bool, logger *slog.Logger) error {
-	// ensure SELinux is enable and running with the correct mode.
+	// ensure SELinux is enabled and running with the correct mode.
 	if !ocselinux.GetEnabled() {
 		return trace.Errorf("SELinux is disabled or not present")
 	}
@@ -147,7 +147,7 @@ func CheckConfiguration(ensureEnforced bool, logger *slog.Logger) error {
 		return trace.Wrap(err, "failed to parse SELinux context")
 	}
 	if seCtx.domain != domain {
-		return trace.Wrap(diagnoseDomain(seCtx, logger))
+		return trace.Wrap(diagnoseWrongDomain(seCtx, logger))
 	}
 
 	// ensure the SELinux module is installed and enabled.
@@ -180,11 +180,19 @@ func CheckConfiguration(ensureEnforced bool, logger *slog.Logger) error {
 }
 
 // this function attempts to diagnose why Teleport is not running under the correct SELinux domain.
-func diagnoseDomain(procCtx *selinuxContext, logger *slog.Logger) error {
+func diagnoseWrongDomain(procCtx *selinuxContext, logger *slog.Logger) error {
 	if procCtx.user != seSystemUser || procCtx.role != seSystemRole {
-		logger.WarnContext(context.TODO(), "Teleport is not running as the system_u:system_r SELinux user and role, running Teleport as a Systemd service is recommended when --enable-selinux is passed", "selinux_context", procCtx.String())
+		logger.WarnContext(
+			context.Background(),
+			"Teleport is not running as the system_u:system_r SELinux user and role, running Teleport as a Systemd service is recommended when --enable-selinux is passed",
+			"selinux_context",
+			procCtx.String(),
+		)
 	}
-	fallbackErr := trace.Errorf("Teleport is running under the wrong SELinux domain %q instead of %q, SELinux will not enforce Teleport correctly", procCtx.domain, domain)
+	fallbackErrMsg := "" +
+		"Teleport is running under the wrong SELinux domain %q instead of %q, SELinux will not enforce Teleport correctly. " +
+		"Refer to https://goteleport.com/docs/admin-guides/management/security/selinux/ for more information."
+	fallbackErr := trace.Errorf(fallbackErrMsg, procCtx.domain, domain)
 
 	execPath, err := os.Executable()
 	if err != nil {
@@ -199,7 +207,10 @@ func diagnoseDomain(procCtx *selinuxContext, logger *slog.Logger) error {
 		return trace.NewAggregate(trace.Wrap(err, "failed to parse SELinux context"), fallbackErr)
 	}
 	if fileCtx.domain != domain {
-		return trace.Errorf("Teleport binary %q is labeled with SELinux type %q, it needs to be labeled with type %q to be enforced by SELinux correctly", execPath, fileCtx.domain, domain)
+		binaryLabelErrMsg := "" +
+			"Teleport binary %q is labeled with SELinux type %q, it needs to be labeled with type %q to be enforced by SELinux correctly. " +
+			"Refer to https://goteleport.com/docs/admin-guides/management/security/selinux/ for how to label the binary correctly."
+		return trace.Errorf(binaryLabelErrMsg, execPath, fileCtx.domain, domain)
 	}
 
 	return fallbackErr
