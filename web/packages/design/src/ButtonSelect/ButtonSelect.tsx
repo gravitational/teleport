@@ -71,7 +71,6 @@ export const ButtonSelect = ({
             key={option.key}
             onClick={() => updateValue(option.key)}
             data-active={isActive}
-            isActive={isActive}
             intent={isActive ? 'primary' : 'neutral'}
           >
             {option.label}
