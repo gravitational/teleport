@@ -45,6 +45,7 @@ import {
   UnifiedResourcesQueryParams,
   useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
+import { buildPredicateExpression } from 'shared/components/UnifiedResources/shared/predicateExpression';
 import {
   getResourceId,
   openStatusInfoPanel,
@@ -128,12 +129,14 @@ export function UnifiedResources(props: {
       query: props.queryParams.advancedSearchEnabled
         ? props.queryParams.search
         : '',
+      statuses: props.queryParams.statuses,
     }),
     [
       props.queryParams.advancedSearchEnabled,
       props.queryParams.resourceKinds,
       props.queryParams.search,
       props.queryParams.sort,
+      props.queryParams.statuses,
       unifiedResourcePreferences.defaultTab,
     ]
   );
@@ -190,6 +193,7 @@ export function UnifiedResources(props: {
           newParams.kinds as DocumentClusterResourceKind[];
         queryParams.search = newParams.search || newParams.query;
         queryParams.advancedSearchEnabled = !!newParams.query;
+        queryParams.statuses = newParams.statuses;
       });
     },
     [documentsService, props.docUri]
@@ -308,7 +312,10 @@ const Resources = memo(
                   },
                   search: props.queryParams.search,
                   kinds: props.queryParams.kinds,
-                  query: props.queryParams.query,
+                  query: buildPredicateExpression(
+                    props.queryParams.statuses,
+                    props.queryParams.query
+                  ),
                   pinnedOnly: props.queryParams.pinnedOnly,
                   startKey: paginationParams.startKey,
                   limit: paginationParams.limit,
@@ -332,6 +339,7 @@ const Resources = memo(
           props.queryParams.search,
           props.queryParams.sort.dir,
           props.queryParams.sort.fieldName,
+          props.queryParams.statuses,
           props.clusterUri,
           props.integratedAccessRequests,
         ]

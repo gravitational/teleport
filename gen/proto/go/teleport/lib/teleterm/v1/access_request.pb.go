@@ -71,7 +71,13 @@ type AccessRequest struct {
 	// approval).
 	RequestTtl *timestamppb.Timestamp `protobuf:"bytes,17,opt,name=request_ttl,json=requestTtl,proto3" json:"request_ttl,omitempty"`
 	// session_ttl indicates how long a certificate for a session should be valid for.
-	SessionTtl    *timestamppb.Timestamp `protobuf:"bytes,18,opt,name=session_ttl,json=sessionTtl,proto3" json:"session_ttl,omitempty"`
+	SessionTtl *timestamppb.Timestamp `protobuf:"bytes,18,opt,name=session_ttl,json=sessionTtl,proto3" json:"session_ttl,omitempty"`
+	// reason_mode specifies the reason mode for this Access Request. It can be either "optional" or
+	// "required". It's only added in response to a dry run request.
+	ReasonMode string `protobuf:"bytes,19,opt,name=reason_mode,json=reasonMode,proto3" json:"reason_mode,omitempty"`
+	// reason_prompts is a sorted and deduplicated list of reason prompts for this Access Request.
+	// It's only added in response to a dry run request.
+	ReasonPrompts []string `protobuf:"bytes,20,rep,name=reason_prompts,json=reasonPrompts,proto3" json:"reason_prompts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -228,6 +234,20 @@ func (x *AccessRequest) GetRequestTtl() *timestamppb.Timestamp {
 func (x *AccessRequest) GetSessionTtl() *timestamppb.Timestamp {
 	if x != nil {
 		return x.SessionTtl
+	}
+	return nil
+}
+
+func (x *AccessRequest) GetReasonMode() string {
+	if x != nil {
+		return x.ReasonMode
+	}
+	return ""
+}
+
+func (x *AccessRequest) GetReasonPrompts() []string {
+	if x != nil {
+		return x.ReasonPrompts
 	}
 	return nil
 }
@@ -508,7 +528,7 @@ var File_teleport_lib_teleterm_v1_access_request_proto protoreflect.FileDescript
 
 const file_teleport_lib_teleterm_v1_access_request_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/lib/teleterm/v1/access_request.proto\x12\x18teleport.lib.teleterm.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x85\a\n" +
+	"-teleport/lib/teleterm/v1/access_request.proto\x12\x18teleport.lib.teleterm.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcd\a\n" +
 	"\rAccessRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05state\x18\x02 \x01(\tR\x05state\x12%\n" +
@@ -530,7 +550,10 @@ const file_teleport_lib_teleterm_v1_access_request_proto_rawDesc = "" +
 	"\vrequest_ttl\x18\x11 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"requestTtl\x12;\n" +
 	"\vsession_ttl\x18\x12 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"sessionTtl\"\xac\x02\n" +
+	"sessionTtl\x12\x1f\n" +
+	"\vreason_mode\x18\x13 \x01(\tR\n" +
+	"reasonMode\x12%\n" +
+	"\x0ereason_prompts\x18\x14 \x03(\tR\rreasonPrompts\"\xac\x02\n" +
 	"\x13AccessRequestReview\x12\x16\n" +
 	"\x06author\x18\x01 \x01(\tR\x06author\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x14\n" +
