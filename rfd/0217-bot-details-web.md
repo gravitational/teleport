@@ -43,8 +43,8 @@ As a member of the **Infrastructure Security team**,
 I would like to **delete a bot** when it is no longer required,
 So that I can reduce unnecessary access paths to resources, and keep the cluster configuration tidy and free of historic clutter.
 
-As a member of the **Infrastructure Security team**,
-I would like to **lock a bot** and all instances,
+As a member of the **Incident Response team**,
+I would like to **lock a bot** and all active instances,
 So that current and future access to protected resources is immediately prevented.
 
 As a member of the **Infrastructure Security team**,
@@ -58,6 +58,10 @@ So that I can easily determine the enrolment mechanisms available at a glance.
 As a member of the **Infrastructure Security team**,
 I would like to see a list of **currently active** instances for a bot with **last active times** and high-level characteristics (such as **bot name**, **hostname** and **join method**),
 So that I can assess the usage of the bot by scanning over the results to build an overall picture of recency and a distribution of characteristics.
+
+As a member of the **DevOps/Development team**, who has just set up an MWI agent (e.g. GitHub Actions),
+I would like to get **realtime feedback** that my new **agent/s are enrolling correctly**,
+So that I can feel confident that the agents will work going forwards.
 
 ### UX
 
@@ -122,7 +126,7 @@ spec:
   - Bot
 ```
 #### Roles and traits
-Provides full lists of roles and traits (well-known and custom). Edit operations are provided for each for convenience, which open the page-wise edit modal with all editable fields available.
+Provides full lists of roles and traits (well-known and custom). Edit operations are provided for each for convenience, which open the page-wide edit modal with all editable fields available.
 
 ![](assets/0217-feature-roles-traits.png)
 **Data source**
@@ -141,9 +145,12 @@ spec:
     - nick.marais
 ```
 #### Active instances
-Lists the most recent (max 10) instances for the bot, ordered most recent first. A "see more" action navigates to the bot instances page with a pre-populated search filter on the bot's name - this is an imperfect filter as it's a contains-text filter across all fields
+Lists the most recent (max 10) instances for the bot, ordered most recent first. A refresh action reloads the data for this panel only, and is provided to make monitoring instance activity easier. A "see more" action navigates to the bot instances page with a pre-populated search filter on the bot's name - this is an imperfect filter as it's a contains-text filter across all fields.
 
 ![](assets/0217-feature-active-instances.png)
+
+> [!TODO]
+> Add an explanation of the approach to using an in-memory cache to store and maintain an index on an instance's most recent activity timestamp. This allows instance records to be retrieved in order of most recent activity first (or last, although not required).
 
 #### Edit roles, traits and max session duration (`max_session_ttl`)
 Shows a dialog where the user can add and/or remove assigned roles, add and/or remove traits (well-known or custom), and edit the configured max session duration in the form `43200s`, `30m` or `3h`. Allows all changes to be made in a single atomic transaction.
