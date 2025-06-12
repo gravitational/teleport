@@ -253,8 +253,12 @@ func (c *Client) readClientSize() error {
 	for {
 		s, err := c.cfg.Conn.ReadClientScreenSpec()
 		if err != nil {
-			c.cfg.Logger.DebugContext(context.Background(), "Failed to read client screen spec", "error", err)
-			continue
+			if trace.IsBadParameter(err) {
+				c.cfg.Logger.DebugContext(context.Background(), "Failed to read client screen spec", "error", err)
+				continue
+			} else {
+				return err
+			}
 		}
 
 		if c.cfg.hasSizeOverride() {
