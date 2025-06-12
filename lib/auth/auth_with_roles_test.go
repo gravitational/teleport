@@ -4563,12 +4563,12 @@ func TestListResources_KindUserGroup(t *testing.T) {
 	}
 
 	// Add user groups.
-	testUg1 := createUserGroup(t, s, "c", map[string]string{"label": "value"})
-	testUg2 := createUserGroup(t, s, "a", map[string]string{"label": "value"})
-	testUg3 := createUserGroup(t, s, "b", map[string]string{"label": "value"})
+	testUg1 := createUserGroup(t, s.authServer, "c", map[string]string{"label": "value"})
+	testUg2 := createUserGroup(t, s.authServer, "a", map[string]string{"label": "value"})
+	testUg3 := createUserGroup(t, s.authServer, "b", map[string]string{"label": "value"})
 
 	// This user group should never should up because the user doesn't have group label access to it.
-	_ = createUserGroup(t, s, "d", map[string]string{"inaccessible": "value"})
+	_ = createUserGroup(t, s.authServer, "d", map[string]string{"inaccessible": "value"})
 
 	authContext, err = srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestUser(user.GetName()).I))
 	require.NoError(t, err)
@@ -4653,13 +4653,15 @@ func TestListResources_KindUserGroup(t *testing.T) {
 	})
 }
 
-func createUserGroup(t *testing.T, s *ServerWithRoles, name string, labels map[string]string) types.UserGroup {
+func createUserGroup(t *testing.T, s *Server, name string, labels map[string]string) types.UserGroup {
+	t.Helper()
+	ctx := t.Context()
 	userGroup, err := types.NewUserGroup(types.Metadata{
 		Name:   name,
 		Labels: labels,
 	}, types.UserGroupSpecV1{})
 	require.NoError(t, err)
-	err = s.CreateUserGroup(context.Background(), userGroup)
+	err = s.CreateUserGroup(ctx, userGroup)
 	require.NoError(t, err)
 	return userGroup
 }
@@ -5386,12 +5388,23 @@ func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	// 1. Create Okta-originated app server in the backend.
+	// 1. Create Okta-originated app_server and user_group in the backend.
 
-	searchableOktaApp := newTestAppServerV3(t, srv.Auth(), "serachable-okta-app", map[string]string{
-		"name":            "serachable-okta-app",
-		types.OriginLabel: types.OriginOkta,
-	})
+	searchableOktaApp := createTestAppServerV3(t, srv.Auth(),
+		"serachable-okta-app",
+		map[string]string{
+			"name":            "serachable-okta-app",
+			types.OriginLabel: types.OriginOkta,
+		},
+	)
+
+	searchableUserGroup := createUserGroup(t, srv.Auth(),
+		"serachable-okta-group",
+		map[string]string{
+			"name":            "serachable-okta-group",
+			types.OriginLabel: types.OriginOkta,
+		},
+	)
 
 	// 2. Create a role allowing the Okta app (used for search_as_roles)
 
@@ -5399,6 +5412,9 @@ func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
 		Allow: types.RoleConditions{
 			AppLabels: types.Labels{
 				"name": {searchableOktaApp.GetName()},
+			},
+			GroupLabels: types.Labels{
+				"name": {searchableUserGroup.GetName()},
 			},
 		},
 	})
@@ -5444,6 +5460,13 @@ func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
 				mustResourceID(srv.ClusterName(), types.KindAppServer, searchableOktaApp.GetName()),
 			},
 		),
+		// requesting user_group
+		mustAccessRequest(t, alice.GetName(), types.RequestState_PENDING, srv.Clock().Now(), srv.Clock().Now().Add(time.Hour),
+			[]string{}, // roles
+			[]types.ResourceID{
+				mustResourceID(srv.ClusterName(), types.KindUserGroup, searchableUserGroup.GetName()),
+			},
+		),
 	}
 
 	// 7. Run tests
@@ -5454,10 +5477,11 @@ func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
 		// heartbeats for the Okta apps haven't expired yet. This is an edge-case so the
 		// error is a bit confusing.
 		for _, accessRequest := range testAccessRequests {
+			msg := fmt.Sprintf("requested resources = %v", accessRequest.GetRequestedResourceIDs())
 			_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
-			require.Error(t, err)
-			require.True(t, trace.IsBadParameter(err))
-			require.ErrorContains(t, err, okta.OktaResourceNotRequestableError.Error())
+			require.Error(t, err, msg)
+			require.True(t, trace.IsBadParameter(err), msg)
+			require.ErrorContains(t, err, okta.OktaResourceNotRequestableError.Error(), msg)
 		}
 	})
 
@@ -5475,8 +5499,9 @@ func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
 		)
 
 		for _, accessRequest := range testAccessRequests {
+			msg := fmt.Sprintf("requested resources = %v", accessRequest.GetRequestedResourceIDs())
 			_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
-			require.NoError(t, err)
+			require.NoError(t, err, msg)
 		}
 	})
 
@@ -5494,10 +5519,11 @@ func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
 		)
 
 		for _, accessRequest := range testAccessRequests {
+			msg := fmt.Sprintf("requested resources = %v", accessRequest.GetRequestedResourceIDs())
 			_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
-			require.Error(t, err)
-			require.True(t, trace.IsBadParameter(err))
-			require.ErrorContains(t, err, okta.OktaResourceNotRequestableError.Error())
+			require.Error(t, err, msg)
+			require.True(t, trace.IsBadParameter(err), msg)
+			require.ErrorContains(t, err, okta.OktaResourceNotRequestableError.Error(), msg)
 		}
 	})
 }
@@ -5509,14 +5535,14 @@ func TestListUnifiedResources_search_as_roles_oktaReadOnly(t *testing.T) {
 
 	// 1. Create app resources
 
-	searchableGenericApp := newTestAppServerV3(t, srv.Auth(),
+	searchableGenericApp := createTestAppServerV3(t, srv.Auth(),
 		"test_generic_app",
 		map[string]string{
 			"find_me": "please",
 		},
 	)
 
-	searchableOktaApp := newTestAppServerV3(t, srv.Auth(),
+	searchableOktaApp := createTestAppServerV3(t, srv.Auth(),
 		"test_searchable_okta_app",
 		map[string]string{
 			"find_me":         "please",
@@ -5524,7 +5550,7 @@ func TestListUnifiedResources_search_as_roles_oktaReadOnly(t *testing.T) {
 		},
 	)
 
-	assignedOktaApp := newTestAppServerV3(t, srv.Auth(),
+	assignedOktaApp := createTestAppServerV3(t, srv.Auth(),
 		"test_assigned_okta_app",
 		map[string]string{
 			"owner":           "alice",
@@ -10105,9 +10131,9 @@ func TestValidateOracleJoinToken(t *testing.T) {
 	})
 }
 
-func newTestAppServerV3(t *testing.T, auth *Server, name string, labels map[string]string) *types.AppServerV3 {
+func createTestAppServerV3(t *testing.T, auth *Server, name string, labels map[string]string) *types.AppServerV3 {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	app, err := types.NewAppV3(
 		types.Metadata{
