@@ -1,114 +1,52 @@
-/**
- * Teleport
- * Copyright (C) 2025 Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import { render, screen } from 'design/utils/testing';
 
 import { ButtonSelect } from './ButtonSelect';
 
 describe('ButtonToggle', () => {
-  function getButtons() {
-    return screen.getAllByRole('button');
+  const options = [
+    { key: '1', label: 'Option 1' },
+    { key: '2', label: 'Option 2' },
+    { key: '3', label: 'Option 3' },
+  ];
+  const activeOption = '1';
+
+  function renderButtonSelect() {
+    const onChange = jest.fn();
+    render(
+      <ButtonSelect
+        options={options}
+        activeOption={activeOption}
+        onChange={onChange}
+      />
+    );
+    return { buttons: screen.getAllByRole('button'), onChange };
   }
 
   it('renders buttons with correct labels', () => {
-    render(
-      <ButtonSelect
-        options={[
-          { key: '1', label: 'Option 1' },
-          { key: '2', label: 'Option 2' },
-          { key: '3', label: 'Option 3' },
-        ]}
-        activeOption="1"
-        onChange={() => {}}
-      />
-    );
-
-    const buttons = getButtons();
-    expect(buttons).toHaveLength(3);
+    const { buttons } = renderButtonSelect();
+    expect(buttons).toHaveLength(options.length);
     expect(buttons[0]).toHaveTextContent('Option 1');
     expect(buttons[1]).toHaveTextContent('Option 2');
     expect(buttons[2]).toHaveTextContent('Option 3');
   });
 
-  it('selects an inactive button when it is clicked', () => {
-    const onChangeMock = jest.fn();
-    const options = [
-      { key: '1', label: 'Option 1' },
-      { key: '2', label: 'Option 2' },
-    ];
-    let activeOption = '1';
-
-    const { rerender } = render(
-      <ButtonSelect
-        options={options}
-        activeOption={activeOption}
-        onChange={key => {
-          onChangeMock(key);
-          activeOption = key;
-          rerender(
-            <ButtonSelect
-              options={options}
-              activeOption={activeOption}
-              onChange={onChangeMock}
-            />
-          );
-        }}
-      />
-    );
-
-    const buttons = getButtons();
-    expect(buttons).toHaveLength(2);
-    buttons[1].click();
-    expect(onChangeMock).toHaveBeenCalledWith('2');
-    expect(buttons[0]).toHaveAttribute('data-active', 'false');
-    expect(buttons[1]).toHaveAttribute('data-active', 'true');
+  it('applies data-active attribute correctly', () => {
+    const { buttons } = renderButtonSelect();
+    expect(buttons).toHaveLength(options.length);
+    expect(buttons[0]).toHaveAttribute('data-active', 'true');
+    expect(buttons[1]).toHaveAttribute('data-active', 'false');
+    expect(buttons[2]).toHaveAttribute('data-active', 'false');
   });
 
-  it('does not change active button when clicking the active button', () => {
-    const onChangeMock = jest.fn();
-    const options = [
-      { key: '1', label: 'Option 1' },
-      { key: '2', label: 'Option 2' },
-    ];
-    let activeOption = '1';
+  it('calls onChange with the correct key when a button is clicked', () => {
+    const { buttons, onChange } = renderButtonSelect();
+    buttons[1].click();
+    expect(onChange).toHaveBeenCalledWith('2');
+  });
 
-    const { rerender } = render(
-      <ButtonSelect
-        options={options}
-        activeOption={activeOption}
-        onChange={key => {
-          onChangeMock(key);
-          activeOption = key;
-          rerender(
-            <ButtonSelect
-              options={options}
-              activeOption={activeOption}
-              onChange={onChangeMock}
-            />
-          );
-        }}
-      />
-    );
-
-    const buttons = getButtons();
-    expect(buttons[0]).toHaveAttribute('data-active', 'true');
+  it('does not call onChange if the clicked button is already active', () => {
+    const { buttons, onChange } = renderButtonSelect();
     buttons[0].click();
-    expect(onChangeMock).not.toHaveBeenCalled();
-    expect(buttons[0]).toHaveAttribute('data-active', 'true');
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
