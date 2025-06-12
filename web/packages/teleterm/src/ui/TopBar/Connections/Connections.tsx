@@ -34,10 +34,10 @@ export function Connections() {
   connectionTracker.useState();
   const iconRef = useRef(undefined);
   const { isOpen, toggle, close, stepToOpen } = useConnectionsContext();
-  const { status: vnetStatus, showDiagWarningIndicator } = useVnetContext();
+  const { state: vnetState, showDiagWarningIndicator } = useVnetContext();
   const isAnyConnectionActive =
     connectionTracker.getConnections().some(c => c.connected) ||
-    vnetStatus.value === 'running';
+    vnetState.value === 'running';
   const status = useMemo(() => {
     if (showDiagWarningIndicator) {
       return 'warning';

@@ -37,7 +37,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	VnetService_Start_FullMethodName                   = "/teleport.lib.teleterm.vnet.v1.VnetService/Start"
 	VnetService_Stop_FullMethodName                    = "/teleport.lib.teleterm.vnet.v1.VnetService/Stop"
-	VnetService_ListDNSZones_FullMethodName            = "/teleport.lib.teleterm.vnet.v1.VnetService/ListDNSZones"
+	VnetService_Status_FullMethodName                  = "/teleport.lib.teleterm.vnet.v1.VnetService/Status"
 	VnetService_GetBackgroundItemStatus_FullMethodName = "/teleport.lib.teleterm.vnet.v1.VnetService/GetBackgroundItemStatus"
 	VnetService_RunDiagnostics_FullMethodName          = "/teleport.lib.teleterm.vnet.v1.VnetService/RunDiagnostics"
 )
@@ -52,16 +52,8 @@ type VnetServiceClient interface {
 	Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*StartResponse, error)
 	// Stop stops VNet.
 	Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error)
-	// ListDNSZones returns DNS zones of all root and leaf clusters with non-expired user certs. This
-	// includes the proxy service hostnames and custom DNS zones configured in vnet_config.
-	//
-	// This is fetched independently of what the Electron app thinks the current state of the cluster
-	// looks like, since the VNet admin process also fetches this data independently of the Electron
-	// app.
-	//
-	// Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
-	// be fetched (due to e.g., a network error or an expired cert).
-	ListDNSZones(ctx context.Context, in *ListDNSZonesRequest, opts ...grpc.CallOption) (*ListDNSZonesResponse, error)
+	// Status returns the current status of the running VNet service.
+	Status(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error)
 	// GetBackgroundItemStatus returns the status of the background item responsible for launching
 	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
 	GetBackgroundItemStatus(ctx context.Context, in *GetBackgroundItemStatusRequest, opts ...grpc.CallOption) (*GetBackgroundItemStatusResponse, error)
@@ -98,10 +90,10 @@ func (c *vnetServiceClient) Stop(ctx context.Context, in *StopRequest, opts ...g
 	return out, nil
 }
 
-func (c *vnetServiceClient) ListDNSZones(ctx context.Context, in *ListDNSZonesRequest, opts ...grpc.CallOption) (*ListDNSZonesResponse, error) {
+func (c *vnetServiceClient) Status(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListDNSZonesResponse)
-	err := c.cc.Invoke(ctx, VnetService_ListDNSZones_FullMethodName, in, out, cOpts...)
+	out := new(StatusResponse)
+	err := c.cc.Invoke(ctx, VnetService_Status_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -138,16 +130,8 @@ type VnetServiceServer interface {
 	Start(context.Context, *StartRequest) (*StartResponse, error)
 	// Stop stops VNet.
 	Stop(context.Context, *StopRequest) (*StopResponse, error)
-	// ListDNSZones returns DNS zones of all root and leaf clusters with non-expired user certs. This
-	// includes the proxy service hostnames and custom DNS zones configured in vnet_config.
-	//
-	// This is fetched independently of what the Electron app thinks the current state of the cluster
-	// looks like, since the VNet admin process also fetches this data independently of the Electron
-	// app.
-	//
-	// Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
-	// be fetched (due to e.g., a network error or an expired cert).
-	ListDNSZones(context.Context, *ListDNSZonesRequest) (*ListDNSZonesResponse, error)
+	// Status returns the current status of the running VNet service.
+	Status(context.Context, *StatusRequest) (*StatusResponse, error)
 	// GetBackgroundItemStatus returns the status of the background item responsible for launching
 	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
 	GetBackgroundItemStatus(context.Context, *GetBackgroundItemStatusRequest) (*GetBackgroundItemStatusResponse, error)
@@ -170,8 +154,8 @@ func (UnimplementedVnetServiceServer) Start(context.Context, *StartRequest) (*St
 func (UnimplementedVnetServiceServer) Stop(context.Context, *StopRequest) (*StopResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Stop not implemented")
 }
-func (UnimplementedVnetServiceServer) ListDNSZones(context.Context, *ListDNSZonesRequest) (*ListDNSZonesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListDNSZones not implemented")
+func (UnimplementedVnetServiceServer) Status(context.Context, *StatusRequest) (*StatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Status not implemented")
 }
 func (UnimplementedVnetServiceServer) GetBackgroundItemStatus(context.Context, *GetBackgroundItemStatusRequest) (*GetBackgroundItemStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBackgroundItemStatus not implemented")
@@ -236,20 +220,20 @@ func _VnetService_Stop_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
-func _VnetService_ListDNSZones_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListDNSZonesRequest)
+func _VnetService_Status_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StatusRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(VnetServiceServer).ListDNSZones(ctx, in)
+		return srv.(VnetServiceServer).Status(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: VnetService_ListDNSZones_FullMethodName,
+		FullMethod: VnetService_Status_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(VnetServiceServer).ListDNSZones(ctx, req.(*ListDNSZonesRequest))
+		return srv.(VnetServiceServer).Status(ctx, req.(*StatusRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -306,8 +290,8 @@ var VnetService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _VnetService_Stop_Handler,
 		},
 		{
-			MethodName: "ListDNSZones",
-			Handler:    _VnetService_ListDNSZones_Handler,
+			MethodName: "Status",
+			Handler:    _VnetService_Status_Handler,
 		},
 		{
 			MethodName: "GetBackgroundItemStatus",
