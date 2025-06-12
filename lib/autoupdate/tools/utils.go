@@ -39,12 +39,16 @@ import (
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/packaging"
 )
 
-var errNoBaseURL = errors.New("baseURL is not defined")
+var ErrNoBaseURL = errors.New("baseURL is not defined")
 
 // Dir returns the path to client tools in $TELEPORT_HOME/bin.
 func Dir() (string, error) {
+	if toolsDir := os.Getenv(teleportToolsDirsEnv); toolsDir != "" {
+		return toolsDir, nil
+	}
 	home := os.Getenv(types.HomeEnvVar)
 	if home == "" {
 		var err error
@@ -53,7 +57,10 @@ func Dir() (string, error) {
 			return "", trace.Wrap(err)
 		}
 	}
-
+	home, err := filepath.Abs(home)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 	return filepath.Join(home, ".tsh", "bin"), nil
 }
 
@@ -133,10 +140,26 @@ func GetReExecFromVersion(ctx context.Context) string {
 	return reExecFromVersion
 }
 
+// CleanUp cleans the tools directory with downloaded versions.
+func CleanUp(toolsDir string, tools []string) error {
+	var aggErr []error
+	for _, tool := range tools {
+		if err := os.RemoveAll(filepath.Join(toolsDir, tool)); err != nil {
+			aggErr = append(aggErr, err)
+		}
+	}
+	if err := packaging.RemoveWithSuffix(toolsDir, updatePackageSuffix, nil); err != nil {
+		aggErr = append(aggErr, err)
+	}
+
+	return trace.NewAggregate(aggErr...)
+}
+
 // packageURL defines URLs to the archive and their archive sha256 hash file, and marks
 // if this package is optional, for such case download needs to be ignored if package
 // not found in CDN.
 type packageURL struct {
+	Version  string
 	Archive  string
 	Hash     string
 	Optional bool
@@ -148,7 +171,7 @@ func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, version s
 	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
 	if m.BuildType() == modules.BuildOSS && envBaseURL == "" {
 		slog.WarnContext(ctx, "Client tools updates are disabled as they are licensed under AGPL. To use Community Edition builds or custom binaries, set the 'TELEPORT_CDN_BASE_URL' environment variable.")
-		return nil, errNoBaseURL
+		return nil, ErrNoBaseURL
 	}
 
 	var flags autoupdate.InstallFlags
@@ -170,13 +193,13 @@ func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, version s
 		}
 
 		return []packageURL{
-			{Archive: teleportURL, Hash: teleportURL + ".sha256"},
-			{Archive: tshURL, Hash: tshURL + ".sha256", Optional: true},
+			{Version: version, Archive: teleportURL, Hash: teleportURL + ".sha256"},
+			{Version: version, Archive: tshURL, Hash: tshURL + ".sha256", Optional: true},
 		}, nil
 	}
 
 	return []packageURL{
-		{Archive: teleportURL, Hash: teleportURL + ".sha256"},
+		{Version: version, Archive: teleportURL, Hash: teleportURL + ".sha256"},
 	}, nil
 }
 
