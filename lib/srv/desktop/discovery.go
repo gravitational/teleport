@@ -400,14 +400,13 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.
 			return services.MatchResourceLabels(s.cfg.ResourceMatchers, desktop.GetAllLabels())
 		},
 		GetCurrentResources: func() map[string]types.WindowsDesktop {
-			for k, v := range currentResources {
-				if d, err := s.cfg.AuthClient.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{
+			maps.DeleteFunc(currentResources, func(_ string, v types.WindowsDesktop) bool {
+				d, err := s.cfg.AuthClient.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{
 					HostID: v.GetHostID(),
 					Name:   v.GetName(),
-				}); err != nil || len(d) == 0 {
-					delete(currentResources, k)
-				}
-			}
+				})
+				return err != nil || len(d) == 0
+			})
 			return currentResources
 		},
 		GetNewResources: func() map[string]types.WindowsDesktop {
