@@ -359,6 +359,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
 		regular.SetSessionController(nodeSessionController),
+		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	s.node = node
@@ -476,6 +477,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(proxyLockWatcher),
 		regular.SetSessionController(proxySessionController),
+		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 
@@ -663,6 +665,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
 		regular.SetSessionController(nodeSessionController),
+		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	require.NoError(t, node.Start())
@@ -8001,6 +8004,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 		regular.SetClock(clock),
 		regular.SetLockWatcher(nodeLockWatcher),
 		regular.SetSessionController(nodeSessionController),
+		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 
@@ -8288,6 +8292,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		regular.SetLockWatcher(proxyLockWatcher),
 		regular.SetSessionController(sessionController),
 		regular.SetPublicAddrs([]utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}),
+		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
@@ -9087,6 +9092,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		OnReconcile:              func(kc types.KubeClusters) {},
 		KubernetesServersWatcher: watcher,
 		InventoryHandle:          inventoryHandle,
+		ConnectedProxyGetter:     reversetunnel.NewConnectedProxyGetter(),
 	})
 	require.NoError(t, err)
 

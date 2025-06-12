@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -2619,6 +2620,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		InventoryHandle:           inventoryHandle,
 		discoveryResourceChecker:  p.DiscoveryResourceChecker,
 		getEngineFn:               p.GetEngineFn,
+		ConnectedProxyGetter:      reversetunnel.NewConnectedProxyGetter(),
 	})
 	require.NoError(t, err)
 
