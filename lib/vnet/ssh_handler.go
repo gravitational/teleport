@@ -59,14 +59,13 @@ func (h *sshHandler) handleTCPConnector(ctx context.Context, localPort uint16, c
 		return trace.Wrap(err)
 	}
 	defer targetConn.Close()
-	return trace.Wrap(h.handleTCPConnectorWithTargetConn(ctx, localPort, connector, targetConn))
+	return trace.Wrap(h.handleTCPConnectorWithTargetConn(ctx, connector, targetConn))
 }
 
 // handleTCPConnectorWithTargetTCPConn handles an incoming TCP connection from
 // VNet when a TCP connection to the target host has already been established.
 func (h *sshHandler) handleTCPConnectorWithTargetConn(
 	ctx context.Context,
-	localPort uint16,
 	connector func() (net.Conn, error),
 	targetConn net.Conn,
 ) error {

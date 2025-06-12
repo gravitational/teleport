@@ -33,23 +33,33 @@ func TestSSHConfigurator(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	clock := clockwork.NewFakeClockAt(time.Now())
 	homePath := t.TempDir()
+
+	// This test gives a fake clock only to the SSH configurator and a real
+	// clock to everything else, so that fakeClock.BlockUntilContext will
+	// reliably only capture the SSH configuration loop and nothing else.
+	fakeClock := clockwork.NewFakeClockAt(time.Now())
+	realClock := clockwork.NewRealClock()
 
 	fakeClientApp := newFakeClientApp(ctx, t, &fakeClientAppConfig{
 		clusters: map[string]testClusterSpec{
-			"cluster1": {},
+			"cluster1": {
+				leafClusters: map[string]testClusterSpec{
+					"leaf1": {},
+				},
+			},
 			"cluster2": {},
 		},
-		// Give the fake client app a different clock so we can rely on
-		// clock.BlockUntilContext only capturing the SSH configuration loop.
-		clock: clockwork.NewRealClock(),
+		clock: realClock,
 	})
+	leafClusterCache, err := newLeafClusterCache(realClock)
+	require.NoError(t, err)
 
 	c := newSSHConfigurator(sshConfiguratorConfig{
 		clientApplication: fakeClientApp,
+		leafClusterCache:  leafClusterCache,
 		homePath:          homePath,
-		clock:             clock,
+		clock:             fakeClock,
 	})
 	errC := make(chan error)
 	go func() {
@@ -80,25 +90,29 @@ func TestSSHConfigurator(t *testing.T) {
 
 	// Wait until the configurator has had a chance to write the initial config
 	// file and then get blocked in the loop.
-	clock.BlockUntilContext(ctx, 1)
+	fakeClock.BlockUntilContext(ctx, 1)
 	// Assert the config file contains both root clusters reported by
 	// fakeClientApp.
-	assertConfigFile("*.cluster1 *.cluster2")
+	assertConfigFile("*.cluster1 *.cluster2 *.leaf1")
 
-	// Add a root cluster, wait until the configurator is blocked in the loop,
-	// advance the clock, wait until the configurator is blocked again
-	// indicating it should have updated the config and made it back into the
-	// loop, and then assert that the new cluster is in the config file.
-	fakeClientApp.cfg.clusters["cluster3"] = testClusterSpec{}
-	clock.BlockUntilContext(ctx, 1)
-	clock.Advance(sshConfigurationUpdateInterval)
-	clock.BlockUntilContext(ctx, 1)
-	assertConfigFile("*.cluster1 *.cluster2 *.cluster3")
+	// Add a new root and leaf cluster, wait until the configurator is blocked
+	// in the loop, advance the clock, wait until the configurator is blocked
+	// again indicating it should have updated the config and made it back into
+	// the loop, and then assert that the new clusters are in the config file.
+	fakeClientApp.cfg.clusters["cluster3"] = testClusterSpec{
+		leafClusters: map[string]testClusterSpec{
+			"leaf2": {},
+		},
+	}
+	fakeClock.BlockUntilContext(ctx, 1)
+	fakeClock.Advance(sshConfigurationUpdateInterval)
+	fakeClock.BlockUntilContext(ctx, 1)
+	assertConfigFile("*.cluster1 *.cluster2 *.cluster3 *.leaf1 *.leaf2")
 
 	// Kill the configurator, wait for it to return, and assert that the config
 	// file was deleted.
 	cancel()
 	require.ErrorIs(t, <-errC, context.Canceled)
-	_, err := os.Stat(keypaths.VNetSSHConfigPath(homePath))
+	_, err = os.Stat(keypaths.VNetSSHConfigPath(homePath))
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
