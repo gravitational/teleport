@@ -151,7 +151,7 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 			echo "stdout: $REPLY"
 			echo "stderr: $REPLY" >&2
 			# wait for cancellation
-			sleep 3
+			sleep 2
 			# should not be executed
 			echo "extra output"
 			`}
@@ -186,7 +186,7 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		cancel()
 		select {
 		case err := <-errorCh:
-			require.ErrorIs(t, err, context.Canceled)
+			require.NoError(t, err)
 		case <-time.After(5 * time.Second):
 			require.Fail(t, "timed out waiting for child to finish")
 		}

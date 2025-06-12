@@ -4049,7 +4049,7 @@ func onResolve(cf *CLIConf) error {
 func onSSH(cf *CLIConf) error {
 	// Handle fork after authentication.
 	var disownSignal *os.File
-	forkAuthSuccessful := &atomic.Bool{}
+	var forkAuthSuccessful atomic.Bool
 	if cf.isForkAuthChild() {
 		// Prep files.
 		disownSignal = newSignalFile(cf.forkSignalFd)

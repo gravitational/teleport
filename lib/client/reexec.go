@@ -21,6 +21,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -90,6 +91,14 @@ func buildForkAuthenticateCommand(params ForkAuthenticateParams) (*forkAuthCmd, 
 	}, nil
 }
 
+func (cmd *forkAuthCmd) killProcess() error {
+	// It's ok if the child finished before Kill() ran.
+	if err := cmd.Process.Kill(); err != nil && !strings.Contains(err.Error(), "os: process already released") {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(cmd.Process.Release())
+}
+
 func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 	defer func() {
 		// If the child is still listening, kill it. If the child successfully
@@ -103,24 +112,31 @@ func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 	go func() {
 		// The child process will write to the pipe when it has authenticated
 		// and is ready to be disowned.
-		_, err := cmd.signalR.Read(make([]byte, 1))
-		disownReady <- err
+		n, err := cmd.signalR.Read(make([]byte, 1))
+		if n > 0 {
+			disownReady <- nil
+		} else if err == nil {
+			// this should be impossible according to the io.Reader contract
+			disownReady <- io.ErrUnexpectedEOF
+		} else {
+			disownReady <- err
+		}
 	}()
 
 	if err := cmd.Start(); err != nil {
 		return trace.Wrap(err)
 	}
-	for _, file := range cmd.ExtraFiles {
-		if err := file.Close(); err != nil {
-			return trace.Wrap(err)
-		}
+	if err := cmd.signalW.Close(); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := cmd.killR.Close(); err != nil {
+		return trace.Wrap(err)
 	}
 	select {
 	case err := <-disownReady:
 		if err == nil {
 			return trace.Wrap(cmd.Process.Release())
 		}
-
 		// Error was likely caused by the child process exiting. Wait for Wait() to
 		// return the exit status if possible.
 		childFinished := make(chan error, 1)
@@ -128,18 +144,22 @@ func runForkAuthenticateChild(ctx context.Context, cmd *forkAuthCmd) error {
 			childFinished <- cmd.Wait()
 		}()
 		select {
-		case waitErr := <-childFinished:
-			return trace.Wrap(waitErr)
-		case <-time.After(3 * time.Second):
-			if killErr := cmd.Process.Kill(); killErr != nil {
-				return trace.Wrap(killErr)
+		case err := <-childFinished:
+			return trace.Wrap(err)
+		case <-time.After(5 * time.Second):
+			if err := cmd.killProcess(); err != nil {
+				return trace.Wrap(err)
 			}
-			return trace.Wrap(err)
+			// Give Wait() one last chance to finish.
+			select {
+			case err := <-childFinished:
+				return trace.Wrap(err)
+			case <-time.After(3 * time.Second):
+				return trace.Errorf("timed out waiting for child process to finish")
+			}
 		}
+
 	case <-ctx.Done():
-		if err := cmd.Process.Kill(); err != nil {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(ctx.Err())
+		return trace.Wrap(cmd.killProcess())
 	}
 }
