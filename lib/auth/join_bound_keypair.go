@@ -604,21 +604,31 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 
 			boundPublicKey = spec.Onboarding.InitialPublicKey
 		} else if status.RegistrationSecret != "" {
+			// Shared error message for all registration secret check failures.
+			const errMsg = "a valid registration secret is required"
+
 			// A registration secret is expected.
 			if req.InitialJoinSecret == "" {
-				return nil, trace.AccessDenied("a registration secret is required for initial join")
+				log.WarnContext(ctx, "denying join attempt, client failed to provide required registration secret")
+				return nil, trace.AccessDenied(errMsg)
 			}
 
 			if spec.Onboarding.MustRegisterBefore != nil {
 				if a.clock.Now().After(*spec.Onboarding.MustRegisterBefore) {
-					// TODO: don't leak denial reason?
-					return nil, trace.AccessDenied("registration secret has expired")
+					log.WarnContext(
+						ctx,
+						"denying join attempt due to expired registration secret",
+						"must_register_before",
+						spec.Onboarding.MustRegisterBefore,
+					)
+					return nil, trace.AccessDenied(errMsg)
 				}
 			}
 
 			// Verify the secret.
 			if subtle.ConstantTimeCompare([]byte(status.RegistrationSecret), []byte(req.InitialJoinSecret)) != 1 {
-				return nil, trace.AccessDenied("invalid registration secret")
+				log.WarnContext(ctx, "denying join attempt, client provided incorrect registration secret")
+				return nil, trace.AccessDenied(errMsg)
 			}
 
 			// Ask the client for a new public key.
