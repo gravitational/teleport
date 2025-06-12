@@ -51,14 +51,15 @@ func logErrorMessage(err error) slog.Attr {
 }
 
 type pluginInstallArgs struct {
-	cmd     *kingpin.CmdClause
-	name    string
-	okta    oktaArgs
-	scim    scimArgs
-	entraID entraArgs
-	netIQ   netIQArgs
-	awsIC   awsICArgs
-	github  githubArgs
+	cmd           *kingpin.CmdClause
+	name          string
+	okta          oktaArgs
+	scim          scimArgs
+	entraID       entraArgs
+	netIQ         netIQArgs
+	awsIC         awsICArgs
+	github        githubArgs
+	scimSailpoint scimArgs
 }
 
 type scimArgs struct {
@@ -67,6 +68,7 @@ type scimArgs struct {
 	token         string
 	role          string
 	force         bool
+	pluginName    string
 }
 
 type pluginDeleteArgs struct {
@@ -108,6 +110,7 @@ func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicec
 	p.initInstallNetIQ(p.install.cmd)
 	p.initInstallAWSIC(p.install.cmd)
 	p.initInstallGithub(p.install.cmd)
+	p.initSCIMSailpoint(p.install.cmd)
 }
 
 func (p *PluginsCommand) initInstallSCIM(parent *kingpin.CmdClause) {
@@ -338,6 +341,8 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		commandFunc = p.InstallAWSIC
 	case p.install.github.cmd.FullCommand():
 		commandFunc = p.InstallGithub
+	case p.install.scimSailpoint.cmd.FullCommand():
+		commandFunc = p.InstallSCIMSailpoint
 	case p.delete.cmd.FullCommand():
 		commandFunc = p.Delete
 	default:

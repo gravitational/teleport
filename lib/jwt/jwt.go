@@ -238,6 +238,45 @@ func (k *Key) Sign(p SignParams) (string, error) {
 	return k.sign(claims, (&jose.SignerOptions{}).WithHeader("kid", kid))
 }
 
+// BasicParam are the claims to be embedded within the JWT token.
+type BasicParam struct {
+	// Audience is the Audience for the Token.
+	Audience []string
+	// Issuer is the issuer of the token.
+	Issuer string
+	// Subject is the system that is going to use the token.
+	Subject string
+	// Expires is the time to live for the token.
+	Expires time.Time
+}
+
+func (k *Key) SignBasic(p BasicParam) (string, error) {
+	claims := jwt.Claims{
+		Subject:   p.Subject,
+		Issuer:    p.Issuer,
+		Audience:  p.Audience,
+		NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+		IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now()),
+		Expiry:    jwt.NewNumericDate(p.Expires),
+	}
+
+	// RFC 7517 requires that `kid` be present in the JWT header if there are multiple keys in the JWKS.
+	// We ignore the error because go-jose omits the kid if it is empty.
+	kid, _ := KeyID(k.config.PublicKey)
+	return k.sign(claims, (&jose.SignerOptions{}).WithHeader("kid", kid))
+}
+
+func (k *Key) VerifyBasic(token string, claims BasicParam) (*Claims, error) {
+	expectedClaims := jwt.Expected{
+		Issuer:   claims.Issuer,
+		Subject:  claims.Subject,
+		Audience: claims.Audience,
+		Time:     k.config.Clock.Now(),
+	}
+
+	return k.verify(token, expectedClaims)
+}
+
 // awsOIDCCustomClaims defines the require claims for the JWT token used in AWS OIDC Integration.
 type awsOIDCCustomClaims struct {
 	jwt.Claims
@@ -602,14 +641,12 @@ func (k *Key) VerifyAWSOIDC(p AWSOIDCVerifyParams) (*Claims, error) {
 	if err := p.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	expectedClaims := jwt.Expected{
 		Issuer:   p.Issuer,
 		Subject:  types.IntegrationAWSOIDCSubject,
 		Audience: jwt.Audience{types.IntegrationAWSOIDCAudience},
 		Time:     k.config.Clock.Now(),
 	}
-
 	return k.verify(p.RawToken, expectedClaims)
 }
 
