@@ -28,6 +28,8 @@ import (
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
+
+	libmcp "github.com/gravitational/teleport/lib/srv/mcp"
 )
 
 func testMCP(pack *Pack, t *testing.T) {
@@ -50,7 +52,7 @@ func testMCPDialStdioNoServerFound(t *testing.T, pack *Pack) {
 func testMCPDialStdio(t *testing.T, pack *Pack) {
 	require.NoError(t, pack.tc.SaveProfile(false))
 
-	serverConn, err := pack.tc.DialMCPServer(context.Background(), "teleport-test-server")
+	serverConn, err := pack.tc.DialMCPServer(context.Background(), libmcp.InMemoryServerName)
 	require.NoError(t, err)
 
 	ctx := context.Background()

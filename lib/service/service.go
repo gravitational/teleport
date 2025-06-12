@@ -6182,7 +6182,7 @@ func (process *TeleportProcess) initApps() {
 
 		if os.Getenv(mcp.InMemoryServerEnvVar) == "true" {
 			if mcpInMemoryServer, err := mcp.NewInMemoryServerApp(); err != nil {
-				logger.InfoContext(process.ExitContext(), "Failed to create in-memory MCP server app")
+				logger.ErrorContext(process.ExitContext(), "Failed to create in-memory MCP server app")
 			} else {
 				applications = append(applications, mcpInMemoryServer)
 			}
