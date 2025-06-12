@@ -45,7 +45,7 @@ import {
   useVnetContext,
   VnetContext,
   VnetContextProvider,
-  VnetStatus,
+  VnetState,
   VnetStoppedReason,
 } from './vnetContext';
 
@@ -194,13 +194,13 @@ it('registers a callback for unexpected shutdown', async () => {
 
   await waitFor(
     () => {
-      expect(result.current.status.value).toEqual('stopped');
+      expect(result.current.state.value).toEqual('stopped');
     },
     { interval: 5 }
   );
 
-  const status = result.current.status as Extract<
-    VnetStatus,
+  const status = result.current.state as Extract<
+    VnetState,
     { value: 'stopped' }
   >;
   expect(status.reason.value).toEqual('unexpected-shutdown');

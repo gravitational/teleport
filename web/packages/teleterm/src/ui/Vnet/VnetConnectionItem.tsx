@@ -106,7 +106,7 @@ const VnetConnectionItemBase = forwardRef<
 >((props, ref) => {
   const { workspacesService } = useAppContext();
   const {
-    status,
+    state: vnetState,
     start,
     stop,
     startAttempt,
@@ -131,13 +131,13 @@ const VnetConnectionItemBase = forwardRef<
     if (
       startAttempt.status === 'error' ||
       stopAttempt.status === 'error' ||
-      (status.value === 'stopped' &&
-        status.reason.value === 'unexpected-shutdown')
+      (vnetState.value === 'stopped' &&
+        vnetState.reason.value === 'unexpected-shutdown')
     ) {
       return 'error';
     }
 
-    if (status.value === 'stopped') {
+    if (vnetState.value === 'stopped') {
       return 'off';
     }
 
@@ -146,7 +146,7 @@ const VnetConnectionItemBase = forwardRef<
     }
 
     return 'on';
-  }, [startAttempt, stopAttempt, status, showDiagWarningIndicator]);
+  }, [startAttempt, stopAttempt, vnetState, showDiagWarningIndicator]);
 
   const onEnterPress = (event: React.KeyboardEvent) => {
     if (
@@ -297,7 +297,7 @@ const VnetConnectionItemBase = forwardRef<
                   e.stopPropagation();
                 }}
               >
-                {status.value === 'running' ? (
+                {vnetState.value === 'running' ? (
                   <>
                     <icons.BroadcastSlash size={18} mr={1} /> Stopping…
                   </>
@@ -311,7 +311,9 @@ const VnetConnectionItemBase = forwardRef<
               <ButtonIcon
                 key={toggleVnetButtonKey}
                 title={
-                  status.value === 'running' ? 'Stopping VNet' : 'Starting VNet'
+                  vnetState.value === 'running'
+                    ? 'Stopping VNet'
+                    : 'Starting VNet'
                 }
                 onClick={e => {
                   e.stopPropagation();
@@ -328,7 +330,7 @@ const VnetConnectionItemBase = forwardRef<
               </ButtonIcon>
             ))}
           {!isProcessing &&
-            status.value === 'running' &&
+            vnetState.value === 'running' &&
             (props.showExtraRightButtons ? (
               <Button
                 intent="neutral"
@@ -358,7 +360,7 @@ const VnetConnectionItemBase = forwardRef<
               </ButtonIcon>
             ))}
           {!isProcessing &&
-            status.value === 'stopped' &&
+            vnetState.value === 'stopped' &&
             (props.showExtraRightButtons ? (
               <Button
                 key={toggleVnetButtonKey}
