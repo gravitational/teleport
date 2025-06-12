@@ -485,9 +485,7 @@ func (f fakeMCPServerAccessChecker) EnumerateMCPTools(app types.Application) ser
 	}
 }
 
-type mockMCPConfigOption func(claudeConfig) error
-
-func setupMockMCPConfig(t *testing.T, options ...mockMCPConfigOption) string {
+func setupMockMCPConfig(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.json")
@@ -497,24 +495,8 @@ func setupMockMCPConfig(t *testing.T, options ...mockMCPConfigOption) string {
 		Command: "npx",
 		Args:    []string{"-y", "@modelcontextprotocol/server-everything"},
 	}))
-	for _, applyOpt := range options {
-		require.NoError(t, applyOpt(config))
-	}
 	require.NoError(t, config.Save(claude.FormatJSONPretty))
 	return config.Path()
-}
-
-func withMockMCPServer(name string, server claude.MCPServer) mockMCPConfigOption {
-	return func(config claudeConfig) error {
-		return trace.Wrap(config.PutMCPServer(name, server))
-	}
-}
-
-func withMockTeleportMCPServerApp(appName string) mockMCPConfigOption {
-	return withMockMCPServer(mcpServerAppConfigPrefix+appName, claude.MCPServer{
-		Command: "tsh-test",
-		Args:    []string{"mcp", "connect", appName},
-	})
 }
 
 func mustHaveMCPServerNamesInConfig(t *testing.T, configPath string, wantNames []string) {
