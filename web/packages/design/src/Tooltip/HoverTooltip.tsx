@@ -130,8 +130,10 @@ export const HoverTooltip = ({
     const target = event.currentTarget;
     const parent = target?.parentElement;
 
+    // Check if the target content overflows its own width or its parent.
     const isOverflowing =
-      target && parent && target.scrollWidth > parent.offsetWidth;
+      target.scrollWidth > target.offsetWidth ||
+      (parent && target.scrollWidth > parent.offsetWidth);
     if (!isOverflowing) {
       return;
     }
