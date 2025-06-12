@@ -1093,6 +1093,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 		),
 		solver.solver(),
 	)
+	require.Nil(t, response)
 	require.ErrorContains(t, err, "renewable cert generation mismatch")
 
 	// The bot user should now be locked.
