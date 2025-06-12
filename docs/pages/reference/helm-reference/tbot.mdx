@@ -3,7 +3,7 @@ title: tbot Chart Reference
 description: Values that can be set using the tbot Helm chart
 ---
 
-This chart deploys an instance of the [MachineID](../../enroll-resources/machine-id/introduction.mdx) agent,
+This chart deploys an instance of the [MachineID](../../machine-workload-identity/machine-id/introduction.mdx) agent,
 TBot, into your Kubernetes cluster.
 
 To use it, you will need to know:
@@ -11,7 +11,7 @@ To use it, you will need to know:
 - The address of your Teleport Proxy Service or Auth Service
 - The name of your Teleport cluster
 - The name of a join token configured for Machine ID and your Kubernetes cluster
-  as described in the [Machine ID on Kubernetes guide](../../enroll-resources/machine-id/deployment/kubernetes.mdx)
+  as described in the [Machine ID on Kubernetes guide](../../machine-workload-identity/machine-id/deployment/kubernetes.mdx)
 
 By default, this chart is designed to use the `kubernetes` join method but it
 can be customized to use any delegated join method. We do not recommend that
