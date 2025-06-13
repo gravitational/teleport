@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -238,7 +237,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
-	authMiddleware := &auth.Middleware{
+	authMiddleware := &authz.Middleware{
 		ClusterName:   clustername.GetClusterName(),
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 		// EnableCredentialsForwarding is set to true to allow the proxy to forward
@@ -247,8 +246,8 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		// to be able to replace the client identity with the header payload when
 		// the request is forwarded from a Teleport Proxy.
 		EnableCredentialsForwarding: true,
+		Handler:                     fwd,
 	}
-	authMiddleware.Wrap(fwd)
 	// Wrap sets the next middleware in chain to the authMiddleware
 	limiter.WrapHandle(authMiddleware)
 	// force client auth if given
