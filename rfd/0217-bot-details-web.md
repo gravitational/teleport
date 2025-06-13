@@ -165,6 +165,8 @@ Deletes the bot after confirmation. Shows a loading indicator during the call to
 Locks the bot after confirmation. Shows a loading indicator during the call to the api. On success, removes the dialog but remains on the bot detail page. On error, shows a message within the confirmation dialog.
 
 ![](assets/0217-feature-lock-bot.png)
+
+Once a bot is locked, to unlock it requires navigating to **Identity Governance > Session & Identity Locks**, finding the lock in question and removing it. Deleting a lock requires it's UUID, which wont be know on this page.
 ### Implementation
 
 #### Data fetching and caching
@@ -230,6 +232,10 @@ Existing endpoint with additional capabilities added. Currently only updating ro
 ##### `DELETE /v1/webapi/sites/:site/machine-id/bot/:name`
 
 Delete a bot. Existing endpoint.
+
+##### `PUT /v1/webapi/sites/:site/locks`
+
+Creates a new lock. Endpoint exists and will be used as-is to create a lock for a bot by name including a message and TTL.
 
 #### UI
 
