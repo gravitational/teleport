@@ -71,7 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -1566,7 +1566,7 @@ func TestProxyAppWithIdentity(t *testing.T) {
 		"proxy", "app", appName,
 		"--port", port,
 	}
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "tsh proxy app",
 		Task: func(ctx context.Context) error {
 			return Run(ctx, tshArgs)
@@ -1644,7 +1644,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 		"proxy", "app", appName,
 		"--port", fmt.Sprintf("%s:%d", fooProxyPort, fooServerPort),
 	}
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "tsh proxy app (foo)",
 		Task: func(ctx context.Context) error {
 			return Run(ctx, fooTshArgs, setHomePath(tshHome))
@@ -1660,7 +1660,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 		"proxy", "app", appName,
 		"--port", fooNoTargetPortProxyPort, // No target port.
 	}
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "tsh proxy app (foo no target port)",
 		Task: func(ctx context.Context) error {
 			return Run(ctx, fooNoTargetPortTshArgs, setHomePath(tshHome))
@@ -1677,7 +1677,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 		"proxy", "app", appName,
 		"--port", fmt.Sprintf("%s:%d", barProxyPort, barServerPort),
 	}
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "tsh proxy app (bar)",
 		Task: func(ctx context.Context) error {
 			return Run(ctx, barTshArgs, setHomePath(tshHome))
