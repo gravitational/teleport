@@ -33,6 +33,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -45,6 +46,8 @@ import (
 
 	"github.com/gravitational/teleport/build.assets/tooling/lib/github"
 )
+
+var errNoResults = errors.New("no releases matched")
 
 func main() {
 	versionSpec, err := parseFlags()
@@ -90,8 +93,12 @@ func getLatest(ctx context.Context, versionSpec string, gh github.GitHub) (strin
 	}
 
 	privateTag, err := getLatestForRepo(ctx, versionSpec, gh, "teleport-private")
-	// Ignore errors on teleport-private - it has sparse releases and may not return any
-	// tags. That's not an error.
+	// Ignore errNoResults errors from teleport-private as it is quite possible that
+	// there have been no private releases on a branch or in a particular minor
+	// release set.
+	if err != nil && !errors.Is(err, errNoResults) {
+		return "", trace.Wrap(err)
+	}
 	if err == nil && semver.Compare(publicTag, privateTag) < 0 {
 		return "private-" + privateTag, nil
 	}
@@ -104,8 +111,10 @@ func getLatestForRepo(ctx context.Context, versionSpec string, gh github.GitHub,
 	if err != nil {
 		return "", trace.Wrap(err, "couldn't list releases for repo %q", repo)
 	}
+	// The repos we check for releases all have releases. If we do not get anything
+	// back, this is an error as something must have gone wrong.
 	if len(releases) == 0 {
-		return "", trace.NotFound("failed to find any releases on GitHub")
+		return "", trace.NotFound("failed to find any releases on GitHub for repo %q", repo)
 	}
 
 	// filter drafts and prereleases, which shouldn't be tracked by latest docker images
@@ -134,5 +143,5 @@ func getLatestForRepo(ctx context.Context, versionSpec string, gh github.GitHub,
 		}
 	}
 
-	return "", trace.NotFound("no releases matched %q", versionSpec)
+	return "", trace.Wrap(errNoResults, "version %q, repo %q", versionSpec, repo)
 }

@@ -38,7 +38,8 @@ func TestGetLatest(t *testing.T) {
 			desc: "pass",
 			spec: "v8",
 			releases: map[string][]string{
-				"teleport": {"v8.1.9", "v8.1.10", "v8.0.11"},
+				"teleport":         {"v8.1.9", "v8.1.10", "v8.0.11"},
+				"teleport-private": {"v1.0.1"},
 			},
 			wantErr: require.NoError,
 			latest:  "v8.1.10",
@@ -47,7 +48,8 @@ func TestGetLatest(t *testing.T) {
 			desc: "fail-bad-spec",
 			spec: "v9",
 			releases: map[string][]string{
-				"teleport": {"v8.1.9", "v8.1.10", "v8.0.11"},
+				"teleport":         {"v8.1.9", "v8.1.10", "v8.0.11"},
+				"teleport-private": {"v1.0.1"},
 			},
 			wantErr: require.Error,
 			latest:  "",
@@ -56,7 +58,8 @@ func TestGetLatest(t *testing.T) {
 			desc: "pass-prerelease",
 			spec: "v8",
 			releases: map[string][]string{
-				"teleport": {"v8.1.10-rc.1", "v8.1.10", "v8.1.10-alpha.1"},
+				"teleport":         {"v8.1.10-rc.1", "v8.1.10", "v8.1.10-alpha.1"},
+				"teleport-private": {"v1.0.1"},
 			},
 			wantErr: require.NoError,
 			latest:  "v8.1.10",
@@ -65,7 +68,8 @@ func TestGetLatest(t *testing.T) {
 			desc: "pass-major-minor",
 			spec: "v8.1",
 			releases: map[string][]string{
-				"teleport": {"v8.1.9", "v8.2.1", "v8.1.10", "v8.0.11"},
+				"teleport":         {"v8.1.9", "v8.2.1", "v8.1.10", "v8.0.11"},
+				"teleport-private": {"v1.0.1"},
 			},
 			wantErr: require.NoError,
 			latest:  "v8.1.10",
@@ -86,6 +90,26 @@ func TestGetLatest(t *testing.T) {
 			releases: map[string][]string{
 				"teleport":         {"v8.1.9", "v8.2.3", "v8.1.10", "v8.0.11"},
 				"teleport-private": {"v8.2.2"},
+			},
+			wantErr: require.NoError,
+			latest:  "v8.2.3",
+		},
+		{
+			desc: "no-private-releases",
+			spec: "v8",
+			releases: map[string][]string{
+				"teleport":         {"v8.1.9", "v8.2.3", "v8.1.10", "v8.0.11"},
+				"teleport-private": {},
+			},
+			wantErr: require.Error,
+			latest:  "",
+		},
+		{
+			desc: "no-matching-private",
+			spec: "v8",
+			releases: map[string][]string{
+				"teleport":         {"v8.1.9", "v8.2.3", "v8.1.10", "v8.0.11"},
+				"teleport-private": {"v7.5.2"},
 			},
 			wantErr: require.NoError,
 			latest:  "v8.2.3",
