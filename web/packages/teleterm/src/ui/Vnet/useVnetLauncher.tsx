@@ -33,14 +33,15 @@ export const useVnetLauncher = (): {
    *
    * - The user clicks "Connect" next to a TCP app or selects one of the ports from the menu.
    * - The user selects a TCP app through the search bar.
+   * - The user clicks "Connect with VNet" on an SSH server.
    *
    * If the user is yet to start VNet, it opens the info doc. If they already started it in the past,
-   * it starts VNet and then copies the address of the app to the clipboard.
+   * it starts VNet and then copies the address of the resource to the clipboard.
    */
   launchVnet: VnetLauncher;
   /**
    * launchVnetWithoutFirstTimeCheck never opens the info doc, it starts VNet and then copies the
-   * address of the app to the clipboard.
+   * address of the resource to the clipboard.
    */
   launchVnetWithoutFirstTimeCheck: (args?: VnetLauncherArgs) => Promise<void>;
 } => {
