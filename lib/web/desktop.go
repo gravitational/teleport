@@ -410,7 +410,7 @@ func (h *Handler) performSessionMFACeremony(
 		CreateAuthenticateChallenge: sctx.cfg.RootClient.CreateAuthenticateChallenge,
 	}
 
-	_, newCerts, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
+	result, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: nil, // Only RootAuthClient is used.
 		RootAuthClient:    sctx.cfg.RootClient,
 		MFACeremony:       mfaCeremony,
@@ -423,7 +423,7 @@ func (h *Handler) performSessionMFACeremony(
 		return nil, trace.Wrap(err)
 	}
 
-	return newCerts, nil
+	return result.NewCerts, nil
 }
 
 func readUsername(r *http.Request) (string, error) {
