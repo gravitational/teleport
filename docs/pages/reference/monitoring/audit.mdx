@@ -151,6 +151,10 @@ read [Exporting Teleport Audit Events](../../zero-trust-access/export-audit-even
 | app.session.start | A user accessed an application |
 | app.session.chunk | A record of activity during an app session |
 | join_token.create | A new join token has been created. Adds the following fields: `{"roles": ["Node", "Db"], "join_method": "token"}` |
+| mcp.session.start | An MCP server session has started. |
+| mcp.session.end | An MCP server session has ended. |
+| mcp.session.notification | A notification has been sent from the MCP client. |
+| mcp.session.request | A request has been sent from the MCP client. |
 
 ## Recorded sessions
 
