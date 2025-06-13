@@ -285,7 +285,7 @@ When disabled, users can only log in through authentication connectors like `sam
 | `string` | `""`          | No        | `auth_service.authentication.locking_mode` |
 
 `authentication.lockingMode` controls the locking mode cluster-wide. Possible values are `best_effort` and `strict`.
-See [the locking modes documentation](../../admin-guides/access-controls/guides/locking.mdx) for more
+See [the locking modes documentation](../../identity-governance/locking.mdx) for more
 details.
 
 Defaults to Teleport's binary default when empty: `best_effort`.
@@ -1225,11 +1225,11 @@ Whether Teleport should configure DynamoDB's autoscaling. Defaults to `false`.
 
 ### `aws.accessMonitoring`
 
-`aws.accessMonitoring` configures the [Access Monitoring](../../admin-guides/access-controls/access-monitoring.mdx)
+`aws.accessMonitoring` configures the [Access Monitoring](../../identity-governance/access-monitoring.mdx)
 feature of the Auth Service.
 
 Using this features requires setting up specific AWS infrastructure as described
-in [the AccessMonitoring configuration section](../../admin-guides/access-controls/access-monitoring.mdx).
+in [the AccessMonitoring configuration section](../../identity-governance/access-monitoring.mdx).
 The [Terraform example](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/examples/athena)
 code will output the chart values for this section.
 
